@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ app_name }}</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #f7f7f7;
+            margin: 0;
+        }
+        header {
+            background: #111;
+            color: white;
+            padding: 1rem 2rem;
+        }
+        main {
+            padding: 2rem;
+        }
+        .card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            max-width: 480px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <strong>{{ app_name }}</strong>
+</header>
+
+<main>
+    <div class="card">
+        <h2>Welcome</h2>
+        <p>Teras ERP core running.</p>
+        <p>Version: {{ version }}</p>
+    </div>
+</main>
+
+</body>
+</html>
