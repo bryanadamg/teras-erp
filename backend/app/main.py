@@ -3,7 +3,14 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from app.db.session import engine
+from app.db.base import Base
+from app.api import items
+
 app = FastAPI(title="Teras ERP")
+Base.metadata.create_all(bind=engine)
+app.include_router(items.router)
+
 
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
