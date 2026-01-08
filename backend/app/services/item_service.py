@@ -1,11 +1,14 @@
 from sqlalchemy.orm import Session
 from app.models.item import Item
+from app.models.variant import Variant
+from app.schemas import VariantCreate
 
 def create_item(
     db: Session,
     code: str,
     name: str,
-    uom: str
+    uom: str,
+    variants: list[VariantCreate] = []
 ) -> Item:
     item = Item(
         code=code,
@@ -13,6 +16,13 @@ def create_item(
         uom=uom
     )
     db.add(item)
+    db.commit()
+    db.refresh(item)
+
+    for v in variants:
+        variant = Variant(item_id=item.id, name=v.name, category=v.category)
+        db.add(variant)
+    
     db.commit()
     db.refresh(item)
     return item

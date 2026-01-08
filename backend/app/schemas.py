@@ -2,14 +2,27 @@ from pydantic import BaseModel
 from uuid import UUID
 from datetime import datetime
 
+class VariantCreate(BaseModel):
+    name: str
+    category: str | None = None
+
+class VariantResponse(VariantCreate):
+    id: UUID
+    item_id: UUID
+
+    class Config:
+        from_attributes = True
+
 class ItemCreate(BaseModel):
     code: str
     name: str
     uom: str
+    variants: list[VariantCreate] = []
 
 class ItemResponse(ItemCreate):
     id: UUID
     active: bool
+    variants: list[VariantResponse] = []
 
     class Config:
         from_attributes = True
@@ -17,6 +30,7 @@ class ItemResponse(ItemCreate):
 class StockEntryCreate(BaseModel):
     item_code: str
     location_code: str
+    variant_id: UUID | None = None
     qty: float
     reference_type: str = "manual"
     reference_id: str = "manual_entry"
@@ -24,6 +38,7 @@ class StockEntryCreate(BaseModel):
 class StockLedgerResponse(BaseModel):
     id: UUID
     item_id: UUID
+    variant_id: UUID | None
     location_id: UUID
     qty_change: float
     reference_type: str

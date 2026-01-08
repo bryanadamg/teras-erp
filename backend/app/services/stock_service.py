@@ -8,11 +8,13 @@ def add_stock_entry(
     location_id,
     qty_change,
     reference_type,
-    reference_id
+    reference_id,
+    variant_id=None
 ):
     entry = StockLedger(
         item_id=item_id,
         location_id=location_id,
+        variant_id=variant_id,
         qty_change=qty_change,
         reference_type=reference_type,
         reference_id=reference_id
@@ -21,16 +23,15 @@ def add_stock_entry(
     db.commit()
 
 
-def get_stock_balance(db: Session, item_id, location_id):
-    return (
-        db.query(func.sum(StockLedger.qty_change))
-        .filter(
-            StockLedger.item_id == item_id,
-            StockLedger.location_id == location_id
-        )
-        .scalar()
-        or 0
+def get_stock_balance(db: Session, item_id, location_id, variant_id=None):
+    query = db.query(func.sum(StockLedger.qty_change)).filter(
+        StockLedger.item_id == item_id,
+        StockLedger.location_id == location_id
     )
+    if variant_id:
+        query = query.filter(StockLedger.variant_id == variant_id)
+        
+    return query.scalar() or 0
 
 
 def get_stock_entries(db: Session, skip: int = 0, limit: int = 100):
