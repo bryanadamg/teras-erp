@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from app.db.session import engine
 from app.db.base import Base
-from app.api import items, locations, stock, attributes
+from app.api import items, locations, stock, attributes, boms
 
 app = FastAPI(title="Teras ERP")
 
@@ -26,7 +26,7 @@ def run_migrations():
                 conn.execute(text("COMMIT"))
                 print("Migration: Verified variant_id in stock_ledger")
             except Exception as e:
-                print(f"Migration warning (stock_ledger): {e}")
+                pass
 
             # 2. Drop legacy 'variant' column from items
             try:
@@ -34,11 +34,7 @@ def run_migrations():
                 conn.execute(text("COMMIT"))
                 print("Migration: Verified cleanup of items table")
             except Exception as e:
-                print(f"Migration warning (items cleanup): {e}")
-
-            # 3. Create attributes tables manually if needed (Create All handles this usually, but good for safety)
-            # Actually Base.metadata.create_all below handles new tables nicely. 
-            pass
+                pass
 
     except Exception as e:
         print(f"Migration failed: {e}")
@@ -50,6 +46,7 @@ app.include_router(items.router)
 app.include_router(locations.router)
 app.include_router(stock.router)
 app.include_router(attributes.router)
+app.include_router(boms.router)
 
 
 

@@ -34,6 +34,41 @@ class AttributeResponse(AttributeCreate):
     class Config:
         from_attributes = True
 
+class BOMLineCreate(BaseModel):
+    item_code: str
+    variant_id: UUID | None = None
+    qty: float
+
+class BOMLineResponse(BaseModel):
+    id: UUID
+    item_id: UUID
+    variant_id: UUID | None
+    qty: float
+
+    class Config:
+        from_attributes = True
+
+class BOMCreate(BaseModel):
+    code: str
+    description: str | None = None
+    item_code: str
+    variant_id: UUID | None = None
+    qty: float = 1.0
+    lines: list[BOMLineCreate]
+
+class BOMResponse(BaseModel):
+    id: UUID
+    code: str
+    description: str | None
+    item_id: UUID
+    variant_id: UUID | None
+    qty: float
+    active: bool
+    lines: list[BOMLineResponse]
+
+    class Config:
+        from_attributes = True
+
 class ItemCreate(BaseModel):
     code: str
     name: str
