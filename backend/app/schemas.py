@@ -19,3 +19,13 @@ class StockEntryCreate(BaseModel):
     qty: float
     reference_type: str = "manual"
     reference_id: str = "manual_entry"
+
+class LocationCreate(BaseModel):
+    code: str
+    name: str
+
+class LocationResponse(LocationCreate):
+    id: UUID
+
+    class Config:
+        from_attributes = True

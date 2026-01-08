@@ -1,0 +1,26 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from app.db.session import get_db
+from app.models.location import Location
+from app.schemas import LocationCreate, LocationResponse
+
+router = APIRouter()
+
+@router.post("/locations", response_model=LocationResponse)
+def create_location(payload: LocationCreate, db: Session = Depends(get_db)):
+    db_location = db.query(Location).filter(Location.code == payload.code).first()
+    if db_location:
+        raise HTTPException(status_code=400, detail="Location already exists")
+    
+    new_location = Location(
+        code=payload.code,
+        name=payload.name
+    )
+    db.add(new_location)
+    db.commit()
+    db.refresh(new_location)
+    return new_location
+
+@router.get("/locations", response_model=list[LocationResponse])
+def get_locations(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return db.query(Location).offset(skip).limit(limit).all()

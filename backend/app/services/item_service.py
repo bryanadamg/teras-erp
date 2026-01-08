@@ -20,3 +20,7 @@ def create_item(
 
 def get_item_by_code(db: Session, code: str) -> Item | None:
     return db.query(Item).filter(Item.code == code).first()
+
+
+def get_items(db: Session, skip: int = 0, limit: int = 100) -> list[Item]:
+    return db.query(Item).offset(skip).limit(limit).all()

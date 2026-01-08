@@ -19,6 +19,10 @@ def create_item_api(payload: ItemCreate, db: Session = Depends(get_db)):
         uom=payload.uom
     )
 
+@router.get("/items", response_model=list[ItemResponse])
+def get_items_api(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return item_service.get_items(db, skip=skip, limit=limit)
+
 @router.post("/items/stock")
 def add_stock_api(payload: StockEntryCreate, db: Session = Depends(get_db)):
     # Resolve Item

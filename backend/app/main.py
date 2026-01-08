@@ -6,11 +6,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.db.session import engine
 from app.db.base import Base
-from app.api import items
+from app.api import items, locations
 
 app = FastAPI(title="Teras ERP")
 Base.metadata.create_all(bind=engine)
 app.include_router(items.router)
+app.include_router(locations.router)
+
 
 
 BASE_DIR = Path(__file__).resolve().parent
