@@ -205,3 +205,19 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+# Keep package-lock.json if you want reproducible builds, but some prefer to ignore it. 
+# Standard practice is to KEEP it. I will NOT ignore package-lock.json by default here 
+# unless requested, but node_modules MUST be ignored.
+
+# Next.js
+.next/
+out/
+build/
+.DS_Store
+*.local
