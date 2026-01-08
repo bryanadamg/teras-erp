@@ -9,9 +9,10 @@ export default function Home() {
   const [locations, setLocations] = useState([]);
   const [stockEntries, setStockEntries] = useState([]);
 
-  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '' });
+  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', variants: [] as any[] });
+  const [newVariant, setNewVariant] = useState({ name: '', category: '' });
   const [newLocation, setNewLocation] = useState({ code: '', name: '' });
-  const [stockEntry, setStockEntry] = useState({ item_code: '', location_code: '', qty: 0 });
+  const [stockEntry, setStockEntry] = useState({ item_code: '', location_code: '', variant_id: '', qty: 0 });
 
   const fetchData = async () => {
     try {
@@ -31,6 +32,12 @@ export default function Home() {
     fetchData();
   }, []);
 
+  const handleAddVariantToItem = () => {
+    if (!newVariant.name) return;
+    setNewItem({ ...newItem, variants: [...newItem.variants, newVariant] });
+    setNewVariant({ name: '', category: '' });
+  };
+
   const handleCreateItem = async (e: React.FormEvent) => {
     e.preventDefault();
     await fetch(`${API_BASE}/items`, {
@@ -38,7 +45,7 @@ export default function Home() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newItem)
     });
-    setNewItem({ code: '', name: '', uom: '' });
+    setNewItem({ code: '', name: '', uom: '', variants: [] });
     fetchData();
   };
 
@@ -55,18 +62,33 @@ export default function Home() {
 
   const handleAddStock = async (e: React.FormEvent) => {
     e.preventDefault();
+    const payload: any = { ...stockEntry };
+    if (!payload.variant_id) delete payload.variant_id; // Don't send empty string
+
     await fetch(`${API_BASE}/items/stock`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(stockEntry)
+      body: JSON.stringify(payload)
     });
-    setStockEntry({ item_code: '', location_code: '', qty: 0 });
+    setStockEntry({ item_code: '', location_code: '', variant_id: '', qty: 0 });
     alert('Stock recorded successfully!');
     fetchData();
   };
 
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
   const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
+  
+  // Get variants for selected item in stock entry
+  const selectedItem = items.find((i: any) => i.code === stockEntry.item_code);
+  const availableVariants = selectedItem ? (selectedItem as any).variants : [];
+  
+  const getVariantName = (itemId: string, variantId: string) => {
+      if (!variantId) return '-';
+      const item = items.find((i: any) => i.id === itemId);
+      if (!item) return variantId;
+      const variant = (item as any).variants.find((v: any) => v.id === variantId);
+      return variant ? variant.name : variantId;
+  };
 
   return (
     <div className="min-vh-100 bg-light">
@@ -88,22 +110,35 @@ export default function Home() {
                 <h5 className="card-title text-primary mb-0">Items</h5>
               </div>
               <div className="card-body">
-                <form onSubmit={handleCreateItem} className="row g-2 mb-3 align-items-end">
-                  <div className="col-md-3">
-                    <label className="form-label small text-muted">Code</label>
-                    <input className="form-control form-control-sm" placeholder="ITM-001" value={newItem.code} onChange={e => setNewItem({...newItem, code: e.target.value})} required />
+                <form onSubmit={handleCreateItem} className="mb-3">
+                  <div className="row g-2 align-items-end mb-2">
+                    <div className="col-md-4">
+                        <input className="form-control form-control-sm" placeholder="Code" value={newItem.code} onChange={e => setNewItem({...newItem, code: e.target.value})} required />
+                    </div>
+                    <div className="col-md-5">
+                        <input className="form-control form-control-sm" placeholder="Name" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
+                    </div>
+                    <div className="col-md-3">
+                        <input className="form-control form-control-sm" placeholder="UOM" value={newItem.uom} onChange={e => setNewItem({...newItem, uom: e.target.value})} required />
+                    </div>
                   </div>
-                  <div className="col-md-5">
-                    <label className="form-label small text-muted">Name</label>
-                    <input className="form-control form-control-sm" placeholder="Widget A" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
+                  
+                  {/* Variant Input */}
+                  <div className="bg-light p-2 rounded mb-2">
+                    <label className="small text-muted mb-1">Add Variants (Optional)</label>
+                    <div className="d-flex gap-2">
+                        <input className="form-control form-control-sm" placeholder="Variant Name (e.g. Red)" value={newVariant.name} onChange={e => setNewVariant({...newVariant, name: e.target.value})} />
+                        <input className="form-control form-control-sm" placeholder="Category (e.g. Color)" value={newVariant.category} onChange={e => setNewVariant({...newVariant, category: e.target.value})} />
+                        <button type="button" className="btn btn-sm btn-secondary" onClick={handleAddVariantToItem}>Add</button>
+                    </div>
+                    <div className="mt-1">
+                        {newItem.variants.map((v, idx) => (
+                            <span key={idx} className="badge bg-secondary me-1">{v.name}</span>
+                        ))}
+                    </div>
                   </div>
-                  <div className="col-md-2">
-                    <label className="form-label small text-muted">UOM</label>
-                    <input className="form-control form-control-sm" placeholder="Pcs" value={newItem.uom} onChange={e => setNewItem({...newItem, uom: e.target.value})} required />
-                  </div>
-                  <div className="col-md-2">
-                     <button type="submit" className="btn btn-sm btn-outline-primary w-100">Add</button>
-                  </div>
+
+                  <button type="submit" className="btn btn-sm btn-outline-primary w-100">Create Item</button>
                 </form>
                 
                 <div className="table-responsive" style={{ maxHeight: '200px' }}>
@@ -112,7 +147,7 @@ export default function Home() {
                       <tr>
                         <th>Code</th>
                         <th>Name</th>
-                        <th>UOM</th>
+                        <th>Variants</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -120,7 +155,11 @@ export default function Home() {
                         <tr key={item.id}>
                           <td className="fw-medium">{item.code}</td>
                           <td>{item.name}</td>
-                          <td className="text-muted">{item.uom}</td>
+                          <td>
+                            {item.variants && item.variants.map((v: any) => (
+                                <span key={v.id} className="badge bg-light text-dark border me-1">{v.name}</span>
+                            ))}
+                          </td>
                         </tr>
                       ))}
                       {items.length === 0 && (
@@ -187,23 +226,33 @@ export default function Home() {
               <div className="card-body d-flex align-items-center justify-content-between flex-wrap">
                 <h5 className="card-title text-dark mb-0 me-4">Record Stock Movement</h5>
                 <form onSubmit={handleAddStock} className="d-flex gap-2 flex-grow-1 align-items-end flex-wrap">
-                   <div className="flex-grow-1" style={{ minWidth: '200px' }}>
+                   <div className="flex-grow-1" style={{ minWidth: '150px' }}>
                       <label className="form-label small text-muted mb-1">Item</label>
-                      <select className="form-select" value={stockEntry.item_code} onChange={e => setStockEntry({...stockEntry, item_code: e.target.value})} required>
+                      <select className="form-select" value={stockEntry.item_code} onChange={e => setStockEntry({...stockEntry, item_code: e.target.value, variant_id: ''})} required>
                         <option value="">Select Item...</option>
                         {items.map((item: any) => <option key={item.id} value={item.code}>{item.name}</option>)}
                       </select>
                    </div>
-                   <div className="flex-grow-1" style={{ minWidth: '200px' }}>
+                   
+                   {/* Variant Select */}
+                   <div className="flex-grow-1" style={{ minWidth: '150px' }}>
+                      <label className="form-label small text-muted mb-1">Variant</label>
+                      <select className="form-select" value={stockEntry.variant_id} onChange={e => setStockEntry({...stockEntry, variant_id: e.target.value})} disabled={availableVariants.length === 0}>
+                        <option value="">{availableVariants.length > 0 ? 'Select Variant...' : 'No Variants'}</option>
+                        {availableVariants.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                      </select>
+                   </div>
+
+                   <div className="flex-grow-1" style={{ minWidth: '150px' }}>
                       <label className="form-label small text-muted mb-1">Location</label>
                       <select className="form-select" value={stockEntry.location_code} onChange={e => setStockEntry({...stockEntry, location_code: e.target.value})} required>
                         <option value="">Select Location...</option>
                         {locations.map((loc: any) => <option key={loc.id} value={loc.code}>{loc.name}</option>)}
                       </select>
                    </div>
-                   <div style={{ width: '120px' }}>
+                   <div style={{ width: '100px' }}>
                       <label className="form-label small text-muted mb-1">Quantity</label>
-                      <input type="number" className="form-control" placeholder="0.00" value={stockEntry.qty} onChange={e => setStockEntry({...stockEntry, qty: parseFloat(e.target.value)})} required />
+                      <input type="number" className="form-control" placeholder="0" value={stockEntry.qty} onChange={e => setStockEntry({...stockEntry, qty: parseFloat(e.target.value)})} required />
                    </div>
                    <button type="submit" className="btn btn-primary px-4">Record</button>
                 </form>
@@ -224,6 +273,7 @@ export default function Home() {
                   <tr>
                     <th scope="col" className="ps-4">Date</th>
                     <th scope="col">Item</th>
+                    <th scope="col">Variant</th>
                     <th scope="col">Location</th>
                     <th scope="col" className="text-end">Qty Change</th>
                     <th scope="col" className="pe-4 text-end">Reference</th>
@@ -234,6 +284,7 @@ export default function Home() {
                     <tr key={entry.id}>
                       <td className="ps-4 text-muted small">{new Date(entry.created_at).toLocaleString()}</td>
                       <td className="fw-medium">{getItemName(entry.item_id)}</td>
+                      <td>{getVariantName(entry.item_id, entry.variant_id)}</td>
                       <td>{getLocationName(entry.location_id)}</td>
                       <td className={`text-end fw-bold ${entry.qty_change >= 0 ? 'text-success' : 'text-danger'}`}>
                         {entry.qty_change > 0 ? '+' : ''}{entry.qty_change}
@@ -242,7 +293,7 @@ export default function Home() {
                     </tr>
                   ))}
                   {stockEntries.length === 0 && (
-                    <tr><td colSpan={5} className="text-center py-4 text-muted">No records found</td></tr>
+                    <tr><td colSpan={6} className="text-center py-4 text-muted">No records found</td></tr>
                   )}
                 </tbody>
               </table>

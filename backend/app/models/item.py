@@ -1,7 +1,7 @@
 import uuid
 from sqlalchemy import String, Boolean
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 class Item(Base):
@@ -16,3 +16,5 @@ class Item(Base):
     uom: Mapped[str] = mapped_column(String(32))
 
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    variants = relationship("Variant", backref="item", cascade="all, delete-orphan")

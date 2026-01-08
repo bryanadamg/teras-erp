@@ -16,7 +16,8 @@ def create_item_api(payload: ItemCreate, db: Session = Depends(get_db)):
         db,
         code=payload.code,
         name=payload.name,
-        uom=payload.uom
+        uom=payload.uom,
+        variants=payload.variants
     )
 
 @router.get("/items", response_model=list[ItemResponse])
@@ -35,10 +36,17 @@ def add_stock_api(payload: StockEntryCreate, db: Session = Depends(get_db)):
     if not location:
         raise HTTPException(status_code=404, detail="Location not found")
 
+    # Validate Variant if provided
+    if payload.variant_id:
+        variant_exists = any(v.id == payload.variant_id for v in item.variants)
+        if not variant_exists:
+             raise HTTPException(status_code=400, detail="Variant does not belong to this item")
+
     stock_service.add_stock_entry(
         db,
         item_id=item.id,
         location_id=location.id,
+        variant_id=payload.variant_id,
         qty_change=payload.qty,
         reference_type=payload.reference_type,
         reference_id=payload.reference_id
