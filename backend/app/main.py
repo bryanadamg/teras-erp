@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from app.db.session import engine
 from app.db.base import Base
-from app.api import items, locations, stock
+from app.api import items, locations, stock, attributes
 
 app = FastAPI(title="Teras ERP")
 
@@ -22,7 +22,6 @@ def run_migrations():
             
             # 1. Add variant_id to stock_ledger if it doesn't exist
             try:
-                # We use a raw check or just rely on 'IF NOT EXISTS' if using modern Postgres (>=9.6)
                 conn.execute(text("ALTER TABLE stock_ledger ADD COLUMN IF NOT EXISTS variant_id UUID REFERENCES variants(id)"))
                 conn.execute(text("COMMIT"))
                 print("Migration: Verified variant_id in stock_ledger")
@@ -37,6 +36,10 @@ def run_migrations():
             except Exception as e:
                 print(f"Migration warning (items cleanup): {e}")
 
+            # 3. Create attributes tables manually if needed (Create All handles this usually, but good for safety)
+            # Actually Base.metadata.create_all below handles new tables nicely. 
+            pass
+
     except Exception as e:
         print(f"Migration failed: {e}")
 
@@ -46,6 +49,7 @@ run_migrations()
 app.include_router(items.router)
 app.include_router(locations.router)
 app.include_router(stock.router)
+app.include_router(attributes.router)
 
 
 

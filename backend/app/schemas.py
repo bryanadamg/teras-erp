@@ -13,6 +13,27 @@ class VariantResponse(VariantCreate):
     class Config:
         from_attributes = True
 
+class AttributeValueCreate(BaseModel):
+    value: str
+
+class AttributeValueResponse(AttributeValueCreate):
+    id: UUID
+    attribute_id: UUID
+
+    class Config:
+        from_attributes = True
+
+class AttributeCreate(BaseModel):
+    name: str
+    values: list[AttributeValueCreate] = []
+
+class AttributeResponse(AttributeCreate):
+    id: UUID
+    values: list[AttributeValueResponse] = []
+
+    class Config:
+        from_attributes = True
+
 class ItemCreate(BaseModel):
     code: str
     name: str

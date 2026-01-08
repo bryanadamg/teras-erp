@@ -9,11 +9,18 @@ export default function Home() {
 
   const [items, setItems] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [attributes, setAttributes] = useState([]);
   const [stockEntries, setStockEntries] = useState([]);
 
   const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', variants: [] as any[] });
   const [newVariant, setNewVariant] = useState({ name: '', category: '' });
+  const [selectedAttributeId, setSelectedAttributeId] = useState('');
+  
   const [newLocation, setNewLocation] = useState({ code: '', name: '' });
+  
+  const [newAttribute, setNewAttribute] = useState({ name: '', values: [] as any[] });
+  const [newAttributeValue, setNewAttributeValue] = useState('');
+
   const [stockEntry, setStockEntry] = useState({ item_code: '', location_code: '', variant_id: '', qty: 0 });
 
   const fetchData = async () => {
@@ -21,10 +28,12 @@ export default function Home() {
       const itemsRes = await fetch(`${API_BASE}/items`);
       const locsRes = await fetch(`${API_BASE}/locations`);
       const stockRes = await fetch(`${API_BASE}/stock`);
+      const attrsRes = await fetch(`${API_BASE}/attributes`);
 
       if (itemsRes.ok) setItems(await itemsRes.json());
       if (locsRes.ok) setLocations(await locsRes.json());
       if (stockRes.ok) setStockEntries(await stockRes.json());
+      if (attrsRes.ok) setAttributes(await attrsRes.json());
     } catch (e) {
       console.error(e);
     }
@@ -34,10 +43,44 @@ export default function Home() {
     fetchData();
   }, []);
 
+  // --- Attribute Management ---
+  const handleAddValueToAttribute = () => {
+    if (!newAttributeValue) return;
+    setNewAttribute({ ...newAttribute, values: [...newAttribute.values, { value: newAttributeValue }] });
+    setNewAttributeValue('');
+  };
+
+  const handleCreateAttribute = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await fetch(`${API_BASE}/attributes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newAttribute)
+    });
+    setNewAttribute({ name: '', values: [] });
+    fetchData();
+  };
+
+  // --- Item Management ---
   const handleAddVariantToItem = () => {
     if (!newVariant.name) return;
     setNewItem({ ...newItem, variants: [...newItem.variants, newVariant] });
     setNewVariant({ name: '', category: '' });
+  };
+
+  const handleApplyAttributeTemplate = (attributeId: string) => {
+      setSelectedAttributeId(attributeId);
+      if (!attributeId) return;
+
+      const attr: any = attributes.find((a: any) => a.id === attributeId);
+      if (attr) {
+          const generatedVariants = attr.values.map((v: any) => ({
+              name: v.value,
+              category: attr.name
+          }));
+          // Merge with existing variants or replace? Replacing is cleaner for "Template" feel.
+          setNewItem({ ...newItem, variants: generatedVariants });
+      }
   };
 
   const handleCreateItem = async (e: React.FormEvent) => {
@@ -48,6 +91,7 @@ export default function Home() {
       body: JSON.stringify(newItem)
     });
     setNewItem({ code: '', name: '', uom: '', variants: [] });
+    setSelectedAttributeId('');
     fetchData();
   };
 
@@ -62,6 +106,7 @@ export default function Home() {
     fetchData();
   };
 
+  // --- Stock Management ---
   const handleAddStock = async (e: React.FormEvent) => {
     e.preventDefault();
     const payload: any = { ...stockEntry };
@@ -80,7 +125,6 @@ export default function Home() {
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
   const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
   
-  // Get variants for selected item in stock entry
   const selectedItem = items.find((i: any) => i.code === stockEntry.item_code);
   const availableVariants = selectedItem ? (selectedItem as any).variants : [];
   
@@ -105,28 +149,16 @@ export default function Home() {
         {/* Tabs Navigation */}
         <ul className="nav nav-pills mb-4 bg-white p-2 rounded shadow-sm">
           <li className="nav-item">
-            <button 
-                className={`nav-link ${activeTab === 'inventory' ? 'active' : ''}`} 
-                onClick={() => setActiveTab('inventory')}
-            >
-                Inventory Master
-            </button>
+            <button className={`nav-link ${activeTab === 'inventory' ? 'active' : ''}`} onClick={() => setActiveTab('inventory')}>Inventory Master</button>
           </li>
           <li className="nav-item">
-            <button 
-                className={`nav-link ${activeTab === 'stock' ? 'active' : ''}`} 
-                onClick={() => setActiveTab('stock')}
-            >
-                Stock Entry
-            </button>
+            <button className={`nav-link ${activeTab === 'attributes' ? 'active' : ''}`} onClick={() => setActiveTab('attributes')}>Attributes (Templates)</button>
           </li>
           <li className="nav-item">
-            <button 
-                className={`nav-link ${activeTab === 'reports' ? 'active' : ''}`} 
-                onClick={() => setActiveTab('reports')}
-            >
-                Reports
-            </button>
+            <button className={`nav-link ${activeTab === 'stock' ? 'active' : ''}`} onClick={() => setActiveTab('stock')}>Stock Entry</button>
+          </li>
+          <li className="nav-item">
+            <button className={`nav-link ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}>Reports</button>
           </li>
         </ul>
 
@@ -156,18 +188,37 @@ export default function Home() {
                         </div>
                       </div>
                       
-                      {/* Variant Input */}
+                      {/* Variant Input Section */}
                       <div className="bg-light p-2 rounded mb-2">
-                        <label className="small text-muted mb-1">Add Variants (Optional)</label>
-                        <div className="d-flex gap-2">
-                            <input className="form-control form-control-sm" placeholder="Name (e.g. Red)" value={newVariant.name} onChange={e => setNewVariant({...newVariant, name: e.target.value})} />
+                        <label className="small text-muted mb-1 fw-bold">Variants</label>
+                        
+                        {/* Template Selection */}
+                        <div className="mb-2">
+                            <select 
+                                className="form-select form-select-sm" 
+                                value={selectedAttributeId} 
+                                onChange={e => handleApplyAttributeTemplate(e.target.value)}
+                            >
+                                <option value="">Select a Template (Optional)...</option>
+                                {attributes.map((attr: any) => (
+                                    <option key={attr.id} value={attr.id}>{attr.name} ({attr.values.length} values)</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Manual Add */}
+                        <div className="d-flex gap-2 mb-2">
+                            <input className="form-control form-control-sm" placeholder="Variant Name (e.g. Red)" value={newVariant.name} onChange={e => setNewVariant({...newVariant, name: e.target.value})} />
                             <input className="form-control form-control-sm" placeholder="Category (e.g. Color)" value={newVariant.category} onChange={e => setNewVariant({...newVariant, category: e.target.value})} />
                             <button type="button" className="btn btn-sm btn-secondary" onClick={handleAddVariantToItem}>Add</button>
                         </div>
-                        <div className="mt-1">
+                        
+                        {/* List */}
+                        <div className="mt-1 d-flex flex-wrap gap-1">
                             {newItem.variants.map((v, idx) => (
-                                <span key={idx} className="badge bg-secondary me-1">{v.name}</span>
+                                <span key={idx} className="badge bg-secondary">{v.category ? `${v.category}: ` : ''}{v.name}</span>
                             ))}
+                            {newItem.variants.length === 0 && <span className="text-muted small fst-italic">No variants selected</span>}
                         </div>
                       </div>
 
@@ -251,6 +302,58 @@ export default function Home() {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Attributes Tab */}
+          {activeTab === 'attributes' && (
+             <div className="row justify-content-center fade-in">
+                <div className="col-md-8">
+                   <div className="card shadow-sm border-0">
+                      <div className="card-header bg-white pt-3 border-bottom-0">
+                         <h5 className="card-title text-info mb-0">Attribute Templates</h5>
+                         <small className="text-muted">Define reusable variant sets (e.g. Color: Red, Blue)</small>
+                      </div>
+                      <div className="card-body">
+                         <form onSubmit={handleCreateAttribute} className="mb-4 bg-light p-3 rounded">
+                            <div className="mb-3">
+                               <label className="form-label small fw-bold">Attribute Name</label>
+                               <input className="form-control" placeholder="e.g. Color, Size" value={newAttribute.name} onChange={e => setNewAttribute({...newAttribute, name: e.target.value})} required />
+                            </div>
+                            <div className="mb-3">
+                               <label className="form-label small fw-bold">Values</label>
+                               <div className="d-flex gap-2">
+                                  <input className="form-control form-control-sm" placeholder="Add value (e.g. Red)" value={newAttributeValue} onChange={e => setNewAttributeValue(e.target.value)} />
+                                  <button type="button" className="btn btn-sm btn-secondary" onClick={handleAddValueToAttribute}>Add</button>
+                               </div>
+                               <div className="mt-2 d-flex flex-wrap gap-1">
+                                  {newAttribute.values.map((v, i) => (
+                                     <span key={i} className="badge bg-white text-dark border">{v.value}</span>
+                                  ))}
+                               </div>
+                            </div>
+                            <button type="submit" className="btn btn-info text-white w-100">Create Attribute Template</button>
+                         </form>
+
+                         <h6 className="text-muted border-bottom pb-2">Existing Templates</h6>
+                         <div className="list-group">
+                            {attributes.map((attr: any) => (
+                               <div key={attr.id} className="list-group-item">
+                                  <div className="d-flex w-100 justify-content-between">
+                                     <h6 className="mb-1">{attr.name}</h6>
+                                  </div>
+                                  <div>
+                                     {attr.values.map((v: any) => (
+                                        <span key={v.id} className="badge bg-light text-dark border me-1">{v.value}</span>
+                                     ))}
+                                  </div>
+                               </div>
+                            ))}
+                            {attributes.length === 0 && <div className="text-center text-muted py-3">No templates defined</div>}
+                         </div>
+                      </div>
+                   </div>
+                </div>
+             </div>
           )}
 
           {/* Stock Entry Tab */}
