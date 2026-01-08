@@ -4,12 +4,45 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 
+from sqlalchemy import text
 from app.db.session import engine
 from app.db.base import Base
 from app.api import items, locations, stock
 
 app = FastAPI(title="Teras ERP")
+
+def run_migrations():
+    """
+    Run ad-hoc migrations to fix schema discrepancies.
+    This is a simple alternative to Alembic for this dev setup.
+    """
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("COMMIT")) # Ensure clean state
+            
+            # 1. Add variant_id to stock_ledger if it doesn't exist
+            try:
+                # We use a raw check or just rely on 'IF NOT EXISTS' if using modern Postgres (>=9.6)
+                conn.execute(text("ALTER TABLE stock_ledger ADD COLUMN IF NOT EXISTS variant_id UUID REFERENCES variants(id)"))
+                conn.execute(text("COMMIT"))
+                print("Migration: Verified variant_id in stock_ledger")
+            except Exception as e:
+                print(f"Migration warning (stock_ledger): {e}")
+
+            # 2. Drop legacy 'variant' column from items
+            try:
+                conn.execute(text("ALTER TABLE items DROP COLUMN IF EXISTS variant"))
+                conn.execute(text("COMMIT"))
+                print("Migration: Verified cleanup of items table")
+            except Exception as e:
+                print(f"Migration warning (items cleanup): {e}")
+
+    except Exception as e:
+        print(f"Migration failed: {e}")
+
 Base.metadata.create_all(bind=engine)
+run_migrations()
+
 app.include_router(items.router)
 app.include_router(locations.router)
 app.include_router(stock.router)
