@@ -11,6 +11,7 @@ export default function Home() {
   const [locations, setLocations] = useState([]);
   const [attributes, setAttributes] = useState([]);
   const [stockEntries, setStockEntries] = useState([]);
+  const [boms, setBoms] = useState([]);
 
   const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', variants: [] as any[] });
   const [newVariant, setNewVariant] = useState({ name: '', category: '' });
@@ -23,17 +24,30 @@ export default function Home() {
 
   const [stockEntry, setStockEntry] = useState({ item_code: '', location_code: '', variant_id: '', qty: 0 });
 
+  const [newBOM, setNewBOM] = useState({
+      code: '',
+      description: '',
+      item_code: '',
+      variant_id: '',
+      qty: 1.0,
+      lines: [] as any[]
+  });
+  const [newBOMLine, setNewBOMLine] = useState({ item_code: '', variant_id: '', qty: 0 });
+
+
   const fetchData = async () => {
     try {
       const itemsRes = await fetch(`${API_BASE}/items`);
       const locsRes = await fetch(`${API_BASE}/locations`);
       const stockRes = await fetch(`${API_BASE}/stock`);
       const attrsRes = await fetch(`${API_BASE}/attributes`);
+      const bomsRes = await fetch(`${API_BASE}/boms`);
 
       if (itemsRes.ok) setItems(await itemsRes.json());
       if (locsRes.ok) setLocations(await locsRes.json());
       if (stockRes.ok) setStockEntries(await stockRes.json());
       if (attrsRes.ok) setAttributes(await attrsRes.json());
+      if (bomsRes.ok) setBoms(await bomsRes.json());
     } catch (e) {
       console.error(e);
     }
@@ -78,7 +92,6 @@ export default function Home() {
               name: v.value,
               category: attr.name
           }));
-          // Merge with existing variants or replace? Replacing is cleaner for "Template" feel.
           setNewItem({ ...newItem, variants: generatedVariants });
       }
   };
@@ -122,11 +135,54 @@ export default function Home() {
     fetchData();
   };
 
+  // --- BOM Management ---
+  const handleAddLineToBOM = () => {
+      if (!newBOMLine.item_code || newBOMLine.qty <= 0) return;
+      const linePayload: any = { ...newBOMLine };
+      if (!linePayload.variant_id) delete linePayload.variant_id;
+      
+      setNewBOM({ ...newBOM, lines: [...newBOM.lines, linePayload] });
+      setNewBOMLine({ item_code: '', variant_id: '', qty: 0 });
+  };
+
+  const handleCreateBOM = async (e: React.FormEvent) => {
+      e.preventDefault();
+      const payload: any = { ...newBOM };
+      if (!payload.variant_id) delete payload.variant_id;
+
+      const res = await fetch(`${API_BASE}/boms`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+      });
+      
+      if (res.ok) {
+          setNewBOM({ code: '', description: '', item_code: '', variant_id: '', qty: 1.0, lines: [] });
+          alert('BOM Created!');
+          fetchData();
+      } else {
+          const err = await res.json();
+          alert(`Error: ${err.detail}`);
+      }
+  };
+
+  // --- Helpers ---
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
   const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
   
-  const selectedItem = items.find((i: any) => i.code === stockEntry.item_code);
-  const availableVariants = selectedItem ? (selectedItem as any).variants : [];
+  const getVariantsForItem = (itemCode: string) => {
+      const item: any = items.find((i: any) => i.code === itemCode);
+      return item ? item.variants : [];
+  };
+
+  const selectedItemForStock = items.find((i: any) => i.code === stockEntry.item_code);
+  const availableVariantsForStock = selectedItemForStock ? (selectedItemForStock as any).variants : [];
+
+  const selectedItemForBOM = items.find((i: any) => i.code === newBOM.item_code);
+  const availableVariantsForBOM = selectedItemForBOM ? (selectedItemForBOM as any).variants : [];
+
+  const selectedLineItemForBOM = items.find((i: any) => i.code === newBOMLine.item_code);
+  const availableLineVariantsForBOM = selectedLineItemForBOM ? (selectedLineItemForBOM as any).variants : [];
   
   const getVariantName = (itemId: string, variantId: string) => {
       if (!variantId) return '-';
@@ -152,7 +208,10 @@ export default function Home() {
             <button className={`nav-link ${activeTab === 'inventory' ? 'active' : ''}`} onClick={() => setActiveTab('inventory')}>Inventory Master</button>
           </li>
           <li className="nav-item">
-            <button className={`nav-link ${activeTab === 'attributes' ? 'active' : ''}`} onClick={() => setActiveTab('attributes')}>Attributes (Templates)</button>
+            <button className={`nav-link ${activeTab === 'attributes' ? 'active' : ''}`} onClick={() => setActiveTab('attributes')}>Attributes</button>
+          </li>
+          <li className="nav-item">
+            <button className={`nav-link ${activeTab === 'bom' ? 'active' : ''}`} onClick={() => setActiveTab('bom')}>Bill of Materials</button>
           </li>
           <li className="nav-item">
             <button className={`nav-link ${activeTab === 'stock' ? 'active' : ''}`} onClick={() => setActiveTab('stock')}>Stock Entry</button>
@@ -356,6 +415,139 @@ export default function Home() {
              </div>
           )}
 
+          {/* BOM Tab */}
+          {activeTab === 'bom' && (
+            <div className="row g-4 fade-in">
+               <div className="col-md-5">
+                  <div className="card shadow-sm h-100 border-0">
+                     <div className="card-header bg-white pt-3 border-bottom-0">
+                         <h5 className="card-title text-warning mb-0">Create BOM</h5>
+                     </div>
+                     <div className="card-body">
+                        <form onSubmit={handleCreateBOM}>
+                            <div className="mb-3">
+                                <label className="form-label small fw-bold">BOM Code</label>
+                                <input className="form-control form-control-sm" placeholder="BOM-001" value={newBOM.code} onChange={e => setNewBOM({...newBOM, code: e.target.value})} required />
+                            </div>
+                            <div className="mb-3">
+                                <label className="form-label small fw-bold">Description</label>
+                                <input className="form-control form-control-sm" placeholder="Recipe for..." value={newBOM.description} onChange={e => setNewBOM({...newBOM, description: e.target.value})} />
+                            </div>
+                            
+                            <hr className="my-3"/>
+                            
+                            <h6 className="small fw-bold text-muted">Produced Item</h6>
+                            <div className="row g-2 mb-3">
+                                <div className="col-7">
+                                    <select className="form-select form-select-sm" value={newBOM.item_code} onChange={e => setNewBOM({...newBOM, item_code: e.target.value, variant_id: ''})} required>
+                                        <option value="">Select Item...</option>
+                                        {items.map((item: any) => <option key={item.id} value={item.code}>{item.name}</option>)}
+                                    </select>
+                                </div>
+                                <div className="col-5">
+                                    <select className="form-select form-select-sm" value={newBOM.variant_id} onChange={e => setNewBOM({...newBOM, variant_id: e.target.value})} disabled={availableVariantsForBOM.length === 0}>
+                                        <option value="">{availableVariantsForBOM.length > 0 ? 'Select Variant' : 'No Variants'}</option>
+                                        {availableVariantsForBOM.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                                    </select>
+                                </div>
+                                <div className="col-12">
+                                     <input type="number" className="form-control form-control-sm" placeholder="Output Qty (Default 1)" value={newBOM.qty} onChange={e => setNewBOM({...newBOM, qty: parseFloat(e.target.value)})} required />
+                                </div>
+                            </div>
+
+                            <h6 className="small fw-bold text-muted">Materials (Lines)</h6>
+                            <div className="bg-light p-2 rounded mb-3">
+                                <div className="row g-2 align-items-end">
+                                    <div className="col-4">
+                                        <label className="small text-muted">Material</label>
+                                        <select className="form-select form-select-sm" value={newBOMLine.item_code} onChange={e => setNewBOMLine({...newBOMLine, item_code: e.target.value, variant_id: ''})}>
+                                            <option value="">Select...</option>
+                                            {items.map((item: any) => <option key={item.id} value={item.code}>{item.name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="col-4">
+                                        <label className="small text-muted">Variant</label>
+                                        <select className="form-select form-select-sm" value={newBOMLine.variant_id} onChange={e => setNewBOMLine({...newBOMLine, variant_id: e.target.value})} disabled={availableLineVariantsForBOM.length === 0}>
+                                            <option value="">{availableLineVariantsForBOM.length > 0 ? 'Variant' : '-'}</option>
+                                            {availableLineVariantsForBOM.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="col-2">
+                                        <label className="small text-muted">Qty</label>
+                                        <input type="number" className="form-control form-control-sm" placeholder="0" value={newBOMLine.qty} onChange={e => setNewBOMLine({...newBOMLine, qty: parseFloat(e.target.value)})} />
+                                    </div>
+                                    <div className="col-2">
+                                        <button type="button" className="btn btn-sm btn-secondary w-100" onClick={handleAddLineToBOM}>Add</button>
+                                    </div>
+                                </div>
+                                
+                                <ul className="list-group list-group-flush mt-2 small">
+                                    {newBOM.lines.map((line: any, idx) => (
+                                        <li key={idx} className="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between">
+                                            <span>
+                                                {line.item_code} 
+                                                {line.variant_id && <span className="text-muted"> ({items.find((i:any) => i.code === line.item_code)?.variants.find((v:any) => v.id === line.variant_id)?.name})</span>}
+                                            </span>
+                                            <strong>{line.qty}</strong>
+                                        </li>
+                                    ))}
+                                    {newBOM.lines.length === 0 && <li className="list-group-item bg-transparent px-0 text-muted fst-italic">No materials added</li>}
+                                </ul>
+                            </div>
+
+                            <button type="submit" className="btn btn-warning w-100 text-white fw-bold">Create BOM</button>
+                        </form>
+                     </div>
+                  </div>
+               </div>
+
+               <div className="col-md-7">
+                  <div className="card shadow-sm h-100 border-0">
+                     <div className="card-header bg-white pt-3 border-bottom-0">
+                         <h5 className="card-title text-secondary mb-0">Existing BOMs</h5>
+                     </div>
+                     <div className="card-body p-0">
+                        <div className="table-responsive">
+                            <table className="table table-hover table-striped mb-0">
+                                <thead className="table-light sticky-top">
+                                    <tr>
+                                        <th>BOM Code</th>
+                                        <th>Product</th>
+                                        <th>Output</th>
+                                        <th>Materials</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {boms.map((bom: any) => (
+                                        <tr key={bom.id}>
+                                            <td className="fw-bold text-primary">{bom.code}</td>
+                                            <td>
+                                                {getItemName(bom.item_id)}
+                                                <div className="small text-muted">{getVariantName(bom.item_id, bom.variant_id)}</div>
+                                            </td>
+                                            <td>{bom.qty}</td>
+                                            <td>
+                                                <ul className="list-unstyled mb-0 small">
+                                                    {bom.lines.map((line: any) => (
+                                                        <li key={line.id}>
+                                                            {line.qty} x {getItemName(line.item_id)} 
+                                                            <span className="text-muted"> {getVariantName(line.item_id, line.variant_id) !== '-' ? `(${getVariantName(line.item_id, line.variant_id)})` : ''}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {boms.length === 0 && <tr><td colSpan={4} className="text-center py-4 text-muted">No BOMs found</td></tr>}
+                                </tbody>
+                            </table>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+            </div>
+          )}
+
           {/* Stock Entry Tab */}
           {activeTab === 'stock' && (
             <div className="row justify-content-center fade-in">
@@ -376,9 +568,9 @@ export default function Home() {
                        
                        <div className="mb-3">
                           <label className="form-label text-muted">Variant</label>
-                          <select className="form-select" value={stockEntry.variant_id} onChange={e => setStockEntry({...stockEntry, variant_id: e.target.value})} disabled={availableVariants.length === 0}>
-                            <option value="">{availableVariants.length > 0 ? 'Select Variant (Optional)' : 'No Variants Available'}</option>
-                            {availableVariants.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                          <select className="form-select" value={stockEntry.variant_id} onChange={e => setStockEntry({...stockEntry, variant_id: e.target.value})} disabled={availableVariantsForStock.length === 0}>
+                            <option value="">{availableVariantsForStock.length > 0 ? 'Select Variant (Optional)' : 'No Variants Available'}</option>
+                            {availableVariantsForStock.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
                           </select>
                        </div>
 
