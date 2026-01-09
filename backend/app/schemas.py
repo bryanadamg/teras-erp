@@ -69,6 +69,31 @@ class BOMResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class WorkOrderCreate(BaseModel):
+    code: str
+    bom_id: UUID
+    qty: float
+    start_date: datetime | None = None
+    due_date: datetime | None = None
+
+class WorkOrderResponse(BaseModel):
+    id: UUID
+    code: str
+    bom_id: UUID
+    item_id: UUID
+    variant_id: UUID | None
+    qty: float
+    status: str
+    start_date: datetime | None
+    due_date: datetime | None
+    created_at: datetime
+    
+    # Optional nested details could be added here if needed, 
+    # but for now we keep it flat for the table view.
+
+    class Config:
+        from_attributes = True
+
 class ItemCreate(BaseModel):
     code: str
     name: str
