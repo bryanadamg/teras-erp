@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from app.db.session import engine
 from app.db.base import Base
-from app.api import items, locations, stock, attributes, boms
+from app.api import items, locations, stock, attributes, boms, manufacturing
 
 app = FastAPI(title="Teras ERP")
 
@@ -47,6 +47,7 @@ app.include_router(locations.router)
 app.include_router(stock.router)
 app.include_router(attributes.router)
 app.include_router(boms.router)
+app.include_router(manufacturing.router)
 
 
 
