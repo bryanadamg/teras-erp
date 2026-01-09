@@ -12,6 +12,7 @@ export default function Home() {
   const [attributes, setAttributes] = useState([]);
   const [stockEntries, setStockEntries] = useState([]);
   const [boms, setBoms] = useState([]);
+  const [workOrders, setWorkOrders] = useState([]);
 
   const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', variants: [] as any[] });
   const [newVariant, setNewVariant] = useState({ name: '', category: '' });
@@ -34,6 +35,7 @@ export default function Home() {
   });
   const [newBOMLine, setNewBOMLine] = useState({ item_code: '', variant_id: '', qty: 0 });
 
+  const [newWO, setNewWO] = useState({ code: '', bom_id: '', qty: 1.0, due_date: '' });
 
   const fetchData = async () => {
     try {
@@ -42,12 +44,14 @@ export default function Home() {
       const stockRes = await fetch(`${API_BASE}/stock`);
       const attrsRes = await fetch(`${API_BASE}/attributes`);
       const bomsRes = await fetch(`${API_BASE}/boms`);
+      const woRes = await fetch(`${API_BASE}/work-orders`);
 
       if (itemsRes.ok) setItems(await itemsRes.json());
       if (locsRes.ok) setLocations(await locsRes.json());
       if (stockRes.ok) setStockEntries(await stockRes.json());
       if (attrsRes.ok) setAttributes(await attrsRes.json());
       if (bomsRes.ok) setBoms(await bomsRes.json());
+      if (woRes.ok) setWorkOrders(await woRes.json());
     } catch (e) {
       console.error(e);
     }
@@ -166,14 +170,40 @@ export default function Home() {
       }
   };
 
+  // --- Manufacturing Management ---
+  const handleCreateWO = async (e: React.FormEvent) => {
+      e.preventDefault();
+      const payload: any = { ...newWO };
+      if (!payload.due_date) delete payload.due_date; // Optional
+
+      const res = await fetch(`${API_BASE}/work-orders`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+          setNewWO({ code: '', bom_id: '', qty: 1.0, due_date: '' });
+          alert('Work Order Created!');
+          fetchData();
+      } else {
+          const err = await res.json();
+          alert(`Error: ${err.detail}`);
+      }
+  };
+
+  const handleUpdateWOStatus = async (woId: string, status: string) => {
+      await fetch(`${API_BASE}/work-orders/${woId}/status?status=${status}`, {
+          method: 'PUT'
+      });
+      fetchData();
+  };
+
+
   // --- Helpers ---
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
   const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
-  
-  const getVariantsForItem = (itemCode: string) => {
-      const item: any = items.find((i: any) => i.code === itemCode);
-      return item ? item.variants : [];
-  };
+  const getBOMCode = (id: string) => boms.find((b: any) => b.id === id)?.code || id;
 
   const selectedItemForStock = items.find((i: any) => i.code === stockEntry.item_code);
   const availableVariantsForStock = selectedItemForStock ? (selectedItemForStock as any).variants : [];
@@ -212,6 +242,9 @@ export default function Home() {
           </li>
           <li className="nav-item">
             <button className={`nav-link ${activeTab === 'bom' ? 'active' : ''}`} onClick={() => setActiveTab('bom')}>Bill of Materials</button>
+          </li>
+          <li className="nav-item">
+            <button className={`nav-link ${activeTab === 'manufacturing' ? 'active' : ''}`} onClick={() => setActiveTab('manufacturing')}>Manufacturing</button>
           </li>
           <li className="nav-item">
             <button className={`nav-link ${activeTab === 'stock' ? 'active' : ''}`} onClick={() => setActiveTab('stock')}>Stock Entry</button>
@@ -546,6 +579,103 @@ export default function Home() {
                   </div>
                </div>
             </div>
+          )}
+
+          {/* Manufacturing Tab */}
+          {activeTab === 'manufacturing' && (
+              <div className="row g-4 fade-in">
+                  <div className="col-md-4">
+                      <div className="card shadow-sm h-100 border-0">
+                          <div className="card-header bg-white pt-3 border-bottom-0">
+                              <h5 className="card-title text-success mb-0">Create Work Order</h5>
+                          </div>
+                          <div className="card-body">
+                              <form onSubmit={handleCreateWO}>
+                                  <div className="mb-3">
+                                      <label className="form-label small fw-bold">WO Code</label>
+                                      <input className="form-control" placeholder="WO-001" value={newWO.code} onChange={e => setNewWO({...newWO, code: e.target.value})} required />
+                                  </div>
+                                  <div className="mb-3">
+                                      <label className="form-label small fw-bold">Select Recipe (BOM)</label>
+                                      <select className="form-select" value={newWO.bom_id} onChange={e => setNewWO({...newWO, bom_id: e.target.value})} required>
+                                          <option value="">Select BOM...</option>
+                                          {boms.map((b: any) => (
+                                              <option key={b.id} value={b.id}>
+                                                  {b.code} - {getItemName(b.item_id)} {getVariantName(b.item_id, b.variant_id) !== '-' ? `(${getVariantName(b.item_id, b.variant_id)})` : ''}
+                                              </option>
+                                          ))}
+                                      </select>
+                                  </div>
+                                  <div className="mb-3">
+                                      <label className="form-label small fw-bold">Quantity to Produce</label>
+                                      <input type="number" className="form-control" placeholder="1.0" value={newWO.qty} onChange={e => setNewWO({...newWO, qty: parseFloat(e.target.value)})} required />
+                                  </div>
+                                  <div className="mb-3">
+                                      <label className="form-label small fw-bold">Due Date (Optional)</label>
+                                      <input type="date" className="form-control" value={newWO.due_date} onChange={e => setNewWO({...newWO, due_date: e.target.value})} />
+                                  </div>
+                                  <button type="submit" className="btn btn-success w-100 text-white fw-bold">Generate Work Order</button>
+                              </form>
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="col-md-8">
+                      <div className="card shadow-sm h-100 border-0">
+                          <div className="card-header bg-white pt-3 border-bottom-0">
+                              <h5 className="card-title text-secondary mb-0">Work Orders</h5>
+                          </div>
+                          <div className="card-body p-0">
+                              <div className="table-responsive">
+                                  <table className="table table-hover table-striped mb-0">
+                                      <thead className="table-light sticky-top">
+                                          <tr>
+                                              <th>Code</th>
+                                              <th>Status</th>
+                                              <th>Product</th>
+                                              <th>BOM</th>
+                                              <th>Qty</th>
+                                              <th>Actions</th>
+                                          </tr>
+                                      </thead>
+                                      <tbody>
+                                          {workOrders.map((wo: any) => (
+                                              <tr key={wo.id}>
+                                                  <td className="fw-bold">{wo.code}</td>
+                                                  <td>
+                                                      <span className={`badge ${
+                                                          wo.status === 'COMPLETED' ? 'bg-success' : 
+                                                          wo.status === 'IN_PROGRESS' ? 'bg-warning text-dark' : 
+                                                          wo.status === 'CANCELLED' ? 'bg-danger' : 
+                                                          'bg-secondary'
+                                                      }`}>
+                                                          {wo.status}
+                                                      </span>
+                                                  </td>
+                                                  <td>
+                                                      {getItemName(wo.item_id)}
+                                                      <div className="small text-muted">{getVariantName(wo.item_id, wo.variant_id)}</div>
+                                                  </td>
+                                                  <td><small>{getBOMCode(wo.bom_id)}</small></td>
+                                                  <td>{wo.qty}</td>
+                                                  <td>
+                                                      {wo.status === 'PENDING' && (
+                                                          <button className="btn btn-sm btn-outline-primary" onClick={() => handleUpdateWOStatus(wo.id, 'IN_PROGRESS')}>Start</button>
+                                                      )}
+                                                      {wo.status === 'IN_PROGRESS' && (
+                                                          <button className="btn btn-sm btn-outline-success" onClick={() => handleUpdateWOStatus(wo.id, 'COMPLETED')}>Complete</button>
+                                                      )}
+                                                  </td>
+                                              </tr>
+                                          ))}
+                                          {workOrders.length === 0 && <tr><td colSpan={6} className="text-center py-4 text-muted">No Work Orders found</td></tr>}
+                                      </tbody>
+                                  </table>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              </div>
           )}
 
           {/* Stock Entry Tab */}
