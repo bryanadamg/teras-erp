@@ -77,6 +77,40 @@ export default function Home() {
     fetchData();
   };
 
+  const handleUpdateAttribute = async (id: string, name: string) => {
+      await fetch(`${API_BASE}/attributes/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name })
+      });
+      fetchData();
+  };
+
+  const handleAddAttributeValue = async (attributeId: string, value: string) => {
+      await fetch(`${API_BASE}/attributes/${attributeId}/values`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value })
+      });
+      fetchData();
+  };
+
+  const handleUpdateAttributeValue = async (valueId: string, value: string) => {
+      await fetch(`${API_BASE}/attributes/values/${valueId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value })
+      });
+      fetchData();
+  };
+
+  const handleDeleteAttributeValue = async (valueId: string) => {
+      await fetch(`${API_BASE}/attributes/values/${valueId}`, {
+          method: 'DELETE'
+      });
+      fetchData();
+  };
+
   const handleCreateBOM = async (bom: any) => {
       const payload: any = { ...bom };
       if (!payload.variant_id) delete payload.variant_id;
@@ -164,7 +198,11 @@ export default function Home() {
         {activeTab === 'attributes' && (
             <AttributesView 
                 attributes={attributes} 
-                onCreateAttribute={handleCreateAttribute} 
+                onCreateAttribute={handleCreateAttribute}
+                onUpdateAttribute={handleUpdateAttribute}
+                onAddValue={handleAddAttributeValue}
+                onUpdateValue={handleUpdateAttributeValue}
+                onDeleteValue={handleDeleteAttributeValue}
             />
         )}
 

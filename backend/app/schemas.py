@@ -16,6 +16,9 @@ class VariantResponse(VariantCreate):
 class AttributeValueCreate(BaseModel):
     value: str
 
+class AttributeValueUpdate(BaseModel):
+    value: str
+
 class AttributeValueResponse(AttributeValueCreate):
     id: UUID
     attribute_id: UUID
@@ -26,6 +29,9 @@ class AttributeValueResponse(AttributeValueCreate):
 class AttributeCreate(BaseModel):
     name: str
     values: list[AttributeValueCreate] = []
+
+class AttributeUpdate(BaseModel):
+    name: str
 
 class AttributeResponse(AttributeCreate):
     id: UUID
