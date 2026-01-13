@@ -1,41 +1,43 @@
 # Teras ERP
 
-**Teras ERP** is a modern, modular Enterprise Resource Planning system designed to streamline manufacturing and inventory operations. Built with a robust **FastAPI** backend and a responsive **Next.js** frontend, Teras ERP offers a scalable foundation for businesses looking to digitize their production workflows.
+**Teras ERP** is a next-generation, modular Enterprise Resource Planning system engineered for agility and precision in manufacturing and inventory operations. Built on a high-performance stack of **FastAPI** and **Next.js**, Teras ERP delivers an enterprise-grade user experience with the flexibility required by modern production environments.
 
 ## Core Capabilities
 
-### 📦 Intelligent Inventory Management
-*   **Comprehensive Item Master**: Centralized management of products and materials with support for unique coding, UOMs, and detailed specifications.
-*   **Dynamic Variants**: Flexible handling of product variations (e.g., Size, Color, Grade) without database clutter.
-*   **Attribute Templates**: Define reusable attribute sets (e.g., "Color: Red, Blue, Green") to rapidly generate variants for new product lines.
-*   **Multi-Location Warehousing**: Track stock levels across multiple physical or logical storage locations.
+### 📦 Advanced Inventory Control
+*   **Lifecycle Item Management**: Full control over your item master data. Create, edit, and refine item details (Code, Name, UOM) at any stage.
+*   **Dynamic Categorization**: Organize inventory with custom categories (e.g., Raw Materials, WIP, Finished Goods, Consumables) that you define and manage.
+*   **Granular Variant Management**: 
+    *   Add or remove variants (Color, Size, Grade) for existing items on the fly.
+    *   Utilize **Attribute Templates** with intelligent auto-increment suggestions to rapidly define product lines.
+*   **Multi-Location Warehousing**: Dedicated management view for tracking stock across unlimited physical or logical warehouses.
 
-### 🏭 Advanced Manufacturing
-*   **Bill of Materials (BOM)**: Create complex, multi-level production recipes.
-    *   Define **Finished Goods** with precise variant targeting.
-    *   Map required **Raw Materials** (Items + Variants) and their quantities.
-    *   Support for **Nested BOMs** (sub-assemblies) to reflect real-world production chains.
-*   **Work Orders**: Manage production lifecycles. Create orders from BOMs, track status (Pending, In Progress, Completed), and monitor output quantities against due dates.
+### 🏭 Manufacturing Execution System (MES)
+*   **Bill of Materials (BOM)**: Engineering-grade recipe management.
+    *   Support for complex, multi-level dependencies (Nested BOMs).
+    *   Precise variant mapping for inputs and outputs.
+*   **Work Orders**: Streamlined production tracking.
+    *   Generate orders directly from active BOMs.
+    *   Visual status tracking (Pending → In Progress → Completed) to monitor shop floor progress.
 
-### 📊 Stock Control & Traceability
-*   **Granular Stock Entry**: Execute manual stock movements with precision—specifying Item, Variant, and target Location.
-*   **Real-time Stock Ledger**: An immutable, audit-ready history of all inventory movements for complete transparency and reporting.
+### ⚙️ System Configuration & Customization
+*   **Dynamic Metadata**: Fully customizable Attribute Templates and Item Categories to adapt the system to your specific industry vertical.
+*   **White-Label Ready**: Integrated system settings to customize the application identity (App Name) to match your organization.
+*   **Data Persistence**: robust Docker-based database mounting ensures your critical business data is securely persisted on the host machine.
 
-### 🖥️ Modern User Experience
-*   **Unified Dashboard**: A clean, responsive interface organized by function:
-    *   **Inventory Master**: Items & Locations management.
-    *   **Attributes**: Variant template configuration.
-    *   **Bill of Materials**: Engineering and recipe management.
-    *   **Manufacturing**: Work Order execution and tracking.
-    *   **Reports**: Real-time stock ledger analysis.
+### 🖥️ Modern, Task-Oriented UI
+*   **Next-Gen Interface**: A completely overhauled, responsive frontend featuring a professional sidebar navigation structure.
+*   **Split-View Layouts**: Optimized views for high-productivity workflows—manage lists and edit details side-by-side without context switching.
+*   **Visual Stock Ledger**: Real-time, audit-ready history of all inventory movements with advanced filtering.
 
 ## Technical Architecture
 
-Built on industry-standard, high-performance technologies:
+Teras ERP is built on a foundation of industry-standard, scalable technologies:
 
 *   **Backend**: Python 3.11+, FastAPI, SQLAlchemy (ORM), PostgreSQL.
-*   **Frontend**: TypeScript, Next.js 14, React, Bootstrap 5.
-*   **Infrastructure**: Fully containerized with Docker & Docker Compose.
+*   **Frontend**: TypeScript, Next.js 14, React, Bootstrap 5 (with Bootstrap Icons).
+*   **Infrastructure**: Containerized with Docker & Docker Compose for consistent deployment.
+*   **Database**: PostgreSQL 15 with host-mounted volumes for reliable data persistence.
 
 ## Getting Started
 
@@ -49,16 +51,17 @@ Built on industry-standard, high-performance technologies:
     docker-compose up --build
     ```
 3.  **Access the Application**:
-    *   **Frontend Dashboard**: [http://localhost:3030](http://localhost:3030)
-    *   **Backend API Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+    *   **Dashboard**: [http://localhost:3030](http://localhost:3030)
+    *   **API Documentation**: [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ## Roadmap
 
-We are actively expanding the Manufacturing execution capabilities:
+We are continuously evolving Teras ERP to meet enterprise demands:
 
 *   **Automated Material Allocation**: Reserve stock automatically upon Work Order creation.
-*   **Production Consumption**: One-click deduction of raw materials based on BOM definitions during production runs.
-*   **Costing Engine**: Real-time calculation of manufacturing costs based on material FIFO/weighted average cost.
+*   **Production Consumption**: One-click deduction of raw materials based on BOM definitions.
+*   **Costing Engine**: Real-time calculation of manufacturing costs (FIFO/Weighted Average).
+*   **User Role Management**: Granular permissions and access control.
 
 ## License
 
