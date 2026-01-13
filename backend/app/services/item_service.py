@@ -28,6 +28,40 @@ def create_item(
     return item
 
 
+def update_item(
+    db: Session,
+    item_id: str,
+    data: dict
+) -> Item | None:
+    item = db.query(Item).filter(Item.id == item_id).first()
+    if not item:
+        return None
+    
+    for key, value in data.items():
+        if value is not None:
+            setattr(item, key, value)
+            
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def add_variant_to_item(db: Session, item_id: str, variant_data: VariantCreate):
+    variant = Variant(item_id=item_id, name=variant_data.name, category=variant_data.category)
+    db.add(variant)
+    db.commit()
+    db.refresh(variant)
+    return variant
+
+
+def delete_variant(db: Session, variant_id: str):
+    variant = db.query(Variant).filter(Variant.id == variant_id).first()
+    if variant:
+        db.delete(variant)
+        db.commit()
+    return variant
+
+
 def get_item_by_code(db: Session, code: str) -> Item | None:
     return db.query(Item).filter(Item.code == code).first()
 

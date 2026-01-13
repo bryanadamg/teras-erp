@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.services import item_service, stock_service
-from app.schemas import ItemCreate, ItemResponse, StockEntryCreate
+from app.schemas import ItemCreate, ItemResponse, StockEntryCreate, ItemUpdate, VariantCreate
 from app.models.location import Location
 
 router = APIRouter()
@@ -23,6 +23,22 @@ def create_item_api(payload: ItemCreate, db: Session = Depends(get_db)):
 @router.get("/items", response_model=list[ItemResponse])
 def get_items_api(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     return item_service.get_items(db, skip=skip, limit=limit)
+
+@router.put("/items/{item_id}", response_model=ItemResponse)
+def update_item_api(item_id: str, payload: ItemUpdate, db: Session = Depends(get_db)):
+    item = item_service.update_item(db, item_id, payload.dict(exclude_unset=True))
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return item
+
+@router.post("/items/{item_id}/variants")
+def add_item_variant_api(item_id: str, payload: VariantCreate, db: Session = Depends(get_db)):
+    return item_service.add_variant_to_item(db, item_id, payload)
+
+@router.delete("/items/variants/{variant_id}")
+def delete_item_variant_api(variant_id: str, db: Session = Depends(get_db)):
+    item_service.delete_variant(db, variant_id)
+    return {"status": "success", "message": "Variant deleted"}
 
 @router.post("/items/stock")
 def add_stock_api(payload: StockEntryCreate, db: Session = Depends(get_db)):
