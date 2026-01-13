@@ -42,10 +42,32 @@ def run_migrations():
     except Exception as e:
         logger.error(f"Migration failed: {e}")
 
+from app.models.category import Category
+
+def seed_categories(db):
+    try:
+        if db.query(Category).count() == 0:
+            defaults = ["Raw Material", "WIP", "Finished Goods", "Sample", "Consumable"]
+            for name in defaults:
+                db.add(Category(name=name))
+            db.commit()
+            logger.info("Seeded default categories")
+    except Exception as e:
+        logger.warning(f"Category seeding skipped: {e}")
+
 def init_db() -> None:
     logger.info("Creating initial data")
     Base.metadata.create_all(bind=engine)
     run_migrations()
+    
+    # Seed data
+    from app.db.session import SessionLocal
+    db = SessionLocal()
+    try:
+        seed_categories(db)
+    finally:
+        db.close()
+        
     logger.info("Initial data created")
 
 if __name__ == "__main__":

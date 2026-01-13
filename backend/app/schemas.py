@@ -152,3 +152,12 @@ class LocationResponse(LocationCreate):
 
     class Config:
         from_attributes = True
+
+class CategoryCreate(BaseModel):
+    name: str
+
+class CategoryResponse(CategoryCreate):
+    id: UUID
+
+    class Config:
+        from_attributes = True

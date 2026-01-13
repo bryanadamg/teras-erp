@@ -3,12 +3,14 @@ import { useState } from 'react';
 export default function InventoryView({ 
     items, 
     locations, 
-    attributes, 
+    attributes,
+    categories,
     onCreateItem, 
     onUpdateItem,
     onAddVariant,
     onDeleteVariant,
     onCreateLocation, 
+    onCreateCategory,
     onRefresh 
 }: any) {
   // Creation State
@@ -23,6 +25,8 @@ export default function InventoryView({
   const [selectedAttributeValue, setSelectedAttributeValue] = useState('');
   
   const [newLocation, setNewLocation] = useState({ code: '', name: '' });
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [showCatInput, setShowCatInput] = useState(false);
 
   // Filtering
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -103,6 +107,14 @@ export default function InventoryView({
       setNewLocation({ code: '', name: '' });
   };
 
+  const handleAddCategory = () => {
+      if (newCategoryName) {
+          onCreateCategory(newCategoryName);
+          setNewCategoryName('');
+          setShowCatInput(false);
+      }
+  };
+
   // Derived
   const activeAttribute = attributes.find((a: any) => a.id === selectedAttributeId);
   const activeEditingItem = editingItem ? items.find((i: any) => i.id === editingItem.id) : null;
@@ -111,12 +123,6 @@ export default function InventoryView({
   const filteredItems = categoryFilter 
       ? items.filter((i: any) => i.category === categoryFilter)
       : items;
-
-  // Unique Categories for Filter
-  const categories = Array.from(new Set(items.map((i: any) => i.category).filter(Boolean)));
-
-  // Customizable Category Options (Could be dynamic later)
-  const categoryOptions = ["Raw Material", "WIP", "Finished Goods", "Sample", "Consumable"];
 
   return (
     <div className="row g-4 fade-in">
@@ -151,7 +157,7 @@ export default function InventoryView({
                                 <label className="form-label small">Category</label>
                                 <select className="form-select" value={editingItem.category || ''} onChange={e => setEditingItem({...editingItem, category: e.target.value})}>
                                     <option value="">Select...</option>
-                                    {categoryOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                    {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
                                 </select>
                             </div>
                             <div className="col-md-2">
@@ -214,11 +220,21 @@ export default function InventoryView({
                         <input className="form-control" placeholder="Product Name" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
                     </div>
                     <div className="col-md-3">
-                        <label className="form-label">Category</label>
-                        <select className="form-select" value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})}>
-                            <option value="">Select...</option>
-                            {categoryOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                        </select>
+                        <label className="form-label d-flex justify-content-between">
+                            Category 
+                            <span className="text-primary" style={{cursor:'pointer'}} onClick={() => setShowCatInput(!showCatInput)}><i className="bi bi-plus-circle"></i></span>
+                        </label>
+                        {showCatInput ? (
+                            <div className="input-group input-group-sm">
+                                <input className="form-control" placeholder="New Cat..." value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} autoFocus />
+                                <button type="button" className="btn btn-primary" onClick={handleAddCategory}><i className="bi bi-check"></i></button>
+                            </div>
+                        ) : (
+                            <select className="form-select" value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})}>
+                                <option value="">Select...</option>
+                                {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                            </select>
+                        )}
                     </div>
                     <div className="col-md-2">
                         <label className="form-label">UOM</label>
@@ -290,7 +306,7 @@ export default function InventoryView({
                 <i className="bi bi-funnel text-muted"></i>
                 <select className="form-select form-select-sm" style={{width: '200px'}} value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
                     <option value="">All Categories</option>
-                    {categories.map((c: any) => <option key={c} value={c}>{c}</option>)}
+                    {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
                 </select>
             </div>
 

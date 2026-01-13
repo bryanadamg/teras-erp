@@ -21,16 +21,18 @@ export default function Home() {
   const [boms, setBoms] = useState([]);
   const [workOrders, setWorkOrders] = useState([]);
   const [stockEntries, setStockEntries] = useState([]);
+  const [categories, setCategories] = useState([]);
 
   const fetchData = async () => {
     try {
-      const [itemsRes, locsRes, stockRes, attrsRes, bomsRes, woRes] = await Promise.all([
+      const [itemsRes, locsRes, stockRes, attrsRes, bomsRes, woRes, catsRes] = await Promise.all([
           fetch(`${API_BASE}/items`),
           fetch(`${API_BASE}/locations`),
           fetch(`${API_BASE}/stock`),
           fetch(`${API_BASE}/attributes`),
           fetch(`${API_BASE}/boms`),
-          fetch(`${API_BASE}/work-orders`)
+          fetch(`${API_BASE}/work-orders`),
+          fetch(`${API_BASE}/categories`)
       ]);
 
       if (itemsRes.ok) setItems(await itemsRes.json());
@@ -39,6 +41,7 @@ export default function Home() {
       if (attrsRes.ok) setAttributes(await attrsRes.json());
       if (bomsRes.ok) setBoms(await bomsRes.json());
       if (woRes.ok) setWorkOrders(await woRes.json());
+      if (catsRes.ok) setCategories(await catsRes.json());
     } catch (e) {
       console.error("Failed to fetch data", e);
     }
@@ -49,6 +52,15 @@ export default function Home() {
   }, []);
 
   // --- Handlers ---
+
+  const handleCreateCategory = async (name: string) => {
+      await fetch(`${API_BASE}/categories`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name })
+      });
+      fetchData();
+  };
 
   const handleCreateItem = async (item: any) => {
     await fetch(`${API_BASE}/items`, {
@@ -214,11 +226,13 @@ export default function Home() {
                 items={items} 
                 locations={locations} 
                 attributes={attributes}
+                categories={categories}
                 onCreateItem={handleCreateItem} 
                 onUpdateItem={handleUpdateItem}
                 onAddVariant={handleAddVariantToItem}
                 onDeleteVariant={handleDeleteVariant}
                 onCreateLocation={handleCreateLocation} 
+                onCreateCategory={handleCreateCategory}
                 onRefresh={fetchData} 
             />
         )}
