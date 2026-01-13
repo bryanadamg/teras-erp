@@ -12,7 +12,7 @@ export default function InventoryView({
     onRefresh 
 }: any) {
   // Creation State
-  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', variants: [] as any[] });
+  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', category: '', variants: [] as any[] });
   
   // Editing State
   const [editingItem, setEditingItem] = useState<any>(null);
@@ -24,17 +24,18 @@ export default function InventoryView({
   
   const [newLocation, setNewLocation] = useState({ code: '', name: '' });
 
-  // --- Variant Handlers (Shared logic for Create & Edit) ---
+  // Filtering
+  const [categoryFilter, setCategoryFilter] = useState('');
+
+  // --- Variant Handlers ---
   
   const handleAddVariantToLocal = () => {
-      // Adds to newItem state (Creation Mode)
       if (!newVariant.name) return;
       setNewItem({ ...newItem, variants: [...newItem.variants, newVariant] });
       setNewVariant({ name: '', category: '' });
   };
 
   const handleAddFromTemplateToLocal = () => {
-      // Adds to newItem state (Creation Mode)
       if (!selectedAttributeId || !selectedAttributeValue) return;
       const attr = attributes.find((a: any) => a.id === selectedAttributeId);
       if (!attr) return;
@@ -50,32 +51,23 @@ export default function InventoryView({
   };
 
   const handleAddVariantToExisting = async () => {
-      // Adds to DB directly (Edit Mode)
       if (!editingItem) return;
       
       let variantToAdd = null;
 
-      // Check Template Input first
       if (selectedAttributeId && selectedAttributeValue) {
           const attr = attributes.find((a: any) => a.id === selectedAttributeId);
           if (attr) {
               variantToAdd = { name: selectedAttributeValue, category: attr.name };
           }
-      } 
-      // Check Manual Input
-      else if (newVariant.name) {
+      } else if (newVariant.name) {
           variantToAdd = newVariant;
       }
 
       if (variantToAdd) {
           await onAddVariant(editingItem.id, variantToAdd);
-          // Reset inputs
           setNewVariant({ name: '', category: '' });
           setSelectedAttributeValue('');
-          // Refresh happens via parent, but we might want to update local editingItem too?
-          // Ideally we re-select the item from the updated `items` prop, but simplistic approach:
-          // Just wait for refresh. The UI will update if we are rendering from props or synced state.
-          // To keep it simple, we'll close edit mode or rely on the fact that `items` prop updates.
       }
   };
 
@@ -88,7 +80,7 @@ export default function InventoryView({
   const handleSubmitItem = (e: React.FormEvent) => {
       e.preventDefault();
       onCreateItem(newItem);
-      setNewItem({ code: '', name: '', uom: '', variants: [] });
+      setNewItem({ code: '', name: '', uom: '', category: '', variants: [] });
       setSelectedAttributeId('');
       setSelectedAttributeValue('');
   };
@@ -99,7 +91,8 @@ export default function InventoryView({
       onUpdateItem(editingItem.id, {
           code: editingItem.code,
           name: editingItem.name,
-          uom: editingItem.uom
+          uom: editingItem.uom,
+          category: editingItem.category
       });
       setEditingItem(null);
   };
@@ -112,14 +105,23 @@ export default function InventoryView({
 
   // Derived
   const activeAttribute = attributes.find((a: any) => a.id === selectedAttributeId);
-  
-  // Sync editingItem with updated items list if it's open
   const activeEditingItem = editingItem ? items.find((i: any) => i.id === editingItem.id) : null;
+
+  // Filtered Items
+  const filteredItems = categoryFilter 
+      ? items.filter((i: any) => i.category === categoryFilter)
+      : items;
+
+  // Unique Categories for Filter
+  const categories = Array.from(new Set(items.map((i: any) => i.category).filter(Boolean)));
+
+  // Customizable Category Options (Could be dynamic later)
+  const categoryOptions = ["Raw Material", "WIP", "Finished Goods", "Sample", "Consumable"];
 
   return (
     <div className="row g-4 fade-in">
       {/* Items Card */}
-      <div className="col-md-7">
+      <div className="col-md-8">
         <div className="card h-100">
           <div className="card-header d-flex justify-content-between align-items-center">
             <h5 className="card-title mb-0">Item Master</h5>
@@ -137,15 +139,22 @@ export default function InventoryView({
                     
                     <form onSubmit={handleUpdateItemSubmit} className="mb-4">
                         <div className="row g-3">
-                            <div className="col-md-4">
+                            <div className="col-md-3">
                                 <label className="form-label small">Code</label>
                                 <input className="form-control" value={editingItem.code} onChange={e => setEditingItem({...editingItem, code: e.target.value})} required />
                             </div>
-                            <div className="col-md-5">
+                            <div className="col-md-4">
                                 <label className="form-label small">Name</label>
                                 <input className="form-control" value={editingItem.name} onChange={e => setEditingItem({...editingItem, name: e.target.value})} required />
                             </div>
                             <div className="col-md-3">
+                                <label className="form-label small">Category</label>
+                                <select className="form-select" value={editingItem.category || ''} onChange={e => setEditingItem({...editingItem, category: e.target.value})}>
+                                    <option value="">Select...</option>
+                                    {categoryOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                </select>
+                            </div>
+                            <div className="col-md-2">
                                 <label className="form-label small">UOM</label>
                                 <input className="form-control" value={editingItem.uom} onChange={e => setEditingItem({...editingItem, uom: e.target.value})} required />
                             </div>
@@ -159,7 +168,6 @@ export default function InventoryView({
 
                     <h6 className="small text-muted text-uppercase fw-bold mb-2">Manage Variants</h6>
                     
-                    {/* Add Variant to Existing */}
                     <div className="row g-2 mb-3 align-items-end">
                         <div className="col-md-4">
                             <select className="form-select form-select-sm" value={selectedAttributeId} onChange={e => { setSelectedAttributeId(e.target.value); setSelectedAttributeValue(''); }}>
@@ -197,17 +205,24 @@ export default function InventoryView({
                 // --- CREATE MODE ---
                 <form onSubmit={handleSubmitItem} className="mb-4">
                   <div className="row g-3">
-                    <div className="col-md-4">
+                    <div className="col-md-3">
                         <label className="form-label">Code</label>
                         <input className="form-control" placeholder="ITM-001" value={newItem.code} onChange={e => setNewItem({...newItem, code: e.target.value})} required />
                     </div>
-                    <div className="col-md-5">
+                    <div className="col-md-4">
                         <label className="form-label">Name</label>
                         <input className="form-control" placeholder="Product Name" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
                     </div>
                     <div className="col-md-3">
+                        <label className="form-label">Category</label>
+                        <select className="form-select" value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})}>
+                            <option value="">Select...</option>
+                            {categoryOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                    </div>
+                    <div className="col-md-2">
                         <label className="form-label">UOM</label>
-                        <input className="form-control" placeholder="Pcs/Kg" value={newItem.uom} onChange={e => setNewItem({...newItem, uom: e.target.value})} required />
+                        <input className="form-control" placeholder="Unit" value={newItem.uom} onChange={e => setNewItem({...newItem, uom: e.target.value})} required />
                     </div>
                   </div>
                   
@@ -270,21 +285,32 @@ export default function InventoryView({
                 </form>
             )}
             
+            {/* Filter */}
+            <div className="mb-3 d-flex align-items-center gap-2">
+                <i className="bi bi-funnel text-muted"></i>
+                <select className="form-select form-select-sm" style={{width: '200px'}} value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
+                    <option value="">All Categories</option>
+                    {categories.map((c: any) => <option key={c} value={c}>{c}</option>)}
+                </select>
+            </div>
+
             <div className="table-responsive">
               <table className="table table-hover align-middle">
                 <thead>
                   <tr>
                     <th>Code</th>
                     <th>Name</th>
+                    <th>Category</th>
                     <th>Variants</th>
                     <th style={{width: '50px'}}></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((item: any) => (
+                  {filteredItems.map((item: any) => (
                     <tr key={item.id} className={editingItem?.id === item.id ? 'table-primary' : ''}>
                       <td className="fw-medium">{item.code}</td>
                       <td>{item.name}</td>
+                      <td>{item.category && <span className="badge bg-light text-dark border">{item.category}</span>}</td>
                       <td>
                         <div className="d-flex flex-wrap gap-1">
                         {item.variants && item.variants.map((v: any) => (
@@ -299,6 +325,7 @@ export default function InventoryView({
                       </td>
                     </tr>
                   ))}
+                  {filteredItems.length === 0 && <tr><td colSpan={5} className="text-center text-muted py-3">No items found</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -307,7 +334,7 @@ export default function InventoryView({
       </div>
 
       {/* Locations Card */}
-      <div className="col-md-5">
+      <div className="col-md-4">
         <div className="card h-100">
           <div className="card-header d-flex justify-content-between align-items-center">
              <h5 className="card-title mb-0">Locations</h5>

@@ -17,6 +17,7 @@ def create_item_api(payload: ItemCreate, db: Session = Depends(get_db)):
         code=payload.code,
         name=payload.name,
         uom=payload.uom,
+        category=payload.category,
         variants=payload.variants
     )
 

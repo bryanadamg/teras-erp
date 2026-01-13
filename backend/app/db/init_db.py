@@ -31,6 +31,14 @@ def run_migrations():
             except Exception as e:
                 logger.warning(f"Migration step 2 warning: {e}")
 
+            # 3. Add category column to items if it doesn't exist
+            try:
+                conn.execute(text("ALTER TABLE items ADD COLUMN IF NOT EXISTS category VARCHAR(64)"))
+                conn.execute(text("COMMIT"))
+                logger.info("Migration: Verified category column in items")
+            except Exception as e:
+                logger.warning(f"Migration step 3 warning: {e}")
+
     except Exception as e:
         logger.error(f"Migration failed: {e}")
 

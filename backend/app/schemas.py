@@ -104,12 +104,14 @@ class ItemCreate(BaseModel):
     code: str
     name: str
     uom: str
+    category: str | None = None
     variants: list[VariantCreate] = []
 
 class ItemUpdate(BaseModel):
     code: str | None = None
     name: str | None = None
     uom: str | None = None
+    category: str | None = None
     active: bool | None = None
 
 class ItemResponse(ItemCreate):
