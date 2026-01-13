@@ -9,11 +9,13 @@ import BOMView from './components/BOMView';
 import ManufacturingView from './components/ManufacturingView';
 import StockEntryView from './components/StockEntryView';
 import ReportsView from './components/ReportsView';
+import SettingsView from './components/SettingsView';
 
 const API_BASE = 'http://localhost:8000';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState('inventory');
+  const [appName, setAppName] = useState('Teras ERP');
 
   // Master Data
   const [items, setItems] = useState([]);
@@ -50,7 +52,15 @@ export default function Home() {
 
   useEffect(() => {
     fetchData();
+    // Load app name from local storage if available
+    const savedName = localStorage.getItem('app_name');
+    if (savedName) setAppName(savedName);
   }, []);
+
+  const handleUpdateAppName = (name: string) => {
+      setAppName(name);
+      localStorage.setItem('app_name', name);
+  };
 
   // --- Handlers ---
 
@@ -216,14 +226,19 @@ export default function Home() {
 
   return (
     <div className="d-flex">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} appName={appName} />
       
       <div className="main-content flex-grow-1">
         <header className="mb-4 d-flex justify-content-between align-items-center">
             <h2 className="text-capitalize mb-0 fw-bold text-dark">{activeTab.replace('-', ' ')}</h2>
             <div className="d-flex align-items-center gap-3">
                 <span className="text-muted small">v0.2.0</span>
-                <div className="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style={{width: 32, height: 32}}>
+                <div 
+                    className="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center shadow-sm" 
+                    style={{width: 32, height: 32, cursor: 'pointer'}}
+                    onClick={() => setActiveTab('settings')}
+                    title="Settings"
+                >
                     <i className="bi bi-person-fill"></i>
                 </div>
             </div>
@@ -297,6 +312,13 @@ export default function Home() {
                 items={items} 
                 locations={locations} 
                 onRefresh={fetchData} 
+            />
+        )}
+
+        {activeTab === 'settings' && (
+            <SettingsView 
+                appName={appName}
+                onUpdateAppName={handleUpdateAppName}
             />
         )}
       </div>
