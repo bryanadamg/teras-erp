@@ -1,0 +1,126 @@
+import { useState } from 'react';
+
+export default function ManufacturingView({ items, boms, workOrders, onCreateWO, onUpdateStatus }: any) {
+  const [newWO, setNewWO] = useState({ code: '', bom_id: '', qty: 1.0, due_date: '' });
+
+  const handleSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      onCreateWO(newWO);
+      setNewWO({ code: '', bom_id: '', qty: 1.0, due_date: '' });
+  };
+
+  const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
+  const getBOMCode = (id: string) => boms.find((b: any) => b.id === id)?.code || id;
+  const getVariantName = (itemId: string, variantId: string) => {
+      if (!variantId) return '-';
+      const item = items.find((i: any) => i.id === itemId);
+      if (!item) return variantId;
+      const variant = (item as any).variants.find((v: any) => v.id === variantId);
+      return variant ? variant.name : variantId;
+  };
+
+  const getStatusBadge = (status: string) => {
+      switch(status) {
+          case 'COMPLETED': return 'bg-success';
+          case 'IN_PROGRESS': return 'bg-warning text-dark';
+          case 'CANCELLED': return 'bg-danger';
+          default: return 'bg-secondary';
+      }
+  };
+
+  return (
+      <div className="row g-4 fade-in">
+          {/* Create WO Card */}
+          <div className="col-md-4">
+              <div className="card h-100">
+                  <div className="card-header bg-success bg-opacity-10 text-success-emphasis">
+                      <h5 className="card-title mb-0"><i className="bi bi-play-circle me-2"></i>New Production Run</h5>
+                  </div>
+                  <div className="card-body">
+                      <form onSubmit={handleSubmit}>
+                          <div className="mb-3">
+                              <label className="form-label">WO Code</label>
+                              <input className="form-control" placeholder="WO-2024-001" value={newWO.code} onChange={e => setNewWO({...newWO, code: e.target.value})} required />
+                          </div>
+                          <div className="mb-3">
+                              <label className="form-label">Select Recipe (BOM)</label>
+                              <select className="form-select" value={newWO.bom_id} onChange={e => setNewWO({...newWO, bom_id: e.target.value})} required>
+                                  <option value="">Choose a product recipe...</option>
+                                  {boms.map((b: any) => (
+                                      <option key={b.id} value={b.id}>
+                                          {b.code} - {getItemName(b.item_id)} {getVariantName(b.item_id, b.variant_id) !== '-' ? `(${getVariantName(b.item_id, b.variant_id)})` : ''}
+                                      </option>
+                                  ))}
+                              </select>
+                          </div>
+                          <div className="row g-3 mb-4">
+                              <div className="col-6">
+                                  <label className="form-label">Quantity</label>
+                                  <input type="number" className="form-control" placeholder="1.0" value={newWO.qty} onChange={e => setNewWO({...newWO, qty: parseFloat(e.target.value)})} required />
+                              </div>
+                              <div className="col-6">
+                                  <label className="form-label">Due Date</label>
+                                  <input type="date" className="form-control" value={newWO.due_date} onChange={e => setNewWO({...newWO, due_date: e.target.value})} />
+                              </div>
+                          </div>
+                          <button type="submit" className="btn btn-success w-100 fw-bold shadow-sm">Generate Work Order</button>
+                      </form>
+                  </div>
+              </div>
+          </div>
+
+          {/* Work Order List */}
+          <div className="col-md-8">
+              <div className="card h-100">
+                  <div className="card-header d-flex justify-content-between align-items-center">
+                      <h5 className="card-title mb-0">Production Schedule</h5>
+                      <span className="badge bg-light text-dark border">{workOrders.length} Orders</span>
+                  </div>
+                  <div className="card-body p-0">
+                      <div className="table-responsive">
+                          <table className="table table-hover align-middle mb-0">
+                              <thead className="table-light">
+                                  <tr>
+                                      <th>Code</th>
+                                      <th>Product</th>
+                                      <th>Qty</th>
+                                      <th>Status</th>
+                                      <th className="text-end">Actions</th>
+                                  </tr>
+                              </thead>
+                              <tbody>
+                                  {workOrders.map((wo: any) => (
+                                      <tr key={wo.id}>
+                                          <td className="fw-bold font-monospace">{wo.code}</td>
+                                          <td>
+                                              <div className="fw-medium">{getItemName(wo.item_id)}</div>
+                                              <div className="small text-muted">{getVariantName(wo.item_id, wo.variant_id)}</div>
+                                              <div className="small text-primary fst-italic">{getBOMCode(wo.bom_id)}</div>
+                                          </td>
+                                          <td className="fw-bold">{wo.qty}</td>
+                                          <td><span className={`badge ${getStatusBadge(wo.status)}`}>{wo.status}</span></td>
+                                          <td className="text-end">
+                                              {wo.status === 'PENDING' && (
+                                                  <button className="btn btn-sm btn-outline-primary shadow-sm" onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>
+                                                      <i className="bi bi-play-fill me-1"></i>Start
+                                                  </button>
+                                              )}
+                                              {wo.status === 'IN_PROGRESS' && (
+                                                  <button className="btn btn-sm btn-success text-white shadow-sm" onClick={() => onUpdateStatus(wo.id, 'COMPLETED')}>
+                                                      <i className="bi bi-check-lg me-1"></i>Finish
+                                                  </button>
+                                              )}
+                                              {wo.status === 'COMPLETED' && <span className="text-success"><i className="bi bi-check-circle-fill"></i> Done</span>}
+                                          </td>
+                                      </tr>
+                                  ))}
+                                  {workOrders.length === 0 && <tr><td colSpan={5} className="text-center py-5 text-muted">No scheduled production</td></tr>}
+                              </tbody>
+                          </table>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      </div>
+  );
+}
