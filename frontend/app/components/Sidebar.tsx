@@ -6,7 +6,8 @@ interface SidebarProps {
 export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   const menuItems = [
     { id: 'inventory', label: 'Inventory', icon: 'bi-box-seam' },
-    { id: 'attributes', label: 'Attributes', icon: 'bi-tags' },
+    { id: 'locations', label: 'Locations', icon: 'bi-geo-alt' },
+    { id: 'attributes', label: 'Attributes & Categories', icon: 'bi-tags' },
     { id: 'bom', label: 'Bill of Materials', icon: 'bi-diagram-3' },
     { id: 'manufacturing', label: 'Manufacturing', icon: 'bi-gear-wide-connected' },
     { id: 'stock', label: 'Stock Entry', icon: 'bi-arrow-left-right' },

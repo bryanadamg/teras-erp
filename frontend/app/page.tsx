@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import InventoryView from './components/InventoryView';
+import LocationsView from './components/LocationsView';
 import AttributesView from './components/AttributesView';
 import BOMView from './components/BOMView';
 import ManufacturingView from './components/ManufacturingView';
@@ -18,30 +19,30 @@ export default function Home() {
   const [items, setItems] = useState([]);
   const [locations, setLocations] = useState([]);
   const [attributes, setAttributes] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [boms, setBoms] = useState([]);
   const [workOrders, setWorkOrders] = useState([]);
   const [stockEntries, setStockEntries] = useState([]);
-  const [categories, setCategories] = useState([]);
 
   const fetchData = async () => {
     try {
-      const [itemsRes, locsRes, stockRes, attrsRes, bomsRes, woRes, catsRes] = await Promise.all([
+      const [itemsRes, locsRes, stockRes, attrsRes, catsRes, bomsRes, woRes] = await Promise.all([
           fetch(`${API_BASE}/items`),
           fetch(`${API_BASE}/locations`),
           fetch(`${API_BASE}/stock`),
           fetch(`${API_BASE}/attributes`),
+          fetch(`${API_BASE}/categories`),
           fetch(`${API_BASE}/boms`),
-          fetch(`${API_BASE}/work-orders`),
-          fetch(`${API_BASE}/categories`)
+          fetch(`${API_BASE}/work-orders`)
       ]);
 
       if (itemsRes.ok) setItems(await itemsRes.json());
       if (locsRes.ok) setLocations(await locsRes.json());
       if (stockRes.ok) setStockEntries(await stockRes.json());
       if (attrsRes.ok) setAttributes(await attrsRes.json());
+      if (catsRes.ok) setCategories(await catsRes.json());
       if (bomsRes.ok) setBoms(await bomsRes.json());
       if (woRes.ok) setWorkOrders(await woRes.json());
-      if (catsRes.ok) setCategories(await catsRes.json());
     } catch (e) {
       console.error("Failed to fetch data", e);
     }
@@ -52,15 +53,6 @@ export default function Home() {
   }, []);
 
   // --- Handlers ---
-
-  const handleCreateCategory = async (name: string) => {
-      await fetch(`${API_BASE}/categories`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name })
-      });
-      fetchData();
-  };
 
   const handleCreateItem = async (item: any) => {
     await fetch(`${API_BASE}/items`, {
@@ -148,6 +140,22 @@ export default function Home() {
       fetchData();
   };
 
+  const handleCreateCategory = async (name: string) => {
+      await fetch(`${API_BASE}/categories`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name })
+      });
+      fetchData();
+  };
+
+  const handleDeleteCategory = async (categoryId: string) => {
+      await fetch(`${API_BASE}/categories/${categoryId}`, {
+          method: 'DELETE'
+      });
+      fetchData();
+  };
+
   const handleCreateBOM = async (bom: any) => {
       const payload: any = { ...bom };
       if (!payload.variant_id) delete payload.variant_id;
@@ -224,27 +232,36 @@ export default function Home() {
         {activeTab === 'inventory' && (
             <InventoryView 
                 items={items} 
-                locations={locations} 
                 attributes={attributes}
                 categories={categories}
                 onCreateItem={handleCreateItem} 
                 onUpdateItem={handleUpdateItem}
                 onAddVariant={handleAddVariantToItem}
                 onDeleteVariant={handleDeleteVariant}
-                onCreateLocation={handleCreateLocation} 
                 onCreateCategory={handleCreateCategory}
                 onRefresh={fetchData} 
+            />
+        )}
+
+        {activeTab === 'locations' && (
+            <LocationsView 
+                locations={locations}
+                onCreateLocation={handleCreateLocation}
+                onRefresh={fetchData}
             />
         )}
 
         {activeTab === 'attributes' && (
             <AttributesView 
                 attributes={attributes} 
+                categories={categories}
                 onCreateAttribute={handleCreateAttribute}
                 onUpdateAttribute={handleUpdateAttribute}
                 onAddValue={handleAddAttributeValue}
                 onUpdateValue={handleUpdateAttributeValue}
                 onDeleteValue={handleDeleteAttributeValue}
+                onCreateCategory={handleCreateCategory}
+                onDeleteCategory={handleDeleteCategory}
             />
         )}
 

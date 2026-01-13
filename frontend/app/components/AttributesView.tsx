@@ -1,16 +1,22 @@
 import { useState } from 'react';
 
 export default function AttributesView({ 
-    attributes, 
+    attributes,
+    categories,
     onCreateAttribute, 
     onUpdateAttribute, 
     onAddValue, 
     onUpdateValue, 
-    onDeleteValue 
+    onDeleteValue,
+    onCreateCategory,
+    onDeleteCategory
 }: any) {
   const [newAttribute, setNewAttribute] = useState({ name: '', values: [] as any[] });
   const [newAttributeValue, setNewAttributeValue] = useState('');
   
+  // Category State
+  const [newCategoryName, setNewCategoryName] = useState('');
+
   // Edit Mode State
   const [editingAttr, setEditingAttr] = useState<any>(null);
   const [editValueText, setEditValueText] = useState('');
@@ -33,7 +39,8 @@ export default function AttributesView({
   const nextValForNew = getNextValue(newAttribute.values);
   const nextValForEdit = activeAttribute ? getNextValue(activeAttribute.values) : null;
 
-  // Creation Handlers
+  // --- Handlers ---
+
   const handleAddValueToNewAttribute = () => {
     if (!newAttributeValue) return;
     setNewAttribute({ ...newAttribute, values: [...newAttribute.values, { value: newAttributeValue }] });
@@ -52,9 +59,8 @@ export default function AttributesView({
       setNewAttribute({ name: '', values: [] });
   };
 
-  // Edit Handlers
   const startEditing = (attr: any) => {
-      setEditingAttr({ ...attr }); // Deep copy? Shallow is fine for now
+      setEditingAttr({ ...attr }); 
   };
 
   const cancelEditing = () => {
@@ -81,10 +87,20 @@ export default function AttributesView({
       }
   };
 
+  // Category Handlers
+  const handleCreateCategory = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (newCategoryName) {
+          onCreateCategory(newCategoryName);
+          setNewCategoryName('');
+      }
+  };
+
   return (
-     <div className="row justify-content-center fade-in">
-        <div className="col-md-8">
-           <div className="card">
+     <div className="row g-4 fade-in">
+        {/* LEFT: Attribute Templates */}
+        <div className="col-md-7">
+           <div className="card h-100">
               <div className="card-header bg-white d-flex justify-content-between align-items-center">
                  <div>
                     <h5 className="card-title mb-0">Attribute Templates</h5>
@@ -161,7 +177,7 @@ export default function AttributesView({
                                <label className="form-label">Values</label>
                                <div className="input-group">
                                   <input className="form-control" placeholder="Add value (e.g. S, M, L)" value={newAttributeValue} onChange={e => setNewAttributeValue(e.target.value)} />
-                                  <button type="button" className="btn btn-secondary" onClick={handleAddValueToNewAttribute}>Add Value</button>
+                                  <button type="button" className="btn btn-secondary" onClick={handleAddValueToNewAttribute}>Add</button>
                                   {nextValForNew !== null && (
                                       <button type="button" className="btn btn-outline-success" onClick={handleAddNextToNew}>
                                           + {nextValForNew}
@@ -194,7 +210,7 @@ export default function AttributesView({
                            >
                               <div className="d-flex w-100 justify-content-between mb-2">
                                  <h6 className="mb-0 fw-bold">{attr.name}</h6>
-                                 <span className="badge bg-light text-muted border">{attr.values.length}</span>
+                                 <span className="badge bg-light text-muted border">{attr.values.length} values</span>
                               </div>
                               <div className="d-flex flex-wrap gap-1">
                                  {attr.values.slice(0, 5).map((v: any) => (
@@ -213,6 +229,38 @@ export default function AttributesView({
                  </div>
               </div>
            </div>
+        </div>
+
+        {/* RIGHT: Item Categories */}
+        <div className="col-md-5">
+            <div className="card h-100">
+                <div className="card-header bg-white">
+                    <h5 className="card-title mb-0">Item Categories</h5>
+                    <p className="text-muted small mb-0 mt-1">Classify your inventory items.</p>
+                </div>
+                <div className="card-body">
+                    <form onSubmit={handleCreateCategory} className="mb-4">
+                        <label className="form-label small">New Category Name</label>
+                        <div className="input-group">
+                            <input className="form-control" placeholder="e.g. Spare Parts" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} required />
+                            <button type="submit" className="btn btn-success">Add</button>
+                        </div>
+                    </form>
+
+                    <h6 className="text-uppercase text-muted small fw-bold mb-3">Existing Categories</h6>
+                    <ul className="list-group list-group-flush">
+                        {categories && categories.map((cat: any) => (
+                            <li key={cat.id} className="list-group-item d-flex justify-content-between align-items-center px-0">
+                                <span>{cat.name}</span>
+                                <button className="btn btn-sm text-danger" onClick={() => onDeleteCategory(cat.id)}>
+                                    <i className="bi bi-trash"></i>
+                                </button>
+                            </li>
+                        ))}
+                        {categories && categories.length === 0 && <li className="list-group-item text-center text-muted fst-italic">No categories defined</li>}
+                    </ul>
+                </div>
+            </div>
         </div>
      </div>
   );
