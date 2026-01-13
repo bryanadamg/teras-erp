@@ -221,3 +221,7 @@ out/
 build/
 .DS_Store
 *.local
+
+# Database
+postgres_data/
+
