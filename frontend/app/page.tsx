@@ -292,6 +292,7 @@ export default function Home() {
             <ManufacturingView 
                 items={items} 
                 boms={boms} 
+                locations={locations}
                 workOrders={workOrders} 
                 onCreateWO={handleCreateWO} 
                 onUpdateStatus={handleUpdateWOStatus} 

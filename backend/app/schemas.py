@@ -78,6 +78,7 @@ class BOMResponse(BaseModel):
 class WorkOrderCreate(BaseModel):
     code: str
     bom_id: UUID
+    location_code: str
     qty: float
     start_date: datetime | None = None
     due_date: datetime | None = None
@@ -88,6 +89,7 @@ class WorkOrderResponse(BaseModel):
     bom_id: UUID
     item_id: UUID
     variant_id: UUID | None
+    location_id: UUID
     qty: float
     status: str
     start_date: datetime | None

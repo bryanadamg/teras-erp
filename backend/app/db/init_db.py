@@ -39,6 +39,14 @@ def run_migrations():
             except Exception as e:
                 logger.warning(f"Migration step 3 warning: {e}")
 
+            # 4. Add location_id to work_orders
+            try:
+                conn.execute(text("ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS location_id UUID REFERENCES locations(id)"))
+                conn.execute(text("COMMIT"))
+                logger.info("Migration: Verified location_id in work_orders")
+            except Exception as e:
+                logger.warning(f"Migration step 4 warning: {e}")
+
     except Exception as e:
         logger.error(f"Migration failed: {e}")
 

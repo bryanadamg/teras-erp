@@ -1,12 +1,12 @@
 import { useState } from 'react';
 
-export default function ManufacturingView({ items, boms, workOrders, onCreateWO, onUpdateStatus }: any) {
-  const [newWO, setNewWO] = useState({ code: '', bom_id: '', qty: 1.0, due_date: '' });
+export default function ManufacturingView({ items, boms, locations, workOrders, onCreateWO, onUpdateStatus }: any) {
+  const [newWO, setNewWO] = useState({ code: '', bom_id: '', location_code: '', qty: 1.0, due_date: '' });
 
   const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       onCreateWO(newWO);
-      setNewWO({ code: '', bom_id: '', qty: 1.0, due_date: '' });
+      setNewWO({ code: '', bom_id: '', location_code: '', qty: 1.0, due_date: '' });
   };
 
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
@@ -50,6 +50,15 @@ export default function ManufacturingView({ items, boms, workOrders, onCreateWO,
                                       <option key={b.id} value={b.id}>
                                           {b.code} - {getItemName(b.item_id)} {getVariantName(b.item_id, b.variant_id) !== '-' ? `(${getVariantName(b.item_id, b.variant_id)})` : ''}
                                       </option>
+                                  ))}
+                              </select>
+                          </div>
+                          <div className="mb-3">
+                              <label className="form-label">Production Location</label>
+                              <select className="form-select" value={newWO.location_code} onChange={e => setNewWO({...newWO, location_code: e.target.value})} required>
+                                  <option value="">Select Location...</option>
+                                  {locations.map((loc: any) => (
+                                      <option key={loc.id} value={loc.code}>{loc.name}</option>
                                   ))}
                               </select>
                           </div>

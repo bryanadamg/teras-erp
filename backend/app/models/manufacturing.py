@@ -26,6 +26,10 @@ class WorkOrder(Base):
         UUID(as_uuid=True), ForeignKey("variants.id"), nullable=True
     )
 
+    location_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("locations.id"), index=True
+    )
+
     qty: Mapped[float] = mapped_column(Numeric(14, 4))
     
     # Status: PENDING, IN_PROGRESS, COMPLETED, CANCELLED
