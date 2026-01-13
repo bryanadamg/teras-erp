@@ -59,6 +59,31 @@ export default function Home() {
     fetchData();
   };
 
+  const handleUpdateItem = async (itemId: string, data: any) => {
+      await fetch(`${API_BASE}/items/${itemId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+      });
+      fetchData();
+  };
+
+  const handleAddVariantToItem = async (itemId: string, variant: any) => {
+      await fetch(`${API_BASE}/items/${itemId}/variants`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(variant)
+      });
+      fetchData();
+  };
+
+  const handleDeleteVariant = async (variantId: string) => {
+      await fetch(`${API_BASE}/items/variants/${variantId}`, {
+          method: 'DELETE'
+      });
+      fetchData();
+  };
+
   const handleCreateLocation = async (location: any) => {
     await fetch(`${API_BASE}/locations`, {
       method: 'POST',
@@ -190,6 +215,9 @@ export default function Home() {
                 locations={locations} 
                 attributes={attributes}
                 onCreateItem={handleCreateItem} 
+                onUpdateItem={handleUpdateItem}
+                onAddVariant={handleAddVariantToItem}
+                onDeleteVariant={handleDeleteVariant}
                 onCreateLocation={handleCreateLocation} 
                 onRefresh={fetchData} 
             />
