@@ -16,11 +16,34 @@ export default function AttributesView({
   const [editValueText, setEditValueText] = useState('');
   const [newValueForEdit, setNewValueForEdit] = useState('');
 
+  // Declare activeAttribute early so it can be used for sequence logic
+  const activeAttribute = editingAttr ? attributes.find((a: any) => a.id === editingAttr.id) : null;
+
+  const getNextValue = (currentValues: any[]) => {
+      const numbers = currentValues
+          .map(v => parseInt(v.value))
+          .filter(n => !isNaN(n));
+      
+      if (numbers.length > 0) {
+          return Math.max(...numbers) + 1;
+      }
+      return null;
+  };
+
+  const nextValForNew = getNextValue(newAttribute.values);
+  const nextValForEdit = activeAttribute ? getNextValue(activeAttribute.values) : null;
+
   // Creation Handlers
   const handleAddValueToNewAttribute = () => {
     if (!newAttributeValue) return;
     setNewAttribute({ ...newAttribute, values: [...newAttribute.values, { value: newAttributeValue }] });
     setNewAttributeValue('');
+  };
+
+  const handleAddNextToNew = () => {
+      if (nextValForNew !== null) {
+          setNewAttribute({ ...newAttribute, values: [...newAttribute.values, { value: String(nextValForNew) }] });
+      }
   };
 
   const handleCreateSubmit = (e: React.FormEvent) => {
@@ -49,20 +72,14 @@ export default function AttributesView({
       if (editingAttr && newValueForEdit) {
           onAddValue(editingAttr.id, newValueForEdit);
           setNewValueForEdit('');
-          // Optimistic update or wait for refresh? 
-          // The parent refreshes data, so AttributesView will re-render with new data. 
-          // We just need to keep editingAttr in sync if we want immediate feedback, 
-          // but relying on parent refresh is safer for ID consistency.
-          // However, if parent refreshes, editingAttr might be stale.
-          // Better strategy: Close edit mode or update local state if we want to stay open.
-          // Let's rely on props update.
       }
   };
 
-  // We need to sync editingAttr with incoming attributes prop changes if we want to keep the modal open
-  // But strictly, simpler is to just close or re-fetch.
-  // Actually, we can just find the currently editing attribute from the new props
-  const activeAttribute = editingAttr ? attributes.find((a: any) => a.id === editingAttr.id) : null;
+  const handleAddNextToExisting = () => {
+      if (editingAttr && nextValForEdit !== null) {
+          onAddValue(editingAttr.id, String(nextValForEdit));
+      }
+  };
 
   return (
      <div className="row justify-content-center fade-in">
@@ -125,6 +142,11 @@ export default function AttributesView({
                                 onChange={e => setNewValueForEdit(e.target.value)} 
                              />
                              <button className="btn btn-secondary" onClick={handleAddValueToExisting}>Add</button>
+                             {nextValForEdit !== null && (
+                                 <button className="btn btn-outline-success" onClick={handleAddNextToExisting}>
+                                     + {nextValForEdit}
+                                 </button>
+                             )}
                          </div>
                      </div>
                  ) : (
@@ -140,6 +162,11 @@ export default function AttributesView({
                                <div className="input-group">
                                   <input className="form-control" placeholder="Add value (e.g. S, M, L)" value={newAttributeValue} onChange={e => setNewAttributeValue(e.target.value)} />
                                   <button type="button" className="btn btn-secondary" onClick={handleAddValueToNewAttribute}>Add Value</button>
+                                  {nextValForNew !== null && (
+                                      <button type="button" className="btn btn-outline-success" onClick={handleAddNextToNew}>
+                                          + {nextValForNew}
+                                      </button>
+                                  )}
                                </div>
                             </div>
                         </div>
