@@ -3,8 +3,35 @@ import { useState } from 'react';
 export default function ManufacturingView({ items, boms, locations, workOrders, onCreateWO, onUpdateStatus }: any) {
   const [newWO, setNewWO] = useState({ code: '', bom_id: '', location_code: '', qty: 1.0, due_date: '' });
 
+  const suggestWOCode = (bomId: string) => {
+      const bom = boms.find((b: any) => b.id === bomId);
+      if (!bom) return '';
+      
+      const item = items.find((i: any) => i.id === bom.item_id);
+      const itemCode = item ? item.code : 'PROD';
+      
+      let baseCode = `WO-${itemCode}-001`;
+      let counter = 1;
+      
+      while (workOrders.some((w: any) => w.code === baseCode)) {
+          counter++;
+          baseCode = `WO-${itemCode}-${String(counter).padStart(3, '0')}`;
+      }
+      return baseCode;
+  };
+
+  const handleBOMChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const bomId = e.target.value;
+      const suggestedCode = suggestWOCode(bomId);
+      setNewWO({...newWO, bom_id: bomId, code: suggestedCode});
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
+      if (workOrders.some((w: any) => w.code === newWO.code)) {
+          alert('Work Order Code already exists.');
+          return;
+      }
       onCreateWO(newWO);
       setNewWO({ code: '', bom_id: '', location_code: '', qty: 1.0, due_date: '' });
   };
@@ -44,7 +71,7 @@ export default function ManufacturingView({ items, boms, locations, workOrders, 
                           </div>
                           <div className="mb-3">
                               <label className="form-label">Select Recipe (BOM)</label>
-                              <select className="form-select" value={newWO.bom_id} onChange={e => setNewWO({...newWO, bom_id: e.target.value})} required>
+                              <select className="form-select" value={newWO.bom_id} onChange={handleBOMChange} required>
                                   <option value="">Choose a product recipe...</option>
                                   {boms.map((b: any) => (
                                       <option key={b.id} value={b.id}>

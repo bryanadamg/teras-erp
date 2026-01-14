@@ -11,6 +11,23 @@ export default function BOMView({ items, boms, onCreateBOM }: any) {
   });
   const [newBOMLine, setNewBOMLine] = useState({ item_code: '', variant_id: '', qty: 0 });
 
+  const suggestBOMCode = (itemCode: string) => {
+      let baseCode = `BOM-${itemCode}-001`;
+      let counter = 1;
+      
+      while (boms.some((b: any) => b.code === baseCode)) {
+          counter++;
+          baseCode = `BOM-${itemCode}-${String(counter).padStart(3, '0')}`;
+      }
+      return baseCode;
+  };
+
+  const handleItemChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const itemCode = e.target.value;
+      const suggestedCode = suggestBOMCode(itemCode);
+      setNewBOM({...newBOM, item_code: itemCode, code: suggestedCode, variant_id: ''});
+  };
+
   const handleAddLineToBOM = () => {
       if (!newBOMLine.item_code || newBOMLine.qty <= 0) return;
       const linePayload: any = { ...newBOMLine };
@@ -22,6 +39,10 @@ export default function BOMView({ items, boms, onCreateBOM }: any) {
 
   const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
+      if (boms.some((b: any) => b.code === newBOM.code)) {
+          alert('BOM Code already exists. Please choose a unique code.');
+          return;
+      }
       onCreateBOM(newBOM);
       // Reset is handled by parent or manual here? Parent doesn't reset state passed down usually.
       // We'll rely on the parent to re-render or we reset here. Ideally reset here.
@@ -73,7 +94,7 @@ export default function BOMView({ items, boms, onCreateBOM }: any) {
                         <h6 className="small text-uppercase text-muted fw-bold mb-3">Finished Good</h6>
                         <div className="row g-2">
                             <div className="col-7">
-                                <select className="form-select" value={newBOM.item_code} onChange={e => setNewBOM({...newBOM, item_code: e.target.value, variant_id: ''})} required>
+                                <select className="form-select" value={newBOM.item_code} onChange={handleItemChange} required>
                                     <option value="">Select Item...</option>
                                     {items.map((item: any) => <option key={item.id} value={item.code}>{item.name}</option>)}
                                 </select>
