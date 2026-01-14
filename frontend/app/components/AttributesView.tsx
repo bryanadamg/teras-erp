@@ -2,21 +2,15 @@ import { useState } from 'react';
 
 export default function AttributesView({ 
     attributes,
-    categories,
     onCreateAttribute, 
     onUpdateAttribute, 
     onAddValue, 
     onUpdateValue, 
-    onDeleteValue,
-    onCreateCategory,
-    onDeleteCategory
+    onDeleteValue
 }: any) {
   const [newAttribute, setNewAttribute] = useState({ name: '', values: [] as any[] });
   const [newAttributeValue, setNewAttributeValue] = useState('');
   
-  // Category State
-  const [newCategoryName, setNewCategoryName] = useState('');
-
   // Edit Mode State
   const [editingAttr, setEditingAttr] = useState<any>(null);
   const [editValueText, setEditValueText] = useState('');
@@ -87,24 +81,14 @@ export default function AttributesView({
       }
   };
 
-  // Category Handlers
-  const handleCreateCategory = (e: React.FormEvent) => {
-      e.preventDefault();
-      if (newCategoryName) {
-          onCreateCategory(newCategoryName);
-          setNewCategoryName('');
-      }
-  };
-
   return (
-     <div className="row g-4 fade-in">
-        {/* LEFT: Attribute Templates */}
-        <div className="col-md-7">
+     <div className="row justify-content-center fade-in">
+        <div className="col-md-10">
            <div className="card h-100">
               <div className="card-header bg-white d-flex justify-content-between align-items-center">
                  <div>
                     <h5 className="card-title mb-0">Attribute Templates</h5>
-                    <p className="text-muted small mb-0 mt-1">Manage reusable variant sets.</p>
+                    <p className="text-muted small mb-0 mt-1">Manage reusable variant sets like Size, Color, or Year.</p>
                  </div>
                  {activeAttribute && <button className="btn btn-sm btn-outline-secondary" onClick={cancelEditing}>Close Editor</button>}
               </div>
@@ -114,7 +98,7 @@ export default function AttributesView({
                  {activeAttribute ? (
                      <div className="mb-4 p-4 bg-light rounded-3 border border-primary border-opacity-25">
                          <div className="d-flex justify-content-between align-items-center mb-3">
-                             <h6 className="text-primary fw-bold mb-0">Editing: {activeAttribute.name}</h6>
+                             <h6 className="text-primary fw-bold mb-0">Editing Template: {activeAttribute.name}</h6>
                              <button className="btn-close" onClick={cancelEditing}></button>
                          </div>
                          
@@ -130,7 +114,7 @@ export default function AttributesView({
                              </div>
                          </div>
 
-                         <label className="form-label small">Values</label>
+                         <label className="form-label small">Current Values</label>
                          <div className="list-group mb-3">
                              {activeAttribute.values.map((val: any) => (
                                  <div key={val.id} className="list-group-item d-flex justify-content-between align-items-center p-2">
@@ -170,14 +154,14 @@ export default function AttributesView({
                      <form onSubmit={handleCreateSubmit} className="mb-5 p-4 bg-light rounded-3 border border-dashed">
                         <div className="row g-3 align-items-end">
                             <div className="col-md-5">
-                               <label className="form-label">New Template Name</label>
+                               <label className="form-label fw-bold">New Template Name</label>
                                <input className="form-control" placeholder="e.g. Size" value={newAttribute.name} onChange={e => setNewAttribute({...newAttribute, name: e.target.value})} required />
                             </div>
                             <div className="col-md-7">
-                               <label className="form-label">Values</label>
+                               <label className="form-label fw-bold">Values</label>
                                <div className="input-group">
                                   <input className="form-control" placeholder="Add value (e.g. S, M, L)" value={newAttributeValue} onChange={e => setNewAttributeValue(e.target.value)} />
-                                  <button type="button" className="btn btn-secondary" onClick={handleAddValueToNewAttribute}>Add</button>
+                                  <button type="button" className="btn btn-secondary" onClick={handleAddValueToNewAttribute}>Add Value</button>
                                   {nextValForNew !== null && (
                                       <button type="button" className="btn btn-outline-success" onClick={handleAddNextToNew}>
                                           + {nextValForNew}
@@ -202,7 +186,7 @@ export default function AttributesView({
                  <h6 className="text-uppercase text-muted small fw-bold mb-3">Existing Templates</h6>
                  <div className="row g-3">
                     {attributes.map((attr: any) => (
-                       <div key={attr.id} className="col-md-6">
+                       <div key={attr.id} className="col-md-4">
                            <div 
                                 className={`p-3 border rounded-3 h-100 position-relative ${activeAttribute?.id === attr.id ? 'border-primary bg-primary bg-opacity-10' : 'bg-white hover-shadow'}`} 
                                 style={{cursor: 'pointer', transition: 'all 0.2s'}}
@@ -210,11 +194,11 @@ export default function AttributesView({
                            >
                               <div className="d-flex w-100 justify-content-between mb-2">
                                  <h6 className="mb-0 fw-bold">{attr.name}</h6>
-                                 <span className="badge bg-light text-muted border">{attr.values.length} values</span>
+                                 <span className="badge bg-light text-muted border">{attr.values.length}</span>
                               </div>
                               <div className="d-flex flex-wrap gap-1">
                                  {attr.values.slice(0, 5).map((v: any) => (
-                                    <span key={v.id} className="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-10">{v.value}</span>
+                                    <span key={v.id} className="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-10 small">{v.value}</span>
                                  ))}
                                  {attr.values.length > 5 && <span className="badge text-muted">+{attr.values.length - 5}</span>}
                               </div>
@@ -229,38 +213,6 @@ export default function AttributesView({
                  </div>
               </div>
            </div>
-        </div>
-
-        {/* RIGHT: Item Categories */}
-        <div className="col-md-5">
-            <div className="card h-100">
-                <div className="card-header bg-white">
-                    <h5 className="card-title mb-0">Item Categories</h5>
-                    <p className="text-muted small mb-0 mt-1">Classify your inventory items.</p>
-                </div>
-                <div className="card-body">
-                    <form onSubmit={handleCreateCategory} className="mb-4">
-                        <label className="form-label small">New Category Name</label>
-                        <div className="input-group">
-                            <input className="form-control" placeholder="e.g. Spare Parts" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} required />
-                            <button type="submit" className="btn btn-success">Add</button>
-                        </div>
-                    </form>
-
-                    <h6 className="text-uppercase text-muted small fw-bold mb-3">Existing Categories</h6>
-                    <ul className="list-group list-group-flush">
-                        {categories && categories.map((cat: any) => (
-                            <li key={cat.id} className="list-group-item d-flex justify-content-between align-items-center px-0">
-                                <span>{cat.name}</span>
-                                <button className="btn btn-sm text-danger" onClick={() => onDeleteCategory(cat.id)}>
-                                    <i className="bi bi-trash"></i>
-                                </button>
-                            </li>
-                        ))}
-                        {categories && categories.length === 0 && <li className="list-group-item text-center text-muted fst-italic">No categories defined</li>}
-                    </ul>
-                </div>
-            </div>
         </div>
      </div>
   );

@@ -10,6 +10,7 @@ import ManufacturingView from './components/ManufacturingView';
 import StockEntryView from './components/StockEntryView';
 import ReportsView from './components/ReportsView';
 import SettingsView from './components/SettingsView';
+import CategoriesView from './components/CategoriesView';
 
 const API_BASE = 'http://localhost:8000';
 
@@ -314,12 +315,17 @@ export default function Home() {
         {activeTab === 'attributes' && (
             <AttributesView 
                 attributes={attributes} 
-                categories={categories}
                 onCreateAttribute={handleCreateAttribute}
                 onUpdateAttribute={handleUpdateAttribute}
                 onAddValue={handleAddAttributeValue}
                 onUpdateValue={handleUpdateAttributeValue}
                 onDeleteValue={handleDeleteAttributeValue}
+            />
+        )}
+
+        {activeTab === 'categories' && (
+            <CategoriesView 
+                categories={categories}
                 onCreateCategory={handleCreateCategory}
                 onDeleteCategory={handleDeleteCategory}
             />
