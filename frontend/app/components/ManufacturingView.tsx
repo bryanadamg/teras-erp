@@ -3,6 +3,8 @@ import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
 
 export default function ManufacturingView({ items, boms, locations, attributes, workOrders, onCreateWO, onUpdateStatus }: any) {
   const [newWO, setNewWO] = useState({ code: '', bom_id: '', location_code: '', qty: 1.0, due_date: '' });
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   // Config State
   const [isConfigOpen, setIsConfigOpen] = useState(false);
@@ -47,17 +49,21 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
       
       // Determine Variant Name if needed
       let variantName = '';
-      if (config.includeVariant && bom.variant_id) {
-          const variant = item?.variants.find((v: any) => v.id === bom.variant_id);
-          if (variant) {
-              if (config.variantAttributeNames && config.variantAttributeNames.length > 0) {
-                  if (config.variantAttributeNames.includes(variant.category)) {
-                      variantName = variant.name.toUpperCase().replace(/\s+/g, '');
+      if (config.includeVariant && bom.attribute_value_ids && bom.attribute_value_ids.length > 0) {
+          // Join names of all variants included in the BOM
+          const names: string[] = [];
+          for (const valId of bom.attribute_value_ids) {
+              for (const attr of attributes) {
+                  const val = attr.values.find((v: any) => v.id === valId);
+                  if (val) {
+                      if (!config.variantAttributeNames || config.variantAttributeNames.length === 0 || config.variantAttributeNames.includes(attr.name)) {
+                          names.push(val.value.toUpperCase().replace(/\s+/g, ''));
+                      }
+                      break;
                   }
-              } else {
-                  variantName = variant.name.toUpperCase().replace(/\s+/g, '');
               }
           }
+          variantName = names.join('');
       }
 
       const parts = [];
@@ -82,6 +88,24 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
       return baseCode;
   };
 
+  const handlePrint = () => {
+      window.print();
+  };
+
+  const filteredWorkOrders = workOrders.filter((wo: any) => {
+      const date = new Date(wo.created_at);
+      const start = startDate ? new Date(startDate) : null;
+      const end = endDate ? new Date(endDate) : null;
+      
+      if (start && date < start) return false;
+      if (end) {
+          const endDateTime = new Date(end);
+          endDateTime.setHours(23, 59, 59, 999);
+          if (date > endDateTime) return false;
+      }
+      return true;
+  });
+
   const handleBOMChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
       const bomId = e.target.value;
       const suggestedCode = suggestWOCode(bomId);
@@ -100,12 +124,13 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
 
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
   const getBOMCode = (id: string) => boms.find((b: any) => b.id === id)?.code || id;
-  const getVariantName = (itemId: string, variantId: string) => {
-      if (!variantId) return '-';
-      const item = items.find((i: any) => i.id === itemId);
-      if (!item) return variantId;
-      const variant = (item as any).variants.find((v: any) => v.id === variantId);
-      return variant ? variant.name : variantId;
+  
+  const getAttributeValueName = (valId: string) => {
+      for (const attr of attributes) {
+          const val = attr.values.find((v: any) => v.id === valId);
+          if (val) return val.value;
+      }
+      return valId;
   };
 
   const getStatusBadge = (status: string) => {
@@ -118,7 +143,7 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
   };
 
   return (
-      <div className="row g-4 fade-in">
+      <div className="row g-4 fade-in print-container">
           <CodeConfigModal 
                isOpen={isConfigOpen} 
                onClose={() => setIsConfigOpen(false)} 
@@ -129,19 +154,19 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
            />
 
           {/* Create WO Card */}
-          <div className="col-md-4">
-              <div className="card h-100">
+          <div className="col-md-4 no-print">
+              <div className="card h-100 shadow-sm border-0">
                   <div className="card-header bg-success bg-opacity-10 text-success-emphasis">
                       <h5 className="card-title mb-0"><i className="bi bi-play-circle me-2"></i>New Production Run</h5>
                   </div>
                   <div className="card-body">
                       <form onSubmit={handleSubmit}>
                           <div className="mb-3">
-                              <label className="form-label d-flex justify-content-between align-items-center">
+                              <label className="form-label d-flex justify-content-between align-items-center small text-muted">
                                   WO Code
                                   <i 
                                       className="bi bi-gear-fill text-muted" 
-                                      style={{cursor: 'pointer', fontSize: '0.8rem'}}
+                                      style={{cursor: 'pointer'}}
                                       onClick={() => setIsConfigOpen(true)}
                                       title="Configure Auto-Suggestion"
                                   ></i>
@@ -154,7 +179,7 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
                                   <option value="">Choose a product recipe...</option>
                                   {boms.map((b: any) => (
                                       <option key={b.id} value={b.id}>
-                                          {b.code} - {getItemName(b.item_id)} {getVariantName(b.item_id, b.variant_id) !== '-' ? `(${getVariantName(b.item_id, b.variant_id)})` : ''}
+                                          {b.code} - {getItemName(b.item_id)}
                                       </option>
                                   ))}
                               </select>
@@ -185,36 +210,55 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
           </div>
 
           {/* Work Order List */}
-          <div className="col-md-8">
-              <div className="card h-100">
-                  <div className="card-header d-flex justify-content-between align-items-center">
+          <div className="col-md-8 flex-print-fill">
+              <div className="card h-100 border-0 shadow-sm">
+                  <div className="card-header bg-white d-flex justify-content-between align-items-center no-print">
                       <h5 className="card-title mb-0">Production Schedule</h5>
-                      <span className="badge bg-light text-dark border">{workOrders.length} Orders</span>
+                      <div className="d-flex gap-2">
+                          <div className="input-group input-group-sm">
+                              <span className="input-group-text">From</span>
+                              <input type="date" className="form-control" value={startDate} onChange={e => setStartDate(e.target.value)} />
+                          </div>
+                          <div className="input-group input-group-sm">
+                              <span className="input-group-text">To</span>
+                              <input type="date" className="form-control" value={endDate} onChange={e => setEndDate(e.target.value)} />
+                          </div>
+                          <button className="btn btn-outline-primary btn-sm" onClick={handlePrint}>
+                              <i className="bi bi-printer me-1"></i>Print
+                          </button>
+                      </div>
                   </div>
                   <div className="card-body p-0">
+                      <div className="print-header d-none d-print-block p-4 border-bottom mb-4">
+                          <h2 className="mb-1">Production Schedule Report</h2>
+                          <p className="text-muted mb-0">Period: {startDate || 'All Time'} to {endDate || 'Present'}</p>
+                          <p className="text-muted small">Generated on: {new Date().toLocaleString()}</p>
+                      </div>
                       <div className="table-responsive">
                           <table className="table table-hover align-middle mb-0">
                               <thead className="table-light">
                                   <tr>
-                                      <th>Code</th>
+                                      <th className="ps-4">Code</th>
                                       <th>Product</th>
                                       <th>Qty</th>
                                       <th>Status</th>
-                                      <th className="text-end">Actions</th>
+                                      <th className="text-end pe-4 no-print">Actions</th>
                                   </tr>
                               </thead>
                               <tbody>
-                                  {workOrders.map((wo: any) => (
+                                  {filteredWorkOrders.map((wo: any) => (
                                       <tr key={wo.id}>
-                                          <td className="fw-bold font-monospace">{wo.code}</td>
+                                          <td className="ps-4 fw-bold font-monospace">{wo.code}</td>
                                           <td>
                                               <div className="fw-medium">{getItemName(wo.item_id)}</div>
-                                              <div className="small text-muted">{getVariantName(wo.item_id, wo.variant_id)}</div>
+                                              <div className="small text-muted">
+                                                  {wo.attribute_value_ids?.map(getAttributeValueName).join(', ') || '-'}
+                                              </div>
                                               <div className="small text-primary fst-italic">{getBOMCode(wo.bom_id)}</div>
                                           </td>
                                           <td className="fw-bold">{wo.qty}</td>
                                           <td><span className={`badge ${getStatusBadge(wo.status)}`}>{wo.status}</span></td>
-                                          <td className="text-end">
+                                          <td className="text-end pe-4 no-print">
                                               {wo.status === 'PENDING' && (
                                                   <button className="btn btn-sm btn-outline-primary shadow-sm" onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>
                                                       <i className="bi bi-play-fill me-1"></i>Start
@@ -229,7 +273,7 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
                                           </td>
                                       </tr>
                                   ))}
-                                  {workOrders.length === 0 && <tr><td colSpan={5} className="text-center py-5 text-muted">No scheduled production</td></tr>}
+                                  {filteredWorkOrders.length === 0 && <tr><td colSpan={5} className="text-center py-5 text-muted">No scheduled production for this period</td></tr>}
                               </tbody>
                           </table>
                       </div>

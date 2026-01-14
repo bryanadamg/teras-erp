@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.manufacturing import WorkOrder
@@ -6,6 +6,8 @@ from app.models.bom import BOM
 from app.models.location import Location
 from app.services import stock_service
 from app.schemas import WorkOrderCreate, WorkOrderResponse
+from datetime import datetime
+from typing import Optional
 
 router = APIRouter()
 
@@ -49,8 +51,21 @@ def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db)):
     return wo
 
 @router.get("/work-orders", response_model=list[WorkOrderResponse])
-def get_work_orders(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    items = db.query(WorkOrder).order_by(WorkOrder.created_at.desc()).offset(skip).limit(limit).all()
+def get_work_orders(
+    skip: int = 0, 
+    limit: int = 100, 
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    db: Session = Depends(get_db)
+):
+    query = db.query(WorkOrder)
+    
+    if start_date:
+        query = query.filter(WorkOrder.created_at >= start_date)
+    if end_date:
+        query = query.filter(WorkOrder.created_at <= end_date)
+        
+    items = query.order_by(WorkOrder.created_at.desc()).offset(skip).limit(limit).all()
     for item in items:
         item.attribute_value_ids = [v.id for v in item.attribute_values]
     return items

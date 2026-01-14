@@ -1,4 +1,9 @@
+import { useState } from 'react';
+
 export default function ReportsView({ stockEntries, items, locations, onRefresh }: any) {
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
   const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
   const getVariantName = (itemId: string, variantId: string) => {
@@ -9,16 +14,54 @@ export default function ReportsView({ stockEntries, items, locations, onRefresh 
       return variant ? variant.name : variantId;
   };
 
+  const handlePrint = () => {
+      window.print();
+  };
+
+  const filteredEntries = stockEntries.filter((entry: any) => {
+      const date = new Date(entry.created_at);
+      const start = startDate ? new Date(startDate) : null;
+      const end = endDate ? new Date(endDate) : null;
+      
+      if (start && date < start) return false;
+      if (end) {
+          const endDateTime = new Date(end);
+          endDateTime.setHours(23, 59, 59, 999);
+          if (date > endDateTime) return false;
+      }
+      return true;
+  });
+
   return (
-      <div className="card fade-in">
-          <div className="card-header d-flex justify-content-between align-items-center">
+      <div className="card fade-in border-0 shadow-sm print-container">
+          <div className="card-header bg-white d-flex justify-content-between align-items-center no-print">
               <div>
-                  <h5 className="card-title mb-0">Stock Ledger</h5>
-                  <small className="text-muted">History of all inventory movements</small>
+                  <h5 className="card-title mb-0">Stock Ledger Report</h5>
+                  <small className="text-muted">Analyze inventory movements</small>
               </div>
-              <button className="btn btn-outline-secondary btn-sm" onClick={onRefresh}><i className="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+              <div className="d-flex gap-2 align-items-center">
+                  <div className="input-group input-group-sm">
+                      <span className="input-group-text">From</span>
+                      <input type="date" className="form-control" value={startDate} onChange={e => setStartDate(e.target.value)} />
+                  </div>
+                  <div className="input-group input-group-sm">
+                      <span className="input-group-text">To</span>
+                      <input type="date" className="form-control" value={endDate} onChange={e => setEndDate(e.target.value)} />
+                  </div>
+                  <button className="btn btn-outline-primary btn-sm" onClick={handlePrint}>
+                      <i className="bi bi-printer me-1"></i>Print
+                  </button>
+                  <button className="btn btn-outline-secondary btn-sm" onClick={onRefresh}>
+                      <i className="bi bi-arrow-clockwise me-1"></i>Refresh
+                  </button>
+              </div>
           </div>
           <div className="card-body p-0">
+              <div className="print-header d-none d-print-block p-4 border-bottom mb-4">
+                  <h2 className="mb-1">Stock Ledger Report</h2>
+                  <p className="text-muted mb-0">Period: {startDate || 'All Time'} to {endDate || 'Present'}</p>
+                  <p className="text-muted small">Generated on: {new Date().toLocaleString()}</p>
+              </div>
               <div className="table-responsive">
                   <table className="table table-hover table-striped mb-0 align-middle">
                       <thead className="table-light">
@@ -31,12 +74,14 @@ export default function ReportsView({ stockEntries, items, locations, onRefresh 
                           </tr>
                       </thead>
                       <tbody>
-                          {stockEntries.map((entry: any) => (
+                          {filteredEntries.map((entry: any) => (
                               <tr key={entry.id}>
                                   <td className="ps-4 text-muted small font-monospace">{new Date(entry.created_at).toLocaleString()}</td>
                                   <td>
                                       <div className="fw-medium">{getItemName(entry.item_id)}</div>
-                                      <div className="small text-muted">{getVariantName(entry.item_id, entry.variant_id)}</div>
+                                      <div className="small text-muted">
+                                          {entry.attribute_values?.map((v:any) => v.value).join(', ') || '-'}
+                                      </div>
                                   </td>
                                   <td>{getLocationName(entry.location_id)}</td>
                                   <td className={`text-end fw-bold ${entry.qty_change >= 0 ? 'text-success' : 'text-danger'}`}>
@@ -48,7 +93,7 @@ export default function ReportsView({ stockEntries, items, locations, onRefresh 
                                   </td>
                               </tr>
                           ))}
-                          {stockEntries.length === 0 && <tr><td colSpan={5} className="text-center py-5 text-muted">No records found</td></tr>}
+                          {filteredEntries.length === 0 && <tr><td colSpan={5} className="text-center py-5 text-muted">No records found for this period</td></tr>}
                       </tbody>
                   </table>
               </div>

@@ -365,3 +365,41 @@ body {
   border-radius: 6px;
   font-weight: 600;
 }
+
+/* Print Styles */
+@media print {
+  .sidebar, .navbar, .no-print, header, .classic-header, .classic-toolbar {
+    display: none !important;
+  }
+  
+  .main-content {
+    margin-left: 0 !important;
+    padding: 0 !important;
+  }
+  
+  .container {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .card {
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  .table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  .table th, .table td {
+    border: 1px solid #dee2e6 !important;
+  }
+
+  .flex-print-fill {
+    flex: 0 0 100% !important;
+    max-width: 100% !important;
+  }
+}
