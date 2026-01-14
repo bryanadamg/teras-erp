@@ -1,21 +1,83 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
 
-export default function ManufacturingView({ items, boms, locations, workOrders, onCreateWO, onUpdateStatus }: any) {
+export default function ManufacturingView({ items, boms, locations, attributes, workOrders, onCreateWO, onUpdateStatus }: any) {
   const [newWO, setNewWO] = useState({ code: '', bom_id: '', location_code: '', qty: 1.0, due_date: '' });
 
-  const suggestWOCode = (bomId: string) => {
+  // Config State
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [codeConfig, setCodeConfig] = useState<CodeConfig>({
+      prefix: 'WO',
+      suffix: '',
+      separator: '-',
+      includeItemCode: true,
+      includeVariant: false,
+      variantAttributeName: '',
+      includeYear: false,
+      includeMonth: false
+  });
+
+  useEffect(() => {
+      const savedConfig = localStorage.getItem('wo_code_config');
+      if (savedConfig) {
+          try {
+              setCodeConfig(JSON.parse(savedConfig));
+          } catch (e) {
+              console.error("Invalid config in localstorage");
+          }
+      }
+  }, []);
+
+  const handleSaveConfig = (newConfig: CodeConfig) => {
+      setCodeConfig(newConfig);
+      localStorage.setItem('wo_code_config', JSON.stringify(newConfig));
+      
+      if (newWO.bom_id) {
+          const suggested = suggestWOCode(newWO.bom_id, newConfig);
+          setNewWO(prev => ({ ...prev, code: suggested }));
+      }
+  };
+
+  const suggestWOCode = (bomId: string, config = codeConfig) => {
       const bom = boms.find((b: any) => b.id === bomId);
       if (!bom) return '';
       
       const item = items.find((i: any) => i.id === bom.item_id);
       const itemCode = item ? item.code : 'PROD';
       
-      let baseCode = `WO-${itemCode}-001`;
+      // Determine Variant Name if needed
+      let variantName = '';
+      if (config.includeVariant && bom.variant_id) {
+          const variant = item?.variants.find((v: any) => v.id === bom.variant_id);
+          if (variant) {
+              if (config.variantAttributeName) {
+                  if (variant.category === config.variantAttributeName) {
+                      variantName = variant.name.toUpperCase().replace(/\s+/g, '');
+                  }
+              } else {
+                  variantName = variant.name.toUpperCase().replace(/\s+/g, '');
+              }
+          }
+      }
+
+      const parts = [];
+      if (config.prefix) parts.push(config.prefix);
+      if (config.includeItemCode) parts.push(itemCode);
+      if (config.includeVariant && variantName) parts.push(variantName);
+      
+      const now = new Date();
+      if (config.includeYear) parts.push(now.getFullYear());
+      if (config.includeMonth) parts.push(String(now.getMonth() + 1).padStart(2, '0'));
+      if (config.suffix) parts.push(config.suffix);
+
+      const basePattern = parts.join(config.separator);
+      
       let counter = 1;
+      let baseCode = `${basePattern}${config.separator}001`;
       
       while (workOrders.some((w: any) => w.code === baseCode)) {
           counter++;
-          baseCode = `WO-${itemCode}-${String(counter).padStart(3, '0')}`;
+          baseCode = `${basePattern}${config.separator}${String(counter).padStart(3, '0')}`;
       }
       return baseCode;
   };
@@ -57,6 +119,15 @@ export default function ManufacturingView({ items, boms, locations, workOrders, 
 
   return (
       <div className="row g-4 fade-in">
+          <CodeConfigModal 
+               isOpen={isConfigOpen} 
+               onClose={() => setIsConfigOpen(false)} 
+               type="WO"
+               onSave={handleSaveConfig}
+               initialConfig={codeConfig}
+               attributes={attributes}
+           />
+
           {/* Create WO Card */}
           <div className="col-md-4">
               <div className="card h-100">
@@ -66,8 +137,16 @@ export default function ManufacturingView({ items, boms, locations, workOrders, 
                   <div className="card-body">
                       <form onSubmit={handleSubmit}>
                           <div className="mb-3">
-                              <label className="form-label">WO Code</label>
-                              <input className="form-control" placeholder="WO-2024-001" value={newWO.code} onChange={e => setNewWO({...newWO, code: e.target.value})} required />
+                              <label className="form-label d-flex justify-content-between align-items-center">
+                                  WO Code
+                                  <i 
+                                      className="bi bi-gear-fill text-muted" 
+                                      style={{cursor: 'pointer', fontSize: '0.8rem'}}
+                                      onClick={() => setIsConfigOpen(true)}
+                                      title="Configure Auto-Suggestion"
+                                  ></i>
+                              </label>
+                              <input className="form-control" placeholder="Auto-generated" value={newWO.code} onChange={e => setNewWO({...newWO, code: e.target.value})} required />
                           </div>
                           <div className="mb-3">
                               <label className="form-label">Select Recipe (BOM)</label>

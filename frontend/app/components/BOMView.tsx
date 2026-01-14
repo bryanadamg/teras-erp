@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
 
-export default function BOMView({ items, boms, onCreateBOM }: any) {
+export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
   const [newBOM, setNewBOM] = useState({
       code: '',
       description: '',
@@ -10,22 +11,94 @@ export default function BOMView({ items, boms, onCreateBOM }: any) {
       lines: [] as any[]
   });
   const [newBOMLine, setNewBOMLine] = useState({ item_code: '', variant_id: '', qty: 0 });
+  
+  // Config State
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [codeConfig, setCodeConfig] = useState<CodeConfig>({
+      prefix: 'BOM',
+      suffix: '',
+      separator: '-',
+      includeItemCode: true,
+      includeVariant: false,
+      variantAttributeName: '',
+      includeYear: false,
+      includeMonth: false
+  });
 
-  const suggestBOMCode = (itemCode: string) => {
-      let baseCode = `BOM-${itemCode}-001`;
-      let counter = 1;
+  useEffect(() => {
+      const savedConfig = localStorage.getItem('bom_code_config');
+      if (savedConfig) {
+          try {
+              setCodeConfig(JSON.parse(savedConfig));
+          } catch (e) {
+              console.error("Invalid config in localstorage");
+          }
+      }
+  }, []);
+
+  const handleSaveConfig = (newConfig: CodeConfig) => {
+      setCodeConfig(newConfig);
+      localStorage.setItem('bom_code_config', JSON.stringify(newConfig));
       
+      // Re-generate code if item is already selected
+      if (newBOM.item_code) {
+          const suggested = suggestBOMCode(newBOM.item_code, newBOM.variant_id, newConfig);
+          setNewBOM(prev => ({ ...prev, code: suggested }));
+      }
+  };
+
+  const suggestBOMCode = (itemCode: string, variantId: string = '', config = codeConfig) => {
+      const parts = [];
+      if (config.prefix) parts.push(config.prefix);
+      if (config.includeItemCode && itemCode) parts.push(itemCode);
+      
+      if (config.includeVariant && variantId) {
+          const item = items.find((i: any) => i.code === itemCode);
+          const variant = item?.variants.find((v: any) => v.id === variantId);
+          
+          if (variant) {
+              // If a specific attribute is configured, only use variant if it matches
+              if (config.variantAttributeName) {
+                  if (variant.category === config.variantAttributeName) {
+                      parts.push(variant.name.toUpperCase().replace(/\s+/g, ''));
+                  }
+              } else {
+                  // Default behavior: include any selected variant
+                  parts.push(variant.name.toUpperCase().replace(/\s+/g, ''));
+              }
+          }
+      }
+      
+      const now = new Date();
+      if (config.includeYear) parts.push(now.getFullYear());
+      if (config.includeMonth) parts.push(String(now.getMonth() + 1).padStart(2, '0'));
+      if (config.suffix) parts.push(config.suffix);
+
+      const basePattern = parts.join(config.separator);
+      
+      // Find next available counter
+      let counter = 1;
+      let baseCode = `${basePattern}${config.separator}001`;
+      
+      // If we only have static text, we must append a counter. 
+      // If we have dynamic vars, we still append a counter for safety/uniqueness standard practice in ERPs.
       while (boms.some((b: any) => b.code === baseCode)) {
           counter++;
-          baseCode = `BOM-${itemCode}-${String(counter).padStart(3, '0')}`;
+          baseCode = `${basePattern}${config.separator}${String(counter).padStart(3, '0')}`;
       }
       return baseCode;
   };
 
   const handleItemChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
       const itemCode = e.target.value;
-      const suggestedCode = suggestBOMCode(itemCode);
-      setNewBOM({...newBOM, item_code: itemCode, code: suggestedCode, variant_id: ''});
+      const suggestedCode = suggestBOMCode(itemCode, newBOM.variant_id);
+      setNewBOM({...newBOM, item_code: itemCode, code: suggestedCode});
+  };
+
+  const handleVariantChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const variantId = e.target.value;
+      const suggestedCode = suggestBOMCode(newBOM.item_code, variantId);
+      setNewBOM({...newBOM, variant_id: variantId, code: suggestedCode});
   };
 
   const handleAddLineToBOM = () => {
@@ -44,8 +117,6 @@ export default function BOMView({ items, boms, onCreateBOM }: any) {
           return;
       }
       onCreateBOM(newBOM);
-      // Reset is handled by parent or manual here? Parent doesn't reset state passed down usually.
-      // We'll rely on the parent to re-render or we reset here. Ideally reset here.
       setNewBOM({ code: '', description: '', item_code: '', variant_id: '', qty: 1.0, lines: [] });
   };
 
@@ -67,6 +138,15 @@ export default function BOMView({ items, boms, onCreateBOM }: any) {
 
   return (
     <div className="row g-4 fade-in">
+       <CodeConfigModal 
+           isOpen={isConfigOpen} 
+           onClose={() => setIsConfigOpen(false)} 
+           type="BOM"
+           onSave={handleSaveConfig}
+           initialConfig={codeConfig}
+           attributes={attributes}
+       />
+
        {/* Create BOM Form */}
        <div className="col-md-5">
           <div className="card h-100">
@@ -76,11 +156,19 @@ export default function BOMView({ items, boms, onCreateBOM }: any) {
              <div className="card-body">
                 <form onSubmit={handleSubmit}>
                     <div className="row g-3 mb-3">
-                        <div className="col-md-6">
-                            <label className="form-label">BOM Code</label>
-                            <input className="form-control" placeholder="BOM-001" value={newBOM.code} onChange={e => setNewBOM({...newBOM, code: e.target.value})} required />
+                        <div className="col-md-8">
+                            <label className="form-label d-flex justify-content-between align-items-center">
+                                BOM Code
+                                <i 
+                                    className="bi bi-gear-fill text-muted" 
+                                    style={{cursor: 'pointer', fontSize: '0.8rem'}}
+                                    onClick={() => setIsConfigOpen(true)}
+                                    title="Configure Auto-Suggestion"
+                                ></i>
+                            </label>
+                            <input className="form-control" placeholder="Auto-generated" value={newBOM.code} onChange={e => setNewBOM({...newBOM, code: e.target.value})} required />
                         </div>
-                        <div className="col-md-6">
+                        <div className="col-md-4">
                             <label className="form-label">Output Qty</label>
                             <input type="number" className="form-control" placeholder="1.0" value={newBOM.qty} onChange={e => setNewBOM({...newBOM, qty: parseFloat(e.target.value)})} required />
                         </div>
@@ -100,8 +188,8 @@ export default function BOMView({ items, boms, onCreateBOM }: any) {
                                 </select>
                             </div>
                             <div className="col-5">
-                                <select className="form-select" value={newBOM.variant_id} onChange={e => setNewBOM({...newBOM, variant_id: e.target.value})} disabled={availableVariantsForBOM.length === 0}>
-                                    <option value="">{availableVariantsForBOM.length > 0 ? 'Variant' : '-'}</option>
+                                <select className="form-select" value={newBOM.variant_id} onChange={handleVariantChange} disabled={availableVariantsForBOM.length === 0}>
+                                    <option value="">{availableVariantsForBOM.length > 0 ? 'Select Variant' : 'No Variants'}</option>
                                     {availableVariantsForBOM.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
                                 </select>
                             </div>

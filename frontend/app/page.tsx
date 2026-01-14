@@ -286,7 +286,8 @@ export default function Home() {
         {activeTab === 'bom' && (
             <BOMView 
                 items={items} 
-                boms={boms} 
+                boms={boms}
+                attributes={attributes}
                 onCreateBOM={handleCreateBOM} 
             />
         )}
@@ -296,6 +297,7 @@ export default function Home() {
                 items={items} 
                 boms={boms} 
                 locations={locations}
+                attributes={attributes}
                 workOrders={workOrders} 
                 onCreateWO={handleCreateWO} 
                 onUpdateStatus={handleUpdateWOStatus} 
