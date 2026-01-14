@@ -114,14 +114,30 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
       setNewWO({...newWO, bom_id: bomId, code: suggestedCode});
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (workOrders.some((w: any) => w.code === newWO.code)) {
-          showToast('Work Order Code already exists.', 'warning');
-          return;
+      const res = await onCreateWO(newWO);
+      
+      if (res && res.status === 400) {
+          let baseCode = newWO.code;
+          const baseMatch = baseCode.match(/^(.*)-(\d+)$/);
+          if (baseMatch) baseCode = baseMatch[1];
+
+          let counter = 1;
+          let suggestedCode = `${baseCode}-${counter}`;
+          while (workOrders.some((w: any) => w.code === suggestedCode)) {
+              counter++;
+              suggestedCode = `${baseCode}-${counter}`;
+          }
+
+          showToast(`Work Order Code "${newWO.code}" already exists. Suggesting: ${suggestedCode}`, 'warning');
+          setNewWO({ ...newWO, code: suggestedCode });
+      } else if (res && res.ok) {
+          showToast('Work Order created successfully!', 'success');
+          setNewWO({ code: '', bom_id: '', location_code: '', qty: 1.0, due_date: '' });
+      } else {
+          showToast('Failed to create Work Order', 'danger');
       }
-      onCreateWO(newWO);
-      setNewWO({ code: '', bom_id: '', location_code: '', qty: 1.0, due_date: '' });
   };
 
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;

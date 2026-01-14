@@ -115,12 +115,13 @@ export default function Home() {
   };
 
   const handleCreateLocation = async (location: any) => {
-    await fetch(`${API_BASE}/locations`, {
+    const res = await fetch(`${API_BASE}/locations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(location)
     });
     fetchData();
+    return res;
   };
 
   const handleCreateAttribute = async (attr: any) => {
@@ -193,13 +194,8 @@ export default function Home() {
           body: JSON.stringify(payload)
       });
       
-      if (res.ok) {
-          showToast('BOM Created successfully!', 'success');
-          fetchData();
-      } else {
-          const err = await res.json();
-          showToast(`Error: ${err.detail}`, 'danger');
-      }
+      fetchData();
+      return res;
   };
 
   const handleCreateWO = async (wo: any) => {
@@ -212,13 +208,8 @@ export default function Home() {
           body: JSON.stringify(payload)
       });
 
-      if (res.ok) {
-          showToast('Work Order Created successfully!', 'success');
-          fetchData();
-      } else {
-          const err = await res.json();
-          showToast(`Error: ${err.detail}`, 'danger');
-      }
+      fetchData();
+      return res;
   };
 
   const handleUpdateWOStatus = async (woId: string, status: string) => {

@@ -125,14 +125,30 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
       setNewBOMLine({ item_code: '', attribute_value_ids: [], qty: 0 });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (boms.some((b: any) => b.code === newBOM.code)) {
-          showToast('BOM Code already exists.', 'warning');
-          return;
+      const res = await onCreateBOM(newBOM);
+      
+      if (res && res.status === 400) {
+          let baseCode = newBOM.code;
+          const baseMatch = baseCode.match(/^(.*)-(\d+)$/);
+          if (baseMatch) baseCode = baseMatch[1];
+
+          let counter = 1;
+          let suggestedCode = `${baseCode}-${counter}`;
+          while (boms.some((b: any) => b.code === suggestedCode)) {
+              counter++;
+              suggestedCode = `${baseCode}-${counter}`;
+          }
+
+          showToast(`BOM Code "${newBOM.code}" already exists. Suggesting: ${suggestedCode}`, 'warning');
+          setNewBOM({ ...newBOM, code: suggestedCode });
+      } else if (res && res.ok) {
+          showToast('BOM created successfully!', 'success');
+          setNewBOM({ code: '', description: '', item_code: '', attribute_value_ids: [], qty: 1.0, lines: [] });
+      } else {
+          showToast('Failed to create BOM', 'danger');
       }
-      onCreateBOM(newBOM);
-      setNewBOM({ code: '', description: '', item_code: '', attribute_value_ids: [], qty: 1.0, lines: [] });
   };
 
   // Helpers

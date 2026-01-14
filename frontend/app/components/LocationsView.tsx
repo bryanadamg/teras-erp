@@ -1,12 +1,34 @@
 import { useState } from 'react';
+import { useToast } from './Toast';
 
 export default function LocationsView({ locations, onCreateLocation, onRefresh }: any) {
+  const { showToast } = useToast();
   const [newLocation, setNewLocation] = useState({ code: '', name: '' });
 
-  const handleSubmitLocation = (e: React.FormEvent) => {
+  const handleSubmitLocation = async (e: React.FormEvent) => {
       e.preventDefault();
-      onCreateLocation(newLocation);
-      setNewLocation({ code: '', name: '' });
+      const res = await onCreateLocation(newLocation);
+      
+      if (res && res.status === 400) {
+          let baseCode = newLocation.code;
+          const baseMatch = baseCode.match(/^(.*)-(\d+)$/);
+          if (baseMatch) baseCode = baseMatch[1];
+
+          let counter = 1;
+          let suggestedCode = `${baseCode}-${counter}`;
+          while (locations.some((l: any) => l.code === suggestedCode)) {
+              counter++;
+              suggestedCode = `${baseCode}-${counter}`;
+          }
+
+          showToast(`Location Code "${newLocation.code}" already exists. Suggesting: ${suggestedCode}`, 'warning');
+          setNewLocation({ ...newLocation, code: suggestedCode });
+      } else if (res && res.ok) {
+          showToast('Location added successfully!', 'success');
+          setNewLocation({ code: '', name: '' });
+      } else {
+          showToast('Failed to add location', 'danger');
+      }
   };
 
   return (
