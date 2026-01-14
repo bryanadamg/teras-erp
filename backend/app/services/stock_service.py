@@ -43,3 +43,27 @@ def get_stock_entries(db: Session, skip: int = 0, limit: int = 100):
         .all()
     )
 
+
+def get_all_stock_balances(db: Session):
+    # Aggregate sum of qty_change group by item, variant, location
+    results = db.query(
+        StockLedger.item_id,
+        StockLedger.variant_id,
+        StockLedger.location_id,
+        func.sum(StockLedger.qty_change).label("qty")
+    ).group_by(
+        StockLedger.item_id,
+        StockLedger.variant_id,
+        StockLedger.location_id
+    ).having(func.sum(StockLedger.qty_change) != 0).all()
+    
+    return [
+        {
+            "item_id": r.item_id,
+            "variant_id": r.variant_id,
+            "location_id": r.location_id,
+            "qty": r.qty
+        }
+        for r in results
+    ]
+

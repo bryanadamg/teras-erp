@@ -25,17 +25,19 @@ export default function Home() {
   const [boms, setBoms] = useState([]);
   const [workOrders, setWorkOrders] = useState([]);
   const [stockEntries, setStockEntries] = useState([]);
+  const [stockBalance, setStockBalance] = useState([]);
 
   const fetchData = async () => {
     try {
-      const [itemsRes, locsRes, stockRes, attrsRes, catsRes, bomsRes, woRes] = await Promise.all([
+      const [itemsRes, locsRes, stockRes, attrsRes, catsRes, bomsRes, woRes, balRes] = await Promise.all([
           fetch(`${API_BASE}/items`),
           fetch(`${API_BASE}/locations`),
           fetch(`${API_BASE}/stock`),
           fetch(`${API_BASE}/attributes`),
           fetch(`${API_BASE}/categories`),
           fetch(`${API_BASE}/boms`),
-          fetch(`${API_BASE}/work-orders`)
+          fetch(`${API_BASE}/work-orders`),
+          fetch(`${API_BASE}/stock/balance`)
       ]);
 
       if (itemsRes.ok) setItems(await itemsRes.json());
@@ -45,6 +47,7 @@ export default function Home() {
       if (catsRes.ok) setCategories(await catsRes.json());
       if (bomsRes.ok) setBoms(await bomsRes.json());
       if (woRes.ok) setWorkOrders(await woRes.json());
+      if (balRes.ok) setStockBalance(await balRes.json());
     } catch (e) {
       console.error("Failed to fetch data", e);
     }
@@ -303,6 +306,7 @@ export default function Home() {
             <StockEntryView 
                 items={items} 
                 locations={locations} 
+                stockBalance={stockBalance}
                 onRecordStock={handleRecordStock} 
             />
         )}

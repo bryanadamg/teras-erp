@@ -145,6 +145,12 @@ class StockLedgerResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class StockBalanceResponse(BaseModel):
+    item_id: UUID
+    variant_id: UUID | None
+    location_id: UUID
+    qty: float
+
 class LocationCreate(BaseModel):
     code: str
     name: str
