@@ -55,6 +55,30 @@ def run_migrations():
             except Exception as e:
                 logger.warning(f"Migration step 5 warning: {e}")
 
+            # 6. Add attribute_id to items
+            try:
+                conn.execute(text("ALTER TABLE items ADD COLUMN IF NOT EXISTS attribute_id UUID REFERENCES attributes(id)"))
+                conn.execute(text("COMMIT"))
+                logger.info("Migration: Verified attribute_id in items")
+            except Exception as e:
+                logger.warning(f"Migration step 6 warning: {e}")
+
+            # 7. Rename variant_id to attribute_value_id in multiple tables
+            for table in ["stock_ledger", "boms", "bom_lines", "work_orders"]:
+                try:
+                    # Check if old column exists and new one doesn't
+                    conn.execute(text(f"ALTER TABLE {table} RENAME COLUMN variant_id TO attribute_value_id"))
+                    conn.execute(text(f"ALTER TABLE {table} DROP CONSTRAINT IF EXISTS {table}_variant_id_fkey"))
+                    conn.execute(text(f"ALTER TABLE {table} ADD CONSTRAINT {table}_attribute_value_id_fkey FOREIGN KEY (attribute_value_id) REFERENCES attribute_values(id)"))
+                    conn.execute(text("COMMIT"))
+                    logger.info(f"Migration: Renamed variant_id in {table}")
+                except Exception as e:
+                    # If already renamed or error, just try to add column if it doesn't exist
+                    try:
+                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS attribute_value_id UUID REFERENCES attribute_values(id)"))
+                        conn.execute(text("COMMIT"))
+                    except: pass
+
     except Exception as e:
         logger.error(f"Migration failed: {e}")
 

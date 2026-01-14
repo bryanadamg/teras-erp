@@ -6,11 +6,11 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
       code: '',
       description: '',
       item_code: '',
-      variant_id: '',
+      attribute_value_id: '',
       qty: 1.0,
       lines: [] as any[]
   });
-  const [newBOMLine, setNewBOMLine] = useState({ item_code: '', variant_id: '', qty: 0 });
+  const [newBOMLine, setNewBOMLine] = useState({ item_code: '', attribute_value_id: '', qty: 0 });
   
   // Config State
   const [isConfigOpen, setIsConfigOpen] = useState(false);
@@ -40,41 +40,30 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
       setCodeConfig(newConfig);
       localStorage.setItem('bom_code_config', JSON.stringify(newConfig));
       
-      // Re-generate code if item is already selected
       if (newBOM.item_code) {
-          const suggested = suggestBOMCode(newBOM.item_code, newBOM.variant_id, newConfig);
+          const suggested = suggestBOMCode(newBOM.item_code, newBOM.attribute_value_id, newConfig);
           setNewBOM(prev => ({ ...prev, code: suggested }));
       }
   };
 
-  const suggestBOMCode = (itemCode: string, variantId: string = '', config = codeConfig) => {
+  const suggestBOMCode = (itemCode: string, attributeValueId: string = '', config = codeConfig) => {
       const parts = [];
       if (config.prefix) parts.push(config.prefix);
       if (config.includeItemCode && itemCode) parts.push(itemCode);
       
-      if (config.includeVariant && variantId) {
-          const item = items.find((i: any) => i.code === itemCode);
-          const variant = item?.variants.find((v: any) => v.id === variantId);
-          
-          if (variant) {
-              if (config.variantAttributeNames && config.variantAttributeNames.length > 0) {
-                  // Only include if variant category matches one of the selected attributes
-                  // Note: A single variant usually belongs to one category. 
-                  // If the user selected multiple attributes, check if this variant's category is in the list.
-                  // However, if the item has multiple variants (e.g. Color AND Size), they are stored as separate variant records in this simplified model?
-                  // Wait, current Item model has `variants` list. But the BOM selects a SINGLE `variant_id`.
-                  // If the Item represents "T-Shirt" and has variants "Red" (Category: Color) and "Large" (Category: Size),
-                  // the user selects ONE variant_id for the BOM produced item.
-                  // So we can only include the value of THAT selected variant if its category is in the config list.
-                  
-                  if (config.variantAttributeNames.includes(variant.category)) {
-                      parts.push(variant.name.toUpperCase().replace(/\s+/g, ''));
+      if (config.includeVariant && attributeValueId) {
+          // Find the attribute value name
+          let foundValueName = "";
+          for (const attr of attributes) {
+              const val = attr.values.find((v: any) => v.id === attributeValueId);
+              if (val) {
+                  if (!config.variantAttributeNames || config.variantAttributeNames.length === 0 || config.variantAttributeNames.includes(attr.name)) {
+                      foundValueName = val.value.toUpperCase().replace(/\s+/g, '');
                   }
-              } else {
-                  // Default behavior
-                  parts.push(variant.name.toUpperCase().replace(/\s+/g, ''));
+                  break;
               }
           }
+          if (foundValueName) parts.push(foundValueName);
       }
       
       const now = new Date();
@@ -84,12 +73,9 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
 
       const basePattern = parts.join(config.separator);
       
-      // Find next available counter
       let counter = 1;
       let baseCode = `${basePattern}${config.separator}001`;
       
-      // If we only have static text, we must append a counter. 
-      // If we have dynamic vars, we still append a counter for safety/uniqueness standard practice in ERPs.
       while (boms.some((b: any) => b.code === baseCode)) {
           counter++;
           baseCode = `${basePattern}${config.separator}${String(counter).padStart(3, '0')}`;
@@ -99,23 +85,23 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
 
   const handleItemChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
       const itemCode = e.target.value;
-      const suggestedCode = suggestBOMCode(itemCode, newBOM.variant_id);
-      setNewBOM({...newBOM, item_code: itemCode, code: suggestedCode});
+      const suggestedCode = suggestBOMCode(itemCode, newBOM.attribute_value_id);
+      setNewBOM({...newBOM, item_code: itemCode, code: suggestedCode, attribute_value_id: ''});
   };
 
-  const handleVariantChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-      const variantId = e.target.value;
-      const suggestedCode = suggestBOMCode(newBOM.item_code, variantId);
-      setNewBOM({...newBOM, variant_id: variantId, code: suggestedCode});
+  const handleAttributeValueChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const valId = e.target.value;
+      const suggestedCode = suggestBOMCode(newBOM.item_code, valId);
+      setNewBOM({...newBOM, attribute_value_id: valId, code: suggestedCode});
   };
 
   const handleAddLineToBOM = () => {
       if (!newBOMLine.item_code || newBOMLine.qty <= 0) return;
       const linePayload: any = { ...newBOMLine };
-      if (!linePayload.variant_id) delete linePayload.variant_id;
+      if (!linePayload.attribute_value_id) delete linePayload.attribute_value_id;
       
       setNewBOM({ ...newBOM, lines: [...newBOM.lines, linePayload] });
-      setNewBOMLine({ item_code: '', variant_id: '', qty: 0 });
+      setNewBOMLine({ item_code: '', attribute_value_id: '', qty: 0 });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -125,24 +111,29 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
           return;
       }
       onCreateBOM(newBOM);
-      setNewBOM({ code: '', description: '', item_code: '', variant_id: '', qty: 1.0, lines: [] });
+      setNewBOM({ code: '', description: '', item_code: '', attribute_value_id: '', qty: 1.0, lines: [] });
   };
 
   // Helpers
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
-  const getVariantName = (itemId: string, variantId: string) => {
-      if (!variantId) return '-';
-      const item = items.find((i: any) => i.id === itemId);
-      if (!item) return variantId;
-      const variant = (item as any).variants.find((v: any) => v.id === variantId);
-      return variant ? variant.name : variantId;
+  const getAttributeValueName = (valId: string) => {
+      if (!valId) return '-';
+      for (const attr of attributes) {
+          const val = attr.values.find((v: any) => v.id === valId);
+          if (val) return val.value;
+      }
+      return valId;
   };
 
-  const selectedItemForBOM = items.find((i: any) => i.code === newBOM.item_code);
-  const availableVariantsForBOM = selectedItemForBOM ? (selectedItemForBOM as any).variants : [];
+  const getAvailableValues = (itemCode: string) => {
+      const item = items.find((i: any) => i.code === itemCode);
+      if (!item || !item.attribute_id) return [];
+      const attr = attributes.find((a: any) => a.id === item.attribute_id);
+      return attr ? attr.values : [];
+  };
 
-  const selectedLineItemForBOM = items.find((i: any) => i.code === newBOMLine.item_code);
-  const availableLineVariantsForBOM = selectedLineItemForBOM ? (selectedLineItemForBOM as any).variants : [];
+  const availableValuesForBOM = getAvailableValues(newBOM.item_code);
+  const availableValuesForLine = getAvailableValues(newBOMLine.item_code);
 
   return (
     <div className="row g-4 fade-in">
@@ -167,12 +158,7 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
                         <div className="col-md-8">
                             <label className="form-label d-flex justify-content-between align-items-center">
                                 BOM Code
-                                <i 
-                                    className="bi bi-gear-fill text-muted" 
-                                    style={{cursor: 'pointer', fontSize: '0.8rem'}}
-                                    onClick={() => setIsConfigOpen(true)}
-                                    title="Configure Auto-Suggestion"
-                                ></i>
+                                <i className="bi bi-gear-fill text-muted" style={{cursor: 'pointer', fontSize: '0.8rem'}} onClick={() => setIsConfigOpen(true)} title="Configure Auto-Suggestion"></i>
                             </label>
                             <input className="form-control" placeholder="Auto-generated" value={newBOM.code} onChange={e => setNewBOM({...newBOM, code: e.target.value})} required />
                         </div>
@@ -196,9 +182,9 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
                                 </select>
                             </div>
                             <div className="col-5">
-                                <select className="form-select" value={newBOM.variant_id} onChange={handleVariantChange} disabled={availableVariantsForBOM.length === 0}>
-                                    <option value="">{availableVariantsForBOM.length > 0 ? 'Select Variant' : 'No Variants'}</option>
-                                    {availableVariantsForBOM.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                                <select className="form-select" value={newBOM.attribute_value_id} onChange={handleAttributeValueChange} disabled={availableValuesForBOM.length === 0}>
+                                    <option value="">{availableValuesForBOM.length > 0 ? 'Select Value' : 'No Variations'}</option>
+                                    {availableValuesForBOM.map((v: any) => <option key={v.id} value={v.id}>{v.value}</option>)}
                                 </select>
                             </div>
                         </div>
@@ -209,16 +195,16 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
                         <div className="row g-2 align-items-end">
                             <div className="col-5">
                                 <label className="form-label small">Item</label>
-                                <select className="form-select form-select-sm" value={newBOMLine.item_code} onChange={e => setNewBOMLine({...newBOMLine, item_code: e.target.value, variant_id: ''})}>
+                                <select className="form-select form-select-sm" value={newBOMLine.item_code} onChange={e => setNewBOMLine({...newBOMLine, item_code: e.target.value, attribute_value_id: ''})}>
                                     <option value="">Select...</option>
                                     {items.map((item: any) => <option key={item.id} value={item.code}>{item.name}</option>)}
                                 </select>
                             </div>
                             <div className="col-4">
-                                <label className="form-label small">Variant</label>
-                                <select className="form-select form-select-sm" value={newBOMLine.variant_id} onChange={e => setNewBOMLine({...newBOMLine, variant_id: e.target.value})} disabled={availableLineVariantsForBOM.length === 0}>
-                                    <option value="">{availableLineVariantsForBOM.length > 0 ? 'Variant' : '-'}</option>
-                                    {availableLineVariantsForBOM.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                                <label className="form-label small">Value</label>
+                                <select className="form-select form-select-sm" value={newBOMLine.attribute_value_id} onChange={e => setNewBOMLine({...newBOMLine, attribute_value_id: e.target.value})} disabled={availableValuesForLine.length === 0}>
+                                    <option value="">{availableValuesForLine.length > 0 ? 'Value' : '-'}</option>
+                                    {availableValuesForLine.map((v: any) => <option key={v.id} value={v.id}>{v.value}</option>)}
                                 </select>
                             </div>
                             <div className="col-3">
@@ -235,12 +221,11 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
                                 <div key={idx} className="d-flex justify-content-between align-items-center p-2 bg-white rounded border mb-1 shadow-sm">
                                     <div className="small">
                                         <span className="fw-bold">{line.item_code}</span> 
-                                        {line.variant_id && <span className="text-muted ms-1">({items.find((i:any) => i.code === line.item_code)?.variants.find((v:any) => v.id === line.variant_id)?.name})</span>}
+                                        {line.attribute_value_id && <span className="text-muted ms-1">({getAttributeValueName(line.attribute_value_id)})</span>}
                                     </div>
                                     <span className="badge bg-secondary">{line.qty}</span>
                                 </div>
                             ))}
-                            {newBOM.lines.length === 0 && <div className="text-center text-muted small fst-italic py-2">No materials added</div>}
                         </div>
                     </div>
 
@@ -273,7 +258,7 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
                                     <td><span className="badge bg-light text-dark border font-monospace">{bom.code}</span></td>
                                     <td>
                                         <div className="fw-medium">{getItemName(bom.item_id)}</div>
-                                        <div className="small text-muted">{getVariantName(bom.item_id, bom.variant_id)}</div>
+                                        <div className="small text-muted">{getAttributeValueName(bom.attribute_value_id)}</div>
                                     </td>
                                     <td className="text-end fw-bold">{bom.qty}</td>
                                     <td>
@@ -281,14 +266,13 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
                                             {bom.lines.map((line: any) => (
                                                 <div key={line.id} className="small border-bottom pb-1 border-light">
                                                     <span className="fw-bold text-primary">{line.qty}</span> x {getItemName(line.item_id)}
-                                                    <span className="text-muted ms-1"> {getVariantName(line.item_id, line.variant_id) !== '-' ? `(${getVariantName(line.item_id, line.variant_id)})` : ''}</span>
+                                                    <span className="text-muted ms-1"> {getAttributeValueName(line.attribute_value_id) !== '-' ? `(${getAttributeValueName(line.attribute_value_id)})` : ''}</span>
                                                 </div>
                                             ))}
                                         </div>
                                     </td>
                                 </tr>
                             ))}
-                            {boms.length === 0 && <tr><td colSpan={4} className="text-center py-5 text-muted">No BOMs found</td></tr>}
                         </tbody>
                     </table>
                 </div>

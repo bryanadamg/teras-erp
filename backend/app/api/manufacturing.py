@@ -26,12 +26,12 @@ def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Location not found")
 
     # 4. Create Work Order
-    # We copy item_id and variant_id from BOM for historical data integrity
+    # We copy item_id and attribute_value_id from BOM for historical data integrity
     wo = WorkOrder(
         code=payload.code,
         bom_id=bom.id,
         item_id=bom.item_id,
-        variant_id=bom.variant_id,
+        attribute_value_id=bom.attribute_value_id,
         location_id=location.id,
         qty=payload.qty,
         start_date=payload.start_date,
@@ -68,7 +68,7 @@ def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_
                 db,
                 item_id=line.item_id,
                 location_id=wo.location_id,
-                variant_id=line.variant_id,
+                attribute_value_id=line.attribute_value_id,
                 qty_change=-required_qty, # Negative for deduction
                 reference_type="Work Order",
                 reference_id=wo.code
@@ -79,7 +79,7 @@ def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_
             db,
             item_id=wo.item_id,
             location_id=wo.location_id,
-            variant_id=wo.variant_id,
+            attribute_value_id=wo.attribute_value_id,
             qty_change=wo.qty,
             reference_type="Work Order",
             reference_id=wo.code

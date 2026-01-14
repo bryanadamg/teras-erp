@@ -17,8 +17,8 @@ class BOM(Base):
     item_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("items.id"), index=True
     )
-    variant_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("variants.id"), nullable=True
+    attribute_value_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("attribute_values.id"), nullable=True
     )
     qty: Mapped[float] = mapped_column(Numeric(14, 4), default=1.0)
     
@@ -41,8 +41,8 @@ class BOMLine(Base):
     item_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("items.id")
     )
-    variant_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("variants.id"), nullable=True
+    attribute_value_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("attribute_values.id"), nullable=True
     )
     
     qty: Mapped[float] = mapped_column(Numeric(14, 4))

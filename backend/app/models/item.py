@@ -16,6 +16,11 @@ class Item(Base):
     uom: Mapped[str] = mapped_column(String(32))
     category: Mapped[str | None] = mapped_column(String(64), nullable=True)
     
+    # The Attribute Definition (e.g. "Color") that applies to this item
+    attribute_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("attributes.id"), nullable=True
+    )
+
     # Lineage: Link to the sample this item was derived from
     source_sample_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("items.id"), nullable=True

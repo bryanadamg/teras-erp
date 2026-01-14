@@ -308,6 +308,7 @@ export default function Home() {
             <StockEntryView 
                 items={items} 
                 locations={locations} 
+                attributes={attributes}
                 stockBalance={stockBalance}
                 onRecordStock={handleRecordStock} 
             />

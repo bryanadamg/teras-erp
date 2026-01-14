@@ -42,13 +42,13 @@ class AttributeResponse(AttributeCreate):
 
 class BOMLineCreate(BaseModel):
     item_code: str
-    variant_id: UUID | None = None
+    attribute_value_id: UUID | None = None
     qty: float
 
 class BOMLineResponse(BaseModel):
     id: UUID
     item_id: UUID
-    variant_id: UUID | None
+    attribute_value_id: UUID | None
     qty: float
 
     class Config:
@@ -58,7 +58,7 @@ class BOMCreate(BaseModel):
     code: str
     description: str | None = None
     item_code: str
-    variant_id: UUID | None = None
+    attribute_value_id: UUID | None = None
     qty: float = 1.0
     lines: list[BOMLineCreate]
 
@@ -67,7 +67,7 @@ class BOMResponse(BaseModel):
     code: str
     description: str | None
     item_id: UUID
-    variant_id: UUID | None
+    attribute_value_id: UUID | None
     qty: float
     active: bool
     lines: list[BOMLineResponse]
@@ -88,7 +88,7 @@ class WorkOrderResponse(BaseModel):
     code: str
     bom_id: UUID
     item_id: UUID
-    variant_id: UUID | None
+    attribute_value_id: UUID | None
     location_id: UUID
     qty: float
     status: str
@@ -107,21 +107,21 @@ class ItemCreate(BaseModel):
     name: str
     uom: str
     category: str | None = None
+    attribute_id: UUID | None = None
     source_sample_id: UUID | None = None
-    variants: list[VariantCreate] = []
 
 class ItemUpdate(BaseModel):
     code: str | None = None
     name: str | None = None
     uom: str | None = None
     category: str | None = None
+    attribute_id: UUID | None = None
     source_sample_id: UUID | None = None
     active: bool | None = None
 
 class ItemResponse(ItemCreate):
     id: UUID
     active: bool
-    variants: list[VariantResponse] = []
 
     class Config:
         from_attributes = True
@@ -129,7 +129,7 @@ class ItemResponse(ItemCreate):
 class StockEntryCreate(BaseModel):
     item_code: str
     location_code: str
-    variant_id: UUID | None = None
+    attribute_value_id: UUID | None = None
     qty: float
     reference_type: str = "manual"
     reference_id: str = "manual_entry"
@@ -137,7 +137,7 @@ class StockEntryCreate(BaseModel):
 class StockLedgerResponse(BaseModel):
     id: UUID
     item_id: UUID
-    variant_id: UUID | None
+    attribute_value_id: UUID | None
     location_id: UUID
     qty_change: float
     reference_type: str
@@ -149,7 +149,7 @@ class StockLedgerResponse(BaseModel):
 
 class StockBalanceResponse(BaseModel):
     item_id: UUID
-    variant_id: UUID | None
+    attribute_value_id: UUID | None
     location_id: UUID
     qty: float
 

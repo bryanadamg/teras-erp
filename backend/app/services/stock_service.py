@@ -9,12 +9,12 @@ def add_stock_entry(
     qty_change,
     reference_type,
     reference_id,
-    variant_id=None
+    attribute_value_id=None
 ):
     entry = StockLedger(
         item_id=item_id,
         location_id=location_id,
-        variant_id=variant_id,
+        attribute_value_id=attribute_value_id,
         qty_change=qty_change,
         reference_type=reference_type,
         reference_id=reference_id
@@ -23,13 +23,13 @@ def add_stock_entry(
     db.commit()
 
 
-def get_stock_balance(db: Session, item_id, location_id, variant_id=None):
+def get_stock_balance(db: Session, item_id, location_id, attribute_value_id=None):
     query = db.query(func.sum(StockLedger.qty_change)).filter(
         StockLedger.item_id == item_id,
         StockLedger.location_id == location_id
     )
-    if variant_id:
-        query = query.filter(StockLedger.variant_id == variant_id)
+    if attribute_value_id:
+        query = query.filter(StockLedger.attribute_value_id == attribute_value_id)
         
     return query.scalar() or 0
 
@@ -45,22 +45,22 @@ def get_stock_entries(db: Session, skip: int = 0, limit: int = 100):
 
 
 def get_all_stock_balances(db: Session):
-    # Aggregate sum of qty_change group by item, variant, location
+    # Aggregate sum of qty_change group by item, attribute_value, location
     results = db.query(
         StockLedger.item_id,
-        StockLedger.variant_id,
+        StockLedger.attribute_value_id,
         StockLedger.location_id,
         func.sum(StockLedger.qty_change).label("qty")
     ).group_by(
         StockLedger.item_id,
-        StockLedger.variant_id,
+        StockLedger.attribute_value_id,
         StockLedger.location_id
     ).having(func.sum(StockLedger.qty_change) != 0).all()
     
     return [
         {
             "item_id": r.item_id,
-            "variant_id": r.variant_id,
+            "attribute_value_id": r.attribute_value_id,
             "location_id": r.location_id,
             "qty": r.qty
         }

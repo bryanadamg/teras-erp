@@ -6,74 +6,21 @@ export default function InventoryView({
     categories,
     onCreateItem, 
     onUpdateItem,
-    onAddVariant,
-    onDeleteVariant,
     onCreateCategory,
     onRefresh 
 }: any) {
   // Creation State
-  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', category: '', source_sample_id: '', variants: [] as any[] });
+  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', category: '', source_sample_id: '', attribute_id: '' });
   
   // Editing State
   const [editingItem, setEditingItem] = useState<any>(null);
   
-  // Shared State (Variant Adding)
-  const [newVariant, setNewVariant] = useState({ name: '', category: '' });
-  const [selectedAttributeId, setSelectedAttributeId] = useState('');
-  const [selectedAttributeValue, setSelectedAttributeValue] = useState('');
+  const [newLocation, setNewLocation] = useState({ code: '', name: '' });
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showCatInput, setShowCatInput] = useState(false);
 
   // Filtering
   const [categoryFilter, setCategoryFilter] = useState('');
-
-  // --- Variant Handlers ---
-  
-  const handleAddVariantToLocal = () => {
-      if (!newVariant.name) return;
-      setNewItem({ ...newItem, variants: [...newItem.variants, newVariant] });
-      setNewVariant({ name: '', category: '' });
-  };
-
-  const handleAddFromTemplateToLocal = () => {
-      if (!selectedAttributeId || !selectedAttributeValue) return;
-      const attr = attributes.find((a: any) => a.id === selectedAttributeId);
-      if (!attr) return;
-
-      const variant = { name: selectedAttributeValue, category: attr.name };
-      
-      if (newItem.variants.some(v => v.name === variant.name && v.category === variant.category)) {
-          alert('Variant already added');
-          return;
-      }
-      setNewItem({ ...newItem, variants: [...newItem.variants, variant] });
-      setSelectedAttributeValue('');
-  };
-
-  const handleAddVariantToExisting = async () => {
-      if (!editingItem) return;
-      
-      let variantToAdd = null;
-
-      if (selectedAttributeId && selectedAttributeValue) {
-          const attr = attributes.find((a: any) => a.id === selectedAttributeId);
-          if (attr) {
-              variantToAdd = { name: selectedAttributeValue, category: attr.name };
-          }
-      } else if (newVariant.name) {
-          variantToAdd = newVariant;
-      }
-
-      if (variantToAdd) {
-          await onAddVariant(editingItem.id, variantToAdd);
-          setNewVariant({ name: '', category: '' });
-          setSelectedAttributeValue('');
-      }
-  };
-
-  const handleDeleteExistingVariant = async (variantId: string) => {
-      await onDeleteVariant(variantId);
-  };
 
   // --- Item Handlers ---
 
@@ -81,11 +28,10 @@ export default function InventoryView({
       e.preventDefault();
       const payload: any = { ...newItem };
       if (!payload.source_sample_id) delete payload.source_sample_id;
+      if (!payload.attribute_id) delete payload.attribute_id;
       
       onCreateItem(payload);
-      setNewItem({ code: '', name: '', uom: '', category: '', source_sample_id: '', variants: [] });
-      setSelectedAttributeId('');
-      setSelectedAttributeValue('');
+      setNewItem({ code: '', name: '', uom: '', category: '', source_sample_id: '', attribute_id: '' });
   };
 
   const handleUpdateItemSubmit = (e: React.FormEvent) => {
@@ -96,9 +42,10 @@ export default function InventoryView({
           code: editingItem.code,
           name: editingItem.name,
           uom: editingItem.uom,
-          category: editingItem.category
+          category: editingItem.category,
+          attribute_id: editingItem.attribute_id || null,
+          source_sample_id: editingItem.source_sample_id || null
       };
-      if (editingItem.source_sample_id) payload.source_sample_id = editingItem.source_sample_id;
 
       onUpdateItem(editingItem.id, payload);
       setEditingItem(null);
@@ -113,7 +60,6 @@ export default function InventoryView({
   };
 
   // Derived
-  const activeAttribute = attributes.find((a: any) => a.id === selectedAttributeId);
   const activeEditingItem = editingItem ? items.find((i: any) => i.id === editingItem.id) : null;
 
   // Filtered Items
@@ -122,6 +68,8 @@ export default function InventoryView({
       : items;
       
   const sampleItems = items.filter((i: any) => i.category === 'Sample');
+
+  const getAttributeName = (id: string) => attributes.find((a: any) => a.id === id)?.name || '-';
 
   return (
     <div className="row g-4 fade-in">
@@ -150,7 +98,7 @@ export default function InventoryView({
                     <th className="ps-4">Code</th>
                     <th>Name</th>
                     <th>Category</th>
-                    <th>Variants</th>
+                    <th>Attribute Type</th>
                     <th style={{width: '50px'}}></th>
                   </tr>
                 </thead>
@@ -163,13 +111,7 @@ export default function InventoryView({
                       </td>
                       <td>{item.name}</td>
                       <td>{item.category && <span className="badge bg-light text-dark border">{item.category}</span>}</td>
-                      <td>
-                        <div className="d-flex flex-wrap gap-1">
-                        {item.variants && item.variants.map((v: any) => (
-                            <span key={v.id} className="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-10 small">{v.name}</span>
-                        ))}
-                        </div>
-                      </td>
+                      <td><span className="text-muted">{getAttributeName(item.attribute_id)}</span></td>
                       <td>
                           <button className="btn btn-sm btn-link text-primary" onClick={() => setEditingItem(item)}>
                               <i className="bi bi-pencil-square"></i>
@@ -222,6 +164,16 @@ export default function InventoryView({
                         </div>
                         
                         <div className="mb-3">
+                            <label className="form-label small text-muted">Attribute Type (Variation by)</label>
+                            <select className="form-select" value={editingItem.attribute_id || ''} onChange={e => setEditingItem({...editingItem, attribute_id: e.target.value})}>
+                                <option value="">None (Static Item)</option>
+                                {attributes.map((attr: any) => (
+                                    <option key={attr.id} value={attr.id}>{attr.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="mb-3">
                             <label className="form-label small text-muted">Source Sample</label>
                             <select className="form-select" value={editingItem.source_sample_id || ''} onChange={e => setEditingItem({...editingItem, source_sample_id: e.target.value})}>
                                 <option value="">None</option>
@@ -236,40 +188,6 @@ export default function InventoryView({
                             <button type="submit" className="btn btn-primary btn-sm px-3">Save Changes</button>
                         </div>
                     </form>
-
-                    <hr className="my-3 opacity-25"/>
-
-                    <h6 className="small text-muted text-uppercase fw-bold mb-3">Variants</h6>
-                    
-                    {/* Add Variant to Existing */}
-                    <div className="mb-3">
-                        <div className="input-group input-group-sm mb-2">
-                            <select className="form-select" style={{maxWidth: '100px'}} value={selectedAttributeId} onChange={e => { setSelectedAttributeId(e.target.value); setSelectedAttributeValue(''); }}>
-                                <option value="">Template</option>
-                                {attributes.map((attr: any) => <option key={attr.id} value={attr.id}>{attr.name}</option>)}
-                            </select>
-                            {activeAttribute ? (
-                                <select className="form-select" value={selectedAttributeValue} onChange={e => setSelectedAttributeValue(e.target.value)}>
-                                    <option value="">Value...</option>
-                                    {activeAttribute.values.map((val: any) => <option key={val.id} value={val.value}>{val.value}</option>)}
-                                </select>
-                            ) : (
-                                <input className="form-control" placeholder="Manual" value={newVariant.name} onChange={e => setNewVariant({...newVariant, name: e.target.value})} />
-                            )}
-                            <button className="btn btn-success" onClick={handleAddVariantToExisting}><i className="bi bi-plus"></i></button>
-                        </div>
-                    </div>
-
-                    <div className="d-flex flex-wrap gap-2">
-                        {activeEditingItem.variants.map((v: any) => (
-                            <span key={v.id} className="badge bg-white text-dark border shadow-sm">
-                                {v.category && <span className="text-muted fw-normal me-1">{v.category}:</span>}
-                                {v.name}
-                                <i className="bi bi-trash ms-2 text-danger" style={{cursor: 'pointer'}} onClick={() => handleDeleteExistingVariant(v.id)}></i>
-                            </span>
-                        ))}
-                        {activeEditingItem.variants.length === 0 && <small className="text-muted fst-italic">No variants</small>}
-                    </div>
                 </div>
             ) : (
                 // --- CREATE MODE ---
@@ -307,6 +225,17 @@ export default function InventoryView({
                   </div>
                   
                   <div className="mb-3">
+                      <label className="form-label small text-muted">Attribute Type (Variation by)</label>
+                      <select className="form-select" value={newItem.attribute_id} onChange={e => setNewItem({...newItem, attribute_id: e.target.value})}>
+                          <option value="">None (Static Item)</option>
+                          {attributes.map((attr: any) => (
+                              <option key={attr.id} value={attr.id}>{attr.name}</option>
+                          ))}
+                      </select>
+                      <div className="form-text small text-muted">e.g. If you select "Color", you can pick specific colors when recording stock.</div>
+                  </div>
+
+                  <div className="mb-3">
                       <label className="form-label small text-muted">Source Sample (Optional)</label>
                       <select className="form-select" value={newItem.source_sample_id} onChange={e => setNewItem({...newItem, source_sample_id: e.target.value})}>
                           <option value="">None</option>
@@ -316,55 +245,6 @@ export default function InventoryView({
                       </select>
                   </div>
                   
-                  {/* Variant Input Section */}
-                  <div className="mb-3 p-3 bg-light rounded-3 border border-dashed">
-                    <label className="form-label small text-muted text-uppercase mb-2 fw-bold">Variants</label>
-                    
-                    <div className="mb-2">
-                        <div className="input-group input-group-sm">
-                            <span className="input-group-text bg-white">1</span>
-                            <select className="form-select" value={selectedAttributeId} onChange={e => { setSelectedAttributeId(e.target.value); setSelectedAttributeValue(''); }}>
-                                <option value="">Attribute...</option>
-                                {attributes.map((attr: any) => <option key={attr.id} value={attr.id}>{attr.name}</option>)}
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div className="mb-2">
-                        <div className="input-group input-group-sm">
-                            <span className="input-group-text bg-white">2</span>
-                            <select className="form-select" value={selectedAttributeValue} onChange={e => setSelectedAttributeValue(e.target.value)} disabled={!activeAttribute}>
-                                <option value="">Select Value...</option>
-                                {activeAttribute?.values.map((val: any) => <option key={val.id} value={val.value}>{val.value}</option>)}
-                            </select>
-                            <button type="button" className="btn btn-secondary" onClick={handleAddFromTemplateToLocal} disabled={!selectedAttributeValue}>
-                                <i className="bi bi-plus-lg"></i>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="text-center text-muted small my-1">- OR -</div>
-
-                    <div className="input-group input-group-sm mb-2">
-                        <input className="form-control" placeholder="Manual Name" value={newVariant.name} onChange={e => setNewVariant({...newVariant, name: e.target.value})} />
-                        <input className="form-control" placeholder="Cat" style={{maxWidth: '60px'}} value={newVariant.category} onChange={e => setNewVariant({...newVariant, category: e.target.value})} />
-                        <button type="button" className="btn btn-outline-secondary" onClick={handleAddVariantToLocal}>Add</button>
-                    </div>
-                    
-                    <div className="d-flex flex-wrap gap-1 mt-2">
-                        {newItem.variants.map((v, idx) => (
-                            <span key={idx} className="badge bg-white text-dark border shadow-sm">
-                                {v.category && <span className="text-muted fw-normal me-1">{v.category}:</span>}
-                                {v.name}
-                                <i className="bi bi-x ms-1 text-danger" style={{cursor: 'pointer'}} onClick={() => {
-                                    const updated = newItem.variants.filter((_, i) => i !== idx);
-                                    setNewItem({...newItem, variants: updated});
-                                }}></i>
-                            </span>
-                        ))}
-                    </div>
-                  </div>
-
                   <button type="submit" className="btn btn-primary w-100 fw-bold">Create Item</button>
                 </form>
             )}

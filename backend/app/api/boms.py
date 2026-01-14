@@ -23,7 +23,7 @@ def create_bom(payload: BOMCreate, db: Session = Depends(get_db)):
         code=payload.code,
         description=payload.description,
         item_id=item.id,
-        variant_id=payload.variant_id,
+        attribute_value_id=payload.attribute_value_id,
         qty=payload.qty
     )
     db.add(bom)
@@ -41,7 +41,7 @@ def create_bom(payload: BOMCreate, db: Session = Depends(get_db)):
         bom_line = BOMLine(
             bom_id=bom.id,
             item_id=material.id,
-            variant_id=line.variant_id,
+            attribute_value_id=line.attribute_value_id,
             qty=line.qty
         )
         db.add(bom_line)

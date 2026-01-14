@@ -16,8 +16,8 @@ class StockLedger(Base):
         UUID(as_uuid=True), ForeignKey("items.id"), index=True
     )
 
-    variant_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("variants.id"), nullable=True, index=True
+    attribute_value_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("attribute_values.id"), nullable=True, index=True
     )
 
     location_id: Mapped[uuid.UUID] = mapped_column(
