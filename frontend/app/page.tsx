@@ -78,12 +78,13 @@ export default function Home() {
   // --- Handlers ---
 
   const handleCreateItem = async (item: any) => {
-    await fetch(`${API_BASE}/items`, {
+    const res = await fetch(`${API_BASE}/items`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(item)
     });
     fetchData();
+    return res;
   };
 
   const handleUpdateItem = async (itemId: string, data: any) => {

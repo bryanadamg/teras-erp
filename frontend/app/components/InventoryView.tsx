@@ -19,18 +19,45 @@ export default function InventoryView({
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showCatInput, setShowCatInput] = useState(false);
 
+  const [selectedAttributeId, setSelectedAttributeId] = useState('');
+  const [selectedAttributeValue, setSelectedAttributeValue] = useState('');
+
   // Filtering
   const [categoryFilter, setCategoryFilter] = useState('');
 
   // --- Item Handlers ---
 
-  const handleSubmitItem = (e: React.FormEvent) => {
+  const handleSubmitItem = async (e: React.FormEvent) => {
       e.preventDefault();
       const payload: any = { ...newItem };
       if (!payload.source_sample_id) delete payload.source_sample_id;
       
-      onCreateItem(payload);
-      setNewItem({ code: '', name: '', uom: '', category: '', source_sample_id: '', attribute_ids: [] });
+      const res = await onCreateItem(payload);
+      
+      if (res && res.status === 400) {
+          // Handle Duplicate Code
+          let baseCode = newItem.code;
+          // Strip existing suffix if any (e.g. -1, -2)
+          const baseMatch = baseCode.match(/^(.*)-(\d+)$/);
+          if (baseMatch) baseCode = baseMatch[1];
+
+          let counter = 1;
+          let suggestedCode = `${baseCode}-${counter}`;
+          
+          while (items.some((i: any) => i.code === suggestedCode)) {
+              counter++;
+              suggestedCode = `${baseCode}-${counter}`;
+          }
+
+          alert(`Item Code "${newItem.code}" already exists. Suggesting: ${suggestedCode}`);
+          setNewItem({ ...newItem, code: suggestedCode });
+          // Note: Form data is preserved because we only updated 'code' in the state.
+      } else {
+          // Success
+          setNewItem({ code: '', name: '', uom: '', category: '', source_sample_id: '', attribute_ids: [] });
+          setSelectedAttributeId('');
+          setSelectedAttributeValue('');
+      }
   };
 
   const handleUpdateItemSubmit = (e: React.FormEvent) => {
