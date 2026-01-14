@@ -47,6 +47,14 @@ def run_migrations():
             except Exception as e:
                 logger.warning(f"Migration step 4 warning: {e}")
 
+            # 5. Add source_sample_id to items
+            try:
+                conn.execute(text("ALTER TABLE items ADD COLUMN IF NOT EXISTS source_sample_id UUID REFERENCES items(id)"))
+                conn.execute(text("COMMIT"))
+                logger.info("Migration: Verified source_sample_id in items")
+            except Exception as e:
+                logger.warning(f"Migration step 5 warning: {e}")
+
     except Exception as e:
         logger.error(f"Migration failed: {e}")
 

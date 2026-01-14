@@ -12,7 +12,7 @@ export default function InventoryView({
     onRefresh 
 }: any) {
   // Creation State
-  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', category: '', variants: [] as any[] });
+  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', category: '', source_sample_id: '', variants: [] as any[] });
   
   // Editing State
   const [editingItem, setEditingItem] = useState<any>(null);
@@ -79,8 +79,11 @@ export default function InventoryView({
 
   const handleSubmitItem = (e: React.FormEvent) => {
       e.preventDefault();
-      onCreateItem(newItem);
-      setNewItem({ code: '', name: '', uom: '', category: '', variants: [] });
+      const payload: any = { ...newItem };
+      if (!payload.source_sample_id) delete payload.source_sample_id;
+      
+      onCreateItem(payload);
+      setNewItem({ code: '', name: '', uom: '', category: '', source_sample_id: '', variants: [] });
       setSelectedAttributeId('');
       setSelectedAttributeValue('');
   };
@@ -88,12 +91,16 @@ export default function InventoryView({
   const handleUpdateItemSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       if (!editingItem) return;
-      onUpdateItem(editingItem.id, {
+      
+      const payload: any = {
           code: editingItem.code,
           name: editingItem.name,
           uom: editingItem.uom,
           category: editingItem.category
-      });
+      };
+      if (editingItem.source_sample_id) payload.source_sample_id = editingItem.source_sample_id;
+
+      onUpdateItem(editingItem.id, payload);
       setEditingItem(null);
   };
 
@@ -113,6 +120,8 @@ export default function InventoryView({
   const filteredItems = categoryFilter 
       ? items.filter((i: any) => i.category === categoryFilter)
       : items;
+      
+  const sampleItems = items.filter((i: any) => i.category === 'Sample');
 
   return (
     <div className="row g-4 fade-in">
@@ -148,7 +157,10 @@ export default function InventoryView({
                 <tbody>
                   {filteredItems.map((item: any) => (
                     <tr key={item.id} className={editingItem?.id === item.id ? 'table-primary' : ''}>
-                      <td className="ps-4 fw-medium font-monospace">{item.code}</td>
+                      <td className="ps-4 fw-medium font-monospace">
+                          {item.code}
+                          {item.source_sample_id && <div className="text-muted small" style={{fontSize: '0.7rem'}}><i className="bi bi-link-45deg"></i> Linked</div>}
+                      </td>
                       <td>{item.name}</td>
                       <td>{item.category && <span className="badge bg-light text-dark border">{item.category}</span>}</td>
                       <td>
@@ -207,6 +219,16 @@ export default function InventoryView({
                                 <label className="form-label small">UOM</label>
                                 <input className="form-control" value={editingItem.uom} onChange={e => setEditingItem({...editingItem, uom: e.target.value})} required />
                             </div>
+                        </div>
+                        
+                        <div className="mb-3">
+                            <label className="form-label small text-muted">Source Sample</label>
+                            <select className="form-select" value={editingItem.source_sample_id || ''} onChange={e => setEditingItem({...editingItem, source_sample_id: e.target.value})}>
+                                <option value="">None</option>
+                                {sampleItems.map((s: any) => (
+                                    <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+                                ))}
+                            </select>
                         </div>
                         
                         <div className="d-flex justify-content-between">
@@ -282,6 +304,16 @@ export default function InventoryView({
                           <label className="form-label">UOM</label>
                           <input className="form-control" placeholder="Unit" value={newItem.uom} onChange={e => setNewItem({...newItem, uom: e.target.value})} required />
                       </div>
+                  </div>
+                  
+                  <div className="mb-3">
+                      <label className="form-label small text-muted">Source Sample (Optional)</label>
+                      <select className="form-select" value={newItem.source_sample_id} onChange={e => setNewItem({...newItem, source_sample_id: e.target.value})}>
+                          <option value="">None</option>
+                          {sampleItems.map((s: any) => (
+                              <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+                          ))}
+                      </select>
                   </div>
                   
                   {/* Variant Input Section */}

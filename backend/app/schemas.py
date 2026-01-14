@@ -107,6 +107,7 @@ class ItemCreate(BaseModel):
     name: str
     uom: str
     category: str | None = None
+    source_sample_id: UUID | None = None
     variants: list[VariantCreate] = []
 
 class ItemUpdate(BaseModel):
@@ -114,6 +115,7 @@ class ItemUpdate(BaseModel):
     name: str | None = None
     uom: str | None = None
     category: str | None = None
+    source_sample_id: UUID | None = None
     active: bool | None = None
 
 class ItemResponse(ItemCreate):

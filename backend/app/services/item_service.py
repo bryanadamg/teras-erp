@@ -9,13 +9,15 @@ def create_item(
     name: str,
     uom: str,
     category: str | None = None,
+    source_sample_id: str | None = None,
     variants: list[VariantCreate] = []
 ) -> Item:
     item = Item(
         code=code,
         name=name,
         uom=uom,
-        category=category
+        category=category,
+        source_sample_id=source_sample_id
     )
     db.add(item)
     db.commit()
