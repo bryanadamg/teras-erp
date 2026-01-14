@@ -194,7 +194,8 @@ body {
 
 .ui-style-classic .btn-primary,
 .ui-style-classic .btn-success,
-.ui-style-classic .btn-warning {
+.ui-style-classic .btn-warning,
+.ui-style-classic .btn-print {
   background-color: #e1e1e1 !important;
   border: 1px solid #808080 !important;
   border-top-color: #ffffff !important;
@@ -202,6 +203,11 @@ body {
   color: black !important;
   border-radius: 0 !important;
   font-size: 11px;
+}
+
+.ui-style-classic .btn-print i {
+  color: #555555;
+  margin-right: 4px;
 }
 
 .ui-style-classic .btn:active {

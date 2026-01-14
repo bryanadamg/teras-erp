@@ -48,7 +48,7 @@ export default function ReportsView({ stockEntries, items, locations, onRefresh 
                       <span className="input-group-text">To</span>
                       <input type="date" className="form-control" value={endDate} onChange={e => setEndDate(e.target.value)} />
                   </div>
-                  <button className="btn btn-outline-primary btn-sm" onClick={handlePrint}>
+                  <button className="btn btn-outline-primary btn-sm btn-print" onClick={handlePrint}>
                       <i className="bi bi-printer me-1"></i>Print
                   </button>
                   <button className="btn btn-outline-secondary btn-sm" onClick={onRefresh}>
