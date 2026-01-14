@@ -19,6 +19,7 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
     <div className="sidebar d-flex flex-column justify-content-between">
       <div>
         <div className="sidebar-header">
+          <i className="bi bi-window-stack me-2 d-none d-classic-inline"></i>
           <span className="fs-4 fw-bold text-primary text-truncate" title={appName}>{appName}</span>
         </div>
         <ul className="nav flex-column py-3">

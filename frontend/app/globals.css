@@ -39,7 +39,178 @@ body {
   padding: 8px 24px;
 }
 
-/* Sidebar */
+/* UI Style: Classic (Windows XP) */
+.ui-style-classic {
+  --win-bg: #ece9d8;
+  --win-face: #f0f0e8;
+  --win-border-light: #ffffff;
+  --win-border-dark: #808080;
+  --win-blue: #0054e3;
+  --win-header-grad: linear-gradient(to right, #0058e6 0%, #08a5ff 100%);
+  --win-text: #000000;
+  --win-highlight: #316ac5;
+  
+  background-color: var(--win-bg) !important;
+  font-family: "Tahoma", "Segoe UI", "Arial", sans-serif !important;
+  font-size: 11px;
+}
+
+.ui-style-classic body {
+  background-color: var(--win-bg) !important;
+}
+
+/* Override Sidebar for Classic */
+.ui-style-classic .sidebar {
+  background-color: #d6dff7;
+  border-right: 1px solid #718bb7;
+  width: 200px;
+}
+
+.ui-style-classic .sidebar-header {
+  background: var(--win-header-grad);
+  color: white;
+  height: 30px;
+  padding: 0 10px;
+  font-weight: bold;
+  border-bottom: 1px solid #00309c;
+}
+
+.ui-style-classic .sidebar-header .text-primary {
+  color: white !important;
+  font-size: 14px !important;
+}
+
+.ui-style-classic .nav-link {
+  padding: 6px 15px;
+  border-left: none;
+  color: #00309c;
+  font-size: 12px;
+}
+
+.ui-style-classic .nav-link i {
+  color: #00309c;
+}
+
+.ui-style-classic .nav-link.active {
+  background-color: #ffffff;
+  border: 1px solid #718bb7;
+  border-right: none;
+  color: #000000;
+  font-weight: bold;
+}
+
+/* Content Area for Classic */
+.ui-style-classic .main-content {
+  margin-left: 200px;
+  padding: 10px;
+}
+
+/* Toolbar Style */
+.classic-toolbar {
+  background-color: var(--win-face);
+  border: 1px solid var(--win-border-dark);
+  border-top-color: var(--win-border-light);
+  border-left-color: var(--win-border-light);
+  padding: 4px;
+  margin-bottom: 10px;
+  display: flex;
+  gap: 5px;
+}
+
+.classic-toolbar .btn {
+  background-color: transparent;
+  border: 1px solid transparent;
+  color: black;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 0;
+}
+
+.classic-toolbar .btn:hover {
+  background-color: #ffffff;
+  border-color: var(--win-border-dark);
+}
+
+/* Card Overrides (Panels) */
+.ui-style-classic .card {
+  background-color: var(--win-face) !important;
+  border: 1px solid var(--win-border-dark) !important;
+  border-top-color: var(--win-border-light) !important;
+  border-left-color: var(--win-border-light) !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  transform: none !important;
+}
+
+.ui-style-classic .card-header {
+  background-color: #e0dfd3 !important;
+  border-bottom: 1px solid var(--win-border-dark) !important;
+  padding: 5px 10px !important;
+  border-radius: 0 !important;
+}
+
+.ui-style-classic .card-title {
+  font-size: 12px !important;
+  text-transform: none;
+}
+
+/* Table Overrides */
+.ui-style-classic .table {
+  border: 1px solid var(--win-border-dark) !important;
+  background-color: white;
+}
+
+.ui-style-classic .table th {
+  background: linear-gradient(to bottom, #ffffff 0%, #d6d3ce 100%);
+  border: 1px solid var(--win-border-dark) !important;
+  border-top-color: #ffffff !important;
+  border-left-color: #ffffff !important;
+  color: black !important;
+  text-transform: none;
+  padding: 4px 8px;
+}
+
+.ui-style-classic .table td {
+  border: 1px solid #d6d3ce !important;
+  padding: 4px 8px;
+  font-family: "Tahoma", sans-serif;
+}
+
+.ui-style-classic .table-primary td {
+  background-color: var(--win-highlight) !important;
+  color: white !important;
+}
+
+/* Form Overrides */
+.ui-style-classic .form-control, 
+.ui-style-classic .form-select {
+  border-radius: 0 !important;
+  border: 1px solid;
+  border-color: #808080 #dfdfdf #dfdfdf #808080 !important; /* Inset look */
+  padding: 2px 4px !important;
+  height: auto;
+  font-size: 12px;
+}
+
+.ui-style-classic .btn-primary,
+.ui-style-classic .btn-success,
+.ui-style-classic .btn-warning {
+  background-color: #e1e1e1 !important;
+  border: 1px solid #808080 !important;
+  border-top-color: #ffffff !important;
+  border-left-color: #ffffff !important;
+  color: black !important;
+  border-radius: 0 !important;
+  font-size: 11px;
+}
+
+.ui-style-classic .btn:active {
+  border-color: #ffffff #808080 #808080 #ffffff !important;
+  padding-top: 3px;
+  padding-bottom: 1px;
+}
+
+/* Sidebar Area */
 .sidebar {
   width: var(--sidebar-width);
   height: 100vh;

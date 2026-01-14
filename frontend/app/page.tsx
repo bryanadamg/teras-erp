@@ -180,7 +180,8 @@ export default function Home() {
 
   const handleCreateBOM = async (bom: any) => {
       const payload: any = { ...bom };
-      if (!payload.variant_id) delete payload.variant_id;
+      // Updated to use attribute_value_ids
+      if (!payload.attribute_value_ids) payload.attribute_value_ids = [];
       
       const res = await fetch(`${API_BASE}/boms`, {
           method: 'POST',
@@ -225,7 +226,8 @@ export default function Home() {
 
   const handleRecordStock = async (entry: any) => {
     const payload: any = { ...entry };
-    if (!payload.variant_id) delete payload.variant_id;
+    // Updated to use attribute_value_ids
+    if (!payload.attribute_value_ids) payload.attribute_value_ids = [];
 
     await fetch(`${API_BASE}/items/stock`, {
       method: 'POST',
@@ -237,24 +239,55 @@ export default function Home() {
   };
 
   return (
-    <div className={`d-flex ui-style-${uiStyle}`}>
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} appName={appName} />
-      
-      <div className="main-content flex-grow-1">
-        <header className="mb-4 d-flex justify-content-between align-items-center">
-            <h2 className="text-capitalize mb-0 fw-bold text-dark">{activeTab.replace('-', ' ')}</h2>
-            <div className="d-flex align-items-center gap-3">
-                <span className="text-muted small">v0.2.0</span>
-                <div 
-                    className="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center shadow-sm" 
-                    style={{width: 32, height: 32, cursor: 'pointer'}}
-                    onClick={() => setActiveTab('settings')}
-                    title="Settings"
-                >
-                    <i className="bi bi-person-fill"></i>
-                </div>
-            </div>
-        </header>
+    <div className={`d-flex flex-column ui-style-${uiStyle}`} style={{ minHeight: '100vh' }}>
+      {/* Classic Top Header (only visible in classic) */}
+      {uiStyle === 'classic' && (
+          <div className="classic-header shadow-sm d-flex justify-content-between align-items-center px-3" style={{ background: 'var(--win-header-grad)', height: '30px', color: 'white' }}>
+              <div className="fw-bold"><i className="bi bi-cpu-fill me-2"></i>{appName}</div>
+              <div className="small">User: Administrator | {new Date().toLocaleDateString()}</div>
+          </div>
+      )}
+
+      <div className="d-flex flex-grow-1">
+        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} appName={appName} />
+        
+        <div className="main-content flex-grow-1">
+          {/* Classic Toolbar */}
+          {uiStyle === 'classic' && (
+              <div className="classic-toolbar">
+                  <button className="btn btn-sm" onClick={() => fetchData()}><i className="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+                  <div className="vr mx-1"></div>
+                  <button className="btn btn-sm"><i className="bi bi-file-earmark-plus me-1"></i>New</button>
+                  <button className="btn btn-sm"><i className="bi bi-save me-1"></i>Save</button>
+                  <button className="btn btn-sm text-danger"><i className="bi bi-trash me-1"></i>Delete</button>
+                  <div className="vr mx-1"></div>
+                  <button className="btn btn-sm"><i className="bi bi-printer me-1"></i>Print</button>
+              </div>
+          )}
+
+          <header className={`mb-4 d-flex justify-content-between align-items-center ${uiStyle === 'classic' ? 'd-none' : ''}`}>
+              <h2 className="text-capitalize mb-0 fw-bold text-dark">{activeTab.replace('-', ' ')}</h2>
+              <div className="d-flex align-items-center gap-3">
+                  <span className="text-muted small">v0.2.0</span>
+                  <div 
+                      className="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center shadow-sm" 
+                      style={{width: 32, height: 32, cursor: 'pointer'}}
+                      onClick={() => setActiveTab('settings')}
+                      title="Settings"
+                  >
+                      <i className="bi bi-person-fill"></i>
+                  </div>
+              </div>
+          </header>
+
+          {/* Settings shortcut for Classic theme (since header is hidden) */}
+          {uiStyle === 'classic' && activeTab !== 'settings' && (
+              <div className="text-end mb-2">
+                  <button className="btn btn-sm btn-light border" onClick={() => setActiveTab('settings')}>
+                      <i className="bi bi-person-gear me-1"></i>Account Settings
+                  </button>
+              </div>
+          )}
 
         {activeTab === 'inventory' && (
             <InventoryView 
@@ -340,6 +373,7 @@ export default function Home() {
                 onUpdateUIStyle={handleUpdateUIStyle}
             />
         )}
+        </div>
       </div>
     </div>
   );

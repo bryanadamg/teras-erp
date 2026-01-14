@@ -32,6 +32,7 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
                          <option value="default">Default (Corporate)</option>
                          <option value="modern">Modern (Rounded)</option>
                          <option value="compact">Compact (High Density)</option>
+                         <option value="classic">Classic (Windows XP)</option>
                      </select>
                      <div className="form-text">Choose the appearance that best fits your workflow.</div>
                  </div>
