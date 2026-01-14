@@ -10,3 +10,13 @@ class Base(DeclarativeBase):
             "uq": "uq_%(table_name)s_%(column_0_name)s",
         }
     )
+
+# Import all models here so they are registered with Base.metadata
+from app.models.item import Item, item_attributes
+from app.models.location import Location
+from app.models.attribute import Attribute, AttributeValue
+from app.models.category import Category
+from app.models.bom import BOM, BOMLine, bom_values, bom_line_values
+from app.models.manufacturing import WorkOrder, work_order_values
+from app.models.stock_ledger import StockLedger, stock_ledger_values
+from app.models.variant import Variant

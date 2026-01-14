@@ -10,7 +10,7 @@ export default function InventoryView({
     onRefresh 
 }: any) {
   // Creation State
-  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', category: '', source_sample_id: '', attribute_id: '' });
+  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', category: '', source_sample_id: '', attribute_ids: [] as string[] });
   
   // Editing State
   const [editingItem, setEditingItem] = useState<any>(null);
@@ -28,10 +28,9 @@ export default function InventoryView({
       e.preventDefault();
       const payload: any = { ...newItem };
       if (!payload.source_sample_id) delete payload.source_sample_id;
-      if (!payload.attribute_id) delete payload.attribute_id;
       
       onCreateItem(payload);
-      setNewItem({ code: '', name: '', uom: '', category: '', source_sample_id: '', attribute_id: '' });
+      setNewItem({ code: '', name: '', uom: '', category: '', source_sample_id: '', attribute_ids: [] });
   };
 
   const handleUpdateItemSubmit = (e: React.FormEvent) => {
@@ -43,12 +42,30 @@ export default function InventoryView({
           name: editingItem.name,
           uom: editingItem.uom,
           category: editingItem.category,
-          attribute_id: editingItem.attribute_id || null,
+          attribute_ids: editingItem.attribute_ids || [],
           source_sample_id: editingItem.source_sample_id || null
       };
 
       onUpdateItem(editingItem.id, payload);
       setEditingItem(null);
+  };
+
+  const toggleAttribute = (id: string, isEdit: boolean) => {
+      if (isEdit) {
+          const current = editingItem.attribute_ids || [];
+          if (current.includes(id)) {
+              setEditingItem({...editingItem, attribute_ids: current.filter((a:string) => a !== id)});
+          } else {
+              setEditingItem({...editingItem, attribute_ids: [...current, id]});
+          }
+      } else {
+          const current = newItem.attribute_ids;
+          if (current.includes(id)) {
+              setNewItem({...newItem, attribute_ids: current.filter(a => a !== id)});
+          } else {
+              setNewItem({...newItem, attribute_ids: [...current, id]});
+          }
+      }
   };
 
   const handleAddCategory = () => {
@@ -69,7 +86,10 @@ export default function InventoryView({
       
   const sampleItems = items.filter((i: any) => i.category === 'Sample');
 
-  const getAttributeName = (id: string) => attributes.find((a: any) => a.id === id)?.name || '-';
+  const getAttributeNames = (ids: string[]) => {
+      if (!ids || ids.length === 0) return '-';
+      return ids.map(id => attributes.find((a: any) => a.id === id)?.name).filter(Boolean).join(', ');
+  };
 
   return (
     <div className="row g-4 fade-in">
@@ -98,7 +118,7 @@ export default function InventoryView({
                     <th className="ps-4">Code</th>
                     <th>Name</th>
                     <th>Category</th>
-                    <th>Attribute Type</th>
+                    <th>Attributes</th>
                     <th style={{width: '50px'}}></th>
                   </tr>
                 </thead>
@@ -111,9 +131,9 @@ export default function InventoryView({
                       </td>
                       <td>{item.name}</td>
                       <td>{item.category && <span className="badge bg-light text-dark border">{item.category}</span>}</td>
-                      <td><span className="text-muted">{getAttributeName(item.attribute_id)}</span></td>
+                      <td><span className="text-muted small">{getAttributeNames(item.attribute_ids)}</span></td>
                       <td>
-                          <button className="btn btn-sm btn-link text-primary" onClick={() => setEditingItem(item)}>
+                          <button className="btn btn-sm btn-link text-primary" onClick={() => setEditingItem({...item, attribute_ids: item.attribute_ids || []})}>
                               <i className="bi bi-pencil-square"></i>
                           </button>
                       </td>
@@ -142,35 +162,45 @@ export default function InventoryView({
                 <div>
                     <form onSubmit={handleUpdateItemSubmit} className="mb-4">
                         <div className="mb-3">
-                            <label className="form-label small">Code</label>
+                            <label className="form-label small text-muted">Code</label>
                             <input className="form-control" value={editingItem.code} onChange={e => setEditingItem({...editingItem, code: e.target.value})} required />
                         </div>
                         <div className="mb-3">
-                            <label className="form-label small">Name</label>
+                            <label className="form-label small text-muted">Name</label>
                             <input className="form-control" value={editingItem.name} onChange={e => setEditingItem({...editingItem, name: e.target.value})} required />
                         </div>
                         <div className="row g-2 mb-3">
                             <div className="col-6">
-                                <label className="form-label small">Category</label>
+                                <label className="form-label small text-muted">Category</label>
                                 <select className="form-select" value={editingItem.category || ''} onChange={e => setEditingItem({...editingItem, category: e.target.value})}>
                                     <option value="">Select...</option>
                                     {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
                                 </select>
                             </div>
                             <div className="col-6">
-                                <label className="form-label small">UOM</label>
+                                <label className="form-label small text-muted">UOM</label>
                                 <input className="form-control" value={editingItem.uom} onChange={e => setEditingItem({...editingItem, uom: e.target.value})} required />
                             </div>
                         </div>
                         
                         <div className="mb-3">
-                            <label className="form-label small text-muted">Attribute Type (Variation by)</label>
-                            <select className="form-select" value={editingItem.attribute_id || ''} onChange={e => setEditingItem({...editingItem, attribute_id: e.target.value})}>
-                                <option value="">None (Static Item)</option>
+                            <label className="form-label small text-muted d-block">Attribute Types</label>
+                            <div className="d-flex flex-wrap gap-2 p-2 border rounded bg-light">
                                 {attributes.map((attr: any) => (
-                                    <option key={attr.id} value={attr.id}>{attr.name}</option>
+                                    <div key={attr.id} className="form-check">
+                                        <input 
+                                            className="form-check-input" 
+                                            type="checkbox" 
+                                            id={`edit-attr-${attr.id}`}
+                                            checked={editingItem.attribute_ids?.includes(attr.id)}
+                                            onChange={() => toggleAttribute(attr.id, true)}
+                                        />
+                                        <label className="form-check-label small" htmlFor={`edit-attr-${attr.id}`}>
+                                            {attr.name}
+                                        </label>
+                                    </div>
                                 ))}
-                            </select>
+                            </div>
                         </div>
 
                         <div className="mb-3">
@@ -193,16 +223,16 @@ export default function InventoryView({
                 // --- CREATE MODE ---
                 <form onSubmit={handleSubmitItem}>
                   <div className="mb-3">
-                      <label className="form-label">Item Code</label>
+                      <label className="form-label small text-muted">Item Code</label>
                       <input className="form-control" placeholder="ITM-001" value={newItem.code} onChange={e => setNewItem({...newItem, code: e.target.value})} required />
                   </div>
                   <div className="mb-3">
-                      <label className="form-label">Item Name</label>
+                      <label className="form-label small text-muted">Item Name</label>
                       <input className="form-control" placeholder="Product Name" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
                   </div>
                   <div className="row g-2 mb-3">
                       <div className="col-7">
-                          <label className="form-label d-flex justify-content-between">
+                          <label className="form-label d-flex justify-content-between small text-muted">
                               Category 
                               <span className="text-primary" style={{cursor:'pointer'}} onClick={() => setShowCatInput(!showCatInput)}><i className="bi bi-plus-circle"></i></span>
                           </label>
@@ -219,20 +249,31 @@ export default function InventoryView({
                           )}
                       </div>
                       <div className="col-5">
-                          <label className="form-label">UOM</label>
+                          <label className="form-label small text-muted">UOM</label>
                           <input className="form-control" placeholder="Unit" value={newItem.uom} onChange={e => setNewItem({...newItem, uom: e.target.value})} required />
                       </div>
                   </div>
                   
                   <div className="mb-3">
-                      <label className="form-label small text-muted">Attribute Type (Variation by)</label>
-                      <select className="form-select" value={newItem.attribute_id} onChange={e => setNewItem({...newItem, attribute_id: e.target.value})}>
-                          <option value="">None (Static Item)</option>
+                      <label className="form-label small text-muted d-block">Attribute Types (Variations)</label>
+                      <div className="d-flex flex-wrap gap-2 p-2 border rounded bg-light" style={{maxHeight: '120px', overflowY: 'auto'}}>
                           {attributes.map((attr: any) => (
-                              <option key={attr.id} value={attr.id}>{attr.name}</option>
+                              <div key={attr.id} className="form-check">
+                                  <input 
+                                      className="form-check-input" 
+                                      type="checkbox" 
+                                      id={`new-attr-${attr.id}`}
+                                      checked={newItem.attribute_ids.includes(attr.id)}
+                                      onChange={() => toggleAttribute(attr.id, false)}
+                                  />
+                                  <label className="form-check-label small" htmlFor={`new-attr-${attr.id}`}>
+                                      {attr.name}
+                                  </label>
+                              </div>
                           ))}
-                      </select>
-                      <div className="form-text small text-muted">e.g. If you select "Color", you can pick specific colors when recording stock.</div>
+                          {attributes.length === 0 && <small className="text-muted fst-italic">No attributes defined</small>}
+                      </div>
+                      <div className="form-text small text-muted">Select all attributes that apply to this item.</div>
                   </div>
 
                   <div className="mb-3">
@@ -245,7 +286,7 @@ export default function InventoryView({
                       </select>
                   </div>
                   
-                  <button type="submit" className="btn btn-primary w-100 fw-bold">Create Item</button>
+                  <button type="submit" className="btn btn-primary w-100 fw-bold shadow-sm">Create Item</button>
                 </form>
             )}
           </div>

@@ -19,18 +19,23 @@ def create_item_api(payload: ItemCreate, db: Session = Depends(get_db)):
         uom=payload.uom,
         category=payload.category,
         source_sample_id=payload.source_sample_id,
-        attribute_id=payload.attribute_id
+        attribute_ids=payload.attribute_ids
     )
 
 @router.get("/items", response_model=list[ItemResponse])
 def get_items_api(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return item_service.get_items(db, skip=skip, limit=limit)
+    items = item_service.get_items(db, skip=skip, limit=limit)
+    # Populate attribute_ids for response
+    for item in items:
+        item.attribute_ids = [a.id for a in item.attributes]
+    return items
 
 @router.put("/items/{item_id}", response_model=ItemResponse)
 def update_item_api(item_id: str, payload: ItemUpdate, db: Session = Depends(get_db)):
     item = item_service.update_item(db, item_id, payload.dict(exclude_unset=True))
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
+    item.attribute_ids = [a.id for a in item.attributes]
     return item
 
 @router.post("/items/stock")
@@ -45,25 +50,23 @@ def add_stock_api(payload: StockEntryCreate, db: Session = Depends(get_db)):
     if not location:
         raise HTTPException(status_code=404, detail="Location not found")
 
-    # Validate Attribute Value if provided
-    if payload.attribute_value_id:
-        # Check if attribute_value belongs to item's bound attribute
-        if not item.attribute_id:
-             raise HTTPException(status_code=400, detail="Item has no bound attribute")
-        
-        # Verify value exists and belongs to correct attribute
+    # Validate Attribute Values if provided
+    if payload.attribute_value_ids:
         from app.models.attribute import AttributeValue
-        val = db.query(AttributeValue).filter(AttributeValue.id == payload.attribute_value_id).first()
-        if not val or val.attribute_id != item.attribute_id:
-             raise HTTPException(status_code=400, detail="Invalid attribute value for this item")
+        valid_attr_ids = [a.id for a in item.attributes]
+        
+        for val_id in payload.attribute_value_ids:
+            val = db.query(AttributeValue).filter(AttributeValue.id == val_id).first()
+            if not val or val.attribute_id not in valid_attr_ids:
+                 raise HTTPException(status_code=400, detail=f"Invalid attribute value {val_id} for this item")
 
     stock_service.add_stock_entry(
         db,
         item_id=item.id,
         location_id=location.id,
-        variant_id=payload.attribute_value_id, # renaming service param next
+        attribute_value_ids=[str(vid) for vid in payload.attribute_value_ids],
         qty_change=payload.qty,
-        reference_type=payload.reference_type,
-        reference_id=payload.reference_id
+        reference_type="manual",
+        reference_id="manual_entry"
     )
     return {"status": "success", "message": "Stock recorded"}

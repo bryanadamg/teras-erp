@@ -26,12 +26,11 @@ def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Location not found")
 
     # 4. Create Work Order
-    # We copy item_id and attribute_value_id from BOM for historical data integrity
+    # We copy item_id and attribute_values from BOM for historical data integrity
     wo = WorkOrder(
         code=payload.code,
         bom_id=bom.id,
         item_id=bom.item_id,
-        attribute_value_id=bom.attribute_value_id,
         location_id=location.id,
         qty=payload.qty,
         start_date=payload.start_date,
@@ -39,14 +38,22 @@ def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db)):
         status="PENDING"
     )
     
+    # Copy attribute values from BOM
+    wo.attribute_values = bom.attribute_values
+
     db.add(wo)
     db.commit()
     db.refresh(wo)
+    
+    wo.attribute_value_ids = [v.id for v in wo.attribute_values]
     return wo
 
 @router.get("/work-orders", response_model=list[WorkOrderResponse])
 def get_work_orders(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return db.query(WorkOrder).order_by(WorkOrder.created_at.desc()).offset(skip).limit(limit).all()
+    items = db.query(WorkOrder).order_by(WorkOrder.created_at.desc()).offset(skip).limit(limit).all()
+    for item in items:
+        item.attribute_value_ids = [v.id for v in item.attribute_values]
+    return items
 
 @router.put("/work-orders/{wo_id}/status")
 def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_db)):
@@ -68,7 +75,7 @@ def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_
                 db,
                 item_id=line.item_id,
                 location_id=wo.location_id,
-                attribute_value_id=line.attribute_value_id,
+                attribute_value_ids=[v.id for v in line.attribute_values],
                 qty_change=-required_qty, # Negative for deduction
                 reference_type="Work Order",
                 reference_id=wo.code
@@ -79,7 +86,7 @@ def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_
             db,
             item_id=wo.item_id,
             location_id=wo.location_id,
-            attribute_value_id=wo.attribute_value_id,
+            attribute_value_ids=[v.id for v in wo.attribute_values],
             qty_change=wo.qty,
             reference_type="Work Order",
             reference_id=wo.code

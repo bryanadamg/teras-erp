@@ -1,8 +1,23 @@
-import uuid
-from sqlalchemy import String, ForeignKey, Numeric, Boolean
+from sqlalchemy import String, ForeignKey, Numeric, Boolean, Table, Column
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
+import uuid
+
+# Association tables
+bom_values = Table(
+    "bom_values",
+    Base.metadata,
+    Column("bom_id", UUID(as_uuid=True), ForeignKey("boms.id"), primary_key=True),
+    Column("attribute_value_id", UUID(as_uuid=True), ForeignKey("attribute_values.id"), primary_key=True),
+)
+
+bom_line_values = Table(
+    "bom_line_values",
+    Base.metadata,
+    Column("bom_line_id", UUID(as_uuid=True), ForeignKey("bom_lines.id"), primary_key=True),
+    Column("attribute_value_id", UUID(as_uuid=True), ForeignKey("attribute_values.id"), primary_key=True),
+)
 
 class BOM(Base):
     __tablename__ = "boms"
@@ -17,13 +32,12 @@ class BOM(Base):
     item_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("items.id"), index=True
     )
-    attribute_value_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("attribute_values.id"), nullable=True
-    )
     qty: Mapped[float] = mapped_column(Numeric(14, 4), default=1.0)
     
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
+    # Relationships
+    attribute_values = relationship("AttributeValue", secondary=bom_values)
     lines = relationship("BOMLine", backref="bom", cascade="all, delete-orphan")
 
 
@@ -41,8 +55,7 @@ class BOMLine(Base):
     item_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("items.id")
     )
-    attribute_value_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("attribute_values.id"), nullable=True
-    )
-    
     qty: Mapped[float] = mapped_column(Numeric(14, 4))
+
+    # Relationships
+    attribute_values = relationship("AttributeValue", secondary=bom_line_values)

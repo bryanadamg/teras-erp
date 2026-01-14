@@ -42,13 +42,13 @@ class AttributeResponse(AttributeCreate):
 
 class BOMLineCreate(BaseModel):
     item_code: str
-    attribute_value_id: UUID | None = None
+    attribute_value_ids: list[UUID] = []
     qty: float
 
 class BOMLineResponse(BaseModel):
     id: UUID
     item_id: UUID
-    attribute_value_id: UUID | None
+    attribute_value_ids: list[UUID] = [] # We'll populate this in the API
     qty: float
 
     class Config:
@@ -58,7 +58,7 @@ class BOMCreate(BaseModel):
     code: str
     description: str | None = None
     item_code: str
-    attribute_value_id: UUID | None = None
+    attribute_value_ids: list[UUID] = []
     qty: float = 1.0
     lines: list[BOMLineCreate]
 
@@ -67,7 +67,7 @@ class BOMResponse(BaseModel):
     code: str
     description: str | None
     item_id: UUID
-    attribute_value_id: UUID | None
+    attribute_value_ids: list[UUID] = [] # We'll populate this in the API
     qty: float
     active: bool
     lines: list[BOMLineResponse]
@@ -88,7 +88,7 @@ class WorkOrderResponse(BaseModel):
     code: str
     bom_id: UUID
     item_id: UUID
-    attribute_value_id: UUID | None
+    attribute_value_ids: list[UUID] = [] # We'll populate this in the API
     location_id: UUID
     qty: float
     status: str
@@ -96,9 +96,6 @@ class WorkOrderResponse(BaseModel):
     due_date: datetime | None
     created_at: datetime
     
-    # Optional nested details could be added here if needed, 
-    # but for now we keep it flat for the table view.
-
     class Config:
         from_attributes = True
 
@@ -107,7 +104,7 @@ class ItemCreate(BaseModel):
     name: str
     uom: str
     category: str | None = None
-    attribute_id: UUID | None = None
+    attribute_ids: list[UUID] = []
     source_sample_id: UUID | None = None
 
 class ItemUpdate(BaseModel):
@@ -115,7 +112,7 @@ class ItemUpdate(BaseModel):
     name: str | None = None
     uom: str | None = None
     category: str | None = None
-    attribute_id: UUID | None = None
+    attribute_ids: list[UUID] | None = None
     source_sample_id: UUID | None = None
     active: bool | None = None
 
@@ -129,7 +126,7 @@ class ItemResponse(ItemCreate):
 class StockEntryCreate(BaseModel):
     item_code: str
     location_code: str
-    attribute_value_id: UUID | None = None
+    attribute_value_ids: list[UUID] = []
     qty: float
     reference_type: str = "manual"
     reference_id: str = "manual_entry"
@@ -137,7 +134,7 @@ class StockEntryCreate(BaseModel):
 class StockLedgerResponse(BaseModel):
     id: UUID
     item_id: UUID
-    attribute_value_id: UUID | None
+    attribute_value_ids: list[UUID] = []
     location_id: UUID
     qty_change: float
     reference_type: str
@@ -149,7 +146,7 @@ class StockLedgerResponse(BaseModel):
 
 class StockBalanceResponse(BaseModel):
     item_id: UUID
-    attribute_value_id: UUID | None
+    attribute_value_ids: list[UUID] = []
     location_id: UUID
     qty: float
 

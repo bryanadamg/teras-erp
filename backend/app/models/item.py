@@ -1,8 +1,16 @@
-import uuid
-from sqlalchemy import String, Boolean, ForeignKey
+from sqlalchemy import String, Boolean, ForeignKey, Table, Column
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
+import uuid
+
+# Association table for Item <-> Attribute
+item_attributes = Table(
+    "item_attributes",
+    Base.metadata,
+    Column("item_id", UUID(as_uuid=True), ForeignKey("items.id"), primary_key=True),
+    Column("attribute_id", UUID(as_uuid=True), ForeignKey("attributes.id"), primary_key=True),
+)
 
 class Item(Base):
     __tablename__ = "items"
@@ -16,11 +24,6 @@ class Item(Base):
     uom: Mapped[str] = mapped_column(String(32))
     category: Mapped[str | None] = mapped_column(String(64), nullable=True)
     
-    # The Attribute Definition (e.g. "Color") that applies to this item
-    attribute_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("attributes.id"), nullable=True
-    )
-
     # Lineage: Link to the sample this item was derived from
     source_sample_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("items.id"), nullable=True
@@ -28,7 +31,8 @@ class Item(Base):
 
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    variants = relationship("Variant", backref="item", cascade="all, delete-orphan")
+    # Relationships
+    attributes = relationship("Attribute", secondary=item_attributes, backref="items")
     
     # Relationship for the self-referential key
     source_sample = relationship("Item", remote_side=[id], backref="derived_items")

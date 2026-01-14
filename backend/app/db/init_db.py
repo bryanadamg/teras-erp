@@ -9,78 +9,57 @@ logger = logging.getLogger(__name__)
 def run_migrations():
     """
     Run ad-hoc migrations to fix schema discrepancies.
-    This is a simple alternative to Alembic for this dev setup.
+    Using connection.commit() instead of raw SQL COMMIT to avoid transaction warnings.
     """
     try:
         with engine.connect() as conn:
-            conn.execute(text("COMMIT")) # Ensure clean state
-            
-            # 1. Add variant_id to stock_ledger if it doesn't exist
-            try:
-                conn.execute(text("ALTER TABLE stock_ledger ADD COLUMN IF NOT EXISTS variant_id UUID REFERENCES variants(id)"))
-                conn.execute(text("COMMIT"))
-                logger.info("Migration: Verified variant_id in stock_ledger")
-            except Exception as e:
-                logger.warning(f"Migration step 1 warning: {e}")
+            # 1. Verification of missing columns in existing tables
+            migrations = [
+                ("items", "category", "VARCHAR(64)"),
+                ("items", "source_sample_id", "UUID REFERENCES items(id)"),
+                ("items", "attribute_id", "UUID REFERENCES attributes(id)"),
+                ("work_orders", "location_id", "UUID REFERENCES locations(id)"),
+            ]
 
-            # 2. Drop legacy 'variant' column from items
-            try:
-                conn.execute(text("ALTER TABLE items DROP COLUMN IF EXISTS variant"))
-                conn.execute(text("COMMIT"))
-                logger.info("Migration: Verified cleanup of items table")
-            except Exception as e:
-                logger.warning(f"Migration step 2 warning: {e}")
-
-            # 3. Add category column to items if it doesn't exist
-            try:
-                conn.execute(text("ALTER TABLE items ADD COLUMN IF NOT EXISTS category VARCHAR(64)"))
-                conn.execute(text("COMMIT"))
-                logger.info("Migration: Verified category column in items")
-            except Exception as e:
-                logger.warning(f"Migration step 3 warning: {e}")
-
-            # 4. Add location_id to work_orders
-            try:
-                conn.execute(text("ALTER TABLE work_orders ADD COLUMN IF NOT EXISTS location_id UUID REFERENCES locations(id)"))
-                conn.execute(text("COMMIT"))
-                logger.info("Migration: Verified location_id in work_orders")
-            except Exception as e:
-                logger.warning(f"Migration step 4 warning: {e}")
-
-            # 5. Add source_sample_id to items
-            try:
-                conn.execute(text("ALTER TABLE items ADD COLUMN IF NOT EXISTS source_sample_id UUID REFERENCES items(id)"))
-                conn.execute(text("COMMIT"))
-                logger.info("Migration: Verified source_sample_id in items")
-            except Exception as e:
-                logger.warning(f"Migration step 5 warning: {e}")
-
-            # 6. Add attribute_id to items
-            try:
-                conn.execute(text("ALTER TABLE items ADD COLUMN IF NOT EXISTS attribute_id UUID REFERENCES attributes(id)"))
-                conn.execute(text("COMMIT"))
-                logger.info("Migration: Verified attribute_id in items")
-            except Exception as e:
-                logger.warning(f"Migration step 6 warning: {e}")
-
-            # 7. Rename variant_id to attribute_value_id in multiple tables
-            for table in ["stock_ledger", "boms", "bom_lines", "work_orders"]:
+            for table, col, col_type in migrations:
                 try:
-                    # Check if old column exists and new one doesn't
-                    conn.execute(text(f"ALTER TABLE {table} RENAME COLUMN variant_id TO attribute_value_id"))
-                    conn.execute(text(f"ALTER TABLE {table} DROP CONSTRAINT IF EXISTS {table}_variant_id_fkey"))
-                    conn.execute(text(f"ALTER TABLE {table} ADD CONSTRAINT {table}_attribute_value_id_fkey FOREIGN KEY (attribute_value_id) REFERENCES attribute_values(id)"))
-                    conn.execute(text("COMMIT"))
-                    logger.info(f"Migration: Renamed variant_id in {table}")
+                    # Check if column exists
+                    res = conn.execute(text(f"SELECT column_name FROM information_schema.columns WHERE table_name='{table}' AND column_name='{col}'"))
+                    if not res.fetchone():
+                        logger.info(f"Migration: Adding {col} to {table}")
+                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"))
+                        conn.commit()
                 except Exception as e:
-                    # If already renamed or error, just try to add column if it doesn't exist
-                    try:
-                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS attribute_value_id UUID REFERENCES attribute_values(id)"))
-                        conn.execute(text("COMMIT"))
-                    except: pass
+                    logger.warning(f"Migration for {table}.{col} failed: {e}")
+
+            # 2. Data Migration: Move single attribute_id/attribute_value_id to secondary tables if data exists
+            # These are the many-to-many migrations
+            move_data = [
+                ("items", "attribute_id", "item_attributes", "item_id", "attribute_id"),
+                ("stock_ledger", "attribute_value_id", "stock_ledger_values", "stock_ledger_id", "attribute_value_id"),
+                ("boms", "attribute_value_id", "bom_values", "bom_id", "attribute_value_id"),
+                ("bom_lines", "attribute_value_id", "bom_line_values", "bom_line_id", "attribute_value_id"),
+                ("work_orders", "attribute_value_id", "work_order_values", "work_order_id", "attribute_value_id")
+            ]
+
+            for src_table, src_col, target_table, target_id_col, target_val_col in move_data:
+                try:
+                    # Check if src_col exists before attempting migration
+                    res = conn.execute(text(f"SELECT column_name FROM information_schema.columns WHERE table_name='{src_table}' AND column_name='{src_col}'"))
+                    if res.fetchone():
+                        conn.execute(text(f"""
+                            INSERT INTO {target_table} ({target_id_col}, {target_val_col}) 
+                            SELECT id, {src_col} FROM {src_table} 
+                            WHERE {src_col} IS NOT NULL 
+                            ON CONFLICT DO NOTHING
+                        """))
+                        conn.commit()
+                        logger.info(f"Migration: Moved {src_col} data to {target_table}")
+                except Exception as e:
+                    pass
 
     except Exception as e:
-        logger.error(f"Migration failed: {e}")
+        logger.error(f"Migration engine failed: {e}")
 
 from app.models.category import Category
 
@@ -96,11 +75,14 @@ def seed_categories(db):
         logger.warning(f"Category seeding skipped: {e}")
 
 def init_db() -> None:
-    logger.info("Creating initial data")
+    logger.info("Initializing Database...")
+    # 1. Create all tables (including association tables registered in base.py)
     Base.metadata.create_all(bind=engine)
+    
+    # 2. Run ad-hoc column migrations
     run_migrations()
     
-    # Seed data
+    # 3. Seed data
     from app.db.session import SessionLocal
     db = SessionLocal()
     try:
@@ -108,7 +90,7 @@ def init_db() -> None:
     finally:
         db.close()
         
-    logger.info("Initial data created")
+    logger.info("Database initialization complete.")
 
 if __name__ == "__main__":
     init_db()

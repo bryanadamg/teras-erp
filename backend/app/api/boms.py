@@ -7,6 +7,8 @@ from app.schemas import BOMCreate, BOMResponse
 
 router = APIRouter()
 
+from app.models.attribute import AttributeValue
+
 @router.post("/boms", response_model=BOMResponse)
 def create_bom(payload: BOMCreate, db: Session = Depends(get_db)):
     # 1. Resolve Produced Item
@@ -23,9 +25,13 @@ def create_bom(payload: BOMCreate, db: Session = Depends(get_db)):
         code=payload.code,
         description=payload.description,
         item_id=item.id,
-        attribute_value_id=payload.attribute_value_id,
         qty=payload.qty
     )
+    
+    if payload.attribute_value_ids:
+        vals = db.query(AttributeValue).filter(AttributeValue.id.in_(payload.attribute_value_ids)).all()
+        bom.attribute_values = vals
+
     db.add(bom)
     db.commit()
     db.refresh(bom)
@@ -34,29 +40,48 @@ def create_bom(payload: BOMCreate, db: Session = Depends(get_db)):
     for line in payload.lines:
         material = db.query(Item).filter(Item.code == line.item_code).first()
         if not material:
-            # Rollback is ideal, but for simplicity we assume valid inputs or cleanup later. 
-            # In production, use explicit transactions or verify all first.
             raise HTTPException(status_code=404, detail=f"Material item '{line.item_code}' not found")
         
         bom_line = BOMLine(
             bom_id=bom.id,
             item_id=material.id,
-            attribute_value_id=line.attribute_value_id,
             qty=line.qty
         )
+        
+        if line.attribute_value_ids:
+            vals = db.query(AttributeValue).filter(AttributeValue.id.in_(line.attribute_value_ids)).all()
+            bom_line.attribute_values = vals
+
         db.add(bom_line)
     
     db.commit()
     db.refresh(bom)
+    
+    # Populate IDs for schema response
+    bom.attribute_value_ids = [v.id for v in bom.attribute_values]
+    for line in bom.lines:
+        line.attribute_value_ids = [v.id for v in line.attribute_values]
+    
     return bom
 
 @router.get("/boms", response_model=list[BOMResponse])
 def get_boms(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return db.query(BOM).offset(skip).limit(limit).all()
+    items = db.query(BOM).offset(skip).limit(limit).all()
+    for item in items:
+        # Populate IDs for schema
+        item.attribute_value_ids = [v.id for v in item.attribute_values]
+        for line in item.lines:
+            line.attribute_value_ids = [v.id for v in line.attribute_values]
+    return items
 
 @router.get("/boms/{bom_id}", response_model=BOMResponse)
 def get_bom(bom_id: str, db: Session = Depends(get_db)):
     bom = db.query(BOM).filter(BOM.id == bom_id).first()
     if not bom:
         raise HTTPException(status_code=404, detail="BOM not found")
+    
+    bom.attribute_value_ids = [v.id for v in bom.attribute_values]
+    for line in bom.lines:
+        line.attribute_value_ids = [v.id for v in line.attribute_values]
+        
     return bom

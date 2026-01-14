@@ -3,6 +3,8 @@ from app.models.item import Item
 from app.models.variant import Variant
 from app.schemas import VariantCreate
 
+from app.models.attribute import Attribute
+
 def create_item(
     db: Session,
     code: str,
@@ -10,16 +12,20 @@ def create_item(
     uom: str,
     category: str | None = None,
     source_sample_id: str | None = None,
-    attribute_id: str | None = None
+    attribute_ids: list[str] = []
 ) -> Item:
     item = Item(
         code=code,
         name=name,
         uom=uom,
         category=category,
-        source_sample_id=source_sample_id,
-        attribute_id=attribute_id
+        source_sample_id=source_sample_id
     )
+    
+    if attribute_ids:
+        attrs = db.query(Attribute).filter(Attribute.id.in_(attribute_ids)).all()
+        item.attributes = attrs
+
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -35,9 +41,15 @@ def update_item(
     if not item:
         return None
     
+    attribute_ids = data.pop("attribute_ids", None)
+    
     for key, value in data.items():
         if value is not None:
             setattr(item, key, value)
+            
+    if attribute_ids is not None:
+        attrs = db.query(Attribute).filter(Attribute.id.in_(attribute_ids)).all()
+        item.attributes = attrs
             
     db.commit()
     db.refresh(item)

@@ -1,9 +1,17 @@
-import uuid
-from datetime import datetime
-from sqlalchemy import String, ForeignKey, Numeric, DateTime
+from sqlalchemy import String, ForeignKey, Numeric, DateTime, Table, Column
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
+import uuid
+from datetime import datetime
+
+# Association table for WorkOrder <-> AttributeValue
+work_order_values = Table(
+    "work_order_values",
+    Base.metadata,
+    Column("work_order_id", UUID(as_uuid=True), ForeignKey("work_orders.id"), primary_key=True),
+    Column("attribute_value_id", UUID(as_uuid=True), ForeignKey("attribute_values.id"), primary_key=True),
+)
 
 class WorkOrder(Base):
     __tablename__ = "work_orders"
@@ -22,9 +30,6 @@ class WorkOrder(Base):
     item_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("items.id")
     )
-    attribute_value_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("attribute_values.id"), nullable=True
-    )
 
     location_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("locations.id"), index=True
@@ -41,3 +46,4 @@ class WorkOrder(Base):
 
     # Relationships
     bom = relationship("BOM", backref="work_orders")
+    attribute_values = relationship("AttributeValue", secondary=work_order_values)
