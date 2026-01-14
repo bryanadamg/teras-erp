@@ -11,10 +11,12 @@ import StockEntryView from './components/StockEntryView';
 import ReportsView from './components/ReportsView';
 import SettingsView from './components/SettingsView';
 import CategoriesView from './components/CategoriesView';
+import { useToast } from './components/Toast';
 
 const API_BASE = 'http://localhost:8000';
 
 export default function Home() {
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState('inventory');
   const [appName, setAppName] = useState('Teras ERP');
   const [uiStyle, setUiStyle] = useState('default');
@@ -192,11 +194,11 @@ export default function Home() {
       });
       
       if (res.ok) {
-          alert('BOM Created!');
+          showToast('BOM Created successfully!', 'success');
           fetchData();
       } else {
           const err = await res.json();
-          alert(`Error: ${err.detail}`);
+          showToast(`Error: ${err.detail}`, 'danger');
       }
   };
 
@@ -211,11 +213,11 @@ export default function Home() {
       });
 
       if (res.ok) {
-          alert('Work Order Created!');
+          showToast('Work Order Created successfully!', 'success');
           fetchData();
       } else {
           const err = await res.json();
-          alert(`Error: ${err.detail}`);
+          showToast(`Error: ${err.detail}`, 'danger');
       }
   };
 
@@ -223,6 +225,7 @@ export default function Home() {
       await fetch(`${API_BASE}/work-orders/${woId}/status?status=${status}`, {
           method: 'PUT'
       });
+      showToast(`Work Order status updated to ${status}`, 'info');
       fetchData();
   };
 
@@ -231,13 +234,18 @@ export default function Home() {
     // Updated to use attribute_value_ids
     if (!payload.attribute_value_ids) payload.attribute_value_ids = [];
 
-    await fetch(`${API_BASE}/items/stock`, {
+    const res = await fetch(`${API_BASE}/items/stock`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    alert('Stock recorded successfully!');
-    fetchData();
+    
+    if (res.ok) {
+        showToast('Stock recorded successfully!', 'success');
+        fetchData();
+    } else {
+        showToast('Failed to record stock', 'danger');
+    }
   };
 
   return (

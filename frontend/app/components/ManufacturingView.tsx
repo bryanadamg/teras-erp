@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
+import { useToast } from './Toast';
 
 export default function ManufacturingView({ items, boms, locations, attributes, workOrders, onCreateWO, onUpdateStatus }: any) {
+  const { showToast } = useToast();
   const [newWO, setNewWO] = useState({ code: '', bom_id: '', location_code: '', qty: 1.0, due_date: '' });
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -115,7 +117,7 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
   const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       if (workOrders.some((w: any) => w.code === newWO.code)) {
-          alert('Work Order Code already exists.');
+          showToast('Work Order Code already exists.', 'warning');
           return;
       }
       onCreateWO(newWO);

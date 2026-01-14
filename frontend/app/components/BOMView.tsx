@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
+import { useToast } from './Toast';
 
 export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
+  const { showToast } = useToast();
   const [newBOM, setNewBOM] = useState({
       code: '',
       description: '',
@@ -126,7 +128,7 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
   const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       if (boms.some((b: any) => b.code === newBOM.code)) {
-          alert('BOM Code already exists.');
+          showToast('BOM Code already exists.', 'warning');
           return;
       }
       onCreateBOM(newBOM);

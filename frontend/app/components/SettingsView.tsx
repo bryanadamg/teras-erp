@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { useToast } from './Toast';
 
 export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpdateUIStyle }: any) {
+  const { showToast } = useToast();
   const [name, setName] = useState(appName);
   const [style, setStyle] = useState(uiStyle || 'default');
 
@@ -8,7 +10,7 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
       e.preventDefault();
       onUpdateAppName(name);
       onUpdateUIStyle(style);
-      alert('Settings updated!');
+      showToast('Settings updated successfully!', 'success');
   };
 
   return (

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useToast } from './Toast';
 
 export default function InventoryView({ 
     items, 
@@ -9,6 +10,7 @@ export default function InventoryView({
     onCreateCategory,
     onRefresh 
 }: any) {
+  const { showToast } = useToast();
   // Creation State
   const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', category: '', source_sample_id: '', attribute_ids: [] as string[] });
   
@@ -49,7 +51,7 @@ export default function InventoryView({
               suggestedCode = `${baseCode}-${counter}`;
           }
 
-          alert(`Item Code "${newItem.code}" already exists. Suggesting: ${suggestedCode}`);
+          showToast(`Item Code "${newItem.code}" already exists. Suggesting: ${suggestedCode}`, 'warning');
           setNewItem({ ...newItem, code: suggestedCode });
           // Note: Form data is preserved because we only updated 'code' in the state.
       } else {
