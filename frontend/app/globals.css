@@ -13,6 +13,32 @@ body {
   overflow-x: hidden;
 }
 
+/* UI Style: Modern */
+.ui-style-modern {
+  --primary-color: #6366f1;
+  --bg-color: #f8fafc;
+}
+.ui-style-modern .card {
+  border-radius: 20px;
+}
+.ui-style-modern .btn {
+  border-radius: 12px;
+}
+
+/* UI Style: Compact */
+.ui-style-compact {
+  font-size: 0.875rem;
+}
+.ui-style-compact .card-body {
+  padding: 12px;
+}
+.ui-style-compact .main-content {
+  padding: 16px;
+}
+.ui-style-compact .nav-link {
+  padding: 8px 24px;
+}
+
 /* Sidebar */
 .sidebar {
   width: var(--sidebar-width);

@@ -1,12 +1,14 @@
 import { useState } from 'react';
 
-export default function SettingsView({ appName, onUpdateAppName }: any) {
+export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpdateUIStyle }: any) {
   const [name, setName] = useState(appName);
+  const [style, setStyle] = useState(uiStyle || 'default');
 
   const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       onUpdateAppName(name);
-      alert('Application name updated!');
+      onUpdateUIStyle(style);
+      alert('Settings updated!');
   };
 
   return (
@@ -23,7 +25,18 @@ export default function SettingsView({ appName, onUpdateAppName }: any) {
                      <input className="form-control" value={name} onChange={e => setName(e.target.value)} />
                      <div className="form-text">This name will appear in the sidebar and browser title.</div>
                  </div>
-                 <button type="submit" className="btn btn-primary">Save Changes</button>
+                 
+                 <div className="mb-4">
+                     <label className="form-label">Interface Style</label>
+                     <select className="form-select" value={style} onChange={e => setStyle(e.target.value)}>
+                         <option value="default">Default (Corporate)</option>
+                         <option value="modern">Modern (Rounded)</option>
+                         <option value="compact">Compact (High Density)</option>
+                     </select>
+                     <div className="form-text">Choose the appearance that best fits your workflow.</div>
+                 </div>
+
+                 <button type="submit" className="btn btn-primary w-100">Save Changes</button>
              </form>
           </div>
         </div>

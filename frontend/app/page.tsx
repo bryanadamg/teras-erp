@@ -16,6 +16,7 @@ const API_BASE = 'http://localhost:8000';
 export default function Home() {
   const [activeTab, setActiveTab] = useState('inventory');
   const [appName, setAppName] = useState('Teras ERP');
+  const [uiStyle, setUiStyle] = useState('default');
 
   // Master Data
   const [items, setItems] = useState([]);
@@ -55,14 +56,22 @@ export default function Home() {
 
   useEffect(() => {
     fetchData();
-    // Load app name from local storage if available
+    // Load settings from local storage
     const savedName = localStorage.getItem('app_name');
     if (savedName) setAppName(savedName);
+    
+    const savedStyle = localStorage.getItem('ui_style');
+    if (savedStyle) setUiStyle(savedStyle);
   }, []);
 
   const handleUpdateAppName = (name: string) => {
       setAppName(name);
       localStorage.setItem('app_name', name);
+  };
+
+  const handleUpdateUIStyle = (style: string) => {
+      setUiStyle(style);
+      localStorage.setItem('ui_style', style);
   };
 
   // --- Handlers ---
@@ -228,7 +237,7 @@ export default function Home() {
   };
 
   return (
-    <div className="d-flex">
+    <div className={`d-flex ui-style-${uiStyle}`}>
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} appName={appName} />
       
       <div className="main-content flex-grow-1">
@@ -327,6 +336,8 @@ export default function Home() {
             <SettingsView 
                 appName={appName}
                 onUpdateAppName={handleUpdateAppName}
+                uiStyle={uiStyle}
+                onUpdateUIStyle={handleUpdateUIStyle}
             />
         )}
       </div>
