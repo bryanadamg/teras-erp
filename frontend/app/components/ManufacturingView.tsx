@@ -12,7 +12,7 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
       separator: '-',
       includeItemCode: true,
       includeVariant: false,
-      variantAttributeName: '',
+      variantAttributeNames: [],
       includeYear: false,
       includeMonth: false
   });
@@ -50,8 +50,8 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
       if (config.includeVariant && bom.variant_id) {
           const variant = item?.variants.find((v: any) => v.id === bom.variant_id);
           if (variant) {
-              if (config.variantAttributeName) {
-                  if (variant.category === config.variantAttributeName) {
+              if (config.variantAttributeNames && config.variantAttributeNames.length > 0) {
+                  if (config.variantAttributeNames.includes(variant.category)) {
                       variantName = variant.name.toUpperCase().replace(/\s+/g, '');
                   }
               } else {

@@ -6,7 +6,7 @@ export interface CodeConfig {
     separator: string;
     includeItemCode: boolean;
     includeVariant: boolean;
-    variantAttributeName?: string; // Changed to name since Variant model stores category name
+    variantAttributeNames?: string[]; // Array of selected attribute names
     includeYear: boolean;
     includeMonth: boolean;
 }
@@ -27,14 +27,22 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
         separator: '-',
         includeItemCode: true,
         includeVariant: false,
-        variantAttributeName: '',
+        variantAttributeNames: [],
         includeYear: false,
         includeMonth: false,
     });
 
     useEffect(() => {
         if (isOpen && initialConfig) {
-            setConfig(initialConfig);
+            // Migration for old config (single string to array)
+            const safeConfig = { ...initialConfig };
+            if (typeof (safeConfig as any).variantAttributeName === 'string') {
+                safeConfig.variantAttributeNames = [(safeConfig as any).variantAttributeName].filter(Boolean);
+                delete (safeConfig as any).variantAttributeName;
+            } else if (!safeConfig.variantAttributeNames) {
+                safeConfig.variantAttributeNames = [];
+            }
+            setConfig(safeConfig);
         }
     }, [isOpen, initialConfig]);
 
@@ -45,21 +53,34 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
         onClose();
     };
 
+    const toggleAttribute = (attrName: string) => {
+        const current = config.variantAttributeNames || [];
+        if (current.includes(attrName)) {
+            setConfig({ ...config, variantAttributeNames: current.filter(n => n !== attrName) });
+        } else {
+            setConfig({ ...config, variantAttributeNames: [...current, attrName] });
+        }
+    };
+
     // Preview Logic
     const getPreview = () => {
         const parts = [];
         if (config.prefix) parts.push(config.prefix);
         if (config.includeItemCode) parts.push('ITEM001');
+        
         if (config.includeVariant) {
-            if (config.variantAttributeName) {
-                // Find a sample value from the selected attribute if possible
-                const attr = attributes.find(a => a.name === config.variantAttributeName);
-                const val = attr && attr.values.length > 0 ? attr.values[0].value.toUpperCase() : 'VAR';
-                parts.push(val);
+            if (config.variantAttributeNames && config.variantAttributeNames.length > 0) {
+                // Find sample values for each selected attribute
+                config.variantAttributeNames.forEach(attrName => {
+                    const attr = attributes.find(a => a.name === attrName);
+                    const val = attr && attr.values.length > 0 ? attr.values[0].value.toUpperCase() : 'VAR';
+                    parts.push(val);
+                });
             } else {
                 parts.push('VARIANT');
             }
         }
+        
         if (config.includeYear) parts.push(new Date().getFullYear());
         if (config.includeMonth) parts.push(String(new Date().getMonth() + 1).padStart(2, '0'));
         if (config.suffix) parts.push(config.suffix);
@@ -138,7 +159,7 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
                                         onChange={e => setConfig({...config, includeVariant: e.target.checked})}
                                         id="chkVar"
                                     />
-                                    <label className="form-check-label small ms-1" htmlFor="chkVar">Variant</label>
+                                    <label className="form-check-label small ms-1" htmlFor="chkVar">Variant Attributes</label>
                                 </div>
                                 <div className="form-check form-check-inline border rounded p-2 pe-3 bg-light">
                                     <input 
@@ -164,19 +185,26 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
                         </div>
 
                         {config.includeVariant && (
-                            <div className="mb-3 fade-in">
-                                <label className="form-label small fw-bold text-primary">Select Attribute for Variant Code</label>
-                                <select 
-                                    className="form-select form-select-sm"
-                                    value={config.variantAttributeName || ''}
-                                    onChange={e => setConfig({...config, variantAttributeName: e.target.value})}
-                                >
-                                    <option value="">-- Select Attribute --</option>
+                            <div className="mb-3 fade-in p-3 bg-light rounded border border-primary border-opacity-25">
+                                <label className="form-label small fw-bold text-primary mb-2">Select Attributes for Code Generation</label>
+                                <div className="d-flex flex-wrap gap-2" style={{maxHeight: '150px', overflowY: 'auto'}}>
                                     {attributes.map(attr => (
-                                        <option key={attr.id} value={attr.name}>{attr.name}</option>
+                                        <div key={attr.id} className="form-check">
+                                            <input 
+                                                className="form-check-input" 
+                                                type="checkbox" 
+                                                id={`attr-${attr.id}`}
+                                                checked={config.variantAttributeNames?.includes(attr.name)}
+                                                onChange={() => toggleAttribute(attr.name)}
+                                            />
+                                            <label className="form-check-label small" htmlFor={`attr-${attr.id}`}>
+                                                {attr.name}
+                                            </label>
+                                        </div>
                                     ))}
-                                </select>
-                                <div className="form-text small">Only variants belonging to this attribute will be used in the code.</div>
+                                    {attributes.length === 0 && <span className="text-muted small fst-italic">No attributes defined</span>}
+                                </div>
+                                <div className="form-text small mt-2">Selected attributes will be appended in order.</div>
                             </div>
                         )}
 

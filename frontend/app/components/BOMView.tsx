@@ -20,7 +20,7 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
       separator: '-',
       includeItemCode: true,
       includeVariant: false,
-      variantAttributeName: '',
+      variantAttributeNames: [],
       includeYear: false,
       includeMonth: false
   });
@@ -57,13 +57,21 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
           const variant = item?.variants.find((v: any) => v.id === variantId);
           
           if (variant) {
-              // If a specific attribute is configured, only use variant if it matches
-              if (config.variantAttributeName) {
-                  if (variant.category === config.variantAttributeName) {
+              if (config.variantAttributeNames && config.variantAttributeNames.length > 0) {
+                  // Only include if variant category matches one of the selected attributes
+                  // Note: A single variant usually belongs to one category. 
+                  // If the user selected multiple attributes, check if this variant's category is in the list.
+                  // However, if the item has multiple variants (e.g. Color AND Size), they are stored as separate variant records in this simplified model?
+                  // Wait, current Item model has `variants` list. But the BOM selects a SINGLE `variant_id`.
+                  // If the Item represents "T-Shirt" and has variants "Red" (Category: Color) and "Large" (Category: Size),
+                  // the user selects ONE variant_id for the BOM produced item.
+                  // So we can only include the value of THAT selected variant if its category is in the config list.
+                  
+                  if (config.variantAttributeNames.includes(variant.category)) {
                       parts.push(variant.name.toUpperCase().replace(/\s+/g, ''));
                   }
               } else {
-                  // Default behavior: include any selected variant
+                  // Default behavior
                   parts.push(variant.name.toUpperCase().replace(/\s+/g, ''));
               }
           }
