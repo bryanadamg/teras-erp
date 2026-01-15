@@ -20,3 +20,4 @@ from app.models.bom import BOM, BOMLine, bom_values, bom_line_values
 from app.models.manufacturing import WorkOrder, work_order_values
 from app.models.stock_ledger import StockLedger, stock_ledger_values
 from app.models.variant import Variant
+from app.models.routing import WorkCenter, Operation

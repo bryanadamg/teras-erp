@@ -168,3 +168,26 @@ class CategoryResponse(CategoryCreate):
 
     class Config:
         from_attributes = True
+
+class WorkCenterCreate(BaseModel):
+    code: str
+    name: str
+    description: str | None = None
+    cost_per_hour: float = 0.0
+
+class WorkCenterResponse(WorkCenterCreate):
+    id: UUID
+
+    class Config:
+        from_attributes = True
+
+class OperationCreate(BaseModel):
+    code: str
+    name: str
+    description: str | None = None
+
+class OperationResponse(OperationCreate):
+    id: UUID
+
+    class Config:
+        from_attributes = True

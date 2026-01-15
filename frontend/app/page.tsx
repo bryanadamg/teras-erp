@@ -5,12 +5,13 @@ import Sidebar from './components/Sidebar';
 import InventoryView from './components/InventoryView';
 import LocationsView from './components/LocationsView';
 import AttributesView from './components/AttributesView';
+import CategoriesView from './components/CategoriesView';
 import BOMView from './components/BOMView';
+import RoutingView from './components/RoutingView';
 import ManufacturingView from './components/ManufacturingView';
 import StockEntryView from './components/StockEntryView';
 import ReportsView from './components/ReportsView';
 import SettingsView from './components/SettingsView';
-import CategoriesView from './components/CategoriesView';
 import { useToast } from './components/Toast';
 
 const API_BASE = 'http://localhost:8000';
@@ -26,6 +27,8 @@ export default function Home() {
   const [locations, setLocations] = useState([]);
   const [attributes, setAttributes] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [workCenters, setWorkCenters] = useState([]);
+  const [operations, setOperations] = useState([]);
   const [boms, setBoms] = useState([]);
   const [workOrders, setWorkOrders] = useState([]);
   const [stockEntries, setStockEntries] = useState([]);
@@ -33,13 +36,15 @@ export default function Home() {
 
   const fetchData = async () => {
     try {
-      const [itemsRes, locsRes, stockRes, attrsRes, catsRes, bomsRes, woRes, balRes] = await Promise.all([
+      const [itemsRes, locsRes, stockRes, attrsRes, catsRes, bomsRes, wcRes, opRes, woRes, balRes] = await Promise.all([
           fetch(`${API_BASE}/items`),
           fetch(`${API_BASE}/locations`),
           fetch(`${API_BASE}/stock`),
           fetch(`${API_BASE}/attributes`),
           fetch(`${API_BASE}/categories`),
           fetch(`${API_BASE}/boms`),
+          fetch(`${API_BASE}/work-centers`),
+          fetch(`${API_BASE}/operations`),
           fetch(`${API_BASE}/work-orders`),
           fetch(`${API_BASE}/stock/balance`)
       ]);
@@ -50,6 +55,8 @@ export default function Home() {
       if (attrsRes.ok) setAttributes(await attrsRes.json());
       if (catsRes.ok) setCategories(await catsRes.json());
       if (bomsRes.ok) setBoms(await bomsRes.json());
+      if (wcRes.ok) setWorkCenters(await wcRes.json());
+      if (opRes.ok) setOperations(await opRes.json());
       if (woRes.ok) setWorkOrders(await woRes.json());
       if (balRes.ok) setStockBalance(await balRes.json());
     } catch (e) {
@@ -120,6 +127,22 @@ export default function Home() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(location)
     });
+    
+    if (res && res.status === 400) {
+        // Suggestion logic could be added here too
+        let baseCode = location.code;
+        const baseMatch = baseCode.match(/^(.*)-(\d+)$/);
+        if (baseMatch) baseCode = baseMatch[1];
+        let counter = 1;
+        let suggestedCode = `${baseCode}-${counter}`;
+        while (locations.some((l: any) => l.code === suggestedCode)) {
+            counter++;
+            suggestedCode = `${baseCode}-${counter}`;
+        }
+        showToast(`Location Code exists. Try: ${suggestedCode}`, 'warning');
+        return res; // let view handle it
+    }
+    
     fetchData();
     return res;
   };
@@ -183,9 +206,49 @@ export default function Home() {
       fetchData();
   };
 
+  // --- Routing Handlers ---
+  const handleCreateWorkCenter = async (wc: any) => {
+      const res = await fetch(`${API_BASE}/work-centers`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(wc)
+      });
+      if (res.ok) {
+          showToast('Work Center added!', 'success');
+          fetchData();
+      } else {
+          showToast('Error creating Work Center', 'danger');
+      }
+  };
+
+  const handleDeleteWorkCenter = async (id: string) => {
+      await fetch(`${API_BASE}/work-centers/${id}`, { method: 'DELETE' });
+      fetchData();
+  };
+
+  const handleCreateOperation = async (op: any) => {
+      const res = await fetch(`${API_BASE}/operations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(op)
+      });
+      if (res.ok) {
+          showToast('Operation added!', 'success');
+          fetchData();
+      } else {
+          showToast('Error creating Operation', 'danger');
+      }
+  };
+
+  const handleDeleteOperation = async (id: string) => {
+      await fetch(`${API_BASE}/operations/${id}`, { method: 'DELETE' });
+      fetchData();
+  };
+
+  // -------------------------
+
   const handleCreateBOM = async (bom: any) => {
       const payload: any = { ...bom };
-      // Updated to use attribute_value_ids
       if (!payload.attribute_value_ids) payload.attribute_value_ids = [];
       
       const res = await fetch(`${API_BASE}/boms`, {
@@ -194,7 +257,13 @@ export default function Home() {
           body: JSON.stringify(payload)
       });
       
-      fetchData();
+      if (res.ok) {
+          showToast('BOM Created successfully!', 'success');
+          fetchData();
+      } else {
+          const err = await res.json();
+          showToast(`Error: ${err.detail}`, 'danger');
+      }
       return res;
   };
 
@@ -208,7 +277,13 @@ export default function Home() {
           body: JSON.stringify(payload)
       });
 
-      fetchData();
+      if (res.ok) {
+          showToast('Work Order Created successfully!', 'success');
+          fetchData();
+      } else {
+          const err = await res.json();
+          showToast(`Error: ${err.detail}`, 'danger');
+      }
       return res;
   };
 
@@ -222,7 +297,6 @@ export default function Home() {
 
   const handleRecordStock = async (entry: any) => {
     const payload: any = { ...entry };
-    // Updated to use attribute_value_ids
     if (!payload.attribute_value_ids) payload.attribute_value_ids = [];
 
     const res = await fetch(`${API_BASE}/items/stock`, {
@@ -337,6 +411,18 @@ export default function Home() {
                 boms={boms}
                 attributes={attributes}
                 onCreateBOM={handleCreateBOM} 
+            />
+        )}
+
+        {activeTab === 'routing' && (
+            <RoutingView 
+                workCenters={workCenters}
+                operations={operations}
+                onCreateWorkCenter={handleCreateWorkCenter}
+                onDeleteWorkCenter={handleDeleteWorkCenter}
+                onCreateOperation={handleCreateOperation}
+                onDeleteOperation={handleDeleteOperation}
+                onRefresh={fetchData}
             />
         )}
 

@@ -8,10 +8,10 @@ interface SidebarProps {
 
 export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarProps) {
   const [inventoryExpanded, setInventoryExpanded] = useState(true);
+  const [engineeringExpanded, setEngineeringExpanded] = useState(true);
 
   const menuItems = [
     { id: 'locations', label: 'Locations', icon: 'bi-geo-alt' },
-    { id: 'bom', label: 'Bill of Materials', icon: 'bi-diagram-3' },
     { id: 'manufacturing', label: 'Manufacturing', icon: 'bi-gear-wide-connected' },
     { id: 'stock', label: 'Stock Entry', icon: 'bi-arrow-left-right' },
     { id: 'reports', label: 'Reports', icon: 'bi-bar-chart' },
@@ -26,7 +26,7 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
         </div>
         
         <ul className="nav flex-column py-3">
-          {/* Expandable Inventory Section */}
+          {/* Inventory Section */}
           <li className="nav-item">
             <a 
               href="#" 
@@ -55,6 +55,36 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
                 <li>
                   <a href="#" className={`nav-link py-2 small ${activeTab === 'categories' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('categories'); }}>
                     <i className="bi bi-grid me-2"></i>Categories
+                  </a>
+                </li>
+              </ul>
+            )}
+          </li>
+
+          {/* Engineering Section */}
+          <li className="nav-item">
+            <a 
+              href="#" 
+              className={`nav-link d-flex justify-content-between align-items-center ${activeTab.startsWith('bom') || activeTab.startsWith('routing') ? 'active' : ''}`}
+              onClick={(e) => { e.preventDefault(); setEngineeringExpanded(!engineeringExpanded); }}
+            >
+              <div className="d-flex align-items-center gap-2">
+                <i className="bi bi-tools"></i>
+                <span>Engineering</span>
+              </div>
+              <i className={`bi bi-chevron-${engineeringExpanded ? 'down' : 'right'} small`}></i>
+            </a>
+            
+            {engineeringExpanded && (
+              <ul className="nav flex-column ps-4 bg-light bg-opacity-50">
+                <li>
+                  <a href="#" className={`nav-link py-2 small ${activeTab === 'bom' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('bom'); }}>
+                    <i className="bi bi-diagram-3 me-2"></i>Bill of Materials
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className={`nav-link py-2 small ${activeTab === 'routing' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('routing'); }}>
+                    <i className="bi bi-signpost-split me-2"></i>Routing & Ops
                   </a>
                 </li>
               </ul>

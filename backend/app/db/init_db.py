@@ -58,6 +58,15 @@ def run_migrations():
                 except Exception as e:
                     pass
 
+            # 3. Verify Routing Tables (WorkCenter, Operation)
+            try:
+                # Just a simple check to ensure they exist (create_all should have handled it)
+                conn.execute(text("SELECT 1 FROM work_centers LIMIT 1"))
+                conn.execute(text("SELECT 1 FROM operations LIMIT 1"))
+                logger.info("Migration: Verified routing tables")
+            except Exception as e:
+                pass
+
     except Exception as e:
         logger.error(f"Migration engine failed: {e}")
 

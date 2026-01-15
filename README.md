@@ -52,6 +52,41 @@
     *   **Dashboard**: [http://localhost:3030](http://localhost:3030)
     *   **API Documentation**: [http://localhost:8000/docs](http://localhost:8000/docs)
 
+## Future Industrial Modules (Roadmap)
+
+To transition Teras ERP into a full-scale industrial solution, the following modules are planned:
+
+1.  **Procurement & Supplier Management (Source to Pay)**
+    *   **Supplier Master**: Manage vendor details and lead times.
+    *   **Purchase Orders (PO)**: Formal material requests.
+    *   **Goods Receipt Note (GRN)**: Link receipts to POs and auto-increment stock.
+
+2.  **Sales & Customer Management (Order to Cash)**
+    *   **Customer Master**: Client management.
+    *   **Sales Orders (SO)**: Stock allocation.
+    *   **Delivery Notes**: Auto-deduct stock upon shipment.
+
+3.  **Traceability (Batch/Lot & Serial Tracking)**
+    *   Essential for Food, Pharma, and Automotive sectors.
+    *   Track **Batch Numbers** and **Expiry Dates** throughout the supply chain.
+
+4.  **Advanced Manufacturing (Routing & Operations)**
+    *   **Work Centers**: Define factory stations (e.g., "Cutting Table", "CNC Machine").
+    *   **Operations**: Define sequential steps (e.g., Cutting, Assembly).
+    *   **Time Tracking**: Calculate labor costs and machine utilization.
+
+5.  **Costing Engine (Financials)**
+    *   **Valuation Methods**: FIFO / Weighted Average.
+    *   **WIP Valuation**: Real-time value of in-progress goods.
+    *   **Landed Cost**: Incorporate shipping/customs fees.
+
+6.  **Quality Control (QC)**
+    *   **Inspection Criteria**: Pass/Fail parameters.
+    *   **Checkpoints**: Inward, In-Process, and Final QC.
+
+7.  **User Roles & Permissions (RBAC)**
+    *   Granular access control (e.g., Store Manager vs. Production Manager).
+
 ## License
 
 This project is currently licensed under the **MIT License**.
