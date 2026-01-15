@@ -128,6 +128,14 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
       setNewBOMOp({ operation_id: '', work_center_id: '', sequence: newBOMOp.sequence + 10, time_minutes: 0 });
   };
 
+  const handleRemoveLine = (index: number) => {
+      setNewBOM({ ...newBOM, lines: newBOM.lines.filter((_, i) => i !== index) });
+  };
+
+  const handleRemoveOp = (index: number) => {
+      setNewBOM({ ...newBOM, operations: newBOM.operations.filter((_, i) => i !== index) });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       const res = await onCreateBOM(newBOM);
@@ -272,7 +280,12 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
                                         <span className="fw-bold">{getOpName(op.operation_id)}</span> 
                                         {op.work_center_id && <span className="text-muted fst-italic">@ {getWCName(op.work_center_id)}</span>}
                                     </div>
-                                    <span className="text-muted">{op.time_minutes}m</span>
+                                    <div className="d-flex align-items-center gap-2">
+                                        <span className="text-muted">{op.time_minutes}m</span>
+                                        <button type="button" className="btn btn-sm btn-link text-danger p-0" onClick={() => handleRemoveOp(idx)}>
+                                            <i className="bi bi-x-circle"></i>
+                                        </button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -321,7 +334,12 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
                                             {(line.attribute_value_ids || []).map(getAttributeValueName).join(', ') || 'No variations'}
                                         </div>
                                     </div>
-                                    <span className="badge bg-secondary">{line.qty}</span>
+                                    <div className="d-flex align-items-center gap-2">
+                                        <span className="badge bg-secondary">{line.qty}</span>
+                                        <button type="button" className="btn btn-sm btn-link text-danger p-0" onClick={() => handleRemoveLine(idx)}>
+                                            <i className="bi bi-x-circle"></i>
+                                        </button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
