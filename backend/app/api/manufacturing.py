@@ -48,6 +48,21 @@ def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db)):
     db.refresh(wo)
     
     wo.attribute_value_ids = [v.id for v in wo.attribute_values]
+    
+    # Check material availability
+    wo.is_material_available = True
+    for line in bom.lines:
+        required_qty = float(line.qty) * float(wo.qty)
+        current = stock_service.get_stock_balance(
+            db, 
+            item_id=line.item_id, 
+            location_id=wo.location_id, 
+            attribute_value_ids=[v.id for v in line.attribute_values]
+        )
+        if current < required_qty:
+            wo.is_material_available = False
+            break
+            
     return wo
 
 @router.get("/work-orders", response_model=list[WorkOrderResponse])
@@ -68,6 +83,22 @@ def get_work_orders(
     items = query.order_by(WorkOrder.created_at.desc()).offset(skip).limit(limit).all()
     for item in items:
         item.attribute_value_ids = [v.id for v in item.attribute_values]
+        
+        # Check availability
+        item.is_material_available = True
+        if item.status == "PENDING":
+            for line in item.bom.lines:
+                required_qty = float(line.qty) * float(item.qty)
+                current = stock_service.get_stock_balance(
+                    db, 
+                    item_id=line.item_id, 
+                    location_id=item.location_id, 
+                    attribute_value_ids=[v.id for v in line.attribute_values]
+                )
+                if current < required_qty:
+                    item.is_material_available = False
+                    break
+                    
     return items
 
 @router.put("/work-orders/{wo_id}/status")
@@ -82,12 +113,29 @@ def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_
     
     # 1. Update start_date if moving to IN_PROGRESS
     if status == "IN_PROGRESS" and wo.status != "IN_PROGRESS":
+        # Validate Stock Availability for all BOM Lines
+        for line in wo.bom.lines:
+            required_qty = float(line.qty) * float(wo.qty)
+            current_stock = stock_service.get_stock_balance(
+                db, 
+                item_id=line.item_id, 
+                location_id=wo.location_id, 
+                attribute_value_ids=[v.id for v in line.attribute_values]
+            )
+            
+            if current_stock < required_qty:
+                item_name = line.item.name if line.item else "Unknown Item"
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Insufficient stock for {item_name}. Required: {required_qty}, Available: {current_stock}"
+                )
+        
         wo.start_date = datetime.utcnow()
 
     # 2. Check if completing
     if status == "COMPLETED" and wo.status != "COMPLETED":
         wo.completed_at = datetime.utcnow()
-        # 1. Deduct Materials
+        # 1. Deduct Materials (This will trigger the stock_service negative check as a safety net)
         for line in wo.bom.lines:
             # Required Qty = BOM Line Qty * Work Order Qty
             required_qty = float(line.qty) * float(wo.qty)

@@ -134,7 +134,12 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
           showToast(`Work Order Code "${newWO.code}" already exists. Suggesting: ${suggestedCode}`, 'warning');
           setNewWO({ ...newWO, code: suggestedCode });
       } else if (res && res.ok) {
-          showToast('Work Order created successfully!', 'success');
+          const createdWO = await res.json();
+          if (createdWO.is_material_available === false) {
+              showToast('Work Order created, but insufficient materials!', 'warning');
+          } else {
+              showToast('Work Order created successfully!', 'success');
+          }
           setNewWO({ code: '', bom_id: '', location_code: '', qty: 1.0, due_date: '' });
       } else {
           showToast('Failed to create Work Order', 'danger');
@@ -290,14 +295,18 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
                                       return (
                                           <tr key={wo.id}>
                                               <td className="ps-4 fw-bold font-monospace small">{wo.code}</td>
-                                              <td>
-                                                  <div className="fw-medium">{getItemName(wo.item_id)}</div>
-                                                  <div className="small text-muted">
-                                                      {wo.attribute_value_ids?.map(getAttributeValueName).join(', ') || '-'}
-                                                  </div>
-                                                  <div className="small text-primary fst-italic">{getBOMCode(wo.bom_id)}</div>
-                                              </td>
-                                              <td className="fw-bold">{wo.qty}</td>
+                                                                                        <td>
+                                                                                            <div className="fw-medium">{getItemName(wo.item_id)}</div>
+                                                                                            <div className="small text-muted">
+                                                                                                {wo.attribute_value_ids?.map(getAttributeValueName).join(', ') || '-'}
+                                                                                            </div>
+                                                                                            <div className="small text-primary fst-italic">{getBOMCode(wo.bom_id)}</div>
+                                                                                            {wo.status === 'PENDING' && wo.is_material_available === false && (
+                                                                                                <div className="text-danger small fw-bold">
+                                                                                                    <i className="bi bi-exclamation-triangle-fill me-1"></i>Low Stock
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </td>                                              <td className="fw-bold">{wo.qty}</td>
                                               <td>
                                                   <div className="d-flex flex-column">
                                                       <span className={warning ? `text-${warning.type} fw-bold` : ''}>

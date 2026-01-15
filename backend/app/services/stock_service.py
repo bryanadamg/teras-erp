@@ -1,8 +1,32 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.models.stock_ledger import StockLedger
+from fastapi import HTTPException
 
 from app.models.attribute import AttributeValue
+
+def get_stock_balance(db: Session, item_id, location_id, attribute_value_ids: list[str] = []):
+    """
+    Calculate exact stock balance for an item+location+attributes combination.
+    """
+    # 1. Fetch all ledger entries for this item and location
+    query = db.query(StockLedger).filter(
+        StockLedger.item_id == item_id,
+        StockLedger.location_id == location_id
+    )
+    entries = query.all()
+    
+    # 2. Filter in memory for exact attribute match
+    # (SQLAlchemy many-to-many filtering for *exact* set match is complex/slow without specific schema optimization)
+    target_attr_set = set(str(uid) for uid in attribute_value_ids)
+    
+    total = 0.0
+    for entry in entries:
+        entry_attr_set = set(str(v.id) for v in entry.attribute_values)
+        if entry_attr_set == target_attr_set:
+            total += float(entry.qty_change)
+            
+    return total
 
 def add_stock_entry(
     db: Session,
@@ -13,6 +37,15 @@ def add_stock_entry(
     reference_id,
     attribute_value_ids: list[str] = []
 ):
+    # Prevent Negative Stock
+    if qty_change < 0:
+        current_balance = get_stock_balance(db, item_id, location_id, attribute_value_ids)
+        if current_balance + qty_change < 0:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Insufficient stock. Current: {current_balance}, Required: {abs(qty_change)}"
+            )
+
     entry = StockLedger(
         item_id=item_id,
         location_id=location_id,
@@ -28,21 +61,6 @@ def add_stock_entry(
     db.add(entry)
     db.commit()
 
-
-def get_stock_balance(db: Session, item_id, location_id, attribute_value_ids: list[str] = []):
-    # This is complex for multiple values. 
-    # Usually we need to check if the set of values matches exactly.
-    # For now, we'll implement a basic filter.
-    query = db.query(func.sum(StockLedger.qty_change)).filter(
-        StockLedger.item_id == item_id,
-        StockLedger.location_id == location_id
-    )
-    
-    if attribute_value_ids:
-        for val_id in attribute_value_ids:
-            query = query.filter(StockLedger.attribute_values.any(AttributeValue.id == val_id))
-        
-    return query.scalar() or 0
 
 
 def get_stock_entries(db: Session, skip: int = 0, limit: int = 100):

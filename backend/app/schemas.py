@@ -114,6 +114,7 @@ class WorkOrderResponse(BaseModel):
     due_date: datetime | None
     completed_at: datetime | None
     created_at: datetime
+    is_material_available: bool = True # Calculated field
     
     class Config:
         from_attributes = True
