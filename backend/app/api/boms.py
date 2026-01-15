@@ -85,3 +85,13 @@ def get_bom(bom_id: str, db: Session = Depends(get_db)):
         line.attribute_value_ids = [v.id for v in line.attribute_values]
         
     return bom
+
+@router.delete("/boms/{bom_id}")
+def delete_bom(bom_id: str, db: Session = Depends(get_db)):
+    bom = db.query(BOM).filter(BOM.id == bom_id).first()
+    if not bom:
+        raise HTTPException(status_code=404, detail="BOM not found")
+    
+    db.delete(bom)
+    db.commit()
+    return {"status": "success", "message": "BOM deleted"}

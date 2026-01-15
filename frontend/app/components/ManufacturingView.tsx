@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
 import { useToast } from './Toast';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function ManufacturingView({ items, boms, locations, attributes, workOrders, onCreateWO, onUpdateStatus }: any) {
   const { showToast } = useToast();
+  const { t } = useLanguage();
   const [newWO, setNewWO] = useState({ code: '', bom_id: '', location_code: '', qty: 1.0, due_date: '' });
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -175,13 +177,13 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
           <div className="col-md-4 no-print">
               <div className="card h-100 shadow-sm border-0">
                   <div className="card-header bg-success bg-opacity-10 text-success-emphasis">
-                      <h5 className="card-title mb-0"><i className="bi bi-play-circle me-2"></i>New Production Run</h5>
+                      <h5 className="card-title mb-0"><i className="bi bi-play-circle me-2"></i>{t('new_production_run')}</h5>
                   </div>
                   <div className="card-body">
                       <form onSubmit={handleSubmit}>
                           <div className="mb-3">
                               <label className="form-label d-flex justify-content-between align-items-center small text-muted">
-                                  WO Code
+                                  {t('item_code')}
                                   <i 
                                       className="bi bi-gear-fill text-muted" 
                                       style={{cursor: 'pointer'}}
@@ -192,7 +194,7 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
                               <input className="form-control" placeholder="Auto-generated" value={newWO.code} onChange={e => setNewWO({...newWO, code: e.target.value})} required />
                           </div>
                           <div className="mb-3">
-                              <label className="form-label">Select Recipe (BOM)</label>
+                              <label className="form-label">{t('select_recipe')}</label>
                               <select className="form-select" value={newWO.bom_id} onChange={handleBOMChange} required>
                                   <option value="">Choose a product recipe...</option>
                                   {boms.map((b: any) => (
@@ -203,7 +205,7 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
                               </select>
                           </div>
                           <div className="mb-3">
-                              <label className="form-label">Production Location</label>
+                              <label className="form-label">{t('production_location')}</label>
                               <select className="form-select" value={newWO.location_code} onChange={e => setNewWO({...newWO, location_code: e.target.value})} required>
                                   <option value="">Select Location...</option>
                                   {locations.map((loc: any) => (
@@ -213,15 +215,15 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
                           </div>
                           <div className="row g-3 mb-4">
                               <div className="col-6">
-                                  <label className="form-label">Quantity</label>
+                                  <label className="form-label">{t('qty')}</label>
                                   <input type="number" className="form-control" placeholder="1.0" value={newWO.qty} onChange={e => setNewWO({...newWO, qty: parseFloat(e.target.value)})} required />
                               </div>
                               <div className="col-6">
-                                  <label className="form-label">Due Date</label>
+                                  <label className="form-label">{t('due_date')}</label>
                                   <input type="date" className="form-control" value={newWO.due_date} onChange={e => setNewWO({...newWO, due_date: e.target.value})} />
                               </div>
                           </div>
-                          <button type="submit" className="btn btn-success w-100 fw-bold shadow-sm">Generate Work Order</button>
+                          <button type="submit" className="btn btn-success w-100 fw-bold shadow-sm">{t('create')}</button>
                       </form>
                   </div>
               </div>
@@ -231,36 +233,36 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
           <div className="col-md-8 flex-print-fill">
               <div className="card h-100 border-0 shadow-sm">
                   <div className="card-header bg-white d-flex justify-content-between align-items-center no-print">
-                      <h5 className="card-title mb-0">Production Schedule</h5>
+                      <h5 className="card-title mb-0">{t('production_schedule')}</h5>
                       <div className="d-flex gap-2">
                           <div className="input-group input-group-sm">
-                              <span className="input-group-text">From</span>
+                              <span className="input-group-text">{t('from')}</span>
                               <input type="date" className="form-control" value={startDate} onChange={e => setStartDate(e.target.value)} />
                           </div>
                           <div className="input-group input-group-sm">
-                              <span className="input-group-text">To</span>
+                              <span className="input-group-text">{t('to')}</span>
                               <input type="date" className="form-control" value={endDate} onChange={e => setEndDate(e.target.value)} />
                           </div>
                           <button className="btn btn-outline-primary btn-sm btn-print" onClick={handlePrint}>
-                              <i className="bi bi-printer me-1"></i>Print
+                              <i className="bi bi-printer me-1"></i>{t('print')}
                           </button>
                       </div>
                   </div>
                   <div className="card-body p-0">
                       <div className="print-header d-none d-print-block p-4 border-bottom mb-4">
-                          <h2 className="mb-1">Production Schedule Report</h2>
-                          <p className="text-muted mb-0">Period: {startDate || 'All Time'} to {endDate || 'Present'}</p>
+                          <h2 className="mb-1">{t('production_schedule')}</h2>
+                          <p className="text-muted mb-0">{t('from')}: {startDate || 'All Time'} {t('to')} {endDate || 'Present'}</p>
                           <p className="text-muted small">Generated on: {new Date().toLocaleString()}</p>
                       </div>
                       <div className="table-responsive">
                           <table className="table table-hover align-middle mb-0">
                               <thead className="table-light">
                                   <tr>
-                                      <th className="ps-4">Code</th>
+                                      <th className="ps-4">{t('item_code')}</th>
                                       <th>Product</th>
-                                      <th>Qty</th>
-                                      <th>Status</th>
-                                      <th className="text-end pe-4 no-print">Actions</th>
+                                      <th>{t('qty')}</th>
+                                      <th>{t('status')}</th>
+                                      <th className="text-end pe-4 no-print">{t('actions')}</th>
                                   </tr>
                               </thead>
                               <tbody>
@@ -275,16 +277,16 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
                                               <div className="small text-primary fst-italic">{getBOMCode(wo.bom_id)}</div>
                                           </td>
                                           <td className="fw-bold">{wo.qty}</td>
-                                          <td><span className={`badge ${getStatusBadge(wo.status)}`}>{wo.status}</span></td>
+                                          <td><span className={`badge ${getStatusBadge(wo.status)}`}>{t(wo.status.toLowerCase())}</span></td>
                                           <td className="text-end pe-4 no-print">
                                               {wo.status === 'PENDING' && (
                                                   <button className="btn btn-sm btn-outline-primary shadow-sm" onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>
-                                                      <i className="bi bi-play-fill me-1"></i>Start
+                                                      <i className="bi bi-play-fill me-1"></i>{t('start')}
                                                   </button>
                                               )}
                                               {wo.status === 'IN_PROGRESS' && (
                                                   <button className="btn btn-sm btn-success text-white shadow-sm" onClick={() => onUpdateStatus(wo.id, 'COMPLETED')}>
-                                                      <i className="bi bi-check-lg me-1"></i>Finish
+                                                      <i className="bi bi-check-lg me-1"></i>{t('finish')}
                                                   </button>
                                               )}
                                               {wo.status === 'COMPLETED' && <span className="text-success"><i className="bi bi-check-circle-fill"></i> Done</span>}

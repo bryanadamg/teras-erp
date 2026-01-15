@@ -2,6 +2,7 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import './globals.css';
 import { ToastProvider } from './components/Toast';
+import { LanguageProvider } from './context/LanguageContext';
 
 export default function RootLayout({
   children,
@@ -11,9 +12,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <LanguageProvider>
+          <ToastProvider>
+            {children}
+          </ToastProvider>
+        </LanguageProvider>
       </body>
     </html>
   )

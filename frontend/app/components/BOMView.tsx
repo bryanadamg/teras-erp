@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
 import { useToast } from './Toast';
+import { useLanguage } from '../context/LanguageContext';
 
-export default function BOMView({ items, boms, attributes, workCenters, operations, onCreateBOM }: any) {
+export default function BOMView({ items, boms, attributes, workCenters, operations, onCreateBOM, onDeleteBOM }: any) {
   const { showToast } = useToast();
+  const { t } = useLanguage();
   const [newBOM, setNewBOM] = useState({
       code: '',
       description: '',
@@ -189,28 +191,28 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
        <div className="col-md-5">
           <div className="card h-100 shadow-sm border-0">
              <div className="card-header bg-warning bg-opacity-10 text-warning-emphasis">
-                 <h5 className="card-title mb-0"><i className="bi bi-file-earmark-plus me-2"></i>Create Recipe</h5>
+                 <h5 className="card-title mb-0"><i className="bi bi-file-earmark-plus me-2"></i>{t('create_recipe')}</h5>
              </div>
              <div className="card-body" style={{maxHeight: 'calc(100vh - 150px)', overflowY: 'auto'}}>
                 <form onSubmit={handleSubmit}>
                     <div className="row g-3 mb-3">
                         <div className="col-md-8">
                             <label className="form-label d-flex justify-content-between align-items-center small text-muted">
-                                BOM Code
+                                {t('item_code')}
                                 <i className="bi bi-gear-fill text-muted" style={{cursor: 'pointer'}} onClick={() => setIsConfigOpen(true)}></i>
                             </label>
                             <input className="form-control" placeholder="Auto-generated" value={newBOM.code} onChange={e => setNewBOM({...newBOM, code: e.target.value})} required />
                         </div>
                         <div className="col-md-4">
-                            <label className="form-label small text-muted">Output Qty</label>
+                            <label className="form-label small text-muted">{t('qty')}</label>
                             <input type="number" className="form-control" value={newBOM.qty} onChange={e => setNewBOM({...newBOM, qty: parseFloat(e.target.value)})} required />
                         </div>
                     </div>
                     
                     <div className="p-3 bg-light rounded-3 mb-4">
-                        <h6 className="small text-uppercase text-muted fw-bold mb-3 border-bottom pb-2">Finished Good</h6>
+                        <h6 className="small text-uppercase text-muted fw-bold mb-3 border-bottom pb-2">{t('finished_good')}</h6>
                         <select className="form-select mb-3" value={newBOM.item_code} onChange={handleItemChange} required>
-                            <option value="">Select Item...</option>
+                            <option value="">{t('search')}...</option>
                             {items.map((item: any) => <option key={item.id} value={item.code}>{item.name} ({item.code})</option>)}
                         </select>
 
@@ -230,7 +232,7 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
                     </div>
 
                     {/* Routing Section */}
-                    <h6 className="small text-uppercase text-muted fw-bold mb-3">Routing & Operations</h6>
+                    <h6 className="small text-uppercase text-muted fw-bold mb-3">{t('routing_operations')}</h6>
                     <div className="bg-light p-3 rounded-3 mb-4 border border-dashed">
                         <div className="row g-2 mb-3 align-items-end">
                             <div className="col-2">
@@ -257,7 +259,7 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
                             </div>
                             <div className="col-8">
                                 <button type="button" className="btn btn-sm btn-info w-100" onClick={handleAddOpToBOM} disabled={!newBOMOp.operation_id}>
-                                    <i className="bi bi-plus-lg me-1"></i> Add Step
+                                    <i className="bi bi-plus-lg me-1"></i> {t('add')}
                                 </button>
                             </div>
                         </div>
@@ -276,7 +278,7 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
                         </div>
                     </div>
 
-                    <h6 className="small text-uppercase text-muted fw-bold mb-3">Materials (Lines)</h6>
+                    <h6 className="small text-uppercase text-muted fw-bold mb-3">{t('materials')}</h6>
                     <div className="bg-light p-3 rounded-3 mb-3 border border-dashed">
                         <div className="row g-2 mb-3">
                             <div className="col-12">
@@ -302,10 +304,10 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
                             ))}
 
                             <div className="col-12">
-                                <label className="form-label small text-muted">Quantity</label>
+                                <label className="form-label small text-muted">{t('qty')}</label>
                                 <div className="input-group input-group-sm">
                                     <input type="number" className="form-control" placeholder="0" value={newBOMLine.qty} onChange={e => setNewBOMLine({...newBOMLine, qty: parseFloat(e.target.value)})} />
-                                    <button type="button" className="btn btn-secondary px-3" onClick={handleAddLineToBOM} disabled={!newBOMLine.item_code}>Add</button>
+                                    <button type="button" className="btn btn-secondary px-3" onClick={handleAddLineToBOM} disabled={!newBOMLine.item_code}>{t('add')}</button>
                                 </div>
                             </div>
                         </div>
@@ -325,7 +327,7 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
                         </div>
                     </div>
 
-                    <button type="submit" className="btn btn-warning w-100 fw-bold">Save BOM</button>
+                    <button type="submit" className="btn btn-warning w-100 fw-bold">{t('save')} BOM</button>
                 </form>
              </div>
           </div>
@@ -335,18 +337,18 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
        <div className="col-md-7">
           <div className="card h-100 shadow-sm border-0">
              <div className="card-header bg-white">
-                 <h5 className="card-title mb-0">Active BOMs</h5>
+                 <h5 className="card-title mb-0">{t('active_boms')}</h5>
              </div>
              <div className="card-body p-0" style={{maxHeight: 'calc(100vh - 150px)', overflowY: 'auto'}}>
                 <div className="table-responsive">
                     <table className="table table-hover align-middle mb-0">
                         <thead className="table-light">
                             <tr>
-                                <th className="ps-4">Code</th>
-                                <th>Product</th>
-                                <th>Routing</th>
-                                <th className="text-end">Output</th>
-                                <th>Materials</th>
+                                <th className="ps-4">{t('item_code')}</th>
+                                <th>{t('finished_good')}</th>
+                                <th>{t('routing')}</th>
+                                <th>{t('materials')}</th>
+                                <th style={{width: '50px'}}></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -370,7 +372,6 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
                                             </div>
                                         ) : <span className="text-muted small">-</span>}
                                     </td>
-                                    <td className="text-end fw-bold">{bom.qty}</td>
                                     <td>
                                         <div className="d-flex flex-column gap-1">
                                             {bom.lines.map((line: any) => (
@@ -382,6 +383,11 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
                                                 </div>
                                             ))}
                                         </div>
+                                    </td>
+                                    <td className="pe-4 text-end">
+                                        <button className="btn btn-sm btn-link text-danger" onClick={() => onDeleteBOM(bom.id)}>
+                                            <i className="bi bi-trash"></i>
+                                        </button>
                                     </td>
                                 </tr>
                             ))}

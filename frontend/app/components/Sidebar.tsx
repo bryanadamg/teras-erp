@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 
 interface SidebarProps {
   activeTab: string;
@@ -7,12 +8,13 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarProps) {
+  const { t } = useLanguage();
   const [inventoryExpanded, setInventoryExpanded] = useState(true);
   const [engineeringExpanded, setEngineeringExpanded] = useState(true);
 
   const menuItems = [
-    { id: 'stock', label: 'Stock Entry', icon: 'bi-arrow-left-right' },
-    { id: 'reports', label: 'Reports', icon: 'bi-bar-chart' },
+    { id: 'stock', label: t('stock_entry'), icon: 'bi-arrow-left-right' },
+    { id: 'reports', label: t('reports'), icon: 'bi-bar-chart' },
   ];
 
   return (
@@ -33,7 +35,7 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
             >
               <div className="d-flex align-items-center gap-2">
                 <i className="bi bi-box-seam"></i>
-                <span>Inventory</span>
+                <span>{t('inventory')}</span>
               </div>
               <i className={`bi bi-chevron-${inventoryExpanded ? 'down' : 'right'} small`}></i>
             </a>
@@ -42,22 +44,22 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
               <ul className="nav flex-column ps-4 bg-light bg-opacity-50">
                 <li>
                   <a href="#" className={`nav-link py-2 small ${activeTab === 'inventory' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('inventory'); }}>
-                    <i className="bi bi-list-ul me-2"></i>Item Inventory
+                    <i className="bi bi-list-ul me-2"></i>{t('item_inventory')}
                   </a>
                 </li>
                 <li>
                   <a href="#" className={`nav-link py-2 small ${activeTab === 'attributes' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('attributes'); }}>
-                    <i className="bi bi-tags me-2"></i>Attributes
+                    <i className="bi bi-tags me-2"></i>{t('attributes')}
                   </a>
                 </li>
                 <li>
                   <a href="#" className={`nav-link py-2 small ${activeTab === 'categories' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('categories'); }}>
-                    <i className="bi bi-grid me-2"></i>Categories
+                    <i className="bi bi-grid me-2"></i>{t('categories')}
                   </a>
                 </li>
                 <li>
                   <a href="#" className={`nav-link py-2 small ${activeTab === 'locations' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('locations'); }}>
-                    <i className="bi bi-geo-alt me-2"></i>Locations
+                    <i className="bi bi-geo-alt me-2"></i>{t('locations')}
                   </a>
                 </li>
               </ul>
@@ -73,7 +75,7 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
             >
               <div className="d-flex align-items-center gap-2">
                 <i className="bi bi-tools"></i>
-                <span>Engineering</span>
+                <span>{t('engineering')}</span>
               </div>
               <i className={`bi bi-chevron-${engineeringExpanded ? 'down' : 'right'} small`}></i>
             </a>
@@ -82,17 +84,17 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
               <ul className="nav flex-column ps-4 bg-light bg-opacity-50">
                 <li>
                   <a href="#" className={`nav-link py-2 small ${activeTab === 'bom' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('bom'); }}>
-                    <i className="bi bi-diagram-3 me-2"></i>Bill of Materials
+                    <i className="bi bi-diagram-3 me-2"></i>{t('bom')}
                   </a>
                 </li>
                 <li>
                   <a href="#" className={`nav-link py-2 small ${activeTab === 'routing' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('routing'); }}>
-                    <i className="bi bi-signpost-split me-2"></i>Routing & Ops
+                    <i className="bi bi-signpost-split me-2"></i>{t('routing')}
                   </a>
                 </li>
                 <li>
                   <a href="#" className={`nav-link py-2 small ${activeTab === 'manufacturing' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('manufacturing'); }}>
-                    <i className="bi bi-gear-wide-connected me-2"></i>Work Orders
+                    <i className="bi bi-gear-wide-connected me-2"></i>{t('work_orders')}
                   </a>
                 </li>
               </ul>
@@ -115,7 +117,7 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
       </div>
       
       <div className="p-3 text-center border-top bg-light">
-          <small className="text-muted fw-bold">Powered by Teras ERP</small>
+          <small className="text-muted fw-bold">{t('powered_by')} Teras ERP</small>
       </div>
     </div>
   );

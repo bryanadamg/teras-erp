@@ -40,6 +40,16 @@ def update_attribute(attribute_id: str, payload: AttributeUpdate, db: Session = 
     db.refresh(attribute)
     return attribute
 
+@router.delete("/attributes/{attribute_id}")
+def delete_attribute(attribute_id: str, db: Session = Depends(get_db)):
+    attribute = db.query(Attribute).filter(Attribute.id == attribute_id).first()
+    if not attribute:
+        raise HTTPException(status_code=404, detail="Attribute not found")
+    
+    db.delete(attribute)
+    db.commit()
+    return {"status": "success", "message": "Attribute deleted"}
+
 @router.post("/attributes/{attribute_id}/values", response_model=AttributeValueResponse)
 def add_attribute_value(attribute_id: str, payload: AttributeValueCreate, db: Session = Depends(get_db)):
     attribute = db.query(Attribute).filter(Attribute.id == attribute_id).first()

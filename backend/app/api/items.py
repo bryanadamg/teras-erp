@@ -70,3 +70,17 @@ def add_stock_api(payload: StockEntryCreate, db: Session = Depends(get_db)):
         reference_id="manual_entry"
     )
     return {"status": "success", "message": "Stock recorded"}
+
+@router.delete("/items/{item_id}")
+def delete_item(item_id: str, db: Session = Depends(get_db)):
+    from app.models.item import Item
+    item = db.query(Item).filter(Item.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    # Optional: Check for dependencies (stock, BOMs, etc.) before deleting
+    # For now, we'll rely on foreign key constraints or cascade deletes
+    
+    db.delete(item)
+    db.commit()
+    return {"status": "success", "message": "Item deleted"}

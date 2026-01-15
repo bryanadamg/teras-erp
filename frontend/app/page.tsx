@@ -13,11 +13,13 @@ import StockEntryView from './components/StockEntryView';
 import ReportsView from './components/ReportsView';
 import SettingsView from './components/SettingsView';
 import { useToast } from './components/Toast';
+import { useLanguage } from './context/LanguageContext';
 
 const API_BASE = 'http://localhost:8000';
 
 export default function Home() {
   const { showToast } = useToast();
+  const { language, setLanguage, t } = useLanguage();
   const [activeTab, setActiveTab] = useState('inventory');
   const [appName, setAppName] = useState('Teras ERP');
   const [uiStyle, setUiStyle] = useState('default');
@@ -105,6 +107,17 @@ export default function Home() {
       fetchData();
   };
 
+  const handleDeleteItem = async (itemId: string) => {
+      if (!confirm('Are you sure you want to delete this item?')) return;
+      const res = await fetch(`${API_BASE}/items/${itemId}`, { method: 'DELETE' });
+      if (res.ok) {
+          showToast('Item deleted successfully', 'success');
+          fetchData();
+      } else {
+          showToast('Failed to delete item', 'danger');
+      }
+  };
+
   const handleAddVariantToItem = async (itemId: string, variant: any) => {
       await fetch(`${API_BASE}/items/${itemId}/variants`, {
           method: 'POST',
@@ -147,6 +160,17 @@ export default function Home() {
     return res;
   };
 
+  const handleDeleteLocation = async (locationId: string) => {
+      if (!confirm('Are you sure you want to delete this location?')) return;
+      const res = await fetch(`${API_BASE}/locations/${locationId}`, { method: 'DELETE' });
+      if (res.ok) {
+          showToast('Location deleted successfully', 'success');
+          fetchData();
+      } else {
+          showToast('Failed to delete location', 'danger');
+      }
+  };
+
   const handleCreateAttribute = async (attr: any) => {
     await fetch(`${API_BASE}/attributes`, {
         method: 'POST',
@@ -163,6 +187,17 @@ export default function Home() {
           body: JSON.stringify({ name })
       });
       fetchData();
+  };
+
+  const handleDeleteAttribute = async (attributeId: string) => {
+      if (!confirm('Are you sure you want to delete this attribute template? This may affect items using it.')) return;
+      const res = await fetch(`${API_BASE}/attributes/${attributeId}`, { method: 'DELETE' });
+      if (res.ok) {
+          showToast('Attribute template deleted', 'success');
+          fetchData();
+      } else {
+          showToast('Failed to delete attribute', 'danger');
+      }
   };
 
   const handleAddAttributeValue = async (attributeId: string, value: string) => {
@@ -267,6 +302,17 @@ export default function Home() {
       return res;
   };
 
+  const handleDeleteBOM = async (bomId: string) => {
+      if (!confirm('Are you sure you want to delete this BOM?')) return;
+      const res = await fetch(`${API_BASE}/boms/${bomId}`, { method: 'DELETE' });
+      if (res.ok) {
+          showToast('BOM deleted successfully', 'success');
+          fetchData();
+      } else {
+          showToast('Failed to delete BOM', 'danger');
+      }
+  };
+
   const handleCreateWO = async (wo: any) => {
       const payload: any = { ...wo };
       if (!payload.due_date) delete payload.due_date;
@@ -319,7 +365,20 @@ export default function Home() {
       {uiStyle === 'classic' && (
           <div className="classic-header shadow-sm d-flex justify-content-between align-items-center px-3" style={{ background: 'var(--win-header-grad)', height: '30px', color: 'white' }}>
               <div className="fw-bold"><i className="bi bi-cpu-fill me-2"></i>{appName}</div>
-              <div className="small">User: Administrator | {new Date().toLocaleDateString()}</div>
+              <div className="d-flex align-items-center gap-3 small">
+                  <div>
+                      <select 
+                          className="form-select form-select-sm py-0 ps-1 pe-3" 
+                          style={{height: '20px', fontSize: '11px', background: 'transparent', color: 'white', border: '1px solid white'}}
+                          value={language}
+                          onChange={(e) => setLanguage(e.target.value as any)}
+                      >
+                          <option value="en" style={{color: 'black'}}>English</option>
+                          <option value="id" style={{color: 'black'}}>Indonesia</option>
+                      </select>
+                  </div>
+                  <div>User: Administrator | {new Date().toLocaleDateString()}</div>
+              </div>
           </div>
       )}
 
@@ -330,19 +389,29 @@ export default function Home() {
           {/* Classic Toolbar */}
           {uiStyle === 'classic' && (
               <div className="classic-toolbar">
-                  <button className="btn btn-sm" onClick={() => fetchData()}><i className="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+                  <button className="btn btn-sm" onClick={() => fetchData()}><i className="bi bi-arrow-clockwise me-1"></i>{t('refresh')}</button>
                   <div className="vr mx-1"></div>
-                  <button className="btn btn-sm"><i className="bi bi-file-earmark-plus me-1"></i>New</button>
-                  <button className="btn btn-sm"><i className="bi bi-save me-1"></i>Save</button>
-                  <button className="btn btn-sm text-danger"><i className="bi bi-trash me-1"></i>Delete</button>
+                  <button className="btn btn-sm"><i className="bi bi-file-earmark-plus me-1"></i>{t('create')}</button>
+                  <button className="btn btn-sm"><i className="bi bi-save me-1"></i>{t('save')}</button>
+                  <button className="btn btn-sm text-danger"><i className="bi bi-trash me-1"></i>{t('delete')}</button>
                   <div className="vr mx-1"></div>
-                  <button className="btn btn-sm"><i className="bi bi-printer me-1"></i>Print</button>
+                  <button className="btn btn-sm"><i className="bi bi-printer me-1"></i>{t('print')}</button>
               </div>
           )}
 
           <header className={`mb-4 d-flex justify-content-between align-items-center ${uiStyle === 'classic' ? 'd-none' : ''}`}>
-              <h2 className="text-capitalize mb-0 fw-bold text-dark">{activeTab.replace('-', ' ')}</h2>
+              <h2 className="text-capitalize mb-0 fw-bold text-dark">{t(activeTab.replace('-', '_')) || activeTab.replace('-', ' ')}</h2>
               <div className="d-flex align-items-center gap-3">
+                  <select 
+                      className="form-select form-select-sm" 
+                      style={{width: '120px'}}
+                      value={language}
+                      onChange={(e) => setLanguage(e.target.value as any)}
+                  >
+                      <option value="en">English</option>
+                      <option value="id">Indonesia</option>
+                  </select>
+                  
                   <span className="text-muted small">v0.2.0</span>
                   <div 
                       className="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center shadow-sm" 
@@ -359,7 +428,7 @@ export default function Home() {
           {uiStyle === 'classic' && activeTab !== 'settings' && (
               <div className="text-end mb-2">
                   <button className="btn btn-sm btn-light border" onClick={() => setActiveTab('settings')}>
-                      <i className="bi bi-person-gear me-1"></i>Account Settings
+                      <i className="bi bi-person-gear me-1"></i>{t('account_settings')}
                   </button>
               </div>
           )}
@@ -371,6 +440,7 @@ export default function Home() {
                 categories={categories}
                 onCreateItem={handleCreateItem} 
                 onUpdateItem={handleUpdateItem}
+                onDeleteItem={handleDeleteItem}
                 onAddVariant={handleAddVariantToItem}
                 onDeleteVariant={handleDeleteVariant}
                 onCreateCategory={handleCreateCategory}
@@ -382,6 +452,7 @@ export default function Home() {
             <LocationsView 
                 locations={locations}
                 onCreateLocation={handleCreateLocation}
+                onDeleteLocation={handleDeleteLocation}
                 onRefresh={fetchData}
             />
         )}
@@ -391,6 +462,7 @@ export default function Home() {
                 attributes={attributes} 
                 onCreateAttribute={handleCreateAttribute}
                 onUpdateAttribute={handleUpdateAttribute}
+                onDeleteAttribute={handleDeleteAttribute}
                 onAddValue={handleAddAttributeValue}
                 onUpdateValue={handleUpdateAttributeValue}
                 onDeleteValue={handleDeleteAttributeValue}
@@ -410,7 +482,10 @@ export default function Home() {
                 items={items} 
                 boms={boms}
                 attributes={attributes}
+                workCenters={workCenters}
+                operations={operations}
                 onCreateBOM={handleCreateBOM} 
+                onDeleteBOM={handleDeleteBOM}
             />
         )}
 

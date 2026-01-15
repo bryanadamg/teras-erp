@@ -24,3 +24,13 @@ def create_location(payload: LocationCreate, db: Session = Depends(get_db)):
 @router.get("/locations", response_model=list[LocationResponse])
 def get_locations(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     return db.query(Location).offset(skip).limit(limit).all()
+
+@router.delete("/locations/{location_id}")
+def delete_location(location_id: str, db: Session = Depends(get_db)):
+    location = db.query(Location).filter(Location.id == location_id).first()
+    if not location:
+        raise HTTPException(status_code=404, detail="Location not found")
+    
+    db.delete(location)
+    db.commit()
+    return {"status": "success", "message": "Location deleted"}

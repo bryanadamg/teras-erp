@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function CategoriesView({ categories, onCreateCategory, onDeleteCategory }: any) {
+  const { t } = useLanguage();
   const [newCategoryName, setNewCategoryName] = useState('');
 
   const handleCreateCategory = (e: React.FormEvent) => {
@@ -16,15 +18,15 @@ export default function CategoriesView({ categories, onCreateCategory, onDeleteC
         <div className="col-md-8">
             <div className="card h-100">
                 <div className="card-header bg-white">
-                    <h5 className="card-title mb-0">Item Categories</h5>
+                    <h5 className="card-title mb-0">{t('categories')}</h5>
                     <p className="text-muted small mb-0 mt-1">Classify your inventory items for better organization and filtering.</p>
                 </div>
                 <div className="card-body">
                     <form onSubmit={handleCreateCategory} className="mb-4 p-4 bg-light rounded-3 border border-dashed">
-                        <label className="form-label fw-bold">New Category Name</label>
+                        <label className="form-label fw-bold">{t('create')} {t('categories')}</label>
                         <div className="input-group">
                             <input className="form-control" placeholder="e.g. Spare Parts, Raw Materials..." value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} required />
-                            <button type="submit" className="btn btn-success px-4">Add Category</button>
+                            <button type="submit" className="btn btn-success px-4">{t('add')}</button>
                         </div>
                     </form>
 
@@ -34,7 +36,7 @@ export default function CategoriesView({ categories, onCreateCategory, onDeleteC
                             <div key={cat.id} className="list-group-item d-flex justify-content-between align-items-center">
                                 <span className="fw-medium">{cat.name}</span>
                                 <button className="btn btn-sm text-danger hover-bg-danger-light" onClick={() => onDeleteCategory(cat.id)}>
-                                    <i className="bi bi-trash me-1"></i> Delete
+                                    <i className="bi bi-trash me-1"></i> {t('delete')}
                                 </button>
                             </div>
                         ))}

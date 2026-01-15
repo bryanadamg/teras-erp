@@ -1,13 +1,16 @@
 import { useState } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function AttributesView({ 
     attributes,
     onCreateAttribute, 
     onUpdateAttribute, 
+    onDeleteAttribute,
     onAddValue, 
     onUpdateValue, 
     onDeleteValue
 }: any) {
+  const { t } = useLanguage();
   const [newAttribute, setNewAttribute] = useState({ name: '', values: [] as any[] });
   const [newAttributeValue, setNewAttributeValue] = useState('');
   
@@ -87,10 +90,10 @@ export default function AttributesView({
            <div className="card h-100">
               <div className="card-header bg-white d-flex justify-content-between align-items-center">
                  <div>
-                    <h5 className="card-title mb-0">Attribute Templates</h5>
+                    <h5 className="card-title mb-0">{t('attributes')}</h5>
                     <p className="text-muted small mb-0 mt-1">Manage reusable variant sets like Size, Color, or Year.</p>
                  </div>
-                 {activeAttribute && <button className="btn btn-sm btn-outline-secondary" onClick={cancelEditing}>Close Editor</button>}
+                 {activeAttribute && <button className="btn btn-sm btn-outline-secondary" onClick={cancelEditing}>{t('cancel')}</button>}
               </div>
               <div className="card-body">
                  
@@ -98,7 +101,7 @@ export default function AttributesView({
                  {activeAttribute ? (
                      <div className="mb-4 p-4 bg-light rounded-3 border border-primary border-opacity-25">
                          <div className="d-flex justify-content-between align-items-center mb-3">
-                             <h6 className="text-primary fw-bold mb-0">Editing Template: {activeAttribute.name}</h6>
+                             <h6 className="text-primary fw-bold mb-0">{t('edit')}: {activeAttribute.name}</h6>
                              <button className="btn-close" onClick={cancelEditing}></button>
                          </div>
                          
@@ -110,7 +113,7 @@ export default function AttributesView({
                                     value={editingAttr.name} 
                                     onChange={e => setEditingAttr({...editingAttr, name: e.target.value})} 
                                  />
-                                 <button className="btn btn-outline-primary" onClick={handleUpdateName}>Rename</button>
+                                 <button className="btn btn-outline-primary" onClick={handleUpdateName}>{t('save')}</button>
                              </div>
                          </div>
 
@@ -141,7 +144,7 @@ export default function AttributesView({
                                 value={newValueForEdit} 
                                 onChange={e => setNewValueForEdit(e.target.value)} 
                              />
-                             <button className="btn btn-secondary" onClick={handleAddValueToExisting}>Add</button>
+                             <button className="btn btn-secondary" onClick={handleAddValueToExisting}>{t('add')}</button>
                              {nextValForEdit !== null && (
                                  <button className="btn btn-outline-success" onClick={handleAddNextToExisting}>
                                      + {nextValForEdit}
@@ -161,7 +164,7 @@ export default function AttributesView({
                                <label className="form-label fw-bold">Values</label>
                                <div className="input-group">
                                   <input className="form-control" placeholder="Add value (e.g. S, M, L)" value={newAttributeValue} onChange={e => setNewAttributeValue(e.target.value)} />
-                                  <button type="button" className="btn btn-secondary" onClick={handleAddValueToNewAttribute}>Add Value</button>
+                                  <button type="button" className="btn btn-secondary" onClick={handleAddValueToNewAttribute}>{t('add')}</button>
                                   {nextValForNew !== null && (
                                       <button type="button" className="btn btn-outline-success" onClick={handleAddNextToNew}>
                                           + {nextValForNew}
@@ -177,7 +180,7 @@ export default function AttributesView({
                                     <span key={i} className="badge bg-white text-dark border">{v.value}</span>
                                 ))}
                             </div>
-                            <button type="submit" className="btn btn-primary px-4">Create Template</button>
+                            <button type="submit" className="btn btn-primary px-4">{t('create')}</button>
                         </div>
                      </form>
                  )}
@@ -194,7 +197,12 @@ export default function AttributesView({
                            >
                               <div className="d-flex w-100 justify-content-between mb-2">
                                  <h6 className="mb-0 fw-bold">{attr.name}</h6>
-                                 <span className="badge bg-light text-muted border">{attr.values.length}</span>
+                                 <div className="d-flex align-items-center gap-2">
+                                     <span className="badge bg-light text-muted border">{attr.values.length}</span>
+                                     <button className="btn btn-sm p-0 text-danger" onClick={(e) => { e.stopPropagation(); onDeleteAttribute(attr.id); }}>
+                                         <i className="bi bi-trash"></i>
+                                     </button>
+                                 </div>
                               </div>
                               <div className="d-flex flex-wrap gap-1">
                                  {attr.values.slice(0, 5).map((v: any) => (

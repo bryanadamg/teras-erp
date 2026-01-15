@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useToast } from './Toast';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function InventoryView({ 
     items, 
@@ -7,10 +8,12 @@ export default function InventoryView({
     categories,
     onCreateItem, 
     onUpdateItem,
+    onDeleteItem,
     onCreateCategory,
     onRefresh 
 }: any) {
   const { showToast } = useToast();
+  const { t } = useLanguage();
   // Creation State
   const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', category: '', source_sample_id: '', attribute_ids: [] as string[] });
   
@@ -144,11 +147,11 @@ export default function InventoryView({
               <table className="table table-hover align-middle mb-0">
                 <thead className="table-light">
                   <tr>
-                    <th className="ps-4">Code</th>
-                    <th>Name</th>
-                    <th>Category</th>
-                    <th>Attributes</th>
-                    <th style={{width: '50px'}}></th>
+                    <th className="ps-4">{t('item_code')}</th>
+                    <th>{t('item_name')}</th>
+                    <th>{t('categories')}</th>
+                    <th>{t('attributes')}</th>
+                    <th style={{width: '80px'}}>{t('actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -162,9 +165,14 @@ export default function InventoryView({
                       <td>{item.category && <span className="badge bg-light text-dark border">{item.category}</span>}</td>
                       <td><span className="text-muted small">{getAttributeNames(item.attribute_ids)}</span></td>
                       <td>
-                          <button className="btn btn-sm btn-link text-primary" onClick={() => setEditingItem({...item, attribute_ids: item.attribute_ids || []})}>
-                              <i className="bi bi-pencil-square"></i>
-                          </button>
+                          <div className="d-flex gap-1">
+                              <button className="btn btn-sm btn-link text-primary p-0" onClick={() => setEditingItem({...item, attribute_ids: item.attribute_ids || []})}>
+                                  <i className="bi bi-pencil-square"></i>
+                              </button>
+                              <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDeleteItem(item.id)}>
+                                  <i className="bi bi-trash"></i>
+                              </button>
+                          </div>
                       </td>
                     </tr>
                   ))}
@@ -181,7 +189,7 @@ export default function InventoryView({
         <div className={`card sticky-top border-0 ${activeEditingItem ? 'shadow-lg border-primary border-opacity-50' : 'shadow-sm'}`} style={{top: '24px', zIndex: 100}}>
           <div className={`card-header ${activeEditingItem ? 'bg-primary text-white' : 'bg-white'}`}>
              <h5 className="card-title mb-0">
-                 {activeEditingItem ? <span><i className="bi bi-pencil-square me-2"></i>Edit Item</span> : <span><i className="bi bi-plus-circle me-2"></i>Create Item</span>}
+                 {activeEditingItem ? <span><i className="bi bi-pencil-square me-2"></i>{t('edit')}</span> : <span><i className="bi bi-plus-circle me-2"></i>{t('create')}</span>}
              </h5>
           </div>
           <div className="card-body">
@@ -191,29 +199,29 @@ export default function InventoryView({
                 <div>
                     <form onSubmit={handleUpdateItemSubmit} className="mb-4">
                         <div className="mb-3">
-                            <label className="form-label small text-muted">Code</label>
+                            <label className="form-label small text-muted">{t('item_code')}</label>
                             <input className="form-control" value={editingItem.code} onChange={e => setEditingItem({...editingItem, code: e.target.value})} required />
                         </div>
                         <div className="mb-3">
-                            <label className="form-label small text-muted">Name</label>
+                            <label className="form-label small text-muted">{t('item_name')}</label>
                             <input className="form-control" value={editingItem.name} onChange={e => setEditingItem({...editingItem, name: e.target.value})} required />
                         </div>
                         <div className="row g-2 mb-3">
                             <div className="col-6">
-                                <label className="form-label small text-muted">Category</label>
+                                <label className="form-label small text-muted">{t('categories')}</label>
                                 <select className="form-select" value={editingItem.category || ''} onChange={e => setEditingItem({...editingItem, category: e.target.value})}>
                                     <option value="">Select...</option>
                                     {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
                                 </select>
                             </div>
                             <div className="col-6">
-                                <label className="form-label small text-muted">UOM</label>
+                                <label className="form-label small text-muted">{t('uom')}</label>
                                 <input className="form-control" value={editingItem.uom} onChange={e => setEditingItem({...editingItem, uom: e.target.value})} required />
                             </div>
                         </div>
                         
                         <div className="mb-3">
-                            <label className="form-label small text-muted d-block">Attribute Types</label>
+                            <label className="form-label small text-muted d-block">{t('attributes')}</label>
                             <div className="d-flex flex-wrap gap-2 p-2 border rounded bg-light">
                                 {attributes.map((attr: any) => (
                                     <div key={attr.id} className="form-check">
@@ -233,7 +241,7 @@ export default function InventoryView({
                         </div>
 
                         <div className="mb-3">
-                            <label className="form-label small text-muted">Source Sample</label>
+                            <label className="form-label small text-muted">{t('source_sample')}</label>
                             <select className="form-select" value={editingItem.source_sample_id || ''} onChange={e => setEditingItem({...editingItem, source_sample_id: e.target.value})}>
                                 <option value="">None</option>
                                 {sampleItems.map((s: any) => (
@@ -243,8 +251,8 @@ export default function InventoryView({
                         </div>
                         
                         <div className="d-flex justify-content-between">
-                            <button type="button" className="btn btn-sm btn-light text-muted" onClick={() => setEditingItem(null)}>Cancel</button>
-                            <button type="submit" className="btn btn-primary btn-sm px-3">Save Changes</button>
+                            <button type="button" className="btn btn-sm btn-light text-muted" onClick={() => setEditingItem(null)}>{t('cancel')}</button>
+                            <button type="submit" className="btn btn-primary btn-sm px-3">{t('save')}</button>
                         </div>
                     </form>
                 </div>
@@ -252,17 +260,17 @@ export default function InventoryView({
                 // --- CREATE MODE ---
                 <form onSubmit={handleSubmitItem}>
                   <div className="mb-3">
-                      <label className="form-label small text-muted">Item Code</label>
+                      <label className="form-label small text-muted">{t('item_code')}</label>
                       <input className="form-control" placeholder="ITM-001" value={newItem.code} onChange={e => setNewItem({...newItem, code: e.target.value})} required />
                   </div>
                   <div className="mb-3">
-                      <label className="form-label small text-muted">Item Name</label>
+                      <label className="form-label small text-muted">{t('item_name')}</label>
                       <input className="form-control" placeholder="Product Name" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
                   </div>
                   <div className="row g-2 mb-3">
                       <div className="col-7">
                           <label className="form-label d-flex justify-content-between small text-muted">
-                              Category 
+                              {t('categories')} 
                               <span className="text-primary" style={{cursor:'pointer'}} onClick={() => setShowCatInput(!showCatInput)}><i className="bi bi-plus-circle"></i></span>
                           </label>
                           {showCatInput ? (
@@ -278,13 +286,13 @@ export default function InventoryView({
                           )}
                       </div>
                       <div className="col-5">
-                          <label className="form-label small text-muted">UOM</label>
+                          <label className="form-label small text-muted">{t('uom')}</label>
                           <input className="form-control" placeholder="Unit" value={newItem.uom} onChange={e => setNewItem({...newItem, uom: e.target.value})} required />
                       </div>
                   </div>
                   
                   <div className="mb-3">
-                      <label className="form-label small text-muted d-block">Attribute Types (Variations)</label>
+                      <label className="form-label small text-muted d-block">{t('attributes')}</label>
                       <div className="d-flex flex-wrap gap-2 p-2 border rounded bg-light" style={{maxHeight: '120px', overflowY: 'auto'}}>
                           {attributes.map((attr: any) => (
                               <div key={attr.id} className="form-check">
@@ -302,11 +310,10 @@ export default function InventoryView({
                           ))}
                           {attributes.length === 0 && <small className="text-muted fst-italic">No attributes defined</small>}
                       </div>
-                      <div className="form-text small text-muted">Select all attributes that apply to this item.</div>
                   </div>
 
                   <div className="mb-3">
-                      <label className="form-label small text-muted">Source Sample (Optional)</label>
+                      <label className="form-label small text-muted">{t('source_sample')}</label>
                       <select className="form-select" value={newItem.source_sample_id} onChange={e => setNewItem({...newItem, source_sample_id: e.target.value})}>
                           <option value="">None</option>
                           {sampleItems.map((s: any) => (
@@ -315,7 +322,7 @@ export default function InventoryView({
                       </select>
                   </div>
                   
-                  <button type="submit" className="btn btn-primary w-100 fw-bold shadow-sm">Create Item</button>
+                  <button type="submit" className="btn btn-primary w-100 fw-bold shadow-sm">{t('create')}</button>
                 </form>
             )}
           </div>
