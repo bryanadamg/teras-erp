@@ -18,6 +18,9 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
   const [newBOMLine, setNewBOMLine] = useState({ item_code: '', attribute_value_ids: [] as string[], qty: 0 });
   const [newBOMOp, setNewBOMOp] = useState({ operation_id: '', work_center_id: '', sequence: 10, time_minutes: 0 });
   
+  // Tree Expansion State: Record<bom_id, boolean>
+  const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
+
   // Config State
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [codeConfig, setCodeConfig] = useState<CodeConfig>({
@@ -162,6 +165,10 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
       }
   };
 
+  const toggleNode = (nodeId: string) => {
+      setExpandedNodes(prev => ({...prev, [nodeId]: !prev[nodeId]}));
+  };
+
   // Helpers
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
   const getOpName = (id: string) => operations.find((o: any) => o.id === id)?.name || id;
@@ -184,6 +191,51 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
 
   const headerBoundAttrs = getBoundAttributes(newBOM.item_code);
   const lineBoundAttrs = getBoundAttributes(newBOMLine.item_code);
+
+  // Recursive Tree Renderer
+  const renderBOMTree = (bomLines: any[], level = 0) => {
+      return (
+          <div className="d-flex flex-column gap-1">
+              {bomLines.map((line: any) => {
+                  // Check if this material is a sub-assembly (has its own BOM)
+                  // We look for a BOM that produces this item_id
+                  // For strict matching, we should also match attribute_value_ids, but for now item_id is a good start
+                  const subBOM = boms.find((b: any) => b.item_id === line.item_id);
+                  const isExpandable = !!subBOM;
+                  const isExpanded = expandedNodes[line.id];
+
+                  return (
+                      <div key={line.id} className="small">
+                          <div className={`d-flex align-items-center ${level > 0 ? 'ps-3 border-start border-2' : ''} ${level > 0 ? 'ms-1' : ''}`}>
+                              {isExpandable && (
+                                  <i 
+                                    className={`bi bi-caret-${isExpanded ? 'down' : 'right'}-fill me-1 text-muted`} 
+                                    style={{cursor: 'pointer', fontSize: '0.7rem'}}
+                                    onClick={() => toggleNode(line.id)}
+                                  ></i>
+                              )}
+                              {!isExpandable && level > 0 && <span className="me-2 text-muted" style={{width: '10px'}}></span>}
+                              
+                              <div className="d-flex align-items-center gap-1 border-bottom pb-1 border-light w-100">
+                                  <span className="fw-bold text-primary">{line.qty}</span> x {getItemName(line.item_id)}
+                                  <div className="text-muted fst-italic" style={{fontSize: '0.7rem'}}>
+                                      {(line.attribute_value_ids || []).map(getAttributeValueName).join(', ')}
+                                  </div>
+                                  {isExpandable && <span className="badge bg-secondary ms-auto" style={{fontSize: '0.6rem'}}>Sub-Assy</span>}
+                              </div>
+                          </div>
+                          
+                          {isExpandable && isExpanded && subBOM.lines && (
+                              <div className="mt-1">
+                                  {renderBOMTree(subBOM.lines, level + 1)}
+                              </div>
+                          )}
+                      </div>
+                  );
+              })}
+          </div>
+      );
+  };
 
   return (
     <div className="row g-4 fade-in">
@@ -372,14 +424,14 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
                         <tbody>
                             {boms.map((bom: any) => (
                                 <tr key={bom.id}>
-                                    <td className="ps-4"><span className="badge bg-light text-dark border font-monospace">{bom.code}</span></td>
-                                    <td>
+                                    <td className="ps-4 align-top"><span className="badge bg-light text-dark border font-monospace">{bom.code}</span></td>
+                                    <td className="align-top">
                                         <div className="fw-medium">{getItemName(bom.item_id)}</div>
                                         <div className="text-muted small">
                                             {(bom.attribute_value_ids || []).map(getAttributeValueName).join(', ') || '-'}
                                         </div>
                                     </td>
-                                    <td>
+                                    <td className="align-top">
                                         {bom.operations && bom.operations.length > 0 ? (
                                             <div className="small">
                                                 {[...bom.operations].sort((a:any,b:any) => a.sequence - b.sequence).map((op: any) => (
@@ -390,19 +442,11 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
                                             </div>
                                         ) : <span className="text-muted small">-</span>}
                                     </td>
-                                    <td>
-                                        <div className="d-flex flex-column gap-1">
-                                            {bom.lines.map((line: any) => (
-                                                <div key={line.id} className="small border-bottom pb-1 border-light">
-                                                    <span className="fw-bold text-primary">{line.qty}</span> x {getItemName(line.item_id)}
-                                                    <div className="text-muted" style={{fontSize: '0.7rem'}}>
-                                                        {(line.attribute_value_ids || []).map(getAttributeValueName).join(', ')}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
+                                    <td className="align-top">
+                                        {/* Recursive Tree View */}
+                                        {renderBOMTree(bom.lines)}
                                     </td>
-                                    <td className="pe-4 text-end">
+                                    <td className="pe-4 text-end align-top">
                                         <button className="btn btn-sm btn-link text-danger" onClick={() => onDeleteBOM(bom.id)}>
                                             <i className="bi bi-trash"></i>
                                         </button>
