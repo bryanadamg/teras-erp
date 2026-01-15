@@ -328,7 +328,7 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
                                               <td><span className={`badge ${getStatusBadge(wo.status)}`}>{t(wo.status.toLowerCase())}</span></td>
                                               <td className="text-end pe-4 no-print">
                                                   {wo.status === 'PENDING' && (
-                                                      <button className="btn btn-sm btn-outline-primary shadow-sm" onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>
+                                                      <button className="btn btn-sm btn-primary shadow-sm" onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>
                                                           <i className="bi bi-play-fill me-1"></i>{t('start')}
                                                       </button>
                                                   )}
