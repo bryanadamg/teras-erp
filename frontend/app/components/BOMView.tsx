@@ -6,6 +6,8 @@ import { useLanguage } from '../context/LanguageContext';
 export default function BOMView({ items, boms, attributes, workCenters, operations, onCreateBOM, onDeleteBOM }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  
   const [newBOM, setNewBOM] = useState({
       code: '',
       description: '',
@@ -34,6 +36,8 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
       includeMonth: false
   });
 
+  const [currentStyle, setCurrentStyle] = useState('default');
+
   useEffect(() => {
       const savedConfig = localStorage.getItem('bom_code_config');
       if (savedConfig) {
@@ -43,6 +47,8 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
               console.error("Invalid config in localstorage");
           }
       }
+      const savedStyle = localStorage.getItem('ui_style');
+      if (savedStyle) setCurrentStyle(savedStyle);
   }, []);
 
   const handleSaveConfig = (newConfig: CodeConfig) => {
@@ -160,6 +166,7 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
       } else if (res && res.ok) {
           showToast('BOM created successfully!', 'success');
           setNewBOM({ code: '', description: '', item_code: '', attribute_value_ids: [], qty: 1.0, lines: [], operations: [] });
+          setIsCreateOpen(false); // Close modal on success
       } else {
           showToast('Failed to create BOM', 'danger');
       }
@@ -197,9 +204,6 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
       return (
           <div className="d-flex flex-column gap-1">
               {bomLines.map((line: any) => {
-                  // Check if this material is a sub-assembly (has its own BOM)
-                  // We look for a BOM that produces this item_id
-                  // For strict matching, we should also match attribute_value_ids, but for now item_id is a good start
                   const subBOM = boms.find((b: any) => b.item_id === line.item_id);
                   const isExpandable = !!subBOM;
                   const isExpanded = expandedNodes[line.id];
@@ -248,166 +252,185 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
            attributes={attributes}
        />
 
-       <div className="col-md-5">
-          <div className="card h-100 shadow-sm border-0">
-             <div className="card-header bg-warning bg-opacity-10 text-warning-emphasis">
-                 <h5 className="card-title mb-0"><i className="bi bi-file-earmark-plus me-2"></i>{t('create_recipe')}</h5>
-             </div>
-             <div className="card-body" style={{maxHeight: 'calc(100vh - 150px)', overflowY: 'auto'}}>
-                <form onSubmit={handleSubmit}>
-                    <div className="row g-3 mb-3">
-                        <div className="col-md-8">
-                            <label className="form-label d-flex justify-content-between align-items-center small text-muted">
-                                {t('item_code')}
-                                <i className="bi bi-gear-fill text-muted" style={{cursor: 'pointer'}} onClick={() => setIsConfigOpen(true)}></i>
-                            </label>
-                            <input className="form-control" placeholder="Auto-generated" value={newBOM.code} onChange={e => setNewBOM({...newBOM, code: e.target.value})} required />
-                        </div>
-                        <div className="col-md-4">
-                            <label className="form-label small text-muted">{t('qty')}</label>
-                            <input type="number" className="form-control" value={newBOM.qty} onChange={e => setNewBOM({...newBOM, qty: parseFloat(e.target.value)})} required />
-                        </div>
+       {/* Create BOM Modal */}
+       {isCreateOpen && (
+       <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+            <div className={`modal-dialog modal-xl modal-dialog-scrollable ui-style-${currentStyle}`}>
+                <div className="modal-content shadow">
+                    <div className="modal-header bg-warning bg-opacity-10 text-warning-emphasis">
+                        <h5 className="modal-title"><i className="bi bi-file-earmark-plus me-2"></i>{t('create_recipe')}</h5>
+                        <button type="button" className="btn-close" onClick={() => setIsCreateOpen(false)}></button>
                     </div>
-                    
-                    <div className="p-3 bg-light rounded-3 mb-4">
-                        <h6 className="small text-uppercase text-muted fw-bold mb-3 border-bottom pb-2">{t('finished_good')}</h6>
-                        <select className="form-select mb-3" value={newBOM.item_code} onChange={handleItemChange} required>
-                            <option value="">{t('search')}...</option>
-                            {items.map((item: any) => <option key={item.id} value={item.code}>{item.name} ({item.code})</option>)}
-                        </select>
-
-                        {headerBoundAttrs.map((attr: any) => (
-                            <div key={attr.id} className="mb-2">
-                                <label className="form-label small mb-1 text-muted">{attr.name}</label>
-                                <select 
-                                    className="form-select form-select-sm"
-                                    value={newBOM.attribute_value_ids.find(vid => attr.values.some((v:any) => v.id === vid)) || ''}
-                                    onChange={e => handleValueChange(e.target.value, attr.id, true)}
-                                >
-                                    <option value="">Select {attr.name}...</option>
-                                    {attr.values.map((v: any) => <option key={v.id} value={v.id}>{v.value}</option>)}
-                                </select>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Routing Section */}
-                    <h6 className="small text-uppercase text-muted fw-bold mb-3">{t('routing_operations')}</h6>
-                    <div className="bg-light p-3 rounded-3 mb-4 border border-dashed">
-                        <div className="row g-2 mb-3 align-items-end">
-                            <div className="col-2">
-                                <label className="form-label small text-muted">Seq</label>
-                                <input className="form-control form-control-sm" value={newBOMOp.sequence} onChange={e => setNewBOMOp({...newBOMOp, sequence: parseInt(e.target.value)})} />
-                            </div>
-                            <div className="col-5">
-                                <label className="form-label small text-muted">Operation</label>
-                                <select className="form-select form-select-sm" value={newBOMOp.operation_id} onChange={e => setNewBOMOp({...newBOMOp, operation_id: e.target.value})}>
-                                    <option value="">Select...</option>
-                                    {(operations || []).map((op: any) => <option key={op.id} value={op.id}>{op.name}</option>)}
-                                </select>
-                            </div>
-                            <div className="col-5">
-                                <label className="form-label small text-muted">Station</label>
-                                <select className="form-select form-select-sm" value={newBOMOp.work_center_id} onChange={e => setNewBOMOp({...newBOMOp, work_center_id: e.target.value})}>
-                                    <option value="">Optional...</option>
-                                    {(workCenters || []).map((wc: any) => <option key={wc.id} value={wc.id}>{wc.name}</option>)}
-                                </select>
-                            </div>
-                            <div className="col-4">
-                                <label className="form-label small text-muted">Time (m)</label>
-                                <input type="number" className="form-control form-control-sm" value={newBOMOp.time_minutes} onChange={e => setNewBOMOp({...newBOMOp, time_minutes: parseFloat(e.target.value)})} />
-                            </div>
-                            <div className="col-8">
-                                <button type="button" className="btn btn-sm btn-info w-100" onClick={handleAddOpToBOM} disabled={!newBOMOp.operation_id}>
-                                    <i className="bi bi-plus-lg me-1"></i> {t('add')}
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="mt-2">
-                            {(newBOM.operations || []).sort((a:any,b:any) => a.sequence - b.sequence).map((op: any, idx) => (
-                                <div key={idx} className="d-flex justify-content-between align-items-center p-2 bg-white rounded border mb-1 small shadow-sm">
-                                    <div className="d-flex align-items-center gap-2">
-                                        <span className="badge bg-secondary">{op.sequence}</span>
-                                        <span className="fw-bold">{getOpName(op.operation_id)}</span> 
-                                        {op.work_center_id && <span className="text-muted fst-italic">@ {getWCName(op.work_center_id)}</span>}
-                                    </div>
-                                    <div className="d-flex align-items-center gap-2">
-                                        <span className="text-muted">{op.time_minutes}m</span>
-                                        <button type="button" className="btn btn-sm btn-link text-danger p-0" onClick={() => handleRemoveOp(idx)}>
-                                            <i className="bi bi-x-circle"></i>
-                                        </button>
-                                    </div>
+                    <div className="modal-body">
+                        <form onSubmit={handleSubmit}>
+                            <div className="row g-3 mb-3">
+                                <div className="col-md-8">
+                                    <label className="form-label d-flex justify-content-between align-items-center small text-muted">
+                                        {t('item_code')}
+                                        <i className="bi bi-gear-fill text-muted" style={{cursor: 'pointer'}} onClick={() => setIsConfigOpen(true)}></i>
+                                    </label>
+                                    <input className="form-control" placeholder="Auto-generated" value={newBOM.code} onChange={e => setNewBOM({...newBOM, code: e.target.value})} required />
                                 </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    <h6 className="small text-uppercase text-muted fw-bold mb-3">{t('materials')}</h6>
-                    <div className="bg-light p-3 rounded-3 mb-3 border border-dashed">
-                        <div className="row g-2 mb-3">
-                            <div className="col-12">
-                                <label className="form-label small text-muted">Item</label>
-                                <select className="form-select form-select-sm" value={newBOMLine.item_code} onChange={e => setNewBOMLine({...newBOMLine, item_code: e.target.value, attribute_value_ids: []})}>
-                                    <option value="">Select...</option>
-                                    {items.map((item: any) => <option key={item.id} value={item.code}>{item.name}</option>)}
-                                </select>
+                                <div className="col-md-4">
+                                    <label className="form-label small text-muted">{t('qty')}</label>
+                                    <input type="number" className="form-control" value={newBOM.qty} onChange={e => setNewBOM({...newBOM, qty: parseFloat(e.target.value)})} required />
+                                </div>
                             </div>
                             
-                            {lineBoundAttrs.map((attr: any) => (
-                                <div key={attr.id} className="col-md-6">
-                                    <label className="form-label small text-muted">{attr.name}</label>
-                                    <select 
-                                        className="form-select form-select-sm"
-                                        value={newBOMLine.attribute_value_ids.find(vid => attr.values.some((v:any) => v.id === vid)) || ''}
-                                        onChange={e => handleValueChange(e.target.value, attr.id, false)}
-                                    >
-                                        <option value="">Any {attr.name}</option>
-                                        {attr.values.map((v: any) => <option key={v.id} value={v.id}>{v.value}</option>)}
-                                    </select>
-                                </div>
-                            ))}
+                            <div className="p-3 bg-light rounded-3 mb-4 border border-warning border-opacity-25">
+                                <h6 className="small text-uppercase text-muted fw-bold mb-3 border-bottom pb-2">{t('finished_good')}</h6>
+                                <select className="form-select mb-3" value={newBOM.item_code} onChange={handleItemChange} required>
+                                    <option value="">{t('search')}...</option>
+                                    {items.map((item: any) => <option key={item.id} value={item.code}>{item.name} ({item.code})</option>)}
+                                </select>
 
-                            <div className="col-12">
-                                <label className="form-label small text-muted">{t('qty')}</label>
-                                <div className="input-group input-group-sm">
-                                    <input type="number" className="form-control" placeholder="0" value={newBOMLine.qty} onChange={e => setNewBOMLine({...newBOMLine, qty: parseFloat(e.target.value)})} />
-                                    <button type="button" className="btn btn-secondary px-3" onClick={handleAddLineToBOM} disabled={!newBOMLine.item_code}>{t('add')}</button>
-                                </div>
+                                {headerBoundAttrs.map((attr: any) => (
+                                    <div key={attr.id} className="mb-2">
+                                        <label className="form-label small mb-1 text-muted">{attr.name}</label>
+                                        <select 
+                                            className="form-select form-select-sm"
+                                            value={newBOM.attribute_value_ids.find(vid => attr.values.some((v:any) => v.id === vid)) || ''}
+                                            onChange={e => handleValueChange(e.target.value, attr.id, true)}
+                                        >
+                                            <option value="">Select {attr.name}...</option>
+                                            {attr.values.map((v: any) => <option key={v.id} value={v.id}>{v.value}</option>)}
+                                        </select>
+                                    </div>
+                                ))}
                             </div>
-                        </div>
-                        
-                        <div className="mt-2">
-                            {newBOM.lines.map((line: any, idx) => (
-                                <div key={idx} className="d-flex justify-content-between align-items-center p-2 bg-white rounded border mb-1 small shadow-sm">
-                                    <div>
-                                        <span className="fw-bold">{line.item_code}</span> 
-                                        <div className="text-muted" style={{fontSize: '0.75rem'}}>
-                                            {(line.attribute_value_ids || []).map(getAttributeValueName).join(', ') || 'No variations'}
+
+                            <div className="row g-4">
+                                {/* Routing Section */}
+                                <div className="col-md-6">
+                                    <h6 className="small text-uppercase text-muted fw-bold mb-3">{t('routing_operations')}</h6>
+                                    <div className="bg-light p-3 rounded-3 mb-4 border border-dashed h-100">
+                                        <div className="row g-2 mb-3 align-items-end">
+                                            <div className="col-3">
+                                                <label className="form-label small text-muted">Seq</label>
+                                                <input className="form-control form-control-sm" value={newBOMOp.sequence} onChange={e => setNewBOMOp({...newBOMOp, sequence: parseInt(e.target.value)})} />
+                                            </div>
+                                            <div className="col-9">
+                                                <label className="form-label small text-muted">Operation</label>
+                                                <select className="form-select form-select-sm" value={newBOMOp.operation_id} onChange={e => setNewBOMOp({...newBOMOp, operation_id: e.target.value})}>
+                                                    <option value="">Select...</option>
+                                                    {(operations || []).map((op: any) => <option key={op.id} value={op.id}>{op.name}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="col-6">
+                                                <label className="form-label small text-muted">Station</label>
+                                                <select className="form-select form-select-sm" value={newBOMOp.work_center_id} onChange={e => setNewBOMOp({...newBOMOp, work_center_id: e.target.value})}>
+                                                    <option value="">Optional...</option>
+                                                    {(workCenters || []).map((wc: any) => <option key={wc.id} value={wc.id}>{wc.name}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="col-3">
+                                                <label className="form-label small text-muted">Time(m)</label>
+                                                <input type="number" className="form-control form-control-sm" value={newBOMOp.time_minutes} onChange={e => setNewBOMOp({...newBOMOp, time_minutes: parseFloat(e.target.value)})} />
+                                            </div>
+                                            <div className="col-3">
+                                                <button type="button" className="btn btn-sm btn-info w-100" onClick={handleAddOpToBOM} disabled={!newBOMOp.operation_id}>
+                                                    <i className="bi bi-plus-lg"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-2" style={{maxHeight: '200px', overflowY: 'auto'}}>
+                                            {(newBOM.operations || []).sort((a:any,b:any) => a.sequence - b.sequence).map((op: any, idx) => (
+                                                <div key={idx} className="d-flex justify-content-between align-items-center p-2 bg-white rounded border mb-1 small shadow-sm">
+                                                    <div className="d-flex align-items-center gap-2">
+                                                        <span className="badge bg-secondary">{op.sequence}</span>
+                                                        <span className="fw-bold">{getOpName(op.operation_id)}</span> 
+                                                        {op.work_center_id && <span className="text-muted fst-italic">@ {getWCName(op.work_center_id)}</span>}
+                                                    </div>
+                                                    <div className="d-flex align-items-center gap-2">
+                                                        <span className="text-muted">{op.time_minutes}m</span>
+                                                        <button type="button" className="btn btn-sm btn-link text-danger p-0" onClick={() => handleRemoveOp(idx)}>
+                                                            <i className="bi bi-x-circle"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
-                                    <div className="d-flex align-items-center gap-2">
-                                        <span className="badge bg-secondary">{line.qty}</span>
-                                        <button type="button" className="btn btn-sm btn-link text-danger p-0" onClick={() => handleRemoveLine(idx)}>
-                                            <i className="bi bi-x-circle"></i>
-                                        </button>
+                                </div>
+
+                                {/* Materials Section */}
+                                <div className="col-md-6">
+                                    <h6 className="small text-uppercase text-muted fw-bold mb-3">{t('materials')}</h6>
+                                    <div className="bg-light p-3 rounded-3 mb-3 border border-dashed h-100">
+                                        <div className="row g-2 mb-3">
+                                            <div className="col-12">
+                                                <label className="form-label small text-muted">Item</label>
+                                                <select className="form-select form-select-sm" value={newBOMLine.item_code} onChange={e => setNewBOMLine({...newBOMLine, item_code: e.target.value, attribute_value_ids: []})}>
+                                                    <option value="">Select...</option>
+                                                    {items.map((item: any) => <option key={item.id} value={item.code}>{item.name}</option>)}
+                                                </select>
+                                            </div>
+                                            
+                                            {lineBoundAttrs.map((attr: any) => (
+                                                <div key={attr.id} className="col-6">
+                                                    <label className="form-label small text-muted">{attr.name}</label>
+                                                    <select 
+                                                        className="form-select form-select-sm"
+                                                        value={newBOMLine.attribute_value_ids.find(vid => attr.values.some((v:any) => v.id === vid)) || ''}
+                                                        onChange={e => handleValueChange(e.target.value, attr.id, false)}
+                                                    >
+                                                        <option value="">Any {attr.name}</option>
+                                                        {attr.values.map((v: any) => <option key={v.id} value={v.id}>{v.value}</option>)}
+                                                    </select>
+                                                </div>
+                                            ))}
+
+                                            <div className="col-12">
+                                                <div className="input-group input-group-sm">
+                                                    <span className="input-group-text">{t('qty')}</span>
+                                                    <input type="number" className="form-control" placeholder="0" value={newBOMLine.qty} onChange={e => setNewBOMLine({...newBOMLine, qty: parseFloat(e.target.value)})} />
+                                                    <button type="button" className="btn btn-secondary px-3" onClick={handleAddLineToBOM} disabled={!newBOMLine.item_code}>{t('add')}</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="mt-2" style={{maxHeight: '200px', overflowY: 'auto'}}>
+                                            {newBOM.lines.map((line: any, idx) => (
+                                                <div key={idx} className="d-flex justify-content-between align-items-center p-2 bg-white rounded border mb-1 small shadow-sm">
+                                                    <div>
+                                                        <span className="fw-bold">{line.item_code}</span> 
+                                                        <div className="text-muted" style={{fontSize: '0.75rem'}}>
+                                                            {(line.attribute_value_ids || []).map(getAttributeValueName).join(', ') || 'No variations'}
+                                                        </div>
+                                                    </div>
+                                                    <div className="d-flex align-items-center gap-2">
+                                                        <span className="badge bg-secondary">{line.qty}</span>
+                                                        <button type="button" className="btn btn-sm btn-link text-danger p-0" onClick={() => handleRemoveLine(idx)}>
+                                                            <i className="bi bi-x-circle"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
-                            ))}
-                        </div>
-                    </div>
+                            </div>
 
-                    <button type="submit" className="btn btn-warning w-100 fw-bold">{t('save')} BOM</button>
-                </form>
-             </div>
-          </div>
+                            <div className="d-flex justify-content-end gap-2 mt-3">
+                                <button type="button" className="btn btn-secondary" onClick={() => setIsCreateOpen(false)}>{t('cancel')}</button>
+                                <button type="submit" className="btn btn-warning fw-bold px-4">{t('save')} BOM</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
        </div>
+       )}
 
        {/* BOM List */}
-       <div className="col-md-7">
+       <div className="col-12">
           <div className="card h-100 shadow-sm border-0">
-             <div className="card-header bg-white">
+             <div className="card-header bg-white d-flex justify-content-between align-items-center">
                  <h5 className="card-title mb-0">{t('active_boms')}</h5>
+                 <button className="btn btn-sm btn-primary" onClick={() => setIsCreateOpen(true)}>
+                     <i className="bi bi-plus-lg me-2"></i>{t('create_recipe')}
+                 </button>
              </div>
              <div className="card-body p-0" style={{maxHeight: 'calc(100vh - 150px)', overflowY: 'auto'}}>
                 <div className="table-responsive">
