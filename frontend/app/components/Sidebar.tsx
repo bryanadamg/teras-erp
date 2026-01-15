@@ -22,6 +22,18 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
         </div>
         
         <ul className="nav flex-column py-3">
+          {/* Dashboard */}
+          <li className="nav-item">
+            <a 
+              href="#" 
+              className={`nav-link ${activeTab === 'dashboard' ? 'active' : ''}`}
+              onClick={(e) => { e.preventDefault(); setActiveTab('dashboard'); }}
+            >
+              <i className="bi bi-speedometer2"></i>
+              {t('dashboard') || 'Dashboard'}
+            </a>
+          </li>
+
           {/* Inventory Section */}
           <li className="nav-item">
             <a 

@@ -254,6 +254,26 @@ body {
   padding-bottom: 1px;
 }
 
+/* Dashboard Overrides for Classic */
+.ui-style-classic .bg-primary,
+.ui-style-classic .bg-warning,
+.ui-style-classic .bg-info,
+.ui-style-classic .bg-success {
+    background-color: var(--win-face) !important;
+    color: black !important;
+    border: 1px solid var(--win-border-dark) !important;
+    border-top-color: var(--win-border-light) !important;
+    border-left-color: var(--win-border-light) !important;
+}
+
+.ui-style-classic .display-6,
+.ui-style-classic .card-title,
+.ui-style-classic .opacity-75,
+.ui-style-classic .opacity-50 {
+    color: black !important;
+    opacity: 1 !important;
+}
+
 /* Sidebar Area */
 .sidebar {
   width: var(--sidebar-width);

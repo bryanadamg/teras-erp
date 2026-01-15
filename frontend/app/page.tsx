@@ -14,13 +14,14 @@ import ReportsView from './components/ReportsView';
 import SettingsView from './components/SettingsView';
 import { useToast } from './components/Toast';
 import { useLanguage } from './context/LanguageContext';
+import DashboardView from './components/DashboardView';
 
 const API_BASE = 'http://localhost:8000';
 
 export default function Home() {
   const { showToast } = useToast();
   const { language, setLanguage, t } = useLanguage();
-  const [activeTab, setActiveTab] = useState('inventory');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [appName, setAppName] = useState('Teras ERP');
   const [uiStyle, setUiStyle] = useState('default');
 
@@ -432,6 +433,15 @@ export default function Home() {
                   </button>
               </div>
           )}
+
+        {activeTab === 'dashboard' && (
+            <DashboardView 
+                items={items} 
+                stockBalance={stockBalance}
+                workOrders={workOrders}
+                stockEntries={stockEntries}
+            />
+        )}
 
         {activeTab === 'inventory' && (
             <InventoryView 
