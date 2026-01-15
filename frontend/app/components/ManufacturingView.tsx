@@ -54,7 +54,6 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
       // Determine Variant Name if needed
       let variantName = '';
       if (config.includeVariant && bom.attribute_value_ids && bom.attribute_value_ids.length > 0) {
-          // Join names of all variants included in the BOM
           const names: string[] = [];
           for (const valId of bom.attribute_value_ids) {
               for (const attr of attributes) {
@@ -162,6 +161,24 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
       }
   };
 
+  const formatDateTime = (date: string | null) => {
+      if (!date) return '-';
+      return new Date(date).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+  };
+
+  const getDueDateWarning = (wo: any) => {
+      if (wo.status === 'COMPLETED' || wo.status === 'CANCELLED') return null;
+      if (!wo.due_date) return null;
+
+      const due = new Date(wo.due_date);
+      const now = new Date();
+      const diffDays = (due.getTime() - now.getTime()) / (1000 * 3600 * 24);
+
+      if (diffDays < 0) return { type: 'danger', icon: 'bi-exclamation-octagon-fill', text: 'Overdue!' };
+      if (diffDays < 2) return { type: 'warning', icon: 'bi-exclamation-triangle-fill', text: 'Due Soon' };
+      return null;
+  };
+
   return (
       <div className="row g-4 fade-in print-container">
           <CodeConfigModal 
@@ -261,39 +278,62 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
                                       <th className="ps-4">{t('item_code')}</th>
                                       <th>Product</th>
                                       <th>{t('qty')}</th>
+                                      <th>{t('due_date')}</th>
+                                      <th>Start / Finish</th>
                                       <th>{t('status')}</th>
                                       <th className="text-end pe-4 no-print">{t('actions')}</th>
                                   </tr>
                               </thead>
                               <tbody>
-                                  {filteredWorkOrders.map((wo: any) => (
-                                      <tr key={wo.id}>
-                                          <td className="ps-4 fw-bold font-monospace">{wo.code}</td>
-                                          <td>
-                                              <div className="fw-medium">{getItemName(wo.item_id)}</div>
-                                              <div className="small text-muted">
-                                                  {wo.attribute_value_ids?.map(getAttributeValueName).join(', ') || '-'}
-                                              </div>
-                                              <div className="small text-primary fst-italic">{getBOMCode(wo.bom_id)}</div>
-                                          </td>
-                                          <td className="fw-bold">{wo.qty}</td>
-                                          <td><span className={`badge ${getStatusBadge(wo.status)}`}>{t(wo.status.toLowerCase())}</span></td>
-                                          <td className="text-end pe-4 no-print">
-                                              {wo.status === 'PENDING' && (
-                                                  <button className="btn btn-sm btn-outline-primary shadow-sm" onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>
-                                                      <i className="bi bi-play-fill me-1"></i>{t('start')}
-                                                  </button>
-                                              )}
-                                              {wo.status === 'IN_PROGRESS' && (
-                                                  <button className="btn btn-sm btn-success text-white shadow-sm" onClick={() => onUpdateStatus(wo.id, 'COMPLETED')}>
-                                                      <i className="bi bi-check-lg me-1"></i>{t('finish')}
-                                                  </button>
-                                              )}
-                                              {wo.status === 'COMPLETED' && <span className="text-success"><i className="bi bi-check-circle-fill"></i> Done</span>}
-                                          </td>
-                                      </tr>
-                                  ))}
-                                  {filteredWorkOrders.length === 0 && <tr><td colSpan={5} className="text-center py-5 text-muted">No scheduled production for this period</td></tr>}
+                                  {filteredWorkOrders.map((wo: any) => {
+                                      const warning = getDueDateWarning(wo);
+                                      return (
+                                          <tr key={wo.id}>
+                                              <td className="ps-4 fw-bold font-monospace small">{wo.code}</td>
+                                              <td>
+                                                  <div className="fw-medium">{getItemName(wo.item_id)}</div>
+                                                  <div className="small text-muted">
+                                                      {wo.attribute_value_ids?.map(getAttributeValueName).join(', ') || '-'}
+                                                  </div>
+                                                  <div className="small text-primary fst-italic">{getBOMCode(wo.bom_id)}</div>
+                                              </td>
+                                              <td className="fw-bold">{wo.qty}</td>
+                                              <td>
+                                                  <div className="d-flex flex-column">
+                                                      <span className={warning ? `text-${warning.type} fw-bold` : ''}>
+                                                          {wo.due_date ? new Date(wo.due_date).toLocaleDateString() : '-'}
+                                                      </span>
+                                                      {warning && (
+                                                          <span className={`badge bg-${warning.type} mt-1`} style={{fontSize: '0.65rem'}}>
+                                                              <i className={`bi ${warning.icon} me-1`}></i>{warning.text}
+                                                          </span>
+                                                      )}
+                                                  </div>
+                                              </td>
+                                              <td>
+                                                  <div className="small d-flex flex-column">
+                                                      <span className="text-muted">S: {formatDateTime(wo.start_date)}</span>
+                                                      <span className="text-muted">F: {formatDateTime(wo.completed_at)}</span>
+                                                  </div>
+                                              </td>
+                                              <td><span className={`badge ${getStatusBadge(wo.status)}`}>{t(wo.status.toLowerCase())}</span></td>
+                                              <td className="text-end pe-4 no-print">
+                                                  {wo.status === 'PENDING' && (
+                                                      <button className="btn btn-sm btn-outline-primary shadow-sm" onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>
+                                                          <i className="bi bi-play-fill me-1"></i>{t('start')}
+                                                      </button>
+                                                  )}
+                                                  {wo.status === 'IN_PROGRESS' && (
+                                                      <button className="btn btn-sm btn-success text-white shadow-sm" onClick={() => onUpdateStatus(wo.id, 'COMPLETED')}>
+                                                          <i className="bi bi-check-lg me-1"></i>{t('finish')}
+                                                      </button>
+                                                  )}
+                                                  {wo.status === 'COMPLETED' && <span className="text-success"><i className="bi bi-check-circle-fill"></i> Done</span>}
+                                              </td>
+                                          </tr>
+                                      );
+                                  })}
+                                  {filteredWorkOrders.length === 0 && <tr><td colSpan={7} className="text-center py-5 text-muted">No scheduled production for this period</td></tr>}
                               </tbody>
                           </table>
                       </div>

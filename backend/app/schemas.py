@@ -112,6 +112,7 @@ class WorkOrderResponse(BaseModel):
     status: str
     start_date: datetime | None
     due_date: datetime | None
+    completed_at: datetime | None
     created_at: datetime
     
     class Config:

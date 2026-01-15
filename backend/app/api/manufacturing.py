@@ -80,8 +80,13 @@ def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_
     if status not in valid_statuses:
         raise HTTPException(status_code=400, detail="Invalid status")
     
-    # Check if completing
+    # 1. Update start_date if moving to IN_PROGRESS
+    if status == "IN_PROGRESS" and wo.status != "IN_PROGRESS":
+        wo.start_date = datetime.utcnow()
+
+    # 2. Check if completing
     if status == "COMPLETED" and wo.status != "COMPLETED":
+        wo.completed_at = datetime.utcnow()
         # 1. Deduct Materials
         for line in wo.bom.lines:
             # Required Qty = BOM Line Qty * Work Order Qty

@@ -111,19 +111,39 @@ export default function DashboardView({ items, stockBalance, workOrders, stockEn
                                     <tr>
                                         <th className="ps-3">Code</th>
                                         <th>Product</th>
+                                        <th>Due Date</th>
                                         <th className="text-end pe-3">Qty</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {workOrders.filter((w: any) => w.status === 'IN_PROGRESS').slice(0, 5).map((wo: any) => (
-                                        <tr key={wo.id}>
-                                            <td className="ps-3 font-monospace small">{wo.code}</td>
-                                            <td>{getItemName(wo.item_id)}</td>
-                                            <td className="text-end pe-3 fw-bold">{wo.qty}</td>
-                                        </tr>
-                                    ))}
+                                    {workOrders.filter((w: any) => w.status === 'IN_PROGRESS').slice(0, 5).map((wo: any) => {
+                                        let warning = null;
+                                        if (wo.due_date) {
+                                            const due = new Date(wo.due_date);
+                                            const now = new Date();
+                                            const diffDays = (due.getTime() - now.getTime()) / (1000 * 3600 * 24);
+                                            if (diffDays < 0) warning = { type: 'danger', icon: 'bi-exclamation-octagon-fill', text: 'Overdue' };
+                                            else if (diffDays < 2) warning = { type: 'warning', icon: 'bi-exclamation-triangle-fill', text: 'Soon' };
+                                        }
+
+                                        return (
+                                            <tr key={wo.id}>
+                                                <td className="ps-3 font-monospace small">{wo.code}</td>
+                                                <td>{getItemName(wo.item_id)}</td>
+                                                <td>
+                                                    <span className={warning ? `text-${warning.type} fw-bold` : 'text-muted'}>
+                                                        {wo.due_date ? new Date(wo.due_date).toLocaleDateString() : '-'}
+                                                    </span>
+                                                    {warning && (
+                                                        <i className={`bi ${warning.icon} ms-2 text-${warning.type}`} title={warning.text}></i>
+                                                    )}
+                                                </td>
+                                                <td className="text-end pe-3 fw-bold">{wo.qty}</td>
+                                            </tr>
+                                        );
+                                    })}
                                     {workOrders.filter((w: any) => w.status === 'IN_PROGRESS').length === 0 && (
-                                        <tr><td colSpan={3} className="text-center text-muted py-3">No active production</td></tr>
+                                        <tr><td colSpan={4} className="text-center text-muted py-3">No active production</td></tr>
                                     )}
                                 </tbody>
                             </table>
