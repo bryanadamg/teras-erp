@@ -54,6 +54,22 @@ class BOMLineResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class BOMOperationCreate(BaseModel):
+    operation_id: UUID
+    work_center_id: UUID | None = None
+    sequence: int = 10
+    time_minutes: float = 0.0
+
+class BOMOperationResponse(BaseModel):
+    id: UUID
+    operation_id: UUID
+    work_center_id: UUID | None
+    sequence: int
+    time_minutes: float
+
+    class Config:
+        from_attributes = True
+
 class BOMCreate(BaseModel):
     code: str
     description: str | None = None
@@ -61,6 +77,7 @@ class BOMCreate(BaseModel):
     attribute_value_ids: list[UUID] = []
     qty: float = 1.0
     lines: list[BOMLineCreate]
+    operations: list[BOMOperationCreate] = []
 
 class BOMResponse(BaseModel):
     id: UUID
@@ -71,6 +88,7 @@ class BOMResponse(BaseModel):
     qty: float
     active: bool
     lines: list[BOMLineResponse]
+    operations: list[BOMOperationResponse] = []
 
     class Config:
         from_attributes = True

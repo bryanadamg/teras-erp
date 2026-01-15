@@ -63,6 +63,7 @@ def run_migrations():
                 # Just a simple check to ensure they exist (create_all should have handled it)
                 conn.execute(text("SELECT 1 FROM work_centers LIMIT 1"))
                 conn.execute(text("SELECT 1 FROM operations LIMIT 1"))
+                conn.execute(text("SELECT 1 FROM bom_operations LIMIT 1"))
                 logger.info("Migration: Verified routing tables")
             except Exception as e:
                 pass

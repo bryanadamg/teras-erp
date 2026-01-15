@@ -39,6 +39,7 @@ class BOM(Base):
     # Relationships
     attribute_values = relationship("AttributeValue", secondary=bom_values)
     lines = relationship("BOMLine", backref="bom", cascade="all, delete-orphan")
+    operations = relationship("BOMOperation", backref="bom", cascade="all, delete-orphan")
 
 
 class BOMLine(Base):
@@ -59,3 +60,23 @@ class BOMLine(Base):
 
     # Relationships
     attribute_values = relationship("AttributeValue", secondary=bom_line_values)
+
+
+class BOMOperation(Base):
+    __tablename__ = "bom_operations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    bom_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("boms.id"), index=True
+    )
+    operation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("operations.id")
+    )
+    work_center_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("work_centers.id"), nullable=True
+    )
+    
+    sequence: Mapped[int] = mapped_column(Numeric(4, 0), default=10) # e.g. 10, 20, 30
+    time_minutes: Mapped[float] = mapped_column(Numeric(10, 2), default=0.0) # Estimated time
