@@ -29,6 +29,7 @@ export default function InventoryView({
 
   // Filtering
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   // --- Item Handlers ---
 
@@ -112,9 +113,13 @@ export default function InventoryView({
   const activeEditingItem = editingItem ? items.find((i: any) => i.id === editingItem.id) : null;
 
   // Filtered Items
-  const filteredItems = categoryFilter 
-      ? items.filter((i: any) => i.category === categoryFilter)
-      : items;
+  const filteredItems = items.filter((i: any) => {
+      const matchesCategory = !categoryFilter || i.category === categoryFilter;
+      const matchesSearch = !searchTerm || 
+          i.code.toLowerCase().includes(searchTerm.toLowerCase()) || 
+          i.name.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesCategory && matchesSearch;
+  });
       
   const sampleItems = items.filter((i: any) => i.category === 'Sample');
 
@@ -129,17 +134,37 @@ export default function InventoryView({
       {/* LEFT COLUMN: Items List */}
       <div className="col-md-8 order-2 order-md-1">
         <div className="card h-100">
-          <div className="card-header d-flex justify-content-between align-items-center bg-white">
-            <div>
-                <h5 className="card-title mb-0">Item Inventory</h5>
-                <p className="text-muted small mb-0 mt-1">Master list of all products and materials</p>
-            </div>
-            <div className="d-flex align-items-center gap-2">
-                <select className="form-select form-select-sm" style={{width: '180px'}} value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
-                    <option value="">All Categories</option>
-                    {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
-                </select>
+          <div className="card-header bg-white">
+            <div className="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h5 className="card-title mb-0">{t('item_inventory')}</h5>
+                    <p className="text-muted small mb-0 mt-1">Master list of all products and materials</p>
+                </div>
                 <button className="btn btn-sm btn-outline-secondary" onClick={onRefresh}><i className="bi bi-arrow-clockwise"></i></button>
+            </div>
+            
+            {/* Filter Bar */}
+            <div className="row g-2 align-items-center bg-light p-2 rounded border">
+                <div className="col-md-5">
+                    <div className="input-group input-group-sm">
+                        <span className="input-group-text bg-white border-end-0"><i className="bi bi-search"></i></span>
+                        <input 
+                            type="text" 
+                            className="form-control border-start-0" 
+                            placeholder={`${t('search')} ${t('item_code')} / ${t('item_name')}...`}
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                </div>
+                {/* Spacer to align Category dropdown with the 3rd column (Category) roughly */}
+                <div className="col-md-2"></div> 
+                <div className="col-md-3">
+                    <select className="form-select form-select-sm" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
+                        <option value="">{t('categories')} (All)</option>
+                        {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                    </select>
+                </div>
             </div>
           </div>
           <div className="card-body p-0">
