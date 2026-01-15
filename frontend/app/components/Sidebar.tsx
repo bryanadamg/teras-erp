@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
+import { useUser } from '../context/UserContext';
 
 interface SidebarProps {
   activeTab: string;
@@ -9,6 +10,7 @@ interface SidebarProps {
 
 export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarProps) {
   const { t } = useLanguage();
+  const { hasPermission } = useUser();
   const [inventoryExpanded, setInventoryExpanded] = useState(true);
   const [engineeringExpanded, setEngineeringExpanded] = useState(true);
   const [reportsExpanded, setReportsExpanded] = useState(true);
@@ -35,6 +37,7 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
           </li>
 
           {/* Inventory Section */}
+          {(hasPermission('inventory.manage') || hasPermission('stock.entry') || hasPermission('locations.manage')) && (
           <li className="nav-item">
             <a 
               href="#" 
@@ -50,36 +53,48 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
             
             {inventoryExpanded && (
               <ul className="nav flex-column ps-4 bg-light bg-opacity-50">
-                <li>
-                  <a href="#" className={`nav-link py-2 small ${activeTab === 'inventory' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('inventory'); }}>
-                    <i className="bi bi-list-ul me-2"></i>{t('item_inventory')}
-                  </a>
-                </li>
+                {hasPermission('inventory.manage') && (
+                <>
+                    <li>
+                    <a href="#" className={`nav-link py-2 small ${activeTab === 'inventory' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('inventory'); }}>
+                        <i className="bi bi-list-ul me-2"></i>{t('item_inventory')}
+                    </a>
+                    </li>
+                    <li>
+                    <a href="#" className={`nav-link py-2 small ${activeTab === 'attributes' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('attributes'); }}>
+                        <i className="bi bi-tags me-2"></i>{t('attributes')}
+                    </a>
+                    </li>
+                    <li>
+                    <a href="#" className={`nav-link py-2 small ${activeTab === 'categories' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('categories'); }}>
+                        <i className="bi bi-grid me-2"></i>{t('categories')}
+                    </a>
+                    </li>
+                </>
+                )}
+                
+                {hasPermission('stock.entry') && (
                 <li>
                   <a href="#" className={`nav-link py-2 small ${activeTab === 'stock' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('stock'); }}>
                     <i className="bi bi-arrow-left-right me-2"></i>{t('stock_entry')}
                   </a>
                 </li>
-                <li>
-                  <a href="#" className={`nav-link py-2 small ${activeTab === 'attributes' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('attributes'); }}>
-                    <i className="bi bi-tags me-2"></i>{t('attributes')}
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className={`nav-link py-2 small ${activeTab === 'categories' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('categories'); }}>
-                    <i className="bi bi-grid me-2"></i>{t('categories')}
-                  </a>
-                </li>
+                )}
+
+                {hasPermission('locations.manage') && (
                 <li>
                   <a href="#" className={`nav-link py-2 small ${activeTab === 'locations' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('locations'); }}>
                     <i className="bi bi-geo-alt me-2"></i>{t('locations')}
                   </a>
                 </li>
+                )}
               </ul>
             )}
           </li>
+          )}
 
           {/* Engineering Section */}
+          {(hasPermission('manufacturing.manage') || hasPermission('work_order.manage')) && (
           <li className="nav-item">
             <a 
               href="#" 
@@ -95,26 +110,35 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
             
             {engineeringExpanded && (
               <ul className="nav flex-column ps-4 bg-light bg-opacity-50">
-                <li>
-                  <a href="#" className={`nav-link py-2 small ${activeTab === 'bom' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('bom'); }}>
-                    <i className="bi bi-diagram-3 me-2"></i>{t('bom')}
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className={`nav-link py-2 small ${activeTab === 'routing' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('routing'); }}>
-                    <i className="bi bi-signpost-split me-2"></i>{t('routing')}
-                  </a>
-                </li>
+                {hasPermission('manufacturing.manage') && (
+                <>
+                    <li>
+                    <a href="#" className={`nav-link py-2 small ${activeTab === 'bom' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('bom'); }}>
+                        <i className="bi bi-diagram-3 me-2"></i>{t('bom')}
+                    </a>
+                    </li>
+                    <li>
+                    <a href="#" className={`nav-link py-2 small ${activeTab === 'routing' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('routing'); }}>
+                        <i className="bi bi-signpost-split me-2"></i>{t('routing')}
+                    </a>
+                    </li>
+                </>
+                )}
+                
+                {hasPermission('work_order.manage') && (
                 <li>
                   <a href="#" className={`nav-link py-2 small ${activeTab === 'manufacturing' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('manufacturing'); }}>
                     <i className="bi bi-gear-wide-connected me-2"></i>{t('work_orders')}
                   </a>
                 </li>
+                )}
               </ul>
             )}
           </li>
+          )}
 
           {/* Reports Section */}
+          {hasPermission('reports.view') && (
           <li className="nav-item">
             <a 
               href="#" 
@@ -138,6 +162,7 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
               </ul>
             )}
           </li>
+          )}
         </ul>
       </div>
       

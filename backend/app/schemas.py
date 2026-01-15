@@ -211,3 +211,41 @@ class OperationResponse(OperationCreate):
 
     class Config:
         from_attributes = True
+
+# --- Auth Schemas ---
+
+class PermissionBase(BaseModel):
+    code: str
+    description: str
+
+class PermissionResponse(PermissionBase):
+    id: UUID
+    class Config:
+        from_attributes = True
+
+class RoleBase(BaseModel):
+    name: str
+    description: str | None = None
+
+class RoleCreate(RoleBase):
+    permission_ids: list[UUID] = []
+
+class RoleResponse(RoleBase):
+    id: UUID
+    permissions: list[PermissionResponse] = []
+    class Config:
+        from_attributes = True
+
+class UserBase(BaseModel):
+    username: str
+    full_name: str
+    role_id: UUID | None = None
+
+class UserCreate(UserBase):
+    pass
+
+class UserResponse(UserBase):
+    id: UUID
+    role: RoleResponse | None = None
+    class Config:
+        from_attributes = True

@@ -73,6 +73,7 @@ def run_migrations():
         logger.error(f"Migration engine failed: {e}")
 
 from app.models.category import Category
+from app.models.auth import Permission, Role, User
 
 def seed_categories(db):
     try:
@@ -84,6 +85,74 @@ def seed_categories(db):
             logger.info("Seeded default categories")
     except Exception as e:
         logger.warning(f"Category seeding skipped: {e}")
+
+def seed_rbac(db):
+    try:
+        # 1. Define Permissions
+        perms_data = [
+            ("inventory.manage", "Manage Items, Attributes, Categories"),
+            ("inventory.delete", "Delete Inventory Data"),
+            ("locations.manage", "Manage Locations"),
+            ("manufacturing.manage", "Manage BOMs and Routing"),
+            ("work_order.manage", "Create and Update Work Orders"),
+            ("stock.entry", "Record Stock Movements"),
+            ("reports.view", "View Reports"),
+            ("admin.access", "Full System Access"),
+        ]
+        
+        db_perms = {}
+        for code, desc in perms_data:
+            perm = db.query(Permission).filter(Permission.code == code).first()
+            if not perm:
+                perm = Permission(code=code, description=desc)
+                db.add(perm)
+                db.commit()
+                db.refresh(perm)
+            db_perms[code] = perm
+            
+        # 2. Define Roles
+        roles_data = {
+            "Administrator": ["admin.access", "inventory.manage", "inventory.delete", "locations.manage", "manufacturing.manage", "work_order.manage", "stock.entry", "reports.view"],
+            "Store Manager": ["inventory.manage", "stock.entry", "reports.view"],
+            "Production Manager": ["manufacturing.manage", "work_order.manage", "reports.view"],
+            "Operator": ["work_order.manage"]
+        }
+        
+        for role_name, perm_codes in roles_data.items():
+            role = db.query(Role).filter(Role.name == role_name).first()
+            if not role:
+                role = Role(name=role_name)
+                db.add(role)
+                db.commit()
+                db.refresh(role)
+            
+            # Assign permissions
+            current_perms = role.permissions
+            for code in perm_codes:
+                if db_perms[code] not in current_perms:
+                    role.permissions.append(db_perms[code])
+            db.commit()
+
+        # 3. Seed Users (Simulated)
+        users_data = [
+            ("admin", "System Admin", "Administrator"),
+            ("store_mgr", "Budi Store", "Store Manager"),
+            ("prod_mgr", "Siti Production", "Production Manager"),
+            ("operator", "Joko Worker", "Operator"),
+        ]
+
+        for uname, fname, rname in users_data:
+            user = db.query(User).filter(User.username == uname).first()
+            if not user:
+                role = db.query(Role).filter(Role.name == rname).first()
+                user = User(username=uname, full_name=fname, role_id=role.id)
+                db.add(user)
+                db.commit()
+
+        logger.info("Seeded RBAC (Roles, Permissions, Users)")
+
+    except Exception as e:
+        logger.error(f"RBAC seeding failed: {e}")
 
 def init_db() -> None:
     logger.info("Initializing Database...")
@@ -98,6 +167,7 @@ def init_db() -> None:
     db = SessionLocal()
     try:
         seed_categories(db)
+        seed_rbac(db)
     finally:
         db.close()
         

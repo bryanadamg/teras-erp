@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { useToast } from './Toast';
+import { useUser } from '../context/UserContext';
 
 export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpdateUIStyle }: any) {
   const { showToast } = useToast();
+  const { currentUser, users, setCurrentUser } = useUser();
+  
   const [name, setName] = useState(appName);
   const [style, setStyle] = useState(uiStyle || 'default');
 
@@ -13,6 +16,14 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
       showToast('Settings updated successfully!', 'success');
   };
 
+  const handleUserSwitch = (userId: string) => {
+      const selected = users.find(u => u.id === userId);
+      if (selected) {
+          setCurrentUser(selected);
+          showToast(`Switched to user: ${selected.username} (${selected.role.name})`, 'info');
+      }
+  };
+
   return (
     <div className="row justify-content-center fade-in">
       <div className="col-md-6">
@@ -21,6 +32,28 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
              <h5 className="card-title mb-0">System Settings</h5>
           </div>
           <div className="card-body">
+             
+             {/* User / Role Switcher (Simulation) */}
+             <div className="mb-4 p-3 bg-light rounded border">
+                 <label className="form-label fw-bold small text-uppercase text-muted">Current User (Role Switching)</label>
+                 <select 
+                    className="form-select" 
+                    value={currentUser?.id || ''} 
+                    onChange={(e) => handleUserSwitch(e.target.value)}
+                 >
+                     {users.map(u => (
+                         <option key={u.id} value={u.id}>
+                             {u.full_name} — {u.role?.name || 'No Role'}
+                         </option>
+                     ))}
+                 </select>
+                 <div className="form-text small mt-2">
+                     <strong>Permissions:</strong> {currentUser?.role?.permissions.map(p => p.code).join(', ') || 'None'}
+                 </div>
+             </div>
+
+             <hr className="my-4"/>
+
              <form onSubmit={handleSubmit}>
                  <div className="mb-3">
                      <label className="form-label">Application Name</label>
