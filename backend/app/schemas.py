@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from uuid import UUID
 from datetime import datetime
+from typing import Optional
 
 class VariantCreate(BaseModel):
     name: str
@@ -243,6 +244,10 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     pass
+
+class UserUpdate(BaseModel):
+    full_name: Optional[str] = None
+    role_id: Optional[UUID] = None
 
 class UserResponse(UserBase):
     id: UUID
