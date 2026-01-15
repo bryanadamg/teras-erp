@@ -11,11 +11,7 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
   const { t } = useLanguage();
   const [inventoryExpanded, setInventoryExpanded] = useState(true);
   const [engineeringExpanded, setEngineeringExpanded] = useState(true);
-
-  const menuItems = [
-    { id: 'stock', label: t('stock_entry'), icon: 'bi-arrow-left-right' },
-    { id: 'reports', label: t('reports'), icon: 'bi-bar-chart' },
-  ];
+  const [reportsExpanded, setReportsExpanded] = useState(true);
 
   return (
     <div className="sidebar d-flex flex-column justify-content-between">
@@ -30,7 +26,7 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
           <li className="nav-item">
             <a 
               href="#" 
-              className={`nav-link d-flex justify-content-between align-items-center ${activeTab === 'inventory' || activeTab === 'attributes' || activeTab === 'categories' || activeTab === 'locations' ? 'active' : ''}`}
+              className={`nav-link d-flex justify-content-between align-items-center ${['inventory', 'attributes', 'categories', 'locations', 'stock'].includes(activeTab) ? 'active' : ''}`}
               onClick={(e) => { e.preventDefault(); setInventoryExpanded(!inventoryExpanded); }}
             >
               <div className="d-flex align-items-center gap-2">
@@ -45,6 +41,11 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
                 <li>
                   <a href="#" className={`nav-link py-2 small ${activeTab === 'inventory' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('inventory'); }}>
                     <i className="bi bi-list-ul me-2"></i>{t('item_inventory')}
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className={`nav-link py-2 small ${activeTab === 'stock' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('stock'); }}>
+                    <i className="bi bi-arrow-left-right me-2"></i>{t('stock_entry')}
                   </a>
                 </li>
                 <li>
@@ -70,7 +71,7 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
           <li className="nav-item">
             <a 
               href="#" 
-              className={`nav-link d-flex justify-content-between align-items-center ${activeTab === 'bom' || activeTab === 'routing' || activeTab === 'manufacturing' ? 'active' : ''}`}
+              className={`nav-link d-flex justify-content-between align-items-center ${['bom', 'routing', 'manufacturing'].includes(activeTab) ? 'active' : ''}`}
               onClick={(e) => { e.preventDefault(); setEngineeringExpanded(!engineeringExpanded); }}
             >
               <div className="d-flex align-items-center gap-2">
@@ -101,18 +102,30 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
             )}
           </li>
 
-          {menuItems.map((item) => (
-            <li className="nav-item" key={item.id}>
-              <a 
-                href="#" 
-                className={`nav-link ${activeTab === item.id ? 'active' : ''}`}
-                onClick={(e) => { e.preventDefault(); setActiveTab(item.id); }}
-              >
-                <i className={`bi ${item.icon}`}></i>
-                {item.label}
-              </a>
-            </li>
-          ))}
+          {/* Reports Section */}
+          <li className="nav-item">
+            <a 
+              href="#" 
+              className={`nav-link d-flex justify-content-between align-items-center ${activeTab === 'reports' ? 'active' : ''}`}
+              onClick={(e) => { e.preventDefault(); setReportsExpanded(!reportsExpanded); }}
+            >
+              <div className="d-flex align-items-center gap-2">
+                <i className="bi bi-bar-chart"></i>
+                <span>{t('reports')}</span>
+              </div>
+              <i className={`bi bi-chevron-${reportsExpanded ? 'down' : 'right'} small`}></i>
+            </a>
+            
+            {reportsExpanded && (
+              <ul className="nav flex-column ps-4 bg-light bg-opacity-50">
+                <li>
+                  <a href="#" className={`nav-link py-2 small ${activeTab === 'reports' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('reports'); }}>
+                    <i className="bi bi-journal-text me-2"></i>{t('stock_ledger') || 'Stock Ledger'}
+                  </a>
+                </li>
+              </ul>
+            )}
+          </li>
         </ul>
       </div>
       

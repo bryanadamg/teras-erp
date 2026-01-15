@@ -24,6 +24,7 @@ const translations = {
         'work_orders': 'Work Orders',
         'stock_entry': 'Stock Entry',
         'reports': 'Reports',
+        'stock_ledger': 'Stock Ledger',
         'settings': 'Settings',
         'account_settings': 'Account Settings',
         
@@ -92,6 +93,7 @@ const translations = {
         'work_orders': 'Surat Perintah Kerja (SPK)',
         'stock_entry': 'Input Stok',
         'reports': 'Laporan',
+        'stock_ledger': 'Buku Besar Stok',
         'settings': 'Pengaturan',
         'account_settings': 'Pengaturan Akun',
         
