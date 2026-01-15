@@ -4,40 +4,43 @@
 
 ## Core Capabilities
 
+### 📊 Insightful Business Dashboard (New)
+*   **Operational KPIs**: Instant visibility into total SKUs, low-stock alerts, pending orders, and active production.
+*   **Real-time Activity Feed**: Live tracking of the latest stock movements and inventory adjustments.
+*   **Production Monitoring**: Quick-glance table of ongoing Work Orders with deadline warnings and status tracking.
+
 ### 📦 Advanced Inventory & Variation Control
 *   **Multi-Dimensional Attributes**: Link items to multiple attribute types (e.g., Color *and* Size). Define specific values (Red, XL) dynamically during transactions.
-*   **Lifecycle Item Management**: Full control over your item master data. Create, edit, and refine item details (Code, Name, UOM) at any stage.
-*   **Sample-to-Production Lineage**: Seamlessly track the transition from customer samples to finished production goods with integrated relationship mapping.
-*   **Dynamic Categorization**: Organize inventory with custom categories (e.g., Raw Materials, WIP, Finished Goods) managed in a dedicated metadata suite.
-*   **Multi-Location Warehousing**: Dedicated management for tracking real-time stock balances across unlimited physical or logical warehouses.
+*   **Lifecycle Item Management**: Full control over your item master data. Create, edit, and delete item details (Code, Name, UOM) with ease.
+*   **Strict Inventory Integrity**: Built-in safeguards prevent negative stock balances and ensure material availability before production begins.
+*   **Multi-Location Warehousing**: Manage real-time stock levels across unlimited physical or logical storage locations.
 
 ### 🏭 Manufacturing & Engineering (MES)
-*   **Dynamic Bill of Materials (BOM)**: Engineering-grade recipe management with support for multi-variant inputs and outputs.
-*   **Advanced Routing & Operations**: Define specific **Work Centers** (Stations) and **Standard Operations** (Steps). Link these processes directly to your BOMs to create detailed production paths.
-*   **Production Execution**: Streamlined Work Order tracking. Generate orders directly from active BOMs and monitor progress (Pending → In Progress → Completed).
-*   **Automated Stock Reconciliation**: Completing a Work Order automatically deducts raw materials and adds finished goods to your inventory based on the BOM definition.
+*   **Hierarchical Recipe Visualization**: A visual expandable tree-style display for nested BOMs, allowing you to explore complex sub-assemblies and downstream recipes.
+*   **Advanced Routing & Operations**: Define factory **Work Centers** (Stations) and **Standard Operations** (Steps). Map detailed production paths directly within your BOMs.
+*   **Production Execution**: Full-lifecycle Work Order tracking from 'Pending' to 'Completed', with automated timestamps for start and finish times.
+*   **Automated Stock Reconciliation**: One-click material deduction and finished good addition upon Work Order completion based on engineering definitions.
 
 ### ⚙️ Intelligent System Automation
-*   **Configurable Code Engine**: Customize how the system generates unique IDs for BOMs and Work Orders. Combine prefixes, suffixes, item metadata, and timestamps into a standardized format.
-*   **Smart Validation**: Intelligent rejection of duplicate codes with automatic unique suggestions (e.g., `ITEM-1`, `ITEM-2`) that preserve your form progress.
-*   **Professional Reporting**: Audit-ready Stock Ledger and Production reports with granular date-range filtering and optimized "one-click" print layouts.
+*   **Configurable Code Engine**: Robust auto-generation logic for BOM and Work Order codes using prefixes, suffixes, metadata, and timestamps.
+*   **Smart Validation**: Intelligent rejection of duplicate IDs with unique code suggestions (e.g., `ITEM-1`, `ITEM-2`) that preserve your form progress.
+*   **Professional Reporting**: Audit-ready Stock Ledger and Production reports with granular date-range filtering and high-fidelity print layouts.
 
 ### 🖥️ Adaptive User Experience
-*   **Multi-Language Support (i18n)**: Instantly switch between **English** and **Indonesian** (Bahasa Indonesia) for a localized client experience without affecting backend data integrity.
-*   **Themed Interface Engine**: Choose between four distinct UI/UX styles:
+*   **Multi-Language Support (i18n)**: Instantly toggle between **English** and **Indonesian** (Bahasa Indonesia).
+*   **Themed Interface Engine**: Choose between four distinct styles:
     *   **Default (Corporate)**: Professional and balanced.
-    *   **Modern**: Soft edges and contemporary spacing.
+    *   **Modern**: Contemporary soft edges and spacing.
     *   **Compact**: High-density data view for power users.
-    *   **Classic (XP)**: A complete Windows XP-inspired overhaul for users comfortable with legacy desktop applications.
-*   **Expandable Navigation**: Intuitive sidebar with nested management folders for a clean, logical workspace.
-*   **Toast Notification System**: Modern, non-intrusive feedback system that adapts visually to your selected UI theme.
+    *   **Classic (XP)**: A nostalgic, high-efficiency overhaul for users familiar with legacy desktop applications.
+*   **Toast Notification System**: Non-intrusive feedback system that adapts visually to your selected UI theme.
 
 ## Technical Architecture
 
 *   **Backend**: Python 3.11+, FastAPI, SQLAlchemy (ORM), PostgreSQL.
 *   **Frontend**: TypeScript, Next.js 14, React, Bootstrap 5 (with Bootstrap Icons).
 *   **Infrastructure**: Fully containerized with Docker & Docker Compose.
-*   **Data Persistence**: Robust host-mounted PostgreSQL volumes with subdirectory mapping for high stability on Windows/Linux.
+*   **Data Persistence**: Robust host-mounted PostgreSQL volumes with subdirectory mapping for high stability.
 
 ## Getting Started
 
@@ -56,39 +59,21 @@
 
 ## Future Industrial Modules (Roadmap)
 
-To transition Teras ERP into a full-scale industrial solution, the following modules are planned:
-
 1.  **Procurement & Supplier Management (Source to Pay)**
-    *   **Supplier Master**: Manage vendor details and lead times.
-    *   **Purchase Orders (PO)**: Formal material requests.
-    *   **Goods Receipt Note (GRN)**: Link receipts to POs and auto-increment stock.
-
+    *   Supplier Master, Purchase Orders (PO), and Goods Receipt Notes (GRN).
 2.  **Sales & Customer Management (Order to Cash)**
-    *   **Customer Master**: Client management.
-    *   **Sales Orders (SO)**: Stock allocation.
-    *   **Delivery Notes**: Auto-deduct stock upon shipment.
-
+    *   Customer Master, Sales Orders (SO), and Delivery Notes.
 3.  **Traceability (Batch/Lot & Serial Tracking)**
-    *   Essential for Food, Pharma, and Automotive sectors.
-    *   Track **Batch Numbers** and **Expiry Dates** throughout the supply chain.
-
+    *   Track Batch Numbers and Expiry Dates throughout the supply chain.
 4.  **Costing Engine (Financials)**
-    *   **Valuation Methods**: FIFO / Weighted Average.
-    *   **WIP Valuation**: Real-time value of in-progress goods.
-    *   **Landed Cost**: Incorporate shipping/customs fees.
-
+    *   FIFO / Weighted Average valuation and real-time WIP calculation.
 5.  **Quality Control (QC)**
-    *   **Inspection Criteria**: Pass/Fail parameters.
-    *   **Checkpoints**: Inward, In-Process, and Final QC.
-
+    *   Inspection Criteria and Checkpoints (Inward, In-Process, Final).
 6.  **User Roles & Permissions (RBAC)**
-    *   Granular access control (e.g., Store Manager vs. Production Manager).
+    *   Granular access control and segregation of duties.
 
 ## License
 
 This project is currently licensed under the **MIT License**.
 
 Copyright (c) 2026 Teras Systems.
-
----
-*Note: While currently open-source, future versions of Teras ERP or specific enterprise modules may transition to a proprietary licensing model. The codebase provided in this repository is and will remain available under the MIT License.*
