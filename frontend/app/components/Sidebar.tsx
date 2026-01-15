@@ -11,8 +11,6 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
   const [engineeringExpanded, setEngineeringExpanded] = useState(true);
 
   const menuItems = [
-    { id: 'locations', label: 'Locations', icon: 'bi-geo-alt' },
-    { id: 'manufacturing', label: 'Manufacturing', icon: 'bi-gear-wide-connected' },
     { id: 'stock', label: 'Stock Entry', icon: 'bi-arrow-left-right' },
     { id: 'reports', label: 'Reports', icon: 'bi-bar-chart' },
   ];
@@ -30,7 +28,7 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
           <li className="nav-item">
             <a 
               href="#" 
-              className={`nav-link d-flex justify-content-between align-items-center ${activeTab.startsWith('inventory') ? 'active' : ''}`}
+              className={`nav-link d-flex justify-content-between align-items-center ${activeTab === 'inventory' || activeTab === 'attributes' || activeTab === 'categories' || activeTab === 'locations' ? 'active' : ''}`}
               onClick={(e) => { e.preventDefault(); setInventoryExpanded(!inventoryExpanded); }}
             >
               <div className="d-flex align-items-center gap-2">
@@ -57,6 +55,11 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
                     <i className="bi bi-grid me-2"></i>Categories
                   </a>
                 </li>
+                <li>
+                  <a href="#" className={`nav-link py-2 small ${activeTab === 'locations' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('locations'); }}>
+                    <i className="bi bi-geo-alt me-2"></i>Locations
+                  </a>
+                </li>
               </ul>
             )}
           </li>
@@ -65,7 +68,7 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
           <li className="nav-item">
             <a 
               href="#" 
-              className={`nav-link d-flex justify-content-between align-items-center ${activeTab.startsWith('bom') || activeTab.startsWith('routing') ? 'active' : ''}`}
+              className={`nav-link d-flex justify-content-between align-items-center ${activeTab === 'bom' || activeTab === 'routing' || activeTab === 'manufacturing' ? 'active' : ''}`}
               onClick={(e) => { e.preventDefault(); setEngineeringExpanded(!engineeringExpanded); }}
             >
               <div className="d-flex align-items-center gap-2">
@@ -85,6 +88,11 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
                 <li>
                   <a href="#" className={`nav-link py-2 small ${activeTab === 'routing' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('routing'); }}>
                     <i className="bi bi-signpost-split me-2"></i>Routing & Ops
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className={`nav-link py-2 small ${activeTab === 'manufacturing' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('manufacturing'); }}>
+                    <i className="bi bi-gear-wide-connected me-2"></i>Work Orders
                   </a>
                 </li>
               </ul>
