@@ -333,7 +333,7 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
                                                       </button>
                                                   )}
                                                   {wo.status === 'IN_PROGRESS' && (
-                                                      <button className="btn btn-sm btn-success text-white shadow-sm" onClick={() => onUpdateStatus(wo.id, 'COMPLETED')}>
+                                                      <button className="btn btn-sm btn-success shadow-sm" onClick={() => onUpdateStatus(wo.id, 'COMPLETED')}>
                                                           <i className="bi bi-check-lg me-1"></i>{t('finish')}
                                                       </button>
                                                   )}

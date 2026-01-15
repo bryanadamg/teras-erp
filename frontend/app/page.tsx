@@ -325,7 +325,12 @@ export default function Home() {
       });
 
       if (res.ok) {
-          showToast('Work Order Created successfully!', 'success');
+          const createdWO = await res.json();
+          if (createdWO.is_material_available === false) {
+              showToast('Work Order created, but insufficient materials!', 'warning');
+          } else {
+              showToast('Work Order Created successfully!', 'success');
+          }
           fetchData();
       } else {
           const err = await res.json();
@@ -428,7 +433,7 @@ export default function Home() {
           {/* Settings shortcut for Classic theme (since header is hidden) */}
           {uiStyle === 'classic' && activeTab !== 'settings' && (
               <div className="text-end mb-2">
-                  <button className="btn btn-sm btn-light border" onClick={() => setActiveTab('settings')}>
+                  <button className="btn btn-sm btn-light" onClick={() => setActiveTab('settings')}>
                       <i className="bi bi-person-gear me-1"></i>{t('account_settings')}
                   </button>
               </div>
