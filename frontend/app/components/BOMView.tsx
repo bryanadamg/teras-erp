@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
 import { useToast } from './Toast';
 
-export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
+export default function BOMView({ items, boms, attributes, workCenters, operations, onCreateBOM }: any) {
   const { showToast } = useToast();
   const [newBOM, setNewBOM] = useState({
       code: '',
@@ -10,9 +10,11 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
       item_code: '',
       attribute_value_ids: [] as string[],
       qty: 1.0,
-      lines: [] as any[]
+      lines: [] as any[],
+      operations: [] as any[]
   });
   const [newBOMLine, setNewBOMLine] = useState({ item_code: '', attribute_value_ids: [] as string[], qty: 0 });
+  const [newBOMOp, setNewBOMOp] = useState({ operation_id: '', work_center_id: '', sequence: 10, time_minutes: 0 });
   
   // Config State
   const [isConfigOpen, setIsConfigOpen] = useState(false);
@@ -54,9 +56,7 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
       if (config.includeItemCode && itemCode) parts.push(itemCode);
       
       if (config.includeVariant && attributeValueIds.length > 0) {
-          // Find the attribute value names for selected attributes
           const valueNames: string[] = [];
-          
           for (const valId of attributeValueIds) {
               for (const attr of attributes) {
                   const val = attr.values.find((v: any) => v.id === valId);
@@ -96,20 +96,15 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
 
   const handleValueChange = (valId: string, attrId: string, isHeader: boolean) => {
       if (isHeader) {
-          // Update the list of selected values for the header product
-          // We need to replace the value for this specific attribute type if it exists
-          const currentItem = items.find((i: any) => i.code === newBOM.item_code);
           const attr = attributes.find((a: any) => a.id === attrId);
           if (!attr) return;
 
-          // Find current value ID that belongs to this attribute and remove it
           const otherValues = newBOM.attribute_value_ids.filter(vid => !attr.values.some((v:any) => v.id === vid));
           const newValues = valId ? [...otherValues, valId] : otherValues;
           
           const suggested = suggestBOMCode(newBOM.item_code, newValues);
           setNewBOM({...newBOM, attribute_value_ids: newValues, code: suggested});
       } else {
-          const currentItem = items.find((i: any) => i.code === newBOMLine.item_code);
           const attr = attributes.find((a: any) => a.id === attrId);
           if (!attr) return;
 
@@ -123,6 +118,12 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
       if (!newBOMLine.item_code || newBOMLine.qty <= 0) return;
       setNewBOM({ ...newBOM, lines: [...newBOM.lines, { ...newBOMLine }] });
       setNewBOMLine({ item_code: '', attribute_value_ids: [], qty: 0 });
+  };
+
+  const handleAddOpToBOM = () => {
+      if (!newBOMOp.operation_id) return;
+      setNewBOM({ ...newBOM, operations: [...newBOM.operations, { ...newBOMOp }] });
+      setNewBOMOp({ operation_id: '', work_center_id: '', sequence: newBOMOp.sequence + 10, time_minutes: 0 });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -145,7 +146,7 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
           setNewBOM({ ...newBOM, code: suggestedCode });
       } else if (res && res.ok) {
           showToast('BOM created successfully!', 'success');
-          setNewBOM({ code: '', description: '', item_code: '', attribute_value_ids: [], qty: 1.0, lines: [] });
+          setNewBOM({ code: '', description: '', item_code: '', attribute_value_ids: [], qty: 1.0, lines: [], operations: [] });
       } else {
           showToast('Failed to create BOM', 'danger');
       }
@@ -153,8 +154,11 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
 
   // Helpers
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
+  const getOpName = (id: string) => operations.find((o: any) => o.id === id)?.name || id;
+  const getWCName = (id: string) => workCenters.find((w: any) => w.id === id)?.name || id;
   
   const getAttributeValueName = (valId: string) => {
+      if (!valId || !attributes) return '-';
       for (const attr of attributes) {
           const val = attr.values.find((v: any) => v.id === valId);
           if (val) return val.value;
@@ -187,7 +191,7 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
              <div className="card-header bg-warning bg-opacity-10 text-warning-emphasis">
                  <h5 className="card-title mb-0"><i className="bi bi-file-earmark-plus me-2"></i>Create Recipe</h5>
              </div>
-             <div className="card-body">
+             <div className="card-body" style={{maxHeight: 'calc(100vh - 150px)', overflowY: 'auto'}}>
                 <form onSubmit={handleSubmit}>
                     <div className="row g-3 mb-3">
                         <div className="col-md-8">
@@ -223,6 +227,53 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
                                 </select>
                             </div>
                         ))}
+                    </div>
+
+                    {/* Routing Section */}
+                    <h6 className="small text-uppercase text-muted fw-bold mb-3">Routing & Operations</h6>
+                    <div className="bg-light p-3 rounded-3 mb-4 border border-dashed">
+                        <div className="row g-2 mb-3 align-items-end">
+                            <div className="col-2">
+                                <label className="form-label small text-muted">Seq</label>
+                                <input className="form-control form-control-sm" value={newBOMOp.sequence} onChange={e => setNewBOMOp({...newBOMOp, sequence: parseInt(e.target.value)})} />
+                            </div>
+                            <div className="col-5">
+                                <label className="form-label small text-muted">Operation</label>
+                                <select className="form-select form-select-sm" value={newBOMOp.operation_id} onChange={e => setNewBOMOp({...newBOMOp, operation_id: e.target.value})}>
+                                    <option value="">Select...</option>
+                                    {(operations || []).map((op: any) => <option key={op.id} value={op.id}>{op.name}</option>)}
+                                </select>
+                            </div>
+                            <div className="col-5">
+                                <label className="form-label small text-muted">Station</label>
+                                <select className="form-select form-select-sm" value={newBOMOp.work_center_id} onChange={e => setNewBOMOp({...newBOMOp, work_center_id: e.target.value})}>
+                                    <option value="">Optional...</option>
+                                    {(workCenters || []).map((wc: any) => <option key={wc.id} value={wc.id}>{wc.name}</option>)}
+                                </select>
+                            </div>
+                            <div className="col-4">
+                                <label className="form-label small text-muted">Time (m)</label>
+                                <input type="number" className="form-control form-control-sm" value={newBOMOp.time_minutes} onChange={e => setNewBOMOp({...newBOMOp, time_minutes: parseFloat(e.target.value)})} />
+                            </div>
+                            <div className="col-8">
+                                <button type="button" className="btn btn-sm btn-info w-100 text-white" onClick={handleAddOpToBOM} disabled={!newBOMOp.operation_id}>
+                                    <i className="bi bi-plus-lg me-1"></i> Add Step
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="mt-2">
+                            {(newBOM.operations || []).sort((a:any,b:any) => a.sequence - b.sequence).map((op: any, idx) => (
+                                <div key={idx} className="d-flex justify-content-between align-items-center p-2 bg-white rounded border mb-1 small shadow-sm">
+                                    <div className="d-flex align-items-center gap-2">
+                                        <span className="badge bg-secondary">{op.sequence}</span>
+                                        <span className="fw-bold">{getOpName(op.operation_id)}</span> 
+                                        {op.work_center_id && <span className="text-muted fst-italic">@ {getWCName(op.work_center_id)}</span>}
+                                    </div>
+                                    <span className="text-muted">{op.time_minutes}m</span>
+                                </div>
+                            ))}
+                        </div>
                     </div>
 
                     <h6 className="small text-uppercase text-muted fw-bold mb-3">Materials (Lines)</h6>
@@ -265,7 +316,7 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
                                     <div>
                                         <span className="fw-bold">{line.item_code}</span> 
                                         <div className="text-muted" style={{fontSize: '0.75rem'}}>
-                                            {line.attribute_value_ids.map(getAttributeValueName).join(', ') || 'No variations'}
+                                            {(line.attribute_value_ids || []).map(getAttributeValueName).join(', ') || 'No variations'}
                                         </div>
                                     </div>
                                     <span className="badge bg-secondary">{line.qty}</span>
@@ -286,13 +337,14 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
              <div className="card-header bg-white">
                  <h5 className="card-title mb-0">Active BOMs</h5>
              </div>
-             <div className="card-body p-0">
+             <div className="card-body p-0" style={{maxHeight: 'calc(100vh - 150px)', overflowY: 'auto'}}>
                 <div className="table-responsive">
                     <table className="table table-hover align-middle mb-0">
                         <thead className="table-light">
                             <tr>
                                 <th className="ps-4">Code</th>
                                 <th>Product</th>
+                                <th>Routing</th>
                                 <th className="text-end">Output</th>
                                 <th>Materials</th>
                             </tr>
@@ -304,8 +356,19 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
                                     <td>
                                         <div className="fw-medium">{getItemName(bom.item_id)}</div>
                                         <div className="text-muted small">
-                                            {bom.attribute_value_ids.map(getAttributeValueName).join(', ') || '-'}
+                                            {(bom.attribute_value_ids || []).map(getAttributeValueName).join(', ') || '-'}
                                         </div>
+                                    </td>
+                                    <td>
+                                        {bom.operations && bom.operations.length > 0 ? (
+                                            <div className="small">
+                                                {[...bom.operations].sort((a:any,b:any) => a.sequence - b.sequence).map((op: any) => (
+                                                    <div key={op.id} className="text-muted">
+                                                        {op.sequence}. {getOpName(op.operation_id)}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : <span className="text-muted small">-</span>}
                                     </td>
                                     <td className="text-end fw-bold">{bom.qty}</td>
                                     <td>
@@ -314,7 +377,7 @@ export default function BOMView({ items, boms, attributes, onCreateBOM }: any) {
                                                 <div key={line.id} className="small border-bottom pb-1 border-light">
                                                     <span className="fw-bold text-primary">{line.qty}</span> x {getItemName(line.item_id)}
                                                     <div className="text-muted" style={{fontSize: '0.7rem'}}>
-                                                        {line.attribute_value_ids.map(getAttributeValueName).join(', ')}
+                                                        {(line.attribute_value_ids || []).map(getAttributeValueName).join(', ')}
                                                     </div>
                                                 </div>
                                             ))}
