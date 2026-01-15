@@ -16,7 +16,6 @@ export default function AttributesView({
   
   // Edit Mode State
   const [editingAttr, setEditingAttr] = useState<any>(null);
-  const [editValueText, setEditValueText] = useState('');
   const [newValueForEdit, setNewValueForEdit] = useState('');
 
   // Declare activeAttribute early so it can be used for sequence logic
@@ -85,24 +84,26 @@ export default function AttributesView({
   };
 
   return (
-     <div className="row justify-content-center fade-in">
-        <div className="col-md-10">
-           <div className="card h-100">
-              <div className="card-header bg-white d-flex justify-content-between align-items-center">
-                 <div>
-                    <h5 className="card-title mb-0">{t('attributes')}</h5>
-                    <p className="text-muted small mb-0 mt-1">Manage reusable variant sets like Size, Color, or Year.</p>
-                 </div>
-                 {activeAttribute && <button className="btn btn-sm btn-outline-secondary" onClick={cancelEditing}>{t('cancel')}</button>}
+     <div className="row g-4 fade-in">
+        {/* Left Column: Create / Edit */}
+        <div className="col-md-5">
+           <div className={`card h-100 shadow-sm border-0 ${activeAttribute ? 'border-primary border-2' : ''}`}>
+              <div className={`card-header ${activeAttribute ? 'bg-primary bg-opacity-10 text-primary-emphasis' : 'bg-success bg-opacity-10 text-success-emphasis'}`}>
+                 <h5 className="card-title mb-0">
+                     {activeAttribute ? (
+                         <span><i className="bi bi-pencil-square me-2"></i>{t('edit')} Template</span>
+                     ) : (
+                         <span><i className="bi bi-plus-circle me-2"></i>{t('create')} Template</span>
+                     )}
+                 </h5>
               </div>
               <div className="card-body">
-                 
-                 {/* EDITOR MODE */}
                  {activeAttribute ? (
-                     <div className="mb-4 p-4 bg-light rounded-3 border border-primary border-opacity-25">
+                     // --- EDIT MODE ---
+                     <div>
                          <div className="d-flex justify-content-between align-items-center mb-3">
-                             <h6 className="text-primary fw-bold mb-0">{t('edit')}: {activeAttribute.name}</h6>
-                             <button className="btn-close" onClick={cancelEditing}></button>
+                             <span className="badge bg-primary text-white">{activeAttribute.name}</span>
+                             <button className="btn btn-sm btn-outline-secondary" onClick={cancelEditing}>{t('cancel')}</button>
                          </div>
                          
                          <div className="mb-3">
@@ -117,8 +118,8 @@ export default function AttributesView({
                              </div>
                          </div>
 
-                         <label className="form-label small">Current Values</label>
-                         <div className="list-group mb-3">
+                         <label className="form-label small">Values</label>
+                         <div className="list-group mb-3" style={{maxHeight: '300px', overflowY: 'auto'}}>
                              {activeAttribute.values.map((val: any) => (
                                  <div key={val.id} className="list-group-item d-flex justify-content-between align-items-center p-2">
                                      <input 
@@ -153,71 +154,76 @@ export default function AttributesView({
                          </div>
                      </div>
                  ) : (
-                     /* CREATION MODE */
-                     <form onSubmit={handleCreateSubmit} className="mb-5 p-4 bg-light rounded-3 border border-dashed">
-                        <div className="row g-3 align-items-end">
-                            <div className="col-md-5">
-                               <label className="form-label fw-bold">New Template Name</label>
-                               <input className="form-control" placeholder="e.g. Size" value={newAttribute.name} onChange={e => setNewAttribute({...newAttribute, name: e.target.value})} required />
-                            </div>
-                            <div className="col-md-7">
-                               <label className="form-label fw-bold">Values</label>
-                               <div className="input-group">
-                                  <input className="form-control" placeholder="Add value (e.g. S, M, L)" value={newAttributeValue} onChange={e => setNewAttributeValue(e.target.value)} />
-                                  <button type="button" className="btn btn-secondary" onClick={handleAddValueToNewAttribute}>{t('add')}</button>
-                                  {nextValForNew !== null && (
-                                      <button type="button" className="btn btn-outline-success" onClick={handleAddNextToNew}>
-                                          + {nextValForNew}
-                                      </button>
-                                  )}
-                               </div>
-                            </div>
+                     // --- CREATE MODE ---
+                     <form onSubmit={handleCreateSubmit}>
+                        <div className="mb-3">
+                           <label className="form-label small text-muted">Name</label>
+                           <input className="form-control" placeholder="e.g. Size, Color" value={newAttribute.name} onChange={e => setNewAttribute({...newAttribute, name: e.target.value})} required />
                         </div>
                         
-                        <div className="mt-3 d-flex justify-content-between align-items-center">
-                            <div className="d-flex flex-wrap gap-2">
+                        <div className="mb-3">
+                           <label className="form-label small text-muted">Initial Values</label>
+                           <div className="input-group mb-2">
+                              <input className="form-control" placeholder="Value (e.g. S, M, L)" value={newAttributeValue} onChange={e => setNewAttributeValue(e.target.value)} />
+                              <button type="button" className="btn btn-secondary" onClick={handleAddValueToNewAttribute}>{t('add')}</button>
+                              {nextValForNew !== null && (
+                                  <button type="button" className="btn btn-outline-success" onClick={handleAddNextToNew}>
+                                      + {nextValForNew}
+                                  </button>
+                              )}
+                           </div>
+                           
+                           <div className="d-flex flex-wrap gap-2 p-2 border rounded bg-light min-h-50">
                                 {newAttribute.values.map((v, i) => (
-                                    <span key={i} className="badge bg-white text-dark border">{v.value}</span>
+                                    <span key={i} className="badge bg-white text-dark border shadow-sm">{v.value}</span>
                                 ))}
-                            </div>
-                            <button type="submit" className="btn btn-primary px-4">{t('create')}</button>
+                                {newAttribute.values.length === 0 && <small className="text-muted fst-italic">No values added</small>}
+                           </div>
                         </div>
+                        
+                        <button type="submit" className="btn btn-success w-100 fw-bold shadow-sm">{t('create')}</button>
                      </form>
                  )}
+              </div>
+           </div>
+        </div>
 
-                 {/* LIST */}
-                 <h6 className="text-uppercase text-muted small fw-bold mb-3">Existing Templates</h6>
-                 <div className="row g-3">
+        {/* Right Column: List */}
+        <div className="col-md-7">
+           <div className="card h-100 shadow-sm border-0">
+              <div className="card-header bg-white">
+                 <h5 className="card-title mb-0">{t('attributes')}</h5>
+              </div>
+              <div className="card-body p-0" style={{maxHeight: 'calc(100vh - 150px)', overflowY: 'auto'}}>
+                 <div className="list-group list-group-flush">
                     {attributes.map((attr: any) => (
-                       <div key={attr.id} className="col-md-4">
-                           <div 
-                                className={`p-3 border rounded-3 h-100 position-relative ${activeAttribute?.id === attr.id ? 'border-primary bg-primary bg-opacity-10' : 'bg-white hover-shadow'}`} 
-                                style={{cursor: 'pointer', transition: 'all 0.2s'}}
-                                onClick={() => startEditing(attr)}
-                           >
-                              <div className="d-flex w-100 justify-content-between mb-2">
+                       <div 
+                            key={attr.id} 
+                            className={`list-group-item list-group-item-action d-flex justify-content-between align-items-start p-3 ${activeAttribute?.id === attr.id ? 'active' : ''}`}
+                            onClick={() => startEditing(attr)}
+                            style={{cursor: 'pointer'}}
+                       >
+                          <div className="flex-grow-1 me-3">
+                             <div className="d-flex justify-content-between mb-1">
                                  <h6 className="mb-0 fw-bold">{attr.name}</h6>
-                                 <div className="d-flex align-items-center gap-2">
-                                     <span className="badge bg-light text-muted border">{attr.values.length}</span>
-                                     <button className="btn btn-sm p-0 text-danger" onClick={(e) => { e.stopPropagation(); onDeleteAttribute(attr.id); }}>
-                                         <i className="bi bi-trash"></i>
-                                     </button>
-                                 </div>
-                              </div>
-                              <div className="d-flex flex-wrap gap-1">
-                                 {attr.values.slice(0, 5).map((v: any) => (
-                                    <span key={v.id} className="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-10 small">{v.value}</span>
+                                 <span className={`badge ${activeAttribute?.id === attr.id ? 'bg-light text-primary' : 'bg-light text-dark border'}`}>{attr.values.length}</span>
+                             </div>
+                             <div className="d-flex flex-wrap gap-1">
+                                 {attr.values.slice(0, 8).map((v: any) => (
+                                    <span key={v.id} className={`badge small ${activeAttribute?.id === attr.id ? 'bg-primary border border-white' : 'bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-10'}`}>{v.value}</span>
                                  ))}
-                                 {attr.values.length > 5 && <span className="badge text-muted">+{attr.values.length - 5}</span>}
-                              </div>
-                              
-                              <div className="position-absolute top-0 end-0 p-2">
-                                  <i className="bi bi-pencil-square text-muted opacity-50"></i>
-                              </div>
-                           </div>
+                                 {attr.values.length > 8 && <span className="badge text-muted">...</span>}
+                             </div>
+                          </div>
+                          
+                          <div className="d-flex flex-column gap-2" onClick={(e) => e.stopPropagation()}>
+                              <button className="btn btn-sm btn-link text-danger p-0" title={t('delete')} onClick={() => onDeleteAttribute(attr.id)}>
+                                  <i className="bi bi-trash fs-6"></i>
+                              </button>
+                          </div>
                        </div>
                     ))}
-                    {attributes.length === 0 && <div className="col-12 text-center text-muted py-4">No templates defined yet.</div>}
+                    {attributes.length === 0 && <div className="text-center text-muted py-5">No templates defined yet.</div>}
                  </div>
               </div>
            </div>

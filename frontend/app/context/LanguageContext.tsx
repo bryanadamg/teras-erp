@@ -12,6 +12,7 @@ interface LanguageContextType {
 
 const translations = {
     en: {
+        'dashboard': 'Dashboard',
         // Sidebar
         'inventory': 'Inventory',
         'item_inventory': 'Item Inventory',
@@ -81,6 +82,7 @@ const translations = {
         'powered_by': 'Powered by',
     },
     id: {
+        'dashboard': 'Dasbor',
         // Sidebar
         'inventory': 'Inventaris',
         'item_inventory': 'Daftar Barang',

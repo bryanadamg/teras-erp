@@ -18,7 +18,7 @@ export default function DashboardView({ items, stockBalance, workOrders, stockEn
 
   return (
     <div className="fade-in">
-        <h4 className="fw-bold mb-4">{t('dashboard') || 'Dashboard'}</h4>
+        <h4 className="fw-bold mb-4 text-capitalize">{t('dashboard') || 'Dashboard'}</h4>
         
         {/* KPI Cards */}
         <div className="row g-4 mb-4">
