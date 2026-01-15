@@ -132,7 +132,8 @@ body {
 }
 
 /* Card Overrides (Panels) */
-.ui-style-classic .card {
+.ui-style-classic .card,
+.ui-style-classic .modal-content {
   background-color: var(--win-face) !important;
   border: 1px solid var(--win-border-dark) !important;
   border-top-color: var(--win-border-light) !important;
@@ -142,11 +143,35 @@ body {
   transform: none !important;
 }
 
-.ui-style-classic .card-header {
+.ui-style-classic .card-header,
+.ui-style-classic .modal-header,
+.ui-style-classic .modal-footer {
   background-color: #e0dfd3 !important;
   border-bottom: 1px solid var(--win-border-dark) !important;
   padding: 5px 10px !important;
   border-radius: 0 !important;
+}
+
+.ui-style-classic .modal-footer {
+  border-bottom: none !important;
+  border-top: 1px solid var(--win-border-dark) !important;
+}
+
+/* Fix for Modal Dialog wrapper getting background color */
+.ui-style-classic.modal-dialog {
+  background-color: transparent !important;
+}
+
+/* Classic Attribute Selection Section */
+.ui-style-classic .config-attributes-section {
+  background-color: white !important;
+  border: 2px solid !important;
+  border-color: #808080 #ffffff #ffffff #808080 !important; /* Inset 3D border */
+  border-radius: 0 !important;
+}
+
+.ui-style-classic .config-attributes-section label {
+  color: black !important;
 }
 
 .ui-style-classic .card-title {
@@ -195,6 +220,8 @@ body {
 .ui-style-classic .btn-primary,
 .ui-style-classic .btn-success,
 .ui-style-classic .btn-warning,
+.ui-style-classic .btn-info,
+.ui-style-classic .btn-secondary,
 .ui-style-classic .btn-print {
   background-color: #e1e1e1 !important;
   border: 1px solid #808080 !important;
@@ -203,6 +230,17 @@ body {
   color: black !important;
   border-radius: 0 !important;
   font-size: 11px;
+}
+
+.ui-style-classic .btn-close {
+  background: transparent url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23000'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414z'/%3e%3c/svg%3e") center/1em auto no-repeat !important;
+  border: 1px solid #808080 !important;
+  border-radius: 2px !important;
+  opacity: 1 !important;
+  padding: 0.25em !important;
+  height: 1.5em;
+  width: 1.5em;
+  background-color: #e1e1e1 !important;
 }
 
 .ui-style-classic .btn-print i {

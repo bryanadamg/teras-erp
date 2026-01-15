@@ -256,7 +256,7 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
                                 <input type="number" className="form-control form-control-sm" value={newBOMOp.time_minutes} onChange={e => setNewBOMOp({...newBOMOp, time_minutes: parseFloat(e.target.value)})} />
                             </div>
                             <div className="col-8">
-                                <button type="button" className="btn btn-sm btn-info w-100 text-white" onClick={handleAddOpToBOM} disabled={!newBOMOp.operation_id}>
+                                <button type="button" className="btn btn-sm btn-info w-100" onClick={handleAddOpToBOM} disabled={!newBOMOp.operation_id}>
                                     <i className="bi bi-plus-lg me-1"></i> Add Step
                                 </button>
                             </div>

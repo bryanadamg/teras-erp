@@ -32,7 +32,12 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
         includeMonth: false,
     });
 
+    const [currentStyle, setCurrentStyle] = useState('default');
+
     useEffect(() => {
+        const savedStyle = localStorage.getItem('ui_style');
+        if (savedStyle) setCurrentStyle(savedStyle);
+
         if (isOpen && initialConfig) {
             // Migration for old config (single string to array)
             const safeConfig = { ...initialConfig };
@@ -185,7 +190,7 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
                         </div>
 
                         {config.includeVariant && (
-                            <div className="mb-3 fade-in p-3 bg-light rounded border border-primary border-opacity-25">
+                            <div className="mb-3 fade-in p-3 bg-light rounded border border-primary border-opacity-25 config-attributes-section">
                                 <label className="form-label small fw-bold text-primary mb-2">Select Attributes for Code Generation</label>
                                 <div className="d-flex flex-wrap gap-2" style={{maxHeight: '150px', overflowY: 'auto'}}>
                                     {attributes.map(attr => (
