@@ -13,6 +13,7 @@
 
 ### 🏭 Manufacturing & Engineering (MES)
 *   **Dynamic Bill of Materials (BOM)**: Engineering-grade recipe management with support for multi-variant inputs and outputs.
+*   **Advanced Routing & Operations**: Define specific **Work Centers** (Stations) and **Standard Operations** (Steps). Link these processes directly to your BOMs to create detailed production paths.
 *   **Production Execution**: Streamlined Work Order tracking. Generate orders directly from active BOMs and monitor progress (Pending → In Progress → Completed).
 *   **Automated Stock Reconciliation**: Completing a Work Order automatically deducts raw materials and adds finished goods to your inventory based on the BOM definition.
 
@@ -22,6 +23,7 @@
 *   **Professional Reporting**: Audit-ready Stock Ledger and Production reports with granular date-range filtering and optimized "one-click" print layouts.
 
 ### 🖥️ Adaptive User Experience
+*   **Multi-Language Support (i18n)**: Instantly switch between **English** and **Indonesian** (Bahasa Indonesia) for a localized client experience without affecting backend data integrity.
 *   **Themed Interface Engine**: Choose between four distinct UI/UX styles:
     *   **Default (Corporate)**: Professional and balanced.
     *   **Modern**: Soft edges and contemporary spacing.
@@ -70,21 +72,16 @@ To transition Teras ERP into a full-scale industrial solution, the following mod
     *   Essential for Food, Pharma, and Automotive sectors.
     *   Track **Batch Numbers** and **Expiry Dates** throughout the supply chain.
 
-4.  **Advanced Manufacturing (Routing & Operations)**
-    *   **Work Centers**: Define factory stations (e.g., "Cutting Table", "CNC Machine").
-    *   **Operations**: Define sequential steps (e.g., Cutting, Assembly).
-    *   **Time Tracking**: Calculate labor costs and machine utilization.
-
-5.  **Costing Engine (Financials)**
+4.  **Costing Engine (Financials)**
     *   **Valuation Methods**: FIFO / Weighted Average.
     *   **WIP Valuation**: Real-time value of in-progress goods.
     *   **Landed Cost**: Incorporate shipping/customs fees.
 
-6.  **Quality Control (QC)**
+5.  **Quality Control (QC)**
     *   **Inspection Criteria**: Pass/Fail parameters.
     *   **Checkpoints**: Inward, In-Process, and Final QC.
 
-7.  **User Roles & Permissions (RBAC)**
+6.  **User Roles & Permissions (RBAC)**
     *   Granular access control (e.g., Store Manager vs. Production Manager).
 
 ## License
