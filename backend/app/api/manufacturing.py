@@ -124,7 +124,9 @@ def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_
             )
             
             if current_stock < required_qty:
-                item_name = line.item.name if line.item else "Unknown Item"
+                from app.models.item import Item
+                item_obj = db.query(Item).filter(Item.id == line.item_id).first()
+                item_name = item_obj.name if item_obj else "Unknown Item"
                 raise HTTPException(
                     status_code=400, 
                     detail=f"Insufficient stock for {item_name}. Required: {required_qty}, Available: {current_stock}"
