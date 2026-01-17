@@ -13,23 +13,34 @@ from app.db.init_db import init_db
 app = FastAPI(title="Teras ERP")
 
 # Initialize Database and run migrations
+
 init_db()
 
-app.include_router(items.router)
-app.include_router(locations.router)
-app.include_router(stock.router)
-app.include_router(attributes.router)
-app.include_router(boms.router)
-app.include_router(manufacturing.router)
-app.include_router(categories.router)
-app.include_router(routing.router)
-app.include_router(auth.router)
 
 
+app.include_router(items.router, prefix="/api")
+
+app.include_router(locations.router, prefix="/api")
+
+app.include_router(stock.router, prefix="/api")
+
+app.include_router(attributes.router, prefix="/api")
+
+app.include_router(boms.router, prefix="/api")
+
+app.include_router(manufacturing.router, prefix="/api")
+
+app.include_router(categories.router, prefix="/api")
+
+app.include_router(routing.router, prefix="/api")
+
+app.include_router(auth.router, prefix="/api")
 
 
 
 import os
+
+
 
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -57,6 +68,6 @@ async def home(request: Request):
         }
     )
 
-@app.get("/health")
+@app.get("/api/health")
 async def health():
     return {"status": "ok"}

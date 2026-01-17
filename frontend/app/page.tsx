@@ -16,7 +16,7 @@ import { useToast } from './components/Toast';
 import { useLanguage } from './context/LanguageContext';
 import DashboardView from './components/DashboardView';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
 
 export default function Home() {
   const { showToast } = useToast();
