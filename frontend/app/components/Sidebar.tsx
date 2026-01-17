@@ -6,9 +6,10 @@ interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   appName: string;
+  isOpen?: boolean;
 }
 
-export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarProps) {
+export default function Sidebar({ activeTab, setActiveTab, appName, isOpen }: SidebarProps) {
   const { t } = useLanguage();
   const { hasPermission } = useUser();
   const [inventoryExpanded, setInventoryExpanded] = useState(true);
@@ -16,7 +17,7 @@ export default function Sidebar({ activeTab, setActiveTab, appName }: SidebarPro
   const [reportsExpanded, setReportsExpanded] = useState(true);
 
   return (
-    <div className="sidebar d-flex flex-column justify-content-between">
+    <div className={`sidebar d-flex flex-column justify-content-between ${isOpen ? 'mobile-open' : ''}`}>
       <div>
         <div className="sidebar-header">
           <i className="bi bi-window-stack me-2 d-none d-classic-inline"></i>

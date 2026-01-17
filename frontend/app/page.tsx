@@ -24,6 +24,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [appName, setAppName] = useState('Teras ERP');
   const [uiStyle, setUiStyle] = useState('default');
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Master Data
   const [items, setItems] = useState([]);
@@ -367,10 +368,21 @@ export default function Home() {
 
   return (
     <div className={`d-flex flex-column ui-style-${uiStyle}`} style={{ minHeight: '100vh' }}>
+      {/* Mobile Overlay */}
+      <div 
+        className={`mobile-overlay ${isMobileSidebarOpen ? 'show' : ''}`}
+        onClick={() => setIsMobileSidebarOpen(false)}
+      ></div>
+
       {/* Classic Top Header (only visible in classic) */}
       {uiStyle === 'classic' && (
           <div className="classic-header shadow-sm d-flex justify-content-between align-items-center px-3" style={{ background: 'var(--win-header-grad)', height: '30px', color: 'white' }}>
-              <div className="fw-bold"><i className="bi bi-cpu-fill me-2"></i>{appName}</div>
+              <div className="d-flex align-items-center gap-2">
+                  <button className="btn btn-sm text-white d-md-none p-0" onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}>
+                      <i className="bi bi-list fs-5"></i>
+                  </button>
+                  <div className="fw-bold"><i className="bi bi-cpu-fill me-2"></i>{appName}</div>
+              </div>
               <div className="d-flex align-items-center gap-3 small">
                   <div>
                       <select 
@@ -383,13 +395,18 @@ export default function Home() {
                           <option value="id" style={{color: 'black'}}>Indonesia</option>
                       </select>
                   </div>
-                  <div>User: Administrator | {new Date().toLocaleDateString()}</div>
+                  <div className="d-none d-md-block">User: Administrator | {new Date().toLocaleDateString()}</div>
               </div>
           </div>
       )}
 
       <div className="d-flex flex-grow-1">
-        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} appName={appName} />
+        <Sidebar 
+            activeTab={activeTab} 
+            setActiveTab={(tab) => { setActiveTab(tab); setIsMobileSidebarOpen(false); }} 
+            appName={appName} 
+            isOpen={isMobileSidebarOpen}
+        />
         
         <div className="main-content flex-grow-1">
           {/* Classic Toolbar */}
@@ -406,7 +423,12 @@ export default function Home() {
           )}
 
           <header className={`mb-4 d-flex justify-content-between align-items-center ${uiStyle === 'classic' ? 'd-none' : ''}`}>
-              <h2 className="text-capitalize mb-0 fw-bold text-dark">{t(activeTab.replace('-', '_')) || activeTab.replace('-', ' ')}</h2>
+              <div className="d-flex align-items-center gap-3">
+                  <button className="btn btn-light d-md-none border" onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}>
+                      <i className="bi bi-list"></i>
+                  </button>
+                  <h2 className="text-capitalize mb-0 fw-bold text-dark">{t(activeTab.replace('-', '_')) || activeTab.replace('-', ' ')}</h2>
+              </div>
               <div className="d-flex align-items-center gap-3">
                   <select 
                       className="form-select form-select-sm" 

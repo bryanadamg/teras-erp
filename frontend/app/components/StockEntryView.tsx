@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function StockEntryView({ items, locations, attributes, stockBalance, onRecordStock }: any) {
+  const { t } = useLanguage();
   const [stockEntry, setStockEntry] = useState({ item_code: '', location_code: '', attribute_value_ids: [] as string[], qty: 0 });
 
   const handleValueChange = (valId: string, attrId: string) => {
@@ -46,14 +48,14 @@ export default function StockEntryView({ items, locations, attributes, stockBala
           <div className="col-md-5">
               <div className="card h-100 shadow-sm border-0">
                   <div className="card-header bg-primary bg-opacity-10 text-primary-emphasis py-3">
-                      <h5 className="card-title mb-0"><i className="bi bi-box-seam me-2"></i>Stock Movement</h5>
+                      <h5 className="card-title mb-0"><i className="bi bi-box-seam me-2"></i>{t('stock_entry')}</h5>
                   </div>
                   <div className="card-body">
                       <form onSubmit={handleSubmit}>
                           <div className="mb-4 p-3 bg-light rounded-3 border border-dashed">
-                              <label className="form-label text-muted text-uppercase small fw-bold mb-3">Product Selection</label>
+                              <label className="form-label text-muted text-uppercase small fw-bold mb-3">{t('item_inventory')}</label>
                               <select className="form-select mb-3" value={stockEntry.item_code} onChange={e => setStockEntry({...stockEntry, item_code: e.target.value, attribute_value_ids: []})} required>
-                                  <option value="">Select Item...</option>
+                                  <option value="">{t('search')}...</option>
                                   {items.map((item: any) => <option key={item.id} value={item.code}>{item.name} ({item.code})</option>)}
                               </select>
 
@@ -65,7 +67,7 @@ export default function StockEntryView({ items, locations, attributes, stockBala
                                           value={stockEntry.attribute_value_ids.find(vid => attr.values.some((v:any) => v.id === vid)) || ''}
                                           onChange={e => handleValueChange(e.target.value, attr.id)}
                                       >
-                                          <option value="">Any {attr.name}</option>
+                                          <option value="">Select {attr.name}...</option>
                                           {attr.values.map((v: any) => <option key={v.id} value={v.id}>{v.value}</option>)}
                                       </select>
                                   </div>
@@ -77,17 +79,17 @@ export default function StockEntryView({ items, locations, attributes, stockBala
                               <div className="row g-2">
                                   <div className="col-8">
                                       <select className="form-select" value={stockEntry.location_code} onChange={e => setStockEntry({...stockEntry, location_code: e.target.value})} required>
-                                          <option value="">Select Location...</option>
+                                          <option value="">{t('locations')}...</option>
                                           {locations.map((loc: any) => <option key={loc.id} value={loc.code}>{loc.name}</option>)}
                                       </select>
                                   </div>
                                   <div className="col-4">
-                                      <input type="number" className="form-control" placeholder="Qty" value={stockEntry.qty} onChange={e => setStockEntry({...stockEntry, qty: parseFloat(e.target.value)})} required />
+                                      <input type="number" className="form-control" placeholder={t('qty')} value={stockEntry.qty} onChange={e => setStockEntry({...stockEntry, qty: parseFloat(e.target.value)})} required />
                                   </div>
                               </div>
                           </div>
 
-                          <button type="submit" className="btn btn-primary w-100 py-2 fw-bold shadow-sm">Record Transaction</button>
+                          <button type="submit" className="btn btn-primary w-100 py-2 fw-bold shadow-sm">{t('save')}</button>
                       </form>
                   </div>
               </div>
@@ -97,17 +99,17 @@ export default function StockEntryView({ items, locations, attributes, stockBala
           <div className="col-md-7">
               <div className="card h-100 shadow-sm border-0">
                   <div className="card-header bg-white py-3 border-bottom-0">
-                      <h5 className="card-title mb-0">Live Inventory Balance</h5>
+                      <h5 className="card-title mb-0">{t('stock_ledger')} (Live)</h5>
                   </div>
                   <div className="card-body p-0">
                       <div className="table-responsive">
                           <table className="table table-hover align-middle mb-0">
                               <thead className="table-light">
                                   <tr>
-                                      <th className="ps-4">Item</th>
-                                      <th>Variations</th>
-                                      <th>Location</th>
-                                      <th className="text-end pe-4">Qty</th>
+                                      <th className="ps-4">{t('item_code')}</th>
+                                      <th>{t('attributes')}</th>
+                                      <th>{t('locations')}</th>
+                                      <th className="text-end pe-4">{t('qty')}</th>
                                   </tr>
                               </thead>
                               <tbody>
