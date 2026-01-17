@@ -35,9 +35,11 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [users, setUsers] = useState<User[]>([]);
 
+    const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
+
     const refreshUsers = async () => {
         try {
-            const res = await fetch('http://localhost:8000/users');
+            const res = await fetch(`${API_BASE}/users`);
             if (res.ok) {
                 const data = await res.json();
                 setUsers(data);

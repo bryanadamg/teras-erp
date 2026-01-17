@@ -15,9 +15,11 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
   const [editName, setEditName] = useState('');
   const [editRoleId, setEditRoleId] = useState('');
 
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
+
   useEffect(() => {
       // Fetch roles for the dropdown
-      fetch('http://localhost:8000/roles')
+      fetch(`${API_BASE}/roles`)
           .then(res => res.json())
           .then(data => setRoles(data))
           .catch(err => console.error("Failed to fetch roles", err));
@@ -46,7 +48,7 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
 
   const saveUserChanges = async (userId: string) => {
       try {
-          const res = await fetch(`http://localhost:8000/users/${userId}`, {
+          const res = await fetch(`${API_BASE}/users/${userId}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ full_name: editName, role_id: editRoleId })
