@@ -40,6 +40,18 @@ services:
     networks:
       - erp_network
 
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    networks:
+      - erp_network
+    container_name: erp-cloudflared
+    restart: always
+    command: tunnel run
+    volumes:
+      - ./cloudflared:/etc/cloudflared
+    depends_on:
+      - frontend
+
 networks:
   erp_network:
     driver: bridge
