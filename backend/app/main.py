@@ -1,9 +1,10 @@
 from pathlib import Path
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, APIRouter
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
+import os
 
 from app.db.session import engine
 from app.db.base import Base
@@ -13,34 +14,29 @@ from app.db.init_db import init_db
 app = FastAPI(title="Teras ERP")
 
 # Initialize Database and run migrations
-
 init_db()
 
+# --- Router Configuration ---
+# Create a central API router to group all endpoints
+api_router = APIRouter()
 
+api_router.include_router(items.router)
+api_router.include_router(locations.router)
+api_router.include_router(stock.router)
+api_router.include_router(attributes.router)
+api_router.include_router(boms.router)
+api_router.include_router(manufacturing.router)
+api_router.include_router(categories.router)
+api_router.include_router(routing.router)
+api_router.include_router(auth.router)
 
-app.include_router(items.router, prefix="/api")
+@api_router.get("/health")
+async def health():
+    return {"status": "ok"}
 
-app.include_router(locations.router, prefix="/api")
-
-app.include_router(stock.router, prefix="/api")
-
-app.include_router(attributes.router, prefix="/api")
-
-app.include_router(boms.router, prefix="/api")
-
-app.include_router(manufacturing.router, prefix="/api")
-
-app.include_router(categories.router, prefix="/api")
-
-app.include_router(routing.router, prefix="/api")
-
-app.include_router(auth.router, prefix="/api")
-
-
-
-import os
-
-
+# Include the central router with the global prefix
+app.include_router(api_router, prefix="/api")
+# ----------------------------
 
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -67,7 +63,3 @@ async def home(request: Request):
             "version": "0.1.0"
         }
     )
-
-@app.get("/api/health")
-async def health():
-    return {"status": "ok"}
