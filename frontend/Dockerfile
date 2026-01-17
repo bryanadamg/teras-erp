@@ -9,6 +9,11 @@ RUN npm install
 # Copy source code
 COPY . .
 
+# Accept the build argument
+ARG NEXT_PUBLIC_API_BASE
+# Set it as an environment variable for the build process
+ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE
+
 # Build the application
 RUN npm run build
 

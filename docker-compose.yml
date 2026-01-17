@@ -32,7 +32,10 @@ services:
       - erp_network
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE}
     ports:
       - "3030:3000"
     depends_on:
