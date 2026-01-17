@@ -127,9 +127,13 @@ def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_
                 from app.models.item import Item
                 item_obj = db.query(Item).filter(Item.id == line.item_id).first()
                 item_name = item_obj.name if item_obj else "Unknown Item"
+                
+                location_obj = db.query(Location).filter(Location.id == wo.location_id).first()
+                loc_name = location_obj.name if location_obj else "Unknown Location"
+                
                 raise HTTPException(
                     status_code=400, 
-                    detail=f"Insufficient stock for {item_name}. Required: {required_qty}, Available: {current_stock}"
+                    detail=f"Insufficient stock for {item_name} at {loc_name}. Required: {required_qty}, Available: {current_stock}"
                 )
         
         wo.start_date = datetime.utcnow()
