@@ -24,7 +24,7 @@ export default function Home() {
   const { language, setLanguage, t } = useLanguage();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [appName, setAppName] = useState('Teras ERP');
-  const [uiStyle, setUiStyle] = useState('default');
+  const [uiStyle, setUiStyle] = useState('classic');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Master Data

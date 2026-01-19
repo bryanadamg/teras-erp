@@ -45,14 +45,14 @@ export default function ReportsView({ stockEntries, items, locations, categories
 
   return (
       <div className="card fade-in border-0 shadow-sm print-container">
-          <div className="card-header bg-white d-flex justify-content-between align-items-center no-print">
+          <div className="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-3 no-print">
               <div>
                   <h5 className="card-title mb-0">{t('stock_ledger')}</h5>
                   <small className="text-muted">Analyze inventory movements</small>
               </div>
-              <div className="d-flex gap-2 align-items-center">
-                  <div className="input-group input-group-sm" style={{width: '150px'}}>
-                      <span className="input-group-text"><i className="bi bi-funnel"></i></span>
+              <div className="d-flex gap-2 align-items-center flex-nowrap">
+                  <div className="input-group input-group-sm" style={{width: '180px', minWidth: '180px'}}>
+                      <span className="input-group-text px-2"><i className="bi bi-funnel"></i></span>
                       <select 
                           className="form-select" 
                           value={categoryFilter} 
@@ -64,15 +64,15 @@ export default function ReportsView({ stockEntries, items, locations, categories
                           ))}
                       </select>
                   </div>
-                  <div className="input-group input-group-sm">
-                      <span className="input-group-text">{t('from')}</span>
+                  <div className="input-group input-group-sm" style={{width: '160px', minWidth: '160px'}}>
+                      <span className="input-group-text px-2">{t('from')}</span>
                       <input type="date" className="form-control" value={startDate} onChange={e => setStartDate(e.target.value)} />
                   </div>
-                  <div className="input-group input-group-sm">
-                      <span className="input-group-text">{t('to')}</span>
+                  <div className="input-group input-group-sm" style={{width: '160px', minWidth: '160px'}}>
+                      <span className="input-group-text px-2">{t('to')}</span>
                       <input type="date" className="form-control" value={endDate} onChange={e => setEndDate(e.target.value)} />
                   </div>
-                  <button className="btn btn-outline-primary btn-sm btn-print" onClick={handlePrint}>
+                  <button className="btn btn-outline-primary btn-sm btn-print white-space-nowrap" onClick={handlePrint}>
                       <i className="bi bi-printer me-1"></i>{t('print')}
                   </button>
               </div>

@@ -175,6 +175,7 @@ export default function InventoryView({
                     <th className="ps-4">{t('item_code')}</th>
                     <th>{t('item_name')}</th>
                     <th>{t('categories')}</th>
+                    <th>{t('source_sample')}</th>
                     <th>{t('attributes')}</th>
                     <th style={{width: '80px'}}>{t('actions')}</th>
                   </tr>
@@ -184,10 +185,18 @@ export default function InventoryView({
                     <tr key={item.id} className={editingItem?.id === item.id ? 'table-primary' : ''}>
                       <td className="ps-4 fw-medium font-monospace">
                           {item.code}
-                          {item.source_sample_id && <div className="text-muted small" style={{fontSize: '0.7rem'}}><i className="bi bi-link-45deg"></i> Linked</div>}
                       </td>
                       <td>{item.name}</td>
                       <td>{item.category && <span className="badge bg-light text-dark border">{item.category}</span>}</td>
+                      <td>
+                          {item.source_sample_id ? (
+                              <div className="text-primary small fw-medium">
+                                  <i className="bi bi-link-45deg"></i> {items.find((i: any) => i.id === item.source_sample_id)?.name || 'Unknown'}
+                              </div>
+                          ) : (
+                              <span className="text-muted small">-</span>
+                          )}
+                      </td>
                       <td><span className="text-muted small">{getAttributeNames(item.attribute_ids)}</span></td>
                       <td>
                           <div className="d-flex gap-1">
