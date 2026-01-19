@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -11,32 +11,37 @@ export default function InventoryView({
     onUpdateItem,
     onDeleteItem,
     onCreateCategory,
-    onRefresh 
+    onRefresh,
+    forcedCategory // New prop
 }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
   // Creation State
-  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', category: '', source_sample_id: '', attribute_ids: [] as string[] });
+  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', category: forcedCategory || '', source_sample_id: '', attribute_ids: [] as string[] });
   
   // Editing State
   const [editingItem, setEditingItem] = useState<any>(null);
   
-  const [newLocation, setNewLocation] = useState({ code: '', name: '' });
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showCatInput, setShowCatInput] = useState(false);
-
-  const [selectedAttributeId, setSelectedAttributeId] = useState('');
-  const [selectedAttributeValue, setSelectedAttributeValue] = useState('');
 
   // Filtering
   const [categoryFilter, setCategoryFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Update newItem category if forcedCategory changes (e.g. switching tabs)
+  useEffect(() => {
+      if (forcedCategory) {
+          setNewItem(prev => ({ ...prev, category: forcedCategory }));
+      }
+  }, [forcedCategory]);
 
   // --- Item Handlers ---
 
   const handleSubmitItem = async (e: React.FormEvent) => {
       e.preventDefault();
       const payload: any = { ...newItem };
+      if (forcedCategory) payload.category = forcedCategory; // Ensure it overrides
       if (!payload.source_sample_id) delete payload.source_sample_id;
       
       const res = await onCreateItem(payload);
@@ -58,12 +63,9 @@ export default function InventoryView({
 
           showToast(`Item Code "${newItem.code}" already exists. Suggesting: ${suggestedCode}`, 'warning');
           setNewItem({ ...newItem, code: suggestedCode });
-          // Note: Form data is preserved because we only updated 'code' in the state.
       } else {
           // Success
-          setNewItem({ code: '', name: '', uom: '', category: '', source_sample_id: '', attribute_ids: [] });
-          setSelectedAttributeId('');
-          setSelectedAttributeValue('');
+          setNewItem({ code: '', name: '', uom: '', category: forcedCategory || '', source_sample_id: '', attribute_ids: [] });
       }
   };
 
@@ -115,7 +117,11 @@ export default function InventoryView({
 
   // Filtered Items
   const filteredItems = items.filter((i: any) => {
-      const matchesCategory = !categoryFilter || i.category === categoryFilter;
+      // If forcedCategory is set, we ignore the dropdown filter or enforce it matches forcedCategory
+      const matchesCategory = forcedCategory 
+          ? i.category === forcedCategory 
+          : (!categoryFilter || i.category === categoryFilter);
+          
       const matchesSearch = !searchTerm || 
           i.code.toLowerCase().includes(searchTerm.toLowerCase()) || 
           i.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -138,8 +144,10 @@ export default function InventoryView({
           <div className="card-header bg-white">
             <div className="d-flex justify-content-between align-items-center mb-3">
                 <div>
-                    <h5 className="card-title mb-0">{t('item_inventory')}</h5>
-                    <p className="text-muted small mb-0 mt-1">Master list of all products and materials</p>
+                    <h5 className="card-title mb-0">{forcedCategory ? t('samples') : t('item_inventory')}</h5>
+                    <p className="text-muted small mb-0 mt-1">
+                        {forcedCategory ? 'Manage product samples and prototypes' : 'Master list of all products and materials'}
+                    </p>
                 </div>
             </div>
             
@@ -151,20 +159,24 @@ export default function InventoryView({
                         <input 
                             type="text" 
                             className="form-control border-start-0" 
-                            placeholder={`${t('search')} ${t('item_code')} / ${t('item_name')}...`}
+                            placeholder={`${t('search')}...`}
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                         />
                     </div>
                 </div>
-                {/* Spacer to align Category dropdown with the 3rd column (Category) roughly */}
+                {/* Spacer */}
                 <div className="col-md-2"></div> 
+                
+                {/* Hide Category Filter if Forced */}
+                {!forcedCategory && (
                 <div className="col-md-3">
                     <select className="form-select form-select-sm" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
                         <option value="">{t('categories')} (All)</option>
                         {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
                     </select>
                 </div>
+                )}
             </div>
           </div>
           <div className="card-body p-0">
@@ -243,10 +255,14 @@ export default function InventoryView({
                         <div className="row g-2 mb-3">
                             <div className="col-6">
                                 <label className="form-label small text-muted">{t('categories')}</label>
-                                <select className="form-select" value={editingItem.category || ''} onChange={e => setEditingItem({...editingItem, category: e.target.value})}>
-                                    <option value="">Select...</option>
-                                    {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
-                                </select>
+                                {forcedCategory ? (
+                                    <input className="form-control" value={editingItem.category} disabled />
+                                ) : (
+                                    <select className="form-select" value={editingItem.category || ''} onChange={e => setEditingItem({...editingItem, category: e.target.value})}>
+                                        <option value="">Select...</option>
+                                        {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                    </select>
+                                )}
                             </div>
                             <div className="col-6">
                                 <label className="form-label small text-muted">{t('uom')}</label>
@@ -308,9 +324,11 @@ export default function InventoryView({
                       <div className="col-7">
                           <label className="form-label d-flex justify-content-between small text-muted">
                               {t('categories')} 
-                              <span className="text-primary" style={{cursor:'pointer'}} onClick={() => setShowCatInput(!showCatInput)}><i className="bi bi-plus-circle"></i></span>
+                              {!forcedCategory && <span className="text-primary" style={{cursor:'pointer'}} onClick={() => setShowCatInput(!showCatInput)}><i className="bi bi-plus-circle"></i></span>}
                           </label>
-                          {showCatInput ? (
+                          {forcedCategory ? (
+                              <input className="form-control" value={newItem.category} disabled />
+                          ) : showCatInput ? (
                               <div className="input-group input-group-sm">
                                   <input className="form-control" placeholder="New..." value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} autoFocus />
                                   <button type="button" className="btn btn-primary" onClick={handleAddCategory}><i className="bi bi-check"></i></button>

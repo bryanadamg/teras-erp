@@ -14,6 +14,7 @@ export default function Sidebar({ activeTab, setActiveTab, appName, isOpen }: Si
   const { hasPermission } = useUser();
   const [inventoryExpanded, setInventoryExpanded] = useState(true);
   const [attributesExpanded, setAttributesExpanded] = useState(false); // Nested state
+  const [salesExpanded, setSalesExpanded] = useState(true);
   const [engineeringExpanded, setEngineeringExpanded] = useState(true);
   const [reportsExpanded, setReportsExpanded] = useState(true);
 
@@ -36,6 +37,31 @@ export default function Sidebar({ activeTab, setActiveTab, appName, isOpen }: Si
               <i className="bi bi-speedometer2"></i>
               {t('dashboard') || 'Dashboard'}
             </a>
+          </li>
+
+          {/* Sales Section */}
+          <li className="nav-item">
+            <a 
+              href="#" 
+              className={`nav-link d-flex justify-content-between align-items-center ${['purchase-orders'].includes(activeTab) ? 'active' : ''}`}
+              onClick={(e) => { e.preventDefault(); setSalesExpanded(!salesExpanded); }}
+            >
+              <div className="d-flex align-items-center gap-2">
+                <i className="bi bi-cart3"></i>
+                <span>{t('sales')}</span>
+              </div>
+              <i className={`bi bi-chevron-${salesExpanded ? 'down' : 'right'} small`}></i>
+            </a>
+            
+            {salesExpanded && (
+              <ul className="nav flex-column ps-4 bg-light bg-opacity-50">
+                <li>
+                  <a href="#" className={`nav-link py-2 small ${activeTab === 'purchase-orders' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('purchase-orders'); }}>
+                    <i className="bi bi-receipt me-2"></i>{t('purchase_orders')}
+                  </a>
+                </li>
+              </ul>
+            )}
           </li>
 
           {/* Inventory Section */}

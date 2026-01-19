@@ -222,6 +222,32 @@ class OperationResponse(OperationCreate):
     class Config:
         from_attributes = True
 
+# --- Sales Schemas ---
+
+class SalesOrderLineCreate(BaseModel):
+    item_id: UUID
+    qty: float
+    due_date: datetime | None = None
+
+class SalesOrderLineResponse(SalesOrderLineCreate):
+    id: UUID
+    class Config:
+        from_attributes = True
+
+class SalesOrderCreate(BaseModel):
+    po_number: str
+    customer_name: str
+    order_date: datetime | None = None
+    lines: list[SalesOrderLineCreate]
+
+class SalesOrderResponse(SalesOrderCreate):
+    id: UUID
+    status: str
+    lines: list[SalesOrderLineResponse]
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
 # --- Auth Schemas ---
 
 class PermissionBase(BaseModel):

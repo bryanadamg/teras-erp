@@ -13,6 +13,7 @@ import ManufacturingView from './components/ManufacturingView';
 import StockEntryView from './components/StockEntryView';
 import ReportsView from './components/ReportsView';
 import SettingsView from './components/SettingsView';
+import PurchaseOrderView from './components/PurchaseOrderView';
 import { useToast } from './components/Toast';
 import { useLanguage } from './context/LanguageContext';
 import DashboardView from './components/DashboardView';
@@ -24,7 +25,7 @@ export default function Home() {
   const { language, setLanguage, t } = useLanguage();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [appName, setAppName] = useState('Teras ERP');
-  const [uiStyle, setUiStyle] = useState('classic');
+  const [uiStyle, setUiStyle] = useState('default');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Master Data
@@ -39,10 +40,11 @@ export default function Home() {
   const [workOrders, setWorkOrders] = useState([]);
   const [stockEntries, setStockEntries] = useState([]);
   const [stockBalance, setStockBalance] = useState([]);
+  const [salesOrders, setSalesOrders] = useState([]);
 
   const fetchData = async () => {
     try {
-      const [itemsRes, locsRes, stockRes, attrsRes, catsRes, uomsRes, bomsRes, wcRes, opRes, woRes, balRes] = await Promise.all([
+      const [itemsRes, locsRes, stockRes, attrsRes, catsRes, uomsRes, bomsRes, wcRes, opRes, woRes, balRes, soRes] = await Promise.all([
           fetch(`${API_BASE}/items`),
           fetch(`${API_BASE}/locations`),
           fetch(`${API_BASE}/stock`),
@@ -53,7 +55,8 @@ export default function Home() {
           fetch(`${API_BASE}/work-centers`),
           fetch(`${API_BASE}/operations`),
           fetch(`${API_BASE}/work-orders`),
-          fetch(`${API_BASE}/stock/balance`)
+          fetch(`${API_BASE}/stock/balance`),
+          fetch(`${API_BASE}/sales-orders`)
       ]);
 
       if (itemsRes.ok) setItems(await itemsRes.json());
@@ -67,6 +70,7 @@ export default function Home() {
       if (opRes.ok) setOperations(await opRes.json());
       if (woRes.ok) setWorkOrders(await woRes.json());
       if (balRes.ok) setStockBalance(await balRes.json());
+      if (soRes.ok) setSalesOrders(await soRes.json());
     } catch (e) {
       console.error("Failed to fetch data", e);
     }
@@ -335,6 +339,33 @@ export default function Home() {
       }
   };
 
+  // --- Sales Order Handlers ---
+  const handleCreatePO = async (po: any) => {
+      const res = await fetch(`${API_BASE}/sales-orders`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(po)
+      });
+      if (res.ok) {
+          showToast('Purchase Order created successfully!', 'success');
+          fetchData();
+      } else {
+          const err = await res.json();
+          showToast(`Error: ${err.detail}`, 'danger');
+      }
+  };
+
+  const handleDeletePO = async (id: string) => {
+      if (!confirm('Are you sure you want to delete this PO?')) return;
+      const res = await fetch(`${API_BASE}/sales-orders/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+          showToast('PO deleted successfully', 'success');
+          fetchData();
+      } else {
+          showToast('Failed to delete PO', 'danger');
+      }
+  };
+
   const handleCreateWO = async (wo: any) => {
       const payload: any = { ...wo };
       if (!payload.due_date) delete payload.due_date;
@@ -509,6 +540,23 @@ export default function Home() {
             />
         )}
 
+        {activeTab === 'samples' && (
+            <InventoryView 
+                items={items.filter((i: any) => i.category === 'Sample')} 
+                attributes={attributes}
+                categories={categories}
+                uoms={uoms}
+                onCreateItem={handleCreateItem} 
+                onUpdateItem={handleUpdateItem}
+                onDeleteItem={handleDeleteItem}
+                onAddVariant={handleAddVariantToItem}
+                onDeleteVariant={handleDeleteVariant}
+                onCreateCategory={handleCreateCategory}
+                onRefresh={fetchData} 
+                forcedCategory="Sample"
+            />
+        )}
+
         {activeTab === 'locations' && (
             <LocationsView 
                 locations={locations}
@@ -580,6 +628,15 @@ export default function Home() {
                 workOrders={workOrders} 
                 onCreateWO={handleCreateWO} 
                 onUpdateStatus={handleUpdateWOStatus} 
+            />
+        )}
+
+        {activeTab === 'purchase-orders' && (
+            <PurchaseOrderView 
+                items={items} 
+                salesOrders={salesOrders}
+                onCreatePO={handleCreatePO}
+                onDeletePO={handleDeletePO}
             />
         )}
 
