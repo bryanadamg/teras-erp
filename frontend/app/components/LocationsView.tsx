@@ -39,7 +39,6 @@ export default function LocationsView({ locations, onCreateLocation, onDeleteLoc
         <div className="card h-100">
           <div className="card-header d-flex justify-content-between align-items-center bg-white">
              <h5 className="card-title mb-0">{t('locations')}</h5>
-             <button className="btn btn-sm btn-outline-secondary" onClick={onRefresh}><i className="bi bi-arrow-clockwise"></i> {t('refresh')}</button>
           </div>
           <div className="card-body">
             <div className="row g-4">

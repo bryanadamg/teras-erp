@@ -22,7 +22,6 @@ export default function UOMView({ uoms, onCreateUOM, onDeleteUOM, onRefresh }: a
                         <h5 className="card-title mb-0">Units of Measure (UOM)</h5>
                         <p className="text-muted small mb-0 mt-1">Manage standard units for items (e.g. kg, pcs, m).</p>
                     </div>
-                    <button className="btn btn-sm btn-outline-secondary" onClick={onRefresh}><i className="bi bi-arrow-clockwise"></i> {t('refresh')}</button>
                 </div>
                 <div className="card-body">
                     <form onSubmit={handleCreateUOM} className="mb-4 p-4 bg-light rounded-3 border border-dashed">

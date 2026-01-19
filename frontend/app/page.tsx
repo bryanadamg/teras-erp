@@ -450,6 +450,9 @@ export default function Home() {
                   <h2 className="text-capitalize mb-0 fw-bold text-dark">{t(activeTab.replace('-', '_')) || activeTab.replace('-', ' ')}</h2>
               </div>
               <div className="d-flex align-items-center gap-3">
+                  <button className="btn btn-outline-secondary btn-sm d-none d-md-block" onClick={() => fetchData()}>
+                      <i className="bi bi-arrow-clockwise me-1"></i>{t('refresh')}
+                  </button>
                   <select 
                       className="form-select form-select-sm" 
                       style={{width: '120px'}}

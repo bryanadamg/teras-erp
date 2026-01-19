@@ -141,7 +141,6 @@ export default function InventoryView({
                     <h5 className="card-title mb-0">{t('item_inventory')}</h5>
                     <p className="text-muted small mb-0 mt-1">Master list of all products and materials</p>
                 </div>
-                <button className="btn btn-sm btn-outline-secondary" onClick={onRefresh}><i className="bi bi-arrow-clockwise"></i></button>
             </div>
             
             {/* Filter Bar */}

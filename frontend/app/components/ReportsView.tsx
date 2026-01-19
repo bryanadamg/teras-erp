@@ -75,9 +75,6 @@ export default function ReportsView({ stockEntries, items, locations, categories
                   <button className="btn btn-outline-primary btn-sm btn-print" onClick={handlePrint}>
                       <i className="bi bi-printer me-1"></i>{t('print')}
                   </button>
-                  <button className="btn btn-outline-secondary btn-sm" onClick={onRefresh}>
-                      <i className="bi bi-arrow-clockwise me-1"></i>{t('refresh')}
-                  </button>
               </div>
           </div>
           <div className="card-body p-0">
