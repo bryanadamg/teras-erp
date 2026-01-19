@@ -74,6 +74,7 @@ def run_migrations():
 
 from app.models.category import Category
 from app.models.auth import Permission, Role, User
+from app.models.uom import UOM
 
 def seed_categories(db):
     try:
@@ -85,6 +86,17 @@ def seed_categories(db):
             logger.info("Seeded default categories")
     except Exception as e:
         logger.warning(f"Category seeding skipped: {e}")
+
+def seed_uoms(db):
+    try:
+        if db.query(UOM).count() == 0:
+            defaults = ["pcs", "kg", "m", "l", "box", "roll"]
+            for name in defaults:
+                db.add(UOM(name=name))
+            db.commit()
+            logger.info("Seeded default UOMs")
+    except Exception as e:
+        logger.warning(f"UOM seeding skipped: {e}")
 
 def seed_rbac(db):
     try:
@@ -167,6 +179,7 @@ def init_db() -> None:
     db = SessionLocal()
     try:
         seed_categories(db)
+        seed_uoms(db)
         seed_rbac(db)
     finally:
         db.close()

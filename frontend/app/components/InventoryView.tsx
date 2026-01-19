@@ -6,6 +6,7 @@ export default function InventoryView({
     items, 
     attributes,
     categories,
+    uoms,
     onCreateItem, 
     onUpdateItem,
     onDeleteItem,
@@ -241,7 +242,10 @@ export default function InventoryView({
                             </div>
                             <div className="col-6">
                                 <label className="form-label small text-muted">{t('uom')}</label>
-                                <input className="form-control" value={editingItem.uom} onChange={e => setEditingItem({...editingItem, uom: e.target.value})} required />
+                                <select className="form-select" value={editingItem.uom} onChange={e => setEditingItem({...editingItem, uom: e.target.value})} required>
+                                    <option value="">Unit...</option>
+                                    {(uoms || []).map((u: any) => <option key={u.id} value={u.name}>{u.name}</option>)}
+                                </select>
                             </div>
                         </div>
                         
@@ -312,7 +316,10 @@ export default function InventoryView({
                       </div>
                       <div className="col-5">
                           <label className="form-label small text-muted">{t('uom')}</label>
-                          <input className="form-control" placeholder="Unit" value={newItem.uom} onChange={e => setNewItem({...newItem, uom: e.target.value})} required />
+                          <select className="form-select" value={newItem.uom} onChange={e => setNewItem({...newItem, uom: e.target.value})} required>
+                              <option value="">Unit...</option>
+                              {(uoms || []).map((u: any) => <option key={u.id} value={u.name}>{u.name}</option>)}
+                          </select>
                       </div>
                   </div>
                   

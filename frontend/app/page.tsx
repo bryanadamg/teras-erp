@@ -6,6 +6,7 @@ import InventoryView from './components/InventoryView';
 import LocationsView from './components/LocationsView';
 import AttributesView from './components/AttributesView';
 import CategoriesView from './components/CategoriesView';
+import UOMView from './components/UOMView';
 import BOMView from './components/BOMView';
 import RoutingView from './components/RoutingView';
 import ManufacturingView from './components/ManufacturingView';
@@ -31,6 +32,7 @@ export default function Home() {
   const [locations, setLocations] = useState([]);
   const [attributes, setAttributes] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [uoms, setUoms] = useState([]);
   const [workCenters, setWorkCenters] = useState([]);
   const [operations, setOperations] = useState([]);
   const [boms, setBoms] = useState([]);
@@ -40,12 +42,13 @@ export default function Home() {
 
   const fetchData = async () => {
     try {
-      const [itemsRes, locsRes, stockRes, attrsRes, catsRes, bomsRes, wcRes, opRes, woRes, balRes] = await Promise.all([
+      const [itemsRes, locsRes, stockRes, attrsRes, catsRes, uomsRes, bomsRes, wcRes, opRes, woRes, balRes] = await Promise.all([
           fetch(`${API_BASE}/items`),
           fetch(`${API_BASE}/locations`),
           fetch(`${API_BASE}/stock`),
           fetch(`${API_BASE}/attributes`),
           fetch(`${API_BASE}/categories`),
+          fetch(`${API_BASE}/uoms`),
           fetch(`${API_BASE}/boms`),
           fetch(`${API_BASE}/work-centers`),
           fetch(`${API_BASE}/operations`),
@@ -58,6 +61,7 @@ export default function Home() {
       if (stockRes.ok) setStockEntries(await stockRes.json());
       if (attrsRes.ok) setAttributes(await attrsRes.json());
       if (catsRes.ok) setCategories(await catsRes.json());
+      if (uomsRes.ok) setUoms(await uomsRes.json());
       if (bomsRes.ok) setBoms(await bomsRes.json());
       if (wcRes.ok) setWorkCenters(await wcRes.json());
       if (opRes.ok) setOperations(await opRes.json());
@@ -238,6 +242,22 @@ export default function Home() {
 
   const handleDeleteCategory = async (categoryId: string) => {
       await fetch(`${API_BASE}/categories/${categoryId}`, {
+          method: 'DELETE'
+      });
+      fetchData();
+  };
+
+  const handleCreateUOM = async (name: string) => {
+      await fetch(`${API_BASE}/uoms`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name })
+      });
+      fetchData();
+  };
+
+  const handleDeleteUOM = async (uomId: string) => {
+      await fetch(`${API_BASE}/uoms/${uomId}`, {
           method: 'DELETE'
       });
       fetchData();
@@ -475,6 +495,7 @@ export default function Home() {
                 items={items} 
                 attributes={attributes}
                 categories={categories}
+                uoms={uoms}
                 onCreateItem={handleCreateItem} 
                 onUpdateItem={handleUpdateItem}
                 onDeleteItem={handleDeleteItem}
@@ -511,6 +532,15 @@ export default function Home() {
                 categories={categories}
                 onCreateCategory={handleCreateCategory}
                 onDeleteCategory={handleDeleteCategory}
+            />
+        )}
+
+        {activeTab === 'uom' && (
+            <UOMView 
+                uoms={uoms}
+                onCreateUOM={handleCreateUOM}
+                onDeleteUOM={handleDeleteUOM}
+                onRefresh={fetchData}
             />
         )}
 

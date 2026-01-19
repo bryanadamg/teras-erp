@@ -13,6 +13,7 @@ export default function Sidebar({ activeTab, setActiveTab, appName, isOpen }: Si
   const { t } = useLanguage();
   const { hasPermission } = useUser();
   const [inventoryExpanded, setInventoryExpanded] = useState(true);
+  const [attributesExpanded, setAttributesExpanded] = useState(false); // Nested state
   const [engineeringExpanded, setEngineeringExpanded] = useState(true);
   const [reportsExpanded, setReportsExpanded] = useState(true);
 
@@ -42,7 +43,7 @@ export default function Sidebar({ activeTab, setActiveTab, appName, isOpen }: Si
           <li className="nav-item">
             <a 
               href="#" 
-              className={`nav-link d-flex justify-content-between align-items-center ${['inventory', 'attributes', 'categories', 'locations', 'stock'].includes(activeTab) ? 'active' : ''}`}
+              className={`nav-link d-flex justify-content-between align-items-center ${['inventory', 'attributes', 'categories', 'uom', 'locations', 'stock'].includes(activeTab) ? 'active' : ''}`}
               onClick={(e) => { e.preventDefault(); setInventoryExpanded(!inventoryExpanded); }}
             >
               <div className="d-flex align-items-center gap-2">
@@ -61,15 +62,40 @@ export default function Sidebar({ activeTab, setActiveTab, appName, isOpen }: Si
                         <i className="bi bi-list-ul me-2"></i>{t('item_inventory')}
                     </a>
                     </li>
-                    <li>
-                    <a href="#" className={`nav-link py-2 small ${activeTab === 'attributes' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('attributes'); }}>
-                        <i className="bi bi-tags me-2"></i>{t('attributes')}
-                    </a>
-                    </li>
-                    <li>
-                    <a href="#" className={`nav-link py-2 small ${activeTab === 'categories' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('categories'); }}>
-                        <i className="bi bi-grid me-2"></i>{t('categories')}
-                    </a>
+                    
+                    {/* Nested Attributes Section */}
+                    <li className="nav-item">
+                        <a 
+                          href="#" 
+                          className={`nav-link py-2 small d-flex justify-content-between align-items-center ${['attributes', 'categories', 'uom'].includes(activeTab) ? 'text-primary fw-bold' : ''}`}
+                          onClick={(e) => { e.preventDefault(); setAttributesExpanded(!attributesExpanded); }}
+                        >
+                          <div className="d-flex align-items-center gap-2">
+                            <i className="bi bi-tags"></i>
+                            <span>{t('attributes')} & Metadata</span>
+                          </div>
+                          <i className={`bi bi-chevron-${attributesExpanded ? 'down' : 'right'} small`}></i>
+                        </a>
+                        
+                        {attributesExpanded && (
+                            <ul className="nav flex-column ps-3 border-start ms-2">
+                                <li>
+                                    <a href="#" className={`nav-link py-1 small ${activeTab === 'attributes' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('attributes'); }}>
+                                        <i className="bi bi-palette me-2"></i>Variants
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="#" className={`nav-link py-1 small ${activeTab === 'categories' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('categories'); }}>
+                                        <i className="bi bi-grid me-2"></i>{t('categories')}
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="#" className={`nav-link py-1 small ${activeTab === 'uom' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('uom'); }}>
+                                        <i className="bi bi-rulers me-2"></i>UOM
+                                    </a>
+                                </li>
+                            </ul>
+                        )}
                     </li>
                 </>
                 )}

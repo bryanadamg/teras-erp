@@ -181,6 +181,15 @@ class LocationResponse(LocationCreate):
     class Config:
         from_attributes = True
 
+class UOMCreate(BaseModel):
+    name: str
+
+class UOMResponse(UOMCreate):
+    id: UUID
+
+    class Config:
+        from_attributes = True
+
 class CategoryCreate(BaseModel):
     name: str
 

@@ -8,7 +8,7 @@ import os
 
 from app.db.session import engine
 from app.db.base import Base
-from app.api import items, locations, stock, attributes, boms, manufacturing, categories, routing, auth
+from app.api import items, locations, stock, attributes, boms, manufacturing, categories, routing, auth, uoms
 from app.db.init_db import init_db
 
 app = FastAPI(title="Teras ERP")
@@ -29,6 +29,7 @@ api_router.include_router(manufacturing.router)
 api_router.include_router(categories.router)
 api_router.include_router(routing.router)
 api_router.include_router(auth.router)
+api_router.include_router(uoms.router)
 
 @api_router.get("/health")
 async def health():
