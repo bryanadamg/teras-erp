@@ -6,6 +6,7 @@ import { useLanguage } from '../context/LanguageContext';
 export default function ManufacturingView({ items, boms, locations, attributes, workOrders, onCreateWO, onUpdateStatus }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newWO, setNewWO] = useState({ code: '', bom_id: '', location_code: '', qty: 1.0, due_date: '' });
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -23,6 +24,8 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
       includeMonth: false
   });
 
+  const [currentStyle, setCurrentStyle] = useState('default');
+
   useEffect(() => {
       const savedConfig = localStorage.getItem('wo_code_config');
       if (savedConfig) {
@@ -32,6 +35,8 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
               console.error("Invalid config in localstorage");
           }
       }
+      const savedStyle = localStorage.getItem('ui_style');
+      if (savedStyle) setCurrentStyle(savedStyle);
   }, []);
 
   const handleSaveConfig = (newConfig: CodeConfig) => {
@@ -141,6 +146,7 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
               showToast('Work Order created successfully!', 'success');
           }
           setNewWO({ code: '', bom_id: '', location_code: '', qty: 1.0, due_date: '' });
+          setIsCreateOpen(false);
       } else {
           showToast('Failed to create Work Order', 'danger');
       }
@@ -195,35 +201,38 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
                attributes={attributes}
            />
 
-          {/* Create WO Card */}
-          <div className="col-md-4 no-print">
-              <div className="card h-100 shadow-sm border-0">
-                  <div className="card-header bg-success bg-opacity-10 text-success-emphasis">
-                      <h5 className="card-title mb-0"><i className="bi bi-play-circle me-2"></i>{t('new_production_run')}</h5>
-                  </div>
-                  <div className="card-body">
-                      <form onSubmit={handleSubmit}>
-                          <div className="mb-3">
-                              <label className="form-label d-flex justify-content-between align-items-center small text-muted">
-                                  {t('item_code')}
-                                  <i 
-                                      className="bi bi-gear-fill text-muted" 
-                                      style={{cursor: 'pointer'}}
-                                      onClick={() => setIsConfigOpen(true)}
-                                      title="Configure Auto-Suggestion"
-                                  ></i>
-                              </label>
-                              <input className="form-control" placeholder="Auto-generated" value={newWO.code} onChange={e => setNewWO({...newWO, code: e.target.value})} required />
-                          </div>
-                          <div className="mb-3">
-                              <label className="form-label">{t('select_recipe')}</label>
-                              <select className="form-select" value={newWO.bom_id} onChange={handleBOMChange} required>
-                                  <option value="">Choose a product recipe...</option>
-                                  {boms.map((b: any) => (
-                                      <option key={b.id} value={b.id}>
-                                          {b.code} - {getItemName(b.item_id)}
-                                      </option>
-                                  ))}
+          {/* Create WO Modal */}
+          {isCreateOpen && (
+          <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+              <div className={`modal-dialog modal-lg modal-dialog-centered ui-style-${currentStyle}`}>
+                  <div className="modal-content shadow">
+                      <div className="modal-header bg-success bg-opacity-10 text-success-emphasis">
+                          <h5 className="modal-title"><i className="bi bi-play-circle me-2"></i>{t('new_production_run')}</h5>
+                          <button type="button" className="btn-close" onClick={() => setIsCreateOpen(false)}></button>
+                      </div>
+                      <div className="modal-body">
+                          <form onSubmit={handleSubmit}>
+                              <div className="mb-3">
+                                  <label className="form-label d-flex justify-content-between align-items-center small text-muted">
+                                      {t('item_code')}
+                                      <i 
+                                          className="bi bi-gear-fill text-muted" 
+                                          style={{cursor: 'pointer'}}
+                                          onClick={() => setIsConfigOpen(true)}
+                                          title="Configure Auto-Suggestion"
+                                      ></i>
+                                  </label>
+                                  <input className="form-control" placeholder="Auto-generated" value={newWO.code} onChange={e => setNewWO({...newWO, code: e.target.value})} required />
+                              </div>
+                              <div className="mb-3">
+                                  <label className="form-label">{t('select_recipe')}</label>
+                                  <select className="form-select" value={newWO.bom_id} onChange={handleBOMChange} required>
+                                      <option value="">Choose a product recipe...</option>
+                                      {boms.map((b: any) => (
+                                          <option key={b.id} value={b.id}>
+                                              {b.code} - {getItemName(b.item_id)}
+                                          </option>
+                                      ))}
                               </select>
                           </div>
                           <div className="mb-3">
@@ -245,18 +254,28 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
                                   <input type="date" className="form-control" value={newWO.due_date} onChange={e => setNewWO({...newWO, due_date: e.target.value})} />
                               </div>
                           </div>
-                          <button type="submit" className="btn btn-success w-100 fw-bold shadow-sm">{t('create')}</button>
+                          
+                          <div className="d-flex justify-content-end gap-2">
+                              <button type="button" className="btn btn-secondary" onClick={() => setIsCreateOpen(false)}>{t('cancel')}</button>
+                              <button type="submit" className="btn btn-success fw-bold px-4">{t('create')}</button>
+                          </div>
                       </form>
                   </div>
               </div>
           </div>
+          </div>
+          )}
 
           {/* Work Order List */}
-          <div className="col-md-8 flex-print-fill">
+          <div className="col-12 flex-print-fill">
               <div className="card h-100 border-0 shadow-sm">
                   <div className="card-header bg-white d-flex justify-content-between align-items-center no-print">
                       <h5 className="card-title mb-0">{t('production_schedule')}</h5>
                       <div className="d-flex gap-2">
+                          <button className="btn btn-success btn-sm text-white" onClick={() => setIsCreateOpen(true)}>
+                              <i className="bi bi-plus-lg me-1"></i>{t('create')}
+                          </button>
+                          <div className="vr mx-1"></div>
                           <div className="input-group input-group-sm">
                               <span className="input-group-text">{t('from')}</span>
                               <input type="date" className="form-control" value={startDate} onChange={e => setStartDate(e.target.value)} />
@@ -295,18 +314,19 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
                                       return (
                                           <tr key={wo.id}>
                                               <td className="ps-4 fw-bold font-monospace small">{wo.code}</td>
-                                                                                        <td>
-                                                                                            <div className="fw-medium">{getItemName(wo.item_id)}</div>
-                                                                                            <div className="small text-muted">
-                                                                                                {wo.attribute_value_ids?.map(getAttributeValueName).join(', ') || '-'}
-                                                                                            </div>
-                                                                                            <div className="small text-primary fst-italic">{getBOMCode(wo.bom_id)}</div>
-                                                                                            {wo.status === 'PENDING' && wo.is_material_available === false && (
-                                                                                                <div className="text-danger small fw-bold">
-                                                                                                    <i className="bi bi-exclamation-triangle-fill me-1"></i>Low Stock
-                                                                                                </div>
-                                                                                            )}
-                                                                                        </td>                                              <td className="fw-bold">{wo.qty}</td>
+                                              <td>
+                                                  <div className="fw-medium">{getItemName(wo.item_id)}</div>
+                                                  <div className="small text-muted">
+                                                      {wo.attribute_value_ids?.map(getAttributeValueName).join(', ') || '-'}
+                                                  </div>
+                                                  <div className="small text-primary fst-italic">{getBOMCode(wo.bom_id)}</div>
+                                                  {wo.status === 'PENDING' && wo.is_material_available === false && (
+                                                      <div className="text-danger small fw-bold">
+                                                          <i className="bi bi-exclamation-triangle-fill me-1"></i>Low Stock
+                                                      </div>
+                                                  )}
+                                              </td>
+                                              <td className="fw-bold">{wo.qty}</td>
                                               <td>
                                                   <div className="d-flex flex-column">
                                                       <span className={warning ? `text-${warning.type} fw-bold` : ''}>
