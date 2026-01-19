@@ -9,20 +9,25 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
   const [name, setName] = useState(appName);
   const [style, setStyle] = useState(uiStyle || 'default');
   const [roles, setRoles] = useState<any[]>([]);
+  const [allPermissions, setAllPermissions] = useState<any[]>([]);
 
   // User Management State
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editRoleId, setEditRoleId] = useState('');
+  const [editPermissionIds, setEditPermissionIds] = useState<string[]>([]);
 
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
 
   useEffect(() => {
-      // Fetch roles for the dropdown
-      fetch(`${API_BASE}/roles`)
-          .then(res => res.json())
-          .then(data => setRoles(data))
-          .catch(err => console.error("Failed to fetch roles", err));
+      // Fetch roles and permissions
+      Promise.all([
+          fetch(`${API_BASE}/roles`).then(res => res.json()),
+          fetch(`${API_BASE}/permissions`).then(res => res.json())
+      ]).then(([rolesData, permsData]) => {
+          setRoles(rolesData);
+          setAllPermissions(permsData);
+      }).catch(err => console.error("Failed to fetch auth data", err));
   }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -36,14 +41,21 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
       const selected = users.find(u => u.id === userId);
       if (selected) {
           setCurrentUser(selected);
-          showToast(`Switched to user: ${selected.username} (${selected.role.name})`, 'info');
+          showToast(`Switched to user: ${selected.username} (${selected.role?.name || 'No Role'})`, 'info');
       }
   };
 
   const startEditingUser = (user: User) => {
       setEditingUser(user.id);
       setEditName(user.full_name);
-      setEditRoleId(user.role.id);
+      setEditRoleId(user.role?.id || '');
+      setEditPermissionIds(user.permissions?.map(p => p.id) || []);
+  };
+
+  const toggleEditPermission = (permId: string) => {
+      setEditPermissionIds(prev => 
+          prev.includes(permId) ? prev.filter(id => id !== permId) : [...prev, permId]
+      );
   };
 
   const saveUserChanges = async (userId: string) => {
@@ -51,7 +63,11 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
           const res = await fetch(`${API_BASE}/users/${userId}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ full_name: editName, role_id: editRoleId })
+              body: JSON.stringify({ 
+                  full_name: editName, 
+                  role_id: editRoleId || null,
+                  permission_ids: editPermissionIds
+              })
           });
           
           if (res.ok) {
@@ -59,7 +75,8 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
               setEditingUser(null);
               refreshUsers(); // Refresh the global user list
           } else {
-              showToast('Failed to update user', 'danger');
+              const err = await res.json();
+              showToast(`Failed: ${err.detail}`, 'danger');
           }
       } catch (e) {
           console.error(e);
@@ -69,7 +86,7 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
 
   return (
     <div className="row justify-content-center fade-in">
-      <div className="col-md-8">
+      <div className="col-md-10">
         <div className="card shadow-sm border-0 mb-4">
           <div className="card-header bg-white">
              <h5 className="card-title mb-0">System Settings</h5>
@@ -112,7 +129,7 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
                      ))}
                  </select>
                  <div className="form-text small mt-2">
-                     <strong>Active Permissions:</strong> {currentUser?.role?.permissions.map(p => p.code).join(', ') || 'None'}
+                     <strong>Direct Permissions:</strong> {currentUser?.permissions?.map(p => p.code).join(', ') || 'None'}
                  </div>
             </div>
         </div>
@@ -130,13 +147,14 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
                                 <tr>
                                     <th className="ps-4">Username</th>
                                     <th>Full Name</th>
-                                    <th>Role / Access Level</th>
+                                    <th>Base Role</th>
+                                    <th>Custom Tab Access (Granular)</th>
                                     <th className="text-end pe-4">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {users.map(user => (
-                                    <tr key={user.id}>
+                                    <tr key={user.id} className={editingUser === user.id ? 'bg-light' : ''}>
                                         <td className="ps-4 font-monospace">{user.username}</td>
                                         
                                         {editingUser === user.id ? (
@@ -154,24 +172,55 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
                                                         value={editRoleId}
                                                         onChange={e => setEditRoleId(e.target.value)}
                                                     >
+                                                        <option value="">No Role</option>
                                                         {roles.map(r => (
                                                             <option key={r.id} value={r.id}>{r.name}</option>
                                                         ))}
                                                     </select>
                                                 </td>
+                                                <td>
+                                                    <div className="d-flex flex-wrap gap-2 p-2 border rounded bg-white" style={{maxHeight: '150px', overflowY: 'auto'}}>
+                                                        {allPermissions.map(p => (
+                                                            <div key={p.id} className="form-check m-0">
+                                                                <input 
+                                                                    className="form-check-input" 
+                                                                    type="checkbox" 
+                                                                    checked={editPermissionIds.includes(p.id)}
+                                                                    onChange={() => toggleEditPermission(p.id)}
+                                                                    id={`perm-${p.id}`}
+                                                                />
+                                                                <label className="form-check-label small" htmlFor={`perm-${p.id}`} title={p.description}>
+                                                                    {p.code}
+                                                                </label>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </td>
                                                 <td className="text-end pe-4">
-                                                    <button className="btn btn-sm btn-success me-1" onClick={() => saveUserChanges(user.id)}>
-                                                        <i className="bi bi-check-lg"></i>
-                                                    </button>
-                                                    <button className="btn btn-sm btn-light border" onClick={() => setEditingUser(null)}>
-                                                        <i className="bi bi-x-lg"></i>
-                                                    </button>
+                                                    <div className="d-flex gap-1 justify-content-end">
+                                                        <button className="btn btn-sm btn-success" onClick={() => saveUserChanges(user.id)}>
+                                                            <i className="bi bi-check-lg"></i>
+                                                        </button>
+                                                        <button className="btn btn-sm btn-light border" onClick={() => setEditingUser(null)}>
+                                                            <i className="bi bi-x-lg"></i>
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </>
                                         ) : (
                                             <>
                                                 <td>{user.full_name}</td>
-                                                <td><span className="badge bg-secondary">{user.role?.name}</span></td>
+                                                <td><span className="badge bg-secondary">{user.role?.name || '-'}</span></td>
+                                                <td>
+                                                    <div className="d-flex flex-wrap gap-1">
+                                                        {user.permissions?.map(p => (
+                                                            <span key={p.id} className="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" style={{fontSize: '0.65rem'}}>
+                                                                {p.code}
+                                                            </span>
+                                                        ))}
+                                                        {(!user.permissions || user.permissions.length === 0) && <span className="text-muted small italic">Inherited only</span>}
+                                                    </div>
+                                                </td>
                                                 <td className="text-end pe-4">
                                                     <button className="btn btn-sm btn-link" onClick={() => startEditingUser(user)}>
                                                         <i className="bi bi-pencil-square"></i>

@@ -12,6 +12,14 @@ role_permissions = Table(
     Column("permission_id", UUID(as_uuid=True), ForeignKey("permissions.id"), primary_key=True),
 )
 
+# Association table for User <-> Permission (Granular access)
+user_permissions = Table(
+    "user_permissions",
+    Base.metadata,
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True),
+    Column("permission_id", UUID(as_uuid=True), ForeignKey("permissions.id"), primary_key=True),
+)
+
 class Permission(Base):
     __tablename__ = "permissions"
 
@@ -45,3 +53,4 @@ class User(Base):
     )
 
     role = relationship("Role")
+    permissions = relationship("Permission", secondary=user_permissions)

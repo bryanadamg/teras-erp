@@ -14,6 +14,11 @@ def get_users(db: Session = Depends(get_db)):
 def get_roles(db: Session = Depends(get_db)):
     return db.query(Role).all()
 
+@router.get("/permissions", response_model=list[PermissionResponse])
+def get_permissions(db: Session = Depends(get_db)):
+    from app.models.auth import Permission
+    return db.query(Permission).all()
+
 @router.put("/users/{user_id}", response_model=UserResponse)
 def update_user(user_id: str, payload: UserUpdate, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
@@ -24,11 +29,15 @@ def update_user(user_id: str, payload: UserUpdate, db: Session = Depends(get_db)
         user.full_name = payload.full_name
     
     if payload.role_id is not None:
-        # Validate role
         role = db.query(Role).filter(Role.id == payload.role_id).first()
         if not role:
             raise HTTPException(status_code=400, detail="Role not found")
         user.role_id = payload.role_id
+
+    if payload.permission_ids is not None:
+        from app.models.auth import Permission
+        perms = db.query(Permission).filter(Permission.id.in_(payload.permission_ids)).all()
+        user.permissions = perms
         
     db.commit()
     db.refresh(user)
