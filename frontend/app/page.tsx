@@ -565,6 +565,7 @@ export default function Home() {
                 stockEntries={stockEntries} 
                 items={items} 
                 locations={locations} 
+                categories={categories}
                 onRefresh={fetchData} 
             />
         )}

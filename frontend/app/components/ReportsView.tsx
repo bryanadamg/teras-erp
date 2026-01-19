@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 
-export default function ReportsView({ stockEntries, items, locations, onRefresh }: any) {
+export default function ReportsView({ stockEntries, items, locations, categories, onRefresh }: any) {
   const { t } = useLanguage();
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
 
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
   const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
@@ -25,12 +26,20 @@ export default function ReportsView({ stockEntries, items, locations, onRefresh 
       const start = startDate ? new Date(startDate) : null;
       const end = endDate ? new Date(endDate) : null;
       
+      // Date Filter
       if (start && date < start) return false;
       if (end) {
           const endDateTime = new Date(end);
           endDateTime.setHours(23, 59, 59, 999);
           if (date > endDateTime) return false;
       }
+
+      // Category Filter
+      if (categoryFilter) {
+          const item = items.find((i: any) => i.id === entry.item_id);
+          if (!item || item.category !== categoryFilter) return false;
+      }
+
       return true;
   });
 
@@ -42,6 +51,19 @@ export default function ReportsView({ stockEntries, items, locations, onRefresh 
                   <small className="text-muted">Analyze inventory movements</small>
               </div>
               <div className="d-flex gap-2 align-items-center">
+                  <div className="input-group input-group-sm" style={{width: '150px'}}>
+                      <span className="input-group-text"><i className="bi bi-funnel"></i></span>
+                      <select 
+                          className="form-select" 
+                          value={categoryFilter} 
+                          onChange={e => setCategoryFilter(e.target.value)}
+                      >
+                          <option value="">{t('categories')} (All)</option>
+                          {categories.map((c: any) => (
+                              <option key={c.id} value={c.name}>{c.name}</option>
+                          ))}
+                      </select>
+                  </div>
                   <div className="input-group input-group-sm">
                       <span className="input-group-text">{t('from')}</span>
                       <input type="date" className="form-control" value={startDate} onChange={e => setStartDate(e.target.value)} />
@@ -63,6 +85,7 @@ export default function ReportsView({ stockEntries, items, locations, onRefresh 
                   <h2 className="mb-1">{t('stock_ledger')}</h2>
                   <p className="text-muted mb-0">Period: {startDate || 'All Time'} to {endDate || 'Present'}</p>
                   <p className="text-muted small">Generated on: {new Date().toLocaleString()}</p>
+                  {categoryFilter && <p className="text-muted small">Category Filter: <strong>{categoryFilter}</strong></p>}
               </div>
               <div className="table-responsive">
                   <table className="table table-hover table-striped mb-0 align-middle">
