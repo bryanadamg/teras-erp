@@ -117,11 +117,16 @@ export default function InventoryView({
 
   // Filtered Items
   const filteredItems = items.filter((i: any) => {
-      // If forcedCategory is set, we ignore the dropdown filter or enforce it matches forcedCategory
-      const matchesCategory = forcedCategory 
-          ? i.category === forcedCategory 
-          : (!categoryFilter || i.category === categoryFilter);
-          
+      // 1. Handle Forced Category (e.g. in the dedicated Samples tab)
+      if (forcedCategory) {
+          return i.category === forcedCategory;
+      }
+
+      // 2. Main Inventory View: Filter out "Sample" category by default
+      if (i.category === 'Sample') return false;
+
+      // 3. Handle user filters (dropdown + search)
+      const matchesCategory = !categoryFilter || i.category === categoryFilter;
       const matchesSearch = !searchTerm || 
           i.code.toLowerCase().includes(searchTerm.toLowerCase()) || 
           i.name.toLowerCase().includes(searchTerm.toLowerCase());
