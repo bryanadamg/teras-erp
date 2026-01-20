@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
+import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
 
 export default function SampleRequestView({ samples, salesOrders, items, attributes, onCreateSample, onUpdateStatus, onDeleteSample, uiStyle }: any) {
   const { showToast } = useToast();
@@ -8,14 +9,73 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
-  const buttonRefs = useRef<{[key: string]: HTMLButtonElement | null}>({});
   
   const [newSample, setNewSample] = useState({
+      code: '',
       sales_order_id: '',
       base_item_id: '',
       attribute_value_ids: [] as string[],
       notes: ''
   });
+
+  // Config State
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [codeConfig, setCodeConfig] = useState<CodeConfig>({
+      prefix: 'SMP',
+      suffix: '',
+      separator: '-',
+      includeItemCode: false,
+      includeVariant: false,
+      variantAttributeNames: [],
+      includeYear: true,
+      includeMonth: true
+  });
+
+  useEffect(() => {
+      const savedConfig = localStorage.getItem('sample_code_config');
+      if (savedConfig) {
+          try {
+              setCodeConfig(JSON.parse(savedConfig));
+          } catch (e) {
+              console.error("Invalid config in localstorage");
+          }
+      }
+  }, []);
+
+  const handleSaveConfig = (newConfig: CodeConfig) => {
+      setCodeConfig(newConfig);
+      localStorage.setItem('sample_code_config', JSON.stringify(newConfig));
+      const suggested = suggestSampleCode(newConfig);
+      setNewSample(prev => ({ ...prev, code: suggested }));
+  };
+
+  const suggestSampleCode = (config = codeConfig) => {
+      const parts = [];
+      if (config.prefix) parts.push(config.prefix);
+      
+      const now = new Date();
+      if (config.includeYear) parts.push(now.getFullYear());
+      if (config.includeMonth) parts.push(String(now.getMonth() + 1).padStart(2, '0'));
+      if (config.suffix) parts.push(config.suffix);
+
+      const basePattern = parts.join(config.separator);
+      
+      let counter = 1;
+      let baseCode = `${basePattern}${config.separator}001`;
+      
+      while (samples.some((s: any) => s.code === baseCode)) {
+          counter++;
+          baseCode = `${basePattern}${config.separator}${String(counter).padStart(3, '0')}`;
+      }
+      return baseCode;
+  };
+
+  // Generate initial suggestion when modal opens
+  useEffect(() => {
+      if (isCreateOpen && !newSample.code) {
+          setNewSample(prev => ({ ...prev, code: suggestSampleCode() }));
+      }
+  }, [isCreateOpen]);
 
   // Close dropdown when clicking outside (and handle scroll closing)
   useEffect(() => {
@@ -27,7 +87,7 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
       const handleScroll = () => setOpenDropdownId(null);
 
       document.addEventListener('click', handleGlobalClick);
-      window.addEventListener('scroll', handleScroll, true); // Capture scroll in any container
+      window.addEventListener('scroll', handleScroll, true);
       
       return () => {
           document.removeEventListener('click', handleGlobalClick);
@@ -40,12 +100,10 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
       if (openDropdownId === id) {
           setOpenDropdownId(null);
       } else {
-          // Calculate position
           const rect = (e.target as HTMLElement).getBoundingClientRect();
-          // Position to the left of the button, slightly below
           setDropdownPos({
               top: rect.bottom + window.scrollY + 2,
-              left: rect.right + window.scrollX - 160 // Align right edge (approx width 160px)
+              left: rect.right + window.scrollX - 160 
           });
           setOpenDropdownId(id);
       }
@@ -54,7 +112,7 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
   const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       onCreateSample(newSample);
-      setNewSample({ sales_order_id: '', base_item_id: '', attribute_value_ids: [], notes: '' });
+      setNewSample({ code: '', sales_order_id: '', base_item_id: '', attribute_value_ids: [], notes: '' });
       setIsCreateOpen(false);
   };
 
@@ -89,6 +147,15 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
 
   return (
     <div className="row g-4 fade-in">
+       <CodeConfigModal 
+           isOpen={isConfigOpen} 
+           onClose={() => setIsConfigOpen(false)} 
+           type="SAMPLE"
+           onSave={handleSaveConfig}
+           initialConfig={codeConfig}
+           attributes={attributes}
+       />
+
        {/* Create Modal */}
        {isCreateOpen && (
        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
@@ -100,14 +167,28 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
                     </div>
                     <div className="modal-body">
                         <form onSubmit={handleSubmit}>
-                            <div className="mb-3">
-                                <label className="form-label">Link to Purchase Order (Optional)</label>
-                                <select className="form-select" value={newSample.sales_order_id} onChange={e => setNewSample({...newSample, sales_order_id: e.target.value})}>
-                                    <option value="">Select PO...</option>
-                                    {salesOrders.map((so: any) => (
-                                        <option key={so.id} value={so.id}>{so.po_number} - {so.customer_name}</option>
-                                    ))}
-                                </select>
+                            <div className="row g-3 mb-3">
+                                <div className="col-md-6">
+                                    <label className="form-label d-flex justify-content-between align-items-center small text-muted">
+                                        Request Code
+                                        <i 
+                                            className="bi bi-gear-fill text-muted" 
+                                            style={{cursor: 'pointer'}}
+                                            onClick={() => setIsConfigOpen(true)}
+                                            title="Configure Auto-Suggestion"
+                                        ></i>
+                                    </label>
+                                    <input className="form-control" placeholder="Auto-generated" value={newSample.code} onChange={e => setNewSample({...newSample, code: e.target.value})} required />
+                                </div>
+                                <div className="col-md-6">
+                                    <label className="form-label small text-muted">Link to Purchase Order (Optional)</label>
+                                    <select className="form-select" value={newSample.sales_order_id} onChange={e => setNewSample({...newSample, sales_order_id: e.target.value})}>
+                                        <option value="">Select PO...</option>
+                                        {salesOrders.map((so: any) => (
+                                            <option key={so.id} value={so.id}>{so.po_number} - {so.customer_name}</option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
                             
                             <div className="mb-3">
@@ -158,7 +239,7 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
        </div>
        )}
 
-       {/* Floating Dropdown Menu (Portaled via Fixed Positioning) */}
+       {/* Floating Dropdown Menu */}
        {openDropdownId && (
            <div 
                 className={`dropdown-menu show shadow fixed-dropdown-menu ui-style-${uiStyle}`}
@@ -216,7 +297,6 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
                                     <td>
                                         <div className="fw-medium">{getItemName(s.base_item_id)}</div>
                                         <div className="small text-muted d-flex gap-1 flex-wrap mt-1">
-                                            {/* We need to resolve attr value names from IDs if not populated, assuming s.attribute_values is populated by backend */}
                                             {s.attribute_values && s.attribute_values.map((v:any) => (
                                                 <span key={v.id} className="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-10">{v.value}</span>
                                             ))}
