@@ -33,6 +33,13 @@ def create_sales_order(payload: SalesOrderCreate, db: Session = Depends(get_db))
             qty=line.qty,
             due_date=line.due_date
         )
+        
+        # Link attributes
+        if line.attribute_value_ids:
+            from app.models.attribute import AttributeValue
+            attrs = db.query(AttributeValue).filter(AttributeValue.id.in_(line.attribute_value_ids)).all()
+            so_line.attribute_values = attrs
+            
         db.add(so_line)
     
     db.commit()
@@ -41,7 +48,11 @@ def create_sales_order(payload: SalesOrderCreate, db: Session = Depends(get_db))
 
 @router.get("/sales-orders", response_model=list[SalesOrderResponse])
 def get_sales_orders(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return db.query(SalesOrder).order_by(SalesOrder.created_at.desc()).offset(skip).limit(limit).all()
+    orders = db.query(SalesOrder).order_by(SalesOrder.created_at.desc()).offset(skip).limit(limit).all()
+    for order in orders:
+        for line in order.lines:
+            line.attribute_value_ids = [v.id for v in line.attribute_values]
+    return orders
 
 @router.delete("/sales-orders/{so_id}")
 def delete_sales_order(so_id: str, db: Session = Depends(get_db)):

@@ -1,9 +1,17 @@
 import uuid
-from sqlalchemy import String, ForeignKey, Numeric, DateTime, Text
+from sqlalchemy import String, ForeignKey, Numeric, DateTime, Text, Table, Column
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from datetime import datetime
+
+# Association table for SalesOrderLine <-> AttributeValue
+sales_order_line_values = Table(
+    "sales_order_line_values",
+    Base.metadata,
+    Column("sales_order_line_id", UUID(as_uuid=True), ForeignKey("sales_order_lines.id"), primary_key=True),
+    Column("attribute_value_id", UUID(as_uuid=True), ForeignKey("attribute_values.id"), primary_key=True),
+)
 
 class SalesOrder(Base):
     __tablename__ = "sales_orders"
@@ -39,3 +47,4 @@ class SalesOrderLine(Base):
 
     # Relationships
     item = relationship("Item")
+    attribute_values = relationship("AttributeValue", secondary=sales_order_line_values)

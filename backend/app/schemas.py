@@ -228,9 +228,11 @@ class SalesOrderLineCreate(BaseModel):
     item_id: UUID
     qty: float
     due_date: datetime | None = None
+    attribute_value_ids: list[UUID] = []
 
 class SalesOrderLineResponse(SalesOrderLineCreate):
     id: UUID
+    attribute_value_ids: list[UUID] = [] # To be populated
     class Config:
         from_attributes = True
 

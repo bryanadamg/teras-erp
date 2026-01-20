@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 
-export default function PurchaseOrderView({ items, salesOrders, onCreatePO, onDeletePO }: any) {
+export default function PurchaseOrderView({ items, attributes, salesOrders, onCreatePO, onDeletePO }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -14,16 +14,25 @@ export default function PurchaseOrderView({ items, salesOrders, onCreatePO, onDe
       lines: [] as any[]
   });
   
-  const [newLine, setNewLine] = useState({ item_id: '', qty: 0, due_date: '' });
+  const [newLine, setNewLine] = useState({ item_id: '', qty: 0, due_date: '', attribute_value_ids: [] as string[] });
 
   const handleAddLine = () => {
       if (!newLine.item_id || newLine.qty <= 0) return;
       setNewPO({ ...newPO, lines: [...newPO.lines, { ...newLine }] });
-      setNewLine({ item_id: '', qty: 0, due_date: '' });
+      setNewLine({ item_id: '', qty: 0, due_date: '', attribute_value_ids: [] });
   };
 
   const handleRemoveLine = (index: number) => {
       setNewPO({ ...newPO, lines: newPO.lines.filter((_, i) => i !== index) });
+  };
+
+  const handleValueChange = (valId: string, attrId: string) => {
+      const attr = attributes.find((a: any) => a.id === attrId);
+      if (!attr) return;
+
+      const otherValues = newLine.attribute_value_ids.filter(vid => !attr.values.some((v:any) => v.id === vid));
+      const newValues = valId ? [...otherValues, valId] : otherValues;
+      setNewLine({...newLine, attribute_value_ids: newValues});
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -46,6 +55,22 @@ export default function PurchaseOrderView({ items, salesOrders, onCreatePO, onDe
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
   const getItemCode = (id: string) => items.find((i: any) => i.id === id)?.code || id;
   const isSample = (id: string) => items.find((i: any) => i.id === id)?.category === 'Sample';
+
+  const getBoundAttributes = (itemId: string) => {
+      const item = items.find((i: any) => i.id === itemId);
+      if (!item || !item.attribute_ids) return [];
+      return attributes.filter((a: any) => item.attribute_ids.includes(a.id));
+  };
+
+  const currentBoundAttrs = getBoundAttributes(newLine.item_id);
+
+  const getAttributeValueName = (valId: string) => {
+      for (const attr of attributes) {
+          const val = attr.values.find((v: any) => v.id === valId);
+          if (val) return val.value;
+      }
+      return valId;
+  };
 
   return (
     <div className="row g-4 fade-in">
@@ -80,7 +105,7 @@ export default function PurchaseOrderView({ items, salesOrders, onCreatePO, onDe
                                 <div className="row g-2 mb-3">
                                     <div className="col-6">
                                         <label className="form-label small text-muted">Item</label>
-                                        <select className="form-select form-select-sm" value={newLine.item_id} onChange={e => setNewLine({...newLine, item_id: e.target.value})}>
+                                        <select className="form-select form-select-sm" value={newLine.item_id} onChange={e => setNewLine({...newLine, item_id: e.target.value, attribute_value_ids: []})}>
                                             <option value="">Select Item...</option>
                                             {items.map((item: any) => (
                                                 <option key={item.id} value={item.id}>
@@ -96,6 +121,29 @@ export default function PurchaseOrderView({ items, salesOrders, onCreatePO, onDe
                                     <div className="col-3 d-flex align-items-end">
                                         <button type="button" className="btn btn-secondary btn-sm w-100" onClick={handleAddLine} disabled={!newLine.item_id}>Add</button>
                                     </div>
+                                    
+                                    {/* Attribute Selection */}
+                                    {currentBoundAttrs.length > 0 && (
+                                        <div className="col-12 mt-2">
+                                            <div className="card card-body bg-white border-0 shadow-sm p-2">
+                                                <small className="text-muted fw-bold mb-2 d-block">Variants</small>
+                                                <div className="row g-2">
+                                                    {currentBoundAttrs.map((attr: any) => (
+                                                        <div key={attr.id} className="col-md-4">
+                                                            <select 
+                                                                className="form-select form-select-sm"
+                                                                value={newLine.attribute_value_ids.find(vid => attr.values.some((v:any) => v.id === vid)) || ''}
+                                                                onChange={e => handleValueChange(e.target.value, attr.id)}
+                                                            >
+                                                                <option value="">Any {attr.name}</option>
+                                                                {attr.values.map((v: any) => <option key={v.id} value={v.id}>{v.value}</option>)}
+                                                            </select>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                                 
                                 <div className="mt-2">
@@ -105,6 +153,9 @@ export default function PurchaseOrderView({ items, salesOrders, onCreatePO, onDe
                                                 <span className="fw-bold">{getItemName(line.item_id)}</span>
                                                 <span className="text-muted ms-2 font-monospace">{getItemCode(line.item_id)}</span>
                                                 {isSample(line.item_id) && <span className="badge bg-warning text-dark ms-2" style={{fontSize: '0.65rem'}}>Sample</span>}
+                                                <div className="small text-muted fst-italic">
+                                                    {(line.attribute_value_ids || []).map(getAttributeValueName).join(', ')}
+                                                </div>
                                             </div>
                                             <div className="d-flex align-items-center gap-3">
                                                 <span className="fw-bold">x{line.qty}</span>
@@ -160,9 +211,22 @@ export default function PurchaseOrderView({ items, salesOrders, onCreatePO, onDe
                                     <td>
                                         <div className="d-flex flex-column gap-1">
                                             {po.lines.map((line: any) => (
-                                                <div key={line.id} className="small text-muted">
-                                                    <span className="fw-bold text-dark">{line.qty}</span> x {getItemName(line.item_id)}
-                                                    {isSample(line.item_id) && <i className="bi bi-star-fill text-warning ms-1" style={{fontSize: '0.6rem'}} title="Sample Item"></i>}
+                                                <div key={line.id} className="small text-muted mb-1">
+                                                    <div className="d-flex align-items-center">
+                                                        <span className="fw-bold text-dark">{line.qty}</span> 
+                                                        <span className="mx-1">x</span> 
+                                                        <span className="fw-medium text-dark">{getItemName(line.item_id)}</span>
+                                                        {isSample(line.item_id) && <i className="bi bi-star-fill text-warning ms-1" style={{fontSize: '0.6rem'}} title="Sample Item"></i>}
+                                                    </div>
+                                                    {line.attribute_value_ids && line.attribute_value_ids.length > 0 && (
+                                                        <div className="ps-3 border-start ms-1 mt-1" style={{fontSize: '0.75rem'}}>
+                                                            {line.attribute_value_ids.map((vid: string) => (
+                                                                <span key={vid} className="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-10 me-1">
+                                                                    {getAttributeValueName(vid)}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>

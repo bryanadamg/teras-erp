@@ -723,6 +723,7 @@ export default function Home() {
         {activeTab === 'purchase-orders' && (
             <PurchaseOrderView 
                 items={items} 
+                attributes={attributes}
                 salesOrders={salesOrders}
                 onCreatePO={handleCreatePO}
                 onDeletePO={handleDeletePO}

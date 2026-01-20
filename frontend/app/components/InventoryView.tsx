@@ -16,6 +16,10 @@ export default function InventoryView({
 }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
+  // UI State
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [currentStyle, setCurrentStyle] = useState('default');
+
   // Creation State
   const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', category: forcedCategory || '', source_sample_id: '', attribute_ids: [] as string[] });
   
@@ -34,6 +38,8 @@ export default function InventoryView({
       if (forcedCategory) {
           setNewItem(prev => ({ ...prev, category: forcedCategory }));
       }
+      const savedStyle = localStorage.getItem('ui_style');
+      if (savedStyle) setCurrentStyle(savedStyle);
   }, [forcedCategory]);
 
   // --- Item Handlers ---
@@ -66,6 +72,7 @@ export default function InventoryView({
       } else {
           // Success
           setNewItem({ code: '', name: '', uom: '', category: forcedCategory || '', source_sample_id: '', attribute_ids: [] });
+          setIsCreateOpen(false);
       }
   };
 
@@ -143,17 +150,110 @@ export default function InventoryView({
   return (
     <div className="row g-4 fade-in">
       
-      {/* LEFT COLUMN: Items List */}
-      <div className="col-md-8 order-2 order-md-1">
-        <div className="card h-100">
+      {/* Create Modal */}
+      {isCreateOpen && (
+       <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+            <div className={`modal-dialog modal-dialog-centered ui-style-${currentStyle}`}>
+                <div className="modal-content shadow">
+                    <div className="modal-header bg-primary bg-opacity-10 text-primary-emphasis">
+                        <h5 className="modal-title"><i className="bi bi-box-seam me-2"></i>{t('create')} {forcedCategory ? t('sample_masters') : t('item_inventory')}</h5>
+                        <button type="button" className="btn-close" onClick={() => setIsCreateOpen(false)}></button>
+                    </div>
+                    <div className="modal-body">
+                        <form onSubmit={handleSubmitItem}>
+                          <div className="mb-3">
+                              <label className="form-label small text-muted">{t('item_code')}</label>
+                              <input className="form-control" placeholder="ITM-001" value={newItem.code} onChange={e => setNewItem({...newItem, code: e.target.value})} required />
+                          </div>
+                          <div className="mb-3">
+                              <label className="form-label small text-muted">{t('item_name')}</label>
+                              <input className="form-control" placeholder="Product Name" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
+                          </div>
+                          <div className="row g-2 mb-3">
+                              <div className="col-7">
+                                  <label className="form-label d-flex justify-content-between small text-muted">
+                                      {t('categories')} 
+                                      {!forcedCategory && <span className="text-primary" style={{cursor:'pointer'}} onClick={() => setShowCatInput(!showCatInput)}><i className="bi bi-plus-circle"></i></span>}
+                                  </label>
+                                  {forcedCategory ? (
+                                      <input className="form-control" value={newItem.category} disabled />
+                                  ) : showCatInput ? (
+                                      <div className="input-group input-group-sm">
+                                          <input className="form-control" placeholder="New..." value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} autoFocus />
+                                          <button type="button" className="btn btn-primary" onClick={handleAddCategory}><i className="bi bi-check"></i></button>
+                                      </div>
+                                  ) : (
+                                      <select className="form-select" value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})}>
+                                          <option value="">Select...</option>
+                                          {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                      </select>
+                                  )}
+                              </div>
+                              <div className="col-5">
+                                  <label className="form-label small text-muted">{t('uom')}</label>
+                                  <select className="form-select" value={newItem.uom} onChange={e => setNewItem({...newItem, uom: e.target.value})} required>
+                                      <option value="">Unit...</option>
+                                      {(uoms || []).map((u: any) => <option key={u.id} value={u.name}>{u.name}</option>)}
+                                  </select>
+                              </div>
+                          </div>
+                          
+                          <div className="mb-3">
+                              <label className="form-label small text-muted d-block">{t('attributes')}</label>
+                              <div className="d-flex flex-wrap gap-2 p-2 border rounded bg-light" style={{maxHeight: '120px', overflowY: 'auto'}}>
+                                  {attributes.map((attr: any) => (
+                                      <div key={attr.id} className="form-check">
+                                          <input 
+                                              className="form-check-input" 
+                                              type="checkbox" 
+                                              id={`new-attr-${attr.id}`}
+                                              checked={newItem.attribute_ids.includes(attr.id)}
+                                              onChange={() => toggleAttribute(attr.id, false)}
+                                          />
+                                          <label className="form-check-label small" htmlFor={`new-attr-${attr.id}`}>
+                                              {attr.name}
+                                          </label>
+                                      </div>
+                                  ))}
+                                  {attributes.length === 0 && <small className="text-muted fst-italic">No attributes defined</small>}
+                              </div>
+                          </div>
+
+                          <div className="mb-3">
+                              <label className="form-label small text-muted">{t('source_sample')}</label>
+                              <select className="form-select" value={newItem.source_sample_id} onChange={e => setNewItem({...newItem, source_sample_id: e.target.value})}>
+                                  <option value="">None</option>
+                                  {sampleItems.map((s: any) => (
+                                      <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+                                  ))}
+                              </select>
+                          </div>
+                          
+                          <div className="d-flex justify-content-end gap-2 mt-3">
+                              <button type="button" className="btn btn-secondary" onClick={() => setIsCreateOpen(false)}>{t('cancel')}</button>
+                              <button type="submit" className="btn btn-primary fw-bold px-4">{t('create')}</button>
+                          </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+       </div>
+      )}
+
+      {/* LEFT COLUMN: Items List (Now Full Width) */}
+      <div className={`${activeEditingItem ? 'col-md-8' : 'col-12'} order-2 order-md-1`}>
+        <div className="card h-100 border-0 shadow-sm">
           <div className="card-header bg-white">
             <div className="d-flex justify-content-between align-items-center mb-3">
                 <div>
-                    <h5 className="card-title mb-0">{forcedCategory ? t('samples') : t('item_inventory')}</h5>
+                    <h5 className="card-title mb-0">{forcedCategory ? t('sample_masters') : t('item_inventory')}</h5>
                     <p className="text-muted small mb-0 mt-1">
                         {forcedCategory ? 'Manage product samples and prototypes' : 'Master list of all products and materials'}
                     </p>
                 </div>
+                <button className="btn btn-primary btn-sm" onClick={() => setIsCreateOpen(true)}>
+                    <i className="bi bi-plus-lg me-2"></i>{t('create')}
+                </button>
             </div>
             
             {/* Filter Bar */}
@@ -227,7 +327,7 @@ export default function InventoryView({
                       </td>
                     </tr>
                   ))}
-                  {filteredItems.length === 0 && <tr><td colSpan={5} className="text-center text-muted py-5">No items found</td></tr>}
+                  {filteredItems.length === 0 && <tr><td colSpan={6} className="text-center text-muted py-5">No items found</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -235,18 +335,16 @@ export default function InventoryView({
         </div>
       </div>
 
-      {/* RIGHT COLUMN: Create / Edit Form */}
+      {/* RIGHT COLUMN: Edit Form (Only visible when editing) */}
+      {activeEditingItem && (
       <div className="col-md-4 order-1 order-md-2">
-        <div className={`card sticky-top border-0 ${activeEditingItem ? 'shadow-lg border-primary border-opacity-50' : 'shadow-sm'}`} style={{top: '24px', zIndex: 100}}>
-          <div className={`card-header ${activeEditingItem ? 'bg-primary text-white' : 'bg-white'}`}>
+        <div className="card sticky-top border-0 shadow-lg border-primary border-opacity-50" style={{top: '24px', zIndex: 100}}>
+          <div className="card-header bg-primary text-white">
              <h5 className="card-title mb-0">
-                 {activeEditingItem ? <span><i className="bi bi-pencil-square me-2"></i>{t('edit')}</span> : <span><i className="bi bi-plus-circle me-2"></i>{t('create')}</span>}
+                 <span><i className="bi bi-pencil-square me-2"></i>{t('edit')}</span>
              </h5>
           </div>
           <div className="card-body">
-            
-            {activeEditingItem ? (
-                // --- EDIT MODE ---
                 <div>
                     <form onSubmit={handleUpdateItemSubmit} className="mb-4">
                         <div className="mb-3">
@@ -314,83 +412,10 @@ export default function InventoryView({
                         </div>
                     </form>
                 </div>
-            ) : (
-                // --- CREATE MODE ---
-                <form onSubmit={handleSubmitItem}>
-                  <div className="mb-3">
-                      <label className="form-label small text-muted">{t('item_code')}</label>
-                      <input className="form-control" placeholder="ITM-001" value={newItem.code} onChange={e => setNewItem({...newItem, code: e.target.value})} required />
-                  </div>
-                  <div className="mb-3">
-                      <label className="form-label small text-muted">{t('item_name')}</label>
-                      <input className="form-control" placeholder="Product Name" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
-                  </div>
-                  <div className="row g-2 mb-3">
-                      <div className="col-7">
-                          <label className="form-label d-flex justify-content-between small text-muted">
-                              {t('categories')} 
-                              {!forcedCategory && <span className="text-primary" style={{cursor:'pointer'}} onClick={() => setShowCatInput(!showCatInput)}><i className="bi bi-plus-circle"></i></span>}
-                          </label>
-                          {forcedCategory ? (
-                              <input className="form-control" value={newItem.category} disabled />
-                          ) : showCatInput ? (
-                              <div className="input-group input-group-sm">
-                                  <input className="form-control" placeholder="New..." value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} autoFocus />
-                                  <button type="button" className="btn btn-primary" onClick={handleAddCategory}><i className="bi bi-check"></i></button>
-                              </div>
-                          ) : (
-                              <select className="form-select" value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})}>
-                                  <option value="">Select...</option>
-                                  {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
-                              </select>
-                          )}
-                      </div>
-                      <div className="col-5">
-                          <label className="form-label small text-muted">{t('uom')}</label>
-                          <select className="form-select" value={newItem.uom} onChange={e => setNewItem({...newItem, uom: e.target.value})} required>
-                              <option value="">Unit...</option>
-                              {(uoms || []).map((u: any) => <option key={u.id} value={u.name}>{u.name}</option>)}
-                          </select>
-                      </div>
-                  </div>
-                  
-                  <div className="mb-3">
-                      <label className="form-label small text-muted d-block">{t('attributes')}</label>
-                      <div className="d-flex flex-wrap gap-2 p-2 border rounded bg-light" style={{maxHeight: '120px', overflowY: 'auto'}}>
-                          {attributes.map((attr: any) => (
-                              <div key={attr.id} className="form-check">
-                                  <input 
-                                      className="form-check-input" 
-                                      type="checkbox" 
-                                      id={`new-attr-${attr.id}`}
-                                      checked={newItem.attribute_ids.includes(attr.id)}
-                                      onChange={() => toggleAttribute(attr.id, false)}
-                                  />
-                                  <label className="form-check-label small" htmlFor={`new-attr-${attr.id}`}>
-                                      {attr.name}
-                                  </label>
-                              </div>
-                          ))}
-                          {attributes.length === 0 && <small className="text-muted fst-italic">No attributes defined</small>}
-                      </div>
-                  </div>
-
-                  <div className="mb-3">
-                      <label className="form-label small text-muted">{t('source_sample')}</label>
-                      <select className="form-select" value={newItem.source_sample_id} onChange={e => setNewItem({...newItem, source_sample_id: e.target.value})}>
-                          <option value="">None</option>
-                          {sampleItems.map((s: any) => (
-                              <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
-                          ))}
-                      </select>
-                  </div>
-                  
-                  <button type="submit" className="btn btn-primary w-100 fw-bold shadow-sm">{t('create')}</button>
-                </form>
-            )}
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }
