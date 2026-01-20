@@ -553,6 +553,7 @@ export default function Home() {
         {activeTab === 'dashboard' && (
             <DashboardView 
                 items={items} 
+                locations={locations}
                 stockBalance={stockBalance}
                 workOrders={workOrders}
                 stockEntries={stockEntries}

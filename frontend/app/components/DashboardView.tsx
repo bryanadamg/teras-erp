@@ -1,6 +1,6 @@
 import { useLanguage } from '../context/LanguageContext';
 
-export default function DashboardView({ items, stockBalance, workOrders, stockEntries }: any) {
+export default function DashboardView({ items, locations, stockBalance, workOrders, stockEntries }: any) {
   const { t } = useLanguage();
 
   // Metrics
@@ -13,6 +13,16 @@ export default function DashboardView({ items, stockBalance, workOrders, stockEn
   const recentActivity = [...stockEntries]
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       .slice(0, 5);
+
+  // Location Analysis
+  const locationStats = locations.map((loc: any) => {
+      const stockInLoc = stockBalance.filter((s: any) => s.location_id === loc.id);
+      const totalQty = stockInLoc.reduce((acc: number, curr: any) => acc + parseFloat(curr.qty), 0);
+      const itemCount = stockInLoc.length;
+      return { ...loc, totalQty, itemCount };
+  }).sort((a: any, b: any) => b.totalQty - a.totalQty);
+
+  const totalStockQty = locationStats.reduce((acc: number, curr: any) => acc + curr.totalQty, 0);
 
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
 
@@ -73,33 +83,49 @@ export default function DashboardView({ items, stockBalance, workOrders, stockEn
         </div>
 
         <div className="row g-4">
-            {/* Recent Activity */}
-            <div className="col-md-6">
+            {/* Stock Distribution by Location */}
+            <div className="col-md-4">
                 <div className="card h-100 shadow-sm border-0">
                     <div className="card-header bg-white">
-                        <h5 className="card-title mb-0">Recent Stock Movements</h5>
+                        <h5 className="card-title mb-0">Warehouse Distribution</h5>
                     </div>
-                    <div className="card-body p-0">
-                        <ul className="list-group list-group-flush">
-                            {recentActivity.map((entry: any) => (
-                                <li key={entry.id} className="list-group-item d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <div className="fw-medium">{getItemName(entry.item_id)}</div>
-                                        <small className="text-muted">{new Date(entry.created_at).toLocaleString()}</small>
+                    <div className="card-body">
+                        <div className="d-flex flex-column gap-4">
+                            {locationStats.map((loc: any, idx: number) => {
+                                const percentage = totalStockQty > 0 ? (loc.totalQty / totalStockQty) * 100 : 0;
+                                const colors = ['bg-primary', 'bg-success', 'bg-info', 'bg-warning', 'bg-danger'];
+                                const color = colors[idx % colors.length];
+                                
+                                return (
+                                    <div key={loc.id}>
+                                        <div className="d-flex justify-content-between mb-1">
+                                            <span className="fw-bold text-dark">{loc.name}</span>
+                                            <span className="small text-muted">{loc.totalQty} units</span>
+                                        </div>
+                                        <div className="progress" style={{height: '8px'}}>
+                                            <div 
+                                                className={`progress-bar ${color}`} 
+                                                role="progressbar" 
+                                                style={{width: `${percentage}%`}} 
+                                                aria-valuenow={percentage} 
+                                                aria-valuemin={0} 
+                                                aria-valuemax={100}
+                                            ></div>
+                                        </div>
+                                        <div className="mt-1 small text-muted">
+                                            {loc.itemCount} unique items stored
+                                        </div>
                                     </div>
-                                    <div className={`fw-bold ${entry.qty_change > 0 ? 'text-success' : 'text-danger'}`}>
-                                        {entry.qty_change > 0 ? '+' : ''}{entry.qty_change}
-                                    </div>
-                                </li>
-                            ))}
-                            {recentActivity.length === 0 && <li className="list-group-item text-muted text-center py-3">No recent activity</li>}
-                        </ul>
+                                );
+                            })}
+                            {locationStats.length === 0 && <div className="text-center text-muted fst-italic">No locations defined</div>}
+                        </div>
                     </div>
                 </div>
             </div>
 
             {/* Active Production */}
-            <div className="col-md-6">
+            <div className="col-md-4">
                 <div className="card h-100 shadow-sm border-0">
                     <div className="card-header bg-white">
                         <h5 className="card-title mb-0">Active Production</h5>
@@ -111,8 +137,7 @@ export default function DashboardView({ items, stockBalance, workOrders, stockEn
                                     <tr>
                                         <th className="ps-3">Code</th>
                                         <th>Product</th>
-                                        <th>Due Date</th>
-                                        <th className="text-end pe-3">Qty</th>
+                                        <th className="text-end pe-3">Due</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -129,25 +154,52 @@ export default function DashboardView({ items, stockBalance, workOrders, stockEn
                                         return (
                                             <tr key={wo.id}>
                                                 <td className="ps-3 font-monospace small">{wo.code}</td>
-                                                <td>{getItemName(wo.item_id)}</td>
                                                 <td>
-                                                    <span className={warning ? `text-${warning.type} fw-bold` : 'text-muted'}>
-                                                        {wo.due_date ? new Date(wo.due_date).toLocaleDateString() : '-'}
-                                                    </span>
-                                                    {warning && (
-                                                        <i className={`bi ${warning.icon} ms-2 text-${warning.type}`} title={warning.text}></i>
+                                                    <div className="text-truncate" style={{maxWidth: '120px'}} title={getItemName(wo.item_id)}>
+                                                        {getItemName(wo.item_id)}
+                                                    </div>
+                                                </td>
+                                                <td className="text-end pe-3">
+                                                    {warning ? (
+                                                        <span className={`badge bg-${warning.type}`} title={warning.text}>{warning.text}</span>
+                                                    ) : (
+                                                        <span className="small text-muted">{wo.due_date ? new Date(wo.due_date).toLocaleDateString() : '-'}</span>
                                                     )}
                                                 </td>
-                                                <td className="text-end pe-3 fw-bold">{wo.qty}</td>
                                             </tr>
                                         );
                                     })}
                                     {workOrders.filter((w: any) => w.status === 'IN_PROGRESS').length === 0 && (
-                                        <tr><td colSpan={4} className="text-center text-muted py-3">No active production</td></tr>
+                                        <tr><td colSpan={3} className="text-center text-muted py-3">No active production</td></tr>
                                     )}
                                 </tbody>
                             </table>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Recent Activity */}
+            <div className="col-md-4">
+                <div className="card h-100 shadow-sm border-0">
+                    <div className="card-header bg-white">
+                        <h5 className="card-title mb-0">Recent Activity</h5>
+                    </div>
+                    <div className="card-body p-0">
+                        <ul className="list-group list-group-flush">
+                            {recentActivity.map((entry: any) => (
+                                <li key={entry.id} className="list-group-item d-flex justify-content-between align-items-center">
+                                    <div style={{minWidth: 0}}>
+                                        <div className="fw-medium text-truncate" title={getItemName(entry.item_id)}>{getItemName(entry.item_id)}</div>
+                                        <small className="text-muted d-block">{new Date(entry.created_at).toLocaleDateString()}</small>
+                                    </div>
+                                    <div className={`fw-bold ms-2 ${entry.qty_change > 0 ? 'text-success' : 'text-danger'}`}>
+                                        {entry.qty_change > 0 ? '+' : ''}{entry.qty_change}
+                                    </div>
+                                </li>
+                            ))}
+                            {recentActivity.length === 0 && <li className="list-group-item text-muted text-center py-3">No recent activity</li>}
+                        </ul>
                     </div>
                 </div>
             </div>
