@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -15,6 +16,65 @@ export default function PurchaseOrderView({ items, attributes, salesOrders, onCr
   });
   
   const [newLine, setNewLine] = useState({ item_id: '', qty: 0, due_date: '', attribute_value_ids: [] as string[] });
+
+  // Config State
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [codeConfig, setCodeConfig] = useState<CodeConfig>({
+      prefix: 'PO',
+      suffix: '',
+      separator: '-',
+      includeItemCode: false,
+      includeVariant: false,
+      variantAttributeNames: [],
+      includeYear: true,
+      includeMonth: true
+  });
+
+  useEffect(() => {
+      const savedConfig = localStorage.getItem('po_code_config');
+      if (savedConfig) {
+          try {
+              setCodeConfig(JSON.parse(savedConfig));
+          } catch (e) {
+              console.error("Invalid config in localstorage");
+          }
+      }
+  }, []);
+
+  const handleSaveConfig = (newConfig: CodeConfig) => {
+      setCodeConfig(newConfig);
+      localStorage.setItem('po_code_config', JSON.stringify(newConfig));
+      const suggested = suggestPOCode(newConfig);
+      setNewPO(prev => ({ ...prev, po_number: suggested }));
+  };
+
+  const suggestPOCode = (config = codeConfig) => {
+      const parts = [];
+      if (config.prefix) parts.push(config.prefix);
+      
+      const now = new Date();
+      if (config.includeYear) parts.push(now.getFullYear());
+      if (config.includeMonth) parts.push(String(now.getMonth() + 1).padStart(2, '0'));
+      if (config.suffix) parts.push(config.suffix);
+
+      const basePattern = parts.join(config.separator);
+      
+      let counter = 1;
+      let baseCode = `${basePattern}${config.separator}001`;
+      
+      while (salesOrders.some((s: any) => s.po_number === baseCode)) {
+          counter++;
+          baseCode = `${basePattern}${config.separator}${String(counter).padStart(3, '0')}`;
+      }
+      return baseCode;
+  };
+
+  // Generate initial suggestion when modal opens
+  useEffect(() => {
+      if (isCreateOpen && !newPO.po_number) {
+          setNewPO(prev => ({ ...prev, po_number: suggestPOCode() }));
+      }
+  }, [isCreateOpen]);
 
   const handleAddLine = () => {
       if (!newLine.item_id || newLine.qty <= 0) return;
@@ -74,6 +134,15 @@ export default function PurchaseOrderView({ items, attributes, salesOrders, onCr
 
   return (
     <div className="row g-4 fade-in">
+       <CodeConfigModal 
+           isOpen={isConfigOpen} 
+           onClose={() => setIsConfigOpen(false)} 
+           type="PO"
+           onSave={handleSaveConfig}
+           initialConfig={codeConfig}
+           attributes={attributes}
+       />
+
        {/* Create PO Modal */}
        {isCreateOpen && (
        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
@@ -87,8 +156,16 @@ export default function PurchaseOrderView({ items, attributes, salesOrders, onCr
                         <form onSubmit={handleSubmit}>
                             <div className="row g-3 mb-3">
                                 <div className="col-md-4">
-                                    <label className="form-label small text-muted">PO Number</label>
-                                    <input className="form-control" placeholder="PO-2024-001" value={newPO.po_number} onChange={e => setNewPO({...newPO, po_number: e.target.value})} required />
+                                    <label className="form-label d-flex justify-content-between align-items-center small text-muted">
+                                        PO Number
+                                        <i 
+                                            className="bi bi-gear-fill text-muted" 
+                                            style={{cursor: 'pointer'}}
+                                            onClick={() => setIsConfigOpen(true)}
+                                            title="Configure Auto-Suggestion"
+                                        ></i>
+                                    </label>
+                                    <input className="form-control" placeholder="Auto-generated" value={newPO.po_number} onChange={e => setNewPO({...newPO, po_number: e.target.value})} required />
                                 </div>
                                 <div className="col-md-5">
                                     <label className="form-label small text-muted">Customer Name</label>

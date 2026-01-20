@@ -14,21 +14,31 @@ export interface CodeConfig {
 interface CodeConfigModalProps {
     isOpen: boolean;
     onClose: () => void;
-    type: 'BOM' | 'WO';
+    type: 'BOM' | 'WO' | 'PO' | 'SAMPLE';
     onSave: (config: CodeConfig) => void;
     initialConfig?: CodeConfig;
     attributes: any[];
 }
 
 export default function CodeConfigModal({ isOpen, onClose, type, onSave, initialConfig, attributes }: CodeConfigModalProps) {
+    const getDefaultPrefix = () => {
+        switch(type) {
+            case 'BOM': return 'BOM';
+            case 'WO': return 'WO';
+            case 'PO': return 'PO';
+            case 'SAMPLE': return 'SMP';
+            default: return 'CODE';
+        }
+    };
+
     const [config, setConfig] = useState<CodeConfig>({
-        prefix: type === 'BOM' ? 'BOM' : 'WO',
+        prefix: getDefaultPrefix(),
         suffix: '',
         separator: '-',
-        includeItemCode: true,
+        includeItemCode: type === 'BOM' || type === 'WO',
         includeVariant: false,
         variantAttributeNames: [],
-        includeYear: false,
+        includeYear: type === 'PO' || type === 'SAMPLE',
         includeMonth: false,
     });
 
@@ -93,6 +103,16 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
         return parts.join(config.separator);
     };
 
+    const getTypeName = () => {
+        switch(type) {
+            case 'BOM': return 'BOM';
+            case 'WO': return 'Work Order';
+            case 'PO': return 'Purchase Order';
+            case 'SAMPLE': return 'Sample Request';
+            default: return 'Document';
+        }
+    };
+
     return (
         <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1060 }}>
             <div className={`modal-dialog modal-dialog-centered ui-style-${currentStyle}`}>
@@ -100,13 +120,13 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
                     <div className="modal-header bg-light">
                         <h5 className="modal-title">
                             <i className="bi bi-gear-fill me-2 text-primary"></i>
-                            Configure {type === 'BOM' ? 'BOM' : 'Work Order'} Code
+                            Configure {getTypeName()} Code
                         </h5>
                         <button type="button" className="btn-close" onClick={onClose}></button>
                     </div>
                     <div className="modal-body">
                         <p className="text-muted small mb-4">
-                            Customize how the system auto-generates unique codes for your {type === 'BOM' ? 'recipes' : 'production runs'}.
+                            Customize how the system auto-generates unique codes for your {getTypeName().toLowerCase()}.
                         </p>
 
                         <div className="row g-3 mb-3">
