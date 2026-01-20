@@ -459,11 +459,17 @@ export default function Home() {
   };
 
   const handleUpdateWOStatus = async (woId: string, status: string) => {
-      await fetch(`${API_BASE}/work-orders/${woId}/status?status=${status}`, {
+      const res = await fetch(`${API_BASE}/work-orders/${woId}/status?status=${status}`, {
           method: 'PUT'
       });
-      showToast(`Work Order status updated to ${status}`, 'info');
-      fetchData();
+      
+      if (res.ok) {
+          showToast(`Work Order status updated to ${status}`, 'info');
+          fetchData();
+      } else {
+          const err = await res.json();
+          showToast(`Error: ${err.detail}`, 'danger');
+      }
   };
 
   const handleRecordStock = async (entry: any) => {
@@ -715,6 +721,7 @@ export default function Home() {
                 locations={locations}
                 attributes={attributes}
                 workOrders={workOrders} 
+                stockBalance={stockBalance}
                 onCreateWO={handleCreateWO} 
                 onUpdateStatus={handleUpdateWOStatus} 
             />

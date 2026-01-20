@@ -3,13 +3,16 @@ import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 
-export default function ManufacturingView({ items, boms, locations, attributes, workOrders, onCreateWO, onUpdateStatus }: any) {
+export default function ManufacturingView({ items, boms, locations, attributes, workOrders, stockBalance, onCreateWO, onUpdateStatus }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newWO, setNewWO] = useState({ code: '', bom_id: '', location_code: '', qty: 1.0, due_date: '' });
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  
+  // Expandable Row State
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
 
   // Config State
   const [isConfigOpen, setIsConfigOpen] = useState(false);
@@ -152,7 +155,12 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
       }
   };
 
+  const toggleRow = (id: string) => {
+      setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
+  const getItemCode = (id: string) => items.find((i: any) => i.id === id)?.code || id;
   const getBOMCode = (id: string) => boms.find((b: any) => b.id === id)?.code || id;
   
   const getAttributeValueName = (valId: string) => {
@@ -188,6 +196,22 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
       if (diffDays < 0) return { type: 'danger', icon: 'bi-exclamation-octagon-fill', text: 'Overdue!' };
       if (diffDays < 2) return { type: 'warning', icon: 'bi-exclamation-triangle-fill', text: 'Due Soon' };
       return null;
+  };
+
+  // Check stock for a specific BOM line requirement
+  const checkStockAvailability = (item_id: string, location_id: string, attribute_value_ids: string[] = [], required_qty: number) => {
+      // Find matching stock balances
+      const targetIds = attribute_value_ids || [];
+      const matchingEntries = stockBalance.filter((s: any) => 
+          s.item_id === item_id && 
+          s.location_id === location_id &&
+          // Compare attribute sets (ignoring order)
+          (s.attribute_value_ids || []).length === targetIds.length &&
+          (s.attribute_value_ids || []).every((id: string) => targetIds.includes(id))
+      );
+
+      const available = matchingEntries.reduce((sum: number, e: any) => sum + parseFloat(e.qty), 0);
+      return { available, isEnough: available >= required_qty };
   };
 
   return (
@@ -311,20 +335,29 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
                               <tbody>
                                   {filteredWorkOrders.map((wo: any) => {
                                       const warning = getDueDateWarning(wo);
+                                      const isExpanded = expandedRows[wo.id];
+                                      const bom = boms.find((b:any) => b.id === wo.bom_id);
+
                                       return (
-                                          <tr key={wo.id}>
+                                          <>
+                                          <tr key={wo.id} className={isExpanded ? 'bg-light' : ''}>
                                               <td className="ps-4 fw-bold font-monospace small">{wo.code}</td>
-                                              <td>
-                                                  <div className="fw-medium">{getItemName(wo.item_id)}</div>
-                                                  <div className="small text-muted">
-                                                      {wo.attribute_value_ids?.map(getAttributeValueName).join(', ') || '-'}
-                                                  </div>
-                                                  <div className="small text-primary fst-italic">{getBOMCode(wo.bom_id)}</div>
-                                                  {wo.status === 'PENDING' && wo.is_material_available === false && (
-                                                      <div className="text-danger small fw-bold">
-                                                          <i className="bi bi-exclamation-triangle-fill me-1"></i>Low Stock
+                                              <td style={{cursor: 'pointer'}} onClick={() => toggleRow(wo.id)}>
+                                                  <div className="d-flex align-items-center gap-2">
+                                                      <i className={`bi bi-chevron-${isExpanded ? 'down' : 'right'} small text-muted`}></i>
+                                                      <div>
+                                                          <div className="fw-medium">{getItemName(wo.item_id)}</div>
+                                                          <div className="small text-muted">
+                                                              {wo.attribute_value_ids?.map(getAttributeValueName).join(', ') || '-'}
+                                                          </div>
+                                                          <div className="small text-primary fst-italic">{getBOMCode(wo.bom_id)}</div>
+                                                          {wo.status === 'PENDING' && wo.is_material_available === false && (
+                                                              <div className="text-danger small fw-bold">
+                                                                  <i className="bi bi-exclamation-triangle-fill me-1"></i>Low Stock
+                                                              </div>
+                                                          )}
                                                       </div>
-                                                  )}
+                                                  </div>
                                               </td>
                                               <td className="fw-bold">{wo.qty}</td>
                                               <td>
@@ -360,6 +393,53 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
                                                   {wo.status === 'COMPLETED' && <span className="text-success"><i className="bi bi-check-circle-fill"></i> Done</span>}
                                               </td>
                                           </tr>
+                                          {isExpanded && bom && (
+                                              <tr key={`${wo.id}-detail`} className="bg-light">
+                                                  <td colSpan={7} className="p-0">
+                                                      <div className="p-3 ps-5 border-bottom shadow-inner">
+                                                          <h6 className="small text-uppercase text-muted fw-bold mb-2">Required Materials</h6>
+                                                          <div className="table-responsive">
+                                                              <table className="table table-sm table-borderless mb-0 w-75">
+                                                                  <thead className="text-muted small border-bottom">
+                                                                      <tr>
+                                                                          <th>Item</th>
+                                                                          <th>Required</th>
+                                                                          <th>Available</th>
+                                                                          <th>Status</th>
+                                                                      </tr>
+                                                                  </thead>
+                                                                  <tbody>
+                                                                      {bom.lines.map((line: any) => {
+                                                                          const required = line.qty * wo.qty;
+                                                                          const { available, isEnough } = checkStockAvailability(line.item_id, wo.location_id, line.attribute_value_ids, required);
+                                                                          
+                                                                          return (
+                                                                              <tr key={line.id}>
+                                                                                  <td>
+                                                                                      <span className="fw-medium">{getItemName(line.item_id)}</span>
+                                                                                      <div className="small text-muted fst-italic">
+                                                                                          {line.attribute_value_ids.map(getAttributeValueName).join(', ') || ''}
+                                                                                      </div>
+                                                                                  </td>
+                                                                                  <td>{required}</td>
+                                                                                  <td className={isEnough ? 'text-success' : 'text-danger'}>{available}</td>
+                                                                                  <td>
+                                                                                      {isEnough 
+                                                                                          ? <span className="badge bg-success bg-opacity-10 text-success"><i className="bi bi-check2"></i> Ready</span>
+                                                                                          : <span className="badge bg-danger bg-opacity-10 text-danger"><i className="bi bi-x-circle"></i> Missing</span>
+                                                                                      }
+                                                                                  </td>
+                                                                              </tr>
+                                                                          );
+                                                                      })}
+                                                                  </tbody>
+                                                              </table>
+                                                          </div>
+                                                      </div>
+                                                  </td>
+                                              </tr>
+                                          )}
+                                          </>
                                       );
                                   })}
                                   {filteredWorkOrders.length === 0 && <tr><td colSpan={7} className="text-center py-5 text-muted">No scheduled production for this period</td></tr>}
