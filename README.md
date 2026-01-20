@@ -5,41 +5,42 @@
 ## Core Capabilities
 
 ### 📊 Insightful Business Dashboard
-*   **Operational KPIs**: Instant visibility into total SKUs, low-stock alerts, pending orders, and active production.
-*   **Real-time Activity Feed**: Live tracking of the latest stock movements and inventory adjustments.
-*   **Production Monitoring**: Quick-glance table of ongoing Work Orders with deadline warnings and status tracking.
+*   **Operational KPIs**: Instant visibility into SKUs, Low-Stock Alerts, Active Production, Pending WO, Active Samples, and Open POs.
+*   **Warehouse Distribution**: Visual representation of inventory quantities and SKU diversity across multiple storage locations.
+*   **Real-time Activity Feed**: Live tracking of the latest stock movements and production statuses.
 
-### 🔐 Advanced RBAC & User Management (New)
+### 🔐 Advanced RBAC & User Management
 *   **Role-Based Access Control**: Standardized roles (Admin, Store Manager, Production Manager, Operator) with pre-defined permission sets.
-*   **Granular Permission Overrides**: Assign specific tab or functional access (e.g., `inventory.delete`, `stock.entry`) directly to individual users for flexible operations.
-*   **Administrative Control Panel**: Integrated interface for administrators to rename users, promote roles, and manage custom access levels in real-time.
+*   **Granular Permission Overrides**: Assign specific functional access directly to individual users for hybrid operational roles.
+*   **Administrative Control Panel**: Real-time management of user data and custom access levels.
 
-### 📦 Precision Inventory & Variation Control
-*   **Segmented Workspaces**: Dedicated sections for **Item Inventory** and **Samples** (Prototypes), ensuring development and production data remain separated.
-*   **Managed Metadata**: Centralized management for **Units of Measure (UOM)** and **Categories**, providing standardized dropdowns throughout the system.
-*   **Multi-Dimensional Attributes**: Link items to multiple attribute types (e.g., Color *and* Size).
-*   **Strict Integrity**: Built-in safeguards prevent negative stock balances and enforce material availability before production begins.
+### 📦 Precision Inventory & Sample Lifecycle (PLM)
+*   **Industry-Standard Sampling**: Dedicated **Sample Request** workflow (Draft -> In Production -> Sent -> Approved/Rejected) linked to Incoming POs.
+*   **Master Sample Management**: Separate workspace for defining generic sample templates (Prototypes) before they are promoted to production items.
+*   **Managed Metadata**: Centralized management for **Units of Measure (UOM)** and **Categories**.
+*   **Strict Integrity**: Built-in safeguards prevent negative stock and enforce material availability.
 
 ### 🏭 Manufacturing & Engineering (MES)
-*   **Hierarchical Recipe Visualization**: A visual expandable tree-style display for nested BOMs, allowing exploration of complex sub-assemblies.
-*   **Advanced Routing & Operations**: Define factory **Work Centers** (Stations) and **Standard Operations** (Steps) directly within your BOMs.
-*   **Production Lifecycle**: Full tracking with automated timestamps for **Started At** and **Finished At**, with smart overdue warnings.
+*   **Hierarchical BOMs**: Visual tree-style display for nested recipes and sub-assemblies.
+*   **Execution Monitoring**: Expandable Production Schedule showing real-time material shortages per Work Order.
+*   **Advanced Logistics**: Support for **Cross-Location Work Orders**, allowing specific source location overrides for every BOM component.
+*   **Routing & Operations**: Define factory **Work Centers** and **Operations** directly within engineering definitions.
 
-### 💰 Sales & Order Tracking (New)
-*   **Purchase Orders (Incoming)**: Track incoming POs from customers and map them against specific samples or production items.
-*   **Status Workflow**: Monitor order status from entry to delivery.
+### 💰 Sales & Demand Tracking
+*   **Incoming Purchase Orders (PO)**: Track client demand and map it directly against samples or production runs.
+*   **Traceability**: Full audit trail from customer request through prototype approval to final production.
 
 ### 🖥️ Adaptive User Experience
-*   **Mobile Responsive**: Fully optimized for smartphones and tablets with a collapsible hamburger menu and responsive data tables.
+*   **Mobile Responsive**: Fully optimized for smartphones and tablets with a collapsible navigation and responsive data grid.
 *   **Multi-Language Support (i18n)**: Instantly toggle between **English** and **Indonesian**.
-*   **Themed Interface Engine**: Choose between Default, Modern, Compact, and the high-efficiency **Classic (XP)** style.
+*   **Themed Interface Engine**: Choose between Modern, Compact, and the high-efficiency **Classic (Windows XP)** style.
 
 ## Technical Architecture
 
 *   **Backend**: Python 3.11+, FastAPI, SQLAlchemy (ORM), PostgreSQL.
 *   **Frontend**: TypeScript, Next.js 14, React, Bootstrap 5.
-*   **Security**: Non-root container execution, network isolation, and environment-driven CORS configuration.
 *   **Infrastructure**: Fully containerized with Docker & Docker Compose.
+*   **Security**: Non-root container execution, network isolation, and dynamic CORS configuration.
 
 ## Getting Started
 
@@ -51,28 +52,26 @@
 2.  **Configure Environment**:
     ```bash
     cp .env.example .env
-    # Edit .env with your secrets
+    # Edit .env with your configuration
     ```
 3.  **Start the System**:
     ```bash
     docker-compose up --build -d
     ```
 4.  **Access the Application**:
-    *   **Dashboard**: [http://localhost:3030](http://localhost:3030)
-    *   **API**: [http://localhost:8000/api/docs](http://localhost:8000/api/docs)
+    *   **Frontend**: [http://localhost:3030](http://localhost:3030)
+    *   **Backend API**: [http://localhost:8000/api/docs](http://localhost:8000/api/docs)
 
 ## Future Industrial Modules (Roadmap)
 
 1.  **Procurement & Supplier Management (Source to Pay)**
-    *   Supplier Master, Outgoing Purchase Orders (PO), and Goods Receipt Notes (GRN).
+    *   Supplier Master, Outgoing Purchase Orders, and Goods Receipt Notes (GRN).
 2.  **Logistics & Fulfillment**
-    *   Packing Slips, Waybills, and automatic stock deduction upon shipment.
-3.  **Traceability (Batch/Lot & Serial Tracking)**
-    *   Track Batch Numbers and Expiry Dates throughout the supply chain.
-4.  **Costing Engine (Financials)**
-    *   FIFO / Weighted Average valuation and real-time WIP calculation.
-5.  **Quality Control (QC)**
-    *   Inspection Criteria and Checkpoints (Inward, In-Process, Final).
+    *   Packing Slips, Waybills, and automated shipping stock deduction.
+3.  **Costing Engine (Financials)**
+    *   FIFO / Weighted Average valuation and real-time Work-in-Progress (WIP) calculation.
+4.  **Quality Control (QC)**
+    *   Inspection Checkpoints (Inward, In-Process, Final) with Reject/Rework logic.
 
 ## License
 

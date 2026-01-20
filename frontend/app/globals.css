@@ -410,9 +410,24 @@ body {
     box-shadow: 4px 0 15px rgba(0, 0, 0, 0.1);
   }
 
+  /* Specific overrides for Classic Theme Mobile Sidebar */
+  .ui-style-classic .sidebar {
+    width: 200px; /* Keep classic width */
+    left: 0;
+    top: 0;
+    bottom: 0;
+    border-right: 1px solid #718bb7;
+  }
+
   .main-content {
     margin-left: 0;
     padding: 16px;
+  }
+  
+  /* Ensure Classic content area resets margin on mobile */
+  .ui-style-classic .main-content {
+    margin-left: 0 !important;
+    width: 100%;
   }
 
   .mobile-overlay {
