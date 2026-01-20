@@ -616,6 +616,23 @@ export default function Home() {
             />
         )}
 
+        {activeTab === 'sample-masters' && (
+            <InventoryView 
+                items={items} 
+                attributes={attributes}
+                categories={categories}
+                uoms={uoms}
+                onCreateItem={handleCreateItem} 
+                onUpdateItem={handleUpdateItem}
+                onDeleteItem={handleDeleteItem}
+                onAddVariant={handleAddVariantToItem}
+                onDeleteVariant={handleDeleteVariant}
+                onCreateCategory={handleCreateCategory}
+                onRefresh={fetchData} 
+                forcedCategory="Sample"
+            />
+        )}
+
         {activeTab === 'samples' && (
             <SampleRequestView 
                 samples={samples}

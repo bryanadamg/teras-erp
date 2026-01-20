@@ -93,6 +93,11 @@ export default function Sidebar({ activeTab, setActiveTab, appName, isOpen }: Si
                         <i className="bi bi-list-ul me-2"></i>{t('item_inventory')}
                     </a>
                     </li>
+                    <li>
+                    <a href="#" className={`nav-link py-2 small ${activeTab === 'sample-masters' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('sample-masters'); }}>
+                        <i className="bi bi-box2-heart me-2"></i>{t('sample_masters') || 'Sample Masters'}
+                    </a>
+                    </li>
                     
                     {/* Nested Attributes Section */}
                     <li className="nav-item">

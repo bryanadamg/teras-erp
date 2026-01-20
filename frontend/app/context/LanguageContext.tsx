@@ -16,7 +16,7 @@ const translations = {
         // Sidebar
         'inventory': 'Inventory',
         'item_inventory': 'Item Inventory',
-        'samples': 'Samples',
+        'sample_masters': 'Sample Masters',
         'attributes': 'Attributes',
         'categories': 'Categories',
         'locations': 'Locations',
@@ -90,7 +90,7 @@ const translations = {
         // Sidebar
         'inventory': 'Inventaris',
         'item_inventory': 'Daftar Barang',
-        'samples': 'Sampel',
+        'sample_masters': 'Master Sampel',
         'attributes': 'Atribut',
         'categories': 'Kategori',
         'locations': 'Lokasi',
