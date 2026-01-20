@@ -311,6 +311,17 @@ body {
   border-right: 1px solid #e5e7eb;
   z-index: 1000;
   transition: all 0.3s;
+  overflow-y: auto; /* Enable vertical scroll */
+  scrollbar-width: thin; /* Clean look for Firefox */
+}
+
+/* Custom scrollbar for Webkit (Chrome/Safari) */
+.sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+.sidebar::-webkit-scrollbar-thumb {
+  background: #e5e7eb;
+  border-radius: 10px;
 }
 
 .sidebar-header {
