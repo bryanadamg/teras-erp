@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.models.bom import BOM, BOMLine
+from app.models.bom import BOM, BOMLine, BOMOperation
 from app.models.item import Item
+from app.models.location import Location
+from app.models.routing import WorkCenter, Operation
 from app.schemas import BOMCreate, BOMResponse
 
 router = APIRouter()
@@ -47,6 +49,13 @@ def create_bom(payload: BOMCreate, db: Session = Depends(get_db)):
             item_id=material.id,
             qty=line.qty
         )
+        
+        # Resolve source location if provided
+        if line.source_location_code:
+            loc = db.query(Location).filter(Location.code == line.source_location_code).first()
+            if not loc:
+                raise HTTPException(status_code=404, detail=f"Source Location '{line.source_location_code}' not found")
+            bom_line.source_location_id = loc.id
         
         if line.attribute_value_ids:
             vals = db.query(AttributeValue).filter(AttributeValue.id.in_(line.attribute_value_ids)).all()

@@ -56,6 +56,12 @@ class BOMLine(Base):
     item_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("items.id")
     )
+    
+    # Specific Source Location for this material (overrides WO default)
+    source_location_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True
+    )
+
     qty: Mapped[float] = mapped_column(Numeric(14, 4))
 
     # Relationships

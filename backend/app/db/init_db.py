@@ -19,7 +19,9 @@ def run_migrations():
                 ("items", "source_sample_id", "UUID REFERENCES items(id)"),
                 ("items", "attribute_id", "UUID REFERENCES attributes(id)"),
                 ("work_orders", "location_id", "UUID REFERENCES locations(id)"),
+                ("work_orders", "source_location_id", "UUID REFERENCES locations(id)"),
                 ("work_orders", "completed_at", "TIMESTAMP WITHOUT TIME ZONE"),
+                ("bom_lines", "source_location_id", "UUID REFERENCES locations(id)"),
             ]
 
             for table, col, col_type in migrations:

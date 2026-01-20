@@ -694,6 +694,7 @@ export default function Home() {
             <BOMView 
                 items={items} 
                 boms={boms}
+                locations={locations}
                 attributes={attributes}
                 workCenters={workCenters}
                 operations={operations}

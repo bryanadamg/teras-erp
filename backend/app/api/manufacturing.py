@@ -27,6 +27,13 @@ def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db)):
     if not location:
         raise HTTPException(status_code=404, detail="Location not found")
 
+    # 3b. Resolve Source Location (if provided)
+    source_location = None
+    if payload.source_location_code:
+        source_location = db.query(Location).filter(Location.code == payload.source_location_code).first()
+        if not source_location:
+            raise HTTPException(status_code=404, detail="Source Location not found")
+
     # 4. Create Work Order
     # We copy item_id and attribute_values from BOM for historical data integrity
     wo = WorkOrder(
@@ -34,6 +41,7 @@ def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db)):
         bom_id=bom.id,
         item_id=bom.item_id,
         location_id=location.id,
+        source_location_id=source_location.id if source_location else location.id, # Default to same location if not specified
         qty=payload.qty,
         start_date=payload.start_date,
         due_date=payload.due_date,
@@ -51,12 +59,16 @@ def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db)):
     
     # Check material availability
     wo.is_material_available = True
+    
     for line in bom.lines:
         required_qty = float(line.qty) * float(wo.qty)
+        # Use line-specific source location if set, otherwise WO source location, otherwise WO destination
+        check_location_id = line.source_location_id or wo.source_location_id or wo.location_id
+        
         current = stock_service.get_stock_balance(
             db, 
             item_id=line.item_id, 
-            location_id=wo.location_id, 
+            location_id=check_location_id, 
             attribute_value_ids=[v.id for v in line.attribute_values]
         )
         if current < required_qty:
@@ -86,13 +98,17 @@ def get_work_orders(
         
         # Check availability
         item.is_material_available = True
+        
         if item.status == "PENDING":
             for line in item.bom.lines:
                 required_qty = float(line.qty) * float(item.qty)
+                # Use line-specific source location if set
+                check_location_id = line.source_location_id or item.source_location_id or item.location_id
+                
                 current = stock_service.get_stock_balance(
                     db, 
                     item_id=line.item_id, 
-                    location_id=item.location_id, 
+                    location_id=check_location_id, 
                     attribute_value_ids=[v.id for v in line.attribute_values]
                 )
                 if current < required_qty:
@@ -113,13 +129,17 @@ def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_
     
     # 1. Update start_date if moving to IN_PROGRESS
     if status == "IN_PROGRESS" and wo.status != "IN_PROGRESS":
+        
         # Validate Stock Availability for all BOM Lines
         for line in wo.bom.lines:
             required_qty = float(line.qty) * float(wo.qty)
+            # Use line specific source, or WO source, or WO dest
+            check_location_id = line.source_location_id or wo.source_location_id or wo.location_id
+            
             current_stock = stock_service.get_stock_balance(
                 db, 
                 item_id=line.item_id, 
-                location_id=wo.location_id, 
+                location_id=check_location_id, 
                 attribute_value_ids=[v.id for v in line.attribute_values]
             )
             
@@ -128,7 +148,7 @@ def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_
                 item_obj = db.query(Item).filter(Item.id == line.item_id).first()
                 item_name = item_obj.name if item_obj else "Unknown Item"
                 
-                location_obj = db.query(Location).filter(Location.id == wo.location_id).first()
+                location_obj = db.query(Location).filter(Location.id == check_location_id).first()
                 loc_name = location_obj.name if location_obj else "Unknown Location"
                 
                 raise HTTPException(
@@ -141,21 +161,26 @@ def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_
     # 2. Check if completing
     if status == "COMPLETED" and wo.status != "COMPLETED":
         wo.completed_at = datetime.utcnow()
+        
         # 1. Deduct Materials (This will trigger the stock_service negative check as a safety net)
         for line in wo.bom.lines:
             # Required Qty = BOM Line Qty * Work Order Qty
             required_qty = float(line.qty) * float(wo.qty)
+            
+            # Use line specific source, or WO source, or WO dest
+            deduct_location_id = line.source_location_id or wo.source_location_id or wo.location_id
+
             stock_service.add_stock_entry(
                 db,
                 item_id=line.item_id,
-                location_id=wo.location_id,
+                location_id=deduct_location_id,
                 attribute_value_ids=[v.id for v in line.attribute_values],
                 qty_change=-required_qty, # Negative for deduction
                 reference_type="Work Order",
                 reference_id=wo.code
             )
         
-        # 2. Add Finished Good
+        # 2. Add Finished Good (to the destination/production location) (to the destination/production location)
         stock_service.add_stock_entry(
             db,
             item_id=wo.item_id,

@@ -34,6 +34,11 @@ class WorkOrder(Base):
     location_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("locations.id"), index=True
     )
+    
+    # New: Where raw materials are taken from
+    source_location_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True
+    )
 
     qty: Mapped[float] = mapped_column(Numeric(14, 4))
     

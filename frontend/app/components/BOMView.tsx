@@ -3,7 +3,7 @@ import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 
-export default function BOMView({ items, boms, attributes, workCenters, operations, onCreateBOM, onDeleteBOM }: any) {
+export default function BOMView({ items, boms, locations, attributes, workCenters, operations, onCreateBOM, onDeleteBOM }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -17,7 +17,7 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
       lines: [] as any[],
       operations: [] as any[]
   });
-  const [newBOMLine, setNewBOMLine] = useState({ item_code: '', attribute_value_ids: [] as string[], qty: 0 });
+  const [newBOMLine, setNewBOMLine] = useState({ item_code: '', attribute_value_ids: [] as string[], qty: 0, source_location_code: '' });
   const [newBOMOp, setNewBOMOp] = useState({ operation_id: '', work_center_id: '', sequence: 10, time_minutes: 0 });
   
   // Tree Expansion State: Record<bom_id, boolean>
@@ -128,7 +128,7 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
   const handleAddLineToBOM = () => {
       if (!newBOMLine.item_code || newBOMLine.qty <= 0) return;
       setNewBOM({ ...newBOM, lines: [...newBOM.lines, { ...newBOMLine }] });
-      setNewBOMLine({ item_code: '', attribute_value_ids: [], qty: 0 });
+      setNewBOMLine({ item_code: '', attribute_value_ids: [], qty: 0, source_location_code: '' });
   };
 
   const handleAddOpToBOM = () => {
@@ -180,6 +180,8 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
   const getOpName = (id: string) => operations.find((o: any) => o.id === id)?.name || id;
   const getWCName = (id: string) => workCenters.find((w: any) => w.id === id)?.name || id;
+  const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || 'Default';
+  const getLocationNameByCode = (code: string) => locations.find((l: any) => l.code === code)?.name || code;
   
   const getAttributeValueName = (valId: string) => {
       if (!valId || !attributes) return '-';
@@ -225,6 +227,11 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
                                   <div className="text-muted fst-italic" style={{fontSize: '0.7rem'}}>
                                       {(line.attribute_value_ids || []).map(getAttributeValueName).join(', ')}
                                   </div>
+                                  {line.source_location_id && (
+                                      <span className="badge bg-light text-dark border ms-2" style={{fontSize: '0.6rem'}}>
+                                          <i className="bi bi-geo-alt me-1"></i>{getLocationName(line.source_location_id)}
+                                      </span>
+                                  )}
                                   {isExpandable && <span className="badge bg-secondary ms-auto" style={{fontSize: '0.6rem'}}>Sub-Assy</span>}
                               </div>
                           </div>
@@ -381,12 +388,23 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
                                                 </div>
                                             ))}
 
-                                            <div className="col-12">
-                                                <div className="input-group input-group-sm">
-                                                    <span className="input-group-text">{t('qty')}</span>
-                                                    <input type="number" className="form-control" placeholder="0" value={newBOMLine.qty} onChange={e => setNewBOMLine({...newBOMLine, qty: parseFloat(e.target.value)})} />
-                                                    <button type="button" className="btn btn-secondary px-3" onClick={handleAddLineToBOM} disabled={!newBOMLine.item_code}>{t('add')}</button>
-                                                </div>
+                                            <div className="col-6">
+                                                <label className="form-label small text-muted">Qty</label>
+                                                <input type="number" className="form-control form-control-sm" placeholder="0" value={newBOMLine.qty} onChange={e => setNewBOMLine({...newBOMLine, qty: parseFloat(e.target.value)})} />
+                                            </div>
+                                            
+                                            <div className="col-6">
+                                                <label className="form-label small text-muted">Source (Opt)</label>
+                                                <select className="form-select form-select-sm" value={newBOMLine.source_location_code} onChange={e => setNewBOMLine({...newBOMLine, source_location_code: e.target.value})}>
+                                                    <option value="">Default...</option>
+                                                    {(locations || []).map((l: any) => (
+                                                        <option key={l.id} value={l.code}>{l.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            <div className="col-12 mt-2 text-end">
+                                                <button type="button" className="btn btn-sm btn-secondary px-3" onClick={handleAddLineToBOM} disabled={!newBOMLine.item_code}>{t('add')}</button>
                                             </div>
                                         </div>
                                         
@@ -398,6 +416,11 @@ export default function BOMView({ items, boms, attributes, workCenters, operatio
                                                         <div className="text-muted" style={{fontSize: '0.75rem'}}>
                                                             {(line.attribute_value_ids || []).map(getAttributeValueName).join(', ') || 'No variations'}
                                                         </div>
+                                                        {line.source_location_code && (
+                                                            <div className="text-primary fst-italic" style={{fontSize: '0.7rem'}}>
+                                                                <i className="bi bi-geo-alt"></i> {getLocationNameByCode(line.source_location_code)}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     <div className="d-flex align-items-center gap-2">
                                                         <span className="badge bg-secondary">{line.qty}</span>

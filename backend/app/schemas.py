@@ -45,12 +45,14 @@ class BOMLineCreate(BaseModel):
     item_code: str
     attribute_value_ids: list[UUID] = []
     qty: float
+    source_location_code: str | None = None
 
 class BOMLineResponse(BaseModel):
     id: UUID
     item_id: UUID
     attribute_value_ids: list[UUID] = [] # We'll populate this in the API
     qty: float
+    source_location_id: UUID | None = None
 
     class Config:
         from_attributes = True
@@ -98,6 +100,7 @@ class WorkOrderCreate(BaseModel):
     code: str
     bom_id: UUID
     location_code: str
+    source_location_code: str | None = None # Optional source location
     qty: float
     start_date: datetime | None = None
     due_date: datetime | None = None
@@ -109,6 +112,7 @@ class WorkOrderResponse(BaseModel):
     item_id: UUID
     attribute_value_ids: list[UUID] = [] # We'll populate this in the API
     location_id: UUID
+    source_location_id: UUID | None = None
     qty: float
     status: str
     start_date: datetime | None

@@ -7,7 +7,7 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
   const { showToast } = useToast();
   const { t } = useLanguage();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [newWO, setNewWO] = useState({ code: '', bom_id: '', location_code: '', qty: 1.0, due_date: '' });
+  const [newWO, setNewWO] = useState({ code: '', bom_id: '', location_code: '', source_location_code: '', qty: 1.0, due_date: '' });
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   
@@ -148,7 +148,7 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
           } else {
               showToast('Work Order created successfully!', 'success');
           }
-          setNewWO({ code: '', bom_id: '', location_code: '', qty: 1.0, due_date: '' });
+          setNewWO({ code: '', bom_id: '', location_code: '', source_location_code: '', qty: 1.0, due_date: '' });
           setIsCreateOpen(false);
       } else {
           showToast('Failed to create Work Order', 'danger');
@@ -162,6 +162,7 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
   const getItemCode = (id: string) => items.find((i: any) => i.id === id)?.code || id;
   const getBOMCode = (id: string) => boms.find((b: any) => b.id === id)?.code || id;
+  const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
   
   const getAttributeValueName = (valId: string) => {
       for (const attr of attributes) {
@@ -259,14 +260,25 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
                                       ))}
                               </select>
                           </div>
-                          <div className="mb-3">
-                              <label className="form-label">{t('production_location')}</label>
-                              <select className="form-select" value={newWO.location_code} onChange={e => setNewWO({...newWO, location_code: e.target.value})} required>
-                                  <option value="">Select Location...</option>
-                                  {locations.map((loc: any) => (
-                                      <option key={loc.id} value={loc.code}>{loc.name}</option>
-                                  ))}
-                              </select>
+                          <div className="row g-2 mb-3">
+                              <div className="col-6">
+                                  <label className="form-label small text-muted">Source Location (Materials)</label>
+                                  <select className="form-select" value={newWO.source_location_code} onChange={e => setNewWO({...newWO, source_location_code: e.target.value})}>
+                                      <option value="">Same as Production</option>
+                                      {locations.map((loc: any) => (
+                                          <option key={loc.id} value={loc.code}>{loc.name}</option>
+                                      ))}
+                                  </select>
+                              </div>
+                              <div className="col-6">
+                                  <label className="form-label small text-muted">{t('production_location')} (Output)</label>
+                                  <select className="form-select" value={newWO.location_code} onChange={e => setNewWO({...newWO, location_code: e.target.value})} required>
+                                      <option value="">Select...</option>
+                                      {locations.map((loc: any) => (
+                                          <option key={loc.id} value={loc.code}>{loc.name}</option>
+                                      ))}
+                                  </select>
+                              </div>
                           </div>
                           <div className="row g-3 mb-4">
                               <div className="col-6">
@@ -403,6 +415,7 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
                                                                   <thead className="text-muted small border-bottom">
                                                                       <tr>
                                                                           <th>Item</th>
+                                                                          <th>Source</th>
                                                                           <th>Required</th>
                                                                           <th>Available</th>
                                                                           <th>Status</th>
@@ -411,7 +424,9 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
                                                                   <tbody>
                                                                       {bom.lines.map((line: any) => {
                                                                           const required = line.qty * wo.qty;
-                                                                          const { available, isEnough } = checkStockAvailability(line.item_id, wo.location_id, line.attribute_value_ids, required);
+                                                                          // Use source_location_id if set, otherwise fallback to production location_id
+                                                                          const checkLocId = line.source_location_id || wo.source_location_id || wo.location_id;
+                                                                          const { available, isEnough } = checkStockAvailability(line.item_id, checkLocId, line.attribute_value_ids, required);
                                                                           
                                                                           return (
                                                                               <tr key={line.id}>
@@ -420,6 +435,11 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
                                                                                       <div className="small text-muted fst-italic">
                                                                                           {line.attribute_value_ids.map(getAttributeValueName).join(', ') || ''}
                                                                                       </div>
+                                                                                  </td>
+                                                                                  <td>
+                                                                                      <span className="badge bg-light text-dark border font-monospace small">
+                                                                                          {getLocationName(checkLocId)}
+                                                                                      </span>
                                                                                   </td>
                                                                                   <td>{required}</td>
                                                                                   <td className={isEnough ? 'text-success' : 'text-danger'}>{available}</td>
