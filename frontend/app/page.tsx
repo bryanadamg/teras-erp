@@ -625,6 +625,7 @@ export default function Home() {
                 onCreateSample={handleCreateSample}
                 onUpdateStatus={handleUpdateSampleStatus}
                 onDeleteSample={handleDeleteSample}
+                uiStyle={uiStyle}
             />
         )}
 

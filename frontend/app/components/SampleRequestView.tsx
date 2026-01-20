@@ -2,11 +2,13 @@ import { useState, useRef, useEffect } from 'react';
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 
-export default function SampleRequestView({ samples, salesOrders, items, attributes, onCreateSample, onUpdateStatus, onDeleteSample }: any) {
+export default function SampleRequestView({ samples, salesOrders, items, attributes, onCreateSample, onUpdateStatus, onDeleteSample, uiStyle }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
+  const buttonRefs = useRef<{[key: string]: HTMLButtonElement | null}>({});
   
   const [newSample, setNewSample] = useState({
       sales_order_id: '',
@@ -15,16 +17,39 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
       notes: ''
   });
 
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking outside (and handle scroll closing)
   useEffect(() => {
-      const handleClickOutside = (event: any) => {
-          if (!event.target.closest('.action-dropdown')) {
+      const handleGlobalClick = (event: any) => {
+          if (!event.target.closest('.action-dropdown-btn') && !event.target.closest('.fixed-dropdown-menu')) {
               setOpenDropdownId(null);
           }
       };
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
+      const handleScroll = () => setOpenDropdownId(null);
+
+      document.addEventListener('click', handleGlobalClick);
+      window.addEventListener('scroll', handleScroll, true); // Capture scroll in any container
+      
+      return () => {
+          document.removeEventListener('click', handleGlobalClick);
+          window.removeEventListener('scroll', handleScroll, true);
+      };
   }, []);
+
+  const toggleDropdown = (id: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (openDropdownId === id) {
+          setOpenDropdownId(null);
+      } else {
+          // Calculate position
+          const rect = (e.target as HTMLElement).getBoundingClientRect();
+          // Position to the left of the button, slightly below
+          setDropdownPos({
+              top: rect.bottom + window.scrollY + 2,
+              left: rect.right + window.scrollX - 160 // Align right edge (approx width 160px)
+          });
+          setOpenDropdownId(id);
+      }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
@@ -67,7 +92,7 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
        {/* Create Modal */}
        {isCreateOpen && (
        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
-            <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className={`modal-dialog modal-lg modal-dialog-centered ui-style-${uiStyle}`}>
                 <div className="modal-content shadow">
                     <div className="modal-header bg-primary bg-opacity-10 text-primary-emphasis">
                         <h5 className="modal-title"><i className="bi bi-eyedropper me-2"></i>New Sample Request</h5>
@@ -133,6 +158,28 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
        </div>
        )}
 
+       {/* Floating Dropdown Menu (Portaled via Fixed Positioning) */}
+       {openDropdownId && (
+           <div 
+                className={`dropdown-menu show shadow fixed-dropdown-menu ui-style-${uiStyle}`}
+                style={{
+                    position: 'fixed', 
+                    top: dropdownPos.top, 
+                    left: dropdownPos.left, 
+                    zIndex: 9999,
+                    display: 'block'
+                }}
+           >
+                <button className="dropdown-item small" onClick={() => { onUpdateStatus(openDropdownId, 'IN_PRODUCTION'); setOpenDropdownId(null); }}>Mark In Production</button>
+                <button className="dropdown-item small" onClick={() => { onUpdateStatus(openDropdownId, 'SENT'); setOpenDropdownId(null); }}>Mark Sent to Client</button>
+                <div className="dropdown-divider"></div>
+                <button className="dropdown-item small text-success" onClick={() => { onUpdateStatus(openDropdownId, 'APPROVED'); setOpenDropdownId(null); }}><i className="bi bi-check-lg me-2"></i>Client Approved</button>
+                <button className="dropdown-item small text-danger" onClick={() => { onUpdateStatus(openDropdownId, 'REJECTED'); setOpenDropdownId(null); }}><i className="bi bi-x-lg me-2"></i>Client Rejected</button>
+                <div className="dropdown-divider"></div>
+                <button className="dropdown-item small text-danger" onClick={() => { onDeleteSample(openDropdownId); setOpenDropdownId(null); }}>Delete Request</button>
+           </div>
+       )}
+
        {/* List */}
        <div className="col-12">
           <div className="card h-100 shadow-sm border-0">
@@ -178,27 +225,13 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
                                     </td>
                                     <td><span className={`badge ${getStatusBadge(s.status)}`}>{s.status}</span></td>
                                     <td className="pe-4 text-end">
-                                        <div className="dropdown action-dropdown">
-                                            <button 
-                                                className="btn btn-sm btn-light border dropdown-toggle" 
-                                                type="button"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setOpenDropdownId(openDropdownId === s.id ? null : s.id);
-                                                }}
-                                            >
-                                                Update
-                                            </button>
-                                            <ul className={`dropdown-menu dropdown-menu-end shadow ${openDropdownId === s.id ? 'show' : ''}`} style={{right: 0}}>
-                                                <li><button className="dropdown-item small" onClick={() => { onUpdateStatus(s.id, 'IN_PRODUCTION'); setOpenDropdownId(null); }}>Mark In Production</button></li>
-                                                <li><button className="dropdown-item small" onClick={() => { onUpdateStatus(s.id, 'SENT'); setOpenDropdownId(null); }}>Mark Sent to Client</button></li>
-                                                <li><hr className="dropdown-divider"/></li>
-                                                <li><button className="dropdown-item small text-success" onClick={() => { onUpdateStatus(s.id, 'APPROVED'); setOpenDropdownId(null); }}><i className="bi bi-check-lg me-2"></i>Client Approved</button></li>
-                                                <li><button className="dropdown-item small text-danger" onClick={() => { onUpdateStatus(s.id, 'REJECTED'); setOpenDropdownId(null); }}><i className="bi bi-x-lg me-2"></i>Client Rejected</button></li>
-                                                <li><hr className="dropdown-divider"/></li>
-                                                <li><button className="dropdown-item small text-danger" onClick={() => { onDeleteSample(s.id); setOpenDropdownId(null); }}>Delete Request</button></li>
-                                            </ul>
-                                        </div>
+                                        <button 
+                                            className="btn btn-sm btn-light border action-dropdown-btn" 
+                                            type="button"
+                                            onClick={(e) => toggleDropdown(s.id, e)}
+                                        >
+                                            Update <i className="bi bi-caret-down-fill ms-1" style={{fontSize: '0.7em'}}></i>
+                                        </button>
                                     </td>
                                 </tr>
                             ))}
