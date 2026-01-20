@@ -300,6 +300,32 @@ body {
     opacity: 1 !important;
 }
 
+/* Progress Bar Overrides for Classic */
+.ui-style-classic .progress {
+    background-color: white !important;
+    border: 1px solid !important;
+    border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark) !important;
+    border-radius: 0 !important;
+    height: 14px !important;
+    padding: 1px !important;
+}
+
+.ui-style-classic .progress-bar {
+    background-color: #000080 !important; /* Classic Windows Blue */
+    background-image: linear-gradient(90deg, 
+        rgba(255,255,255,0.3) 0%, 
+        rgba(255,255,255,0) 10%, 
+        rgba(255,255,255,0) 90%, 
+        rgba(0,0,0,0.2) 100%) !important;
+    border-radius: 0 !important;
+}
+
+.ui-style-classic .progress-bar.bg-primary { background-color: #000080 !important; }
+.ui-style-classic .progress-bar.bg-success { background-color: #008000 !important; }
+.ui-style-classic .progress-bar.bg-info    { background-color: #008080 !important; }
+.ui-style-classic .progress-bar.bg-warning { background-color: #808000 !important; }
+.ui-style-classic .progress-bar.bg-danger  { background-color: #800000 !important; }
+
 /* Sidebar Area */
 .sidebar {
   width: var(--sidebar-width);

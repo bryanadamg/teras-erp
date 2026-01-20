@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -20,6 +21,19 @@ export default function InventoryView({
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [currentStyle, setCurrentStyle] = useState('default');
 
+  // Config State
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [codeConfig, setCodeConfig] = useState<CodeConfig>({
+      prefix: 'ITM',
+      suffix: '',
+      separator: '-',
+      includeItemCode: false,
+      includeVariant: false,
+      variantAttributeNames: [],
+      includeYear: false,
+      includeMonth: false
+  });
+
   // Creation State
   const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', category: forcedCategory || '', source_sample_id: '', attribute_ids: [] as string[] });
   
@@ -33,14 +47,65 @@ export default function InventoryView({
   const [categoryFilter, setCategoryFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
+  useEffect(() => {
+      const savedConfig = localStorage.getItem('item_code_config');
+      if (savedConfig) {
+          try {
+              setCodeConfig(JSON.parse(savedConfig));
+          } catch (e) {
+              console.error("Invalid config in localstorage");
+          }
+      }
+      const savedStyle = localStorage.getItem('ui_style');
+      if (savedStyle) setCurrentStyle(savedStyle);
+  }, []);
+
   // Update newItem category if forcedCategory changes (e.g. switching tabs)
   useEffect(() => {
       if (forcedCategory) {
           setNewItem(prev => ({ ...prev, category: forcedCategory }));
       }
-      const savedStyle = localStorage.getItem('ui_style');
-      if (savedStyle) setCurrentStyle(savedStyle);
   }, [forcedCategory]);
+
+  const handleSaveConfig = (newConfig: CodeConfig) => {
+      setCodeConfig(newConfig);
+      localStorage.setItem('item_code_config', JSON.stringify(newConfig));
+      const suggested = suggestItemCode(newConfig);
+      setNewItem(prev => ({ ...prev, code: suggested }));
+  };
+
+  const suggestItemCode = (config = codeConfig) => {
+      const parts = [];
+      if (config.prefix) parts.push(config.prefix);
+      
+      // Note: We don't include attributes for item masters usually, but if config has it, we could try?
+      // For Master Items, attributes are definitions, not values. So skipping variant logic.
+      
+      const now = new Date();
+      if (config.includeYear) parts.push(now.getFullYear());
+      if (config.includeMonth) parts.push(String(now.getMonth() + 1).padStart(2, '0'));
+      if (config.suffix) parts.push(config.suffix);
+
+      const basePattern = parts.join(config.separator);
+      
+      let counter = 1;
+      let baseCode = `${basePattern}${config.separator}001`;
+      
+      // Simple collision check against existing items
+      while (items.some((i: any) => i.code === baseCode)) {
+          counter++;
+          baseCode = `${basePattern}${config.separator}${String(counter).padStart(3, '0')}`;
+      }
+      return baseCode;
+  };
+
+  // Open modal handler - ensures code is suggested if empty
+  const openCreateModal = () => {
+      if (!newItem.code) {
+          setNewItem(prev => ({ ...prev, code: suggestItemCode() }));
+      }
+      setIsCreateOpen(true);
+  };
 
   // --- Item Handlers ---
 
@@ -149,7 +214,15 @@ export default function InventoryView({
 
   return (
     <div className="row g-4 fade-in">
-      
+      <CodeConfigModal 
+           isOpen={isConfigOpen} 
+           onClose={() => setIsConfigOpen(false)} 
+           type="ITEM"
+           onSave={handleSaveConfig}
+           initialConfig={codeConfig}
+           attributes={attributes}
+       />
+
       {/* Create Modal */}
       {isCreateOpen && (
        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
@@ -162,8 +235,16 @@ export default function InventoryView({
                     <div className="modal-body">
                         <form onSubmit={handleSubmitItem}>
                           <div className="mb-3">
-                              <label className="form-label small text-muted">{t('item_code')}</label>
-                              <input className="form-control" placeholder="ITM-001" value={newItem.code} onChange={e => setNewItem({...newItem, code: e.target.value})} required />
+                              <label className="form-label d-flex justify-content-between align-items-center small text-muted">
+                                  {t('item_code')}
+                                  <i 
+                                      className="bi bi-gear-fill text-muted" 
+                                      style={{cursor: 'pointer'}}
+                                      onClick={() => setIsConfigOpen(true)}
+                                      title="Configure Auto-Suggestion"
+                                  ></i>
+                              </label>
+                              <input className="form-control" placeholder="Auto-generated" value={newItem.code} onChange={e => setNewItem({...newItem, code: e.target.value})} required />
                           </div>
                           <div className="mb-3">
                               <label className="form-label small text-muted">{t('item_name')}</label>
@@ -251,7 +332,7 @@ export default function InventoryView({
                         {forcedCategory ? 'Manage product samples and prototypes' : 'Master list of all products and materials'}
                     </p>
                 </div>
-                <button className="btn btn-primary btn-sm" onClick={() => setIsCreateOpen(true)}>
+                <button className="btn btn-primary btn-sm" onClick={openCreateModal}>
                     <i className="bi bi-plus-lg me-2"></i>{t('create')}
                 </button>
             </div>
