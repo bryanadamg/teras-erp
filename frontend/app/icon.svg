@@ -1,0 +1,16 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  {/* Rounded Square Background */}
+  <rect width="256" height="256" rx="60" fill="#4F46E5"/>
+  
+  {/* Outer Cube Outline (Hexagon) */}
+  <path d="M128 40L210 85V175L128 220L46 175V85L128 40Z" stroke="white" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  {/* The "T" inside */}
+  <path d="M54 85H202" stroke="white" stroke-width="16" stroke-linecap="round"/>
+  {/* Vertical stem: Thinned to 16. Radius is 8. 220-8=212 */}
+  <path d="M128 89V212" stroke="white" stroke-width="20" stroke-linecap="round"/>
+  
+  {/* Cube internal depth lines (subtle) */}
+  <path d="M128 120L210 85" stroke="white" stroke-width="8" stroke-opacity="0.2" stroke-linecap="round"/>
+  <path d="M128 120L46 85" stroke="white" stroke-width="8" stroke-opacity="0.2" stroke-linecap="round"/>
+</svg>
