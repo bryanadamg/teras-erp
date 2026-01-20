@@ -14,6 +14,7 @@ import StockEntryView from './components/StockEntryView';
 import ReportsView from './components/ReportsView';
 import SettingsView from './components/SettingsView';
 import PurchaseOrderView from './components/PurchaseOrderView';
+import SampleRequestView from './components/SampleRequestView';
 import { useToast } from './components/Toast';
 import { useLanguage } from './context/LanguageContext';
 import DashboardView from './components/DashboardView';
@@ -50,10 +51,11 @@ export default function Home() {
   const [stockEntries, setStockEntries] = useState([]);
   const [stockBalance, setStockBalance] = useState([]);
   const [salesOrders, setSalesOrders] = useState([]);
+  const [samples, setSamples] = useState([]);
 
   const fetchData = async () => {
     try {
-      const [itemsRes, locsRes, stockRes, attrsRes, catsRes, uomsRes, bomsRes, wcRes, opRes, woRes, balRes, soRes] = await Promise.all([
+      const [itemsRes, locsRes, stockRes, attrsRes, catsRes, uomsRes, bomsRes, wcRes, opRes, woRes, balRes, soRes, sampRes] = await Promise.all([
           fetch(`${API_BASE}/items`),
           fetch(`${API_BASE}/locations`),
           fetch(`${API_BASE}/stock`),
@@ -65,7 +67,8 @@ export default function Home() {
           fetch(`${API_BASE}/operations`),
           fetch(`${API_BASE}/work-orders`),
           fetch(`${API_BASE}/stock/balance`),
-          fetch(`${API_BASE}/sales-orders`)
+          fetch(`${API_BASE}/sales-orders`),
+          fetch(`${API_BASE}/samples`)
       ]);
 
       if (itemsRes.ok) setItems(await itemsRes.json());
@@ -80,6 +83,7 @@ export default function Home() {
       if (woRes.ok) setWorkOrders(await woRes.json());
       if (balRes.ok) setStockBalance(await balRes.json());
       if (soRes.ok) setSalesOrders(await soRes.json());
+      if (sampRes.ok) setSamples(await sampRes.json());
     } catch (e) {
       console.error("Failed to fetch data", e);
     }
@@ -365,7 +369,7 @@ export default function Home() {
       });
   };
 
-  // --- Sales Order Handlers ---
+  // --- Sales & Samples Handlers ---
   const handleCreatePO = async (po: any) => {
       const res = await fetch(`${API_BASE}/sales-orders`, {
           method: 'POST',
@@ -392,6 +396,42 @@ export default function Home() {
           }
       });
   };
+
+  const handleCreateSample = async (sample: any) => {
+      const payload: any = { ...sample };
+      if (!payload.sales_order_id) delete payload.sales_order_id;
+      
+      const res = await fetch(`${API_BASE}/samples`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+      });
+      
+      if (res.ok) {
+          showToast('Sample Request created successfully!', 'success');
+          fetchData();
+      } else {
+          const err = await res.json();
+          showToast(`Error: ${err.detail}`, 'danger');
+      }
+  };
+
+  const handleUpdateSampleStatus = async (id: string, status: string) => {
+      await fetch(`${API_BASE}/samples/${id}/status?status=${status}`, {
+          method: 'PUT'
+      });
+      showToast(`Sample status updated to ${status}`, 'info');
+      fetchData();
+  };
+
+  const handleDeleteSample = async (id: string) => {
+      requestConfirm('Delete Sample Request?', 'Are you sure you want to delete this request?', async () => {
+          await fetch(`${API_BASE}/samples/${id}`, { method: 'DELETE' });
+          fetchData();
+      });
+  };
+
+  // --- Manufacturing Handlers ---
 
   const handleCreateWO = async (wo: any) => {
       const payload: any = { ...wo };
@@ -577,19 +617,14 @@ export default function Home() {
         )}
 
         {activeTab === 'samples' && (
-            <InventoryView 
-                items={items.filter((i: any) => i.category === 'Sample')} 
+            <SampleRequestView 
+                samples={samples}
+                salesOrders={salesOrders}
+                items={items}
                 attributes={attributes}
-                categories={categories}
-                uoms={uoms}
-                onCreateItem={handleCreateItem} 
-                onUpdateItem={handleUpdateItem}
-                onDeleteItem={handleDeleteItem}
-                onAddVariant={handleAddVariantToItem}
-                onDeleteVariant={handleDeleteVariant}
-                onCreateCategory={handleCreateCategory}
-                onRefresh={fetchData} 
-                forcedCategory="Sample"
+                onCreateSample={handleCreateSample}
+                onUpdateStatus={handleUpdateSampleStatus}
+                onDeleteSample={handleDeleteSample}
             />
         )}
 

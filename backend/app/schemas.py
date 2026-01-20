@@ -248,6 +248,23 @@ class SalesOrderResponse(SalesOrderCreate):
     class Config:
         from_attributes = True
 
+# --- Sample Request Schemas ---
+
+class SampleRequestCreate(BaseModel):
+    sales_order_id: Optional[UUID] = None
+    base_item_id: UUID
+    attribute_value_ids: list[UUID] = []
+    notes: Optional[str] = None
+
+class SampleRequestResponse(SampleRequestCreate):
+    id: UUID
+    code: str
+    version: int
+    status: str
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
 # --- Auth Schemas ---
 
 class PermissionBase(BaseModel):
