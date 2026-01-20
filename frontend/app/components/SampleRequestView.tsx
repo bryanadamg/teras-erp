@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -6,6 +6,7 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
   const { showToast } = useToast();
   const { t } = useLanguage();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   
   const [newSample, setNewSample] = useState({
       sales_order_id: '',
@@ -13,6 +14,17 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
       attribute_value_ids: [] as string[],
       notes: ''
   });
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+      const handleClickOutside = (event: any) => {
+          if (!event.target.closest('.action-dropdown')) {
+              setOpenDropdownId(null);
+          }
+      };
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
@@ -166,18 +178,25 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
                                     </td>
                                     <td><span className={`badge ${getStatusBadge(s.status)}`}>{s.status}</span></td>
                                     <td className="pe-4 text-end">
-                                        <div className="dropdown">
-                                            <button className="btn btn-sm btn-light border dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                        <div className="dropdown action-dropdown">
+                                            <button 
+                                                className="btn btn-sm btn-light border dropdown-toggle" 
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setOpenDropdownId(openDropdownId === s.id ? null : s.id);
+                                                }}
+                                            >
                                                 Update
                                             </button>
-                                            <ul className="dropdown-menu dropdown-menu-end shadow">
-                                                <li><button className="dropdown-item small" onClick={() => onUpdateStatus(s.id, 'IN_PRODUCTION')}>Mark In Production</button></li>
-                                                <li><button className="dropdown-item small" onClick={() => onUpdateStatus(s.id, 'SENT')}>Mark Sent to Client</button></li>
+                                            <ul className={`dropdown-menu dropdown-menu-end shadow ${openDropdownId === s.id ? 'show' : ''}`} style={{right: 0}}>
+                                                <li><button className="dropdown-item small" onClick={() => { onUpdateStatus(s.id, 'IN_PRODUCTION'); setOpenDropdownId(null); }}>Mark In Production</button></li>
+                                                <li><button className="dropdown-item small" onClick={() => { onUpdateStatus(s.id, 'SENT'); setOpenDropdownId(null); }}>Mark Sent to Client</button></li>
                                                 <li><hr className="dropdown-divider"/></li>
-                                                <li><button className="dropdown-item small text-success" onClick={() => onUpdateStatus(s.id, 'APPROVED')}><i className="bi bi-check-lg me-2"></i>Client Approved</button></li>
-                                                <li><button className="dropdown-item small text-danger" onClick={() => onUpdateStatus(s.id, 'REJECTED')}><i className="bi bi-x-lg me-2"></i>Client Rejected</button></li>
+                                                <li><button className="dropdown-item small text-success" onClick={() => { onUpdateStatus(s.id, 'APPROVED'); setOpenDropdownId(null); }}><i className="bi bi-check-lg me-2"></i>Client Approved</button></li>
+                                                <li><button className="dropdown-item small text-danger" onClick={() => { onUpdateStatus(s.id, 'REJECTED'); setOpenDropdownId(null); }}><i className="bi bi-x-lg me-2"></i>Client Rejected</button></li>
                                                 <li><hr className="dropdown-divider"/></li>
-                                                <li><button className="dropdown-item small text-danger" onClick={() => onDeleteSample(s.id)}>Delete Request</button></li>
+                                                <li><button className="dropdown-item small text-danger" onClick={() => { onDeleteSample(s.id); setOpenDropdownId(null); }}>Delete Request</button></li>
                                             </ul>
                                         </div>
                                     </td>

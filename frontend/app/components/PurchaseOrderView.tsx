@@ -28,7 +28,17 @@ export default function PurchaseOrderView({ items, salesOrders, onCreatePO, onDe
 
   const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
-      onCreatePO(newPO);
+      
+      const payload = {
+          ...newPO,
+          order_date: newPO.order_date || null,
+          lines: newPO.lines.map((line: any) => ({
+              ...line,
+              due_date: line.due_date || null
+          }))
+      };
+
+      onCreatePO(payload);
       setNewPO({ po_number: '', customer_name: '', order_date: new Date().toISOString().split('T')[0], lines: [] });
       setIsCreateOpen(false);
   };
