@@ -17,6 +17,7 @@ import PurchaseOrderView from './components/PurchaseOrderView';
 import { useToast } from './components/Toast';
 import { useLanguage } from './context/LanguageContext';
 import DashboardView from './components/DashboardView';
+import ConfirmModal from './components/ConfirmModal';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
 
@@ -25,8 +26,16 @@ export default function Home() {
   const { language, setLanguage, t } = useLanguage();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [appName, setAppName] = useState('Teras ERP');
-  const [uiStyle, setUiStyle] = useState('default');
+  const [uiStyle, setUiStyle] = useState('classic');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // Confirmation State
+  const [confirmState, setConfirmState] = useState<{
+      isOpen: boolean;
+      title: string;
+      message: string;
+      onConfirm: () => void;
+  }>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
 
   // Master Data
   const [items, setItems] = useState([]);
@@ -96,6 +105,19 @@ export default function Home() {
       localStorage.setItem('ui_style', style);
   };
 
+  // Helper for confirmation
+  const requestConfirm = (title: string, message: string, action: () => void) => {
+      setConfirmState({
+          isOpen: true,
+          title,
+          message,
+          onConfirm: () => {
+              action();
+              setConfirmState(prev => ({ ...prev, isOpen: false }));
+          }
+      });
+  };
+
   // --- Handlers ---
 
   const handleCreateItem = async (item: any) => {
@@ -118,14 +140,15 @@ export default function Home() {
   };
 
   const handleDeleteItem = async (itemId: string) => {
-      if (!confirm('Are you sure you want to delete this item?')) return;
-      const res = await fetch(`${API_BASE}/items/${itemId}`, { method: 'DELETE' });
-      if (res.ok) {
-          showToast('Item deleted successfully', 'success');
-          fetchData();
-      } else {
-          showToast('Failed to delete item', 'danger');
-      }
+      requestConfirm('Delete Item?', 'Are you sure you want to delete this item?', async () => {
+          const res = await fetch(`${API_BASE}/items/${itemId}`, { method: 'DELETE' });
+          if (res.ok) {
+              showToast('Item deleted successfully', 'success');
+              fetchData();
+          } else {
+              showToast('Failed to delete item', 'danger');
+          }
+      });
   };
 
   const handleAddVariantToItem = async (itemId: string, variant: any) => {
@@ -171,14 +194,15 @@ export default function Home() {
   };
 
   const handleDeleteLocation = async (locationId: string) => {
-      if (!confirm('Are you sure you want to delete this location?')) return;
-      const res = await fetch(`${API_BASE}/locations/${locationId}`, { method: 'DELETE' });
-      if (res.ok) {
-          showToast('Location deleted successfully', 'success');
-          fetchData();
-      } else {
-          showToast('Failed to delete location', 'danger');
-      }
+      requestConfirm('Delete Location?', 'Are you sure you want to delete this location?', async () => {
+          const res = await fetch(`${API_BASE}/locations/${locationId}`, { method: 'DELETE' });
+          if (res.ok) {
+              showToast('Location deleted successfully', 'success');
+              fetchData();
+          } else {
+              showToast('Failed to delete location', 'danger');
+          }
+      });
   };
 
   const handleCreateAttribute = async (attr: any) => {
@@ -200,14 +224,15 @@ export default function Home() {
   };
 
   const handleDeleteAttribute = async (attributeId: string) => {
-      if (!confirm('Are you sure you want to delete this attribute template? This may affect items using it.')) return;
-      const res = await fetch(`${API_BASE}/attributes/${attributeId}`, { method: 'DELETE' });
-      if (res.ok) {
-          showToast('Attribute template deleted', 'success');
-          fetchData();
-      } else {
-          showToast('Failed to delete attribute', 'danger');
-      }
+      requestConfirm('Delete Attribute?', 'Are you sure you want to delete this attribute template? This may affect items using it.', async () => {
+          const res = await fetch(`${API_BASE}/attributes/${attributeId}`, { method: 'DELETE' });
+          if (res.ok) {
+              showToast('Attribute template deleted', 'success');
+              fetchData();
+          } else {
+              showToast('Failed to delete attribute', 'danger');
+          }
+      });
   };
 
   const handleAddAttributeValue = async (attributeId: string, value: string) => {
@@ -329,14 +354,15 @@ export default function Home() {
   };
 
   const handleDeleteBOM = async (bomId: string) => {
-      if (!confirm('Are you sure you want to delete this BOM?')) return;
-      const res = await fetch(`${API_BASE}/boms/${bomId}`, { method: 'DELETE' });
-      if (res.ok) {
-          showToast('BOM deleted successfully', 'success');
-          fetchData();
-      } else {
-          showToast('Failed to delete BOM', 'danger');
-      }
+      requestConfirm('Delete BOM?', 'Are you sure you want to delete this BOM?', async () => {
+          const res = await fetch(`${API_BASE}/boms/${bomId}`, { method: 'DELETE' });
+          if (res.ok) {
+              showToast('BOM deleted successfully', 'success');
+              fetchData();
+          } else {
+              showToast('Failed to delete BOM', 'danger');
+          }
+      });
   };
 
   // --- Sales Order Handlers ---
@@ -356,14 +382,15 @@ export default function Home() {
   };
 
   const handleDeletePO = async (id: string) => {
-      if (!confirm('Are you sure you want to delete this PO?')) return;
-      const res = await fetch(`${API_BASE}/sales-orders/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-          showToast('PO deleted successfully', 'success');
-          fetchData();
-      } else {
-          showToast('Failed to delete PO', 'danger');
-      }
+      requestConfirm('Delete PO?', 'Are you sure you want to delete this PO?', async () => {
+          const res = await fetch(`${API_BASE}/sales-orders/${id}`, { method: 'DELETE' });
+          if (res.ok) {
+              showToast('PO deleted successfully', 'success');
+              fetchData();
+          } else {
+              showToast('Failed to delete PO', 'danger');
+          }
+      });
   };
 
   const handleCreateWO = async (wo: any) => {
@@ -419,6 +446,14 @@ export default function Home() {
 
   return (
     <div className={`d-flex flex-column ui-style-${uiStyle}`} style={{ minHeight: '100vh' }}>
+      <ConfirmModal 
+          isOpen={confirmState.isOpen}
+          title={confirmState.title}
+          message={confirmState.message}
+          onConfirm={confirmState.onConfirm}
+          onCancel={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
+      />
+
       {/* Mobile Overlay */}
       <div 
         className={`mobile-overlay ${isMobileSidebarOpen ? 'show' : ''}`}
