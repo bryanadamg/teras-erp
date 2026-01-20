@@ -284,7 +284,9 @@ body {
 .ui-style-classic .bg-primary,
 .ui-style-classic .bg-warning,
 .ui-style-classic .bg-info,
-.ui-style-classic .bg-success {
+.ui-style-classic .bg-success,
+.ui-style-classic .bg-secondary,
+.ui-style-classic .bg-dark {
     background-color: var(--win-face) !important;
     color: black !important;
     border: 1px solid var(--win-border-dark) !important;

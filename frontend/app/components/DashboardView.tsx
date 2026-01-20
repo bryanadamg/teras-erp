@@ -1,13 +1,19 @@
 import { useLanguage } from '../context/LanguageContext';
 
-export default function DashboardView({ items, locations, stockBalance, workOrders, stockEntries }: any) {
+export default function DashboardView({ items, locations, stockBalance, workOrders, stockEntries, samples, salesOrders }: any) {
   const { t } = useLanguage();
 
   // Metrics
   const totalItems = items.length;
-  const lowStockItems = stockBalance.filter((s: any) => s.qty < 10).length; // Threshold example
+  const lowStockItems = stockBalance.filter((s: any) => s.qty < 10).length;
+  
+  // Manufacturing Metrics
   const pendingWO = workOrders.filter((w: any) => w.status === 'PENDING').length;
   const activeWO = workOrders.filter((w: any) => w.status === 'IN_PROGRESS').length;
+
+  // New Metrics
+  const activeSamples = (samples || []).filter((s: any) => ['DRAFT', 'IN_PRODUCTION', 'SENT'].includes(s.status)).length;
+  const openPOs = (salesOrders || []).filter((po: any) => po.status === 'PENDING').length;
 
   // Recent Activity (Last 5 stock entries)
   const recentActivity = [...stockEntries]
@@ -26,60 +32,72 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
 
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
 
+  const KPICard = ({ title, value, subtext, icon, colorClass }: any) => (
+      <div className="col-md-4 col-lg-2">
+          <div className={`card h-100 border-0 shadow-sm ${colorClass} text-white`}>
+              <div className="card-body p-3">
+                  <div className="d-flex justify-content-between align-items-center mb-2">
+                      <h6 className="card-title mb-0 opacity-75 small text-uppercase fw-bold">{title}</h6>
+                      <i className={`bi ${icon} fs-4 opacity-50`}></i>
+                  </div>
+                  <h3 className="fw-bold mb-0">{value}</h3>
+                  <small className="opacity-75" style={{fontSize: '0.75rem'}}>{subtext}</small>
+              </div>
+          </div>
+      </div>
+  );
+
   return (
     <div className="fade-in">
-        <h4 className="fw-bold mb-4 text-capitalize">{t('dashboard') || 'Dashboard'}</h4>
+        <div className="d-flex justify-content-between align-items-center mb-4">
+            <h4 className="fw-bold mb-0 text-capitalize">{t('dashboard') || 'Dashboard'}</h4>
+            <span className="text-muted small">{new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+        </div>
         
-        {/* KPI Cards */}
-        <div className="row g-4 mb-4">
-            <div className="col-md-3">
-                <div className="card h-100 border-0 shadow-sm bg-primary text-white">
-                    <div className="card-body">
-                        <div className="d-flex justify-content-between align-items-center mb-2">
-                            <h6 className="card-title mb-0 opacity-75">{t('item_inventory')}</h6>
-                            <i className="bi bi-box-seam fs-4 opacity-50"></i>
-                        </div>
-                        <h2 className="display-6 fw-bold mb-0">{totalItems}</h2>
-                        <small className="opacity-75">Total SKUs</small>
-                    </div>
-                </div>
-            </div>
-            <div className="col-md-3">
-                <div className="card h-100 border-0 shadow-sm bg-warning text-dark">
-                    <div className="card-body">
-                        <div className="d-flex justify-content-between align-items-center mb-2">
-                            <h6 className="card-title mb-0 opacity-75">Low Stock</h6>
-                            <i className="bi bi-exclamation-triangle fs-4 opacity-50"></i>
-                        </div>
-                        <h2 className="display-6 fw-bold mb-0">{lowStockItems}</h2>
-                        <small className="opacity-75">Items below threshold</small>
-                    </div>
-                </div>
-            </div>
-            <div className="col-md-3">
-                <div className="card h-100 border-0 shadow-sm bg-info text-white">
-                    <div className="card-body">
-                        <div className="d-flex justify-content-between align-items-center mb-2">
-                            <h6 className="card-title mb-0 opacity-75">Pending Orders</h6>
-                            <i className="bi bi-clock-history fs-4 opacity-50"></i>
-                        </div>
-                        <h2 className="display-6 fw-bold mb-0">{pendingWO}</h2>
-                        <small className="opacity-75">Waiting to start</small>
-                    </div>
-                </div>
-            </div>
-            <div className="col-md-3">
-                <div className="card h-100 border-0 shadow-sm bg-success text-white">
-                    <div className="card-body">
-                        <div className="d-flex justify-content-between align-items-center mb-2">
-                            <h6 className="card-title mb-0 opacity-75">In Production</h6>
-                            <i className="bi bi-gear-wide-connected fs-4 opacity-50"></i>
-                        </div>
-                        <h2 className="display-6 fw-bold mb-0">{activeWO}</h2>
-                        <small className="opacity-75">Work Orders in progress</small>
-                    </div>
-                </div>
-            </div>
+        {/* KPI Grid - 6 Columns */}
+        <div className="row g-3 mb-4">
+            <KPICard 
+                title={t('item_inventory')} 
+                value={totalItems} 
+                subtext="Total SKUs" 
+                icon="bi-box-seam" 
+                colorClass="bg-primary" 
+            />
+            <KPICard 
+                title="Low Stock" 
+                value={lowStockItems} 
+                subtext="Items below threshold" 
+                icon="bi-exclamation-triangle" 
+                colorClass="bg-warning text-dark" 
+            />
+            <KPICard 
+                title="Active WO" 
+                value={activeWO} 
+                subtext="Production in progress" 
+                icon="bi-gear-wide-connected" 
+                colorClass="bg-success" 
+            />
+            <KPICard 
+                title="Pending WO" 
+                value={pendingWO} 
+                subtext="Waiting to start" 
+                icon="bi-clock-history" 
+                colorClass="bg-info" 
+            />
+            <KPICard 
+                title="Active Samples" 
+                value={activeSamples} 
+                subtext="Prototypes in dev" 
+                icon="bi-eyedropper" 
+                colorClass="bg-secondary" 
+            />
+            <KPICard 
+                title="Open POs" 
+                value={openPOs} 
+                subtext="Incoming Orders" 
+                icon="bi-receipt" 
+                colorClass="bg-dark" 
+            />
         </div>
 
         <div className="row g-4">

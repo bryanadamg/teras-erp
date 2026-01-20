@@ -603,6 +603,8 @@ export default function Home() {
                 stockBalance={stockBalance}
                 workOrders={workOrders}
                 stockEntries={stockEntries}
+                samples={samples}
+                salesOrders={salesOrders}
             />
         )}
 
