@@ -42,8 +42,6 @@ export default function Home() {
       }
   }, [currentUser, loading, router]);
 
-  if (loading || !currentUser) return null; // Or a loading spinner
-
   // Confirmation State
   const [confirmState, setConfirmState] = useState<{
       isOpen: boolean;
@@ -503,6 +501,8 @@ export default function Home() {
         showToast('Failed to record stock', 'danger');
     }
   };
+
+  if (loading || !currentUser) return null; // Moved check here, after all hooks
 
   return (
     <div className={`d-flex flex-column ui-style-${uiStyle}`} style={{ minHeight: '100vh' }}>
