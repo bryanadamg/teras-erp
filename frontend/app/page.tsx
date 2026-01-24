@@ -15,8 +15,8 @@ import ReportsView from './components/ReportsView';
 import SettingsView from './components/SettingsView';
 import PurchaseOrderView from './components/PurchaseOrderView';
 import SampleRequestView from './components/SampleRequestView';
-import { useToast } from './components/Toast';
-import { useLanguage } from './context/LanguageContext';
+import { useUser } from './context/UserContext';
+import { useRouter } from 'next/navigation';
 import DashboardView from './components/DashboardView';
 import ConfirmModal from './components/ConfirmModal';
 
@@ -25,10 +25,22 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api'
 export default function Home() {
   const { showToast } = useToast();
   const { language, setLanguage, t } = useLanguage();
+  const { currentUser, loading, logout } = useUser();
+  const router = useRouter();
+  
   const [activeTab, setActiveTab] = useState('dashboard');
   const [appName, setAppName] = useState('Teras ERP');
   const [uiStyle, setUiStyle] = useState('classic');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // Redirect if not logged in
+  useEffect(() => {
+      if (!loading && !currentUser) {
+          router.push('/login');
+      }
+  }, [currentUser, loading, router]);
+
+  if (loading || !currentUser) return null; // Or a loading spinner
 
   // Confirmation State
   const [confirmState, setConfirmState] = useState<{
@@ -527,7 +539,8 @@ export default function Home() {
                           <option value="id" style={{color: 'black'}}>Indonesia</option>
                       </select>
                   </div>
-                  <div className="d-none d-md-block">User: Administrator | {new Date().toLocaleDateString()}</div>
+                  <div className="d-none d-md-block">User: {currentUser.full_name} | {new Date().toLocaleDateString()}</div>
+                  <button className="btn btn-sm btn-danger py-0" style={{fontSize: '10px'}} onClick={logout}>Logout</button>
               </div>
           </div>
       )}

@@ -48,6 +48,7 @@ class User(Base):
     )
     username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     full_name: Mapped[str] = mapped_column(String(128))
+    hashed_password: Mapped[str] = mapped_column(String(255)) # New field for security
     role_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("roles.id"), nullable=True
     )

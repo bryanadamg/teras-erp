@@ -53,109 +53,92 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 export function UserProvider({ children }: { children: React.ReactNode }) {
 
     const [currentUser, setCurrentUser] = useState<User | null>(null);
-
     const [users, setUsers] = useState<User[]>([]);
+    const [loading, setLoading] = useState(true);
+    const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
 
+    const login = async (username, password) => {
+        const formData = new FormData();
+        formData.append('username', username);
+        formData.append('password', password);
 
+        const res = await fetch(`${API_BASE}/token`, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!res.ok) throw new Error('Login failed');
+
+        const data = await res.json();
+        localStorage.setItem('access_token', data.access_token);
+        await fetchCurrentUser(data.access_token);
+    };
+
+    const logout = () => {
+        localStorage.removeItem('access_token');
+        setCurrentUser(null);
+    };
+
+    const fetchCurrentUser = async (token) => {
+        try {
+            const res = await fetch(`${API_BASE}/users/me`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const user = await res.json();
+                setCurrentUser(user);
+            } else {
+                logout();
+            }
+        } catch (e) {
+            logout();
+        }
+    };
 
     const refreshUsers = async () => {
-
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+        
         try {
-
-            const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
-
-            const res = await fetch(`${API_BASE}/users`);
-
+            const res = await fetch(`${API_BASE}/users`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
             if (res.ok) {
-
-                const data = await res.json();
-
-                setUsers(data);
-
-                
-
-                // Restore session or default to first user (Admin usually)
-
-                const savedUserId = localStorage.getItem('current_user_id');
-
-                if (savedUserId) {
-
-                    const savedUser = data.find((u: User) => u.id === savedUserId);
-
-                    if (savedUser) setCurrentUser(savedUser);
-
-                    else if (data.length > 0) setCurrentUser(data[0]);
-
-                } else if (data.length > 0) {
-
-                    setCurrentUser(data[0]);
-
-                }            }
-
+                setUsers(await res.json());
+            }
         } catch (e) {
-
             console.error("Failed to fetch users", e);
-
         }
-
     };
-
-
 
     useEffect(() => {
-
-        refreshUsers();
-
+        const token = localStorage.getItem('access_token');
+        if (token) {
+            fetchCurrentUser(token).finally(() => setLoading(false));
+        } else {
+            setLoading(false);
+        }
     }, []);
 
-
-
-    const handleSetUser = (user: User) => {
-
-        setCurrentUser(user);
-
-        localStorage.setItem('current_user_id', user.id);
-
-    };
-
-
-
     const hasPermission = (permissionCode: string): boolean => {
-
         if (!currentUser) return false;
-
         
-
         // 1. Check Role permissions
-
         if (currentUser.role) {
-
             if (currentUser.role.permissions.some(p => p.code === 'admin.access')) return true;
-
             if (currentUser.role.permissions.some(p => p.code === permissionCode)) return true;
-
         }
-
-
 
         // 2. Check Direct (Granular) permissions
-
         if (currentUser.permissions && currentUser.permissions.some(p => p.code === permissionCode)) {
-
             return true;
-
         }
-
         
-
         return false;
-
     };
 
-
-
     return (
-        <UserContext.Provider value={{ currentUser, users, setCurrentUser: handleSetUser, hasPermission, refreshUsers }}>
+        <UserContext.Provider value={{ currentUser, users, setCurrentUser, hasPermission, refreshUsers, login, logout, loading }}>
             {children}
         </UserContext.Provider>
     );

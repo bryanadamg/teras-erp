@@ -113,27 +113,6 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
           </div>
         </div>
 
-        {/* User / Role Switcher (Simulation) */}
-        <div className="card shadow-sm border-0 mb-4 bg-light">
-            <div className="card-body">
-                 <label className="form-label fw-bold small text-uppercase text-muted">Current Session (Role Switching)</label>
-                 <select 
-                    className="form-select" 
-                    value={currentUser?.id || ''} 
-                    onChange={(e) => handleUserSwitch(e.target.value)}
-                 >
-                     {users.map(u => (
-                         <option key={u.id} value={u.id}>
-                             {u.full_name} — {u.role?.name || 'No Role'}
-                         </option>
-                     ))}
-                 </select>
-                 <div className="form-text small mt-2">
-                     <strong>Direct Permissions:</strong> {currentUser?.permissions?.map(p => p.code).join(', ') || 'None'}
-                 </div>
-            </div>
-        </div>
-
         {/* Admin User Management */}
         {hasPermission('admin.access') && (
             <div className="card shadow-sm border-0">

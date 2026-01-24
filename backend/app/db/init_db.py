@@ -22,6 +22,7 @@ def run_migrations():
                 ("work_orders", "source_location_id", "UUID REFERENCES locations(id)"),
                 ("work_orders", "completed_at", "TIMESTAMP WITHOUT TIME ZONE"),
                 ("bom_lines", "source_location_id", "UUID REFERENCES locations(id)"),
+                ("users", "hashed_password", "VARCHAR(255)"),
             ]
 
             for table, col, col_type in migrations:
@@ -79,6 +80,7 @@ def run_migrations():
 from app.models.category import Category
 from app.models.auth import Permission, Role, User
 from app.models.uom import UOM
+from app.core.security import get_password_hash
 
 def seed_categories(db):
     try:
@@ -161,8 +163,17 @@ def seed_rbac(db):
             user = db.query(User).filter(User.username == uname).first()
             if not user:
                 role = db.query(Role).filter(Role.name == rname).first()
-                user = User(username=uname, full_name=fname, role_id=role.id)
+                user = User(
+                    username=uname, 
+                    full_name=fname, 
+                    role_id=role.id,
+                    hashed_password=get_password_hash("password") # Default password
+                )
                 db.add(user)
+                db.commit()
+            elif not user.hashed_password:
+                # Migration: Update existing users with default password if null
+                user.hashed_password = get_password_hash("password")
                 db.commit()
 
         logger.info("Seeded RBAC (Roles, Permissions, Users)")

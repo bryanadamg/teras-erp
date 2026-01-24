@@ -4,3 +4,6 @@ sqlmodel==0.0.22
 psycopg2-binary==2.9.11
 jinja2==3.1.4
 tenacity==9.0.0
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
