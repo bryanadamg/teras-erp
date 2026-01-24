@@ -171,8 +171,9 @@ def seed_rbac(db):
                 )
                 db.add(user)
                 db.commit()
-            elif not user.hashed_password:
-                # Migration: Update existing users with default password if null
+            else:
+                # Ensure password is set correctly (Reset for dev/demo)
+                # In production, remove this else block
                 user.hashed_password = get_password_hash("password")
                 db.commit()
 
