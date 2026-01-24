@@ -15,6 +15,8 @@ import ReportsView from './components/ReportsView';
 import SettingsView from './components/SettingsView';
 import PurchaseOrderView from './components/PurchaseOrderView';
 import SampleRequestView from './components/SampleRequestView';
+import { useToast } from './components/Toast';
+import { useLanguage } from './context/LanguageContext';
 import { useUser } from './context/UserContext';
 import { useRouter } from 'next/navigation';
 import DashboardView from './components/DashboardView';

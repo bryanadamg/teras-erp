@@ -70,12 +70,12 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
       return baseCode;
   };
 
-  // Generate initial suggestion when modal opens
-  useEffect(() => {
-      if (isCreateOpen && !newSample.code) {
+  const openCreateModal = () => {
+      if (!newSample.code) {
           setNewSample(prev => ({ ...prev, code: suggestSampleCode() }));
       }
-  }, [isCreateOpen]);
+      setIsCreateOpen(true);
+  };
 
   // Close dropdown when clicking outside (and handle scroll closing)
   useEffect(() => {
@@ -266,7 +266,7 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
           <div className="card h-100 shadow-sm border-0">
              <div className="card-header bg-white d-flex justify-content-between align-items-center">
                  <h5 className="card-title mb-0">{t('sample_requests')}</h5>
-                 <button className="btn btn-sm btn-primary" onClick={() => setIsCreateOpen(true)}>
+                 <button className="btn btn-sm btn-primary" onClick={openCreateModal}>
                      <i className="bi bi-plus-lg me-2"></i> {t('create')}
                  </button>
              </div>

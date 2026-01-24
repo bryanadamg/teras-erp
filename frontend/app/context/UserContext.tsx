@@ -31,17 +31,14 @@ export interface User {
 
 
 interface UserContextType {
-
     currentUser: User | null;
-
     users: User[];
-
     setCurrentUser: (user: User) => void;
-
     hasPermission: (permissionCode: string) => boolean;
-
     refreshUsers: () => Promise<void>;
-
+    login: (username: string, password: string) => Promise<void>;
+    logout: () => void;
+    loading: boolean;
 }
 
 
