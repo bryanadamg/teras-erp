@@ -16,6 +16,7 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
   const [editName, setEditName] = useState('');
   const [editRoleId, setEditRoleId] = useState('');
   const [editPermissionIds, setEditPermissionIds] = useState<string[]>([]);
+  const [newPassword, setNewPassword] = useState('');
 
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
 
@@ -37,19 +38,12 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
       showToast('Settings updated successfully!', 'success');
   };
 
-  const handleUserSwitch = (userId: string) => {
-      const selected = users.find(u => u.id === userId);
-      if (selected) {
-          setCurrentUser(selected);
-          showToast(`Switched to user: ${selected.username} (${selected.role?.name || 'No Role'})`, 'info');
-      }
-  };
-
   const startEditingUser = (user: User) => {
       setEditingUser(user.id);
       setEditName(user.full_name);
       setEditRoleId(user.role?.id || '');
       setEditPermissionIds(user.permissions?.map(p => p.id) || []);
+      setNewPassword(''); // Reset password field
   };
 
   const toggleEditPermission = (permId: string) => {
@@ -60,19 +54,26 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
 
   const saveUserChanges = async (userId: string) => {
       try {
+          const payload: any = { 
+              full_name: editName, 
+              role_id: editRoleId || null,
+              permission_ids: editPermissionIds
+          };
+          
+          if (newPassword) {
+              payload.password = newPassword;
+          }
+
           const res = await fetch(`${API_BASE}/users/${userId}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                  full_name: editName, 
-                  role_id: editRoleId || null,
-                  permission_ids: editPermissionIds
-              })
+              body: JSON.stringify(payload)
           });
           
           if (res.ok) {
               showToast('User updated successfully!', 'success');
               setEditingUser(null);
+              setNewPassword('');
               refreshUsers(); // Refresh the global user list
           } else {
               const err = await res.json();
@@ -126,7 +127,7 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
                                 <tr>
                                     <th className="ps-4">Username</th>
                                     <th>Full Name</th>
-                                    <th>Base Role</th>
+                                    <th>Role & Password</th>
                                     <th>Custom Tab Access (Granular)</th>
                                     <th className="text-end pe-4">Actions</th>
                                 </tr>
@@ -147,7 +148,7 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
                                                 </td>
                                                 <td>
                                                     <select 
-                                                        className="form-select form-select-sm"
+                                                        className="form-select form-select-sm mb-2"
                                                         value={editRoleId}
                                                         onChange={e => setEditRoleId(e.target.value)}
                                                     >
@@ -156,6 +157,13 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
                                                             <option key={r.id} value={r.id}>{r.name}</option>
                                                         ))}
                                                     </select>
+                                                    <input 
+                                                        type="password"
+                                                        className="form-control form-control-sm"
+                                                        placeholder="Reset Password..."
+                                                        value={newPassword}
+                                                        onChange={e => setNewPassword(e.target.value)}
+                                                    />
                                                 </td>
                                                 <td>
                                                     <div className="d-flex flex-wrap gap-2 p-2 border rounded bg-white" style={{maxHeight: '150px', overflowY: 'auto'}}>

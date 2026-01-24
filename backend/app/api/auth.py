@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.auth import User, Role
 from app.schemas import UserResponse, RoleResponse, PermissionResponse, UserUpdate
-from app.core.security import verify_password, create_access_token, ALGORITHM, SECRET_KEY
+from app.core.security import verify_password, create_access_token, get_password_hash, ALGORITHM, SECRET_KEY
 from jose import JWTError, jwt
 
 router = APIRouter()
@@ -85,6 +85,9 @@ def update_user(user_id: str, payload: UserUpdate, db: Session = Depends(get_db)
         if not role:
             raise HTTPException(status_code=400, detail="Role not found")
         user.role_id = payload.role_id
+
+    if payload.password is not None:
+        user.hashed_password = get_password_hash(payload.password)
 
     if payload.permission_ids is not None:
         from app.models.auth import Permission
