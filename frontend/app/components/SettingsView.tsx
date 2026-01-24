@@ -29,7 +29,12 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
           setRoles(rolesData);
           setAllPermissions(permsData);
       }).catch(err => console.error("Failed to fetch auth data", err));
-  }, []);
+
+      // Refresh users if admin
+      if (hasPermission('admin.access')) {
+          refreshUsers();
+      }
+  }, [currentUser]); // Run when user changes/logs in
 
   const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
