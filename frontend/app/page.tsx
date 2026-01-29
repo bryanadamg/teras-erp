@@ -28,7 +28,7 @@ export default function Home() {
   const router = useRouter();
   const { showToast } = useToast();
   const { language, setLanguage, t } = useLanguage();
-  const { currentUser, loading, hasPermission, refreshUsers } = useUser();
+  const { currentUser, loading, hasPermission, refreshUsers, logout } = useUser();
   
   const [activeTab, setActiveTab] = useState('dashboard');
   const [appName, setAppName] = useState('Teras ERP');
