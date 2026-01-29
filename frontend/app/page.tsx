@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Sidebar from './components/Sidebar';
 import InventoryView from './components/InventoryView';
 import LocationsView from './components/LocationsView';
@@ -18,29 +19,21 @@ import SampleRequestView from './components/SampleRequestView';
 import { useToast } from './components/Toast';
 import { useLanguage } from './context/LanguageContext';
 import { useUser } from './context/UserContext';
-import { useRouter } from 'next/navigation';
 import DashboardView from './components/DashboardView';
 import ConfirmModal from './components/ConfirmModal';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
 
 export default function Home() {
+  const router = useRouter();
   const { showToast } = useToast();
   const { language, setLanguage, t } = useLanguage();
-  const { currentUser, loading, logout } = useUser();
-  const router = useRouter();
+  const { currentUser, loading, hasPermission, refreshUsers } = useUser();
   
   const [activeTab, setActiveTab] = useState('dashboard');
   const [appName, setAppName] = useState('Teras ERP');
   const [uiStyle, setUiStyle] = useState('classic');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-
-  // Redirect if not logged in
-  useEffect(() => {
-      if (!loading && !currentUser) {
-          router.push('/login');
-      }
-  }, [currentUser, loading, router]);
 
   // Confirmation State
   const [confirmState, setConfirmState] = useState<{
@@ -66,21 +59,25 @@ export default function Home() {
   const [samples, setSamples] = useState([]);
 
   const fetchData = async () => {
+    if (!currentUser) return;
     try {
+      const token = localStorage.getItem('access_token');
+      const headers = { 'Authorization': `Bearer ${token}` };
+
       const [itemsRes, locsRes, stockRes, attrsRes, catsRes, uomsRes, bomsRes, wcRes, opRes, woRes, balRes, soRes, sampRes] = await Promise.all([
-          fetch(`${API_BASE}/items`),
-          fetch(`${API_BASE}/locations`),
-          fetch(`${API_BASE}/stock`),
-          fetch(`${API_BASE}/attributes`),
-          fetch(`${API_BASE}/categories`),
-          fetch(`${API_BASE}/uoms`),
-          fetch(`${API_BASE}/boms`),
-          fetch(`${API_BASE}/work-centers`),
-          fetch(`${API_BASE}/operations`),
-          fetch(`${API_BASE}/work-orders`),
-          fetch(`${API_BASE}/stock/balance`),
-          fetch(`${API_BASE}/sales-orders`),
-          fetch(`${API_BASE}/samples`)
+          fetch(`${API_BASE}/items`, { headers }),
+          fetch(`${API_BASE}/locations`, { headers }),
+          fetch(`${API_BASE}/stock`, { headers }),
+          fetch(`${API_BASE}/attributes`, { headers }),
+          fetch(`${API_BASE}/categories`, { headers }),
+          fetch(`${API_BASE}/uoms`, { headers }),
+          fetch(`${API_BASE}/boms`, { headers }),
+          fetch(`${API_BASE}/work-centers`, { headers }),
+          fetch(`${API_BASE}/operations`, { headers }),
+          fetch(`${API_BASE}/work-orders`, { headers }),
+          fetch(`${API_BASE}/stock/balance`, { headers }),
+          fetch(`${API_BASE}/sales-orders`, { headers }),
+          fetch(`${API_BASE}/samples`, { headers })
       ]);
 
       if (itemsRes.ok) setItems(await itemsRes.json());
@@ -102,14 +99,16 @@ export default function Home() {
   };
 
   useEffect(() => {
-    fetchData();
-    // Load settings from local storage
+    if (currentUser) {
+        fetchData();
+    }
+    
     const savedName = localStorage.getItem('app_name');
     if (savedName) setAppName(savedName);
     
     const savedStyle = localStorage.getItem('ui_style');
     if (savedStyle) setUiStyle(savedStyle);
-  }, []);
+  }, [currentUser]);
 
   const handleUpdateAppName = (name: string) => {
       setAppName(name);
@@ -134,12 +133,20 @@ export default function Home() {
       });
   };
 
-  // --- Handlers ---
+  // --- API Wrappers (Auth Included) ---
+  const authFetch = async (url: string, options: any = {}) => {
+      const token = localStorage.getItem('access_token');
+      const headers = { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          ...options.headers 
+      };
+      return fetch(url, { ...options, headers });
+  };
 
   const handleCreateItem = async (item: any) => {
-    const res = await fetch(`${API_BASE}/items`, {
+    const res = await authFetch(`${API_BASE}/items`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(item)
     });
     fetchData();
@@ -147,9 +154,8 @@ export default function Home() {
   };
 
   const handleUpdateItem = async (itemId: string, data: any) => {
-      await fetch(`${API_BASE}/items/${itemId}`, {
+      await authFetch(`${API_BASE}/items/${itemId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
       });
       fetchData();
@@ -157,7 +163,7 @@ export default function Home() {
 
   const handleDeleteItem = async (itemId: string) => {
       requestConfirm('Delete Item?', 'Are you sure you want to delete this item?', async () => {
-          const res = await fetch(`${API_BASE}/items/${itemId}`, { method: 'DELETE' });
+          const res = await authFetch(`${API_BASE}/items/${itemId}`, { method: 'DELETE' });
           if (res.ok) {
               showToast('Item deleted successfully', 'success');
               fetchData();
@@ -168,50 +174,32 @@ export default function Home() {
   };
 
   const handleAddVariantToItem = async (itemId: string, variant: any) => {
-      await fetch(`${API_BASE}/items/${itemId}/variants`, {
+      await authFetch(`${API_BASE}/items/${itemId}/variants`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(variant)
       });
       fetchData();
   };
 
   const handleDeleteVariant = async (variantId: string) => {
-      await fetch(`${API_BASE}/items/variants/${variantId}`, {
+      await authFetch(`${API_BASE}/items/variants/${variantId}`, {
           method: 'DELETE'
       });
       fetchData();
   };
 
   const handleCreateLocation = async (location: any) => {
-    const res = await fetch(`${API_BASE}/locations`, {
+    const res = await authFetch(`${API_BASE}/locations`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(location)
     });
-    
-    if (res && res.status === 400) {
-        // Suggestion logic could be added here too
-        let baseCode = location.code;
-        const baseMatch = baseCode.match(/^(.*)-(\d+)$/);
-        if (baseMatch) baseCode = baseMatch[1];
-        let counter = 1;
-        let suggestedCode = `${baseCode}-${counter}`;
-        while (locations.some((l: any) => l.code === suggestedCode)) {
-            counter++;
-            suggestedCode = `${baseCode}-${counter}`;
-        }
-        showToast(`Location Code exists. Try: ${suggestedCode}`, 'warning');
-        return res; // let view handle it
-    }
-    
     fetchData();
     return res;
   };
 
   const handleDeleteLocation = async (locationId: string) => {
       requestConfirm('Delete Location?', 'Are you sure you want to delete this location?', async () => {
-          const res = await fetch(`${API_BASE}/locations/${locationId}`, { method: 'DELETE' });
+          const res = await authFetch(`${API_BASE}/locations/${locationId}`, { method: 'DELETE' });
           if (res.ok) {
               showToast('Location deleted successfully', 'success');
               fetchData();
@@ -222,261 +210,199 @@ export default function Home() {
   };
 
   const handleCreateAttribute = async (attr: any) => {
-    await fetch(`${API_BASE}/attributes`, {
+    await authFetch(`${API_BASE}/attributes`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(attr)
     });
     fetchData();
   };
 
   const handleUpdateAttribute = async (id: string, name: string) => {
-      await fetch(`${API_BASE}/attributes/${id}`, {
+      await authFetch(`${API_BASE}/attributes/${id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name })
       });
       fetchData();
   };
 
   const handleDeleteAttribute = async (attributeId: string) => {
-      requestConfirm('Delete Attribute?', 'Are you sure you want to delete this attribute template? This may affect items using it.', async () => {
-          const res = await fetch(`${API_BASE}/attributes/${attributeId}`, { method: 'DELETE' });
+      requestConfirm('Delete Attribute?', 'Are you sure you want to delete this attribute template?', async () => {
+          const res = await authFetch(`${API_BASE}/attributes/${attributeId}`, { method: 'DELETE' });
           if (res.ok) {
               showToast('Attribute template deleted', 'success');
               fetchData();
-          } else {
-              showToast('Failed to delete attribute', 'danger');
           }
       });
   };
 
   const handleAddAttributeValue = async (attributeId: string, value: string) => {
-      await fetch(`${API_BASE}/attributes/${attributeId}/values`, {
+      await authFetch(`${API_BASE}/attributes/${attributeId}/values`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ value })
       });
       fetchData();
   };
 
   const handleUpdateAttributeValue = async (valueId: string, value: string) => {
-      await fetch(`${API_BASE}/attributes/values/${valueId}`, {
+      await authFetch(`${API_BASE}/attributes/values/${valueId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ value })
       });
       fetchData();
   };
 
   const handleDeleteAttributeValue = async (valueId: string) => {
-      await fetch(`${API_BASE}/attributes/values/${valueId}`, {
+      await authFetch(`${API_BASE}/attributes/values/${valueId}`, {
           method: 'DELETE'
       });
       fetchData();
   };
 
   const handleCreateCategory = async (name: string) => {
-      await fetch(`${API_BASE}/categories`, {
+      await authFetch(`${API_BASE}/categories`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name })
       });
       fetchData();
   };
 
   const handleDeleteCategory = async (categoryId: string) => {
-      await fetch(`${API_BASE}/categories/${categoryId}`, {
+      await authFetch(`${API_BASE}/categories/${categoryId}`, {
           method: 'DELETE'
       });
       fetchData();
   };
 
   const handleCreateUOM = async (name: string) => {
-      await fetch(`${API_BASE}/uoms`, {
+      await authFetch(`${API_BASE}/uoms`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name })
       });
       fetchData();
   };
 
   const handleDeleteUOM = async (uomId: string) => {
-      await fetch(`${API_BASE}/uoms/${uomId}`, {
+      await authFetch(`${API_BASE}/uoms/${uomId}`, {
           method: 'DELETE'
       });
       fetchData();
   };
 
-  // --- Routing Handlers ---
   const handleCreateWorkCenter = async (wc: any) => {
-      const res = await fetch(`${API_BASE}/work-centers`, {
+      const res = await authFetch(`${API_BASE}/work-centers`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(wc)
       });
       if (res.ok) {
           showToast('Work Center added!', 'success');
           fetchData();
-      } else {
-          showToast('Error creating Work Center', 'danger');
       }
   };
 
   const handleDeleteWorkCenter = async (id: string) => {
-      await fetch(`${API_BASE}/work-centers/${id}`, { method: 'DELETE' });
+      await authFetch(`${API_BASE}/work-centers/${id}`, { method: 'DELETE' });
       fetchData();
   };
 
   const handleCreateOperation = async (op: any) => {
-      const res = await fetch(`${API_BASE}/operations`, {
+      const res = await authFetch(`${API_BASE}/operations`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(op)
       });
       if (res.ok) {
           showToast('Operation added!', 'success');
           fetchData();
-      } else {
-          showToast('Error creating Operation', 'danger');
       }
   };
 
   const handleDeleteOperation = async (id: string) => {
-      await fetch(`${API_BASE}/operations/${id}`, { method: 'DELETE' });
+      await authFetch(`${API_BASE}/operations/${id}`, { method: 'DELETE' });
       fetchData();
   };
 
-  // -------------------------
-
   const handleCreateBOM = async (bom: any) => {
-      const payload: any = { ...bom };
-      if (!payload.attribute_value_ids) payload.attribute_value_ids = [];
-      
-      const res = await fetch(`${API_BASE}/boms`, {
+      const res = await authFetch(`${API_BASE}/boms`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(bom)
       });
-      
       if (res.ok) {
           showToast('BOM Created successfully!', 'success');
           fetchData();
-      } else {
-          const err = await res.json();
-          showToast(`Error: ${err.detail}`, 'danger');
       }
       return res;
   };
 
   const handleDeleteBOM = async (bomId: string) => {
-      requestConfirm('Delete BOM?', 'Are you sure you want to delete this BOM?', async () => {
-          const res = await fetch(`${API_BASE}/boms/${bomId}`, { method: 'DELETE' });
+      requestConfirm('Delete BOM?', 'Are you sure?', async () => {
+          const res = await authFetch(`${API_BASE}/boms/${bomId}`, { method: 'DELETE' });
           if (res.ok) {
               showToast('BOM deleted successfully', 'success');
               fetchData();
-          } else {
-              showToast('Failed to delete BOM', 'danger');
           }
       });
   };
 
-  // --- Sales & Samples Handlers ---
   const handleCreatePO = async (po: any) => {
-      const res = await fetch(`${API_BASE}/sales-orders`, {
+      const res = await authFetch(`${API_BASE}/sales-orders`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(po)
       });
       if (res.ok) {
-          showToast('Purchase Order created successfully!', 'success');
+          showToast('PO created successfully!', 'success');
           fetchData();
-      } else {
-          const err = await res.json();
-          showToast(`Error: ${err.detail}`, 'danger');
       }
   };
 
   const handleDeletePO = async (id: string) => {
-      requestConfirm('Delete PO?', 'Are you sure you want to delete this PO?', async () => {
-          const res = await fetch(`${API_BASE}/sales-orders/${id}`, { method: 'DELETE' });
-          if (res.ok) {
-              showToast('PO deleted successfully', 'success');
-              fetchData();
-          } else {
-              showToast('Failed to delete PO', 'danger');
-          }
+      requestConfirm('Delete PO?', 'Are you sure?', async () => {
+          await authFetch(`${API_BASE}/sales-orders/${id}`, { method: 'DELETE' });
+          fetchData();
       });
   };
 
   const handleCreateSample = async (sample: any) => {
-      const payload: any = { ...sample };
-      if (!payload.sales_order_id) delete payload.sales_order_id;
-      
-      const res = await fetch(`${API_BASE}/samples`, {
+      const res = await authFetch(`${API_BASE}/samples`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(sample)
       });
-      
       if (res.ok) {
-          showToast('Sample Request created successfully!', 'success');
+          showToast('Sample created successfully!', 'success');
           fetchData();
-      } else {
-          const err = await res.json();
-          showToast(`Error: ${err.detail}`, 'danger');
       }
   };
 
   const handleUpdateSampleStatus = async (id: string, status: string) => {
-      await fetch(`${API_BASE}/samples/${id}/status?status=${status}`, {
+      await authFetch(`${API_BASE}/samples/${id}/status?status=${status}`, {
           method: 'PUT'
       });
-      showToast(`Sample status updated to ${status}`, 'info');
       fetchData();
   };
 
   const handleDeleteSample = async (id: string) => {
-      requestConfirm('Delete Sample Request?', 'Are you sure you want to delete this request?', async () => {
-          await fetch(`${API_BASE}/samples/${id}`, { method: 'DELETE' });
+      requestConfirm('Delete Sample?', 'Are you sure?', async () => {
+          await authFetch(`${API_BASE}/samples/${id}`, { method: 'DELETE' });
           fetchData();
       });
   };
 
-  // --- Manufacturing Handlers ---
-
   const handleCreateWO = async (wo: any) => {
-      const payload: any = { ...wo };
-      if (!payload.due_date) delete payload.due_date;
-
-      const res = await fetch(`${API_BASE}/work-orders`, {
+      const res = await authFetch(`${API_BASE}/work-orders`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(wo)
       });
-
       if (res.ok) {
-          const createdWO = await res.json();
-          if (createdWO.is_material_available === false) {
-              showToast('Work Order created, but insufficient materials!', 'warning');
-          } else {
-              showToast('Work Order Created successfully!', 'success');
-          }
+          showToast('WO created successfully!', 'success');
           fetchData();
-      } else {
-          const err = await res.json();
-          showToast(`Error: ${err.detail}`, 'danger');
       }
       return res;
   };
 
   const handleUpdateWOStatus = async (woId: string, status: string) => {
-      const res = await fetch(`${API_BASE}/work-orders/${woId}/status?status=${status}`, {
+      const res = await authFetch(`${API_BASE}/work-orders/${woId}/status?status=${status}`, {
           method: 'PUT'
       });
-      
       if (res.ok) {
-          showToast(`Work Order status updated to ${status}`, 'info');
+          showToast(`WO status updated`, 'info');
           fetchData();
       } else {
           const err = await res.json();
@@ -485,25 +411,144 @@ export default function Home() {
   };
 
   const handleRecordStock = async (entry: any) => {
-    const payload: any = { ...entry };
-    if (!payload.attribute_value_ids) payload.attribute_value_ids = [];
-
-    const res = await fetch(`${API_BASE}/items/stock`, {
+    const res = await authFetch(`${API_BASE}/items/stock`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(entry)
     });
-    
     if (res.ok) {
-        showToast('Stock recorded successfully!', 'success');
+        showToast('Stock recorded!', 'success');
         fetchData();
-    } else {
-        showToast('Failed to record stock', 'danger');
     }
   };
 
-  if (loading || !currentUser) return null; // Moved check here, after all hooks
+  if (loading) {
+      return (
+          <div className="vh-100 d-flex align-items-center justify-content-center bg-light">
+              <div className="spinner-border text-primary" role="status"></div>
+          </div>
+      );
+  }
 
+  // --- RENDER LANDING PAGE FOR NON-AUTH USERS ---
+  if (!currentUser) {
+    return (
+        <div className={`landing-page ui-style-${uiStyle} min-vh-100 bg-white`}>
+            {/* Top Navigation */}
+            <nav className="navbar navbar-expand-lg border-bottom py-3 sticky-top bg-white">
+                <div className="container">
+                    <a className="navbar-brand fw-bold text-primary fs-3 d-flex align-items-center" href="#">
+                        <i className="bi bi-cpu-fill me-2"></i>{appName}
+                    </a>
+                    <div className="d-flex gap-3">
+                        <button className="btn btn-light border" onClick={() => router.push('/login')}>Login</button>
+                        <button className="btn btn-primary px-4 shadow-sm" onClick={() => router.push('/login')}>Get Started</button>
+                    </div>
+                </div>
+            </nav>
+
+            {/* Hero Section */}
+            <section className="py-5 py-md-5 bg-light position-relative overflow-hidden">
+                <div className="container position-relative z-3">
+                    <div className="row align-items-center py-5">
+                        <div className="col-lg-6 mb-5 mb-lg-0">
+                            <span className="badge bg-primary bg-opacity-10 text-primary px-3 py-2 mb-3 rounded-pill fw-bold">v0.2.0 Open Alpha</span>
+                            <h1 className="display-3 fw-bold text-dark mb-4 lh-sm">
+                                The Next Generation of <span className="text-primary">Manufacturing</span>
+                            </h1>
+                            <p className="lead text-muted mb-5 fs-4">
+                                A high-performance, modular ERP engineered for agility. Bridge the gap between engineering, sales, and the factory floor with Teras ERP.
+                            </p>
+                            <div className="d-flex flex-wrap gap-3">
+                                <button className="btn btn-primary btn-lg px-5 py-3 shadow" onClick={() => router.push('/login')}>
+                                    Launch Control Center <i className="bi bi-arrow-right ms-2"></i>
+                                </button>
+                                <button className="btn btn-outline-secondary btn-lg px-4 py-3 border-2">
+                                    Explore Modules
+                                </button>
+                            </div>
+                        </div>
+                        <div className="col-lg-6">
+                            <div className="p-2 bg-white rounded-4 shadow-lg border">
+                                <img 
+                                    src="https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&q=80&w=1000" 
+                                    className="img-fluid rounded-3" 
+                                    alt="Factory Interface" 
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {/* Background Shapes */}
+                <div className="position-absolute top-0 end-0 mt-n5 me-n5 opacity-10">
+                    <i className="bi bi-grid-3x3-gap-fill" style={{fontSize: '20rem'}}></i>
+                </div>
+            </section>
+
+            {/* Features Section */}
+            <section className="py-5">
+                <div className="container py-5">
+                    <div className="text-center mb-5">
+                        <h2 className="fw-bold display-5 mb-3">Modular Excellence</h2>
+                        <p className="text-muted fs-5 mx-auto" style={{maxWidth: '700px'}}>Built with a focus on granular data control and high-efficiency workflows.</p>
+                    </div>
+                    <div className="row g-4">
+                        {[
+                            { icon: 'bi-box-seam', title: 'Smart Inventory', desc: 'Manage multi-location stock with deep attribute support. Prevent negative stock automatically.' },
+                            { icon: 'bi-diagram-3', title: 'Advanced BOM', desc: 'Recursive hierarchical recipes with visual tree structures and material shortage tracking.' },
+                            { icon: 'bi-gear-wide-connected', title: 'Production (MES)', desc: 'Real-time Work Order execution with start/finish timestamps and automated reconciliation.' },
+                            { icon: 'bi-eyedropper', title: 'Sampling (PLM)', desc: 'Full lifecycle management for prototypes. Approved samples promote seamlessly to inventory.' },
+                            { icon: 'bi-cart3', title: 'Sales Tracking', desc: 'Trace incoming POs from customer entry through prototype approval to final shipment.' },
+                            { icon: 'bi-shield-lock', title: 'Granular RBAC', desc: 'Secure the operation with role-based access and direct user-level permission overrides.' }
+                        ].map((f, i) => (
+                            <div key={i} className="col-md-4">
+                                <div className="card h-100 border-0 shadow-sm hover-up p-4">
+                                    <div className="feature-icon-wrapper bg-primary bg-opacity-10 text-primary rounded-3 d-inline-flex align-items-center justify-content-center mb-4" style={{width: 60, height: 60}}>
+                                        <i className={`bi ${f.icon} fs-2`}></i>
+                                    </div>
+                                    <h4 className="fw-bold mb-3">{f.title}</h4>
+                                    <p className="text-muted mb-0">{f.desc}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* Theme Showcase */}
+            <section className="py-5 bg-dark text-white">
+                <div className="container py-5">
+                    <div className="row align-items-center">
+                        <div className="col-lg-5 mb-5 mb-lg-0">
+                            <h2 className="fw-bold display-5 mb-4">Adaptive UI Engine</h2>
+                            <p className="lead opacity-75 mb-4">Choose the interface that matches your workflow. From modern rounded styles to our high-efficiency Classic XP theme.</p>
+                            <ul className="list-unstyled mb-5">
+                                <li className="mb-3 d-flex align-items-center"><i className="bi bi-check-circle-fill text-success me-3"></i> <strong>Classic (XP):</strong> Optimized for desktop productivity.</li>
+                                <li className="mb-3 d-flex align-items-center"><i className="bi bi-check-circle-fill text-success me-3"></i> <strong>Modern:</strong> Contemporary aesthetic for casual use.</li>
+                                <li className="mb-3 d-flex align-items-center"><i className="bi bi-check-circle-fill text-success me-3"></i> <strong>Compact:</strong> Maximum data density for power users.</li>
+                            </ul>
+                            <button className="btn btn-outline-light btn-lg px-4 py-2" onClick={() => router.push('/login')}>Try Classic Mode</button>
+                        </div>
+                        <div className="col-lg-7">
+                            <div className="rounded-4 overflow-hidden border border-white border-opacity-25 shadow-lg">
+                                <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=1000" className="img-fluid" alt="Dashboard" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Footer */}
+            <footer className="py-5 border-top bg-light">
+                <div className="container text-center">
+                    <p className="fw-bold text-primary mb-2">{appName}</p>
+                    <p className="text-muted small">&copy; 2026 Teras Systems. Built for high-stakes production.</p>
+                </div>
+            </footer>
+        </div>
+    );
+  }
+
+  // --- RENDER MAIN DASHBOARD FOR AUTHENTICATED USERS ---
   return (
     <div className={`d-flex flex-column ui-style-${uiStyle}`} style={{ minHeight: '100vh' }}>
       <ConfirmModal 
@@ -541,8 +586,7 @@ export default function Home() {
                           <option value="id" style={{color: 'black'}}>Indonesia</option>
                       </select>
                   </div>
-                  <div className="d-none d-md-block">User: {currentUser.full_name} | {new Date().toLocaleDateString()}</div>
-                  <button className="btn btn-sm btn-danger py-0" style={{fontSize: '10px'}} onClick={logout}>Logout</button>
+                  <div className="d-none d-md-block">User: {currentUser?.full_name} | {new Date().toLocaleDateString()}</div>
               </div>
           </div>
       )}
@@ -561,9 +605,7 @@ export default function Home() {
               <div className="classic-toolbar">
                   <button className="btn btn-sm" onClick={() => fetchData()}><i className="bi bi-arrow-clockwise me-1"></i>{t('refresh')}</button>
                   <div className="vr mx-1"></div>
-                  <button className="btn btn-sm"><i className="bi bi-file-earmark-plus me-1"></i>{t('create')}</button>
-                  <button className="btn btn-sm"><i className="bi bi-save me-1"></i>{t('save')}</button>
-                  <button className="btn btn-sm text-danger"><i className="bi bi-trash me-1"></i>{t('delete')}</button>
+                  <button className="btn btn-sm" onClick={() => logout()}><i className="bi bi-box-arrow-right me-1"></i>Logout</button>
                   <div className="vr mx-1"></div>
                   <button className="btn btn-sm"><i className="bi bi-printer me-1"></i>{t('print')}</button>
               </div>
