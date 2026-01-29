@@ -304,6 +304,7 @@ class UserCreate(UserBase):
     pass
 
 class UserUpdate(BaseModel):
+    username: Optional[str] = None
     full_name: Optional[str] = None
     role_id: Optional[UUID] = None
     permission_ids: Optional[list[UUID]] = None

@@ -77,6 +77,12 @@ def update_user(user_id: str, payload: UserUpdate, db: Session = Depends(get_db)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
+    if payload.username is not None and payload.username != user.username:
+        # Check if username exists
+        if db.query(User).filter(User.username == payload.username).first():
+            raise HTTPException(status_code=400, detail="Username already taken")
+        user.username = payload.username
+
     if payload.full_name is not None:
         user.full_name = payload.full_name
     

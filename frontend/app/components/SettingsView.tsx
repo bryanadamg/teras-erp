@@ -11,8 +11,15 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
   const [roles, setRoles] = useState<any[]>([]);
   const [allPermissions, setAllPermissions] = useState<any[]>([]);
 
-  // User Management State
+  // Self-Service Account State
+  const [selfUsername, setSelfUsername] = useState('');
+  const [selfFullName, setSelfFullName] = useState('');
+  const [selfPassword, setSelfPassword] = useState('');
+  const [selfConfirmPassword, setSelfConfirmPassword] = useState('');
+
+  // User Management State (Admin)
   const [editingUser, setEditingUser] = useState<string | null>(null);
+  const [editUsername, setEditUsername] = useState('');
   const [editName, setEditName] = useState('');
   const [editRoleId, setEditRoleId] = useState('');
   const [editPermissionIds, setEditPermissionIds] = useState<string[]>([]);
@@ -21,6 +28,12 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
 
   useEffect(() => {
+      // Sync self state with current user
+      if (currentUser) {
+          setSelfUsername(currentUser.username);
+          setSelfFullName(currentUser.full_name);
+      }
+
       // Fetch roles and permissions
       Promise.all([
           fetch(`${API_BASE}/roles`).then(res => res.json()),
@@ -34,21 +47,64 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
       if (hasPermission('admin.access')) {
           refreshUsers();
       }
-  }, [currentUser]); // Run when user changes/logs in
+  }, [currentUser]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmitSystem = (e: React.FormEvent) => {
       e.preventDefault();
       onUpdateAppName(name);
       onUpdateUIStyle(style);
-      showToast('Settings updated successfully!', 'success');
+      showToast('System preferences updated!', 'success');
+  };
+
+  const handleSelfAccountUpdate = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!currentUser) return;
+
+      const payload: any = {
+          username: selfUsername,
+          full_name: selfFullName
+      };
+
+      if (selfPassword) {
+          if (selfPassword !== selfConfirmPassword) {
+              showToast('Passwords do not match', 'warning');
+              return;
+          }
+          payload.password = selfPassword;
+      }
+
+      try {
+          const res = await fetch(`${API_BASE}/users/${currentUser.id}`, {
+              method: 'PUT',
+              headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+              },
+              body: JSON.stringify(payload)
+          });
+
+          if (res.ok) {
+              const updatedUser = await res.json();
+              setCurrentUser(updatedUser);
+              showToast('Account updated successfully', 'success');
+              setSelfPassword('');
+              setSelfConfirmPassword('');
+          } else {
+              const err = await res.json();
+              showToast(`Failed: ${err.detail}`, 'danger');
+          }
+      } catch (error) {
+          showToast('Error updating account', 'danger');
+      }
   };
 
   const startEditingUser = (user: User) => {
       setEditingUser(user.id);
+      setEditUsername(user.username);
       setEditName(user.full_name);
       setEditRoleId(user.role?.id || '');
       setEditPermissionIds(user.permissions?.map(p => p.id) || []);
-      setNewPassword(''); // Reset password field
+      setNewPassword('');
   };
 
   const toggleEditPermission = (permId: string) => {
@@ -60,6 +116,7 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
   const saveUserChanges = async (userId: string) => {
       try {
           const payload: any = { 
+              username: editUsername,
               full_name: editName, 
               role_id: editRoleId || null,
               permission_ids: editPermissionIds
@@ -71,15 +128,20 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
 
           const res = await fetch(`${API_BASE}/users/${userId}`, {
               method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+              },
               body: JSON.stringify(payload)
           });
           
           if (res.ok) {
+              const updated = await res.json();
               showToast('User updated successfully!', 'success');
+              if (currentUser?.id === userId) setCurrentUser(updated);
               setEditingUser(null);
               setNewPassword('');
-              refreshUsers(); // Refresh the global user list
+              refreshUsers();
           } else {
               const err = await res.json();
               showToast(`Failed: ${err.detail}`, 'danger');
@@ -93,12 +155,14 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
   return (
     <div className="row justify-content-center fade-in">
       <div className="col-md-10">
+        
+        {/* System Settings */}
         <div className="card shadow-sm border-0 mb-4">
           <div className="card-header bg-white">
-             <h5 className="card-title mb-0">System Settings</h5>
+             <h5 className="card-title mb-0">System Preferences</h5>
           </div>
           <div className="card-body">
-             <form onSubmit={handleSubmit}>
+             <form onSubmit={handleSubmitSystem}>
                  <div className="row">
                      <div className="col-md-6 mb-3">
                          <label className="form-label">Application Name</label>
@@ -114,9 +178,61 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
                          </select>
                      </div>
                  </div>
-                 <button type="submit" className="btn btn-primary w-100">Save System Preferences</button>
+                 <button type="submit" className="btn btn-primary w-100">Save Preferences</button>
              </form>
           </div>
+        </div>
+
+        {/* Self-Service Account Security */}
+        <div className="card shadow-sm border-0 mb-4">
+            <div className="card-header bg-white">
+                <h5 className="card-title mb-0">Account Settings</h5>
+            </div>
+            <div className="card-body">
+                <form onSubmit={handleSelfAccountUpdate}>
+                    <div className="row">
+                        <div className="col-md-6 mb-3">
+                            <label className="form-label">Username</label>
+                            <input 
+                                className="form-control" 
+                                value={selfUsername} 
+                                onChange={e => setSelfUsername(e.target.value)}
+                                required 
+                            />
+                        </div>
+                        <div className="col-md-6 mb-3">
+                            <label className="form-label">Full Name</label>
+                            <input 
+                                className="form-control" 
+                                value={selfFullName} 
+                                onChange={e => setSelfFullName(e.target.value)}
+                                required 
+                            />
+                        </div>
+                        <div className="col-md-6 mb-3">
+                            <label className="form-label text-danger">New Password (leave blank to keep current)</label>
+                            <input 
+                                type="password" 
+                                className="form-control border-danger border-opacity-25" 
+                                value={selfPassword} 
+                                onChange={e => setSelfPassword(e.target.value)}
+                                placeholder="••••••••"
+                            />
+                        </div>
+                        <div className="col-md-6 mb-3">
+                            <label className="form-label text-danger">Confirm New Password</label>
+                            <input 
+                                type="password" 
+                                className="form-control border-danger border-opacity-25" 
+                                value={selfConfirmPassword} 
+                                onChange={e => setSelfConfirmPassword(e.target.value)}
+                                placeholder="••••••••"
+                            />
+                        </div>
+                    </div>
+                    <button type="submit" className="btn btn-outline-primary w-100 mt-2">Update My Profile & Security</button>
+                </form>
+            </div>
         </div>
 
         {/* Admin User Management */}
@@ -140,10 +256,15 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
                             <tbody>
                                 {users.map(user => (
                                     <tr key={user.id} className={editingUser === user.id ? 'bg-light' : ''}>
-                                        <td className="ps-4 font-monospace">{user.username}</td>
-                                        
                                         {editingUser === user.id ? (
                                             <>
+                                                <td className="ps-4">
+                                                    <input 
+                                                        className="form-control form-control-sm font-monospace" 
+                                                        value={editUsername} 
+                                                        onChange={e => setEditUsername(e.target.value)} 
+                                                    />
+                                                </td>
                                                 <td>
                                                     <input 
                                                         className="form-control form-control-sm" 
@@ -201,6 +322,7 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
                                             </>
                                         ) : (
                                             <>
+                                                <td className="ps-4 font-monospace">{user.username}</td>
                                                 <td>{user.full_name}</td>
                                                 <td><span className="badge bg-secondary">{user.role?.name || '-'}</span></td>
                                                 <td>
