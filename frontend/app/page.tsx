@@ -514,6 +514,63 @@ export default function Home() {
                 </div>
             </section>
 
+            {/* Technical Blueprint Section */}
+            <section className="py-5 bg-light border-top">
+                <div className="container py-5">
+                    <div className="row g-5">
+                        <div className="col-lg-4">
+                            <h2 className="fw-bold mb-4">Technical Blueprint</h2>
+                            <p className="text-muted">Designed for high-stakes production environments, Teras ERP utilizes a decoupled, micro-service ready architecture built on industry-leading open source technologies.</p>
+                            <div className="mt-4">
+                                <a href={`${API_BASE}/docs`} className="btn btn-dark btn-sm px-3 py-2 shadow-sm" target="_blank">
+                                    <i className="bi bi-file-earmark-code me-2"></i>Explore OpenAPI Spec
+                                </a>
+                            </div>
+                        </div>
+                        <div className="col-lg-8">
+                            <div className="row g-4">
+                                <div className="col-md-6">
+                                    <div className="d-flex gap-3">
+                                        <div className="text-primary"><i className="bi bi-shield-lock-fill fs-3"></i></div>
+                                        <div>
+                                            <h6 className="fw-bold mb-1">Identity & Security</h6>
+                                            <p className="small text-muted">OAuth2 with Password flow and JWT (HS256) stateless authentication. Argon2-based password hashing for maximum entropy protection.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="col-md-6">
+                                    <div className="d-flex gap-3">
+                                        <div className="text-primary"><i className="bi bi-database-fill fs-3"></i></div>
+                                        <div>
+                                            <h6 className="fw-bold mb-1">Data Persistence</h6>
+                                            <p className="small text-muted">PostgreSQL 15 cluster with SQLAlchemy 2.0 ORM. Complex M2M relationship management for multi-attribute matching and BOM recursion.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="col-md-6">
+                                    <div className="d-flex gap-3">
+                                        <div className="text-primary"><i className="bi bi-lightning-charge-fill fs-3"></i></div>
+                                        <div>
+                                            <h6 className="fw-bold mb-1">Asynchronous API</h6>
+                                            <p className="small text-muted">Built with FastAPI (Python 3.11). High-concurrency support with Pydantic V2 data validation and automated OpenAPI/Swagger generation.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="col-md-6">
+                                    <div className="d-flex gap-3">
+                                        <div className="text-primary"><i className="bi bi-layers-half fs-3"></i></div>
+                                        <div>
+                                            <h6 className="fw-bold mb-1">Frontend Architecture</h6>
+                                            <p className="small text-muted">Next.js 14 App Router. Server-side rendering (SSR) optimization with React Context-driven state management for a seamless "Desktop-in-Browser" experience.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             {/* Theme Showcase */}
             <section className="py-5 bg-dark text-white">
                 <div className="container py-5">
