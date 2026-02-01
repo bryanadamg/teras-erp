@@ -4,10 +4,9 @@
 
 ## Core Capabilities
 
-### 🌐 Interactive Public Landing Page (New)
+### 🌐 Interactive Public Landing Page
 *   **Modular Overview**: A modern, responsive entry point showcasing the system's value proposition and core modules.
-*   **Feature Discovery**: Interactive sections for Inventory, Manufacturing, Engineering, and Sales tracking.
-*   **Integrated Portal**: Direct access to the secure login control center.
+*   **Integrated Portal**: Direct access to the secure login control center with a Retro/Cyberpunk aesthetic.
 
 ### 📊 Insightful Business Dashboard
 *   **Operational KPIs**: Instant visibility into SKUs, Low-Stock Alerts, Active Production, Pending WO, Active Samples, and Open POs.
@@ -41,20 +40,20 @@
 
 *   **Backend**: Python 3.11+, FastAPI, SQLAlchemy (ORM), PostgreSQL, Python-Jose (JWT).
 *   **Frontend**: TypeScript, Next.js 14, React, Bootstrap 5.
+*   **Desktop Client**: Electron (Hybrid Architecture) managing a local Python subprocess and static Next.js UI.
 *   **Infrastructure**: Fully containerized with Docker & Docker Compose.
 *   **Security**: Non-root container execution, network isolation, and dynamic CORS configuration.
 
 ## Getting Started
 
-### Prerequisites
-*   Docker & Docker Compose
+### 🐳 Server Deployment (Docker)
+Ideal for hosting the central database and API.
 
-### Installation & Run
 1.  **Clone the repository**.
 2.  **Configure Environment**:
     ```bash
     cp .env.example .env
-    # Edit .env with your configuration
+    # Edit .env with your database credentials
     ```
 3.  **Start the System**:
     ```bash
@@ -63,6 +62,37 @@
 4.  **Access the Application**:
     *   **Frontend Portal**: [http://localhost:3030](http://localhost:3030)
     *   **Backend API**: [http://localhost:8000/api/docs](http://localhost:8000/api/docs)
+
+### 🖥️ Desktop Client (Windows .exe)
+Teras ERP can be packaged as a standalone Windows application that connects to your central database and supports **Cloud Auto-Updates**.
+
+#### Prerequisites
+*   Node.js & npm
+*   Python 3.11+
+*   PyInstaller (`pip install pyinstaller`)
+
+#### Build Instructions
+1.  **Build Frontend**:
+    ```bash
+    cd frontend
+    npm run build  # Generates static export in /out
+    cd ..
+    ```
+2.  **Compile Backend**:
+    ```bash
+    python build_backend_setup.py  # Compiles FastAPI to /electron/resources/backend.exe
+    ```
+3.  **Package Installer**:
+    ```bash
+    cd electron
+    npm install
+    npm run dist   # Generates .exe installer in /electron/dist
+    ```
+
+#### Installation & Updates
+*   **Install**: Run the generated setup `.exe` on client machines.
+*   **Connect**: Ensure the client can reach the central PostgreSQL database (configured via internal `.env`).
+*   **Pull Updates**: The application automatically checks for new versions on startup (via GitHub Releases or S3). If an update is found, it downloads silently and prompts the user to restart.
 
 ## Future Industrial Modules (Roadmap)
 

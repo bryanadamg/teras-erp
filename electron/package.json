@@ -1,0 +1,60 @@
+{
+  "name": "teras-erp-desktop",
+  "version": "2.0.0",
+  "description": "Teras ERP Factory Operating System",
+  "main": "main.js",
+  "author": "Teras Systems",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.teras.erp",
+    "productName": "Teras ERP",
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "resources/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "directories": {
+      "output": "dist",
+      "buildResources": "resources"
+    },
+    "files": [
+      "main.js",
+      "../frontend/out/**/*",
+      "resources/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/backend.exe",
+        "to": "backend.exe"
+      },
+      {
+        "from": "resources/.env.production",
+        "to": ".env",
+        "filter": ["!**/*"]
+      }
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "YourGithubUsername",
+        "repo": "teras-erp"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "^6.1.7"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  }
+}
