@@ -469,12 +469,26 @@ export default function Home() {
             }}></div>
 
             {/* Top Navigation */}
-            <nav className="navbar navbar-dark border-bottom border-light border-opacity-25 py-3 sticky-top" style={{backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(5px)', zIndex: 20}}>
-                <div className="container">
-                    <a className="navbar-brand fw-bold text-uppercase d-flex align-items-center" href="#" style={{letterSpacing: '2px', color: '#00ff9d'}}>
-                        <i className="bi bi-cpu-fill me-2"></i>TERAS
+            <nav className="navbar navbar-dark border-bottom py-3 sticky-top" style={{
+                backgroundColor: 'rgba(0,0,0,0.9)', 
+                backdropFilter: 'blur(10px)', 
+                zIndex: 20,
+                borderBottom: '2px solid #00ff9d !important',
+                boxShadow: '0 0 15px rgba(0,255,157,0.3)'
+            }}>
+                <div className="container d-flex justify-content-between align-items-center">
+                    <a className="navbar-brand fw-bold text-uppercase d-flex align-items-center" href="#" style={{
+                        letterSpacing: '4px', 
+                        color: '#00ff9d',
+                        textShadow: '0 0 10px #00ff9d'
+                    }}>
+                        <i className="bi bi-cpu-fill me-2"></i>TERAS_ERP
                     </a>
-                    {/* Login handled inline now, no need for button here */}
+                    <div className="d-none d-md-flex align-items-center gap-4 small font-monospace text-uppercase" style={{color: '#00ffff'}}>
+                        <span className="opacity-75"><i className="bi bi-circle-fill text-success me-2" style={{fontSize: '0.5rem'}}></i>System_Ready</span>
+                        <span className="opacity-75"><i className="bi bi-shield-check me-1"></i>Encrypted</span>
+                        <span className="text-white border border-light border-opacity-25 px-2">v0.2.0</span>
+                    </div>
                 </div>
             </nav>
 
@@ -483,50 +497,56 @@ export default function Home() {
                 <div className="container position-relative z-3 mt-5">
                     <div className="row align-items-center">
                         <div className="col-lg-6 mb-5 mb-lg-0">
-                            <div className="mb-3 d-inline-block border border-primary px-3 py-1 text-primary small text-uppercase" style={{color: '#ff00ff', borderColor: '#ff00ff !important'}}>
-                                System Online // Ready
+                            <div className="mb-3 d-inline-block border border-primary px-3 py-1 small text-uppercase fw-bold" style={{color: '#ff00ff', borderColor: '#ff00ff !important', backgroundColor: 'rgba(255,0,255,0.05)'}}>
+                                INITIALIZING_CORE_PROTOCOLS...
                             </div>
-                            <h1 className="display-2 fw-bold mb-4 text-uppercase" style={{textShadow: '2px 2px 0px #ff00ff, -2px -2px 0px #00ffff'}}>
-                                TERAS<br/> <span style={{color: 'transparent', WebkitTextStroke: '2px #fff'}}>FACTORY</span><br/> OS_
+                            <h1 className="display-2 fw-bold mb-4 text-uppercase" style={{textShadow: '3px 3px 0px #ff00ff, -3px -3px 0px #00ffff'}}>
+                                TERAS<br/> <span style={{color: 'transparent', WebkitTextStroke: '2px #fff'}}>FACTORY</span><br/> ERP_
                             </h1>
-                            <p className="lead mb-5 text-light opacity-75 font-monospace" style={{maxWidth: '600px'}}>
-                                &gt; INITIALIZING PRODUCTION PROTOCOLS...<br/>
-                                &gt; LOADING INVENTORY MODULES...<br/>
-                                &gt; ESTABLISHING SECURE CONNECTION...
+                            <p className="lead mb-5 text-white font-monospace" style={{maxWidth: '600px', lineHeight: '1.8'}}>
+                                <span style={{color: '#00ff9d'}}>&gt;</span> ARCHITECTURE: DECOUPLED_V2<br/>
+                                <span style={{color: '#00ff9d'}}>&gt;</span> LOAD_BALANCER: ACTIVE<br/>
+                                <span style={{color: '#00ff9d'}}>&gt;</span> SECURE_TUNNEL: ESTABLISHED
                             </p>
                         </div>
                         
                         {/* Integrated Login Module */}
                         <div className="col-lg-5 offset-lg-1">
-                            <div className="p-4 border border-light border-opacity-25" style={{background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(10px)', boxShadow: '0 0 30px rgba(0,255,157,0.1)'}}>
-                                <h4 className="fw-bold mb-4 text-uppercase" style={{color: '#00ff9d'}}>&gt; LOGIN_</h4>
+                            <div className="p-4 border border-light border-opacity-25" style={{
+                                background: 'rgba(10,10,10,0.8)', 
+                                backdropFilter: 'blur(15px)', 
+                                boxShadow: '0 0 40px rgba(0,255,157,0.15)',
+                                border: '1px solid rgba(0,255,157,0.3) !important'
+                            }}>
+                                <h4 className="fw-bold mb-4 text-uppercase d-flex justify-content-between align-items-center" style={{color: '#00ff9d'}}>
+                                    <span>&gt; LOGIN_</span>
+                                    <small className="text-muted" style={{fontSize: '0.6rem'}}>SECURE_PORT_80</small>
+                                </h4>
                                 {loginError && (
-                                    <div className="alert alert-danger rounded-0 border-0 mb-3 font-monospace small" style={{background: 'rgba(255,0,0,0.2)', color: '#ff5555'}}>
-                                        ! ERROR: {loginError}
+                                    <div className="alert alert-danger rounded-0 border-0 mb-3 font-monospace small" style={{background: 'rgba(255,0,0,0.3)', color: '#fff', borderLeft: '4px solid #ff0000 !important'}}>
+                                        [!] ACCESS_DENIED: {loginError}
                                     </div>
                                 )}
                                 <form onSubmit={handleLoginSubmit}>
                                     <div className="mb-3">
-                                        <label className="form-label small text-muted text-uppercase mb-1">Username_ID</label>
+                                        <label className="form-label small text-white text-uppercase mb-1 fw-bold">User_ID</label>
                                         <input 
-                                            className="form-control rounded-0 bg-transparent text-light border-light border-opacity-25 font-monospace"
-                                            style={{color: '#fff'}}
+                                            className="form-control rounded-0 bg-black text-white border-light border-opacity-25 font-monospace py-2"
                                             value={loginUser}
                                             onChange={e => setLoginUser(e.target.value)}
                                             required
-                                            placeholder="Enter ID..."
+                                            placeholder="root@teras"
                                         />
                                     </div>
                                     <div className="mb-4">
-                                        <label className="form-label small text-muted text-uppercase mb-1">Security_Key</label>
+                                        <label className="form-label small text-white text-uppercase mb-1 fw-bold">Password_Key</label>
                                         <input 
                                             type="password"
-                                            className="form-control rounded-0 bg-transparent text-light border-light border-opacity-25 font-monospace" 
-                                            style={{color: '#fff'}}
+                                            className="form-control rounded-0 bg-black text-white border-light border-opacity-25 font-monospace py-2" 
                                             value={loginPass}
                                             onChange={e => setLoginPass(e.target.value)}
                                             required
-                                            placeholder="Enter Pass..."
+                                            placeholder="••••••••"
                                         />
                                     </div>
                                     <button 
@@ -535,11 +555,11 @@ export default function Home() {
                                         style={{
                                             background: isLoggingIn ? '#333' : 'linear-gradient(45deg, #00ff9d, #00ffff)',
                                             color: '#000',
-                                            transition: 'all 0.3s'
+                                            boxShadow: isLoggingIn ? 'none' : '0 0 20px rgba(0,255,157,0.4)'
                                         }}
                                         disabled={isLoggingIn}
                                     >
-                                        {isLoggingIn ? 'AUTHENTICATING...' : 'ENTER >'}
+                                        {isLoggingIn ? 'VALIDATING...' : 'LOGIN_'}
                                     </button>
                                 </form>
                             </div>
@@ -552,12 +572,17 @@ export default function Home() {
             <section className="py-5" style={{zIndex: 20}}>
                 <div className="container py-5">
                     <div className="row g-4">
-                        {[ { icon: 'bi-box-seam', title: 'INVENTORY_DB', desc: 'TRACK STOCK LEVELS ACROSS MULTIPLE SECTORS.' }, { icon: 'bi-diagram-3', title: 'BOM_MATRIX', desc: 'HIERARCHICAL RECIPE COMPUTATION ENGINE.' }, { icon: 'bi-gear-wide-connected', title: 'PROD_EXEC', desc: 'REAL-TIME MANUFACTURING PROCESS CONTROL.' }, { icon: 'bi-shield-lock', title: 'SECURE_NET', desc: 'ROLE-BASED ACCESS PROTOCOLS ACTIVE.' } ].map((f, i) => (
+                        {[ 
+                            { icon: 'bi-box-seam', title: 'INVENTORY_DB', desc: 'GLOBAL STOCK ASSET TRACKING ACROSS ALL SECTORS.' }, 
+                            { icon: 'bi-diagram-3', title: 'BOM_MATRIX', desc: 'HIERARCHICAL RECIPE COMPUTATION & ASSEMBLY TREE.' }, 
+                            { icon: 'bi-gear-wide-connected', title: 'PROD_EXEC', desc: 'REAL-TIME MANUFACTURING CONTROL & STATUS MONITOR.' }, 
+                            { icon: 'bi-shield-lock', title: 'SECURE_NET', desc: 'MULTI-LEVEL AUTHENTICATION & GRANULAR ACCESS.' } 
+                        ].map((f, i) => (
                             <div key={i} className="col-md-3">
-                                <div className="p-4 border border-light border-opacity-25 h-100 hover-glow" style={{background: 'rgba(255,255,255,0.02)'}}>
-                                    <i className={`bi ${f.icon} fs-1 mb-3 d-block`} style={{color: '#00ffff'}}></i>
-                                    <h5 className="fw-bold mb-2 text-uppercase">{f.title}</h5>
-                                    <p className="text-muted small mb-0 font-monospace">{f.desc}</p>
+                                <div className="p-4 border border-light border-opacity-25 h-100" style={{background: 'rgba(255,255,255,0.03)', transition: 'all 0.3s'}}>
+                                    <i className={`bi ${f.icon} fs-1 mb-3 d-block`} style={{color: '#00ffff', textShadow: '0 0 10px #00ffff'}}></i>
+                                    <h5 className="fw-bold mb-2 text-uppercase text-white">{f.title}</h5>
+                                    <p className="text-white opacity-75 small mb-0 font-monospace" style={{letterSpacing: '0.5px'}}>{f.desc}</p>
                                 </div>
                             </div>
                         ))}
@@ -566,37 +591,39 @@ export default function Home() {
             </section>
 
             {/* Technical Blueprint Section */}
-            <section className="py-5 border-top border-light border-opacity-25" style={{background: 'rgba(0,0,0,0.3)', zIndex: 20}}>
+            <section className="py-5 border-top border-light border-opacity-25" style={{background: 'rgba(5,5,5,0.5)', zIndex: 20}}>
                 <div className="container py-5">
                     <div className="row g-5">
                         <div className="col-lg-4">
-                            <h2 className="fw-bold mb-4 text-uppercase" style={{color: '#00ff9d'}}>System<br/>Specs</h2>
-                            <p className="text-light opacity-75 font-monospace small">
-                                ARCHITECTURE: DECOUPLED MICRO-SERVICES<br/>
-                                KERNEL: PYTHON 3.11 / FASTAPI<br/>
-                                INTERFACE: REACT 18 / NEXT.JS
+                            <h2 className="fw-bold mb-4 text-uppercase" style={{color: '#00ff9d', textShadow: '0 0 10px #00ff9d'}}>System<br/>Specs</h2>
+                            <p className="text-white font-monospace small" style={{lineHeight: '2'}}>
+                                <span className="text-muted">#</span> ARCHITECTURE: DECOUPLED_MICRO_SERVICES<br/>
+                                <span className="text-muted">#</span> KERNEL: PYTHON_3.11_FASTAPI<br/>
+                                <span className="text-muted">#</span> INTERFACE: REACT_18_NEXTJS
                             </p>
                             <div className="mt-4">
-                                <a href={`${API_BASE}/docs`} className="btn btn-outline-light rounded-0 btn-sm px-3 py-2" target="_blank"> VIEW_SOURCE_CODE </a>
+                                <a href={`${API_BASE}/docs`} className="btn btn-outline-info rounded-0 btn-sm px-4 py-2 text-uppercase fw-bold" target="_blank" style={{borderWidth: '2px'}}>
+                                    [ READ_API_DOCS ]
+                                </a>
                             </div>
                         </div>
                         <div className="col-lg-8">
                             <div className="row g-4 font-monospace">
                                 <div className="col-md-6">
-                                    <h6 className="fw-bold mb-1 text-uppercase" style={{color: '#ff00ff'}}>// SECURITY</h6>
-                                    <p className="small text-muted">OAUTH2_JWT_TOKEN_EXCHANGE. ENCRYPTED_SESSION_DATA.</p>
+                                    <h6 className="fw-bold mb-2 text-uppercase" style={{color: '#ff00ff'}}>// SECURITY</h6>
+                                    <p className="small text-white opacity-75">OAUTH2_JWT_STATELESS_AUTH. ARGON2_ID_HASHING.</p>
                                 </div>
                                 <div className="col-md-6">
-                                    <h6 className="fw-bold mb-1 text-uppercase" style={{color: '#00ffff'}}>// DATABASE</h6>
-                                    <p className="small text-muted">POSTGRESQL_15_CLUSTER. ACID_COMPLIANT_TRANSACTIONS.</p>
+                                    <h6 className="fw-bold mb-2 text-uppercase" style={{color: '#00ffff'}}>// DATABASE</h6>
+                                    <p className="small text-white opacity-75">POSTGRESQL_15_OPTIMIZED. ACID_COMPLIANCE.</p>
                                 </div>
                                 <div className="col-md-6">
-                                    <h6 className="fw-bold mb-1 text-uppercase" style={{color: '#ffff00'}}>// LATENCY</h6>
-                                    <p className="small text-muted">ASYNC_IO_OPTIMIZED. SUB_50MS_RESPONSE_TARGET.</p>
+                                    <h6 className="fw-bold mb-2 text-uppercase" style={{color: '#ffff00'}}>// LATENCY</h6>
+                                    <p className="small text-white opacity-75">ASYNC_IO_CONCURRENCY. MINIMAL_COMPUTE_OVERHEAD.</p>
                                 </div>
                                 <div className="col-md-6">
-                                    <h6 className="fw-bold mb-1 text-uppercase" style={{color: '#00ff9d'}}>// UX_ENGINE</h6>
-                                    <p className="small text-muted">ADAPTIVE_THEMING. SERVER_SIDE_RENDERING_ENABLED.</p>
+                                    <h6 className="fw-bold mb-2 text-uppercase" style={{color: '#00ff9d'}}>// DEPLOYMENT</h6>
+                                    <p className="small text-white opacity-75">DOCKER_CONTAINERIZED. CLOUDFLARE_TUNNEL_READY.</p>
                                 </div>
                             </div>
                         </div>
@@ -607,8 +634,8 @@ export default function Home() {
             {/* Footer */}
             <footer className="py-4 border-top border-light border-opacity-25" style={{zIndex: 20}}>
                 <div className="container text-center">
-                    <p className="text-muted small font-monospace mb-0">
-                        SYSTEM STATUS: ONLINE | &copy; 2026 TERAS_SYSTEMS
+                    <p className="text-white opacity-50 small font-monospace mb-0 text-uppercase" style={{letterSpacing: '2px'}}>
+                        SYSTEM_STATUS: <span style={{color: '#00ff9d'}}>ONLINE</span> | &copy; 2026 TERAS_SYSTEMS
                     </p>
                 </div>
             </footer>
@@ -655,6 +682,9 @@ export default function Home() {
                       </select>
                   </div>
                   <div className="d-none d-md-block">User: {currentUser?.full_name} | {new Date().toLocaleDateString()}</div>
+                  <button className="btn btn-sm btn-link text-white p-0 ms-2" onClick={() => logout()} title="Logout">
+                      <i className="bi bi-power"></i>
+                  </button>
               </div>
           </div>
       )}
@@ -672,8 +702,6 @@ export default function Home() {
           {uiStyle === 'classic' && (
               <div className="classic-toolbar">
                   <button className="btn btn-sm" onClick={() => fetchData()}><i className="bi bi-arrow-clockwise me-1"></i>{t('refresh')}</button>
-                  <div className="vr mx-1"></div>
-                  <button className="btn btn-sm" onClick={() => logout()}><i className="bi bi-box-arrow-right me-1"></i>Logout</button>
                   <div className="vr mx-1"></div>
                   <button className="btn btn-sm"><i className="bi bi-printer me-1"></i>{t('print')}</button>
               </div>
@@ -709,6 +737,9 @@ export default function Home() {
                   >
                       <i className="bi bi-person-fill"></i>
                   </div>
+                  <button className="btn btn-light btn-sm shadow-sm text-danger" onClick={() => logout()} title="Logout">
+                      <i className="bi bi-power"></i>
+                  </button>
               </div>
           </header>
 
