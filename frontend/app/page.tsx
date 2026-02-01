@@ -28,12 +28,19 @@ export default function Home() {
   const router = useRouter();
   const { showToast } = useToast();
   const { language, setLanguage, t } = useLanguage();
-  const { currentUser, loading, hasPermission, refreshUsers, logout } = useUser();
+  const { currentUser, loading, hasPermission, refreshUsers, logout, login } = useUser();
   
+  // Dashboard State
   const [activeTab, setActiveTab] = useState('dashboard');
   const [appName, setAppName] = useState('Teras ERP');
   const [uiStyle, setUiStyle] = useState('classic');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // Login State
+  const [loginUser, setLoginUser] = useState('');
+  const [loginPass, setLoginPass] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Confirmation State
   const [confirmState, setConfirmState] = useState<{
@@ -109,6 +116,20 @@ export default function Home() {
     const savedStyle = localStorage.getItem('ui_style');
     if (savedStyle) setUiStyle(savedStyle);
   }, [currentUser]);
+
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setIsLoggingIn(true);
+      setLoginError('');
+      try {
+          await login(loginUser, loginPass);
+          // Redirect handled by UserContext state change triggering re-render
+      } catch (err) {
+          setLoginError('ACCESS_DENIED: Invalid Credentials');
+      } finally {
+          setIsLoggingIn(false);
+      }
+  };
 
   const handleUpdateAppName = (name: string) => {
       setAppName(name);
@@ -432,81 +453,111 @@ export default function Home() {
   // --- RENDER LANDING PAGE FOR NON-AUTH USERS ---
   if (!currentUser) {
     return (
-        <div className={`landing-page ui-style-${uiStyle} min-vh-100 bg-white`}>
+        <div className={`landing-page ui-style-${uiStyle} min-vh-100 bg-black text-light font-monospace overflow-hidden position-relative`}>
+            {/* Retro Grain Effect */}
+            <div style={{
+                position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', 
+                backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'%/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\' opacity=\'0.05\'%3E%3C/svg%3E")',
+                pointerEvents: 'none', zIndex: 10
+            }}></div>
+
+            {/* Scanlines Effect */}
+            <div style={{
+                position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+                background: 'linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.1))',
+                backgroundSize: '100% 4px', pointerEvents: 'none', zIndex: 11
+            }}></div>
+
             {/* Top Navigation */}
-            <nav className="navbar navbar-expand-lg border-bottom py-3 sticky-top bg-white">
+            <nav className="navbar navbar-dark border-bottom border-light border-opacity-25 py-3 sticky-top" style={{backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(5px)', zIndex: 20}}>
                 <div className="container">
-                    <a className="navbar-brand fw-bold text-primary fs-3 d-flex align-items-center" href="#">
-                        <i className="bi bi-cpu-fill me-2"></i>{appName}
+                    <a className="navbar-brand fw-bold text-uppercase d-flex align-items-center" href="#" style={{letterSpacing: '2px', color: '#00ff9d'}}>
+                        <i className="bi bi-cpu-fill me-2"></i>TERAS
                     </a>
-                    <div className="d-flex gap-3">
-                        <button className="btn btn-light border" onClick={() => router.push('/login')}>Login</button>
-                        <button className="btn btn-primary px-4 shadow-sm" onClick={() => router.push('/login')}>Get Started</button>
-                    </div>
+                    {/* Login handled inline now, no need for button here */}
                 </div>
             </nav>
 
             {/* Hero Section */}
-            <section className="py-5 py-md-5 bg-light position-relative overflow-hidden">
-                <div className="container position-relative z-3">
-                    <div className="row align-items-center py-5">
+            <section className="py-5 position-relative overflow-hidden" style={{zIndex: 20}}>
+                <div className="container position-relative z-3 mt-5">
+                    <div className="row align-items-center">
                         <div className="col-lg-6 mb-5 mb-lg-0">
-                            <span className="badge bg-primary bg-opacity-10 text-primary px-3 py-2 mb-3 rounded-pill fw-bold">v0.2.0 Open Alpha</span>
-                            <h1 className="display-3 fw-bold text-dark mb-4 lh-sm">
-                                The Next Generation of <span className="text-primary">Manufacturing</span>
-                            </h1>
-                            <p className="lead text-muted mb-5 fs-4">
-                                A high-performance, modular ERP engineered for agility. Bridge the gap between engineering, sales, and the factory floor with Teras ERP.
-                            </p>
-                            <div className="d-flex flex-wrap gap-3">
-                                <button className="btn btn-primary btn-lg px-5 py-3 shadow" onClick={() => router.push('/login')}>
-                                    Launch Control Center <i className="bi bi-arrow-right ms-2"></i>
-                                </button>
-                                <button className="btn btn-outline-secondary btn-lg px-4 py-3 border-2">
-                                    Explore Modules
-                                </button>
+                            <div className="mb-3 d-inline-block border border-primary px-3 py-1 text-primary small text-uppercase" style={{color: '#ff00ff', borderColor: '#ff00ff !important'}}>
+                                System Online // Ready
                             </div>
+                            <h1 className="display-2 fw-bold mb-4 text-uppercase" style={{textShadow: '2px 2px 0px #ff00ff, -2px -2px 0px #00ffff'}}>
+                                TERAS<br/> <span style={{color: 'transparent', WebkitTextStroke: '2px #fff'}}>FACTORY</span><br/> OS_
+                            </h1>
+                            <p className="lead mb-5 text-light opacity-75 font-monospace" style={{maxWidth: '600px'}}>
+                                &gt; INITIALIZING PRODUCTION PROTOCOLS...<br/>
+                                &gt; LOADING INVENTORY MODULES...<br/>
+                                &gt; ESTABLISHING SECURE CONNECTION...
+                            </p>
                         </div>
-                        <div className="col-lg-6">
-                            <div className="p-2 bg-white rounded-4 shadow-lg border">
-                                <img 
-                                    src="https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&q=80&w=1000" 
-                                    className="img-fluid rounded-3" 
-                                    alt="Factory Interface" 
-                                />
+                        
+                        {/* Integrated Login Module */}
+                        <div className="col-lg-5 offset-lg-1">
+                            <div className="p-4 border border-light border-opacity-25" style={{background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(10px)', boxShadow: '0 0 30px rgba(0,255,157,0.1)'}}>
+                                <h4 className="fw-bold mb-4 text-uppercase" style={{color: '#00ff9d'}}>&gt; LOGIN_</h4>
+                                {loginError && (
+                                    <div className="alert alert-danger rounded-0 border-0 mb-3 font-monospace small" style={{background: 'rgba(255,0,0,0.2)', color: '#ff5555'}}>
+                                        ! ERROR: {loginError}
+                                    </div>
+                                )}
+                                <form onSubmit={handleLoginSubmit}>
+                                    <div className="mb-3">
+                                        <label className="form-label small text-muted text-uppercase mb-1">Username_ID</label>
+                                        <input 
+                                            className="form-control rounded-0 bg-transparent text-light border-light border-opacity-25 font-monospace"
+                                            style={{color: '#fff'}}
+                                            value={loginUser}
+                                            onChange={e => setLoginUser(e.target.value)}
+                                            required
+                                            placeholder="Enter ID..."
+                                        />
+                                    </div>
+                                    <div className="mb-4">
+                                        <label className="form-label small text-muted text-uppercase mb-1">Security_Key</label>
+                                        <input 
+                                            type="password"
+                                            className="form-control rounded-0 bg-transparent text-light border-light border-opacity-25 font-monospace" 
+                                            style={{color: '#fff'}}
+                                            value={loginPass}
+                                            onChange={e => setLoginPass(e.target.value)}
+                                            required
+                                            placeholder="Enter Pass..."
+                                        />
+                                    </div>
+                                    <button 
+                                        type="submit" 
+                                        className="btn w-100 rounded-0 py-3 fw-bold text-uppercase border-0"
+                                        style={{
+                                            background: isLoggingIn ? '#333' : 'linear-gradient(45deg, #00ff9d, #00ffff)',
+                                            color: '#000',
+                                            transition: 'all 0.3s'
+                                        }}
+                                        disabled={isLoggingIn}
+                                    >
+                                        {isLoggingIn ? 'AUTHENTICATING...' : 'ENTER >'}
+                                    </button>
+                                </form>
                             </div>
                         </div>
                     </div>
-                </div>
-                {/* Background Shapes */}
-                <div className="position-absolute top-0 end-0 mt-n5 me-n5 opacity-10">
-                    <i className="bi bi-grid-3x3-gap-fill" style={{fontSize: '20rem'}}></i>
                 </div>
             </section>
 
             {/* Features Section */}
-            <section className="py-5">
+            <section className="py-5" style={{zIndex: 20}}>
                 <div className="container py-5">
-                    <div className="text-center mb-5">
-                        <h2 className="fw-bold display-5 mb-3">Modular Excellence</h2>
-                        <p className="text-muted fs-5 mx-auto" style={{maxWidth: '700px'}}>Built with a focus on granular data control and high-efficiency workflows.</p>
-                    </div>
                     <div className="row g-4">
-                        {[
-                            { icon: 'bi-box-seam', title: 'Smart Inventory', desc: 'Manage multi-location stock with deep attribute support. Prevent negative stock automatically.' },
-                            { icon: 'bi-diagram-3', title: 'Advanced BOM', desc: 'Recursive hierarchical recipes with visual tree structures and material shortage tracking.' },
-                            { icon: 'bi-gear-wide-connected', title: 'Production (MES)', desc: 'Real-time Work Order execution with start/finish timestamps and automated reconciliation.' },
-                            { icon: 'bi-eyedropper', title: 'Sampling (PLM)', desc: 'Full lifecycle management for prototypes. Approved samples promote seamlessly to inventory.' },
-                            { icon: 'bi-cart3', title: 'Sales Tracking', desc: 'Trace incoming POs from customer entry through prototype approval to final shipment.' },
-                            { icon: 'bi-shield-lock', title: 'Granular RBAC', desc: 'Secure the operation with role-based access and direct user-level permission overrides.' }
-                        ].map((f, i) => (
-                            <div key={i} className="col-md-4">
-                                <div className="card h-100 border-0 shadow-sm hover-up p-4">
-                                    <div className="feature-icon-wrapper bg-primary bg-opacity-10 text-primary rounded-3 d-inline-flex align-items-center justify-content-center mb-4" style={{width: 60, height: 60}}>
-                                        <i className={`bi ${f.icon} fs-2`}></i>
-                                    </div>
-                                    <h4 className="fw-bold mb-3">{f.title}</h4>
-                                    <p className="text-muted mb-0">{f.desc}</p>
+                        {[ { icon: 'bi-box-seam', title: 'INVENTORY_DB', desc: 'TRACK STOCK LEVELS ACROSS MULTIPLE SECTORS.' }, { icon: 'bi-diagram-3', title: 'BOM_MATRIX', desc: 'HIERARCHICAL RECIPE COMPUTATION ENGINE.' }, { icon: 'bi-gear-wide-connected', title: 'PROD_EXEC', desc: 'REAL-TIME MANUFACTURING PROCESS CONTROL.' }, { icon: 'bi-shield-lock', title: 'SECURE_NET', desc: 'ROLE-BASED ACCESS PROTOCOLS ACTIVE.' } ].map((f, i) => (
+                            <div key={i} className="col-md-3">
+                                <div className="p-4 border border-light border-opacity-25 h-100 hover-glow" style={{background: 'rgba(255,255,255,0.02)'}}>
+                                    <i className={`bi ${f.icon} fs-1 mb-3 d-block`} style={{color: '#00ffff'}}></i>
+                                    <h5 className="fw-bold mb-2 text-uppercase">{f.title}</h5>
+                                    <p className="text-muted small mb-0 font-monospace">{f.desc}</p>
                                 </div>
                             </div>
                         ))}
@@ -515,79 +566,38 @@ export default function Home() {
             </section>
 
             {/* Technical Blueprint Section */}
-            <section className="py-5 bg-light border-top">
+            <section className="py-5 border-top border-light border-opacity-25" style={{background: 'rgba(0,0,0,0.3)', zIndex: 20}}>
                 <div className="container py-5">
                     <div className="row g-5">
                         <div className="col-lg-4">
-                            <h2 className="fw-bold mb-4">Technical Blueprint</h2>
-                            <p className="text-muted">Designed for high-stakes production environments, Teras ERP utilizes a decoupled, micro-service ready architecture built on industry-leading open source technologies.</p>
+                            <h2 className="fw-bold mb-4 text-uppercase" style={{color: '#00ff9d'}}>System<br/>Specs</h2>
+                            <p className="text-light opacity-75 font-monospace small">
+                                ARCHITECTURE: DECOUPLED MICRO-SERVICES<br/>
+                                KERNEL: PYTHON 3.11 / FASTAPI<br/>
+                                INTERFACE: REACT 18 / NEXT.JS
+                            </p>
                             <div className="mt-4">
-                                <a href={`${API_BASE}/docs`} className="btn btn-dark btn-sm px-3 py-2 shadow-sm" target="_blank">
-                                    <i className="bi bi-file-earmark-code me-2"></i>Explore OpenAPI Spec
-                                </a>
+                                <a href={`${API_BASE}/docs`} className="btn btn-outline-light rounded-0 btn-sm px-3 py-2" target="_blank"> VIEW_SOURCE_CODE </a>
                             </div>
                         </div>
                         <div className="col-lg-8">
-                            <div className="row g-4">
+                            <div className="row g-4 font-monospace">
                                 <div className="col-md-6">
-                                    <div className="d-flex gap-3">
-                                        <div className="text-primary"><i className="bi bi-shield-lock-fill fs-3"></i></div>
-                                        <div>
-                                            <h6 className="fw-bold mb-1">Identity & Security</h6>
-                                            <p className="small text-muted">OAuth2 with Password flow and JWT (HS256) stateless authentication. Argon2-based password hashing for maximum entropy protection.</p>
-                                        </div>
-                                    </div>
+                                    <h6 className="fw-bold mb-1 text-uppercase" style={{color: '#ff00ff'}}>// SECURITY</h6>
+                                    <p className="small text-muted">OAUTH2_JWT_TOKEN_EXCHANGE. ENCRYPTED_SESSION_DATA.</p>
                                 </div>
                                 <div className="col-md-6">
-                                    <div className="d-flex gap-3">
-                                        <div className="text-primary"><i className="bi bi-database-fill fs-3"></i></div>
-                                        <div>
-                                            <h6 className="fw-bold mb-1">Data Persistence</h6>
-                                            <p className="small text-muted">PostgreSQL 15 cluster with SQLAlchemy 2.0 ORM. Complex M2M relationship management for multi-attribute matching and BOM recursion.</p>
-                                        </div>
-                                    </div>
+                                    <h6 className="fw-bold mb-1 text-uppercase" style={{color: '#00ffff'}}>// DATABASE</h6>
+                                    <p className="small text-muted">POSTGRESQL_15_CLUSTER. ACID_COMPLIANT_TRANSACTIONS.</p>
                                 </div>
                                 <div className="col-md-6">
-                                    <div className="d-flex gap-3">
-                                        <div className="text-primary"><i className="bi bi-lightning-charge-fill fs-3"></i></div>
-                                        <div>
-                                            <h6 className="fw-bold mb-1">Asynchronous API</h6>
-                                            <p className="small text-muted">Built with FastAPI (Python 3.11). High-concurrency support with Pydantic V2 data validation and automated OpenAPI/Swagger generation.</p>
-                                        </div>
-                                    </div>
+                                    <h6 className="fw-bold mb-1 text-uppercase" style={{color: '#ffff00'}}>// LATENCY</h6>
+                                    <p className="small text-muted">ASYNC_IO_OPTIMIZED. SUB_50MS_RESPONSE_TARGET.</p>
                                 </div>
                                 <div className="col-md-6">
-                                    <div className="d-flex gap-3">
-                                        <div className="text-primary"><i className="bi bi-layers-half fs-3"></i></div>
-                                        <div>
-                                            <h6 className="fw-bold mb-1">Frontend Architecture</h6>
-                                            <p className="small text-muted">Next.js 14 App Router. Server-side rendering (SSR) optimization with React Context-driven state management for a seamless "Desktop-in-Browser" experience.</p>
-                                        </div>
-                                    </div>
+                                    <h6 className="fw-bold mb-1 text-uppercase" style={{color: '#00ff9d'}}>// UX_ENGINE</h6>
+                                    <p className="small text-muted">ADAPTIVE_THEMING. SERVER_SIDE_RENDERING_ENABLED.</p>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* Theme Showcase */}
-            <section className="py-5 bg-dark text-white">
-                <div className="container py-5">
-                    <div className="row align-items-center">
-                        <div className="col-lg-5 mb-5 mb-lg-0">
-                            <h2 className="fw-bold display-5 mb-4">Adaptive UI Engine</h2>
-                            <p className="lead opacity-75 mb-4">Choose the interface that matches your workflow. From modern rounded styles to our high-efficiency Classic XP theme.</p>
-                            <ul className="list-unstyled mb-5">
-                                <li className="mb-3 d-flex align-items-center"><i className="bi bi-check-circle-fill text-success me-3"></i> <strong>Classic (XP):</strong> Optimized for desktop productivity.</li>
-                                <li className="mb-3 d-flex align-items-center"><i className="bi bi-check-circle-fill text-success me-3"></i> <strong>Modern:</strong> Contemporary aesthetic for casual use.</li>
-                                <li className="mb-3 d-flex align-items-center"><i className="bi bi-check-circle-fill text-success me-3"></i> <strong>Compact:</strong> Maximum data density for power users.</li>
-                            </ul>
-                            <button className="btn btn-outline-light btn-lg px-4 py-2" onClick={() => router.push('/login')}>Try Classic Mode</button>
-                        </div>
-                        <div className="col-lg-7">
-                            <div className="rounded-4 overflow-hidden border border-white border-opacity-25 shadow-lg">
-                                <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=1000" className="img-fluid" alt="Dashboard" />
                             </div>
                         </div>
                     </div>
@@ -595,10 +605,11 @@ export default function Home() {
             </section>
 
             {/* Footer */}
-            <footer className="py-5 border-top bg-light">
+            <footer className="py-4 border-top border-light border-opacity-25" style={{zIndex: 20}}>
                 <div className="container text-center">
-                    <p className="fw-bold text-primary mb-2">{appName}</p>
-                    <p className="text-muted small">&copy; 2026 Teras Systems. Built for high-stakes production.</p>
+                    <p className="text-muted small font-monospace mb-0">
+                        SYSTEM STATUS: ONLINE | &copy; 2026 TERAS_SYSTEMS
+                    </p>
                 </div>
             </footer>
         </div>
@@ -704,7 +715,7 @@ export default function Home() {
           {/* Settings shortcut for Classic theme (since header is hidden) */}
           {uiStyle === 'classic' && activeTab !== 'settings' && (
               <div className="text-end mb-2">
-                  <button className="btn btn-sm btn-light" onClick={() => setActiveTab('settings')}>
+                  <button className="btn btn-sm btn-light" onClick={() => setActiveTab('settings')}> 
                       <i className="bi bi-person-gear me-1"></i>{t('account_settings')}
                   </button>
               </div>
