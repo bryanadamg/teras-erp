@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.services import item_service, stock_service
+from app.services import item_service, stock_service, import_service
 from app.schemas import ItemCreate, ItemResponse, StockEntryCreate, ItemUpdate, VariantCreate
 from app.models.location import Location
 
@@ -70,6 +71,24 @@ def add_stock_api(payload: StockEntryCreate, db: Session = Depends(get_db)):
         reference_id="manual_entry"
     )
     return {"status": "success", "message": "Stock recorded"}
+
+@router.get("/items/template")
+def get_items_template():
+    content = import_service.generate_items_template()
+    return Response(content=content, media_type="text/csv", headers={"Content-Disposition": "attachment; filename=items_template.csv"})
+
+@router.post("/items/import")
+async def import_items(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Invalid file type. Please upload a CSV.")
+    
+    content = await file.read()
+    results = import_service.import_items_csv(db, content)
+    
+    if results["errors"]:
+        return {"status": "partial_success", "imported": results["success"], "errors": results["errors"]}
+    
+    return {"status": "success", "imported": results["success"]}
 
 @router.delete("/items/{item_id}")
 def delete_item(item_id: str, db: Session = Depends(get_db)):

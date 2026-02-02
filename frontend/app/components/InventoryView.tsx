@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
+import BulkImportModal from './BulkImportModal';
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -12,6 +13,8 @@ export default function InventoryView({
     onUpdateItem,
     onDeleteItem,
     onCreateCategory,
+    onDownloadTemplate,
+    onImportItems,
     onRefresh,
     forcedCategory // New prop
 }: any) {
@@ -19,6 +22,7 @@ export default function InventoryView({
   const { t } = useLanguage();
   // UI State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [currentStyle, setCurrentStyle] = useState('default');
 
   // Config State
@@ -77,9 +81,6 @@ export default function InventoryView({
   const suggestItemCode = (config = codeConfig) => {
       const parts = [];
       if (config.prefix) parts.push(config.prefix);
-      
-      // Note: We don't include attributes for item masters usually, but if config has it, we could try?
-      // For Master Items, attributes are definitions, not values. So skipping variant logic.
       
       const now = new Date();
       if (config.includeYear) parts.push(now.getFullYear());
@@ -223,6 +224,14 @@ export default function InventoryView({
            attributes={attributes}
        />
 
+       <BulkImportModal 
+           isOpen={isImportOpen}
+           onClose={() => setIsImportOpen(false)}
+           onImport={onImportItems}
+           onDownloadTemplate={onDownloadTemplate}
+           title="Bulk Import Items"
+       />
+
       {/* Create Modal */}
       {isCreateOpen && (
        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
@@ -244,7 +253,7 @@ export default function InventoryView({
                                       title="Configure Auto-Suggestion"
                                   ></i>
                               </label>
-                              <input className="form-control" placeholder="Auto-generated" value={newItem.code} onChange={e => setNewItem({...newItem, code: e.target.value})} required />
+                              <input className="form-control" placeholder="ITM-001" value={newItem.code} onChange={e => setNewItem({...newItem, code: e.target.value})} required />
                           </div>
                           <div className="mb-3">
                               <label className="form-label small text-muted">{t('item_name')}</label>
@@ -332,9 +341,14 @@ export default function InventoryView({
                         {forcedCategory ? 'Manage product samples and prototypes' : 'Master list of all products and materials'}
                     </p>
                 </div>
-                <button className="btn btn-primary btn-sm" onClick={openCreateModal}>
-                    <i className="bi bi-plus-lg me-2"></i>{t('create')}
-                </button>
+                <div className="d-flex gap-2">
+                    <button className="btn btn-light btn-sm border" onClick={() => setIsImportOpen(true)}>
+                        <i className="bi bi-upload me-2"></i>Import
+                    </button>
+                    <button className="btn btn-primary btn-sm" onClick={openCreateModal}>
+                        <i className="bi bi-plus-lg me-2"></i>{t('create')}
+                    </button>
+                </div>
             </div>
             
             {/* Filter Bar */}
@@ -359,7 +373,9 @@ export default function InventoryView({
                 <div className="col-md-3">
                     <select className="form-select form-select-sm" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
                         <option value="">{t('categories')} (All)</option>
-                        {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                        {categories.map((c: any) => (
+                              <option key={c.id} value={c.name}>{c.name}</option>
+                          ))}
                     </select>
                 </div>
                 )}

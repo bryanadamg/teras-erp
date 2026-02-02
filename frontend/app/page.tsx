@@ -431,6 +431,38 @@ export default function Home() {
       }
   };
 
+  const handleDownloadTemplate = async () => {
+      try {
+          const res = await authFetch(`${API_BASE}/items/template`);
+          const blob = await res.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'items_template.csv';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+      } catch (e) {
+          showToast('Failed to download template', 'danger');
+      }
+  };
+
+  const handleImportItems = async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const token = localStorage.getItem('access_token');
+      const res = await fetch(`${API_BASE}/items/import`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }, // No Content-Type for FormData
+          body: formData
+      });
+      
+      const data = await res.json();
+      fetchData();
+      return data;
+  };
+
   const handleRecordStock = async (entry: any) => {
     const res = await authFetch(`${API_BASE}/items/stock`, {
       method: 'POST',
@@ -776,6 +808,8 @@ export default function Home() {
                 onAddVariant={handleAddVariantToItem}
                 onDeleteVariant={handleDeleteVariant}
                 onCreateCategory={handleCreateCategory}
+                onDownloadTemplate={handleDownloadTemplate}
+                onImportItems={handleImportItems}
                 onRefresh={fetchData} 
             />
         )}
