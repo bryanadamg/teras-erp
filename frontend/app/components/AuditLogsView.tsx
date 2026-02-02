@@ -1,38 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 
-export default function AuditLogsView({ onRefresh }: any) {
+export default function AuditLogsView({ auditLogs }: any) {
   const { t } = useLanguage();
-  const [logs, setLogs] = useState([]);
   const [filterType, setFilterType] = useState('');
-  
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
 
-  const fetchLogs = async () => {
-      try {
-          const token = localStorage.getItem('access_token');
-          let url = `${API_BASE}/audit-logs?limit=100`;
-          if (filterType) url += `&entity_type=${filterType}`;
-          
-          const res = await fetch(url, {
-              headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (res.ok) {
-              setLogs(await res.json());
-          }
-      } catch (e) {
-          console.error("Failed to fetch logs", e);
-      }
-  };
-
-  useEffect(() => {
-      fetchLogs();
-  }, [filterType]);
-
-  const handleRefresh = () => {
-      fetchLogs();
-      if (onRefresh) onRefresh();
-  };
+  // Local filtering based on the prop
+  const filteredLogs = auditLogs.filter((log: any) => {
+      if (!filterType) return true;
+      return log.entity_type === filterType;
+  });
 
   return (
       <div className="card fade-in border-0 shadow-sm">
@@ -42,18 +19,18 @@ export default function AuditLogsView({ onRefresh }: any) {
                   <p className="text-muted small mb-0 mt-1">Track all user activities and system changes.</p>
               </div>
               <div className="d-flex gap-2">
-                  <select className="form-select form-select-sm" value={filterType} onChange={e => setFilterType(e.target.value)}>
-                      <option value="">All Entities</option>
-                      <option value="Item">Items</option>
-                      <option value="BOM">BOMs</option>
-                      <option value="WorkOrder">Work Orders</option>
-                      <option value="SalesOrder">Sales Orders</option>
-                      <option value="SampleRequest">Samples</option>
-                      <option value="StockEntry">Stock</option>
-                  </select>
-                  <button className="btn btn-outline-secondary btn-sm" onClick={handleRefresh}>
-                      <i className="bi bi-arrow-clockwise"></i> Refresh
-                  </button>
+                  <div className="input-group input-group-sm" style={{width: '180px'}}>
+                      <span className="input-group-text px-2"><i className="bi bi-funnel"></i></span>
+                      <select className="form-select" value={filterType} onChange={e => setFilterType(e.target.value)}>
+                          <option value="">All Entities</option>
+                          <option value="Item">Items</option>
+                          <option value="BOM">BOMs</option>
+                          <option value="WorkOrder">Work Orders</option>
+                          <option value="SalesOrder">Sales Orders</option>
+                          <option value="SampleRequest">Samples</option>
+                          <option value="StockEntry">Stock</option>
+                      </select>
+                  </div>
               </div>
           </div>
           <div className="card-body p-0">
@@ -69,7 +46,7 @@ export default function AuditLogsView({ onRefresh }: any) {
                           </tr>
                       </thead>
                       <tbody>
-                          {logs.map((log: any) => (
+                          {filteredLogs.map((log: any) => (
                               <tr key={log.id}>
                                   <td className="ps-4 text-muted font-monospace">{new Date(log.timestamp).toLocaleString()}</td>
                                   <td><span className="fw-medium text-dark">User {log.user_id ? log.user_id.split('-')[0] : 'System'}</span></td>
@@ -85,7 +62,7 @@ export default function AuditLogsView({ onRefresh }: any) {
                                   <td className="text-muted">{log.details}</td>
                               </tr>
                           ))}
-                          {logs.length === 0 && <tr><td colSpan={5} className="text-center py-5 text-muted">No activity logs found</td></tr>}
+                          {filteredLogs.length === 0 && <tr><td colSpan={5} className="text-center py-5 text-muted">No activity logs found</td></tr>}
                       </tbody>
                   </table>
               </div>

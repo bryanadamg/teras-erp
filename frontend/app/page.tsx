@@ -65,6 +65,7 @@ export default function Home() {
   const [stockBalance, setStockBalance] = useState([]);
   const [salesOrders, setSalesOrders] = useState([]);
   const [samples, setSamples] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
 
   const fetchData = async () => {
     if (!currentUser) return;
@@ -72,7 +73,7 @@ export default function Home() {
       const token = localStorage.getItem('access_token');
       const headers = { 'Authorization': `Bearer ${token}` };
 
-      const [itemsRes, locsRes, stockRes, attrsRes, catsRes, uomsRes, bomsRes, wcRes, opRes, woRes, balRes, soRes, sampRes] = await Promise.all([
+      const [itemsRes, locsRes, stockRes, attrsRes, catsRes, uomsRes, bomsRes, wcRes, opRes, woRes, balRes, soRes, sampRes, auditRes] = await Promise.all([
           fetch(`${API_BASE}/items`, { headers }),
           fetch(`${API_BASE}/locations`, { headers }),
           fetch(`${API_BASE}/stock`, { headers }),
@@ -85,7 +86,8 @@ export default function Home() {
           fetch(`${API_BASE}/work-orders`, { headers }),
           fetch(`${API_BASE}/stock/balance`, { headers }),
           fetch(`${API_BASE}/sales-orders`, { headers }),
-          fetch(`${API_BASE}/samples`, { headers })
+          fetch(`${API_BASE}/samples`, { headers }),
+          fetch(`${API_BASE}/audit-logs?limit=100`, { headers })
       ]);
 
       if (itemsRes.ok) setItems(await itemsRes.json());
@@ -101,6 +103,7 @@ export default function Home() {
       if (balRes.ok) setStockBalance(await balRes.json());
       if (soRes.ok) setSalesOrders(await soRes.json());
       if (sampRes.ok) setSamples(await sampRes.json());
+      if (auditRes.ok) setAuditLogs(await auditRes.json());
     } catch (e) {
       console.error("Failed to fetch data", e);
     }
@@ -952,7 +955,7 @@ export default function Home() {
         )}
 
         {activeTab === 'audit-logs' && (
-            <AuditLogsView onRefresh={fetchData} />
+            <AuditLogsView auditLogs={auditLogs} />
         )}
 
         {activeTab === 'settings' && (
