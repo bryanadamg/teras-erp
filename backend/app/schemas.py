@@ -316,3 +316,16 @@ class UserResponse(UserBase):
     permissions: list[PermissionResponse] = []
     class Config:
         from_attributes = True
+
+class AuditLogResponse(BaseModel):
+    id: UUID
+    user_id: UUID | None
+    action: str
+    entity_type: str
+    entity_id: str
+    details: str | None
+    changes: dict | None
+    timestamp: datetime
+    
+    class Config:
+        from_attributes = True

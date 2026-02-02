@@ -16,6 +16,7 @@ import ReportsView from './components/ReportsView';
 import SettingsView from './components/SettingsView';
 import PurchaseOrderView from './components/PurchaseOrderView';
 import SampleRequestView from './components/SampleRequestView';
+import AuditLogsView from './components/AuditLogsView';
 import { useToast } from './components/Toast';
 import { useLanguage } from './context/LanguageContext';
 import { useUser } from './context/UserContext';
@@ -948,6 +949,10 @@ export default function Home() {
                 categories={categories}
                 onRefresh={fetchData} 
             />
+        )}
+
+        {activeTab === 'audit-logs' && (
+            <AuditLogsView onRefresh={fetchData} />
         )}
 
         {activeTab === 'settings' && (

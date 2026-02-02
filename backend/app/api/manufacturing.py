@@ -4,15 +4,17 @@ from app.db.session import get_db
 from app.models.manufacturing import WorkOrder
 from app.models.bom import BOM
 from app.models.location import Location
-from app.services import stock_service
+from app.services import stock_service, audit_service
 from app.schemas import WorkOrderCreate, WorkOrderResponse
+from app.models.auth import User
+from app.api.auth import get_current_user
 from datetime import datetime
 from typing import Optional
 
 router = APIRouter()
 
 @router.post("/work-orders", response_model=WorkOrderResponse)
-def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db)):
+def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # 1. Check if WO code exists
     if db.query(WorkOrder).filter(WorkOrder.code == payload.code).first():
         raise HTTPException(status_code=400, detail="Work Order Code already exists")
@@ -54,6 +56,16 @@ def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db)):
     db.add(wo)
     db.commit()
     db.refresh(wo)
+    
+    audit_service.log_activity(
+        db,
+        user_id=current_user.id,
+        action="CREATE",
+        entity_type="WorkOrder",
+        entity_id=str(wo.id),
+        details=f"Created Work Order {wo.code} for BOM {bom.code}",
+        changes=payload.dict()
+    )
     
     wo.attribute_value_ids = [v.id for v in wo.attribute_values]
     
@@ -118,10 +130,12 @@ def get_work_orders(
     return items
 
 @router.put("/work-orders/{wo_id}/status")
-def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_db)):
+def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     wo = db.query(WorkOrder).filter(WorkOrder.id == wo_id).first()
     if not wo:
         raise HTTPException(status_code=404, detail="Work Order not found")
+    
+    previous_status = wo.status
     
     valid_statuses = ["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"]
     if status not in valid_statuses:
@@ -180,7 +194,7 @@ def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_
                 reference_id=wo.code
             )
         
-        # 2. Add Finished Good (to the destination/production location) (to the destination/production location)
+        # 2. Add Finished Good (to the destination/production location)
         stock_service.add_stock_entry(
             db,
             item_id=wo.item_id,
@@ -193,4 +207,15 @@ def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_
 
     wo.status = status
     db.commit()
+    
+    audit_service.log_activity(
+        db,
+        user_id=current_user.id,
+        action="UPDATE_STATUS",
+        entity_type="WorkOrder",
+        entity_id=wo_id,
+        details=f"Updated Work Order {wo.code} status from {previous_status} to {status}",
+        changes={"status": status, "previous_status": previous_status}
+    )
+    
     return {"status": "success", "message": f"Work Order updated to {status}"}

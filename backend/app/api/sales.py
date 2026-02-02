@@ -4,11 +4,14 @@ from app.db.session import get_db
 from app.models.sales import SalesOrder, SalesOrderLine
 from app.models.item import Item
 from app.schemas import SalesOrderCreate, SalesOrderResponse
+from app.models.auth import User
+from app.api.auth import get_current_user
+from app.services import audit_service
 
 router = APIRouter()
 
 @router.post("/sales-orders", response_model=SalesOrderResponse)
-def create_sales_order(payload: SalesOrderCreate, db: Session = Depends(get_db)):
+def create_sales_order(payload: SalesOrderCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if db.query(SalesOrder).filter(SalesOrder.po_number == payload.po_number).first():
         raise HTTPException(status_code=400, detail="PO Number already exists")
     
@@ -44,6 +47,17 @@ def create_sales_order(payload: SalesOrderCreate, db: Session = Depends(get_db))
     
     db.commit()
     db.refresh(so)
+    
+    audit_service.log_activity(
+        db,
+        user_id=current_user.id,
+        action="CREATE",
+        entity_type="SalesOrder",
+        entity_id=str(so.id),
+        details=f"Created PO {so.po_number} for {so.customer_name}",
+        changes=payload.dict()
+    )
+    
     return so
 
 @router.get("/sales-orders", response_model=list[SalesOrderResponse])
@@ -55,10 +69,23 @@ def get_sales_orders(skip: int = 0, limit: int = 100, db: Session = Depends(get_
     return orders
 
 @router.delete("/sales-orders/{so_id}")
-def delete_sales_order(so_id: str, db: Session = Depends(get_db)):
+def delete_sales_order(so_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     so = db.query(SalesOrder).filter(SalesOrder.id == so_id).first()
     if not so:
         raise HTTPException(status_code=404, detail="Sales Order not found")
+    
+    details = f"Deleted PO {so.po_number}"
+    
     db.delete(so)
     db.commit()
+    
+    audit_service.log_activity(
+        db,
+        user_id=current_user.id,
+        action="DELETE",
+        entity_type="SalesOrder",
+        entity_id=so_id,
+        details=details
+    )
+    
     return {"status": "success", "message": "Sales Order deleted"}

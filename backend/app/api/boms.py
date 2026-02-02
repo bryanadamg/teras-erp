@@ -6,13 +6,16 @@ from app.models.item import Item
 from app.models.location import Location
 from app.models.routing import WorkCenter, Operation
 from app.schemas import BOMCreate, BOMResponse
+from app.models.auth import User
+from app.api.auth import get_current_user
+from app.services import audit_service
 
 router = APIRouter()
 
 from app.models.attribute import AttributeValue
 
 @router.post("/boms", response_model=BOMResponse)
-def create_bom(payload: BOMCreate, db: Session = Depends(get_db)):
+def create_bom(payload: BOMCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # 1. Resolve Produced Item
     item = db.query(Item).filter(Item.code == payload.item_code).first()
     if not item:
@@ -66,6 +69,16 @@ def create_bom(payload: BOMCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(bom)
     
+    audit_service.log_activity(
+        db,
+        user_id=current_user.id,
+        action="CREATE",
+        entity_type="BOM",
+        entity_id=str(bom.id),
+        details=f"Created BOM {bom.code} for {item.code}",
+        changes=payload.dict()
+    )
+    
     # Populate IDs for schema response
     bom.attribute_value_ids = [v.id for v in bom.attribute_values]
     for line in bom.lines:
@@ -96,11 +109,23 @@ def get_bom(bom_id: str, db: Session = Depends(get_db)):
     return bom
 
 @router.delete("/boms/{bom_id}")
-def delete_bom(bom_id: str, db: Session = Depends(get_db)):
+def delete_bom(bom_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     bom = db.query(BOM).filter(BOM.id == bom_id).first()
     if not bom:
         raise HTTPException(status_code=404, detail="BOM not found")
     
+    details = f"Deleted BOM {bom.code}"
+    
     db.delete(bom)
     db.commit()
+    
+    audit_service.log_activity(
+        db,
+        user_id=current_user.id,
+        action="DELETE",
+        entity_type="BOM",
+        entity_id=bom_id,
+        details=details
+    )
+    
     return {"status": "success", "message": "BOM deleted"}
