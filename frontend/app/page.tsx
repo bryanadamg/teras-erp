@@ -507,24 +507,23 @@ export default function Home() {
 
             {/* Top Navigation */}
             <nav className="navbar navbar-dark border-bottom py-3 sticky-top" style={{
-                backgroundColor: 'rgba(0,0,0,0.9)', 
-                backdropFilter: 'blur(10px)', 
-                zIndex: 20,
-                borderBottom: '2px solid #00ff9d !important',
-                boxShadow: '0 0 15px rgba(0,255,157,0.3)'
+                backgroundColor: '#000000', 
+                borderBottom: '2px solid #00ff9d',
+                zIndex: 20
             }}>
                 <div className="container d-flex justify-content-between align-items-center">
                     <a className="navbar-brand fw-bold text-uppercase d-flex align-items-center" href="#" style={{
                         letterSpacing: '4px', 
                         color: '#00ff9d',
-                        textShadow: '0 0 10px #00ff9d'
+                        textShadow: '0 0 10px #00ff9d',
+                        fontSize: '1.5rem'
                     }}>
-                        <i className="bi bi-cpu-fill me-2"></i>TERAS_ERP
+                        <i className="bi bi-cpu-fill me-2"></i>TERAS_OS
                     </a>
-                    <div className="d-none d-md-flex align-items-center gap-4 small font-monospace text-uppercase" style={{color: '#00ffff'}}>
-                        <span className="opacity-75"><i className="bi bi-circle-fill text-success me-2" style={{fontSize: '0.5rem'}}></i>System_Ready</span>
-                        <span className="opacity-75"><i className="bi bi-shield-check me-1"></i>Encrypted</span>
-                        <span className="text-white border border-light border-opacity-25 px-2">v0.2.0</span>
+                    <div className="d-none d-md-flex align-items-center gap-4 small font-monospace text-uppercase" style={{color: '#00ffff', fontWeight: 'bold'}}>
+                        <span><i className="bi bi-circle-fill text-success me-2" style={{fontSize: '0.5rem', boxShadow: '0 0 5px #00ff00'}}></i>System_Ready</span>
+                        <span><i className="bi bi-shield-check me-1"></i>Encrypted</span>
+                        <span className="text-white border border-white px-2 py-1">v0.2.0</span>
                     </div>
                 </div>
             </nav>
@@ -537,10 +536,10 @@ export default function Home() {
                             <div className="mb-3 d-inline-block border border-primary px-3 py-1 small text-uppercase fw-bold" style={{color: '#ff00ff', borderColor: '#ff00ff !important', backgroundColor: 'rgba(255,0,255,0.05)'}}>
                                 INITIALIZING_CORE_PROTOCOLS...
                             </div>
-                            <h1 className="display-2 fw-bold mb-4 text-uppercase" style={{textShadow: '3px 3px 0px #ff00ff, -3px -3px 0px #00ffff'}}>
-                                TERAS<br/> <span style={{color: 'transparent', WebkitTextStroke: '2px #fff'}}>FACTORY</span><br/> ERP_
+                            <h1 className="display-2 fw-bold mb-4 text-uppercase" style={{textShadow: '3px 3px 0px #ff00ff, -3px -3px 0px #00ffff', color: '#ffffff'}}>
+                                TERAS<br/> <span style={{color: 'transparent', WebkitTextStroke: '2px #fff'}}>FACTORY</span><br/> OS_
                             </h1>
-                            <p className="lead mb-5 text-white font-monospace" style={{maxWidth: '600px', lineHeight: '1.8'}}>
+                            <p className="lead mb-5 font-monospace fw-bold" style={{maxWidth: '600px', lineHeight: '1.8', color: '#e0e0e0', textShadow: '1px 1px 2px black'}}>
                                 <span style={{color: '#00ff9d'}}>&gt;</span> ARCHITECTURE: DECOUPLED_V2<br/>
                                 <span style={{color: '#00ff9d'}}>&gt;</span> LOAD_BALANCER: ACTIVE<br/>
                                 <span style={{color: '#00ff9d'}}>&gt;</span> SECURE_TUNNEL: ESTABLISHED
@@ -616,10 +615,10 @@ export default function Home() {
                             { icon: 'bi-shield-lock', title: 'SECURE_NET', desc: 'MULTI-LEVEL AUTHENTICATION & GRANULAR ACCESS.' } 
                         ].map((f, i) => (
                             <div key={i} className="col-md-3">
-                                <div className="p-4 border border-light border-opacity-25 h-100" style={{background: 'rgba(255,255,255,0.03)', transition: 'all 0.3s'}}>
+                                <div className="p-4 border border-light h-100" style={{background: 'rgba(20,20,20,0.95)', transition: 'all 0.3s', boxShadow: '0 0 10px rgba(0,255,255,0.1)'}}>
                                     <i className={`bi ${f.icon} fs-1 mb-3 d-block`} style={{color: '#00ffff', textShadow: '0 0 10px #00ffff'}}></i>
-                                    <h5 className="fw-bold mb-2 text-uppercase text-white">{f.title}</h5>
-                                    <p className="text-white opacity-75 small mb-0 font-monospace" style={{letterSpacing: '0.5px'}}>{f.desc}</p>
+                                    <h5 className="fw-bold mb-2 text-uppercase text-white" style={{letterSpacing: '1px'}}>{f.title}</h5>
+                                    <p className="text-light small mb-0 font-monospace fw-bold" style={{letterSpacing: '0.5px'}}>{f.desc}</p>
                                 </div>
                             </div>
                         ))}
@@ -628,18 +627,18 @@ export default function Home() {
             </section>
 
             {/* Technical Blueprint Section */}
-            <section className="py-5 border-top border-light border-opacity-25" style={{background: 'rgba(5,5,5,0.5)', zIndex: 20}}>
+            <section className="py-5 border-top border-light" style={{background: '#050505', zIndex: 20}}>
                 <div className="container py-5">
                     <div className="row g-5">
                         <div className="col-lg-4">
                             <h2 className="fw-bold mb-4 text-uppercase" style={{color: '#00ff9d', textShadow: '0 0 10px #00ff9d'}}>System<br/>Specs</h2>
-                            <p className="text-white font-monospace small" style={{lineHeight: '2'}}>
-                                <span className="text-muted">#</span> ARCHITECTURE: DECOUPLED_MICRO_SERVICES<br/>
-                                <span className="text-muted">#</span> KERNEL: PYTHON_3.11_FASTAPI<br/>
-                                <span className="text-muted">#</span> INTERFACE: REACT_18_NEXTJS
+                            <p className="text-white font-monospace small fw-bold" style={{lineHeight: '2'}}>
+                                <span style={{color: '#00ffff'}}>#</span> ARCHITECTURE: DECOUPLED_MICRO_SERVICES<br/>
+                                <span style={{color: '#00ffff'}}>#</span> KERNEL: PYTHON_3.11_FASTAPI<br/>
+                                <span style={{color: '#00ffff'}}>#</span> INTERFACE: REACT_18_NEXTJS
                             </p>
                             <div className="mt-4">
-                                <a href={`${API_BASE}/docs`} className="btn btn-outline-info rounded-0 btn-sm px-4 py-2 text-uppercase fw-bold" target="_blank" style={{borderWidth: '2px'}}>
+                                <a href={`${API_BASE}/docs`} className="btn btn-outline-info rounded-0 btn-sm px-4 py-2 text-uppercase fw-bold" target="_blank" style={{borderWidth: '2px', color: '#00ffff', borderColor: '#00ffff'}}>
                                     [ READ_API_DOCS ]
                                 </a>
                             </div>
@@ -648,19 +647,19 @@ export default function Home() {
                             <div className="row g-4 font-monospace">
                                 <div className="col-md-6">
                                     <h6 className="fw-bold mb-2 text-uppercase" style={{color: '#ff00ff'}}>// SECURITY</h6>
-                                    <p className="small text-white opacity-75">OAUTH2_JWT_STATELESS_AUTH. ARGON2_ID_HASHING.</p>
+                                    <p className="small text-light fw-bold">OAUTH2_JWT_STATELESS_AUTH. ARGON2_ID_HASHING.</p>
                                 </div>
                                 <div className="col-md-6">
                                     <h6 className="fw-bold mb-2 text-uppercase" style={{color: '#00ffff'}}>// DATABASE</h6>
-                                    <p className="small text-white opacity-75">POSTGRESQL_15_OPTIMIZED. ACID_COMPLIANCE.</p>
+                                    <p className="small text-light fw-bold">POSTGRESQL_15_OPTIMIZED. ACID_COMPLIANCE.</p>
                                 </div>
                                 <div className="col-md-6">
                                     <h6 className="fw-bold mb-2 text-uppercase" style={{color: '#ffff00'}}>// LATENCY</h6>
-                                    <p className="small text-white opacity-75">ASYNC_IO_CONCURRENCY. MINIMAL_COMPUTE_OVERHEAD.</p>
+                                    <p className="small text-light fw-bold">ASYNC_IO_OPTIMIZED. SUB_50MS_RESPONSE_TARGET.</p>
                                 </div>
                                 <div className="col-md-6">
                                     <h6 className="fw-bold mb-2 text-uppercase" style={{color: '#00ff9d'}}>// DEPLOYMENT</h6>
-                                    <p className="small text-white opacity-75">DOCKER_CONTAINERIZED. CLOUDFLARE_TUNNEL_READY.</p>
+                                    <p className="small text-light fw-bold">DOCKER_CONTAINERIZED. CLOUDFLARE_TUNNEL_READY.</p>
                                 </div>
                             </div>
                         </div>
@@ -669,9 +668,9 @@ export default function Home() {
             </section>
 
             {/* Footer */}
-            <footer className="py-4 border-top border-light border-opacity-25" style={{zIndex: 20}}>
+            <footer className="py-4 border-top border-light" style={{zIndex: 20, backgroundColor: '#000'}}>
                 <div className="container text-center">
-                    <p className="text-white opacity-50 small font-monospace mb-0 text-uppercase" style={{letterSpacing: '2px'}}>
+                    <p className="text-white small font-monospace mb-0 text-uppercase fw-bold" style={{letterSpacing: '2px'}}>
                         SYSTEM_STATUS: <span style={{color: '#00ff9d'}}>ONLINE</span> | &copy; 2026 TERAS_SYSTEMS
                     </p>
                 </div>
