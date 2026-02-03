@@ -17,6 +17,7 @@ import SettingsView from './components/SettingsView';
 import PurchaseOrderView from './components/PurchaseOrderView';
 import SampleRequestView from './components/SampleRequestView';
 import AuditLogsView from './components/AuditLogsView';
+import CalendarView from './components/CalendarView';
 import { useToast } from './components/Toast';
 import { useLanguage } from './context/LanguageContext';
 import { useUser } from './context/UserContext';
@@ -915,7 +916,7 @@ export default function Home() {
             <ManufacturingView 
                 items={items} 
                 boms={boms} 
-                locations={locations}
+                locations={locations} 
                 attributes={attributes}
                 workOrders={workOrders} 
                 stockBalance={stockBalance}

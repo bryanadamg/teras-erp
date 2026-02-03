@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
+import CalendarView from './CalendarView';
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function ManufacturingView({ items, boms, locations, attributes, workOrders, stockBalance, onCreateWO, onUpdateStatus }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
+  const [viewMode, setViewMode] = useState('list'); // 'list' or 'calendar'
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newWO, setNewWO] = useState({ code: '', bom_id: '', location_code: '', source_location_code: '', qty: 1.0, due_date: '' });
   const [startDate, setStartDate] = useState('');
@@ -302,170 +304,200 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
           </div>
           )}
 
-          {/* Work Order List */}
+          {/* Work Order List / Calendar */}
           <div className="col-12 flex-print-fill">
               <div className="card h-100 border-0 shadow-sm">
                   <div className="card-header bg-white d-flex justify-content-between align-items-center no-print">
-                      <h5 className="card-title mb-0">{t('production_schedule')}</h5>
+                      <div className="d-flex align-items-center gap-3">
+                          <h5 className="card-title mb-0">{t('production_schedule')}</h5>
+                          {/* VIEW MODE TOGGLE */}
+                          <div className="btn-group ms-2">
+                              <button 
+                                className={`btn btn-sm btn-light border ${viewMode === 'calendar' ? 'active' : ''}`} 
+                                onClick={() => setViewMode('calendar')}
+                              >
+                                <i className="bi bi-calendar-event me-1"></i>Calendar
+                              </button>
+                              <button 
+                                className={`btn btn-sm btn-light border ${viewMode === 'list' ? 'active' : ''}`} 
+                                onClick={() => setViewMode('list')}
+                              >
+                                <i className="bi bi-list-ul me-1"></i>List
+                              </button>
+                          </div>
+                      </div>
+                      
                       <div className="d-flex gap-2">
                           <button className="btn btn-success btn-sm text-white" onClick={() => setIsCreateOpen(true)}>
                               <i className="bi bi-plus-lg me-1"></i>{t('create')}
                           </button>
-                          <div className="vr mx-1"></div>
-                          <div className="input-group input-group-sm">
-                              <span className="input-group-text">{t('from')}</span>
-                              <input type="date" className="form-control" value={startDate} onChange={e => setStartDate(e.target.value)} />
-                          </div>
-                          <div className="input-group input-group-sm">
-                              <span className="input-group-text">{t('to')}</span>
-                              <input type="date" className="form-control" value={endDate} onChange={e => setEndDate(e.target.value)} />
-                          </div>
+                          {viewMode === 'list' && (
+                              <>
+                                <div className="vr mx-1"></div>
+                                <div className="input-group input-group-sm">
+                                    <span className="input-group-text">{t('from')}</span>
+                                    <input type="date" className="form-control" value={startDate} onChange={e => setStartDate(e.target.value)} />
+                                </div>
+                                <div className="input-group input-group-sm">
+                                    <span className="input-group-text">{t('to')}</span>
+                                    <input type="date" className="form-control" value={endDate} onChange={e => setEndDate(e.target.value)} />
+                                </div>
+                              </>
+                          )}
                           <button className="btn btn-outline-primary btn-sm btn-print" onClick={handlePrint}>
                               <i className="bi bi-printer me-1"></i>{t('print')}
                           </button>
                       </div>
                   </div>
+                  
                   <div className="card-body p-0">
-                      <div className="print-header d-none d-print-block p-4 border-bottom mb-4">
-                          <h2 className="mb-1">{t('production_schedule')}</h2>
-                          <p className="text-muted mb-0">{t('from')}: {startDate || 'All Time'} {t('to')} {endDate || 'Present'}</p>
-                          <p className="text-muted small">Generated on: {new Date().toLocaleString()}</p>
-                      </div>
-                      <div className="table-responsive">
-                          <table className="table table-hover align-middle mb-0">
-                              <thead className="table-light">
-                                  <tr>
-                                      <th className="ps-4">{t('item_code')}</th>
-                                      <th>Product</th>
-                                      <th>{t('qty')}</th>
-                                      <th>{t('due_date')}</th>
-                                      <th>Start / Finish</th>
-                                      <th>{t('status')}</th>
-                                      <th className="text-end pe-4 no-print">{t('actions')}</th>
-                                  </tr>
-                              </thead>
-                              <tbody>
-                                  {filteredWorkOrders.map((wo: any) => {
-                                      const warning = getDueDateWarning(wo);
-                                      const isExpanded = expandedRows[wo.id];
-                                      const bom = boms.find((b:any) => b.id === wo.bom_id);
+                      {viewMode === 'calendar' ? (
+                          <div className="p-3">
+                              <CalendarView workOrders={workOrders} items={items} />
+                          </div>
+                      ) : (
+                          <>
+                            <div className="print-header d-none d-print-block p-4 border-bottom mb-4">
+                                <h2 className="mb-1">{t('production_schedule')}</h2>
+                                <p className="text-muted mb-0">{t('from')}: {startDate || 'All Time'} {t('to')} {endDate || 'Present'}</p>
+                                <p className="text-muted small">Generated on: {new Date().toLocaleString()}</p>
+                            </div>
+                            <div className="table-responsive">
+                                <table className="table table-hover align-middle mb-0">
+                                    <thead className="table-light">
+                                        <tr>
+                                            <th className="ps-4">{t('item_code')}</th>
+                                            <th>Product</th>
+                                            <th>{t('qty')}</th>
+                                            <th>{t('due_date')}</th>
+                                            <th>Start / Finish</th>
+                                            <th>{t('status')}</th>
+                                            <th className="text-end pe-4 no-print">{t('actions')}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredWorkOrders.map((wo: any) => {
+                                            const warning = getDueDateWarning(wo);
+                                            const isExpanded = expandedRows[wo.id];
+                                            const bom = boms.find((b:any) => b.id === wo.bom_id);
 
-                                      return (
-                                          <>
-                                          <tr key={wo.id} className={isExpanded ? 'bg-light' : ''}>
-                                              <td className="ps-4 fw-bold font-monospace small">{wo.code}</td>
-                                              <td style={{cursor: 'pointer'}} onClick={() => toggleRow(wo.id)}>
-                                                  <div className="d-flex align-items-center gap-2">
-                                                      <i className={`bi bi-chevron-${isExpanded ? 'down' : 'right'} small text-muted`}></i>
-                                                      <div>
-                                                          <div className="fw-medium">{getItemName(wo.item_id)}</div>
-                                                          <div className="small text-muted">
-                                                              {wo.attribute_value_ids?.map(getAttributeValueName).join(', ') || '-'}
-                                                          </div>
-                                                          <div className="small text-primary fst-italic">{getBOMCode(wo.bom_id)}</div>
-                                                          {wo.status === 'PENDING' && wo.is_material_available === false && (
-                                                              <div className="text-danger small fw-bold">
-                                                                  <i className="bi bi-exclamation-triangle-fill me-1"></i>Low Stock
-                                                              </div>
-                                                          )}
-                                                      </div>
-                                                  </div>
-                                              </td>
-                                              <td className="fw-bold">{wo.qty}</td>
-                                              <td>
-                                                  <div className="d-flex flex-column">
-                                                      <span className={warning ? `text-${warning.type} fw-bold` : ''}>
-                                                          {wo.due_date ? new Date(wo.due_date).toLocaleDateString() : '-'}
-                                                      </span>
-                                                      {warning && (
-                                                          <span className={`badge bg-${warning.type} mt-1`} style={{fontSize: '0.65rem'}}>
-                                                              <i className={`bi ${warning.icon} me-1`}></i>{warning.text}
-                                                          </span>
-                                                      )}
-                                                  </div>
-                                              </td>
-                                              <td>
-                                                  <div className="small d-flex flex-column">
-                                                      <span className="text-muted">S: {formatDateTime(wo.start_date)}</span>
-                                                      <span className="text-muted">F: {formatDateTime(wo.completed_at)}</span>
-                                                  </div>
-                                              </td>
-                                              <td><span className={`badge ${getStatusBadge(wo.status)}`}>{t(wo.status.toLowerCase())}</span></td>
-                                              <td className="text-end pe-4 no-print">
-                                                  {wo.status === 'PENDING' && (
-                                                      <button className="btn btn-sm btn-primary shadow-sm" onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>
-                                                          <i className="bi bi-play-fill me-1"></i>{t('start')}
-                                                      </button>
-                                                  )}
-                                                  {wo.status === 'IN_PROGRESS' && (
-                                                      <button className="btn btn-sm btn-success shadow-sm" onClick={() => onUpdateStatus(wo.id, 'COMPLETED')}>
-                                                          <i className="bi bi-check-lg me-1"></i>{t('finish')}
-                                                      </button>
-                                                  )}
-                                                  {wo.status === 'COMPLETED' && <span className="text-success"><i className="bi bi-check-circle-fill"></i> Done</span>}
-                                              </td>
-                                          </tr>
-                                          {isExpanded && bom && (
-                                              <tr key={`${wo.id}-detail`} className="bg-light">
-                                                  <td colSpan={7} className="p-0">
-                                                      <div className="p-3 ps-5 border-bottom shadow-inner">
-                                                          <h6 className="small text-uppercase text-muted fw-bold mb-2">Required Materials</h6>
-                                                          <div className="table-responsive">
-                                                              <table className="table table-sm table-borderless mb-0 w-75">
-                                                                  <thead className="text-muted small border-bottom">
-                                                                      <tr>
-                                                                          <th>Item</th>
-                                                                          <th>Source</th>
-                                                                          <th>Required</th>
-                                                                          <th>Available</th>
-                                                                          <th>Status</th>
-                                                                      </tr>
-                                                                  </thead>
-                                                                  <tbody>
-                                                                      {bom.lines.map((line: any) => {
-                                                                          const required = line.qty * wo.qty;
-                                                                          // Use source_location_id if set, otherwise fallback to production location_id
-                                                                          const checkLocId = line.source_location_id || wo.source_location_id || wo.location_id;
-                                                                          const { available, isEnough } = checkStockAvailability(line.item_id, checkLocId, line.attribute_value_ids, required);
-                                                                          
-                                                                          return (
-                                                                              <tr key={line.id}>
-                                                                                  <td>
-                                                                                      <span className="fw-medium">{getItemName(line.item_id)}</span>
-                                                                                      <div className="small text-muted fst-italic">
-                                                                                          {line.attribute_value_ids.map(getAttributeValueName).join(', ') || ''}
-                                                                                      </div>
-                                                                                  </td>
-                                                                                  <td>
-                                                                                      <span className="badge bg-light text-dark border font-monospace small">
-                                                                                          {getLocationName(checkLocId)}
-                                                                                      </span>
-                                                                                  </td>
-                                                                                  <td>{required}</td>
-                                                                                  <td className={isEnough ? 'text-success' : 'text-danger'}>{available}</td>
-                                                                                  <td>
-                                                                                      {isEnough 
-                                                                                          ? <span className="badge bg-success bg-opacity-10 text-success"><i className="bi bi-check2"></i> Ready</span>
-                                                                                          : <span className="badge bg-danger bg-opacity-10 text-danger"><i className="bi bi-x-circle"></i> Missing</span>
-                                                                                      }
-                                                                                  </td>
-                                                                              </tr>
-                                                                          );
-                                                                      })}
-                                                                  </tbody>
-                                                              </table>
-                                                          </div>
-                                                      </div>
-                                                  </td>
-                                              </tr>
-                                          )}
-                                          </>
-                                      );
-                                  })}
-                                  {filteredWorkOrders.length === 0 && <tr><td colSpan={7} className="text-center py-5 text-muted">No scheduled production for this period</td></tr>}
-                              </tbody>
-                          </table>
-                      </div>
+                                            return (
+                                                <>
+                                                <tr key={wo.id} className={isExpanded ? 'bg-light' : ''}>
+                                                    <td className="ps-4 fw-bold font-monospace small">{wo.code}</td>
+                                                    <td style={{cursor: 'pointer'}} onClick={() => toggleRow(wo.id)}>
+                                                        <div className="d-flex align-items-center gap-2">
+                                                            <i className={`bi bi-chevron-${isExpanded ? 'down' : 'right'} small text-muted`}></i>
+                                                            <div>
+                                                                <div className="fw-medium">{getItemName(wo.item_id)}</div>
+                                                                <div className="small text-muted">
+                                                                    {wo.attribute_value_ids?.map(getAttributeValueName).join(', ') || '-'}
+                                                                </div>
+                                                                <div className="small text-primary fst-italic">{getBOMCode(wo.bom_id)}</div>
+                                                                {wo.status === 'PENDING' && wo.is_material_available === false && (
+                                                                    <div className="text-danger small fw-bold">
+                                                                        <i className="bi bi-exclamation-triangle-fill me-1"></i>Low Stock
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="fw-bold">{wo.qty}</td>
+                                                    <td>
+                                                        <div className="d-flex flex-column">
+                                                            <span className={warning ? `text-${warning.type} fw-bold` : ''}>
+                                                                {wo.due_date ? new Date(wo.due_date).toLocaleDateString() : '-'}
+                                                            </span>
+                                                            {warning && (
+                                                                <span className={`badge bg-${warning.type} mt-1`} style={{fontSize: '0.65rem'}}>
+                                                                    <i className={`bi ${warning.icon} me-1`}></i>{warning.text}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div className="small d-flex flex-column">
+                                                            <span className="text-muted">S: {formatDateTime(wo.start_date)}</span>
+                                                            <span className="text-muted">F: {formatDateTime(wo.completed_at)}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td><span className={`badge ${getStatusBadge(wo.status)}`}>{t(wo.status.toLowerCase())}</span></td>
+                                                    <td className="text-end pe-4 no-print">
+                                                        {wo.status === 'PENDING' && (
+                                                            <button className="btn btn-sm btn-primary shadow-sm" onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>
+                                                                <i className="bi bi-play-fill me-1"></i>{t('start')}
+                                                            </button>
+                                                        )}
+                                                        {wo.status === 'IN_PROGRESS' && (
+                                                            <button className="btn btn-sm btn-success shadow-sm" onClick={() => onUpdateStatus(wo.id, 'COMPLETED')}>
+                                                                <i className="bi bi-check-lg me-1"></i>{t('finish')}
+                                                            </button>
+                                                        )}
+                                                        {wo.status === 'COMPLETED' && <span className="text-success"><i className="bi bi-check-circle-fill"></i> Done</span>}
+                                                    </td>
+                                                </tr>
+                                                {isExpanded && bom && (
+                                                    <tr key={`${wo.id}-detail`} className="bg-light">
+                                                        <td colSpan={7} className="p-0">
+                                                            <div className="p-3 ps-5 border-bottom shadow-inner">
+                                                                <h6 className="small text-uppercase text-muted fw-bold mb-2">Required Materials</h6>
+                                                                <div className="table-responsive">
+                                                                    <table className="table table-sm table-borderless mb-0 w-75">
+                                                                        <thead className="text-muted small border-bottom">
+                                                                            <tr>
+                                                                                <th>Item</th>
+                                                                                <th>Source</th>
+                                                                                <th>Required</th>
+                                                                                <th>Available</th>
+                                                                                <th>Status</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {bom.lines.map((line: any) => {
+                                                                                const required = line.qty * wo.qty;
+                                                                                const checkLocId = line.source_location_id || wo.source_location_id || wo.location_id;
+                                                                                const { available, isEnough } = checkStockAvailability(line.item_id, checkLocId, line.attribute_value_ids, required);
+                                                                                
+                                                                                return (
+                                                                                    <tr key={line.id}>
+                                                                                        <td>
+                                                                                            <span className="fw-medium">{getItemName(line.item_id)}</span>
+                                                                                            <div className="small text-muted fst-italic">
+                                                                                                {line.attribute_value_ids.map(getAttributeValueName).join(', ') || ''}
+                                                                                            </div>
+                                                                                        </td>
+                                                                                        <td>
+                                                                                            <span className="badge bg-light text-dark border font-monospace small">
+                                                                                                {getLocationName(checkLocId)}
+                                                                                            </span>
+                                                                                        </td>
+                                                                                        <td>{required}</td>
+                                                                                        <td className={isEnough ? 'text-success' : 'text-danger'}>{available}</td>
+                                                                                        <td>
+                                                                                            {isEnough 
+                                                                                                ? <span className="badge bg-success bg-opacity-10 text-success"><i className="bi bi-check2"></i> Ready</span>
+                                                                                                : <span className="badge bg-danger bg-opacity-10 text-danger"><i className="bi bi-x-circle"></i> Missing</span>
+                                                                                            }
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                );
+                                                                            })}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                                </>
+                                            );
+                                        })}
+                                        {filteredWorkOrders.length === 0 && <tr><td colSpan={7} className="text-center py-5 text-muted">No scheduled production for this period</td></tr>}
+                                    </tbody>
+                                </table>
+                            </div>
+                          </>
+                      )}
                   </div>
               </div>
           </div>
