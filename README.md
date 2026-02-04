@@ -42,6 +42,11 @@
 *   **Infrastructure**: Fully containerized with Docker & Docker Compose.
 *   **Security**: Non-root container execution, network isolation, and stateless token management.
 
+## 📚 Documentation
+
+- [**Full Feature List**](FEATURES.md): A comprehensive breakdown of all system capabilities.
+- [**API Documentation**](http://localhost:8000/docs): Swagger UI (available when running).
+
 ## Getting Started
 
 ### Prerequisites
