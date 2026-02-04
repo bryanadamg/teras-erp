@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from app.db.session import get_db
 from app.models.bom import BOM, BOMLine, BOMOperation
 from app.models.item import Item
@@ -116,8 +117,15 @@ def delete_bom(bom_id: str, db: Session = Depends(get_db), current_user: User = 
     
     details = f"Deleted BOM {bom.code}"
     
-    db.delete(bom)
-    db.commit()
+    try:
+        db.delete(bom)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot delete BOM because it is currently used by one or more Work Orders. Please delete or complete the associated Work Orders first."
+        )
     
     audit_service.log_activity(
         db,
