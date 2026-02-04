@@ -1,6 +1,6 @@
-# Teras ERP - Feature Documentation
+# Terras ERP - Feature Documentation
 
-This document provides a comprehensive list of all features implemented in the Teras ERP system, categorized by module.
+This document provides a comprehensive list of all features implemented in the Terras ERP system, categorized by module.
 
 ## 🏗️ Core Architecture & System
 - **Tech Stack**: Python 3.11 (FastAPI), React 18 (Next.js 14), PostgreSQL 15, SQLAlchemy.

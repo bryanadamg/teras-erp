@@ -1,6 +1,6 @@
-# Teras ERP
+# Terras ERP
 
-**Teras ERP** is a next-generation, modular Enterprise Resource Planning system engineered for agility and precision in manufacturing and inventory operations. Built on a high-performance stack of **FastAPI** and **Next.js**, Teras ERP delivers an enterprise-grade user experience with the flexibility required by modern production environments.
+**Terras ERP** is a next-generation, modular Enterprise Resource Planning system engineered for agility and precision in manufacturing and inventory operations. Built on a high-performance stack of **FastAPI** and **Next.js**, Terras ERP delivers an enterprise-grade user experience with the flexibility required by modern production environments.
 
 ## Core Capabilities
 
@@ -82,4 +82,4 @@
 
 This project is currently licensed under the **MIT License**.
 
-Copyright (c) 2026 Teras Systems.
+Copyright (c) 2026 Terras Systems.

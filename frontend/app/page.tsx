@@ -34,7 +34,7 @@ export default function Home() {
   
   // Dashboard State
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [appName, setAppName] = useState('Teras ERP');
+  const [appName, setAppName] = useState('Terras ERP');
   const [uiStyle, setUiStyle] = useState('classic');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
@@ -517,135 +517,133 @@ export default function Home() {
   // --- RENDER LANDING PAGE FOR NON-AUTH USERS ---
   if (!currentUser) {
     return (
-        <div className={`landing-page ui-style-${uiStyle} min-vh-100 bg-black text-light font-monospace overflow-hidden position-relative`}>
-            {/* Retro Grain Effect */}
-            <div style={{
-                position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', 
-                backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'%/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\' opacity=\'0.05\'%3E%3C/svg%3E")',
-                pointerEvents: 'none', zIndex: 10
-            }}></div>
-
-            {/* Scanlines Effect */}
-            <div style={{
-                position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-                background: 'linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.1))',
-                backgroundSize: '100% 4px', pointerEvents: 'none', zIndex: 11
-            }}></div>
-
-            {/* Top Navigation */}
-            <nav className="navbar navbar-dark border-bottom py-3 sticky-top" style={{
-                backgroundColor: '#000000', 
-                borderBottom: '2px solid #00ff9d',
-                zIndex: 20
-            }}>
-                <div className="container d-flex justify-content-between align-items-center">
-                    <a className="navbar-brand fw-bold text-uppercase d-flex align-items-center" href="#" style={{
-                        letterSpacing: '4px', 
-                        color: '#00ff9d',
-                        textShadow: '0 0 10px #00ff9d',
-                        fontSize: '1.5rem'
-                    }}>
-                        <i className="bi bi-cpu-fill me-2"></i>TERAS_OS
+        <div className={`landing-page ui-style-${uiStyle} min-vh-100 d-flex flex-column`} style={{backgroundColor: '#e0e0e0', color: '#000'}}>
+            {/* Top Corporate Navigation */}
+            <nav className="navbar navbar-expand-lg border-bottom border-secondary bg-white py-2 sticky-top" style={{boxShadow: '0 2px 4px rgba(0,0,0,0.1)'}}>
+                <div className="container">
+                    <a className="navbar-brand fw-bold d-flex align-items-center text-primary" href="#" style={{fontFamily: 'Tahoma, sans-serif'}}>
+                        <i className="bi bi-grid-3x3-gap-fill me-2 fs-4"></i>
+                        TERRAS <span className="fw-normal ms-1 text-dark">ENTERPRISE</span>
                     </a>
-                    <div className="d-none d-md-flex align-items-center gap-4 small font-monospace text-uppercase" style={{color: '#00ffff', fontWeight: 'bold'}}>
-                        <span><i className="bi bi-circle-fill text-success me-2" style={{fontSize: '0.5rem', boxShadow: '0 0 5px #00ff00'}}></i>System_Ready</span>
-                        <span><i className="bi bi-shield-check me-1"></i>Encrypted</span>
-                        <span className="text-white border border-white px-2 py-1">v0.2.0</span>
+                    <div className="d-none d-md-flex align-items-center gap-3 small">
+                        <div className="d-flex align-items-center text-secondary">
+                            <i className="bi bi-server me-1"></i> System v1.0
+                        </div>
+                        <div className="d-flex align-items-center text-success fw-bold">
+                            <i className="bi bi-check-circle-fill me-1"></i> ONLINE
+                        </div>
+                        <span className="badge bg-light text-dark border">SECURE</span>
                     </div>
                 </div>
             </nav>
 
             {/* Hero Section */}
-            <section className="py-5 position-relative overflow-hidden" style={{zIndex: 20}}>
-                <div className="container position-relative z-3 mt-5">
-                    <div className="row align-items-center">
-                        <div className="col-lg-6 mb-5 mb-lg-0">
-                            <div className="mb-3 d-inline-block border border-primary px-3 py-1 small text-uppercase fw-bold" style={{color: '#ff00ff', borderColor: '#ff00ff !important', backgroundColor: 'rgba(255,0,255,0.05)'}}>
-                                INITIALIZING_CORE_PROTOCOLS...
+            <section className="flex-grow-1 d-flex align-items-center position-relative" style={{
+                background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+                borderBottom: '1px solid #999'
+            }}>
+                <div className="container py-5">
+                    <div className="row align-items-center gy-5">
+                        <div className="col-lg-6">
+                            <div className="mb-3 d-inline-flex align-items-center px-2 py-1 bg-white border rounded shadow-sm">
+                                <span className="badge bg-primary me-2">NEW</span>
+                                <small className="fw-bold text-secondary text-uppercase" style={{fontSize: '0.7rem'}}>Industrial Standard 4.0</small>
                             </div>
-                            <h1 className="display-2 fw-bold mb-4 text-uppercase" style={{textShadow: '3px 3px 0px #ff00ff, -3px -3px 0px #00ffff', color: '#ffffff'}}>
-                                TERAS<br/> <span style={{color: 'transparent', WebkitTextStroke: '2px #fff'}}>FACTORY</span><br/> OS_
+                            <h1 className="display-4 fw-bold mb-3 text-dark" style={{fontFamily: 'Tahoma, sans-serif', letterSpacing: '-1px'}}>
+                                Precision Manufacturing <br/>
+                                <span className="text-primary">Management System</span>
                             </h1>
-                            <p className="lead mb-5 font-monospace fw-bold" style={{maxWidth: '600px', lineHeight: '1.8', color: '#e0e0e0', textShadow: '1px 1px 2px black'}}>
-                                <span style={{color: '#00ff9d'}}>&gt;</span> ARCHITECTURE: DECOUPLED_V2<br/>
-                                <span style={{color: '#00ff9d'}}>&gt;</span> LOAD_BALANCER: ACTIVE<br/>
-                                <span style={{color: '#00ff9d'}}>&gt;</span> SECURE_TUNNEL: ESTABLISHED
+                            <p className="lead text-secondary mb-4" style={{maxWidth: '550px', fontSize: '1.1rem'}}>
+                                A complete Enterprise Resource Planning solution designed for agility, accuracy, and scalability. Streamline your operations from inventory to fulfillment.
                             </p>
+                            
+                            <div className="d-flex gap-3 text-secondary small fw-bold">
+                                <span><i className="bi bi-check-lg text-primary me-1"></i> Real-time Stock</span>
+                                <span><i className="bi bi-check-lg text-primary me-1"></i> Multi-level BOM</span>
+                                <span><i className="bi bi-check-lg text-primary me-1"></i> Audit Trail</span>
+                            </div>
                         </div>
                         
-                        {/* Integrated Login Module */}
+                        {/* Corporate Login Module */}
                         <div className="col-lg-5 offset-lg-1">
-                            <div className="p-4 border border-light border-opacity-25" style={{
-                                background: 'rgba(10,10,10,0.8)', 
-                                backdropFilter: 'blur(15px)', 
-                                boxShadow: '0 0 40px rgba(0,255,157,0.15)',
-                                border: '1px solid rgba(0,255,157,0.3) !important'
-                            }}>
-                                <h4 className="fw-bold mb-4 text-uppercase d-flex justify-content-between align-items-center" style={{color: '#00ff9d'}}>
-                                    <span>&gt; LOGIN_</span>
-                                    <small className="text-muted" style={{fontSize: '0.6rem'}}>SECURE_PORT_80</small>
-                                </h4>
-                                {loginError && (
-                                    <div className="alert alert-danger rounded-0 border-0 mb-3 font-monospace small" style={{background: 'rgba(255,0,0,0.3)', color: '#fff', borderLeft: '4px solid #ff0000 !important'}}>
-                                        [!] ACCESS_DENIED: {loginError}
-                                    </div>
-                                )}
-                                <form onSubmit={handleLoginSubmit}>
-                                    <div className="mb-3">
-                                        <label className="form-label small text-white text-uppercase mb-1 fw-bold">User_ID</label>
-                                        <input 
-                                            className="form-control rounded-0 bg-black text-white border-light border-opacity-25 font-monospace py-2"
-                                            value={loginUser}
-                                            onChange={e => setLoginUser(e.target.value)}
-                                            required
-                                            placeholder="root@teras"
-                                        />
-                                    </div>
-                                    <div className="mb-4">
-                                        <label className="form-label small text-white text-uppercase mb-1 fw-bold">Password_Key</label>
-                                        <input 
-                                            type="password"
-                                            className="form-control rounded-0 bg-black text-white border-light border-opacity-25 font-monospace py-2" 
-                                            value={loginPass}
-                                            onChange={e => setLoginPass(e.target.value)}
-                                            required
-                                            placeholder="••••••••"
-                                        />
-                                    </div>
-                                    <button 
-                                        type="submit" 
-                                        className="btn w-100 rounded-0 py-3 fw-bold text-uppercase border-0"
-                                        style={{
-                                            background: isLoggingIn ? '#333' : 'linear-gradient(45deg, #00ff9d, #00ffff)',
-                                            color: '#000',
-                                            boxShadow: isLoggingIn ? 'none' : '0 0 20px rgba(0,255,157,0.4)'
-                                        }}
-                                        disabled={isLoggingIn}
-                                    >
-                                        {isLoggingIn ? 'VALIDATING...' : 'LOGIN_'}
-                                    </button>
-                                </form>
+                            <div className="card border-0 shadow-lg" style={{borderRadius: '4px'}}>
+                                <div className="card-header bg-primary text-white py-3" style={{borderRadius: '4px 4px 0 0'}}>
+                                    <h5 className="mb-0 fw-bold"><i className="bi bi-shield-lock me-2"></i>Secure Access</h5>
+                                </div>
+                                <div className="card-body p-4 bg-white">
+                                    {loginError && (
+                                        <div className="alert alert-danger d-flex align-items-center py-2 mb-3 small" role="alert">
+                                            <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                                            <div>{loginError}</div>
+                                        </div>
+                                    )}
+                                    <form onSubmit={handleLoginSubmit}>
+                                        <div className="mb-3">
+                                            <label className="form-label small fw-bold text-secondary text-uppercase">Username / ID</label>
+                                            <div className="input-group">
+                                                <span className="input-group-text bg-light border-end-0"><i className="bi bi-person"></i></span>
+                                                <input 
+                                                    className="form-control border-start-0"
+                                                    value={loginUser}
+                                                    onChange={e => setLoginUser(e.target.value)}
+                                                    required
+                                                    placeholder="Enter your ID"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="mb-4">
+                                            <label className="form-label small fw-bold text-secondary text-uppercase">Password</label>
+                                            <div className="input-group">
+                                                <span className="input-group-text bg-light border-end-0"><i className="bi bi-key"></i></span>
+                                                <input 
+                                                    type="password"
+                                                    className="form-control border-start-0" 
+                                                    value={loginPass}
+                                                    onChange={e => setLoginPass(e.target.value)}
+                                                    required
+                                                    placeholder="••••••••"
+                                                />
+                                            </div>
+                                        </div>
+                                        <button 
+                                            type="submit" 
+                                            className="btn btn-primary w-100 py-2 fw-bold"
+                                            style={{borderRadius: '2px'}}
+                                            disabled={isLoggingIn}
+                                        >
+                                            {isLoggingIn ? 'Authenticating...' : 'Sign In'}
+                                        </button>
+                                        <div className="text-center mt-3">
+                                            <small className="text-muted">Authorized Personnel Only</small>
+                                        </div>
+                                    </form>
+                                </div>
+                                <div className="card-footer bg-light text-center py-2 border-top">
+                                    <small className="text-muted" style={{fontSize: '0.7rem'}}>Terras Systems © 2026. All Rights Reserved.</small>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </section>
 
-            {/* Features Section */}
-            <section className="py-5" style={{zIndex: 20}}>
-                <div className="container py-5">
-                    <div className="row g-4">
+            {/* Corporate Features Strip */}
+            <section className="py-5 bg-white border-bottom">
+                <div className="container">
+                    <div className="row g-4 text-center">
                         {[ 
-                            { icon: 'bi-box-seam', title: 'INVENTORY_DB', desc: 'GLOBAL STOCK ASSET TRACKING ACROSS ALL SECTORS.' }, 
-                            { icon: 'bi-diagram-3', title: 'BOM_MATRIX', desc: 'HIERARCHICAL RECIPE COMPUTATION & ASSEMBLY TREE.' }, 
-                            { icon: 'bi-gear-wide-connected', title: 'PROD_EXEC', desc: 'REAL-TIME MANUFACTURING CONTROL & STATUS MONITOR.' }, 
-                            { icon: 'bi-shield-lock', title: 'SECURE_NET', desc: 'MULTI-LEVEL AUTHENTICATION & GRANULAR ACCESS.' } 
+                            { icon: 'bi-box-seam', title: 'Inventory Control', desc: 'Precise tracking across multiple warehouses.' }, 
+                            { icon: 'bi-diagram-3', title: 'Advanced Engineering', desc: 'Recursive BOMs and automated recipe generation.' }, 
+                            { icon: 'bi-gear-wide-connected', title: 'Production Management', desc: 'End-to-end work order scheduling and monitoring.' }, 
+                            { icon: 'bi-graph-up-arrow', title: 'Business Intelligence', desc: 'Real-time analytics and detailed reporting.' } 
                         ].map((f, i) => (
                             <div key={i} className="col-md-3">
-                                <div className="p-4 border border-light h-100" style={{background: 'rgba(20,20,20,0.95)', transition: 'all 0.3s', boxShadow: '0 0 10px rgba(0,255,255,0.1)'}}>
-                                    <i className={`bi ${f.icon} fs-1 mb-3 d-block`} style={{color: '#00ffff', textShadow: '0 0 10px #00ffff'}}></i>
-                                    <h5 className="fw-bold mb-2 text-uppercase text-white" style={{letterSpacing: '1px'}}>{f.title}</h5>
-                                    <p className="text-light small mb-0 font-monospace fw-bold" style={{letterSpacing: '0.5px'}}>{f.desc}</p>
+                                <div className="p-3 h-100">
+                                    <div className="mb-3 d-inline-flex align-items-center justify-content-center bg-light text-primary rounded-circle" style={{width: '60px', height: '60px'}}>
+                                        <i className={`bi ${f.icon} fs-3`}></i>
+                                    </div>
+                                    <h6 className="fw-bold text-dark">{f.title}</h6>
+                                    <p className="text-muted small mb-0">{f.desc}</p>
                                 </div>
                             </div>
                         ))}
@@ -653,53 +651,24 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* Technical Blueprint Section */}
-            <section className="py-5 border-top border-light" style={{background: '#050505', zIndex: 20}}>
-                <div className="container py-5">
-                    <div className="row g-5">
-                        <div className="col-lg-4">
-                            <h2 className="fw-bold mb-4 text-uppercase" style={{color: '#00ff9d', textShadow: '0 0 10px #00ff9d'}}>System<br/>Specs</h2>
-                            <p className="text-white font-monospace small fw-bold" style={{lineHeight: '2'}}>
-                                <span style={{color: '#00ffff'}}>#</span> ARCHITECTURE: DECOUPLED_MICRO_SERVICES<br/>
-                                <span style={{color: '#00ffff'}}>#</span> KERNEL: PYTHON_3.11_FASTAPI<br/>
-                                <span style={{color: '#00ffff'}}>#</span> INTERFACE: REACT_18_NEXTJS
-                            </p>
-                            <div className="mt-4">
-                                <a href={`${API_BASE}/docs`} className="btn btn-outline-info rounded-0 btn-sm px-4 py-2 text-uppercase fw-bold" target="_blank" style={{borderWidth: '2px', color: '#00ffff', borderColor: '#00ffff'}}>
-                                    [ READ_API_DOCS ]
-                                </a>
+            {/* Technical Specs / Footer */}
+            <footer className="bg-dark text-white py-4 mt-auto">
+                <div className="container">
+                    <div className="row align-items-center">
+                        <div className="col-md-6 mb-3 mb-md-0">
+                            <h6 className="text-uppercase fw-bold mb-2 small text-white-50">System Architecture</h6>
+                            <div className="d-flex gap-3 small font-monospace text-white-50">
+                                <span>Python 3.11</span>
+                                <span>PostgreSQL 15</span>
+                                <span>React 18</span>
                             </div>
                         </div>
-                        <div className="col-lg-8">
-                            <div className="row g-4 font-monospace">
-                                <div className="col-md-6">
-                                    <h6 className="fw-bold mb-2 text-uppercase" style={{color: '#ff00ff'}}>// SECURITY</h6>
-                                    <p className="small text-light fw-bold">OAUTH2_JWT_STATELESS_AUTH. ARGON2_ID_HASHING.</p>
-                                </div>
-                                <div className="col-md-6">
-                                    <h6 className="fw-bold mb-2 text-uppercase" style={{color: '#00ffff'}}>// DATABASE</h6>
-                                    <p className="small text-light fw-bold">POSTGRESQL_15_OPTIMIZED. ACID_COMPLIANCE.</p>
-                                </div>
-                                <div className="col-md-6">
-                                    <h6 className="fw-bold mb-2 text-uppercase" style={{color: '#ffff00'}}>// LATENCY</h6>
-                                    <p className="small text-light fw-bold">ASYNC_IO_OPTIMIZED. SUB_50MS_RESPONSE_TARGET.</p>
-                                </div>
-                                <div className="col-md-6">
-                                    <h6 className="fw-bold mb-2 text-uppercase" style={{color: '#00ff9d'}}>// DEPLOYMENT</h6>
-                                    <p className="small text-light fw-bold">DOCKER_CONTAINERIZED. CLOUDFLARE_TUNNEL_READY.</p>
-                                </div>
-                            </div>
+                        <div className="col-md-6 text-md-end">
+                            <a href={`${API_BASE}/docs`} target="_blank" className="btn btn-sm btn-outline-light rounded-0" style={{fontSize: '0.75rem'}}>
+                                <i className="bi bi-code-slash me-1"></i> API Documentation
+                            </a>
                         </div>
                     </div>
-                </div>
-            </section>
-
-            {/* Footer */}
-            <footer className="py-4 border-top border-light" style={{zIndex: 20, backgroundColor: '#000'}}>
-                <div className="container text-center">
-                    <p className="text-white small font-monospace mb-0 text-uppercase fw-bold" style={{letterSpacing: '2px'}}>
-                        SYSTEM_STATUS: <span style={{color: '#00ff9d'}}>ONLINE</span> | &copy; 2026 TERAS_SYSTEMS
-                    </p>
                 </div>
             </footer>
         </div>

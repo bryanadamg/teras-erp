@@ -237,7 +237,7 @@ export default function Sidebar({ activeTab, setActiveTab, appName, isOpen }: Si
       </div>
       
       <div className="p-3 text-center border-top bg-light">
-          <small className="text-muted fw-bold">{t('powered_by')} Teras ERP</small>
+          <small className="text-muted fw-bold">{t('powered_by')} Terras ERP</small>
       </div>
     </div>
   );

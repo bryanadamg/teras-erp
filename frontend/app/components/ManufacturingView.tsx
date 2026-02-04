@@ -235,7 +235,7 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
               <div className="d-flex justify-content-between border-bottom pb-3 mb-4">
                   <div>
                       <h2 className="fw-bold mb-0">WORK ORDER</h2>
-                      <div className="text-muted small">Teras ERP Manufacturing</div>
+                      <div className="text-muted small">Terras ERP Manufacturing</div>
                   </div>
                   <div className="text-end">
                       <h3 className="font-monospace mb-0">{wo.code}</h3>

@@ -11,7 +11,7 @@ from app.db.base import Base
 from app.api import items, locations, stock, attributes, boms, manufacturing, categories, routing, auth, uoms, sales, samples, audit
 from app.db.init_db import init_db
 
-app = FastAPI(title="Teras ERP")
+app = FastAPI(title="Terras ERP")
 
 # Initialize Database and run migrations
 init_db()
@@ -63,7 +63,7 @@ async def home(request: Request):
         "index.html",
         {
             "request": request,
-            "app_name": "Teras ERP",
+            "app_name": "Terras ERP",
             "version": "0.1.0"
         }
     )
