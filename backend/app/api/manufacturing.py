@@ -226,9 +226,6 @@ def delete_work_order(wo_id: str, db: Session = Depends(get_db), current_user: U
     if not wo:
         raise HTTPException(status_code=404, detail="Work Order not found")
     
-    if wo.status == "COMPLETED":
-        raise HTTPException(status_code=400, detail="Cannot delete a completed Work Order")
-    
     details = f"Deleted Work Order {wo.code}"
     
     db.delete(wo)

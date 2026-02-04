@@ -436,11 +436,9 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
                                                             )}
                                                             {wo.status === 'COMPLETED' && <span className="text-success small fw-bold"><i className="bi bi-check-circle-fill"></i> Done</span>}
                                                             
-                                                            {wo.status !== 'COMPLETED' && (
-                                                                <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDeleteWO(wo.id)} title="Delete Work Order">
-                                                                    <i className="bi bi-trash"></i>
-                                                                </button>
-                                                            )}
+                                                            <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDeleteWO(wo.id)} title="Delete Work Order">
+                                                                <i className="bi bi-trash"></i>
+                                                            </button>
                                                         </div>
                                                     </td>
                                                 </tr>
