@@ -55,43 +55,46 @@ export default function BOMView({ items, boms, locations, attributes, workCenter
       setExpandedNodes(prev => ({...prev, [nodeId]: !prev[nodeId]}));
   };
 
-  const renderBOMTree = (bomLines: any[], level = 0) => {
+  const renderBOMTree = (bomLines: any[], parentId: string, level = 0) => {
       return (
           <div className="d-flex flex-column gap-1">
               {bomLines.map((line: any) => {
                   const subBOM = boms.find((b: any) => b.item_id === line.item_id);
                   const isExpandable = !!subBOM;
-                  const isExpanded = expandedNodes[line.id];
+                  // Scoped expansion key ensures opening one tree doesn't affect other table rows
+                  const nodeKey = `${parentId}-${line.id}`;
+                  const isExpanded = expandedNodes[nodeKey];
 
                   return (
                       <div key={line.id} className="small">
-                          <div className={`d-flex align-items-center ${level > 0 ? 'ps-3 border-start border-2' : ''} ${level > 0 ? 'ms-1' : ''}`}>
+                          <div className="d-flex align-items-center">
                               {isExpandable && (
                                   <i 
                                     className={`bi bi-caret-${isExpanded ? 'down' : 'right'}-fill me-1 text-muted`} 
-                                    style={{cursor: 'pointer', fontSize: '0.7rem'}}
-                                    onClick={() => toggleNode(line.id)}
+                                    style={{cursor: 'pointer', fontSize: '0.7rem', width: '12px'}}
+                                    onClick={() => toggleNode(nodeKey)}
                                   ></i>
                               )}
-                              {!isExpandable && level > 0 && <span className="me-2 text-muted" style={{width: '10px'}}></span>}
+                              {!isExpandable && <span style={{width: '12px', display: 'inline-block'}} className="me-1"></span>}
                               
-                              <div className="d-flex align-items-center gap-1 border-bottom pb-1 border-light w-100">
-                                  <span className="fw-bold text-primary">{line.qty}</span> x {getItemName(line.item_id)}
-                                  <div className="text-muted fst-italic" style={{fontSize: '0.7rem'}}>
+                              <div className="d-flex align-items-center gap-1 border-bottom pb-1 border-light w-100 overflow-hidden">
+                                  <span className="fw-bold text-primary flex-shrink-0" style={{minWidth: '20px'}}>{line.qty}</span> 
+                                  <span className="text-truncate">{getItemName(line.item_id)}</span>
+                                  <div className="text-muted fst-italic text-truncate flex-grow-1" style={{fontSize: '0.7rem'}}>
                                       {(line.attribute_value_ids || []).map(getAttributeValueName).join(', ')}
                                   </div>
                                   {line.source_location_id && (
-                                      <span className="badge bg-light text-dark border ms-2" style={{fontSize: '0.6rem'}}>
-                                          <i className="bi bi-geo-alt me-1"></i>{getLocationName(line.source_location_id)}
+                                      <span className="badge bg-light text-dark border ms-2 flex-shrink-0" style={{fontSize: '0.6rem'}}>
+                                          <i className="bi bi-geo-alt"></i>
                                       </span>
                                   )}
-                                  {isExpandable && <span className="badge bg-secondary ms-auto" style={{fontSize: '0.6rem'}}>Sub-Assy</span>}
+                                  {isExpandable && <span className="badge bg-secondary ms-auto flex-shrink-0" style={{fontSize: '0.6rem'}}>Sub</span>}
                               </div>
                           </div>
                           
                           {isExpandable && isExpanded && subBOM.lines && (
-                              <div className="mt-1">
-                                  {renderBOMTree(subBOM.lines, level + 1)}
+                              <div className="ms-2 ps-2 border-start border-light-subtle mt-1">
+                                  {renderBOMTree(subBOM.lines, nodeKey, level + 1)}
                               </div>
                           )}
                       </div>
@@ -175,7 +178,8 @@ export default function BOMView({ items, boms, locations, attributes, workCenter
                                         ) : <span className="text-muted small">-</span>}
                                     </td>
                                     <td className="align-top">
-                                        {renderBOMTree(bom.lines)}
+                                        {/* Recursive Tree View with unique parentId scoping */}
+                                        {renderBOMTree(bom.lines, bom.id)}
                                     </td>
                                     <td className="pe-4 text-end align-top">
                                         <button className="btn btn-sm btn-link text-danger" onClick={() => onDeleteBOM(bom.id)}>
