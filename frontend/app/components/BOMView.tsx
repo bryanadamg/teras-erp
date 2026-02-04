@@ -19,21 +19,26 @@ export default function BOMView({ items, boms, locations, attributes, workCenter
   });
 
   const handleCreateBOMWrapper = async (bomData: any) => {
-      // BOMDesigner sends a formatted node data. 
-      // We need to ensure it matches the API schema expected by onCreateBOM.
-      // BOMNodeData has { code, item_code, qty, lines, operations ... }
-      // API expects { code, item_code, qty, lines: [{item_code, qty...}], ... }
-      // It matches structurally.
-      
       const res = await onCreateBOM(bomData);
       
       if (res && res.status === 400) {
-          showToast(`Error creating BOM ${bomData.code}: Duplicate?`, 'warning');
-          throw new Error("Duplicate");
+          const err = await res.json();
+          showToast(`Error creating BOM ${bomData.code}: ${err.detail || 'Duplicate?'}`, 'warning');
+          throw new Error(err.detail || "Duplicate");
+      } else if (res && res.status === 404) {
+          const err = await res.json();
+          showToast(`Failed to save BOM ${bomData.code}: Parent Item not found in inventory. (${err.detail})`, 'danger');
+          throw new Error(err.detail || "Item not found");
       } else if (res && res.ok) {
           showToast(`BOM ${bomData.code} saved`, 'success');
       } else {
-          showToast(`Failed to save BOM ${bomData.code}`, 'danger');
+          // Try to parse error if json
+          try {
+              const err = await res.json();
+              showToast(`Failed to save BOM ${bomData.code}: ${err.detail}`, 'danger');
+          } catch(e) {
+              showToast(`Failed to save BOM ${bomData.code}`, 'danger');
+          }
           throw new Error("Failed");
       }
   };
