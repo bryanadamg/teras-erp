@@ -15,13 +15,18 @@ def log_activity(
     Records an activity in the audit log.
     """
     try:
+        # Pre-process changes to handle UUIDs and other non-serializable types
+        serializable_changes = None
+        if changes:
+            serializable_changes = json.loads(json.dumps(changes, default=str))
+
         log = AuditLog(
             user_id=user_id,
             action=action,
             entity_type=entity_type,
             entity_id=str(entity_id),
             details=details,
-            changes=changes
+            changes=serializable_changes
         )
         db.add(log)
         db.commit()
