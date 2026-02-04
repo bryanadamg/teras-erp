@@ -194,7 +194,8 @@ export default function Home() {
               showToast('Item deleted successfully', 'success');
               fetchData();
           } else {
-              showToast('Failed to delete item', 'danger');
+              const err = await res.json();
+              showToast(`Error: ${err.detail || 'Failed to delete item'}`, 'danger');
           }
       });
   };
@@ -293,10 +294,15 @@ export default function Home() {
   };
 
   const handleDeleteCategory = async (categoryId: string) => {
-      await authFetch(`${API_BASE}/categories/${categoryId}`, {
+      const res = await authFetch(`${API_BASE}/categories/${categoryId}`, {
           method: 'DELETE'
       });
-      fetchData();
+      if (res.ok) {
+          fetchData();
+      } else {
+          const err = await res.json();
+          showToast(`Error: ${err.detail || 'Failed to delete category'}`, 'danger');
+      }
   };
 
   const handleCreateUOM = async (name: string) => {
@@ -308,10 +314,15 @@ export default function Home() {
   };
 
   const handleDeleteUOM = async (uomId: string) => {
-      await authFetch(`${API_BASE}/uoms/${uomId}`, {
+      const res = await authFetch(`${API_BASE}/uoms/${uomId}`, {
           method: 'DELETE'
       });
-      fetchData();
+      if (res.ok) {
+          fetchData();
+      } else {
+          const err = await res.json();
+          showToast(`Error: ${err.detail || 'Failed to delete UOM'}`, 'danger');
+      }
   };
 
   const handleCreateWorkCenter = async (wc: any) => {
@@ -364,6 +375,9 @@ export default function Home() {
           if (res.ok) {
               showToast('BOM deleted successfully', 'success');
               fetchData();
+          } else {
+              const err = await res.json();
+              showToast(`Error: ${err.detail || 'Failed to delete BOM'}`, 'danger');
           }
       });
   };

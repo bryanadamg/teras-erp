@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from app.db.session import get_db
 from app.services import item_service, stock_service, import_service, audit_service
 from app.schemas import ItemCreate, ItemResponse, StockEntryCreate, ItemUpdate, VariantCreate
@@ -140,8 +141,15 @@ def delete_item(item_id: str, db: Session = Depends(get_db), current_user: User 
     # Optional: Check for dependencies (stock, BOMs, etc.) before deleting
     # For now, we'll rely on foreign key constraints or cascade deletes
     
-    db.delete(item)
-    db.commit()
+    try:
+        db.delete(item)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete item {item.code} because it is still being used in one or more Bill of Materials (BOMs) or other records. Please delete the associated records first."
+        )
     
     audit_service.log_activity(
         db,
