@@ -909,6 +909,7 @@ export default function Home() {
                 operations={operations}
                 onCreateBOM={handleCreateBOM} 
                 onDeleteBOM={handleDeleteBOM}
+                onCreateItem={handleCreateItem}
             />
         )}
 

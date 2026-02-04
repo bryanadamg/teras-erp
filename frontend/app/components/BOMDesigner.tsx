@@ -73,6 +73,16 @@ export default function BOMDesigner({
         }
     }, []);
 
+    // Initial code suggestion
+    useEffect(() => {
+        if (rootItemCode && !rootBOM.code) {
+            setRootBOM(prev => ({
+                ...prev,
+                code: suggestBOMCode(rootItemCode, prev.attribute_value_ids)
+            }));
+        }
+    }, [rootItemCode]);
+
     // --- Helpers ---
     const getItemName = (code: string) => items.find((i: any) => i.code === code)?.name || code;
     const hasExistingBOM = (code: string) => {
@@ -94,6 +104,25 @@ export default function BOMDesigner({
         const parts = [];
         if (config.prefix) parts.push(config.prefix);
         if (config.includeItemCode && itemCode) parts.push(itemCode);
+        
+        // Variant logic
+        if (config.includeVariant && attributeValueIds.length > 0) {
+             const valueNames: string[] = [];
+             // Sort or find based on selected attributes in config
+             for (const valId of attributeValueIds) {
+                 for (const attr of attributes) {
+                     const val = attr.values.find((v: any) => v.id === valId);
+                     if (val) {
+                         if (!config.variantAttributeNames || config.variantAttributeNames.length === 0 || config.variantAttributeNames.includes(attr.name)) {
+                             valueNames.push(val.value.toUpperCase().replace(/\s+/g, ''));
+                         }
+                         break;
+                     }
+                 }
+             }
+             if (valueNames.length > 0) parts.push(...valueNames);
+        }
+
         const now = new Date();
         if (config.includeYear) parts.push(now.getFullYear());
         if (config.includeMonth) parts.push(String(now.getMonth() + 1).padStart(2, '0'));
