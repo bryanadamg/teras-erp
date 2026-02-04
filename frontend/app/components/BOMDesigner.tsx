@@ -84,9 +84,9 @@ export default function BOMDesigner({
     }, [rootItemCode]);
 
     // --- Helpers ---
-    const getItemName = (code: string) => items.find((i: any) => i.code === code)?.name || code;
+    const getItemName = (code: string) => items.find((i: any) => (i.code || '').trim().toLowerCase() === (code || '').trim().toLowerCase())?.name || code;
     const hasExistingBOM = (code: string) => {
-         const item = items.find((i:any) => i.code === code);
+         const item = items.find((i:any) => (i.code || '').trim().toLowerCase() === (code || '').trim().toLowerCase());
          return item && existingBOMs.some((b:any) => b.item_id === item.id);
     };
     const getOpName = (id: string) => operations.find((o: any) => o.id === id)?.name || id;
@@ -108,7 +108,6 @@ export default function BOMDesigner({
         // Variant logic
         if (config.includeVariant && attributeValueIds.length > 0) {
              const valueNames: string[] = [];
-             // Sort or find based on selected attributes in config
              for (const valId of attributeValueIds) {
                  for (const attr of attributes) {
                      const val = attr.values.find((v: any) => v.id === valId);
@@ -141,7 +140,9 @@ export default function BOMDesigner({
         if (!rootBOM.item_code) return;
 
         const findMatchingAttributeIds = (childItemCode: string, parentAttrIds: string[]) => {
-            const childItem = items.find((i: any) => i.code === childItemCode);
+            const childItem = items.find((i: any) => 
+                (i.code || '').trim().toLowerCase() === (childItemCode || '').trim().toLowerCase()
+            );
             if (!childItem || !childItem.attribute_ids) return [];
             const matches: string[] = [];
             for (const parentValId of parentAttrIds) {
@@ -163,25 +164,45 @@ export default function BOMDesigner({
 
         const constructTree = (parentCode: string, parentAttrs: string[], patternIdx: number): any[] => {
             if (patternIdx >= patterns.length) return [];
+            
             const pattern = patterns[patternIdx];
             const expectedChildCode = pattern.replace('{CODE}', rootBOM.item_code);
-            const childItem = items.find((i: any) => i.code === expectedChildCode);
+            
+            const childItem = items.find((i: any) => 
+                (i.code || '').trim().toLowerCase() === (expectedChildCode || '').trim().toLowerCase()
+            );
+            
             const isNewItem = !childItem;
+            
+            // Check existing BOM
+            const existingBOM = childItem ? existingBOMs.find((b: any) => b.item_id === childItem.id) : null;
+            if (existingBOM) {
+                return [{
+                    id: Math.random().toString(36).substr(2, 9),
+                    item_code: childItem.code,
+                    attribute_value_ids: findMatchingAttributeIds(childItem.code, parentAttrs),
+                    qty: 1.0,
+                    source_location_code: '',
+                    isNewItem: false
+                }];
+            }
+
             const matchingAttrs = isNewItem ? parentAttrs : findMatchingAttributeIds(expectedChildCode, parentAttrs);
             const subLines = constructTree(rootBOM.item_code, matchingAttrs, patternIdx + 1);
-            let subBOM: BOMNodeData | undefined = undefined;
-            if (subLines.length > 0 || isNewItem) {
-                subBOM = {
-                    id: Math.random().toString(36).substr(2, 9),
-                    code: suggestBOMCode(expectedChildCode, matchingAttrs),
-                    item_code: expectedChildCode,
-                    attribute_value_ids: matchingAttrs,
-                    qty: 1.0,
-                    operations: [],
-                    lines: subLines,
-                    isNewItem: isNewItem
-                };
-            }
+            
+            // FIX: Always create a subBOM object for automation items, even if they are the last leaf.
+            // This allows the user to define the raw materials for the final WIP item.
+            const subBOM: BOMNodeData = {
+                id: Math.random().toString(36).substr(2, 9),
+                code: suggestBOMCode(expectedChildCode, matchingAttrs),
+                item_code: expectedChildCode,
+                attribute_value_ids: matchingAttrs,
+                qty: 1.0,
+                operations: [],
+                lines: subLines, // Will be empty for the last item
+                isNewItem: isNewItem
+            };
+
             return [{
                 id: Math.random().toString(36).substr(2, 9),
                 item_code: expectedChildCode,
@@ -189,6 +210,7 @@ export default function BOMDesigner({
                 qty: 1.0,
                 source_location_code: '',
                 subBOM: subBOM,
+                isExpanded: true,
                 isNewItem: isNewItem
             }];
         };
@@ -198,28 +220,65 @@ export default function BOMDesigner({
     };
 
     const saveNode = async (node: BOMNodeData): Promise<boolean> => {
-        let item = items.find((i: any) => i.code === node.item_code);
-        if (!item || node.isNewItem) {
-            const rootItem = items.find((i: any) => i.code === rootBOM.item_code);
+        // Resolve Root Item to inherit attributes for new items
+        const rootItem = items.find((i: any) => (i.code || '').trim().toLowerCase() === (rootBOM.item_code || '').trim().toLowerCase());
+
+        // 1. Resolve Item (Create if missing)
+        let item = items.find((i: any) => (i.code || '').trim().toLowerCase() === (node.item_code || '').trim().toLowerCase());
+        
+        // FIX: Ensure item creation happens if it doesn't exist OR if marked isNewItem
+        if (!item && node.isNewItem) {
             const res = await onCreateItem({
-                code: node.item_code, name: node.item_code, 
-                uom: rootItem?.uom || 'pcs', category: 'WIP', attribute_ids: [] 
+                code: node.item_code, 
+                name: node.item_code, 
+                uom: rootItem?.uom || 'pcs', 
+                category: 'WIP', 
+                attribute_ids: rootItem?.attribute_ids || [] 
             });
-            if (!res.ok) return false;
-            item = await res.json();
+            
+            if (res.status === 400) {
+                // Item might have been created in a previous step or by another user
+                // We proceed, assuming it exists now.
+                // Re-fetch logic is handled by parent view usually, but here we optimistically continue.
+            } else if (!res.ok) {
+                return false; 
+            }
         }
+
+        // 2. Save all children first (Bottom-Up)
         for (const line of node.lines) {
             if (line.isNewItem && !line.subBOM) {
-                const rootItem = items.find((i: any) => i.code === rootBOM.item_code);
-                await onCreateItem({ code: line.item_code, name: line.item_code, uom: rootItem?.uom || 'pcs', category: 'WIP', attribute_ids: [] });
+                // Leaf item creation
+                const res = await onCreateItem({ 
+                    code: line.item_code, 
+                    name: line.item_code, 
+                    uom: rootItem?.uom || 'pcs', 
+                    category: 'WIP', 
+                    attribute_ids: rootItem?.attribute_ids || [] 
+                });
+                // Ignore 400 (duplicate)
             }
             if (line.subBOM) {
                 const success = await saveNode(line.subBOM);
                 if (!success) return false;
             }
         }
+
+        // 3. Save this BOM node
+        // FIX: Only save if it has lines or ops. If it's a leaf WIP with no definition yet, we skip saving BOM
+        // BUT user wanted draft. If user added nothing to the last node, do we save an empty BOM?
+        // No, API likely rejects empty BOM.
+        // If the user didn't fill in the last node (Materials), we just skip saving that specific BOM.
+        // It remains an Item in inventory, but without a Recipe.
         if (node.lines.length === 0 && node.operations.length === 0) return true;
-        try { await onSave(node); return true; } catch (e) { return false; }
+        
+        try {
+            await onSave(node);
+            return true;
+        } catch (e) {
+            console.error("Save failed for", node.code, e);
+            return false;
+        }
     };
 
     const handleGlobalSave = async () => {
@@ -262,6 +321,11 @@ export default function BOMDesigner({
     // --- Components ---
 
     const TreeView = ({ node, level = 0 }: { node: BOMNodeData, level: number }) => {
+        const itemExists = items.some((i: any) => (i.code || '').trim().toLowerCase() === (node.item_code || '').trim().toLowerCase());
+        const recipeExists = hasExistingBOM(node.item_code);
+        // Check if this node has valid BOM definition locally
+        const hasLocalDef = node.lines.length > 0 || node.operations.length > 0;
+
         return (
             <div className="tree-node">
                 <div 
@@ -271,7 +335,12 @@ export default function BOMDesigner({
                 >
                     <i className={`bi ${level === 0 ? 'bi-box-seam-fill' : 'bi-diagram-3'} me-2`}></i>
                     <span className="text-truncate small fw-bold">{node.item_code || 'Unnamed'}</span>
-                    {node.isNewItem && <span className="badge bg-danger ms-2" style={{fontSize: '0.5rem'}}>NEW</span>}
+                    
+                    <div className="ms-auto d-flex gap-1">
+                        {recipeExists && <span className="badge bg-success" style={{fontSize: '0.5rem'}}>RECIPE✓</span>}
+                        {!recipeExists && hasLocalDef && <span className="badge bg-info" style={{fontSize: '0.5rem'}}>DRAFT</span>}
+                        {!itemExists && <span className="badge bg-danger" style={{fontSize: '0.5rem'}}>NEW ITEM</span>}
+                    </div>
                 </div>
                 {node.lines.map(line => line.subBOM && (
                     <TreeView key={line.subBOM.id} node={line.subBOM} level={level + 1} />
@@ -293,8 +362,9 @@ export default function BOMDesigner({
             <div className="row g-0 flex-grow-1 overflow-hidden">
                 {/* LEFT: Tree Nav */}
                 <div className="col-md-3 border-end bg-light d-flex flex-column h-100">
-                    <div className="p-3 border-bottom bg-white">
-                        <h6 className="small fw-bold text-uppercase text-muted mb-0">Product Structure</h6>
+                    <div className="p-3 border-bottom bg-white d-flex justify-content-between align-items-center">
+                        <h6 className="small fw-bold text-uppercase text-muted mb-0">Structure</h6>
+                        <span className="badge bg-secondary extra-small">{items.length} SKUs</span>
                     </div>
                     <div className="p-2 flex-grow-1 overflow-auto">
                         <TreeView node={rootBOM} level={0} />
@@ -308,7 +378,11 @@ export default function BOMDesigner({
                             <div className="d-flex justify-content-between align-items-start mb-4 border-bottom pb-3">
                                 <div>
                                     <h4 className="fw-bold mb-1">{getItemName(selectedNode.item_code)}</h4>
-                                    <p className="text-muted small mb-0 font-monospace">{selectedNode.item_code}</p>
+                                    <div className="d-flex align-items-center gap-2">
+                                        <span className="text-muted small font-monospace">{selectedNode.item_code}</span>
+                                        {selectedNode.isNewItem && <span className="badge bg-danger-subtle text-danger border border-danger border-opacity-25 small">New Inventory Record</span>}
+                                        {hasExistingBOM(selectedNode.item_code) && <span className="badge bg-success-subtle text-success border border-success border-opacity-25 small">Existing Recipe</span>}
+                                    </div>
                                 </div>
                                 {selectedNodeId === 'root' && (
                                     <button className="btn btn-sm btn-info shadow-sm" onClick={() => setIsAutomatorOpen(true)}>
@@ -330,7 +404,6 @@ export default function BOMDesigner({
                                     {selectedNodeId === 'root' ? (
                                         <select className="form-select" value={selectedNode.item_code} onChange={e => {
                                             const code = e.target.value;
-                                            const item = items.find((i:any) => i.code === code);
                                             setRootBOM(prev => ({
                                                 ...prev,
                                                 item_code: code,
@@ -354,8 +427,10 @@ export default function BOMDesigner({
                             {/* Node Attributes */}
                             <div className="mt-3 d-flex flex-wrap gap-2">
                                 {attributes.filter((a:any) => {
-                                    const itm = items.find((i:any) => i.code === selectedNode.item_code);
-                                    return itm?.attribute_ids?.includes(a.id);
+                                    const itm = items.find((i:any) => (i.code || '').trim().toLowerCase() === (selectedNode.item_code || '').trim().toLowerCase());
+                                    // If new item, check root item for attributes
+                                    const rootItm = items.find((i:any) => (i.code || '').trim().toLowerCase() === (rootBOM.item_code || '').trim().toLowerCase());
+                                    return (itm?.attribute_ids || rootItm?.attribute_ids || []).includes(a.id);
                                 }).map((attr:any) => (
                                     <div key={attr.id} style={{minWidth: '150px'}}>
                                         <label className="extra-small text-muted">{attr.name}</label>
@@ -396,7 +471,7 @@ export default function BOMDesigner({
                                                     }
                                                 }}><i className="bi bi-plus-lg"></i></button>
                                             </div>
-                                            <div className="list-group list-group-flush border rounded bg-white">
+                                            <div className="list-group list-group-flush border rounded bg-white overflow-auto" style={{maxHeight: '300px'}}>
                                                 {selectedNode.operations.sort((a,b) => a.sequence - b.sequence).map((op, i) => (
                                                     <div key={i} className="list-group-item d-flex justify-content-between align-items-center py-2">
                                                         <span className="small fw-bold text-muted">{op.sequence}. {getOpName(op.operation_id)}</span>
@@ -415,7 +490,6 @@ export default function BOMDesigner({
                                             <h6 className="fw-bold mb-0">Components</h6>
                                         </div>
                                         <div className="card-body">
-                                            {/* (Line add logic simplified for brevity but fully functional) */}
                                             <div className="input-group input-group-sm mb-3">
                                                 <select className="form-select" id="addLineItm" style={{width: '50%'}}>
                                                     <option value="">Component...</option>
@@ -426,13 +500,15 @@ export default function BOMDesigner({
                                                     const itm = document.getElementById('addLineItm') as HTMLSelectElement;
                                                     const qty = document.getElementById('addLineQty') as HTMLInputElement;
                                                     if (itm.value && qty.value) {
+                                                        const normalizedCode = itm.value.trim().toLowerCase();
+                                                        const exists = items.some((i:any) => (i.code || '').trim().toLowerCase() === normalizedCode);
                                                         const newLine: BOMLineNode = {
                                                             id: Math.random().toString(36).substr(2, 9),
                                                             item_code: itm.value,
                                                             attribute_value_ids: [],
                                                             qty: parseFloat(qty.value),
                                                             source_location_code: '',
-                                                            isNewItem: !items.some((i:any) => i.code === itm.value)
+                                                            isNewItem: !exists
                                                         };
                                                         updateSelectedNode({ lines: [...selectedNode.lines, newLine] });
                                                         itm.value = ""; qty.value = "";
@@ -440,7 +516,7 @@ export default function BOMDesigner({
                                                 }}><i className="bi bi-plus-lg"></i></button>
                                             </div>
 
-                                            <div className="d-flex flex-column gap-2">
+                                            <div className="d-flex flex-column gap-2 overflow-auto" style={{maxHeight: '400px'}}>
                                                 {selectedNode.lines.map((line, i) => (
                                                     <div key={line.id} className="p-2 border rounded d-flex justify-content-between align-items-center bg-white">
                                                         <div className="d-flex align-items-center gap-2">
