@@ -7,3 +7,6 @@ tenacity==9.0.0
 python-jose[cryptography]
 passlib[bcrypt]
 python-multipart
+pytest==8.0.0
+httpx==0.26.0
+sqlalchemy-utils==0.41.1
