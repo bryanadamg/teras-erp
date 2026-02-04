@@ -88,8 +88,14 @@ def create_bom(payload: BOMCreate, db: Session = Depends(get_db), current_user: 
     return bom
 
 @router.get("/boms", response_model=list[BOMResponse])
-def get_boms(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    items = db.query(BOM).offset(skip).limit(limit).all()
+def get_boms(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    query = db.query(BOM)
+    
+    if current_user.allowed_categories:
+        # Join with Item to check category
+        query = query.join(Item, BOM.item_id == Item.id).filter(Item.category.in_(current_user.allowed_categories))
+        
+    items = query.offset(skip).limit(limit).all()
     for item in items:
         # Populate IDs for schema
         item.attribute_value_ids = [v.id for v in item.attribute_values]

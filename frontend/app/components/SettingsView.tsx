@@ -10,6 +10,7 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
   const [style, setStyle] = useState(uiStyle || 'default');
   const [roles, setRoles] = useState<any[]>([]);
   const [allPermissions, setAllPermissions] = useState<any[]>([]);
+  const [allCategories, setAllCategories] = useState<any[]>([]);
 
   // Self-Service Account State
   const [selfUsername, setSelfUsername] = useState('');
@@ -23,6 +24,7 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
   const [editName, setEditName] = useState('');
   const [editRoleId, setEditRoleId] = useState('');
   const [editPermissionIds, setEditPermissionIds] = useState<string[]>([]);
+  const [editAllowedCategories, setEditAllowedCategories] = useState<string[]>([]);
   const [newPassword, setNewPassword] = useState('');
 
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
@@ -34,13 +36,15 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
           setSelfFullName(currentUser.full_name);
       }
 
-      // Fetch roles and permissions
+      // Fetch roles, permissions, categories
       Promise.all([
           fetch(`${API_BASE}/roles`).then(res => res.json()),
-          fetch(`${API_BASE}/permissions`).then(res => res.json())
-      ]).then(([rolesData, permsData]) => {
+          fetch(`${API_BASE}/permissions`).then(res => res.json()),
+          fetch(`${API_BASE}/categories`).then(res => res.json())
+      ]).then(([rolesData, permsData, catsData]) => {
           setRoles(rolesData);
           setAllPermissions(permsData);
+          setAllCategories(catsData);
       }).catch(err => console.error("Failed to fetch auth data", err));
 
       // Refresh users if admin
@@ -104,6 +108,7 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
       setEditName(user.full_name);
       setEditRoleId(user.role?.id || '');
       setEditPermissionIds(user.permissions?.map(p => p.id) || []);
+      setEditAllowedCategories(user.allowed_categories || []);
       setNewPassword('');
   };
 
@@ -113,13 +118,20 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
       );
   };
 
+  const toggleEditCategory = (catName: string) => {
+      setEditAllowedCategories(prev => 
+          prev.includes(catName) ? prev.filter(c => c !== catName) : [...prev, catName]
+      );
+  };
+
   const saveUserChanges = async (userId: string) => {
       try {
           const payload: any = { 
               username: editUsername,
               full_name: editName, 
               role_id: editRoleId || null,
-              permission_ids: editPermissionIds
+              permission_ids: editPermissionIds,
+              allowed_categories: editAllowedCategories.length > 0 ? editAllowedCategories : null
           };
           
           if (newPassword) {
@@ -249,7 +261,8 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
                                     <th className="ps-4">Username</th>
                                     <th>Full Name</th>
                                     <th>Role & Password</th>
-                                    <th>Custom Tab Access (Granular)</th>
+                                    <th>Permissions</th>
+                                    <th>Allowed Categories</th>
                                     <th className="text-end pe-4">Actions</th>
                                 </tr>
                             </thead>
@@ -309,6 +322,26 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
                                                         ))}
                                                     </div>
                                                 </td>
+                                                <td>
+                                                    <div className="d-flex flex-wrap gap-2 p-2 border rounded bg-white" style={{maxHeight: '150px', overflowY: 'auto'}}>
+                                                        {allCategories.map(c => (
+                                                            <div key={c.id} className="form-check m-0">
+                                                                <input 
+                                                                    className="form-check-input" 
+                                                                    type="checkbox" 
+                                                                    checked={editAllowedCategories.includes(c.name)}
+                                                                    onChange={() => toggleEditCategory(c.name)}
+                                                                    id={`cat-${c.id}`}
+                                                                />
+                                                                <label className="form-check-label small" htmlFor={`cat-${c.id}`}>
+                                                                    {c.name}
+                                                                </label>
+                                                            </div>
+                                                        ))}
+                                                        {allCategories.length === 0 && <small className="text-muted">No categories defined</small>}
+                                                    </div>
+                                                    <small className="text-muted d-block mt-1" style={{fontSize: '0.65rem'}}>*Uncheck all for full access</small>
+                                                </td>
                                                 <td className="text-end pe-4">
                                                     <div className="d-flex gap-1 justify-content-end">
                                                         <button className="btn btn-sm btn-success" onClick={() => saveUserChanges(user.id)}>
@@ -333,6 +366,19 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
                                                             </span>
                                                         ))}
                                                         {(!user.permissions || user.permissions.length === 0) && <span className="text-muted small italic">Inherited only</span>}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div className="d-flex flex-wrap gap-1">
+                                                        {user.allowed_categories && user.allowed_categories.length > 0 ? (
+                                                            user.allowed_categories.map((c: string) => (
+                                                                <span key={c} className="badge bg-warning bg-opacity-10 text-dark border border-warning border-opacity-25" style={{fontSize: '0.65rem'}}>
+                                                                    {c}
+                                                                </span>
+                                                            ))
+                                                        ) : (
+                                                            <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25" style={{fontSize: '0.65rem'}}>All Categories</span>
+                                                        )}
                                                     </div>
                                                 </td>
                                                 <td className="text-end pe-4">

@@ -308,12 +308,14 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     role_id: Optional[UUID] = None
     permission_ids: Optional[list[UUID]] = None
+    allowed_categories: Optional[list[str]] = None
     password: Optional[str] = None
 
 class UserResponse(UserBase):
     id: UUID
     role: RoleResponse | None = None
     permissions: list[PermissionResponse] = []
+    allowed_categories: list[str] | None = None
     class Config:
         from_attributes = True
 

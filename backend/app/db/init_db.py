@@ -23,6 +23,7 @@ def run_migrations():
                 ("work_orders", "completed_at", "TIMESTAMP WITHOUT TIME ZONE"),
                 ("bom_lines", "source_location_id", "UUID REFERENCES locations(id)"),
                 ("users", "hashed_password", "VARCHAR(255)"),
+                ("users", "allowed_categories", "JSON"),
             ]
 
             for table, col, col_type in migrations:
