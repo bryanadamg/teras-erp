@@ -219,3 +219,28 @@ def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_
     )
     
     return {"status": "success", "message": f"Work Order updated to {status}"}
+
+@router.delete("/work-orders/{wo_id}")
+def delete_work_order(wo_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    wo = db.query(WorkOrder).filter(WorkOrder.id == wo_id).first()
+    if not wo:
+        raise HTTPException(status_code=404, detail="Work Order not found")
+    
+    if wo.status == "COMPLETED":
+        raise HTTPException(status_code=400, detail="Cannot delete a completed Work Order")
+    
+    details = f"Deleted Work Order {wo.code}"
+    
+    db.delete(wo)
+    db.commit()
+    
+    audit_service.log_activity(
+        db,
+        user_id=current_user.id,
+        action="DELETE",
+        entity_type="WorkOrder",
+        entity_id=wo_id,
+        details=details
+    )
+    
+    return {"status": "success", "message": "Work Order deleted"}

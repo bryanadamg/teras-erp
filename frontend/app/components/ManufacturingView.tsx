@@ -4,7 +4,7 @@ import CalendarView from './CalendarView';
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 
-export default function ManufacturingView({ items, boms, locations, attributes, workOrders, stockBalance, onCreateWO, onUpdateStatus }: any) {
+export default function ManufacturingView({ items, boms, locations, attributes, workOrders, stockBalance, onCreateWO, onUpdateStatus, onDeleteWO }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'calendar'
@@ -423,17 +423,25 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
                                                     </td>
                                                     <td><span className={`badge ${getStatusBadge(wo.status)}`}>{t(wo.status.toLowerCase())}</span></td>
                                                     <td className="text-end pe-4 no-print">
-                                                        {wo.status === 'PENDING' && (
-                                                            <button className="btn btn-sm btn-primary shadow-sm" onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>
-                                                                <i className="bi bi-play-fill me-1"></i>{t('start')}
-                                                            </button>
-                                                        )}
-                                                        {wo.status === 'IN_PROGRESS' && (
-                                                            <button className="btn btn-sm btn-success shadow-sm" onClick={() => onUpdateStatus(wo.id, 'COMPLETED')}>
-                                                                <i className="bi bi-check-lg me-1"></i>{t('finish')}
-                                                            </button>
-                                                        )}
-                                                        {wo.status === 'COMPLETED' && <span className="text-success"><i className="bi bi-check-circle-fill"></i> Done</span>}
+                                                        <div className="d-flex justify-content-end align-items-center gap-2">
+                                                            {wo.status === 'PENDING' && (
+                                                                <button className="btn btn-sm btn-primary shadow-sm" onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>
+                                                                    <i className="bi bi-play-fill me-1"></i>{t('start')}
+                                                                </button>
+                                                            )}
+                                                            {wo.status === 'IN_PROGRESS' && (
+                                                                <button className="btn btn-sm btn-success shadow-sm" onClick={() => onUpdateStatus(wo.id, 'COMPLETED')}>
+                                                                    <i className="bi bi-check-lg me-1"></i>{t('finish')}
+                                                                </button>
+                                                            )}
+                                                            {wo.status === 'COMPLETED' && <span className="text-success small fw-bold"><i className="bi bi-check-circle-fill"></i> Done</span>}
+                                                            
+                                                            {wo.status !== 'COMPLETED' && (
+                                                                <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDeleteWO(wo.id)} title="Delete Work Order">
+                                                                    <i className="bi bi-trash"></i>
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                 </tr>
                                                 {isExpanded && bom && (

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
+import BOMAutomatorModal from './BOMAutomatorModal';
 
 // Types for Recursive Structure
 interface BOMLineNode {
@@ -45,8 +46,10 @@ export default function BOMDesigner({
         lines: []
     });
 
-    // Code Configuration State
+    // Modal States
     const [isConfigOpen, setIsConfigOpen] = useState(false);
+    const [isAutomatorOpen, setIsAutomatorOpen] = useState(false);
+    
     const [codeConfig, setCodeConfig] = useState<CodeConfig>({
         prefix: 'BOM',
         suffix: '',
@@ -70,12 +73,12 @@ export default function BOMDesigner({
         }
     }, []);
 
+    // ... (suggestBOMCode and handleSaveConfig same as before) ...
     const suggestBOMCode = (itemCode: string, attributeValueIds: string[] = [], config = codeConfig) => {
         const parts = [];
         if (config.prefix) parts.push(config.prefix);
         if (config.includeItemCode && itemCode) parts.push(itemCode);
         
-        // Variant logic
         if (config.includeVariant && attributeValueIds.length > 0) {
              const valueNames: string[] = [];
              for (const valId of attributeValueIds) {
@@ -112,32 +115,117 @@ export default function BOMDesigner({
     const handleSaveConfig = (newConfig: CodeConfig) => {
         setCodeConfig(newConfig);
         localStorage.setItem('bom_code_config', JSON.stringify(newConfig));
-        
-        // Update root BOM code if item is selected
         if (rootBOM.item_code) {
             const suggested = suggestBOMCode(rootBOM.item_code, rootBOM.attribute_value_ids, newConfig);
             setRootBOM(prev => ({ ...prev, code: suggested }));
         }
     };
 
+    // --- Automation Logic ---
+    const handleApplyAutomation = (patterns: string[]) => {
+        if (!rootBOM.item_code) return;
+
+        // Build the tree top-down
+        // Current Root Item -> Child 1 -> Child 2 -> ...
+        // rootBOM is already the "Finished Good".
+        // We need to generate lines for it based on Pattern 1.
+        // Then Pattern 1 needs lines based on Pattern 2.
+        
+        // Helper to find matching attribute ID for a child item
+        const findMatchingAttributeIds = (childItem: any, parentAttrIds: string[]) => {
+            if (!childItem || !childItem.attribute_ids) return [];
+            
+            const matches: string[] = [];
+            
+            // For each attribute selected in Parent
+            for (const parentValId of parentAttrIds) {
+                // Find what attribute this value belongs to (e.g. Color)
+                let attrName = '';
+                let valName = '';
+                
+                for (const attr of attributes) {
+                    const val = attr.values.find((v:any) => v.id === parentValId);
+                    if (val) {
+                        attrName = attr.name;
+                        valName = val.value;
+                        break;
+                    }
+                }
+                
+                // Now check if Child Item has this Attribute (Color)
+                // And if it has the same Value (Red)
+                if (attrName && valName) {
+                    const childAttr = attributes.find((a:any) => a.name === attrName && childItem.attribute_ids.includes(a.id));
+                    if (childAttr) {
+                        const childVal = childAttr.values.find((v:any) => v.value === valName);
+                        if (childVal) matches.push(childVal.id);
+                    }
+                }
+            }
+            return matches;
+        };
+
+        const constructTree = (parentCode: string, parentAttrs: string[], patternIdx: number): any[] => {
+            if (patternIdx >= patterns.length) return []; // End of chain
+
+            const pattern = patterns[patternIdx];
+            // Replace {CODE} with the *Root* Item Code usually? Or the immediate parent? 
+            // "a finished good named 9698/22 PS will be built from WIP CBG 9698/22 PS"
+            // The pattern seems to be based on the ROOT item code string "9698/22 PS".
+            // So we always replace {CODE} with rootBOM.item_code.
+            
+            const expectedChildCode = pattern.replace('{CODE}', rootBOM.item_code);
+            const childItem = items.find((i: any) => i.code === expectedChildCode);
+            
+            if (!childItem) return []; // Item doesn't exist, chain breaks
+
+            const matchingAttrs = findMatchingAttributeIds(childItem, parentAttrs);
+            
+            // Generate Sub-Lines (Recursive)
+            const subLines = constructTree(rootBOM.item_code, matchingAttrs, patternIdx + 1);
+            
+            // If we have sub-lines, we need a sub-BOM definition
+            let subBOM: BOMNodeData | undefined = undefined;
+            if (subLines.length > 0) {
+                subBOM = {
+                    code: suggestBOMCode(childItem.code, matchingAttrs),
+                    item_code: childItem.code,
+                    attribute_value_ids: matchingAttrs,
+                    qty: 1.0,
+                    operations: [],
+                    lines: subLines
+                };
+            }
+
+            // Return as a Line Node
+            return [{
+                id: Math.random().toString(36).substr(2, 9),
+                item_code: childItem.code,
+                attribute_value_ids: matchingAttrs,
+                qty: 1.0, // Default 1:1 ratio
+                source_location_code: '',
+                subBOM: subBOM,
+                isExpanded: true
+            }];
+        };
+
+        const newLines = constructTree(rootBOM.item_code, rootBOM.attribute_value_ids, 0);
+        setRootBOM(prev => ({ ...prev, lines: newLines }));
+    };
+
     // --- Recursive Save Logic ---
     const saveNode = async (node: BOMNodeData): Promise<boolean> => {
-        // 1. Save all children first (Bottom-Up)
         for (const line of node.lines) {
             if (line.subBOM) {
                 const success = await saveNode(line.subBOM);
                 if (!success) return false;
             }
         }
-
-        // 2. Prepare payload for this node
         if (node.lines.length === 0 && node.operations.length === 0) return true;
-        
         try {
-            await onSave(node); // This calls the API
+            await onSave(node);
             return true;
         } catch (e) {
-            console.error("Failed to save node", node.code);
             return false;
         }
     };
@@ -146,7 +234,7 @@ export default function BOMDesigner({
         await saveNode(rootBOM);
     };
 
-    // --- Component for a Single BOM Node (Recursive) ---
+    // --- BOM Node Editor Component (Same as before but with Automation Button at Root) ---
     const BOMNodeEditor = ({ node, onChange, level = 0 }: { node: BOMNodeData, onChange: (n: BOMNodeData) => void, level: number }) => {
         const [newLine, setNewLine] = useState<{item_code: string, qty: number, attribute_value_ids: string[]}>({ 
             item_code: '', 
@@ -156,10 +244,9 @@ export default function BOMDesigner({
         
         const updateField = (field: string, value: any) => {
             const updatedNode = { ...node, [field]: value };
-            // If item changed at root, update code suggestion
             if (field === 'item_code' && level === 0) {
                 updatedNode.code = suggestBOMCode(value, node.attribute_value_ids);
-                updatedNode.attribute_value_ids = []; // Reset attrs on item change
+                updatedNode.attribute_value_ids = []; 
             }
             if (field === 'attribute_value_ids' && level === 0) {
                 updatedNode.code = suggestBOMCode(node.item_code, value);
@@ -193,7 +280,7 @@ export default function BOMDesigner({
         const createSubRecipe = (index: number) => {
             const line = node.lines[index];
             const subNode: BOMNodeData = {
-                code: suggestBOMCode(line.item_code, line.attribute_value_ids), // Auto-gen for sub-recipe
+                code: suggestBOMCode(line.item_code, line.attribute_value_ids),
                 item_code: line.item_code,
                 attribute_value_ids: line.attribute_value_ids,
                 qty: 1.0,
@@ -265,7 +352,18 @@ export default function BOMDesigner({
                         <input className="form-control form-control-sm" value={node.code} onChange={e => updateField('code', e.target.value)} placeholder="Auto-gen" />
                     </div>
                     <div className="col-md-6">
-                        <label className="form-label small text-muted">Item (Finished Good)</label>
+                        <label className="form-label d-flex justify-content-between align-items-center small text-muted">
+                            Item (Finished Good)
+                            {level === 0 && node.item_code && (
+                                <button 
+                                    className="btn btn-xs btn-info border py-0 px-2 shadow-sm text-uppercase fw-bold" 
+                                    style={{fontSize: '0.65rem'}}
+                                    onClick={() => setIsAutomatorOpen(true)}
+                                >
+                                    <i className="bi bi-magic me-1"></i>Automate
+                                </button>
+                            )}
+                        </label>
                         {level === 0 ? (
                             <select 
                                 className="form-select form-select-sm fw-bold" 
@@ -293,7 +391,7 @@ export default function BOMDesigner({
                                         style={{width: 'auto', minWidth: '100px', fontSize: '0.75rem'}}
                                         value={node.attribute_value_ids.find(vid => attr.values.some((v:any) => v.id === vid)) || ''}
                                         onChange={e => handleAttributeChange(attr.id, e.target.value, true)}
-                                        disabled={level > 0} // Lock attributes for sub-items as they are inherited from parent selection
+                                        disabled={level > 0} 
                                     >
                                         <option value="">{attr.name}...</option>
                                         {attr.values.map((v: any) => <option key={v.id} value={v.id}>{v.value}</option>)}
@@ -308,10 +406,9 @@ export default function BOMDesigner({
                     </div>
                 </div>
 
-                {/* Operations Placeholder (Simplified for Space) */}
+                {/* Operations */}
                 <div className="mb-3">
                     <h6 className="small fw-bold text-muted border-bottom pb-1">Operations <span className="badge bg-secondary">{node.operations.length}</span></h6>
-                    {/* Add Operation Logic Here if needed, keeping it minimal for now */}
                 </div>
 
                 {/* Materials (Recursive List) */}
@@ -327,7 +424,6 @@ export default function BOMDesigner({
                             </select>
                         </div>
                         <div className="col-md-5">
-                             {/* Line Attributes */}
                              {newLineBoundAttrs.length > 0 && (
                                 <div className="d-flex flex-wrap gap-1">
                                     {newLineBoundAttrs.map((attr: any) => (
@@ -374,7 +470,6 @@ export default function BOMDesigner({
                                         )}
                                         <span className="badge bg-secondary">{line.qty}</span>
                                         
-                                        {/* Status Indicators */}
                                         {hasExistingBOM(line.item_code) && <span className="badge bg-success bg-opacity-10 text-success border border-success">Existing BOM</span>}
                                         {!hasExistingBOM(line.item_code) && !line.subBOM && (
                                             <button 
@@ -392,7 +487,6 @@ export default function BOMDesigner({
                                     <button className="btn btn-xs btn-link text-danger p-0" onClick={() => removeLine(idx)}><i className="bi bi-x"></i></button>
                                 </div>
 
-                                {/* RECURSION: The Nested Editor */}
                                 {line.isExpanded && line.subBOM && (
                                     <div className="mt-2">
                                         <BOMNodeEditor 
@@ -424,11 +518,17 @@ export default function BOMDesigner({
                attributes={attributes}
            />
 
+           <BOMAutomatorModal
+               isOpen={isAutomatorOpen}
+               onClose={() => setIsAutomatorOpen(false)}
+               onApply={handleApplyAutomation}
+           />
+
             <BOMNodeEditor node={rootBOM} onChange={setRootBOM} level={0} />
             
             <div className="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
                 <button className="btn btn-secondary" onClick={onCancel}>{t('cancel')}</button>
-                <button className="btn btn-success fw-bold px-4 shadow-sm" onClick={handleGlobalSave}>
+                <button type="submit" className="btn btn-success fw-bold px-4 shadow-sm" onClick={handleGlobalSave}>
                     <i className="bi bi-check-lg me-2"></i>Save All Recipes
                 </button>
             </div>

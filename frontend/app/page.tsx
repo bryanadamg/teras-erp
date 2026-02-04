@@ -436,6 +436,19 @@ export default function Home() {
       }
   };
 
+  const handleDeleteWO = async (woId: string) => {
+      requestConfirm('Delete Work Order?', 'Are you sure you want to delete this Work Order? This action cannot be undone.', async () => {
+          const res = await authFetch(`${API_BASE}/work-orders/${woId}`, { method: 'DELETE' });
+          if (res.ok) {
+              showToast('Work Order deleted successfully', 'success');
+              fetchData();
+          } else {
+              const err = await res.json();
+              showToast(`Error: ${err.detail}`, 'danger');
+          }
+      });
+  };
+
   const handleDownloadTemplate = async () => {
       try {
           const res = await authFetch(`${API_BASE}/items/template`);
@@ -921,6 +934,7 @@ export default function Home() {
                 stockBalance={stockBalance}
                 onCreateWO={handleCreateWO} 
                 onUpdateStatus={handleUpdateWOStatus} 
+                onDeleteWO={handleDeleteWO}
             />
         )}
 
