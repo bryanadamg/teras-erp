@@ -1,17 +1,17 @@
 {
-  "name": "teras-erp-desktop",
+  "name": "Terras-erp-desktop",
   "version": "2.0.0",
-  "description": "Teras ERP Factory Operating System",
+  "description": "Terras ERP Factory Operating System",
   "main": "main.js",
-  "author": "Teras Systems",
+  "author": "Terras Systems",
   "scripts": {
     "start": "electron .",
     "pack": "electron-builder --dir",
     "dist": "electron-builder"
   },
   "build": {
-    "appId": "com.teras.erp",
-    "productName": "Teras ERP",
+    "appId": "com.Terras.erp",
+    "productName": "Terras ERP",
     "win": {
       "target": [
         "nsis"
@@ -46,7 +46,7 @@
       {
         "provider": "github",
         "owner": "YourGithubUsername",
-        "repo": "teras-erp"
+        "repo": "Terras-erp"
       }
     ]
   },

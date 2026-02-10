@@ -1,6 +1,6 @@
-# Teras ERP
+# Terras ERP
 
-**Teras ERP** is a professional-grade, modular Enterprise Resource Planning system engineered for high-stakes manufacturing and inventory operations. Built on a high-performance stack of **FastAPI** and **Next.js**, it bridges the gap between engineering, sales, and the factory floor.
+**Terras ERP** is a professional-grade, modular Enterprise Resource Planning system engineered for high-stakes manufacturing and inventory operations. Built on a high-performance stack of **FastAPI** and **Next.js**, it bridges the gap between engineering, sales, and the factory floor.
 
 ## Recent Updates (v2.1.0)
 *   **Audit Trail**: System-wide logging of all user actions for compliance and traceability.
@@ -11,7 +11,7 @@
 
 ## 🖥️ Desktop Installation Guide (Windows)
 
-Teras ERP can be packaged as a standalone Windows application (`.exe`). This allows for a native desktop experience with a dedicated window, taskbar icon, and **Cloud Auto-Updates**.
+Terras ERP can be packaged as a standalone Windows application (`.exe`). This allows for a native desktop experience with a dedicated window, taskbar icon, and **Cloud Auto-Updates**.
 
 ### 1. Prerequisites
 Ensure you have the following installed on your build machine:
@@ -22,11 +22,11 @@ Ensure you have the following installed on your build machine:
 ### 2. Setup & Configuration
 1.  **Clone the Repository**:
     ```bash
-    git clone https://github.com/YourUsername/teras-erp.git
-    cd teras-erp
+    git clone https://github.com/YourUsername/Terras-erp.git
+    cd Terras-erp
     ```
 2.  **Configure Database**:
-    *   Teras ERP Desktop requires a centralized **PostgreSQL** database (Scenario B).
+    *   Terras ERP Desktop requires a centralized **PostgreSQL** database (Scenario B).
     *   Edit `electron/resources/.env.production` (create it if missing) and set your production database credentials:
     ```env
     DATABASE_URL=postgresql+psycopg2://user:pass@your-server-ip:5432/erp_db
@@ -47,14 +47,14 @@ We have provided a master script to automate the complex multi-stage build proce
 
 ### 4. Installation
 1.  Once the script finishes, navigate to the `electron/dist/` folder.
-2.  Locate the file named **`Teras ERP Setup 2.x.x.exe`**.
+2.  Locate the file named **`Terras ERP Setup 2.x.x.exe`**.
 3.  Transfer this file to any client computer in your office and run it.
 4.  The application will install to the user's `AppData` and create a **Desktop Shortcut**.
 
 ### 5. Pulling Cloud Updates
 One of the core strengths of this architecture is the **Seamless Update Workflow**:
 1.  **On the Server**: When you want to push new features, simply pull the latest code and run `python build_installer.py` again with an incremented version number in `electron/package.json`.
-2.  **On the Client**: The next time a user opens the Teras ERP desktop app, it will detect the new version in the background. A prompt will appear: *"Update Ready. Restart now to install?"*
+2.  **On the Client**: The next time a user opens the Terras ERP desktop app, it will detect the new version in the background. A prompt will appear: *"Update Ready. Restart now to install?"*
 3.  Click **Yes**, and the system will update itself in seconds without losing any data.
 
 ---
@@ -69,4 +69,4 @@ One of the core strengths of this architecture is the **Seamless Update Workflow
 ## License
 This project is licensed under the **MIT License**.
 
-Copyright (c) 2026 Teras Systems.
+Copyright (c) 2026 Terras Systems.

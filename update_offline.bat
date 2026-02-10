@@ -1,8 +1,8 @@
 @echo off
-set UPDATE_FILE=teras_update.tar
+set UPDATE_FILE=Terras_update.tar
 
 echo ==========================================
-echo Teras ERP - Offline Update Utility
+echo Terras ERP - Offline Update Utility
 echo ==========================================
 echo.
 
@@ -47,6 +47,6 @@ echo.
 echo ==========================================
 echo SUCCESS: Update successfully applied!
 echo ==========================================
-echo Teras ERP is now running the latest version.
+echo Terras ERP is now running the latest version.
 echo.
 pause

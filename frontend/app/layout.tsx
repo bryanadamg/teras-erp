@@ -1,5 +1,3 @@
-import 'bootstrap/dist/css/bootstrap.min.css';
-import 'bootstrap-icons/font/bootstrap-icons.css';
 import './globals.css';
 import { ToastProvider } from './components/Toast';
 import { LanguageProvider } from './context/LanguageContext';
@@ -17,6 +15,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="stylesheet" href="./vendor/bootstrap/bootstrap.min.css" />
+        <link rel="stylesheet" href="./vendor/bootstrap-icons/bootstrap-icons.css" />
+      </head>
       <body>
         <LanguageProvider>
           <UserProvider>

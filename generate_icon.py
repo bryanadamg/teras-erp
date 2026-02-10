@@ -25,7 +25,7 @@ def create_ico(path):
     # BITMAPINFOHEADER (height is doubled for XOR + AND masks)
     bmp_info = struct.pack('<IiiHHIIiiII', 40, width, height * 2, 1, bpp, 0, pixel_data_size + mask_data_size, 0, 0, 0, 0)
     
-    # Indigo Pixel Data (BGRA) - Matching Teras ERP brand color #4F46E5
+    # Indigo Pixel Data (BGRA) - Matching Terras ERP brand color #4F46E5
     # Hex #4F46E5 -> R:79, G:70, B:229
     pixel = struct.pack('<BBBB', 229, 70, 79, 255) * (width * height)
     

@@ -14,7 +14,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
-    title: 'Teras ERP',
+    title: 'Terras ERP',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -127,7 +127,7 @@ autoUpdater.on('update-available', () => {
   dialog.showMessageBox({
     type: 'info',
     title: 'Update Available',
-    message: 'A new version of Teras ERP is downloading...',
+    message: 'A new version of Terras ERP is downloading...',
   });
 });
 
