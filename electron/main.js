@@ -36,7 +36,29 @@ function createWindow() {
     // We are choosing Option B (Hybrid): Electron serves UI, Python serves API.
     // This allows UI to load instantly even if Python is warming up.
     
-    mainWindow.loadFile(path.join(__dirname, '../frontend/out/index.html'));
+    // Debugging: List files in current directory to verify structure
+    console.log('Current Directory:', __dirname);
+    try {
+        console.log('Files in root:', fs.readdirSync(__dirname));
+        if (fs.existsSync(path.join(__dirname, 'frontend_dist'))) {
+            console.log('Files in frontend_dist:', fs.readdirSync(path.join(__dirname, 'frontend_dist')));
+        }
+    } catch (e) {
+        console.error('File listing failed:', e);
+    }
+
+    const indexPath = path.join(__dirname, 'frontend_dist/index.html');
+    console.log('Loading Frontend from:', indexPath);
+    
+    mainWindow.loadFile(indexPath).catch(err => {
+        console.error('Failed to load index.html:', err);
+    });
+
+    // Helpful for debugging blank screen in production
+    // You can remove this once confirmed working
+    if (!isDev) {
+        mainWindow.webContents.openDevTools();
+    }
   }
 
   mainWindow.on('closed', function () {

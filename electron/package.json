@@ -28,7 +28,7 @@
     },
     "files": [
       "main.js",
-      "../frontend/out/**/*",
+      "frontend_dist/**/*",
       "resources/**/*"
     ],
     "extraResources": [

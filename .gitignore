@@ -225,3 +225,11 @@ build/
 # Database
 postgres_data/
 cloudflared/
+
+# Electron / Desktop App
+electron/dist/
+electron/frontend_dist/
+electron/node_modules/
+electron/resources/.env.production
+electron/resources/backend.exe
+electron/resources/icon.ico

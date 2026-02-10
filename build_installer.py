@@ -17,6 +17,13 @@ def build_production():
     print("--- STEP 1: Building Frontend (Static Export) ---")
     run_command("npm install", cwd=os.path.join(root_dir, "frontend"))
     run_command("npm run build", cwd=os.path.join(root_dir, "frontend"))
+    
+    # Copy frontend output to electron folder for consistent pathing
+    electron_frontend_dir = os.path.join(root_dir, "electron", "frontend_dist")
+    if os.path.exists(electron_frontend_dir):
+        shutil.rmtree(electron_frontend_dir)
+    shutil.copytree(os.path.join(root_dir, "frontend", "out"), electron_frontend_dir)
+    print(f"Copied frontend build to {electron_frontend_dir}")
 
     print("\n--- STEP 2: Compiling Backend (PyInstaller) ---")
     # Ensure dependencies are installed for build
@@ -31,6 +38,12 @@ def build_production():
     if not os.path.exists(resources_dir):
         os.makedirs(resources_dir)
     
+    # CLEANUP: Remove previous build artifacts to ensure clean packaging
+    dist_dir = os.path.join(electron_dir, "dist")
+    if os.path.exists(dist_dir):
+        print(f"Cleaning previous build artifacts in {dist_dir}...")
+        shutil.rmtree(dist_dir)
+    
     # Check if a production .env exists, if not, copy example as a placeholder
     prod_env = os.path.join(resources_dir, ".env.production")
     if not os.path.exists(prod_env):
@@ -44,6 +57,8 @@ def build_production():
     print("\n" + "="*50)
     print("SUCCESS: Installer generated!")
     print(f"Location: {os.path.join(electron_dir, 'dist')}")
+    print("IMPORTANT: You must RUN this new installer to update your application.")
+    print("The error you saw earlier persists only because you are running the OLD installed version.")
     print("="*50)
 
 if __name__ == "__main__":
