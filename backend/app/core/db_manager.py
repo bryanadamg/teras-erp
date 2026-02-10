@@ -92,6 +92,12 @@ class DatabaseManager:
         return self._engine
 
     @property
+    def session_factory(self):
+        if not self._session_factory:
+            raise RuntimeError("DatabaseManager not initialized.")
+        return self._session_factory
+
+    @property
     def current_url(self):
         return self._current_url
 

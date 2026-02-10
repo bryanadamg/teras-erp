@@ -508,6 +508,7 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
                     </div>
                 </div>
             </div>
+            </>
         )}
 
       </div>
