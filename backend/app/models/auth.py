@@ -1,6 +1,6 @@
 import uuid
 from sqlalchemy import String, ForeignKey, Table, Column
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
@@ -52,6 +52,9 @@ class User(Base):
     role_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("roles.id"), nullable=True
     )
+    
+    # Category-based restriction (If Null, allow all. If set, allow only these categories)
+    allowed_categories: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
 
     role = relationship("Role")
     permissions = relationship("Permission", secondary=user_permissions)

@@ -4,15 +4,17 @@ from app.db.session import get_db
 from app.models.manufacturing import WorkOrder
 from app.models.bom import BOM
 from app.models.location import Location
-from app.services import stock_service
+from app.services import stock_service, audit_service
 from app.schemas import WorkOrderCreate, WorkOrderResponse
+from app.models.auth import User
+from app.api.auth import get_current_user
 from datetime import datetime
 from typing import Optional
 
 router = APIRouter()
 
 @router.post("/work-orders", response_model=WorkOrderResponse)
-def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db)):
+def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # 1. Check if WO code exists
     if db.query(WorkOrder).filter(WorkOrder.code == payload.code).first():
         raise HTTPException(status_code=400, detail="Work Order Code already exists")
@@ -55,6 +57,16 @@ def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(wo)
     
+    audit_service.log_activity(
+        db,
+        user_id=current_user.id,
+        action="CREATE",
+        entity_type="WorkOrder",
+        entity_id=str(wo.id),
+        details=f"Created Work Order {wo.code} for BOM {bom.code}",
+        changes=payload.dict()
+    )
+    
     wo.attribute_value_ids = [v.id for v in wo.attribute_values]
     
     # Check material availability
@@ -77,13 +89,16 @@ def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db)):
             
     return wo
 
+from app.models.item import Item # Import Item
+
 @router.get("/work-orders", response_model=list[WorkOrderResponse])
 def get_work_orders(
     skip: int = 0, 
     limit: int = 100, 
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     query = db.query(WorkOrder)
     
@@ -91,6 +106,9 @@ def get_work_orders(
         query = query.filter(WorkOrder.created_at >= start_date)
     if end_date:
         query = query.filter(WorkOrder.created_at <= end_date)
+        
+    if current_user.allowed_categories:
+        query = query.join(Item, WorkOrder.item_id == Item.id).filter(Item.category.in_(current_user.allowed_categories))
         
     items = query.order_by(WorkOrder.created_at.desc()).offset(skip).limit(limit).all()
     for item in items:
@@ -118,10 +136,12 @@ def get_work_orders(
     return items
 
 @router.put("/work-orders/{wo_id}/status")
-def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_db)):
+def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     wo = db.query(WorkOrder).filter(WorkOrder.id == wo_id).first()
     if not wo:
         raise HTTPException(status_code=404, detail="Work Order not found")
+    
+    previous_status = wo.status
     
     valid_statuses = ["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"]
     if status not in valid_statuses:
@@ -180,7 +200,7 @@ def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_
                 reference_id=wo.code
             )
         
-        # 2. Add Finished Good (to the destination/production location) (to the destination/production location)
+        # 2. Add Finished Good (to the destination/production location)
         stock_service.add_stock_entry(
             db,
             item_id=wo.item_id,
@@ -193,4 +213,37 @@ def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_
 
     wo.status = status
     db.commit()
+    
+    audit_service.log_activity(
+        db,
+        user_id=current_user.id,
+        action="UPDATE_STATUS",
+        entity_type="WorkOrder",
+        entity_id=wo_id,
+        details=f"Updated Work Order {wo.code} status from {previous_status} to {status}",
+        changes={"status": status, "previous_status": previous_status}
+    )
+    
     return {"status": "success", "message": f"Work Order updated to {status}"}
+
+@router.delete("/work-orders/{wo_id}")
+def delete_work_order(wo_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    wo = db.query(WorkOrder).filter(WorkOrder.id == wo_id).first()
+    if not wo:
+        raise HTTPException(status_code=404, detail="Work Order not found")
+    
+    details = f"Deleted Work Order {wo.code}"
+    
+    db.delete(wo)
+    db.commit()
+    
+    audit_service.log_activity(
+        db,
+        user_id=current_user.id,
+        action="DELETE",
+        entity_type="WorkOrder",
+        entity_id=wo_id,
+        details=details
+    )
+    
+    return {"status": "success", "message": "Work Order deleted"}

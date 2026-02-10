@@ -275,9 +275,17 @@ body {
 }
 
 .ui-style-classic .btn:active {
-  border-color: #ffffff #808080 #808080 #ffffff !important;
-  padding-top: 3px;
-  padding-bottom: 1px;
+  border-color: #808080 #ffffff #ffffff #808080 !important;
+  padding-top: 4px;
+  padding-bottom: 2px;
+}
+
+.ui-style-classic .btn.active {
+  background-color: #d4d0c8 !important;
+  border-color: #808080 #ffffff #ffffff #808080 !important; /* Inset look */
+  padding-top: 4px;
+  padding-bottom: 2px;
+  box-shadow: inset 1px 1px 2px rgba(0,0,0,0.1) !important;
 }
 
 /* Dashboard Overrides for Classic */
@@ -293,6 +301,26 @@ body {
     border-top-color: var(--win-border-light) !important;
     border-left-color: var(--win-border-light) !important;
 }
+
+/* Ensure indicators and status badges retain color even in Classic theme */
+.ui-style-classic .rounded-circle.bg-primary,
+.ui-style-classic .rounded-circle.bg-warning,
+.ui-style-classic .rounded-circle.bg-success,
+.ui-style-classic .rounded-circle.bg-danger,
+.ui-style-classic .calendar-day .badge,
+.ui-style-classic .compact-calendar .rounded-circle {
+    border: none !important;
+}
+
+.ui-style-classic .rounded-circle.bg-primary { background-color: #0000ff !important; }
+.ui-style-classic .rounded-circle.bg-warning { background-color: #ffff00 !important; }
+.ui-style-classic .rounded-circle.bg-success { background-color: #00ff00 !important; }
+.ui-style-classic .rounded-circle.bg-danger  { background-color: #ff0000 !important; }
+
+.ui-style-classic .calendar-day .badge.bg-primary { background-color: #0000ff !important; color: white !important; }
+.ui-style-classic .calendar-day .badge.bg-warning { background-color: #ffff00 !important; color: black !important; }
+.ui-style-classic .calendar-day .badge.bg-success { background-color: #00ff00 !important; color: black !important; }
+.ui-style-classic .calendar-day .badge.bg-danger  { background-color: #ff0000 !important; color: white !important; }
 
 .ui-style-classic .display-6,
 .ui-style-classic .card-title,

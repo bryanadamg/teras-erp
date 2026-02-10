@@ -23,6 +23,7 @@ def run_migrations():
                 ("work_orders", "completed_at", "TIMESTAMP WITHOUT TIME ZONE"),
                 ("bom_lines", "source_location_id", "UUID REFERENCES locations(id)"),
                 ("users", "hashed_password", "VARCHAR(255)"),
+                ("users", "allowed_categories", "JSON"),
             ]
 
             for table, col, col_type in migrations:
@@ -70,6 +71,7 @@ def run_migrations():
                 conn.execute(text("SELECT 1 FROM bom_operations LIMIT 1"))
                 conn.execute(text("SELECT 1 FROM sales_orders LIMIT 1"))
                 conn.execute(text("SELECT 1 FROM sample_requests LIMIT 1"))
+                conn.execute(text("SELECT 1 FROM audit_logs LIMIT 1"))
                 logger.info("Migration: Verified routing tables")
             except Exception as e:
                 pass

@@ -26,6 +26,8 @@ export interface User {
 
     permissions: Permission[]; // Direct granular permissions
 
+    allowed_categories?: string[];
+
 }
 
 

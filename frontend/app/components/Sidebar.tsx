@@ -222,6 +222,13 @@ export default function Sidebar({ activeTab, setActiveTab, appName, isOpen }: Si
                     <i className="bi bi-journal-text me-2"></i>{t('stock_ledger') || 'Stock Ledger'}
                   </a>
                 </li>
+                {hasPermission('admin.access') && (
+                <li>
+                  <a href="#" className={`nav-link py-2 small ${activeTab === 'audit-logs' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('audit-logs'); }}>
+                    <i className="bi bi-activity me-2"></i>Audit Logs
+                  </a>
+                </li>
+                )}
               </ul>
             )}
           </li>
@@ -230,7 +237,7 @@ export default function Sidebar({ activeTab, setActiveTab, appName, isOpen }: Si
       </div>
       
       <div className="p-3 text-center border-top bg-light">
-          <small className="text-muted fw-bold">{t('powered_by')} Teras ERP</small>
+          <small className="text-muted fw-bold">{t('powered_by')} Terras ERP</small>
       </div>
     </div>
   );

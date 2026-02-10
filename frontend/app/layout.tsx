@@ -6,7 +6,7 @@ import { LanguageProvider } from './context/LanguageContext';
 import { UserProvider } from './context/UserContext';
 
 export const metadata = {
-  title: 'Teras ERP',
+  title: 'Terras ERP',
   description: 'Next-generation modular manufacturing system',
 }
 

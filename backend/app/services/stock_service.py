@@ -73,10 +73,16 @@ def get_stock_entries(db: Session, skip: int = 0, limit: int = 100):
     )
 
 
-def get_all_stock_balances(db: Session):
+def get_all_stock_balances(db: Session, user=None):
     # For many-to-many, we fetch all entries and group in memory for simplicity in this dev phase
     # or use a complex SQL array aggregation. 
-    entries = db.query(StockLedger).all()
+    from app.models.item import Item # Import locally to avoid circular
+    query = db.query(StockLedger)
+    
+    if user and user.allowed_categories:
+        query = query.join(Item, StockLedger.item_id == Item.id).filter(Item.category.in_(user.allowed_categories))
+        
+    entries = query.all()
     
     balances = {}
     

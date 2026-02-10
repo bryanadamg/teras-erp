@@ -60,5 +60,14 @@ def get_item_by_code(db: Session, code: str) -> Item | None:
     return db.query(Item).filter(Item.code == code).first()
 
 
-def get_items(db: Session, skip: int = 0, limit: int = 100) -> list[Item]:
-    return db.query(Item).offset(skip).limit(limit).all()
+def get_items(db: Session, skip: int = 0, limit: int = 100, user=None) -> list[Item]:
+    query = db.query(Item)
+    
+    if user and user.allowed_categories:
+        # If user has specific allowed categories, filter by them
+        # Items with NO category are currently visible? Or hidden? 
+        # Typically "Strict" means if you have restrictions, you only see what is listed.
+        # So null category items would be hidden unless None is in the allowed list (unlikely for string list).
+        query = query.filter(Item.category.in_(user.allowed_categories))
+        
+    return query.offset(skip).limit(limit).all()
