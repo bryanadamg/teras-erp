@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useToast } from './Toast';
 import { useUser, User } from '../context/UserContext';
 
-export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpdateUIStyle }: any) {
+export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpdateUIStyle, requestConfirm }: any) {
   const { showToast } = useToast();
   const { currentUser, users, setCurrentUser, hasPermission, refreshUsers } = useUser();
   
@@ -17,6 +17,8 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
   const [newDbUrl, setNewDbUrl] = useState('');
   const [dbProfiles, setDbProfiles] = useState<any[]>([]);
   const [isDbLoading, setIsDbLoading] = useState(false);
+  const [snapshots, setSnapshots] = useState<any[]>([]);
+  const [isSnapshotLoading, setIsSnapshotLoading] = useState(false);
 
   // Self-Service Account State
   const [selfUsername, setSelfUsername] = useState('');
@@ -69,6 +71,7 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
       if (hasPermission('admin.access')) {
           refreshUsers();
           fetchDbInfo();
+          fetchSnapshots();
           const savedProfiles = localStorage.getItem('terras_db_profiles');
           if (savedProfiles) setDbProfiles(JSON.parse(savedProfiles));
       }
@@ -105,6 +108,87 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
       } finally {
           setIsDbLoading(false);
       }
+  };
+
+  const fetchSnapshots = async () => {
+      try {
+          const res = await fetch(`${API_BASE}/admin/database/snapshots`, {
+              headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+          });
+          if (res.ok) setSnapshots(await res.json());
+      } catch (e) { console.error("Snapshot fetch failed", e); }
+  };
+
+  const handleCreateSnapshot = async () => {
+      setIsSnapshotLoading(true);
+      try {
+          const res = await fetch(`${API_BASE}/admin/database/snapshots`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+          });
+          if (res.ok) {
+              showToast('Snapshot created successfully', 'success');
+              fetchSnapshots();
+          }
+      } catch (e) { showToast('Failed to create snapshot', 'danger'); }
+      finally { setIsSnapshotLoading(false); }
+  };
+
+  const handleDownloadSnapshot = async (filename: string) => {
+      try {
+          const res = await fetch(`${API_BASE}/admin/database/snapshots/${filename}/download`, {
+              headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+          });
+          const blob = await res.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+      } catch (e) { showToast('Download failed', 'danger'); }
+  };
+
+  const handleRestoreSnapshot = async (filename: string) => {
+      requestConfirm('Restore Snapshot?', `Are you sure you want to restore "${filename}"? Current data will be overwritten.`, async () => {
+          setIsSnapshotLoading(true);
+          try {
+              const res = await fetch(`${API_BASE}/admin/database/snapshots/${filename}/restore`, {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+              });
+              if (res.ok) {
+                  showToast('Database restored successfully!', 'success');
+                  window.location.reload();
+              } else {
+                  const err = await res.json();
+                  showToast(`Restore failed: ${err.detail}`, 'danger');
+              }
+          } catch (e) { showToast('Restore failed', 'danger'); }
+          finally { setIsSnapshotLoading(false); }
+      });
+  };
+
+  const handleUploadSnapshot = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (!e.target.files?.[0]) return;
+      const file = e.target.files[0];
+      const formData = new FormData();
+      formData.append('file', file);
+
+      setIsSnapshotLoading(true);
+      try {
+          const res = await fetch(`${API_BASE}/admin/database/snapshots/upload`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
+              body: formData
+          });
+          if (res.ok) {
+              showToast('Snapshot uploaded!', 'success');
+              fetchSnapshots();
+          }
+      } catch (e) { showToast('Upload failed', 'danger'); }
+      finally { setIsSnapshotLoading(false); }
   };
 
   const handleSubmitSystem = (e: React.FormEvent) => {
@@ -358,6 +442,65 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
                                 {dbProfiles.length === 0 && <div className="p-3 text-center text-muted extra-small">No saved profiles</div>}
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Snapshot & Context Migration Section */}
+            <div className="card shadow-sm border-0 mb-4 border-start border-4 border-primary">
+                <div className="card-header bg-primary bg-opacity-10 text-primary-emphasis d-flex justify-content-between align-items-center">
+                    <h5 className="card-title mb-0"><i className="bi bi-camera-fill me-2"></i>Snapshot & Context Migration</h5>
+                    <div className="d-flex gap-2">
+                        <label className="btn btn-sm btn-outline-primary mb-0" style={{cursor: 'pointer'}}>
+                            <i className="bi bi-cloud-upload me-1"></i>Upload Snapshot
+                            <input type="file" hidden onChange={handleUploadSnapshot} disabled={isSnapshotLoading} />
+                        </label>
+                        <button 
+                            className="btn btn-primary btn-sm" 
+                            onClick={handleCreateSnapshot}
+                            disabled={isSnapshotLoading}
+                        >
+                            {isSnapshotLoading ? <span className="spinner-border spinner-border-sm me-1"></span> : <i className="bi bi-plus-lg me-1"></i>}
+                            Create New Snapshot
+                        </button>
+                    </div>
+                </div>
+                <div className="card-body p-0">
+                    <div className="table-responsive">
+                        <table className="table table-hover align-middle mb-0 small">
+                            <thead className="table-light">
+                                <tr>
+                                    <th className="ps-4">Snapshot Filename</th>
+                                    <th>Created At</th>
+                                    <th>Size</th>
+                                    <th className="text-end pe-4">Context Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {snapshots.map((s, i) => (
+                                    <tr key={i}>
+                                        <td className="ps-4 font-monospace">{s.name}</td>
+                                        <td>{new Date(s.created_at).toLocaleString()}</td>
+                                        <td>{(s.size / 1024 / 1024).toFixed(2)} MB</td>
+                                        <td className="text-end pe-4">
+                                            <div className="d-flex gap-2 justify-content-end">
+                                                <button className="btn btn-sm btn-link text-primary p-0" onClick={() => handleDownloadSnapshot(s.name)} title="Export/Download">
+                                                    <i className="bi bi-download fs-5"></i>
+                                                </button>
+                                                <button className="btn btn-sm btn-link text-success p-0" onClick={() => handleRestoreSnapshot(s.name)} title="Restore/Rollback">
+                                                    <i className="bi bi-arrow-counterclockwise fs-5"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {snapshots.length === 0 && (
+                                    <tr>
+                                        <td colSpan={4} className="text-center py-4 text-muted">No snapshots found. Create one to begin.</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>

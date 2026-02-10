@@ -962,6 +962,7 @@ export default function Home() {
                 onUpdateAppName={handleUpdateAppName}
                 uiStyle={uiStyle}
                 onUpdateUIStyle={handleUpdateUIStyle}
+                requestConfirm={requestConfirm}
             />
         )}
         </div>
