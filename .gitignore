@@ -225,3 +225,4 @@ build/
 # Database
 postgres_data/
 cloudflared/
+electron/

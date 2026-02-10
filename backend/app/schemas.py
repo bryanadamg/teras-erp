@@ -319,6 +319,16 @@ class UserResponse(UserBase):
     class Config:
         from_attributes = True
 
+class DatabaseResponse(BaseModel):
+    message: str
+    status: bool
+    data: Optional[dict] = None
+
+class ConnectionProfile(BaseModel):
+    name: str
+    url: str
+    is_active: bool = False
+
 class AuditLogResponse(BaseModel):
     id: UUID
     user_id: UUID | None

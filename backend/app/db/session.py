@@ -1,27 +1,21 @@
 import os
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from app.db.base import Base
+from app.core.db_manager import db_manager
 
+# Default configuration from Environment
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
     "postgresql+psycopg2://erp:erp@db:5432/erp"
 )
 
-engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True
-)
+# Initialize the manager with the default URL on first load
+if not db_manager.current_url:
+    db_manager.initialize(DATABASE_URL)
 
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine
-)
+# Dynamically return the engine to ensure it's always current
+@property
+def engine():
+    return db_manager.engine
 
+# Dependency for FastAPI
 def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    yield from db_manager.get_session()

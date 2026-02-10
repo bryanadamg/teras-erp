@@ -12,6 +12,12 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
   const [allPermissions, setAllPermissions] = useState<any[]>([]);
   const [allCategories, setAllCategories] = useState<any[]>([]);
 
+  // Database Management State
+  const [currentDbUrl, setCurrentDbUrl] = useState('');
+  const [newDbUrl, setNewDbUrl] = useState('');
+  const [dbProfiles, setDbProfiles] = useState<any[]>([]);
+  const [isDbLoading, setIsDbLoading] = useState(false);
+
   // Self-Service Account State
   const [selfUsername, setSelfUsername] = useState('');
   const [selfFullName, setSelfFullName] = useState('');
@@ -28,6 +34,18 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
   const [newPassword, setNewPassword] = useState('');
 
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
+
+  const fetchDbInfo = async () => {
+      try {
+          const res = await fetch(`${API_BASE}/admin/database/current`, {
+              headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+          });
+          if (res.ok) {
+              const data = await res.json();
+              setCurrentDbUrl(data.data.url);
+          }
+      } catch (e) { console.error("DB info fetch failed", e); }
+  };
 
   useEffect(() => {
       // Sync self state with current user
@@ -47,11 +65,47 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
           setAllCategories(catsData);
       }).catch(err => console.error("Failed to fetch auth data", err));
 
-      // Refresh users if admin
+      // Refresh users and DB info if admin
       if (hasPermission('admin.access')) {
           refreshUsers();
+          fetchDbInfo();
+          const savedProfiles = localStorage.getItem('terras_db_profiles');
+          if (savedProfiles) setDbProfiles(JSON.parse(savedProfiles));
       }
   }, [currentUser]);
+
+  const handleSwitchDatabase = async (url: string) => {
+      setIsDbLoading(true);
+      try {
+          const res = await fetch(`${API_BASE}/admin/database/switch`, {
+              method: 'POST',
+              headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+              },
+              body: JSON.stringify({ name: 'Manual Switch', url })
+          });
+
+          if (res.ok) {
+              showToast('Database switched and initialized!', 'success');
+              // Save to profiles if not present
+              if (!dbProfiles.some(p => p.url === url)) {
+                  const newProfiles = [...dbProfiles, { name: `DB ${dbProfiles.length + 1}`, url }];
+                  setDbProfiles(newProfiles);
+                  localStorage.setItem('terras_db_profiles', JSON.stringify(newProfiles));
+              }
+              // Refresh whole app state since data context changed
+              window.location.reload(); 
+          } else {
+              const err = await res.json();
+              showToast(`Switch failed: ${err.detail}`, 'danger');
+          }
+      } catch (e) {
+          showToast('Network error during DB switch', 'danger');
+      } finally {
+          setIsDbLoading(false);
+      }
+  };
 
   const handleSubmitSystem = (e: React.FormEvent) => {
       e.preventDefault();
@@ -249,6 +303,65 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
 
         {/* Admin User Management */}
         {hasPermission('admin.access') && (
+            <>
+            {/* Database Infrastructure Section */}
+            <div className="card shadow-sm border-0 mb-4 border-start border-4 border-info">
+                <div className="card-header bg-info bg-opacity-10 text-info-emphasis d-flex justify-content-between align-items-center">
+                    <h5 className="card-title mb-0"><i className="bi bi-database-fill-gear me-2"></i>Database Infrastructure</h5>
+                    <span className="badge bg-info">Admin Only</span>
+                </div>
+                <div className="card-body">
+                    <div className="mb-4">
+                        <label className="form-label small fw-bold text-muted">Current Connection</label>
+                        <div className="input-group">
+                            <span className="input-group-text bg-light"><i className="bi bi-link-45deg"></i></span>
+                            <input className="form-control bg-light font-monospace small" value={currentDbUrl} readOnly />
+                        </div>
+                    </div>
+
+                    <div className="row g-4">
+                        <div className="col-md-7">
+                            <label className="form-label small fw-bold text-primary">Switch to New Database</label>
+                            <div className="input-group mb-2">
+                                <input 
+                                    className="form-control font-monospace small" 
+                                    placeholder="postgresql+psycopg2://user:pass@host:port/db" 
+                                    value={newDbUrl}
+                                    onChange={e => setNewDbUrl(e.target.value)}
+                                />
+                                <button 
+                                    className="btn btn-info text-white" 
+                                    onClick={() => handleSwitchDatabase(newDbUrl)}
+                                    disabled={!newDbUrl || isDbLoading}
+                                >
+                                    {isDbLoading ? <span className="spinner-border spinner-border-sm"></span> : 'Switch Connection'}
+                                </button>
+                            </div>
+                            <div className="form-text extra-small text-danger">
+                                <i className="bi bi-exclamation-triangle-fill me-1"></i>
+                                WARNING: Switching databases will change the entire data context. Ensure the target DB is accessible.
+                            </div>
+                        </div>
+                        <div className="col-md-5">
+                            <label className="form-label small fw-bold text-muted">Saved Profiles</label>
+                            <div className="list-group list-group-flush border rounded overflow-auto" style={{maxHeight: '120px'}}>
+                                {dbProfiles.map((p, i) => (
+                                    <button 
+                                        key={i} 
+                                        className="list-group-item list-group-item-action d-flex justify-content-between align-items-center small"
+                                        onClick={() => setNewDbUrl(p.url)}
+                                    >
+                                        <span className="text-truncate" style={{maxWidth: '80%'}}>{p.name}: {p.url}</span>
+                                        <i className="bi bi-arrow-right-short"></i>
+                                    </button>
+                                ))}
+                                {dbProfiles.length === 0 && <div className="p-3 text-center text-muted extra-small">No saved profiles</div>}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div className="card shadow-sm border-0">
                 <div className="card-header bg-danger bg-opacity-10 text-danger-emphasis">
                     <h5 className="card-title mb-0"><i className="bi bi-shield-lock me-2"></i>User Management (Admin)</h5>
