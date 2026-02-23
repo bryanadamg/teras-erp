@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 
+interface AutoBOMProfile {
+    id: string;
+    name: string;
+    levels: string[][];
+}
+
 interface BOMAutomatorModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -9,25 +15,31 @@ interface BOMAutomatorModalProps {
 
 export default function BOMAutomatorModal({ isOpen, onClose, onApply }: BOMAutomatorModalProps) {
     const { t } = useLanguage();
-    // Default: 3 levels, each with 1 pattern
-    const [levels, setLevels] = useState<string[][]>([['WIP CBG {CODE}'], ['WIP CSBG {CODE}'], ['WIP WARPING {CODE}']]);
+    // Default structure
+    const defaultLevels = [['WIP CBG {CODE}'], ['WIP CSBG {CODE}'], ['WIP WARPING {CODE}']];
+    const [levels, setLevels] = useState<string[][]>(defaultLevels);
+    const [profiles, setProfiles] = useState<AutoBOMProfile[]>([]);
+    const [profileName, setProfileName] = useState('');
     const [currentStyle, setCurrentStyle] = useState('default');
 
     useEffect(() => {
-        const savedLevels = localStorage.getItem('bom_auto_levels');
-        if (savedLevels) {
+        const savedProfiles = localStorage.getItem('bom_auto_profiles');
+        if (savedProfiles) {
             try {
-                const parsed = JSON.parse(savedLevels);
-                if (Array.isArray(parsed) && Array.isArray(parsed[0])) {
-                    setLevels(parsed);
-                } else if (Array.isArray(parsed)) {
-                    // Migration for old single-string array format
-                    setLevels(parsed.map(p => [p]));
-                }
+                setProfiles(JSON.parse(savedProfiles));
             } catch (e) {
-                console.error("Invalid patterns in localstorage");
+                console.error("Invalid profiles in localstorage");
             }
         }
+        
+        // Load the last active levels if available, or default
+        const lastLevels = localStorage.getItem('bom_auto_levels_active');
+        if (lastLevels) {
+            try {
+                setLevels(JSON.parse(lastLevels));
+            } catch (e) {}
+        }
+
         const savedStyle = localStorage.getItem('ui_style');
         if (savedStyle) setCurrentStyle(savedStyle);
     }, [isOpen]);
@@ -60,8 +72,32 @@ export default function BOMAutomatorModal({ isOpen, onClose, onApply }: BOMAutom
         setLevels(newLevels);
     };
 
+    const handleSaveProfile = () => {
+        if (!profileName.trim()) return;
+        const newProfile: AutoBOMProfile = {
+            id: Math.random().toString(36).substr(2, 9),
+            name: profileName,
+            levels: levels
+        };
+        const updatedProfiles = [...profiles, newProfile];
+        setProfiles(updatedProfiles);
+        localStorage.setItem('bom_auto_profiles', JSON.stringify(updatedProfiles));
+        setProfileName('');
+    };
+
+    const handleLoadProfile = (profile: AutoBOMProfile) => {
+        setLevels(profile.levels);
+    };
+
+    const handleDeleteProfile = (e: React.MouseEvent, id: string) => {
+        e.stopPropagation();
+        const updatedProfiles = profiles.filter(p => p.id !== id);
+        setProfiles(updatedProfiles);
+        localStorage.setItem('bom_auto_profiles', JSON.stringify(updatedProfiles));
+    };
+
     const handleSaveAndApply = () => {
-        localStorage.setItem('bom_auto_levels', JSON.stringify(levels));
+        localStorage.setItem('bom_auto_levels_active', JSON.stringify(levels));
         onApply(levels);
         onClose();
     };
@@ -83,6 +119,45 @@ export default function BOMAutomatorModal({ isOpen, onClose, onApply }: BOMAutom
                     </div>
                     
                     <div className="modal-body p-0" style={{ maxHeight: '75vh', overflowY: 'auto', backgroundColor: '#f8f9fa' }}>
+                        
+                        {/* Profile Management Section */}
+                        <div className="p-4 bg-light border-bottom">
+                            <h6 className="extra-small fw-bold text-uppercase text-muted mb-3 letter-spacing-1">
+                                <i className="bi bi-folder2-open me-2"></i>Configuration Profiles
+                            </h6>
+                            <div className="row g-3">
+                                <div className="col-md-7">
+                                    <div className="d-flex flex-wrap gap-2">
+                                        {profiles.map(p => (
+                                            <div key={p.id} className="btn-group btn-group-sm mb-1 shadow-xs">
+                                                <button className="btn btn-white border text-dark px-3" onClick={() => handleLoadProfile(p)}>
+                                                    {p.name}
+                                                </button>
+                                                <button className="btn btn-white border-start-0 border text-danger opacity-75 hover-opacity-100" onClick={(e) => handleDeleteProfile(e, p.id)}>
+                                                    <i className="bi bi-x"></i>
+                                                </button>
+                                            </div>
+                                        ))}
+                                        {profiles.length === 0 && <span className="text-muted small italic py-1">No saved profiles yet.</span>}
+                                    </div>
+                                </div>
+                                <div className="col-md-5">
+                                    <div className="input-group input-group-sm shadow-xs">
+                                        <input 
+                                            type="text" 
+                                            className="form-control" 
+                                            placeholder="Profile Name..." 
+                                            value={profileName}
+                                            onChange={e => setProfileName(e.target.value)}
+                                        />
+                                        <button className="btn btn-primary" type="button" onClick={handleSaveProfile} disabled={!profileName.trim()}>
+                                            <i className="bi bi-cloud-arrow-up-fill me-1"></i>Save New
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="p-4 bg-white border-bottom shadow-sm">
                             <p className="text-secondary mb-4 small">
                                 Configure naming patterns per processing level. Use <code>{'{CODE}'}</code> as a placeholder for the parent item code.
