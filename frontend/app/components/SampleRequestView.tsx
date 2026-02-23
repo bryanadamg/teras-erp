@@ -186,15 +186,15 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
                                     <input className="form-control" placeholder="Auto-generated" value={newSample.code} onChange={e => setNewSample({...newSample, code: e.target.value})} required />
                                 </div>
                                 <div className="col-md-6">
-                                    <label className="form-label small text-muted">Link to Purchase Order (Optional)</label>
+                                    <label className="form-label small text-muted">Link to Sales Order (Optional)</label>
                                     <SearchableSelect 
                                         options={[
-                                            { value: "", label: "No Purchase Order (Internal/Prototype)" },
+                                            { value: "", label: "No Sales Order (Internal/Prototype)" },
                                             ...salesOrders.map((so: any) => ({ value: so.id, label: `${so.po_number} - ${so.customer_name}` }))
                                         ]}
                                         value={newSample.sales_order_id} 
                                         onChange={(val) => setNewSample({...newSample, sales_order_id: val})}
-                                        placeholder="Select PO (Optional)..."
+                                        placeholder="Select SO (Optional)..."
                                     />
                                 </div>
                             </div>
@@ -202,7 +202,7 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
                             <div className="mb-3">
                                 <label className="form-label">Base Item (Prototype Model)</label>
                                 <SearchableSelect 
-                                    options={items.filter((i:any) => i.category !== 'Sample').map((item: any) => ({ value: item.id, label: item.name, subLabel: item.code }))}
+                                    options={items.filter((i:any) => i.category === 'Sample').map((item: any) => ({ value: item.id, label: item.name, subLabel: item.code }))}
                                     value={newSample.base_item_id} 
                                     onChange={(val) => setNewSample({...newSample, base_item_id: val, attribute_value_ids: []})}
                                     required
