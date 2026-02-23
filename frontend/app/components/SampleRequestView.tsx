@@ -111,7 +111,11 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
 
   const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
-      onCreateSample(newSample);
+      const payload = {
+          ...newSample,
+          sales_order_id: newSample.sales_order_id || null
+      };
+      onCreateSample(payload);
       setNewSample({ code: '', sales_order_id: '', base_item_id: '', attribute_value_ids: [], notes: '' });
       setIsCreateOpen(false);
   };
