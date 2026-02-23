@@ -10,6 +10,7 @@ interface BOMLineNode {
     item_code: string;
     attribute_value_ids: string[];
     qty: number;
+    is_percentage: boolean;
     source_location_code: string;
     subBOM?: BOMNodeData; 
     isNewItem?: boolean;
@@ -21,6 +22,7 @@ interface BOMNodeData {
     item_code: string; 
     attribute_value_ids: string[];
     qty: number;
+    tolerance_percentage: number;
     operations: any[];
     lines: BOMLineNode[];
     isNewItem?: boolean;
@@ -47,6 +49,7 @@ export default function BOMDesigner({
         item_code: rootItemCode || '',
         attribute_value_ids: [],
         qty: 1.0,
+        tolerance_percentage: 0.0,
         operations: [],
         lines: []
     });
@@ -59,6 +62,7 @@ export default function BOMDesigner({
     // Add Component Local State
     const [pendingItemCode, setPendingItemCode] = useState('');
     const [pendingQty, setPendingQty] = useState<string>('');
+    const [pendingIsPercentage, setPendingIsPercentage] = useState(false);
     
     const [codeConfig, setCodeConfig] = useState<CodeConfig>({
         prefix: 'BOM',
@@ -203,6 +207,7 @@ export default function BOMDesigner({
                 item_code: expectedChildCode,
                 attribute_value_ids: matchingAttrs,
                 qty: 1.0,
+                tolerance_percentage: 0.0,
                 operations: [],
                 lines: subLines, // Will be empty for the last item
                 isNewItem: isNewItem
@@ -428,6 +433,13 @@ export default function BOMDesigner({
                                     <label className="form-label small text-muted">Batch Size</label>
                                     <input type="number" className="form-control" value={selectedNode.qty} onChange={e => updateSelectedNode({ qty: parseFloat(e.target.value) })} />
                                 </div>
+                                <div className="col-md-2">
+                                    <label className="form-label small text-muted text-nowrap">Tolerance %</label>
+                                    <div className="input-group">
+                                        <input type="number" className="form-control" value={selectedNode.tolerance_percentage} onChange={e => updateSelectedNode({ tolerance_percentage: parseFloat(e.target.value) })} />
+                                        <span className="input-group-text px-2">%</span>
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Node Attributes */}
@@ -506,13 +518,23 @@ export default function BOMDesigner({
                                                     />
                                                 </div>
                                                 <div style={{ flex: 1 }}>
-                                                    <input 
-                                                        type="number" 
-                                                        className="form-control" 
-                                                        placeholder="Qty" 
-                                                        value={pendingQty}
-                                                        onChange={e => setPendingQty(e.target.value)}
-                                                    />
+                                                    <div className="input-group">
+                                                        <input 
+                                                            type="number" 
+                                                            className="form-control" 
+                                                            placeholder="Qty" 
+                                                            value={pendingQty}
+                                                            onChange={e => setPendingQty(e.target.value)}
+                                                        />
+                                                        <button 
+                                                            className={`btn btn-sm ${pendingIsPercentage ? 'btn-warning' : 'btn-outline-secondary'}`}
+                                                            type="button"
+                                                            onClick={() => setPendingIsPercentage(!pendingIsPercentage)}
+                                                            title="Toggle Percentage"
+                                                        >
+                                                            {pendingIsPercentage ? '%' : '#'}
+                                                        </button>
+                                                    </div>
                                                 </div>
                                                 <button 
                                                     className="btn btn-primary" 
@@ -525,12 +547,14 @@ export default function BOMDesigner({
                                                                 item_code: pendingItemCode,
                                                                 attribute_value_ids: [],
                                                                 qty: parseFloat(pendingQty),
+                                                                is_percentage: pendingIsPercentage,
                                                                 source_location_code: '',
                                                                 isNewItem: !exists
                                                             };
                                                             updateSelectedNode({ lines: [...selectedNode.lines, newLine] });
                                                             setPendingItemCode('');
                                                             setPendingQty('');
+                                                            setPendingIsPercentage(false);
                                                         }
                                                     }}
                                                 >
@@ -543,7 +567,9 @@ export default function BOMDesigner({
                                                     <div key={line.id} className="p-2 border rounded d-flex justify-content-between align-items-center bg-white">
                                                         <div className="d-flex align-items-center gap-2">
                                                             <span className="fw-bold small">{getItemName(line.item_code)}</span>
-                                                            <span className="badge bg-secondary">{line.qty}</span>
+                                                            <span className={`badge ${line.is_percentage ? 'bg-warning text-dark' : 'bg-secondary'}`}>
+                                                                {line.qty}{line.is_percentage ? '%' : ''}
+                                                            </span>
                                                             {!hasExistingBOM(line.item_code) && !line.subBOM && (
                                                                 <button className="btn btn-xs btn-warning py-0 px-2" onClick={() => {
                                                                     const subNode: BOMNodeData = {
@@ -551,7 +577,11 @@ export default function BOMDesigner({
                                                                         code: suggestBOMCode(line.item_code, line.attribute_value_ids),
                                                                         item_code: line.item_code,
                                                                         attribute_value_ids: line.attribute_value_ids,
-                                                                        qty: 1.0, operations: [], lines: [], isNewItem: line.isNewItem
+                                                                        qty: 1.0,
+                                                                        tolerance_percentage: 0.0,
+                                                                        operations: [], 
+                                                                        lines: [], 
+                                                                        isNewItem: line.isNewItem
                                                                     };
                                                                     const newLines = [...selectedNode.lines];
                                                                     newLines[i] = { ...line, subBOM: subNode };

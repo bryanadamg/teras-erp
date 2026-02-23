@@ -45,6 +45,7 @@ class BOMLineCreate(BaseModel):
     item_code: str
     attribute_value_ids: list[UUID] = []
     qty: float
+    is_percentage: bool = False
     source_location_code: str | None = None
 
 class BOMLineResponse(BaseModel):
@@ -52,6 +53,7 @@ class BOMLineResponse(BaseModel):
     item_id: UUID
     attribute_value_ids: list[UUID] = [] # We'll populate this in the API
     qty: float
+    is_percentage: bool = False
     source_location_id: UUID | None = None
 
     class Config:
@@ -79,6 +81,7 @@ class BOMCreate(BaseModel):
     item_code: str
     attribute_value_ids: list[UUID] = []
     qty: float = 1.0
+    tolerance_percentage: float = 0.0
     lines: list[BOMLineCreate]
     operations: list[BOMOperationCreate] = []
 
@@ -89,6 +92,7 @@ class BOMResponse(BaseModel):
     item_id: UUID
     attribute_value_ids: list[UUID] = [] # We'll populate this in the API
     qty: float
+    tolerance_percentage: float = 0.0
     active: bool
     lines: list[BOMLineResponse]
     operations: list[BOMOperationResponse] = []

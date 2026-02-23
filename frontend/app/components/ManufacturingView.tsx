@@ -204,6 +204,22 @@ export default function ManufacturingView({
       if (diffDays < 2) return { type: 'warning', icon: 'bi-exclamation-triangle-fill', text: 'Due Soon' };
       return null;
   };
+  const calculateRequiredQty = (baseQty: number, line: any, bom: any) => {
+      let required = parseFloat(line.qty);
+      if (line.is_percentage) {
+          required = (baseQty * required) / 100;
+      } else {
+          // Absolute qty is usually per 1 unit of BOM, so scale by baseQty
+          required = baseQty * required;
+      }
+      // Apply tolerance from BOM header if present
+      const tolerance = parseFloat(bom?.tolerance_percentage || 0);
+      if (tolerance > 0) {
+          required = required * (1 + (tolerance / 100));
+      }
+      return required;
+  };
+
   const checkStockAvailability = (item_id: string, location_id: string, attribute_value_ids: string[] = [], required_qty: number) => {
       const targetIds = attribute_value_ids || [];
       const matchingEntries = stockBalance.filter((s: any) => 
@@ -220,10 +236,23 @@ export default function ManufacturingView({
       const bom = boms.find((b: any) => b.id === wo.bom_id);
       
       // Recursive BOM Renderer
-      const renderPrintBOMLines = (lines: any[], level = 0, parentQty = 1) => {
+      const renderPrintBOMLines = (lines: any[], level = 0, currentParentQty = 1, currentBOM: any) => {
           return lines.map((line: any) => {
               const subBOM = boms.find((b: any) => b.item_id === line.item_id);
-              const requiredQty = line.qty * parentQty; // Scale qty by parent multiplier
+              
+              // Calculate scaled qty for this line
+              let scaledQty = parseFloat(line.qty);
+              if (line.is_percentage) {
+                  scaledQty = (currentParentQty * scaledQty) / 100;
+              } else {
+                  scaledQty = currentParentQty * scaledQty;
+              }
+
+              // Apply tolerance of the current level's BOM
+              const tolerance = parseFloat(currentBOM?.tolerance_percentage || 0);
+              if (tolerance > 0) {
+                  scaledQty = scaledQty * (1 + (tolerance / 100));
+              }
               
               return (
                   <>
@@ -236,12 +265,15 @@ export default function ManufacturingView({
                               {getItemName(line.item_id)}
                               {subBOM && <span className="badge bg-secondary ms-2" style={{fontSize: '0.6rem'}}>Sub-Assy</span>}
                           </td>
-                          <td className="small fst-italic">{(line.attribute_value_ids || []).map(getAttributeValueName).join(', ')}</td>
+                          <td className="small fst-italic">
+                              {line.qty}{line.is_percentage ? '%' : ''} 
+                              {(line.attribute_value_ids || []).length > 0 && ` • ${(line.attribute_value_ids || []).map(getAttributeValueName).join(', ')}`}
+                          </td>
                           <td>{getLocationName(line.source_location_id || wo.source_location_id || wo.location_id)}</td>
-                          <td className="text-end">{line.qty}</td>
-                          <td className="text-end fw-bold">{requiredQty * wo.qty}</td> {/* Total = Unit * WO Qty */}
+                          <td className="text-end">{line.qty}{line.is_percentage ? '%' : ''}</td>
+                          <td className="text-end fw-bold">{(scaledQty * wo.qty).toFixed(4)}</td> 
                       </tr>
-                      {subBOM && subBOM.lines && renderPrintBOMLines(subBOM.lines, level + 1, requiredQty)}
+                      {subBOM && subBOM.lines && renderPrintBOMLines(subBOM.lines, level + 1, scaledQty, subBOM)}
                   </>
               );
           });
@@ -295,6 +327,9 @@ export default function ManufacturingView({
 
               {/* BOM Materials */}
               <h5 className="fw-bold border-bottom pb-2 mb-3">Bill of Materials (Full Tree)</h5>
+              <div className="mb-2 small text-muted fst-italic">
+                  Note: Totals include configurable BOM tolerances.
+              </div>
               <table className="table table-bordered table-sm mb-5">
                   <thead className="table-light">
                       <tr>
@@ -307,7 +342,7 @@ export default function ManufacturingView({
                       </tr>
                   </thead>
                   <tbody>
-                      {bom ? renderPrintBOMLines(bom.lines) : <tr><td colSpan={6}>No BOM found</td></tr>}
+                      {bom ? renderPrintBOMLines(bom.lines, 0, 1, bom) : <tr><td colSpan={6}>No BOM found</td></tr>}
                   </tbody>
               </table>
 
@@ -555,17 +590,20 @@ export default function ManufacturingView({
                                                                         </thead>
                                                                         <tbody>
                                                                             {bom.lines.map((line: any) => {
-                                                                                const required = line.qty * wo.qty;
+                                                                                const required = calculateRequiredQty(wo.qty, line, bom);
                                                                                 const checkLocId = line.source_location_id || wo.source_location_id || wo.location_id;
                                                                                 const { available, isEnough } = checkStockAvailability(line.item_id, checkLocId, line.attribute_value_ids, required);
                                                                                 return (
                                                                                     <tr key={line.id}>
                                                                                         <td>
                                                                                             <span className="fw-medium">{getItemName(line.item_id)}</span>
-                                                                                            <div className="small text-muted fst-italic">{line.attribute_value_ids.map(getAttributeValueName).join(', ') || ''}</div>
+                                                                                            <div className="small text-muted fst-italic">
+                                                                                                {line.qty}{line.is_percentage ? '%' : ''} per unit
+                                                                                                {line.attribute_value_ids.map(getAttributeValueName).join(', ') && ` • ${line.attribute_value_ids.map(getAttributeValueName).join(', ')}`}
+                                                                                            </div>
                                                                                         </td>
                                                                                         <td><span className="badge bg-light text-dark border font-monospace small">{getLocationName(checkLocId)}</span></td>
-                                                                                        <td>{required}</td>
+                                                                                        <td className="fw-bold">{required.toFixed(4)}</td>
                                                                                         <td className={isEnough ? 'text-success' : 'text-danger'}>{available}</td>
                                                                                         <td>{isEnough ? <span className="badge bg-success bg-opacity-10 text-success"><i className="bi bi-check2"></i> Ready</span> : <span className="badge bg-danger bg-opacity-10 text-danger"><i className="bi bi-x-circle"></i> Missing</span>}</td>
                                                                                     </tr>

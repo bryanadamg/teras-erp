@@ -22,6 +22,8 @@ def run_migrations():
                 ("work_orders", "source_location_id", "UUID REFERENCES locations(id)"),
                 ("work_orders", "completed_at", "TIMESTAMP WITHOUT TIME ZONE"),
                 ("bom_lines", "source_location_id", "UUID REFERENCES locations(id)"),
+                ("bom_lines", "is_percentage", "BOOLEAN DEFAULT FALSE"),
+                ("boms", "tolerance_percentage", "NUMERIC(5,2) DEFAULT 0.0"),
                 ("users", "hashed_password", "VARCHAR(255)"),
                 ("users", "allowed_categories", "JSON"),
             ]

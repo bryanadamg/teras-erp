@@ -33,6 +33,7 @@ class BOM(Base):
         UUID(as_uuid=True), ForeignKey("items.id"), index=True
     )
     qty: Mapped[float] = mapped_column(Numeric(14, 4), default=1.0)
+    tolerance_percentage: Mapped[float] = mapped_column(Numeric(5, 2), default=0.0) # e.g. 10.0 for 10%
     
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
@@ -63,6 +64,7 @@ class BOMLine(Base):
     )
 
     qty: Mapped[float] = mapped_column(Numeric(14, 4))
+    is_percentage: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Relationships
     attribute_values = relationship("AttributeValue", secondary=bom_line_values)
