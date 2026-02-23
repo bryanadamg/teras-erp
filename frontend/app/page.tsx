@@ -16,6 +16,7 @@ import ReportsView from './components/ReportsView';
 import SettingsView from './components/SettingsView';
 import PurchaseOrderView from './components/PurchaseOrderView';
 import SampleRequestView from './components/SampleRequestView';
+import PartnersView from './components/PartnersView';
 import AuditLogsView from './components/AuditLogsView';
 import CalendarView from './components/CalendarView';
 import { useToast } from './components/Toast';
@@ -67,6 +68,7 @@ export default function Home() {
   const [salesOrders, setSalesOrders] = useState([]);
   const [samples, setSamples] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
+  const [partners, setPartners] = useState([]);
 
   // Pagination State
   const [itemPage, setItemPage] = useState(1);
@@ -89,7 +91,7 @@ export default function Home() {
       const auditSkip = (auditPage - 1) * pageSize;
       const reportSkip = (reportPage - 1) * pageSize;
 
-      const [itemsRes, locsRes, stockRes, attrsRes, catsRes, uomsRes, bomsRes, wcRes, opRes, woRes, balRes, soRes, sampRes, auditRes] = await Promise.all([
+      const [itemsRes, locsRes, stockRes, attrsRes, catsRes, uomsRes, bomsRes, wcRes, opRes, woRes, balRes, soRes, sampRes, auditRes, partnersRes] = await Promise.all([
           fetch(`${API_BASE}/items?skip=${itemSkip}&limit=${pageSize}`, { headers }),
           fetch(`${API_BASE}/locations`, { headers }),
           fetch(`${API_BASE}/stock?skip=${reportSkip}&limit=${pageSize}`, { headers }),
@@ -103,7 +105,8 @@ export default function Home() {
           fetch(`${API_BASE}/stock/balance`, { headers }),
           fetch(`${API_BASE}/sales-orders`, { headers }),
           fetch(`${API_BASE}/samples`, { headers }),
-          fetch(`${API_BASE}/audit-logs?skip=${auditSkip}&limit=${pageSize}`, { headers })
+          fetch(`${API_BASE}/audit-logs?skip=${auditSkip}&limit=${pageSize}`, { headers }),
+          fetch(`${API_BASE}/partners`, { headers })
       ]);
 
       if (itemsRes.ok) {
@@ -136,6 +139,7 @@ export default function Home() {
           setAuditLogs(data.items);
           setAuditTotal(data.total);
       }
+      if (partnersRes.ok) setPartners(await partnersRes.json());
     } catch (e) {
       console.error("Failed to fetch data", e);
     }
@@ -535,6 +539,38 @@ export default function Home() {
         showToast('Stock recorded!', 'success');
         fetchData();
     }
+  };
+
+  const handleCreatePartner = async (partner: any) => {
+      const res = await authFetch(`${API_BASE}/partners`, {
+          method: 'POST',
+          body: JSON.stringify(partner)
+      });
+      if (res.ok) {
+          showToast('Partner added successfully!', 'success');
+          fetchData();
+      }
+  };
+
+  const handleUpdatePartner = async (id: string, partner: any) => {
+      const res = await authFetch(`${API_BASE}/partners/${id}`, {
+          method: 'PUT',
+          body: JSON.stringify(partner)
+      });
+      if (res.ok) {
+          showToast('Partner updated!', 'success');
+          fetchData();
+      }
+  };
+
+  const handleDeletePartner = async (id: string) => {
+      requestConfirm('Delete Partner?', 'Are you sure?', async () => {
+          const res = await authFetch(`${API_BASE}/partners/${id}`, { method: 'DELETE' });
+          if (res.ok) {
+              showToast('Partner deleted', 'success');
+              fetchData();
+          }
+      });
   };
 
   if (loading) {
@@ -966,8 +1002,29 @@ export default function Home() {
                 items={items} 
                 attributes={attributes}
                 salesOrders={salesOrders}
+                partners={partners}
                 onCreatePO={handleCreatePO}
                 onDeletePO={handleDeletePO}
+            />
+        )}
+
+        {activeTab === 'customers' && (
+            <PartnersView 
+                partners={partners}
+                type="CUSTOMER"
+                onCreate={handleCreatePartner}
+                onUpdate={handleUpdatePartner}
+                onDelete={handleDeletePartner}
+            />
+        )}
+
+        {activeTab === 'suppliers' && (
+            <PartnersView 
+                partners={partners}
+                type="SUPPLIER"
+                onCreate={handleCreatePartner}
+                onUpdate={handleUpdatePartner}
+                onDelete={handleDeletePartner}
             />
         )}
 

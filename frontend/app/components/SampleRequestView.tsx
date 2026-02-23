@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
+import SearchableSelect from './SearchableSelect';
 
 export default function SampleRequestView({ samples, salesOrders, items, attributes, onCreateSample, onUpdateStatus, onDeleteSample, uiStyle }: any) {
   const { showToast } = useToast();
@@ -186,23 +187,27 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
                                 </div>
                                 <div className="col-md-6">
                                     <label className="form-label small text-muted">Link to Purchase Order (Optional)</label>
-                                    <select className="form-select" value={newSample.sales_order_id} onChange={e => setNewSample({...newSample, sales_order_id: e.target.value})}>
-                                        <option value="">Select PO...</option>
-                                        {salesOrders.map((so: any) => (
-                                            <option key={so.id} value={so.id}>{so.po_number} - {so.customer_name}</option>
-                                        ))}
-                                    </select>
+                                    <SearchableSelect 
+                                        options={[
+                                            { value: "", label: "No Purchase Order (Internal/Prototype)" },
+                                            ...salesOrders.map((so: any) => ({ value: so.id, label: `${so.po_number} - ${so.customer_name}` }))
+                                        ]}
+                                        value={newSample.sales_order_id} 
+                                        onChange={(val) => setNewSample({...newSample, sales_order_id: val})}
+                                        placeholder="Select PO (Optional)..."
+                                    />
                                 </div>
                             </div>
                             
                             <div className="mb-3">
                                 <label className="form-label">Base Item (Prototype Model)</label>
-                                <select className="form-select" value={newSample.base_item_id} onChange={e => setNewSample({...newSample, base_item_id: e.target.value, attribute_value_ids: []})} required>
-                                    <option value="">Select Base Item...</option>
-                                    {items.filter((i:any) => i.category !== 'Sample').map((item: any) => (
-                                        <option key={item.id} value={item.id}>{item.name} ({item.code})</option>
-                                    ))}
-                                </select>
+                                <SearchableSelect 
+                                    options={items.filter((i:any) => i.category !== 'Sample').map((item: any) => ({ value: item.id, label: item.name, subLabel: item.code }))}
+                                    value={newSample.base_item_id} 
+                                    onChange={(val) => setNewSample({...newSample, base_item_id: val, attribute_value_ids: []})}
+                                    required
+                                    placeholder="Select Base Item..."
+                                />
                             </div>
 
                             {currentBoundAttrs.length > 0 && (

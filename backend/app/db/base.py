@@ -27,3 +27,4 @@ from app.models.sales import SalesOrder, SalesOrderLine
 from app.models.sample import SampleRequest, sample_attribute_values
 from app.models.audit import AuditLog
 from app.models.kpi import KPICache
+from app.models.partner import Partner

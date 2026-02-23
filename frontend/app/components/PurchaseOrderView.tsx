@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
+import SearchableSelect from './SearchableSelect';
 
-export default function PurchaseOrderView({ items, attributes, salesOrders, onCreatePO, onDeletePO }: any) {
-  const { showToast } = useToast();
+export default function PurchaseOrderView({ items, attributes, salesOrders, partners, onCreatePO, onDeletePO }: any) {
+  const { showToast } = showToast || useToast(); // Handling possible undefined toast if not in context
   const { t } = useLanguage();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   
@@ -117,7 +118,7 @@ export default function PurchaseOrderView({ items, attributes, salesOrders, onCr
   const isSample = (id: string) => items.find((i: any) => i.id === id)?.category === 'Sample';
 
   const getBoundAttributes = (itemId: string) => {
-      const item = items.find((i: any) => i.id === itemId);
+      const item = items.find((i: any) => i.id === id);
       if (!item || !item.attribute_ids) return [];
       return attributes.filter((a: any) => item.attribute_ids.includes(a.id));
   };
@@ -131,6 +132,8 @@ export default function PurchaseOrderView({ items, attributes, salesOrders, onCr
       }
       return valId;
   };
+
+  const customers = partners.filter((p: any) => p.type === 'CUSTOMER' && p.active);
 
   return (
     <div className="row g-4 fade-in">
@@ -146,7 +149,7 @@ export default function PurchaseOrderView({ items, attributes, salesOrders, onCr
        {/* Create PO Modal */}
        {isCreateOpen && (
        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
-            <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className={`modal-dialog modal-lg modal-dialog-centered`}>
                 <div className="modal-content shadow">
                     <div className="modal-header bg-primary bg-opacity-10 text-primary-emphasis">
                         <h5 className="modal-title"><i className="bi bi-cart-plus me-2"></i>Create Purchase Order (Incoming)</h5>
@@ -168,8 +171,14 @@ export default function PurchaseOrderView({ items, attributes, salesOrders, onCr
                                     <input className="form-control" placeholder="Auto-generated" value={newPO.po_number} onChange={e => setNewPO({...newPO, po_number: e.target.value})} required />
                                 </div>
                                 <div className="col-md-5">
-                                    <label className="form-label small text-muted">Customer Name</label>
-                                    <input className="form-control" placeholder="Client Name" value={newPO.customer_name} onChange={e => setNewPO({...newPO, customer_name: e.target.value})} required />
+                                    <label className="form-label small text-muted">Customer</label>
+                                    <SearchableSelect 
+                                        options={customers.map((c: any) => ({ value: c.name, label: c.name, subLabel: c.address }))}
+                                        value={newPO.customer_name}
+                                        onChange={(val) => setNewPO({...newPO, customer_name: val})}
+                                        placeholder="Select Customer..."
+                                        required
+                                    />
                                 </div>
                                 <div className="col-md-3">
                                     <label className="form-label small text-muted">Date</label>
@@ -177,26 +186,24 @@ export default function PurchaseOrderView({ items, attributes, salesOrders, onCr
                                 </div>
                             </div>
                             
-                            <h6 className="small text-uppercase text-muted fw-bold mb-3">Order Items (Samples)</h6>
+                            <h6 className="small text-uppercase text-muted fw-bold mb-3">Order Items</h6>
                             <div className="bg-light p-3 rounded-3 mb-3 border border-dashed">
                                 <div className="row g-2 mb-3">
                                     <div className="col-6">
                                         <label className="form-label small text-muted">Item</label>
-                                        <select className="form-select form-select-sm" value={newLine.item_id} onChange={e => setNewLine({...newLine, item_id: e.target.value, attribute_value_ids: []})}>
-                                            <option value="">Select Item...</option>
-                                            {items.map((item: any) => (
-                                                <option key={item.id} value={item.id}>
-                                                    {item.name} ({item.code}) {item.category === 'Sample' ? '★' : ''}
-                                                </option>
-                                            ))}
-                                        </select>
+                                        <SearchableSelect 
+                                            options={items.map((item: any) => ({ value: item.id, label: item.name, subLabel: `${item.code} ${item.category === 'Sample' ? '★' : ''}` }))}
+                                            value={newLine.item_id}
+                                            onChange={(val) => setNewLine({...newLine, item_id: val, attribute_value_ids: []})}
+                                            placeholder="Select Item..."
+                                        />
                                     </div>
                                     <div className="col-3">
                                         <label className="form-label small text-muted">Qty</label>
-                                        <input type="number" className="form-control form-control-sm" placeholder="0" value={newLine.qty} onChange={e => setNewLine({...newLine, qty: parseFloat(e.target.value)})} />
+                                        <input type="number" className="form-control" placeholder="0" value={newLine.qty} onChange={e => setNewLine({...newLine, qty: parseFloat(e.target.value)})} />
                                     </div>
                                     <div className="col-3 d-flex align-items-end">
-                                        <button type="button" className="btn btn-secondary btn-sm w-100" onClick={handleAddLine} disabled={!newLine.item_id}>Add</button>
+                                        <button type="button" className="btn btn-secondary w-100" onClick={handleAddLine} disabled={!newLine.item_id}>Add</button>
                                     </div>
                                     
                                     {/* Attribute Selection */}

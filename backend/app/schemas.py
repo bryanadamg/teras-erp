@@ -244,6 +244,24 @@ class OperationResponse(OperationCreate):
     class Config:
         from_attributes = True
 
+# --- Partner (Customer/Supplier) Schemas ---
+
+class PartnerCreate(BaseModel):
+    name: str
+    address: Optional[str] = None
+    type: str # CUSTOMER or SUPPLIER
+    active: bool = True
+
+class PartnerUpdate(BaseModel):
+    name: Optional[str] = None
+    address: Optional[str] = None
+    active: Optional[bool] = None
+
+class PartnerResponse(PartnerCreate):
+    id: UUID
+    class Config:
+        from_attributes = True
+
 # --- Sales Schemas ---
 
 class SalesOrderLineCreate(BaseModel):

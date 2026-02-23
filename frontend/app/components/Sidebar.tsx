@@ -61,6 +61,16 @@ export default function Sidebar({ activeTab, setActiveTab, appName, isOpen }: Si
                   </a>
                 </li>
                 <li>
+                  <a href="#" className={`nav-link py-2 small ${activeTab === 'customers' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('customers'); }}>
+                    <i className="bi bi-people me-2"></i>{t('customers')}
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className={`nav-link py-2 small ${activeTab === 'suppliers' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('suppliers'); }}>
+                    <i className="bi bi-truck me-2"></i>{t('suppliers')}
+                  </a>
+                </li>
+                <li>
                   <a href="#" className={`nav-link py-2 small ${activeTab === 'samples' ? 'fw-bold text-primary' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('samples'); }}>
                     <i className="bi bi-eyedropper me-2"></i>{t('sample_requests')}
                   </a>
