@@ -4,43 +4,51 @@
 
 ## Core Capabilities
 
-### 🌐 Interactive Public Landing Page
-*   **Retro Aesthetic**: A distinct, high-impact entry point featuring a terminal-inspired "AUTH_TERMINAL" for secure system access.
-*   **Modular Discovery**: Dynamic overview of core modules including Inventory, Manufacturing, and Engineering.
-*   **Technical Blueprint**: Deep-dive architecture specs for technical stakeholders and direct API documentation access.
+### 🌐 Corporate-Retro Landing Page
+*   **High-Impact Entry**: A terminal-inspired public entry point featuring interactive "AUTH_TERMINAL" effects for secure system access.
+*   **Technical Discovery**: Dynamic overview of core modules and direct access to system architecture specifications for stakeholders.
 
-### 📊 Insightful Business Dashboard
-*   **Operational KPIs**: Instant visibility into SKUs, Low-Stock Alerts, Active Production, Pending WO, Active Samples, and Open POs.
-*   **Warehouse Distribution**: Visual representation of inventory quantities and SKU diversity across multiple storage locations.
-*   **Real-time Activity Feed**: Live tracking of the latest stock movements and production statuses.
+### 📊 Scalable Business Intelligence
+*   **KPI Caching (New)**: Instant dashboard loading via a persistent cache layer, preventing expensive re-calculations on every refresh.
+*   **Enterprise Data Volume (New)**: Optimized to handle hundreds of thousands of records without UI lag using **Server-Side Pagination** and **SQL Aggregations**.
+*   **Visual Monitoring**: Real-time tracking of warehouse distribution, SKU diversity, and live production progress bars.
 
-### 🔐 Enterprise Security & Audit (New)
-*   **JWT Authentication**: Industry-standard **OAuth2 + JWT** token-based security for all API transactions and sessions.
-*   **System-Wide Audit Trail**: Comprehensive logging of all `CREATE`, `UPDATE`, and `DELETE` actions across every module.
-*   **Administrative Control Panel**: Real-time management of user identities, granular permission overrides, and secure password resets.
+### 💾 Dynamic Infrastructure & Portability (New)
+*   **Hot-Swap Database Manager**: Administrators can switch the entire system's data context at runtime by updating SQLAlchemy connection strings through the UI.
+*   **Point-in-Time Snapshots**: Native support for creating, downloading, and uploading database snapshots (PostgreSQL/SQLite) for rapid backup and recovery.
+*   **Environment Portability**: Easily migrate data between development, testing, and production environments using the built-in management dashboard.
 
-### 📦 Precision Inventory & Sample Lifecycle (PLM)
+### 🛒 Refactored Supply Chain & Partners
+*   **Sales vs. Procurement**: Distinct modules for **Sales Orders (SO)** (Customer Demand) and **Purchase Orders (PO)** (Supplier Procurement).
+*   **Centralized Directory**: Unified management of **Customers** and **Suppliers** with detailed address tracking and status control.
+*   **Searchable Intelligence**: System-wide **Searchable Dropdown Module** allowing instant lookups within massive datasets of items and partners.
 *   **Industry-Standard Sampling**: Dedicated **Sample Request** workflow (Draft -> In Production -> Sent -> Approved/Rejected) linked to Incoming POs.
 *   **Master Sample Management**: Separate workspace for defining prototype templates before promotion to production items.
 *   **Strict Integrity**: Multi-attribute matching logic prevents negative stock and ensures raw material availability.
 
-### 🏭 Manufacturing & Engineering (MES)
-*   **Hierarchical BOMs**: Visual tree-style display for nested recipes and sub-assemblies.
-*   **Production Planning**: (New) Visual **Production Calendar** for deadline tracking and scheduling (In Progress).
+### 🏭 Advanced Manufacturing & Engineering (MES)
+*   **Recursive BOM Designer**: Split-pane Master-Detail interface for managing deep product structures and sub-assemblies.
+*   **Sampling Lifecycle (PLM)**: Dedicated **Sample Request** workflow (Draft -> Production -> Sent -> Approved) with traceability to Sales Orders.
+*   **Production Planning**: Integrated **Production Calendar** for deadline tracking and a "Live" schedule showing real-time material shortages.
 *   **Execution Monitoring**: Expandable Production Schedule showing real-time material shortages and component-level warehouse overrides.
 *   **Routing & Operations**: Define factory **Work Centers** and **Operations** directly within engineering definitions.
 
+### 🔐 Enterprise Security & Audit
+*   **JWT Authentication**: Industry-standard **OAuth2 + JWT** token-based security for all sessions.
+*   **System-Wide Audit Trail**: Comprehensive logging of all `CREATE`, `UPDATE`, and `DELETE` actions, including JSON diffs of changes.
+*   **Granular RBAC**: Role-Based Access Control with **Category-level visibility restrictions** for sensitive data protection.
+
 ### 🖥️ Adaptive User Experience
-*   **Mobile Responsive**: Fully optimized for smartphones and tablets with a collapsible navigation and responsive data grids.
-*   **Multi-Language Support (i18n)**: Instantly toggle between **English** and **Indonesian**.
-*   **Themed Interface Engine**: Choose between Modern, Compact, and the high-efficiency **Classic (Windows XP)** style.
+*   **Themed Interface Engine**: Instantly toggle between Modern, Compact, and the high-efficiency **Classic (Windows XP)** style.
+*   **Multi-Language Support (i18n)**: Full native support for **English** and **Indonesian**.
+*   **Mobile Optimized**: Responsive navigation and data grids tailored for smartphones and tablets.
 
 ## Technical Architecture
 
-*   **Backend**: Python 3.11+, FastAPI, SQLAlchemy 2.0, PostgreSQL 15, Python-Jose (JWT).
+*   **Backend**: Python 3.11+, FastAPI, SQLAlchemy 2.0 (Standard & JSONB), PostgreSQL 15.
+*   **Performance**: Redis-ready caching, B-Tree Indexing, and offloaded DB aggregations.
 *   **Frontend**: TypeScript, Next.js 14, React 18, Bootstrap 5.
-*   **Infrastructure**: Fully containerized with Docker & Docker Compose.
-*   **Security**: Non-root container execution, network isolation, and stateless token management.
+*   **Infrastructure**: Fully containerized with Docker & Docker Compose (PostgreSQL Client integrated).
 
 ## 📚 Documentation
 
@@ -49,34 +57,17 @@
 
 ## Getting Started
 
-### Prerequisites
-*   Docker & Docker Compose
-
 ### Installation & Run
 1.  **Clone the repository**.
-2.  **Configure Environment**:
-    ```bash
-    cp .env.example .env
-    # Edit .env with your configuration
-    ```
+2.  **Configure Environment**: `cp .env.example .env`
 3.  **Start the System**:
     ```bash
     docker-compose up --build -d
     ```
-4.  **Access the Application**:
-    *   **Frontend Portal**: [http://localhost:3030](http://localhost:3030)
-    *   **Backend API**: [http://localhost:8000/api/docs](http://localhost:8000/api/docs)
-
-## Future Industrial Modules (Roadmap)
-
-1.  **Procurement & Supplier Management (Source to Pay)**
-    *   Supplier Master, Outgoing Purchase Orders, and Goods Receipt Notes (GRN).
-2.  **Logistics & Fulfillment**
-    *   Packing Slips, Waybills, and automated shipping stock deduction.
-3.  **Costing Engine (Financials)**
-    *   FIFO / Weighted Average valuation and real-time Work-in-Progress (WIP) calculation.
-4.  **Quality Control (QC)**
-    *   Inspection Checkpoints (Inward, In-Process, Final) with Reject/Rework logic.
+4.  **Simulate Large Data (Stress Test)**:
+    ```bash
+    docker-compose exec backend python scripts/seed_volume.py
+    ```
 
 ## License
 
