@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from app.db.session import get_db
 from app.services import item_service, stock_service, import_service, audit_service
-from app.schemas import ItemCreate, ItemResponse, StockEntryCreate, ItemUpdate, VariantCreate
+from app.schemas import ItemCreate, ItemResponse, StockEntryCreate, ItemUpdate, VariantCreate, PaginatedItemResponse
 from app.models.location import Location
 from app.models.auth import User
 from app.api.auth import get_current_user
