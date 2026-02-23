@@ -5,7 +5,7 @@ import { useLanguage } from '../context/LanguageContext';
 import SearchableSelect from './SearchableSelect';
 
 export default function PurchaseOrderView({ items, attributes, salesOrders, partners, onCreatePO, onDeletePO }: any) {
-  const { showToast } = showToast || useToast(); // Handling possible undefined toast if not in context
+  const { showToast } = useToast();
   const { t } = useLanguage();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   
@@ -118,7 +118,7 @@ export default function PurchaseOrderView({ items, attributes, salesOrders, part
   const isSample = (id: string) => items.find((i: any) => i.id === id)?.category === 'Sample';
 
   const getBoundAttributes = (itemId: string) => {
-      const item = items.find((i: any) => i.id === id);
+      const item = items.find((i: any) => i.id === itemId);
       if (!item || !item.attribute_ids) return [];
       return attributes.filter((a: any) => item.attribute_ids.includes(a.id));
   };
