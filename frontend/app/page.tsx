@@ -14,7 +14,7 @@ import ManufacturingView from './components/ManufacturingView';
 import StockEntryView from './components/StockEntryView';
 import ReportsView from './components/ReportsView';
 import SettingsView from './components/SettingsView';
-import PurchaseOrderView from './components/PurchaseOrderView';
+import SalesOrderView from './components/SalesOrderView';
 import SampleRequestView from './components/SampleRequestView';
 import PartnersView from './components/PartnersView';
 import AuditLogsView from './components/AuditLogsView';
@@ -997,14 +997,14 @@ export default function Home() {
             />
         )}
 
-        {activeTab === 'purchase-orders' && (
-            <PurchaseOrderView 
+        {activeTab === 'sales-orders' && (
+            <SalesOrderView 
                 items={items} 
                 attributes={attributes}
                 salesOrders={salesOrders}
                 partners={partners}
-                onCreatePO={handleCreatePO}
-                onDeletePO={handleDeletePO}
+                onCreateSO={handleCreatePO}
+                onDeleteSO={handleDeletePO}
             />
         )}
 
