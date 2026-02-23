@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
 import BulkImportModal from './BulkImportModal';
+import SearchableSelect from './SearchableSelect';
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -320,12 +321,12 @@ export default function InventoryView({
 
                           <div className="mb-3">
                               <label className="form-label small text-muted">{t('source_sample')}</label>
-                              <select className="form-select" value={newItem.source_sample_id} onChange={e => setNewItem({...newItem, source_sample_id: e.target.value})}>
-                                  <option value="">None</option>
-                                  {sampleItems.map((s: any) => (
-                                      <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
-                                  ))}
-                              </select>
+                              <SearchableSelect 
+                                  options={sampleItems.map((s: any) => ({ value: s.id, label: s.name, subLabel: s.code }))}
+                                  value={newItem.source_sample_id} 
+                                  onChange={(val) => setNewItem({...newItem, source_sample_id: val})}
+                                  placeholder="None"
+                              />
                           </div>
                           
                           <div className="d-flex justify-content-end gap-2 mt-3">
@@ -526,12 +527,12 @@ export default function InventoryView({
 
                         <div className="mb-3">
                             <label className="form-label small text-muted">{t('source_sample')}</label>
-                            <select className="form-select" value={editingItem.source_sample_id || ''} onChange={e => setEditingItem({...editingItem, source_sample_id: e.target.value})}>
-                                <option value="">None</option>
-                                {sampleItems.map((s: any) => (
-                                    <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
-                                ))}
-                            </select>
+                            <SearchableSelect 
+                                options={sampleItems.map((s: any) => ({ value: s.id, label: s.name, subLabel: s.code }))}
+                                value={editingItem.source_sample_id || ''} 
+                                onChange={(val) => setEditingItem({...editingItem, source_sample_id: val})}
+                                placeholder="None"
+                            />
                         </div>
                         
                         <div className="d-flex justify-content-between">

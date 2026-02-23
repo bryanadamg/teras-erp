@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
 import CalendarView from './CalendarView';
+import SearchableSelect from './SearchableSelect';
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -130,8 +131,7 @@ export default function ManufacturingView({
       return true;
   });
 
-  const handleBOMChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-      const bomId = e.target.value;
+  const handleBOMChange = (bomId: string) => {
       const suggestedCode = suggestWOCode(bomId);
       setNewWO({...newWO, bom_id: bomId, code: suggestedCode});
   };
