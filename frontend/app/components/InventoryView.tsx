@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
 import BulkImportModal from './BulkImportModal';
 import SearchableSelect from './SearchableSelect';
+import HistoryPane from './HistoryPane';
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -53,6 +54,7 @@ export default function InventoryView({
   
   // Editing State
   const [editingItem, setEditingItem] = useState<any>(null);
+  const [historyEntityId, setHistoryEntityId] = useState<string | null>(null);
   
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showCatInput, setShowCatInput] = useState(false);
@@ -425,6 +427,9 @@ export default function InventoryView({
                       <td><span className="text-muted small">{getAttributeNames(item.attribute_ids)}</span></td>
                       <td>
                           <div className="d-flex gap-1">
+                              <button className="btn btn-sm btn-link text-info p-0" title="View History" onClick={() => setHistoryEntityId(item.id)}>
+                                  <i className="bi bi-clock-history"></i>
+                              </button>
                               <button className="btn btn-sm btn-link text-primary p-0" onClick={() => setEditingItem({...item, attribute_ids: item.attribute_ids || []})}>
                                   <i className="bi bi-pencil-square"></i>
                               </button>
@@ -545,6 +550,14 @@ export default function InventoryView({
           </div>
         </div>
       </div>
+      )}
+
+      {historyEntityId && (
+          <HistoryPane 
+              entityType="Item" 
+              entityId={historyEntityId} 
+              onClose={() => setHistoryEntityId(null)} 
+          />
       )}
     </div>
   );

@@ -3,6 +3,7 @@ import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
 import SearchableSelect from './SearchableSelect';
+import HistoryPane from './HistoryPane';
 
 export default function SampleRequestView({ samples, salesOrders, items, attributes, onCreateSample, onUpdateStatus, onDeleteSample, uiStyle }: any) {
   const { showToast } = useToast();
@@ -10,6 +11,7 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
+  const [historyEntityId, setHistoryEntityId] = useState<string | null>(null);
   
   const [newSample, setNewSample] = useState({
       code: '',
@@ -314,13 +316,18 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
                                     </td>
                                     <td><span className={`badge ${getStatusBadge(s.status)}`}>{s.status}</span></td>
                                     <td className="pe-4 text-end">
-                                        <button 
-                                            className="btn btn-sm btn-light border action-dropdown-btn" 
-                                            type="button"
-                                            onClick={(e) => toggleDropdown(s.id, e)}
-                                        >
-                                            Update <i className="bi bi-caret-down-fill ms-1" style={{fontSize: '0.7em'}}></i>
-                                        </button>
+                                        <div className="d-flex justify-content-end gap-2">
+                                            <button className="btn btn-sm btn-link text-info p-0" title="View History" onClick={() => setHistoryEntityId(s.id)}>
+                                                <i className="bi bi-clock-history"></i>
+                                            </button>
+                                            <button 
+                                                className="btn btn-sm btn-light border action-dropdown-btn" 
+                                                type="button"
+                                                onClick={(e) => toggleDropdown(s.id, e)}
+                                            >
+                                                Update <i className="bi bi-caret-down-fill ms-1" style={{fontSize: '0.7em'}}></i>
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -331,6 +338,14 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
              </div>
           </div>
        </div>
+
+       {historyEntityId && (
+           <HistoryPane 
+               entityType="SampleRequest" 
+               entityId={historyEntityId} 
+               onClose={() => setHistoryEntityId(null)} 
+           />
+       )}
     </div>
   );
 }
