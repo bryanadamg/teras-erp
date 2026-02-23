@@ -396,10 +396,13 @@ export default function ManufacturingView({
                               </div>
                               <div className="mb-3">
                                   <label className="form-label">{t('select_recipe')}</label>
-                                  <select className="form-select" value={newWO.bom_id} onChange={handleBOMChange} required>
-                                      <option value="">Choose a product recipe...</option>
-                                      {boms.map((b: any) => <option key={b.id} value={b.id}>{b.code} - {getItemName(b.item_id)}</option>)}
-                                  </select>
+                                  <SearchableSelect 
+                                      options={boms.map((b: any) => ({ value: b.id, label: `${b.code} - ${getItemName(b.item_id)}` }))}
+                                      value={newWO.bom_id}
+                                      onChange={handleBOMChange}
+                                      required
+                                      placeholder="Choose a product recipe..."
+                                  />
                               </div>
                               <div className="row g-2 mb-3">
                                   <div className="col-6">
