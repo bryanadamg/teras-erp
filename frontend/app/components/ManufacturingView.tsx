@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
 import CalendarView from './CalendarView';
 import SearchableSelect from './SearchableSelect';
+import QRScannerView from './QRScannerView';
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -283,9 +284,19 @@ export default function ManufacturingView({
           <div className="bg-white p-5 h-100 position-fixed top-0 start-0 w-100" style={{zIndex: 2000, overflowY: 'auto'}}>
               {/* Header */}
               <div className="d-flex justify-content-between border-bottom pb-3 mb-4">
-                  <div>
-                      <h2 className="fw-bold mb-0">WORK ORDER</h2>
-                      <div className="text-muted small">Terras ERP Manufacturing</div>
+                  <div className="d-flex gap-4">
+                      {/* QR Code for scanning */}
+                      <div className="bg-white border p-1 rounded">
+                          <img 
+                              src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${wo.code}`} 
+                              alt="WO QR" 
+                              style={{ width: '80px', height: '80px' }} 
+                          />
+                      </div>
+                      <div>
+                          <h2 className="fw-bold mb-0">WORK ORDER</h2>
+                          <div className="text-muted small">Terras ERP Manufacturing</div>
+                      </div>
                   </div>
                   <div className="text-end">
                       <h3 className="font-monospace mb-0">{wo.code}</h3>
@@ -485,6 +496,7 @@ export default function ManufacturingView({
                           <div className="btn-group ms-2">
                               <button className={`btn btn-sm btn-light border ${viewMode === 'calendar' ? 'active' : ''}`} onClick={() => setViewMode('calendar')}><i className="bi bi-calendar-event me-1"></i>Calendar</button>
                               <button className={`btn btn-sm btn-light border ${viewMode === 'list' ? 'active' : ''}`} onClick={() => setViewMode('list')}><i className="bi bi-list-ul me-1"></i>List</button>
+                              <button className={`btn btn-sm btn-light border ${viewMode === 'scanner' ? 'active' : ''}`} onClick={() => setViewMode('scanner')}><i className="bi bi-qr-code-scan me-1"></i>Scanner</button>
                           </div>
                       </div>
                       <div className="d-flex gap-2">
@@ -509,6 +521,14 @@ export default function ManufacturingView({
                   <div className="card-body p-0">
                       {viewMode === 'calendar' ? (
                           <div className="p-3"><CalendarView workOrders={workOrders} items={items} /></div>
+                      ) : viewMode === 'scanner' ? (
+                          <div className="p-4">
+                              <QRScannerView 
+                                  workOrders={workOrders} 
+                                  onUpdateStatus={onUpdateStatus} 
+                                  onClose={() => setViewMode('list')} 
+                              />
+                          </div>
                       ) : (
                           <>
                             <div className="print-header d-none d-print-block p-4 border-bottom mb-4">
@@ -581,36 +601,46 @@ export default function ManufacturingView({
                                                 {isExpanded && bom && (
                                                     <tr key={`${wo.id}-detail`} className="bg-light">
                                                         <td colSpan={7} className="p-0">
-                                                            <div className="p-3 ps-5 border-bottom shadow-inner">
-                                                                <h6 className="small text-uppercase text-muted fw-bold mb-2">Required Materials</h6>
-                                                                <div className="table-responsive">
-                                                                    <table className="table table-sm table-borderless mb-0 w-75">
-                                                                        <thead className="text-muted small border-bottom">
-                                                                            <tr><th>Item</th><th>Source</th><th>Required</th><th>Available</th><th>Status</th></tr>
-                                                                        </thead>
-                                                                        <tbody>
-                                                                            {bom.lines.map((line: any) => {
-                                                                                const required = calculateRequiredQty(wo.qty, line, bom);
-                                                                                const checkLocId = line.source_location_id || wo.source_location_id || wo.location_id;
-                                                                                const { available, isEnough } = checkStockAvailability(line.item_id, checkLocId, line.attribute_value_ids, required);
-                                                                                return (
-                                                                                    <tr key={line.id}>
-                                                                                        <td>
-                                                                                            <span className="fw-medium">{getItemName(line.item_id)}</span>
-                                                                                            <div className="small text-muted fst-italic">
-                                                                                                {line.qty}{line.is_percentage ? '%' : ''} per unit
-                                                                                                {line.attribute_value_ids.map(getAttributeValueName).join(', ') && ` • ${line.attribute_value_ids.map(getAttributeValueName).join(', ')}`}
-                                                                                            </div>
-                                                                                        </td>
-                                                                                        <td><span className="badge bg-light text-dark border font-monospace small">{getLocationName(checkLocId)}</span></td>
-                                                                                        <td className="fw-bold">{required.toFixed(4)}</td>
-                                                                                        <td className={isEnough ? 'text-success' : 'text-danger'}>{available}</td>
-                                                                                        <td>{isEnough ? <span className="badge bg-success bg-opacity-10 text-success"><i className="bi bi-check2"></i> Ready</span> : <span className="badge bg-danger bg-opacity-10 text-danger"><i className="bi bi-x-circle"></i> Missing</span>}</td>
-                                                                                    </tr>
-                                                                                );
-                                                                            })}
-                                                                        </tbody>
-                                                                    </table>
+                                                            <div className="p-3 ps-5 border-bottom shadow-inner d-flex justify-content-between align-items-start">
+                                                                <div className="flex-grow-1">
+                                                                    <h6 className="small text-uppercase text-muted fw-bold mb-2">Required Materials</h6>
+                                                                    <div className="table-responsive">
+                                                                        <table className="table table-sm table-borderless mb-0 w-75">
+                                                                            <thead className="text-muted small border-bottom">
+                                                                                <tr><th>Item</th><th>Source</th><th>Required</th><th>Available</th><th>Status</th></tr>
+                                                                            </thead>
+                                                                            <tbody>
+                                                                                {bom.lines.map((line: any) => {
+                                                                                    const required = calculateRequiredQty(wo.qty, line, bom);
+                                                                                    const checkLocId = line.source_location_id || wo.source_location_id || wo.location_id;
+                                                                                    const { available, isEnough } = checkStockAvailability(line.item_id, checkLocId, line.attribute_value_ids, required);
+                                                                                    return (
+                                                                                        <tr key={line.id}>
+                                                                                            <td>
+                                                                                                <span className="fw-medium">{getItemName(line.item_id)}</span>
+                                                                                                <div className="small text-muted fst-italic">
+                                                                                                    {line.qty}{line.is_percentage ? '%' : ''} per unit
+                                                                                                    {line.attribute_value_ids.map(getAttributeValueName).join(', ') && ` • ${line.attribute_value_ids.map(getAttributeValueName).join(', ')}`}
+                                                                                                </div>
+                                                                                            </td>
+                                                                                            <td><span className="badge bg-light text-dark border font-monospace small">{getLocationName(checkLocId)}</span></td>
+                                                                                            <td className="fw-bold">{required.toFixed(4)}</td>
+                                                                                            <td className={isEnough ? 'text-success' : 'text-danger'}>{available}</td>
+                                                                                            <td>{isEnough ? <span className="badge bg-success bg-opacity-10 text-success"><i className="bi bi-check2"></i> Ready</span> : <span className="badge bg-danger bg-opacity-10 text-danger"><i className="bi bi-x-circle"></i> Missing</span>}</td>
+                                                                                        </tr>
+                                                                                    );
+                                                                                })}
+                                                                            </tbody>
+                                                                        </table>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="ms-4 text-center bg-white p-2 border rounded shadow-sm no-print">
+                                                                    <img 
+                                                                        src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${wo.code}`} 
+                                                                        alt="QR" 
+                                                                        style={{ width: '64px', height: '64px' }}
+                                                                    />
+                                                                    <div className="extra-small text-muted mt-1 font-monospace">{wo.code}</div>
                                                                 </div>
                                                             </div>
                                                         </td>

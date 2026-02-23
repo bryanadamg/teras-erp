@@ -9,6 +9,7 @@
   "dependencies": {
     "bootstrap": "^5.3.8",
     "bootstrap-icons": "^1.13.1",
+    "html5-qrcode": "^2.3.8",
     "next": "14.1.0",
     "react": "18.2.0",
     "react-dom": "18.2.0"
