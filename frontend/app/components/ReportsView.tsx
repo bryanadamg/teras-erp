@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import SearchableSelect from './SearchableSelect';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function ReportsView({ 
@@ -66,18 +67,15 @@ export default function ReportsView({
                   <small className="text-muted">Analyze inventory movements</small>
               </div>
               <div className="d-flex gap-2 align-items-center flex-nowrap">
-                  <div className="input-group input-group-sm" style={{width: '180px', minWidth: '180px'}}>
+                  <div className="input-group input-group-sm" style={{width: '220px', minWidth: '220px'}}>
                       <span className="input-group-text px-2"><i className="bi bi-funnel"></i></span>
-                      <select 
-                          className="form-select" 
-                          value={categoryFilter} 
-                          onChange={e => setCategoryFilter(e.target.value)}
-                      >
-                          <option value="">{t('categories')} (All)</option>
-                          {categories.map((c: any) => (
-                              <option key={c.id} value={c.name}>{c.name}</option>
-                          ))}
-                      </select>
+                      <SearchableSelect 
+                          options={[{ value: '', label: t('categories') + ' (All)' }, ...categories.map((c: any) => ({ value: c.name, label: c.name }))]}
+                          value={categoryFilter}
+                          onChange={setCategoryFilter}
+                          placeholder={t('categories') + "..."}
+                          className="flex-grow-1 border-0 p-0"
+                      />
                   </div>
                   <div className="input-group input-group-sm" style={{width: '160px', minWidth: '160px'}}>
                       <span className="input-group-text px-2">{t('from')}</span>

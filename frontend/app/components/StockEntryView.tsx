@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import SearchableSelect from './SearchableSelect';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function StockEntryView({ items, locations, attributes, stockBalance, onRecordStock }: any) {
@@ -54,10 +55,15 @@ export default function StockEntryView({ items, locations, attributes, stockBala
                       <form onSubmit={handleSubmit}>
                           <div className="mb-4 p-3 bg-light rounded-3 border border-dashed">
                               <label className="form-label text-muted text-uppercase small fw-bold mb-3">{t('item_inventory')}</label>
-                              <select className="form-select mb-3" value={stockEntry.item_code} onChange={e => setStockEntry({...stockEntry, item_code: e.target.value, attribute_value_ids: []})} required>
-                                  <option value="">{t('search')}...</option>
-                                  {items.map((item: any) => <option key={item.id} value={item.code}>{item.name} ({item.code})</option>)}
-                              </select>
+                              <div className="mb-3">
+                                  <SearchableSelect 
+                                      options={items.map((item: any) => ({ value: item.code, label: item.name, subLabel: item.code }))}
+                                      value={stockEntry.item_code}
+                                      onChange={(code) => setStockEntry({...stockEntry, item_code: code, attribute_value_ids: []})}
+                                      required
+                                      placeholder={t('search') + "..."}
+                                  />
+                              </div>
 
                               {boundAttrs.map((attr: any) => (
                                   <div key={attr.id} className="mb-2">
@@ -78,10 +84,13 @@ export default function StockEntryView({ items, locations, attributes, stockBala
                               <label className="form-label text-muted text-uppercase small fw-bold">Transaction Details</label>
                               <div className="row g-2">
                                   <div className="col-8">
-                                      <select className="form-select" value={stockEntry.location_code} onChange={e => setStockEntry({...stockEntry, location_code: e.target.value})} required>
-                                          <option value="">{t('locations')}...</option>
-                                          {locations.map((loc: any) => <option key={loc.id} value={loc.code}>{loc.name}</option>)}
-                                      </select>
+                                      <SearchableSelect 
+                                          options={locations.map((loc: any) => ({ value: loc.code, label: loc.name, subLabel: loc.code }))}
+                                          value={stockEntry.location_code}
+                                          onChange={(code) => setStockEntry({...stockEntry, location_code: code})}
+                                          required
+                                          placeholder={t('locations') + "..."}
+                                      />
                                   </div>
                                   <div className="col-4">
                                       <input type="number" className="form-control" placeholder={t('qty')} value={stockEntry.qty} onChange={e => setStockEntry({...stockEntry, qty: parseFloat(e.target.value)})} required />

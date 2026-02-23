@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
+import SearchableSelect from './SearchableSelect';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function BOMForm({ 
@@ -91,8 +92,7 @@ export default function BOMForm({
       }
   };
 
-  const handleItemChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-      const itemCode = e.target.value;
+  const handleItemChange = (itemCode: string) => {
       const suggestedCode = suggestBOMCode(itemCode, []);
       setNewBOM({...newBOM, item_code: itemCode, code: suggestedCode, attribute_value_ids: []});
   };
@@ -192,10 +192,16 @@ export default function BOMForm({
               
               <div className="p-3 bg-light rounded-3 mb-4 border border-warning border-opacity-25">
                   <h6 className="small text-uppercase text-muted fw-bold mb-3 border-bottom pb-2">{t('finished_good')}</h6>
-                  <select className="form-select mb-3" value={newBOM.item_code} onChange={handleItemChange} required disabled={isSubForm}>
-                      <option value="">{t('search')}...</option>
-                      {items.map((item: any) => <option key={item.id} value={item.code}>{item.name} ({item.code})</option>)}
-                  </select>
+                  <div className="mb-3">
+                      <SearchableSelect 
+                          options={items.map((item: any) => ({ value: item.code, label: item.name, subLabel: item.code }))}
+                          value={newBOM.item_code}
+                          onChange={handleItemChange}
+                          required
+                          disabled={isSubForm}
+                          placeholder={t('search') + "..."}
+                      />
+                  </div>
 
                   {headerBoundAttrs.map((attr: any) => (
                       <div key={attr.id} className="mb-2">
@@ -276,10 +282,12 @@ export default function BOMForm({
                           <div className="row g-2 mb-3">
                               <div className="col-12">
                                   <label className="form-label small text-muted">Item</label>
-                                  <select className="form-select form-select-sm" value={newBOMLine.item_code} onChange={e => setNewBOMLine({...newBOMLine, item_code: e.target.value, attribute_value_ids: []})}>
-                                      <option value="">Select...</option>
-                                      {items.map((item: any) => <option key={item.id} value={item.code}>{item.name}</option>)}
-                                  </select>
+                                  <SearchableSelect 
+                                      options={items.map((item: any) => ({ value: item.code, label: item.name, subLabel: item.code }))}
+                                      value={newBOMLine.item_code}
+                                      onChange={(val) => setNewBOMLine({...newBOMLine, item_code: val, attribute_value_ids: []})}
+                                      placeholder="Select Item..."
+                                  />
                               </div>
                               
                               {lineBoundAttrs.map((attr: any) => (

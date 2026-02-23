@@ -381,12 +381,13 @@ export default function InventoryView({
                 {/* Hide Category Filter if Forced */}
                 {!forcedCategory && (
                 <div className="col-md-3">
-                    <select className="form-select form-select-sm" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
-                        <option value="">{t('categories')} (All)</option>
-                        {categories.map((c: any) => (
-                              <option key={c.id} value={c.name}>{c.name}</option>
-                          ))}
-                    </select>
+                    <SearchableSelect 
+                        options={[{ value: '', label: t('categories') + ' (All)' }, ...categories.map((c: any) => ({ value: c.name, label: c.name }))]}
+                        value={categoryFilter}
+                        onChange={setCategoryFilter}
+                        placeholder={t('categories') + "..."}
+                        className="form-control-sm border-0 p-0"
+                    />
                 </div>
                 )}
             </div>

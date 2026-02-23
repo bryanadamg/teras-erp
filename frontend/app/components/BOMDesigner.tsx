@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
 import BOMAutomatorModal from './BOMAutomatorModal';
+import SearchableSelect from './SearchableSelect';
 
 // Types for Recursive Structure
 interface BOMLineNode {
@@ -54,6 +55,10 @@ export default function BOMDesigner({
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [isAutomatorOpen, setIsAutomatorOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    
+    // Add Component Local State
+    const [pendingItemCode, setPendingItemCode] = useState('');
+    const [pendingQty, setPendingQty] = useState<string>('');
     
     const [codeConfig, setCodeConfig] = useState<CodeConfig>({
         prefix: 'BOM',
@@ -402,18 +407,19 @@ export default function BOMDesigner({
                                 <div className="col-md-5">
                                     <label className="form-label small text-muted">Finished Item</label>
                                     {selectedNodeId === 'root' ? (
-                                        <select className="form-select" value={selectedNode.item_code} onChange={e => {
-                                            const code = e.target.value;
-                                            setRootBOM(prev => ({
-                                                ...prev,
-                                                item_code: code,
-                                                code: suggestBOMCode(code, prev.attribute_value_ids),
-                                                attribute_value_ids: []
-                                            }));
-                                        }}>
-                                            <option value="">Select Item...</option>
-                                            {items.map((i: any) => <option key={i.id} value={i.code}>{i.name} ({i.code})</option>)}
-                                        </select>
+                                        <SearchableSelect 
+                                            options={items.map((i: any) => ({ value: i.code, label: i.name, subLabel: i.code }))}
+                                            value={selectedNode.item_code}
+                                            onChange={(code) => {
+                                                setRootBOM(prev => ({
+                                                    ...prev,
+                                                    item_code: code,
+                                                    code: suggestBOMCode(code, prev.attribute_value_ids),
+                                                    attribute_value_ids: []
+                                                }));
+                                            }}
+                                            placeholder="Select Item..."
+                                        />
                                     ) : (
                                         <div className="form-control bg-light">{getItemName(selectedNode.item_code)}</div>
                                     )}
@@ -490,30 +496,46 @@ export default function BOMDesigner({
                                             <h6 className="fw-bold mb-0">Components</h6>
                                         </div>
                                         <div className="card-body">
-                                            <div className="input-group input-group-sm mb-3">
-                                                <select className="form-select" id="addLineItm" style={{width: '50%'}}>
-                                                    <option value="">Component...</option>
-                                                    {items.map((i:any) => <option key={i.id} value={i.code}>{i.name}</option>)}
-                                                </select>
-                                                <input type="number" className="form-control" id="addLineQty" placeholder="Qty" style={{width: '20%'}} />
-                                                <button className="btn btn-primary" onClick={() => {
-                                                    const itm = document.getElementById('addLineItm') as HTMLSelectElement;
-                                                    const qty = document.getElementById('addLineQty') as HTMLInputElement;
-                                                    if (itm.value && qty.value) {
-                                                        const normalizedCode = itm.value.trim().toLowerCase();
-                                                        const exists = items.some((i:any) => (i.code || '').trim().toLowerCase() === normalizedCode);
-                                                        const newLine: BOMLineNode = {
-                                                            id: Math.random().toString(36).substr(2, 9),
-                                                            item_code: itm.value,
-                                                            attribute_value_ids: [],
-                                                            qty: parseFloat(qty.value),
-                                                            source_location_code: '',
-                                                            isNewItem: !exists
-                                                        };
-                                                        updateSelectedNode({ lines: [...selectedNode.lines, newLine] });
-                                                        itm.value = ""; qty.value = "";
-                                                    }
-                                                }}><i className="bi bi-plus-lg"></i></button>
+                                            <div className="d-flex gap-2 mb-3">
+                                                <div style={{ flex: 2 }}>
+                                                    <SearchableSelect 
+                                                        options={items.map((i:any) => ({ value: i.code, label: i.name, subLabel: i.code }))}
+                                                        value={pendingItemCode}
+                                                        onChange={setPendingItemCode}
+                                                        placeholder="Component..."
+                                                    />
+                                                </div>
+                                                <div style={{ flex: 1 }}>
+                                                    <input 
+                                                        type="number" 
+                                                        className="form-control" 
+                                                        placeholder="Qty" 
+                                                        value={pendingQty}
+                                                        onChange={e => setPendingQty(e.target.value)}
+                                                    />
+                                                </div>
+                                                <button 
+                                                    className="btn btn-primary" 
+                                                    onClick={() => {
+                                                        if (pendingItemCode && pendingQty) {
+                                                            const normalizedCode = pendingItemCode.trim().toLowerCase();
+                                                            const exists = items.some((i:any) => (i.code || '').trim().toLowerCase() === normalizedCode);
+                                                            const newLine: BOMLineNode = {
+                                                                id: Math.random().toString(36).substr(2, 9),
+                                                                item_code: pendingItemCode,
+                                                                attribute_value_ids: [],
+                                                                qty: parseFloat(pendingQty),
+                                                                source_location_code: '',
+                                                                isNewItem: !exists
+                                                            };
+                                                            updateSelectedNode({ lines: [...selectedNode.lines, newLine] });
+                                                            setPendingItemCode('');
+                                                            setPendingQty('');
+                                                        }
+                                                    }}
+                                                >
+                                                    <i className="bi bi-plus-lg"></i>
+                                                </button>
                                             </div>
 
                                             <div className="d-flex flex-column gap-2 overflow-auto" style={{maxHeight: '400px'}}>
