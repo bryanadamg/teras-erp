@@ -4,12 +4,12 @@ import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 import SearchableSelect from './SearchableSelect';
 
-export default function PurchaseOrderView({ items, attributes, salesOrders, partners, onCreatePO, onDeletePO }: any) {
+export default function SalesOrderView({ items, attributes, salesOrders, partners, onCreateSO, onDeleteSO }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   
-  const [newPO, setNewPO] = useState({
+  const [newSO, setNewSO] = useState({
       po_number: '',
       customer_name: '',
       order_date: new Date().toISOString().split('T')[0],
@@ -21,7 +21,7 @@ export default function PurchaseOrderView({ items, attributes, salesOrders, part
   // Config State
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [codeConfig, setCodeConfig] = useState<CodeConfig>({
-      prefix: 'PO',
+      prefix: 'SO',
       suffix: '',
       separator: '-',
       includeItemCode: false,
@@ -32,7 +32,7 @@ export default function PurchaseOrderView({ items, attributes, salesOrders, part
   });
 
   useEffect(() => {
-      const savedConfig = localStorage.getItem('po_code_config');
+      const savedConfig = localStorage.getItem('so_code_config');
       if (savedConfig) {
           try {
               setCodeConfig(JSON.parse(savedConfig));
@@ -44,12 +44,12 @@ export default function PurchaseOrderView({ items, attributes, salesOrders, part
 
   const handleSaveConfig = (newConfig: CodeConfig) => {
       setCodeConfig(newConfig);
-      localStorage.setItem('po_code_config', JSON.stringify(newConfig));
-      const suggested = suggestPOCode(newConfig);
-      setNewPO(prev => ({ ...prev, po_number: suggested }));
+      localStorage.setItem('so_code_config', JSON.stringify(newConfig));
+      const suggested = suggestSOCode(newConfig);
+      setNewSO(prev => ({ ...prev, po_number: suggested }));
   };
 
-  const suggestPOCode = (config = codeConfig) => {
+  const suggestSOCode = (config = codeConfig) => {
       const parts = [];
       if (config.prefix) parts.push(config.prefix);
       
@@ -72,19 +72,19 @@ export default function PurchaseOrderView({ items, attributes, salesOrders, part
 
   // Generate initial suggestion when modal opens
   useEffect(() => {
-      if (isCreateOpen && !newPO.po_number) {
-          setNewPO(prev => ({ ...prev, po_number: suggestPOCode() }));
+      if (isCreateOpen && !newSO.po_number) {
+          setNewSO(prev => ({ ...prev, po_number: suggestSOCode() }));
       }
   }, [isCreateOpen]);
 
   const handleAddLine = () => {
       if (!newLine.item_id || newLine.qty <= 0) return;
-      setNewPO({ ...newPO, lines: [...newPO.lines, { ...newLine }] });
+      setNewSO({ ...newSO, lines: [...newSO.lines, { ...newLine }] });
       setNewLine({ item_id: '', qty: 0, due_date: '', attribute_value_ids: [] });
   };
 
   const handleRemoveLine = (index: number) => {
-      setNewPO({ ...newPO, lines: newPO.lines.filter((_, i) => i !== index) });
+      setNewSO({ ...newSO, lines: newSO.lines.filter((_, i) => i !== index) });
   };
 
   const handleValueChange = (valId: string, attrId: string) => {
@@ -100,16 +100,16 @@ export default function PurchaseOrderView({ items, attributes, salesOrders, part
       e.preventDefault();
       
       const payload = {
-          ...newPO,
-          order_date: newPO.order_date || null,
-          lines: newPO.lines.map((line: any) => ({
+          ...newSO,
+          order_date: newSO.order_date || null,
+          lines: newSO.lines.map((line: any) => ({
               ...line,
               due_date: line.due_date || null
           }))
       };
 
-      onCreatePO(payload);
-      setNewPO({ po_number: '', customer_name: '', order_date: new Date().toISOString().split('T')[0], lines: [] });
+      onCreateSO(payload);
+      setNewSO({ po_number: '', customer_name: '', order_date: new Date().toISOString().split('T')[0], lines: [] });
       setIsCreateOpen(false);
   };
 
@@ -140,19 +140,19 @@ export default function PurchaseOrderView({ items, attributes, salesOrders, part
        <CodeConfigModal 
            isOpen={isConfigOpen} 
            onClose={() => setIsConfigOpen(false)} 
-           type="PO"
+           type="SO"
            onSave={handleSaveConfig}
            initialConfig={codeConfig}
            attributes={attributes}
        />
 
-       {/* Create PO Modal */}
+       {/* Create SO Modal */}
        {isCreateOpen && (
        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
             <div className={`modal-dialog modal-lg modal-dialog-centered`}>
                 <div className="modal-content shadow">
                     <div className="modal-header bg-primary bg-opacity-10 text-primary-emphasis">
-                        <h5 className="modal-title"><i className="bi bi-cart-plus me-2"></i>Create Purchase Order (Incoming)</h5>
+                        <h5 className="modal-title"><i className="bi bi-cart-plus me-2"></i>Create Sales Order (Incoming)</h5>
                         <button type="button" className="btn-close" onClick={() => setIsCreateOpen(false)}></button>
                     </div>
                     <div className="modal-body">
@@ -160,7 +160,7 @@ export default function PurchaseOrderView({ items, attributes, salesOrders, part
                             <div className="row g-3 mb-3">
                                 <div className="col-md-4">
                                     <label className="form-label d-flex justify-content-between align-items-center small text-muted">
-                                        PO Number
+                                        Ref No. (PO#)
                                         <i 
                                             className="bi bi-gear-fill text-muted" 
                                             style={{cursor: 'pointer'}}
@@ -168,21 +168,21 @@ export default function PurchaseOrderView({ items, attributes, salesOrders, part
                                             title="Configure Auto-Suggestion"
                                         ></i>
                                     </label>
-                                    <input className="form-control" placeholder="Auto-generated" value={newPO.po_number} onChange={e => setNewPO({...newPO, po_number: e.target.value})} required />
+                                    <input className="form-control" placeholder="Auto-generated" value={newSO.po_number} onChange={e => setNewSO({...newSO, po_number: e.target.value})} required />
                                 </div>
                                 <div className="col-md-5">
                                     <label className="form-label small text-muted">Customer</label>
                                     <SearchableSelect 
                                         options={customers.map((c: any) => ({ value: c.name, label: c.name, subLabel: c.address }))}
-                                        value={newPO.customer_name}
-                                        onChange={(val) => setNewPO({...newPO, customer_name: val})}
+                                        value={newSO.customer_name}
+                                        onChange={(val) => setNewSO({...newSO, customer_name: val})}
                                         placeholder="Select Customer..."
                                         required
                                     />
                                 </div>
                                 <div className="col-md-3">
                                     <label className="form-label small text-muted">Date</label>
-                                    <input type="date" className="form-control" value={newPO.order_date} onChange={e => setNewPO({...newPO, order_date: e.target.value})} required />
+                                    <input type="date" className="form-control" value={newSO.order_date} onChange={e => setNewSO({...newSO, order_date: e.target.value})} required />
                                 </div>
                             </div>
                             
@@ -231,7 +231,7 @@ export default function PurchaseOrderView({ items, attributes, salesOrders, part
                                 </div>
                                 
                                 <div className="mt-2">
-                                    {newPO.lines.map((line: any, idx) => (
+                                    {newSO.lines.map((line: any, idx) => (
                                         <div key={idx} className="d-flex justify-content-between align-items-center p-2 bg-white rounded border mb-1 small shadow-sm">
                                             <div>
                                                 <span className="fw-bold">{getItemName(line.item_id)}</span>
@@ -249,13 +249,13 @@ export default function PurchaseOrderView({ items, attributes, salesOrders, part
                                             </div>
                                         </div>
                                     ))}
-                                    {newPO.lines.length === 0 && <div className="text-center text-muted small fst-italic">No items added</div>}
+                                    {newSO.lines.length === 0 && <div className="text-center text-muted small fst-italic">No items added</div>}
                                 </div>
                             </div>
 
                             <div className="d-flex justify-content-end gap-2 mt-3">
                                 <button type="button" className="btn btn-secondary" onClick={() => setIsCreateOpen(false)}>{t('cancel')}</button>
-                                <button type="submit" className="btn btn-primary fw-bold px-4">{t('save')} PO</button>
+                                <button type="submit" className="btn btn-primary fw-bold px-4">{t('save')} Order</button>
                             </div>
                         </form>
                     </div>
@@ -264,11 +264,11 @@ export default function PurchaseOrderView({ items, attributes, salesOrders, part
        </div>
        )}
 
-       {/* PO List */}
+       {/* SO List */}
        <div className="col-12">
           <div className="card h-100 shadow-sm border-0">
              <div className="card-header bg-white d-flex justify-content-between align-items-center">
-                 <h5 className="card-title mb-0">{t('purchase_orders')}</h5>
+                 <h5 className="card-title mb-0">{t('sales_orders')}</h5>
                  <button className="btn btn-sm btn-primary" onClick={() => setIsCreateOpen(true)}>
                      <i className="bi bi-plus-lg me-2"></i> {t('create')}
                  </button>
@@ -278,7 +278,7 @@ export default function PurchaseOrderView({ items, attributes, salesOrders, part
                     <table className="table table-hover align-middle mb-0">
                         <thead className="table-light">
                             <tr>
-                                <th className="ps-4">PO Number</th>
+                                <th className="ps-4">Order Ref (PO#)</th>
                                 <th>Customer</th>
                                 <th>Date</th>
                                 <th>Items</th>
@@ -287,14 +287,14 @@ export default function PurchaseOrderView({ items, attributes, salesOrders, part
                             </tr>
                         </thead>
                         <tbody>
-                            {salesOrders.map((po: any) => (
-                                <tr key={po.id}>
-                                    <td className="ps-4 fw-bold font-monospace text-primary">{po.po_number}</td>
-                                    <td>{po.customer_name}</td>
-                                    <td>{new Date(po.order_date).toLocaleDateString()}</td>
+                            {salesOrders.map((so: any) => (
+                                <tr key={so.id}>
+                                    <td className="ps-4 fw-bold font-monospace text-primary">{so.po_number}</td>
+                                    <td>{so.customer_name}</td>
+                                    <td>{new Date(so.order_date).toLocaleDateString()}</td>
                                     <td>
                                         <div className="d-flex flex-column gap-1">
-                                            {po.lines.map((line: any) => (
+                                            {so.lines.map((line: any) => (
                                                 <div key={line.id} className="small text-muted mb-1">
                                                     <div className="d-flex align-items-center">
                                                         <span className="fw-bold text-dark">{line.qty}</span> 
@@ -315,15 +315,15 @@ export default function PurchaseOrderView({ items, attributes, salesOrders, part
                                             ))}
                                         </div>
                                     </td>
-                                    <td><span className="badge bg-secondary">{po.status}</span></td>
+                                    <td><span className="badge bg-secondary">{so.status}</span></td>
                                     <td className="pe-4 text-end">
-                                        <button className="btn btn-sm btn-link text-danger" onClick={() => onDeletePO(po.id)}>
+                                        <button className="btn btn-sm btn-link text-danger" onClick={() => onDeleteSO(so.id)}>
                                             <i className="bi bi-trash"></i>
                                         </button>
                                     </td>
                                 </tr>
                             ))}
-                            {salesOrders.length === 0 && <tr><td colSpan={6} className="text-center py-5 text-muted">No Purchase Orders found</td></tr>}
+                            {salesOrders.length === 0 && <tr><td colSpan={6} className="text-center py-5 text-muted">No Sales Orders found</td></tr>}
                         </tbody>
                     </table>
                 </div>
