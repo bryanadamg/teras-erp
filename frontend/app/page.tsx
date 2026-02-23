@@ -15,6 +15,7 @@ import StockEntryView from './components/StockEntryView';
 import ReportsView from './components/ReportsView';
 import SettingsView from './components/SettingsView';
 import SalesOrderView from './components/SalesOrderView';
+import PurchaseOrderView from './components/PurchaseOrderView';
 import SampleRequestView from './components/SampleRequestView';
 import PartnersView from './components/PartnersView';
 import AuditLogsView from './components/AuditLogsView';
@@ -66,6 +67,7 @@ export default function Home() {
   const [stockEntries, setStockEntries] = useState([]);
   const [stockBalance, setStockBalance] = useState([]);
   const [salesOrders, setSalesOrders] = useState([]);
+  const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [samples, setSamples] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [partners, setPartners] = useState([]);
@@ -91,7 +93,7 @@ export default function Home() {
       const auditSkip = (auditPage - 1) * pageSize;
       const reportSkip = (reportPage - 1) * pageSize;
 
-      const [itemsRes, locsRes, stockRes, attrsRes, catsRes, uomsRes, bomsRes, wcRes, opRes, woRes, balRes, soRes, sampRes, auditRes, partnersRes] = await Promise.all([
+      const [itemsRes, locsRes, stockRes, attrsRes, catsRes, uomsRes, bomsRes, wcRes, opRes, woRes, balRes, soRes, sampRes, auditRes, partnersRes, poRes] = await Promise.all([
           fetch(`${API_BASE}/items?skip=${itemSkip}&limit=${pageSize}`, { headers }),
           fetch(`${API_BASE}/locations`, { headers }),
           fetch(`${API_BASE}/stock?skip=${reportSkip}&limit=${pageSize}`, { headers }),
@@ -106,7 +108,8 @@ export default function Home() {
           fetch(`${API_BASE}/sales-orders`, { headers }),
           fetch(`${API_BASE}/samples`, { headers }),
           fetch(`${API_BASE}/audit-logs?skip=${auditSkip}&limit=${pageSize}`, { headers }),
-          fetch(`${API_BASE}/partners`, { headers })
+          fetch(`${API_BASE}/partners`, { headers }),
+          fetch(`${API_BASE}/purchase-orders`, { headers })
       ]);
 
       if (itemsRes.ok) {
@@ -140,6 +143,7 @@ export default function Home() {
           setAuditTotal(data.total);
       }
       if (partnersRes.ok) setPartners(await partnersRes.json());
+      if (poRes.ok) setPurchaseOrders(await poRes.json());
     } catch (e) {
       console.error("Failed to fetch data", e);
     }
@@ -431,6 +435,24 @@ export default function Home() {
   const handleDeletePO = async (id: string) => {
       requestConfirm('Delete PO?', 'Are you sure?', async () => {
           await authFetch(`${API_BASE}/sales-orders/${id}`, { method: 'DELETE' });
+          fetchData();
+      });
+  };
+
+  const handleCreateRealPO = async (po: any) => {
+      const res = await authFetch(`${API_BASE}/purchase-orders`, {
+          method: 'POST',
+          body: JSON.stringify(po)
+      });
+      if (res.ok) {
+          showToast('Purchase Order created!', 'success');
+          fetchData();
+      }
+  };
+
+  const handleDeleteRealPO = async (id: string) => {
+      requestConfirm('Delete PO?', 'Are you sure?', async () => {
+          await authFetch(`${API_BASE}/purchase-orders/${id}`, { method: 'DELETE' });
           fetchData();
       });
   };
@@ -1005,6 +1027,17 @@ export default function Home() {
                 partners={partners}
                 onCreateSO={handleCreatePO}
                 onDeleteSO={handleDeletePO}
+            />
+        )}
+
+        {activeTab === 'purchase-orders' && (
+            <PurchaseOrderView 
+                items={items} 
+                attributes={attributes}
+                purchaseOrders={purchaseOrders}
+                partners={partners}
+                onCreatePO={handleCreateRealPO}
+                onDeletePO={handleDeleteRealPO}
             />
         )}
 

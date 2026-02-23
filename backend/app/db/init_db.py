@@ -93,6 +93,7 @@ def run_migrations():
                 conn.execute(text("SELECT 1 FROM sample_requests LIMIT 1"))
                 conn.execute(text("SELECT 1 FROM audit_logs LIMIT 1"))
                 conn.execute(text("SELECT 1 FROM partners LIMIT 1"))
+                conn.execute(text("SELECT 1 FROM purchase_orders LIMIT 1"))
                 logger.info("Migration: Verified routing and partner tables")
             except Exception as e:
                 pass

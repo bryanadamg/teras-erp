@@ -28,3 +28,4 @@ from app.models.sample import SampleRequest, sample_attribute_values
 from app.models.audit import AuditLog
 from app.models.kpi import KPICache
 from app.models.partner import Partner
+from app.models.purchase import PurchaseOrder, PurchaseOrderLine, purchase_order_line_values

@@ -262,6 +262,35 @@ class PartnerResponse(PartnerCreate):
     class Config:
         from_attributes = True
 
+# --- Purchase Order (Outgoing) Schemas ---
+
+class PurchaseOrderLineCreate(BaseModel):
+    item_id: UUID
+    qty: float
+    unit_price: float | None = None
+    due_date: datetime | None = None
+    attribute_value_ids: list[UUID] = []
+
+class PurchaseOrderLineResponse(PurchaseOrderLineCreate):
+    id: UUID
+    attribute_value_ids: list[UUID] = []
+    class Config:
+        from_attributes = True
+
+class PurchaseOrderCreate(BaseModel):
+    po_number: str
+    supplier_id: UUID | None = None
+    order_date: datetime | None = None
+    lines: list[PurchaseOrderLineCreate]
+
+class PurchaseOrderResponse(PurchaseOrderCreate):
+    id: UUID
+    status: str
+    lines: list[PurchaseOrderLineResponse]
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
 # --- Sales Schemas ---
 
 class SalesOrderLineCreate(BaseModel):
