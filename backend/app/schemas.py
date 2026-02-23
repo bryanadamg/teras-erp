@@ -148,6 +148,12 @@ class ItemResponse(ItemCreate):
     class Config:
         from_attributes = True
 
+class PaginatedItemResponse(BaseModel):
+    items: list[ItemResponse]
+    total: int
+    page: int
+    size: int
+
 class StockEntryCreate(BaseModel):
     item_code: str
     location_code: str

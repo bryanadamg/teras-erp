@@ -91,7 +91,10 @@ export default function Home() {
           fetch(`${API_BASE}/audit-logs?limit=100`, { headers })
       ]);
 
-      if (itemsRes.ok) setItems(await itemsRes.json());
+      if (itemsRes.ok) {
+          const data = await itemsRes.json();
+          setItems(data.items); // Set the array
+      }
       if (locsRes.ok) setLocations(await locsRes.json());
       if (stockRes.ok) setStockEntries(await stockRes.json());
       if (attrsRes.ok) setAttributes(await attrsRes.json());
