@@ -145,7 +145,7 @@ export default function BOMDesigner({
         return baseCode;
     };
 
-    const handleApplyAutomation = (patterns: string[]) => {
+    const handleApplyAutomation = (levels: string[][]) => {
         if (!rootBOM.item_code) return;
 
         const findMatchingAttributeIds = (childItemCode: string, parentAttrIds: string[]) => {
@@ -171,61 +171,57 @@ export default function BOMDesigner({
             return matches;
         };
 
-        const constructTree = (parentCode: string, parentAttrs: string[], patternIdx: number): any[] => {
-            if (patternIdx >= patterns.length) return [];
+        const constructTreeRecursive = (parentItemCode: string, parentAttrs: string[], levelIdx: number): any[] => {
+            if (levelIdx >= levels.length) return [];
             
-            const pattern = patterns[patternIdx];
-            const expectedChildCode = pattern.replace('{CODE}', rootBOM.item_code);
-            
-            const childItem = items.find((i: any) => 
-                (i.code || '').trim().toLowerCase() === (expectedChildCode || '').trim().toLowerCase()
-            );
-            
-            const isNewItem = !childItem;
-            
-            // Check existing BOM
-            const existingBOM = childItem ? existingBOMs.find((b: any) => b.item_id === childItem.id) : null;
-            if (existingBOM) {
-                return [{
+            const currentLevelPatterns = levels[levelIdx];
+            const levelLines: any[] = [];
+
+            for (const pattern of currentLevelPatterns) {
+                if (!pattern) continue;
+                const expectedChildCode = pattern.replace('{CODE}', parentItemCode);
+                
+                const childItem = items.find((i: any) => 
+                    (i.code || '').trim().toLowerCase() === (expectedChildCode || '').trim().toLowerCase()
+                );
+                
+                const isNewItem = !childItem;
+                const existingBOM = childItem ? existingBOMs.find((b: any) => b.item_id === childItem.id) : null;
+                
+                const matchingAttrs = isNewItem ? parentAttrs : findMatchingAttributeIds(expectedChildCode, parentAttrs);
+                
+                // Construct next level for this specific pattern
+                const subLines = constructTreeRecursive(expectedChildCode, matchingAttrs, levelIdx + 1);
+                
+                const subBOM: BOMNodeData = {
                     id: Math.random().toString(36).substr(2, 9),
-                    item_code: childItem.code,
-                    attribute_value_ids: findMatchingAttributeIds(childItem.code, parentAttrs),
+                    code: suggestBOMCode(expectedChildCode, matchingAttrs),
+                    item_code: expectedChildCode,
+                    attribute_value_ids: matchingAttrs,
                     qty: 1.0,
+                    tolerance_percentage: 0.0,
+                    operations: [],
+                    lines: subLines,
+                    isNewItem: isNewItem
+                };
+
+                levelLines.push({
+                    id: Math.random().toString(36).substr(2, 9),
+                    item_code: expectedChildCode,
+                    attribute_value_ids: matchingAttrs,
+                    qty: 1.0,
+                    is_percentage: false,
                     source_location_code: '',
-                    isNewItem: false
-                }];
+                    subBOM: existingBOM ? undefined : subBOM, // Link existing BOM if found, otherwise draft subBOM
+                    isExpanded: true,
+                    isNewItem: isNewItem
+                });
             }
 
-            const matchingAttrs = isNewItem ? parentAttrs : findMatchingAttributeIds(expectedChildCode, parentAttrs);
-            const subLines = constructTree(rootBOM.item_code, matchingAttrs, patternIdx + 1);
-            
-            // FIX: Always create a subBOM object for automation items, even if they are the last leaf.
-            // This allows the user to define the raw materials for the final WIP item.
-            const subBOM: BOMNodeData = {
-                id: Math.random().toString(36).substr(2, 9),
-                code: suggestBOMCode(expectedChildCode, matchingAttrs),
-                item_code: expectedChildCode,
-                attribute_value_ids: matchingAttrs,
-                qty: 1.0,
-                tolerance_percentage: 0.0,
-                operations: [],
-                lines: subLines, // Will be empty for the last item
-                isNewItem: isNewItem
-            };
-
-            return [{
-                id: Math.random().toString(36).substr(2, 9),
-                item_code: expectedChildCode,
-                attribute_value_ids: matchingAttrs,
-                qty: 1.0,
-                source_location_code: '',
-                subBOM: subBOM,
-                isExpanded: true,
-                isNewItem: isNewItem
-            }];
+            return levelLines;
         };
 
-        const newLines = constructTree(rootBOM.item_code, rootBOM.attribute_value_ids, 0);
+        const newLines = constructTreeRecursive(rootBOM.item_code, rootBOM.attribute_value_ids, 0);
         setRootBOM(prev => ({ ...prev, lines: newLines }));
     };
 
