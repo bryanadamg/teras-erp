@@ -54,7 +54,7 @@ class BOMLine(Base):
     
     # Material Item
     item_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("items.id")
+        UUID(as_uuid=True), ForeignKey("items.id"), index=True
     )
     
     # Specific Source Location for this material (overrides WO default)

@@ -15,12 +15,12 @@ class AuditLog(Base):
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
     action: Mapped[str] = mapped_column(String(32)) # CREATE, UPDATE, DELETE
-    entity_type: Mapped[str] = mapped_column(String(64)) # Item, BOM, WorkOrder
-    entity_id: Mapped[str] = mapped_column(String(64)) # UUID string
+    entity_type: Mapped[str] = mapped_column(String(64), index=True) # Item, BOM, WorkOrder
+    entity_id: Mapped[str] = mapped_column(String(64), index=True) # UUID string
     details: Mapped[str | None] = mapped_column(Text, nullable=True) # Human readable summary
     changes: Mapped[dict | None] = mapped_column(JSONB, nullable=True) # Technical diff
     
-    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
     # Relationships
     user = relationship("User")

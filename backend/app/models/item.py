@@ -22,7 +22,7 @@ class Item(Base):
     code: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(255))
     uom: Mapped[str] = mapped_column(String(32))
-    category: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    category: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     
     # Lineage: Link to the sample this item was derived from
     source_sample_id: Mapped[uuid.UUID | None] = mapped_column(

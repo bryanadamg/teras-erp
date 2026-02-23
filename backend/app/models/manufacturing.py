@@ -28,7 +28,7 @@ class WorkOrder(Base):
     
     # Redundant but useful for querying what is being made without joining BOM
     item_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("items.id")
+        UUID(as_uuid=True), ForeignKey("items.id"), index=True
     )
 
     location_id: Mapped[uuid.UUID] = mapped_column(

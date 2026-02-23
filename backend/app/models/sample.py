@@ -23,12 +23,12 @@ class SampleRequest(Base):
     
     # Link to the Incoming PO (Demand)
     sales_order_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sales_orders.id"), nullable=True
+        UUID(as_uuid=True), ForeignKey("sales_orders.id"), nullable=True, index=True
     )
     
     # Link to the Generic Item Definition (e.g. "T-Shirt")
     base_item_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("items.id")
+        UUID(as_uuid=True), ForeignKey("items.id"), index=True
     )
     
     version: Mapped[int] = mapped_column(Integer, default=1) # V1, V2, etc.

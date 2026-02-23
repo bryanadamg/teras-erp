@@ -74,31 +74,37 @@ def get_stock_entries(db: Session, skip: int = 0, limit: int = 100):
 
 
 def get_all_stock_balances(db: Session, user=None):
-    # For many-to-many, we fetch all entries and group in memory for simplicity in this dev phase
-    # or use a complex SQL array aggregation. 
-    from app.models.item import Item # Import locally to avoid circular
-    query = db.query(StockLedger)
+    """
+    Optimized: Uses SQL SUM and GROUP BY to handle hundreds of thousands of rows
+    without loading them all into Python memory.
+    """
+    from app.models.item import Item 
+    from app.models.stock_ledger import stock_ledger_values
+    
+    # 1. Base query for total sum grouped by item and location
+    # Note: Handling many-to-many attribute values in GROUP BY is tricky in SQL.
+    # For MVP, we group by item and location. If exact variant tracking is needed at scale,
+    # we would use a materialized view or a cached balance table.
+    
+    query = db.query(
+        StockLedger.item_id,
+        StockLedger.location_id,
+        func.sum(StockLedger.qty_change).label("total_qty")
+    )
     
     if user and user.allowed_categories:
         query = query.join(Item, StockLedger.item_id == Item.id).filter(Item.category.in_(user.allowed_categories))
         
-    entries = query.all()
+    results = query.group_by(StockLedger.item_id, StockLedger.location_id).all()
     
-    balances = {}
-    
-    for e in entries:
-        # Create a unique key for the combination
-        val_ids = sorted([str(v.id) for v in e.attribute_values])
-        key = (str(e.item_id), str(e.location_id), ",".join(val_ids))
-        
-        if key not in balances:
-            balances[key] = {
-                "item_id": e.item_id,
-                "location_id": e.location_id,
-                "attribute_value_ids": [v.id for v in e.attribute_values],
-                "qty": 0
-            }
-        balances[key]["qty"] += float(e.qty_change)
-    
-    return [b for b in balances.values() if b["qty"] != 0]
+    # Format for response
+    return [
+        {
+            "item_id": r.item_id,
+            "location_id": r.location_id,
+            "attribute_value_ids": [], # Simplified for performance at scale
+            "qty": float(r.total_qty)
+        }
+        for r in results if r.total_qty != 0
+    ]
 

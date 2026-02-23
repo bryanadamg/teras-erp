@@ -37,6 +37,26 @@ def run_migrations():
                 except Exception as e:
                     logger.warning(f"Migration for {table}.{col} failed: {e}")
 
+            # 1b. Verification of indexes for high-volume data
+            index_migrations = [
+                ("idx_items_category", "items", "category"),
+                ("idx_bom_lines_item_id", "bom_lines", "item_id"),
+                ("idx_work_orders_item_id", "work_orders", "item_id"),
+                ("idx_audit_logs_entity_type", "audit_logs", "entity_type"),
+                ("idx_audit_logs_entity_id", "audit_logs", "entity_id"),
+                ("idx_audit_logs_timestamp", "audit_logs", "timestamp"),
+                ("idx_sample_requests_so_id", "sample_requests", "sales_order_id"),
+                ("idx_sample_requests_base_id", "sample_requests", "base_item_id"),
+            ]
+
+            for idx_name, table, col in index_migrations:
+                try:
+                    logger.info(f"Migration: Ensuring index {idx_name} on {table}({col})")
+                    conn.execute(text(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table} ({col})"))
+                    conn.commit()
+                except Exception as e:
+                    logger.warning(f"Index migration {idx_name} failed: {e}")
+
             # 2. Data Migration: Move single attribute_id/attribute_value_id to secondary tables if data exists
             # These are the many-to-many migrations
             move_data = [
