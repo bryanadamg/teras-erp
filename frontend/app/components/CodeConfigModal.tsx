@@ -14,7 +14,7 @@ export interface CodeConfig {
 interface CodeConfigModalProps {
     isOpen: boolean;
     onClose: () => void;
-    type: 'BOM' | 'WO' | 'PO' | 'SAMPLE' | 'ITEM';
+    type: 'BOM' | 'WO' | 'PO' | 'SO' | 'SAMPLE' | 'ITEM';
     onSave: (config: CodeConfig) => void;
     initialConfig?: CodeConfig;
     attributes: any[];
@@ -26,6 +26,7 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
             case 'BOM': return 'BOM';
             case 'WO': return 'WO';
             case 'PO': return 'PO';
+            case 'SO': return 'SO';
             case 'SAMPLE': return 'SMP';
             case 'ITEM': return 'ITM';
             default: return 'CODE';
@@ -109,6 +110,7 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
             case 'BOM': return 'BOM';
             case 'WO': return 'Work Order';
             case 'PO': return 'Purchase Order';
+            case 'SO': return 'Sales Order';
             case 'SAMPLE': return 'Sample Request';
             case 'ITEM': return 'Item';
             default: return 'Document';
