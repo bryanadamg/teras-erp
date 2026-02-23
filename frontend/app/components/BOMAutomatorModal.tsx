@@ -110,7 +110,7 @@ export default function BOMAutomatorModal({ isOpen, onClose, onApply }: BOMAutom
                 <div className="modal-content border-0 shadow-2xl overflow-hidden" style={{ borderRadius: currentStyle === 'classic' ? '0' : '12px' }}>
                     <div className="modal-header bg-dark text-white border-0 py-3">
                         <h5 className="modal-title d-flex align-items-center">
-                            <div className="bg-info rounded-circle d-flex align-items-center justify-content-center me-3" style={{ width: '32px', height: '32px' }}>
+                            <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center me-3 shadow-sm" style={{ width: '32px', height: '32px' }}>
                                 <i className="bi bi-magic text-white fs-6"></i>
                             </div>
                             BOM Automation Wizard
@@ -164,22 +164,22 @@ export default function BOMAutomatorModal({ isOpen, onClose, onApply }: BOMAutom
                                 The system will generate multiple items per level to build your structural tree.
                             </p>
 
-                            <div className="bg-light rounded p-3 border">
+                            <div className="bg-light rounded p-3 border shadow-sm">
                                 <h6 className="extra-small fw-bold text-uppercase text-muted mb-3 letter-spacing-1">
                                     <i className="bi bi-diagram-3 me-2"></i>Branching Preview
                                 </h6>
-                                <div className="font-monospace small overflow-auto py-2" style={{ maxHeight: '180px' }}>
+                                <div className="font-monospace small overflow-auto py-2" style={{ maxHeight: '200px' }}>
                                     <div className="d-flex align-items-center mb-2">
-                                        <div className="bg-primary bg-opacity-10 text-primary px-2 py-1 rounded border border-primary border-opacity-25 fw-bold">
+                                        <div className="bg-primary bg-opacity-10 text-primary px-2 py-1 rounded border border-primary border-opacity-25 fw-bold shadow-xs">
                                             {dummyCode} <span className="opacity-50 fw-normal ms-1">(Root)</span>
                                         </div>
                                     </div>
                                     {levels.map((lvl, lIdx) => (
-                                        <div key={lIdx} className="ps-4 border-start border-2 border-info border-opacity-25 ms-3 py-1 my-1">
+                                        <div key={lIdx} style={{ paddingLeft: `${(lIdx + 1) * 24}px` }} className="border-start border-2 border-primary border-opacity-10 my-1">
                                             {lvl.map((p, pIdx) => (
                                                 <div key={pIdx} className="d-flex align-items-center gap-2 mb-1">
-                                                    <span className="text-info opacity-50">├──</span>
-                                                    <span className="bg-white text-dark px-2 py-0 border rounded shadow-xs" style={{ fontSize: '0.75rem' }}>
+                                                    <span className="text-primary opacity-25">├──</span>
+                                                    <span className="bg-white text-dark px-2 py-1 border rounded shadow-xs" style={{ fontSize: '0.7rem', minWidth: '120px' }}>
                                                         {p.replace('{CODE}', dummyCode) || '...'}
                                                     </span>
                                                 </div>
@@ -199,14 +199,14 @@ export default function BOMAutomatorModal({ isOpen, onClose, onApply }: BOMAutom
                                             <div className="position-absolute start-50 top-0 translate-middle-x" style={{ height: '24px', width: '2px', backgroundColor: '#dee2e6', marginTop: '-24px' }}></div>
                                         )}
                                         
-                                        <div className="card shadow-sm border-info border-opacity-10 overflow-hidden">
-                                            <div className="card-header bg-info bg-opacity-10 py-2 px-3 d-flex justify-content-between align-items-center border-0">
+                                        <div className="card shadow-sm border-primary border-opacity-10 overflow-hidden">
+                                            <div className="card-header bg-primary bg-opacity-10 py-2 px-3 d-flex justify-content-between align-items-center border-0">
                                                 <div className="d-flex align-items-center">
-                                                    <span className="badge bg-info text-white me-2">L{lIdx + 1}</span>
-                                                    <span className="small fw-bold text-info-emphasis">Processing Level</span>
+                                                    <span className="badge bg-primary text-white me-2 shadow-xs">L{lIdx + 1}</span>
+                                                    <span className="small fw-bold text-primary-emphasis">Processing Level</span>
                                                 </div>
                                                 <button 
-                                                    className="btn btn-sm btn-link text-danger p-0" 
+                                                    className="btn btn-sm btn-link text-danger p-0 opacity-75 hover-opacity-100" 
                                                     onClick={() => removeLevel(lIdx)} 
                                                     title="Delete level"
                                                 >
@@ -217,22 +217,22 @@ export default function BOMAutomatorModal({ isOpen, onClose, onApply }: BOMAutom
                                                 <div className="d-flex flex-column gap-2">
                                                     {lvl.map((pattern, pIdx) => (
                                                         <div key={pIdx} className="input-group input-group-sm">
-                                                            <span className="input-group-text bg-light border-end-0 text-muted" style={{ width: '35px' }}>{pIdx + 1}</span>
+                                                            <span className="input-group-text bg-light border-end-0 text-muted shadow-inner" style={{ width: '35px' }}>{pIdx + 1}</span>
                                                             <input 
                                                                 type="text" 
-                                                                className="form-control" 
+                                                                className="form-control border-primary border-opacity-10" 
                                                                 value={pattern} 
                                                                 onChange={(e) => handlePatternChange(lIdx, pIdx, e.target.value)}
                                                                 placeholder="Pattern e.g. WIP {CODE}"
                                                             />
                                                             {lvl.length > 1 && (
-                                                                <button className="btn btn-outline-danger" onClick={() => removePatternFromLevel(lIdx, pIdx)}>
+                                                                <button className="btn btn-outline-danger border-primary border-opacity-10" onClick={() => removePatternFromLevel(lIdx, pIdx)}>
                                                                     <i className="bi bi-dash-lg"></i>
                                                                 </button>
                                                             )}
                                                         </div>
                                                     ))}
-                                                    <button className="btn btn-sm btn-link text-info text-decoration-none p-0 mt-1 d-flex align-items-center small" onClick={() => addPatternToLevel(lIdx)}>
+                                                    <button className="btn btn-sm btn-link text-primary text-decoration-none p-0 mt-1 d-flex align-items-center small fw-bold" onClick={() => addPatternToLevel(lIdx)}>
                                                         <i className="bi bi-plus-circle-fill me-2"></i> Add branching item to this level
                                                     </button>
                                                 </div>
@@ -242,7 +242,7 @@ export default function BOMAutomatorModal({ isOpen, onClose, onApply }: BOMAutom
                                 ))}
                                 
                                 <div className="text-center py-2">
-                                    <button className="btn btn-sm btn-outline-primary border-dashed px-4 py-2 bg-primary bg-opacity-5" onClick={addLevel} style={{ borderStyle: 'dashed' }}>
+                                    <button className="btn btn-sm btn-outline-primary border-dashed px-4 py-2 bg-primary bg-opacity-5 rounded-pill shadow-xs" onClick={addLevel} style={{ borderStyle: 'dashed' }}>
                                         <i className="bi bi-plus-lg me-2"></i>Add Next Structural Level
                                     </button>
                                 </div>
@@ -252,7 +252,7 @@ export default function BOMAutomatorModal({ isOpen, onClose, onApply }: BOMAutom
                     
                     <div className="modal-footer bg-white border-top p-3 px-4 shadow-lg">
                         <button type="button" className="btn btn-link text-muted text-decoration-none small" onClick={onClose}>{t('cancel')}</button>
-                        <button type="button" className="btn btn-info text-white fw-bold px-5 shadow-sm rounded-pill" onClick={handleSaveAndApply}>
+                        <button type="button" className="btn btn-primary text-white fw-bold px-5 shadow rounded-pill" onClick={handleSaveAndApply}>
                             <i className="bi bi-lightning-charge-fill me-2"></i>Generate Tree Structure
                         </button>
                     </div>
