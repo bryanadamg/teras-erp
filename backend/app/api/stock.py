@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.services import stock_service
-from app.schemas import StockLedgerResponse, StockBalanceResponse
+from app.schemas import StockLedgerResponse, StockBalanceResponse, PaginatedStockLedgerResponse
 from app.models.auth import User
 from app.api.auth import get_current_user
 from app.models.item import Item
@@ -11,7 +11,7 @@ from typing import Optional
 
 router = APIRouter()
 
-@router.get("/stock", response_model=list[StockLedgerResponse])
+@router.get("/stock", response_model=PaginatedStockLedgerResponse)
 def get_stock_ledger(
     skip: int = 0, 
     limit: int = 100, 
@@ -31,7 +31,15 @@ def get_stock_ledger(
     if current_user.allowed_categories:
         query = query.join(Item, StockLedger.item_id == Item.id).filter(Item.category.in_(current_user.allowed_categories))
         
-    return query.order_by(StockLedger.created_at.desc()).offset(skip).limit(limit).all()
+    total = query.count()
+    items = query.order_by(StockLedger.created_at.desc()).offset(skip).limit(limit).all()
+    
+    return {
+        "items": items,
+        "total": total,
+        "page": (skip // limit) + 1,
+        "size": len(items)
+    }
 
 @router.get("/stock/balance", response_model=list[StockBalanceResponse])
 def get_stock_balance_api(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

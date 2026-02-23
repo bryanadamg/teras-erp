@@ -1,11 +1,26 @@
 import { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 
-export default function ReportsView({ stockEntries, items, locations, categories, onRefresh }: any) {
+export default function ReportsView({ 
+    stockEntries, 
+    items, 
+    locations, 
+    categories, 
+    onRefresh,
+    currentPage,
+    totalItems,
+    pageSize,
+    onPageChange
+}: any) {
   const { t } = useLanguage();
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+
+  // Derived Pagination
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const startRange = (currentPage - 1) * pageSize + 1;
+  const endRange = Math.min(currentPage * pageSize, totalItems);
 
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
   const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
@@ -118,6 +133,28 @@ export default function ReportsView({ stockEntries, items, locations, categories
                           {filteredEntries.length === 0 && <tr><td colSpan={5} className="text-center py-5 text-muted">No records found for this period</td></tr>}
                       </tbody>
                   </table>
+              </div>
+          </div>
+          <div className="card-footer bg-white border-top py-2 px-4 d-flex justify-content-between align-items-center no-print">
+              <div className="small text-muted font-monospace">
+                  Showing {startRange}-{endRange} of {totalItems} movements
+              </div>
+              <div className="btn-group">
+                  <button 
+                    className={`btn btn-sm btn-light border ${currentPage <= 1 ? 'disabled opacity-50' : ''}`}
+                    onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+                  >
+                      <i className="bi bi-chevron-left me-1"></i>Previous
+                  </button>
+                  <div className="btn btn-sm btn-white border-top border-bottom px-3 fw-bold">
+                      Page {currentPage} of {totalPages || 1}
+                  </div>
+                  <button 
+                    className={`btn btn-sm btn-light border ${currentPage >= totalPages ? 'disabled opacity-50' : ''}`}
+                    onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+                  >
+                      Next<i className="bi bi-chevron-right ms-1"></i>
+                  </button>
               </div>
           </div>
       </div>

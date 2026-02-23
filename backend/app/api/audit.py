@@ -7,7 +7,9 @@ from typing import Optional
 
 router = APIRouter()
 
-@router.get("/audit-logs", response_model=list[AuditLogResponse])
+from app.schemas import AuditLogResponse, PaginatedAuditLogResponse # Add Paginated schema
+
+@router.get("/audit-logs", response_model=PaginatedAuditLogResponse)
 def get_audit_logs(
     skip: int = 0, 
     limit: int = 100, 
@@ -22,4 +24,12 @@ def get_audit_logs(
     if entity_id:
         query = query.filter(AuditLog.entity_id == entity_id)
         
-    return query.order_by(AuditLog.timestamp.desc()).offset(skip).limit(limit).all()
+    total = query.count()
+    items = query.order_by(AuditLog.timestamp.desc()).offset(skip).limit(limit).all()
+    
+    return {
+        "items": items,
+        "total": total,
+        "page": (skip // limit) + 1,
+        "size": len(items)
+    }

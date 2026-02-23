@@ -1,11 +1,16 @@
 import { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 
-export default function AuditLogsView({ auditLogs }: any) {
+export default function AuditLogsView({ auditLogs, currentPage, totalItems, pageSize, onPageChange }: any) {
   const { t } = useLanguage();
   const [filterType, setFilterType] = useState('');
 
-  // Local filtering based on the prop
+  // Derived Pagination
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const startRange = (currentPage - 1) * pageSize + 1;
+  const endRange = Math.min(currentPage * pageSize, totalItems);
+
+  // Local filtering based on the prop (Note: This might be partial if filtered on server too)
   const filteredLogs = auditLogs.filter((log: any) => {
       if (!filterType) return true;
       return log.entity_type === filterType;
@@ -65,6 +70,28 @@ export default function AuditLogsView({ auditLogs }: any) {
                           {filteredLogs.length === 0 && <tr><td colSpan={5} className="text-center py-5 text-muted">No activity logs found</td></tr>}
                       </tbody>
                   </table>
+              </div>
+          </div>
+          <div className="card-footer bg-white border-top py-2 px-4 d-flex justify-content-between align-items-center">
+              <div className="small text-muted font-monospace">
+                  Showing {startRange}-{endRange} of {totalItems} logs
+              </div>
+              <div className="btn-group">
+                  <button 
+                    className={`btn btn-sm btn-light border ${currentPage <= 1 ? 'disabled opacity-50' : ''}`}
+                    onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+                  >
+                      <i className="bi bi-chevron-left me-1"></i>Previous
+                  </button>
+                  <div className="btn btn-sm btn-white border-top border-bottom px-3 fw-bold">
+                      Page {currentPage} of {totalPages || 1}
+                  </div>
+                  <button 
+                    className={`btn btn-sm btn-light border ${currentPage >= totalPages ? 'disabled opacity-50' : ''}`}
+                    onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+                  >
+                      Next<i className="bi bi-chevron-right ms-1"></i>
+                  </button>
               </div>
           </div>
       </div>

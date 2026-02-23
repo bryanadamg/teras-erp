@@ -4,11 +4,29 @@ import CalendarView from './CalendarView';
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 
-export default function ManufacturingView({ items, boms, locations, attributes, workOrders, stockBalance, onCreateWO, onUpdateStatus, onDeleteWO }: any) {
+export default function ManufacturingView({ 
+    items, 
+    boms, 
+    locations, 
+    attributes, 
+    workOrders, 
+    stockBalance, 
+    onCreateWO, 
+    onUpdateStatus, 
+    onDeleteWO,
+    currentPage,
+    totalItems,
+    pageSize,
+    onPageChange
+}: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
   const [viewMode, setViewMode] = useState('list'); 
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  // Derived Pagination
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const startRange = (currentPage - 1) * pageSize + 1;
+  const endRange = Math.min(currentPage * pageSize, totalItems);  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newWO, setNewWO] = useState({ code: '', bom_id: '', location_code: '', source_location_code: '', qty: 1.0, due_date: '' });
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -562,6 +580,28 @@ export default function ManufacturingView({ items, boms, locations, attributes, 
                                         })}
                                     </tbody>
                                 </table>
+                            </div>
+                            <div className="card-footer bg-white border-top py-2 px-4 d-flex justify-content-between align-items-center no-print">
+                                <div className="small text-muted font-monospace">
+                                    Showing {startRange}-{endRange} of {totalItems} work orders
+                                </div>
+                                <div className="btn-group">
+                                    <button 
+                                        className={`btn btn-sm btn-light border ${currentPage <= 1 ? 'disabled opacity-50' : ''}`}
+                                        onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+                                    >
+                                        <i className="bi bi-chevron-left me-1"></i>Previous
+                                    </button>
+                                    <div className="btn btn-sm btn-white border-top border-bottom px-3 fw-bold">
+                                        Page {currentPage} of {totalPages || 1}
+                                    </div>
+                                    <button 
+                                        className={`btn btn-sm btn-light border ${currentPage >= totalPages ? 'disabled opacity-50' : ''}`}
+                                        onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+                                    >
+                                        Next<i className="bi bi-chevron-right ms-1"></i>
+                                    </button>
+                                </div>
                             </div>
                           </>
                       )}

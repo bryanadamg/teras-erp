@@ -91,7 +91,9 @@ def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db), c
 
 from app.models.item import Item # Import Item
 
-@router.get("/work-orders", response_model=list[WorkOrderResponse])
+from app.schemas import WorkOrderCreate, WorkOrderResponse, PaginatedWorkOrderResponse # Add Paginated schema
+
+@router.get("/work-orders", response_model=PaginatedWorkOrderResponse)
 def get_work_orders(
     skip: int = 0, 
     limit: int = 100, 
@@ -110,6 +112,7 @@ def get_work_orders(
     if current_user.allowed_categories:
         query = query.join(Item, WorkOrder.item_id == Item.id).filter(Item.category.in_(current_user.allowed_categories))
         
+    total = query.count()
     items = query.order_by(WorkOrder.created_at.desc()).offset(skip).limit(limit).all()
     for item in items:
         item.attribute_value_ids = [v.id for v in item.attribute_values]
@@ -133,7 +136,12 @@ def get_work_orders(
                     item.is_material_available = False
                     break
                     
-    return items
+    return {
+        "items": items,
+        "total": total,
+        "page": (skip // limit) + 1,
+        "size": len(items)
+    }
 
 @router.put("/work-orders/{wo_id}/status")
 def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

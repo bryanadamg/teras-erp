@@ -124,6 +124,12 @@ class WorkOrderResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class PaginatedWorkOrderResponse(BaseModel):
+    items: list[WorkOrderResponse]
+    total: int
+    page: int
+    size: int
+
 class ItemCreate(BaseModel):
     code: str
     name: str
@@ -174,6 +180,12 @@ class StockLedgerResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class PaginatedStockLedgerResponse(BaseModel):
+    items: list[StockLedgerResponse]
+    total: int
+    page: int
+    size: int
 
 class StockBalanceResponse(BaseModel):
     item_id: UUID
@@ -347,3 +359,9 @@ class AuditLogResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+class PaginatedAuditLogResponse(BaseModel):
+    items: list[AuditLogResponse]
+    total: int
+    page: int
+    size: int

@@ -71,6 +71,12 @@ export default function Home() {
   // Pagination State
   const [itemPage, setItemPage] = useState(1);
   const [itemTotal, setItemTotal] = useState(0);
+  const [woPage, setWoPage] = useState(1);
+  const [woTotal, setWoTotal] = useState(0);
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditTotal, setAuditTotal] = useState(0);
+  const [reportPage, setReportPage] = useState(1);
+  const [reportTotal, setReportTotal] = useState(0);
   const [pageSize] = useState(50);
 
   const fetchData = async () => {
@@ -78,23 +84,26 @@ export default function Home() {
     try {
       const token = localStorage.getItem('access_token');
       const headers = { 'Authorization': `Bearer ${token}` };
-      const skip = (itemPage - 1) * pageSize;
+      const itemSkip = (itemPage - 1) * pageSize;
+      const woSkip = (woPage - 1) * pageSize;
+      const auditSkip = (auditPage - 1) * pageSize;
+      const reportSkip = (reportPage - 1) * pageSize;
 
       const [itemsRes, locsRes, stockRes, attrsRes, catsRes, uomsRes, bomsRes, wcRes, opRes, woRes, balRes, soRes, sampRes, auditRes] = await Promise.all([
-          fetch(`${API_BASE}/items?skip=${skip}&limit=${pageSize}`, { headers }),
+          fetch(`${API_BASE}/items?skip=${itemSkip}&limit=${pageSize}`, { headers }),
           fetch(`${API_BASE}/locations`, { headers }),
-          fetch(`${API_BASE}/stock`, { headers }),
+          fetch(`${API_BASE}/stock?skip=${reportSkip}&limit=${pageSize}`, { headers }),
           fetch(`${API_BASE}/attributes`, { headers }),
           fetch(`${API_BASE}/categories`, { headers }),
           fetch(`${API_BASE}/uoms`, { headers }),
           fetch(`${API_BASE}/boms`, { headers }),
           fetch(`${API_BASE}/work-centers`, { headers }),
           fetch(`${API_BASE}/operations`, { headers }),
-          fetch(`${API_BASE}/work-orders`, { headers }),
+          fetch(`${API_BASE}/work-orders?skip=${woSkip}&limit=${pageSize}`, { headers }),
           fetch(`${API_BASE}/stock/balance`, { headers }),
           fetch(`${API_BASE}/sales-orders`, { headers }),
           fetch(`${API_BASE}/samples`, { headers }),
-          fetch(`${API_BASE}/audit-logs?limit=100`, { headers })
+          fetch(`${API_BASE}/audit-logs?skip=${auditSkip}&limit=${pageSize}`, { headers })
       ]);
 
       if (itemsRes.ok) {
@@ -103,18 +112,30 @@ export default function Home() {
           setItemTotal(data.total);
       }
       if (locsRes.ok) setLocations(await locsRes.json());
-      if (stockRes.ok) setStockEntries(await stockRes.json());
+      if (stockRes.ok) {
+          const data = await stockRes.ok ? await stockRes.json() : { items: [], total: 0 };
+          setStockEntries(data.items || []);
+          setReportTotal(data.total || 0);
+      }
       if (attrsRes.ok) setAttributes(await attrsRes.json());
       if (catsRes.ok) setCategories(await catsRes.json());
       if (uomsRes.ok) setUoms(await uomsRes.json());
       if (bomsRes.ok) setBoms(await bomsRes.json());
       if (wcRes.ok) setWorkCenters(await wcRes.json());
       if (opRes.ok) setOperations(await opRes.json());
-      if (woRes.ok) setWorkOrders(await woRes.json());
+      if (woRes.ok) {
+          const data = await woRes.json();
+          setWorkOrders(data.items);
+          setWoTotal(data.total);
+      }
       if (balRes.ok) setStockBalance(await balRes.json());
       if (soRes.ok) setSalesOrders(await soRes.json());
       if (sampRes.ok) setSamples(await sampRes.json());
-      if (auditRes.ok) setAuditLogs(await auditRes.json());
+      if (auditRes.ok) {
+          const data = await auditRes.json();
+          setAuditLogs(data.items);
+          setAuditTotal(data.total);
+      }
     } catch (e) {
       console.error("Failed to fetch data", e);
     }
@@ -130,7 +151,7 @@ export default function Home() {
     
     const savedStyle = localStorage.getItem('ui_style');
     if (savedStyle) setUiStyle(savedStyle);
-  }, [currentUser, itemPage]);
+  }, [currentUser, itemPage, woPage, auditPage, reportPage]);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
@@ -933,6 +954,10 @@ export default function Home() {
                 onCreateWO={handleCreateWO} 
                 onUpdateStatus={handleUpdateWOStatus} 
                 onDeleteWO={handleDeleteWO}
+                currentPage={woPage}
+                totalItems={woTotal}
+                pageSize={pageSize}
+                onPageChange={setWoPage}
             />
         )}
 
@@ -963,11 +988,21 @@ export default function Home() {
                 locations={locations} 
                 categories={categories}
                 onRefresh={fetchData} 
+                currentPage={reportPage}
+                totalItems={reportTotal}
+                pageSize={pageSize}
+                onPageChange={setReportPage}
             />
         )}
 
         {activeTab === 'audit-logs' && (
-            <AuditLogsView auditLogs={auditLogs} />
+            <AuditLogsView 
+                auditLogs={auditLogs} 
+                currentPage={auditPage}
+                totalItems={auditTotal}
+                pageSize={pageSize}
+                onPageChange={setAuditPage}
+            />
         )}
 
         {activeTab === 'settings' && (
