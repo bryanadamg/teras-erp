@@ -23,6 +23,9 @@ class PurchaseOrder(Base):
     supplier_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("partners.id"), nullable=True, index=True
     )
+    target_location_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True
+    )
     order_date: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     status: Mapped[str] = mapped_column(String(32), default="DRAFT") # DRAFT, SENT, RECEIVED, CANCELLED
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

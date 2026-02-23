@@ -10,6 +10,8 @@ import uuid
 
 router = APIRouter(prefix="/purchase-orders", tags=["purchase"])
 
+from app.services import stock_service, audit_service
+
 @router.post("", response_model=PurchaseOrderResponse)
 def create_purchase_order(payload: PurchaseOrderCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # Check duplicate PO number
@@ -19,6 +21,7 @@ def create_purchase_order(payload: PurchaseOrderCreate, db: Session = Depends(ge
     po = PurchaseOrder(
         po_number=payload.po_number,
         supplier_id=payload.supplier_id,
+        target_location_id=payload.target_location_id,
         order_date=payload.order_date
     )
     db.add(po)
@@ -43,6 +46,45 @@ def create_purchase_order(payload: PurchaseOrderCreate, db: Session = Depends(ge
                 if val:
                     db_line.attribute_values.append(val)
             db.commit()
+
+    return po
+
+@router.post("/{po_id}/receive", response_model=PurchaseOrderResponse)
+def receive_purchase_order(po_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    po = db.query(PurchaseOrder).filter(PurchaseOrder.id == po_id).first()
+    if not po:
+        raise HTTPException(status_code=404, detail="PO not found")
+    
+    if po.status == "RECEIVED":
+        raise HTTPException(status_code=400, detail="PO already received")
+    
+    if not po.target_location_id:
+        raise HTTPException(status_code=400, detail="Target location not set for this PO")
+
+    # Process each line into stock
+    for line in po.lines:
+        stock_service.add_stock_entry(
+            db,
+            item_id=line.item_id,
+            location_id=po.target_location_id,
+            attribute_value_ids=[str(v.id) for v in line.attribute_values],
+            qty_change=line.qty,
+            reference_type="Purchase Order",
+            reference_id=po.po_number
+        )
+
+    po.status = "RECEIVED"
+    db.commit()
+    db.refresh(po)
+
+    audit_service.log_activity(
+        db,
+        user_id=current_user.id,
+        action="STATUS_CHANGE",
+        entity_type="PurchaseOrder",
+        entity_id=str(po.id),
+        details=f"Received PO {po.po_number} and added items to stock."
+    )
 
     return po
 

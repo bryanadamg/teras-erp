@@ -284,6 +284,7 @@ class PurchaseOrderLineResponse(PurchaseOrderLineCreate):
 class PurchaseOrderCreate(BaseModel):
     po_number: str
     supplier_id: UUID | None = None
+    target_location_id: UUID | None = None
     order_date: datetime | None = None
     lines: list[PurchaseOrderLineCreate]
 

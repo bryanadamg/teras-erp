@@ -24,6 +24,7 @@ def run_migrations():
                 ("bom_lines", "source_location_id", "UUID REFERENCES locations(id)"),
                 ("bom_lines", "is_percentage", "BOOLEAN DEFAULT FALSE"),
                 ("boms", "tolerance_percentage", "NUMERIC(5,2) DEFAULT 0.0"),
+                ("purchase_orders", "target_location_id", "UUID REFERENCES locations(id)"),
                 ("users", "hashed_password", "VARCHAR(255)"),
                 ("users", "allowed_categories", "JSON"),
             ]

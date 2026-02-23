@@ -4,7 +4,7 @@ import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 import SearchableSelect from './SearchableSelect';
 
-export default function PurchaseOrderView({ items, attributes, purchaseOrders, partners, onCreatePO, onDeletePO }: any) {
+export default function PurchaseOrderView({ items, attributes, purchaseOrders, partners, locations, onCreatePO, onDeletePO, onReceivePO }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -12,6 +12,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
   const [newPO, setNewPO] = useState({
       po_number: '',
       supplier_id: '',
+      target_location_id: '',
       order_date: new Date().toISOString().split('T')[0],
       lines: [] as any[]
   });
@@ -101,6 +102,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
       const payload = {
           ...newPO,
           supplier_id: newPO.supplier_id || null,
+          target_location_id: newPO.target_location_id || null,
           order_date: newPO.order_date || null,
           lines: newPO.lines.map((line: any) => ({
               ...line,
@@ -109,7 +111,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
       };
 
       onCreatePO(payload);
-      setNewPO({ po_number: '', supplier_id: '', order_date: new Date().toISOString().split('T')[0], lines: [] });
+      setNewPO({ po_number: '', supplier_id: '', target_location_id: '', order_date: new Date().toISOString().split('T')[0], lines: [] });
       setIsCreateOpen(false);
   };
 
@@ -178,6 +180,16 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                         value={newPO.supplier_id}
                                         onChange={(val) => setNewPO({...newPO, supplier_id: val})}
                                         placeholder="Select Supplier..."
+                                        required
+                                    />
+                                </div>
+                                <div className="col-md-3">
+                                    <label className="form-label small text-muted">Receiving Warehouse</label>
+                                    <SearchableSelect 
+                                        options={locations.map((l: any) => ({ value: l.id, label: l.name, subLabel: l.code }))}
+                                        value={newPO.target_location_id}
+                                        onChange={(val) => setNewPO({...newPO, target_location_id: val})}
+                                        placeholder="Select..."
                                         required
                                     />
                                 </div>
@@ -314,11 +326,26 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                             ))}
                                         </div>
                                     </td>
-                                    <td><span className="badge bg-secondary">{po.status}</span></td>
+                                    <td>
+                                        <span className={`badge ${po.status === 'RECEIVED' ? 'bg-success' : 'bg-secondary'}`}>
+                                            {po.status}
+                                        </span>
+                                    </td>
                                     <td className="pe-4 text-end">
-                                        <button className="btn btn-sm btn-link text-danger" onClick={() => onDeletePO(po.id)}>
-                                            <i className="bi bi-trash"></i>
-                                        </button>
+                                        <div className="d-flex justify-content-end align-items-center gap-2">
+                                            {po.status !== 'RECEIVED' && (
+                                                <button 
+                                                    className="btn btn-sm btn-primary shadow-sm py-0 px-2" 
+                                                    style={{fontSize: '0.75rem'}}
+                                                    onClick={() => onReceivePO(po.id)}
+                                                >
+                                                    <i className="bi bi-box-arrow-in-down me-1"></i>Receive
+                                                </button>
+                                            )}
+                                            <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDeletePO(po.id)}>
+                                                <i className="bi bi-trash"></i>
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

@@ -457,6 +457,19 @@ export default function Home() {
       });
   };
 
+  const handleReceivePO = async (id: string) => {
+      const res = await authFetch(`${API_BASE}/purchase-orders/${id}/receive`, {
+          method: 'POST'
+      });
+      if (res.ok) {
+          showToast('PO Received! Stock has been updated.', 'success');
+          fetchData();
+      } else {
+          const err = await res.json();
+          showToast(`Error: ${err.detail}`, 'danger');
+      }
+  };
+
   const handleCreateSample = async (sample: any) => {
       const res = await authFetch(`${API_BASE}/samples`, {
           method: 'POST',
@@ -1036,8 +1049,10 @@ export default function Home() {
                 attributes={attributes}
                 purchaseOrders={purchaseOrders}
                 partners={partners}
+                locations={locations}
                 onCreatePO={handleCreateRealPO}
                 onDeletePO={handleDeleteRealPO}
+                onReceivePO={handleReceivePO}
             />
         )}
 
