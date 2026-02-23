@@ -68,14 +68,20 @@ export default function Home() {
   const [samples, setSamples] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
 
+  // Pagination State
+  const [itemPage, setItemPage] = useState(1);
+  const [itemTotal, setItemTotal] = useState(0);
+  const [pageSize] = useState(50);
+
   const fetchData = async () => {
     if (!currentUser) return;
     try {
       const token = localStorage.getItem('access_token');
       const headers = { 'Authorization': `Bearer ${token}` };
+      const skip = (itemPage - 1) * pageSize;
 
       const [itemsRes, locsRes, stockRes, attrsRes, catsRes, uomsRes, bomsRes, wcRes, opRes, woRes, balRes, soRes, sampRes, auditRes] = await Promise.all([
-          fetch(`${API_BASE}/items`, { headers }),
+          fetch(`${API_BASE}/items?skip=${skip}&limit=${pageSize}`, { headers }),
           fetch(`${API_BASE}/locations`, { headers }),
           fetch(`${API_BASE}/stock`, { headers }),
           fetch(`${API_BASE}/attributes`, { headers }),
@@ -93,7 +99,8 @@ export default function Home() {
 
       if (itemsRes.ok) {
           const data = await itemsRes.json();
-          setItems(data.items); // Set the array
+          setItems(data.items);
+          setItemTotal(data.total);
       }
       if (locsRes.ok) setLocations(await locsRes.json());
       if (stockRes.ok) setStockEntries(await stockRes.json());
@@ -123,7 +130,7 @@ export default function Home() {
     
     const savedStyle = localStorage.getItem('ui_style');
     if (savedStyle) setUiStyle(savedStyle);
-  }, [currentUser]);
+  }, [currentUser, itemPage]);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
@@ -814,6 +821,10 @@ export default function Home() {
                 onDownloadTemplate={handleDownloadTemplate}
                 onImportItems={handleImportItems}
                 onRefresh={fetchData} 
+                currentPage={itemPage}
+                totalItems={itemTotal}
+                pageSize={pageSize}
+                onPageChange={setItemPage}
             />
         )}
 
