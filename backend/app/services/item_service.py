@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.models.item import Item
 from app.models.variant import Variant
 from app.schemas import VariantCreate
@@ -67,5 +67,5 @@ def get_items(db: Session, skip: int = 0, limit: int = 100, user=None) -> tuple[
         query = query.filter(Item.category.in_(user.allowed_categories))
         
     total = query.count()
-    items = query.offset(skip).limit(limit).all()
+    items = query.options(joinedload(Item.attributes)).offset(skip).limit(limit).all()
     return items, total

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from './components/Sidebar';
 import InventoryView from './components/InventoryView';
@@ -26,7 +26,8 @@ import { useUser } from './context/UserContext';
 import DashboardView from './components/DashboardView';
 import ConfirmModal from './components/ConfirmModal';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
+const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
+const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
 export default function Home() {
   const router = useRouter();
@@ -83,71 +84,118 @@ export default function Home() {
   const [reportTotal, setReportTotal] = useState(0);
   const [pageSize] = useState(50);
 
-  const fetchData = async () => {
+  // Initial Load Flag
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  // Helper to fetch only what's needed
+  const fetchData = useCallback(async () => {
     if (!currentUser) return;
+    
     try {
-      const token = localStorage.getItem('access_token');
-      const headers = { 'Authorization': `Bearer ${token}` };
-      const itemSkip = (itemPage - 1) * pageSize;
-      const woSkip = (woPage - 1) * pageSize;
-      const auditSkip = (auditPage - 1) * pageSize;
-      const reportSkip = (reportPage - 1) * pageSize;
+        const token = localStorage.getItem('access_token');
+        const headers = { 'Authorization': `Bearer ${token}` };
+        
+        // Always fetch Master Data on initial load (or force refresh)
+        if (isInitialLoad || activeTab === 'settings') {
+            const [locs, attrs, cats, units, wcs, ops, parts] = await Promise.all([
+                fetch(`${API_BASE}/locations`, { headers }),
+                fetch(`${API_BASE}/attributes`, { headers }),
+                fetch(`${API_BASE}/categories`, { headers }),
+                fetch(`${API_BASE}/uoms`, { headers }),
+                fetch(`${API_BASE}/work-centers`, { headers }),
+                fetch(`${API_BASE}/operations`, { headers }),
+                fetch(`${API_BASE}/partners`, { headers })
+            ]);
+            
+            if (locs.ok) setLocations(await locs.json());
+            if (attrs.ok) setAttributes(await attrs.json());
+            if (cats.ok) setCategories(await cats.json());
+            if (units.ok) setUoms(await units.json());
+            if (wcs.ok) setWorkCenters(await wcs.json());
+            if (ops.ok) setOperations(await ops.json());
+            if (parts.ok) setPartners(await parts.json());
+            
+            setIsInitialLoad(false);
+        }
 
-      const [itemsRes, locsRes, stockRes, attrsRes, catsRes, uomsRes, bomsRes, wcRes, opRes, woRes, balRes, soRes, sampRes, auditRes, partnersRes, poRes] = await Promise.all([
-          fetch(`${API_BASE}/items?skip=${itemSkip}&limit=${pageSize}`, { headers }),
-          fetch(`${API_BASE}/locations`, { headers }),
-          fetch(`${API_BASE}/stock?skip=${reportSkip}&limit=${pageSize}`, { headers }),
-          fetch(`${API_BASE}/attributes`, { headers }),
-          fetch(`${API_BASE}/categories`, { headers }),
-          fetch(`${API_BASE}/uoms`, { headers }),
-          fetch(`${API_BASE}/boms`, { headers }),
-          fetch(`${API_BASE}/work-centers`, { headers }),
-          fetch(`${API_BASE}/operations`, { headers }),
-          fetch(`${API_BASE}/work-orders?skip=${woSkip}&limit=${pageSize}`, { headers }),
-          fetch(`${API_BASE}/stock/balance`, { headers }),
-          fetch(`${API_BASE}/sales-orders`, { headers }),
-          fetch(`${API_BASE}/samples`, { headers }),
-          fetch(`${API_BASE}/audit-logs?skip=${auditSkip}&limit=${pageSize}`, { headers }),
-          fetch(`${API_BASE}/partners`, { headers }),
-          fetch(`${API_BASE}/purchase-orders`, { headers })
-      ]);
+        // --- Domain Specific Fetches ---
 
-      if (itemsRes.ok) {
-          const data = await itemsRes.json();
-          setItems(data.items);
-          setItemTotal(data.total);
-      }
-      if (locsRes.ok) setLocations(await locsRes.json());
-      if (stockRes.ok) {
-          const data = await stockRes.ok ? await stockRes.json() : { items: [], total: 0 };
-          setStockEntries(data.items || []);
-          setReportTotal(data.total || 0);
-      }
-      if (attrsRes.ok) setAttributes(await attrsRes.json());
-      if (catsRes.ok) setCategories(await catsRes.json());
-      if (uomsRes.ok) setUoms(await uomsRes.json());
-      if (bomsRes.ok) setBoms(await bomsRes.json());
-      if (wcRes.ok) setWorkCenters(await wcRes.json());
-      if (opRes.ok) setOperations(await opRes.json());
-      if (woRes.ok) {
-          const data = await woRes.json();
-          setWorkOrders(data.items);
-          setWoTotal(data.total);
-      }
-      if (balRes.ok) setStockBalance(await balRes.json());
-      if (soRes.ok) setSalesOrders(await soRes.json());
-      if (sampRes.ok) setSamples(await sampRes.json());
-      if (auditRes.ok) {
-          const data = await auditRes.json();
-          setAuditLogs(data.items);
-          setAuditTotal(data.total);
-      }
-      if (partnersRes.ok) setPartners(await partnersRes.json());
-      if (poRes.ok) setPurchaseOrders(await poRes.json());
+        // Inventory & BOMs
+        if (['dashboard', 'inventory', 'sample-masters', 'bom', 'manufacturing', 'sales-orders', 'purchase-orders', 'stock', 'reports'].includes(activeTab)) {
+            // Check if we need full items or just for dropdowns? 
+            // Currently API returns paginated. We fetch current page.
+            const itemSkip = (itemPage - 1) * pageSize;
+            const itemsRes = await fetch(`${API_BASE}/items?skip=${itemSkip}&limit=${pageSize}`, { headers });
+            if (itemsRes.ok) {
+                const data = await itemsRes.json();
+                setItems(data.items);
+                setItemTotal(data.total);
+            }
+        }
+
+        // BOMs (Needed for Manufacturing, BOM view)
+        if (['bom', 'manufacturing', 'dashboard'].includes(activeTab)) {
+            const bomsRes = await fetch(`${API_BASE}/boms`, { headers });
+            if (bomsRes.ok) setBoms(await bomsRes.json());
+        }
+
+        // Manufacturing (Work Orders)
+        if (['manufacturing', 'dashboard', 'reports'].includes(activeTab)) {
+            const woSkip = (woPage - 1) * pageSize;
+            const woRes = await fetch(`${API_BASE}/work-orders?skip=${woSkip}&limit=${pageSize}`, { headers });
+            if (woRes.ok) {
+                const data = await woRes.json();
+                setWorkOrders(data.items);
+                setWoTotal(data.total);
+            }
+        }
+
+        // Stock Data
+        if (['stock', 'dashboard', 'reports', 'manufacturing'].includes(activeTab)) {
+            const balanceRes = await fetch(`${API_BASE}/stock/balance`, { headers });
+            if (balanceRes.ok) setStockBalance(await balanceRes.json());
+        }
+        
+        if (['reports'].includes(activeTab)) {
+             const reportSkip = (reportPage - 1) * pageSize;
+             const stockRes = await fetch(`${API_BASE}/stock?skip=${reportSkip}&limit=${pageSize}`, { headers });
+             if (stockRes.ok) {
+                const data = await stockRes.json();
+                setStockEntries(data.items || []);
+                setReportTotal(data.total || 0);
+             }
+        }
+
+        // Sales & Samples
+        if (['sales-orders', 'samples', 'dashboard'].includes(activeTab)) {
+            const soRes = await fetch(`${API_BASE}/sales-orders`, { headers });
+            if (soRes.ok) setSalesOrders(await soRes.json());
+            
+            const sampRes = await fetch(`${API_BASE}/samples`, { headers });
+            if (sampRes.ok) setSamples(await sampRes.json());
+        }
+
+        // Purchase Orders
+        if (['purchase-orders', 'dashboard'].includes(activeTab)) {
+            const poRes = await fetch(`${API_BASE}/purchase-orders`, { headers });
+            if (poRes.ok) setPurchaseOrders(await poRes.json());
+        }
+
+        // Audit Logs
+        if (activeTab === 'audit-logs') {
+            const auditSkip = (auditPage - 1) * pageSize;
+            const auditRes = await fetch(`${API_BASE}/audit-logs?skip=${auditSkip}&limit=${pageSize}`, { headers });
+            if (auditRes.ok) {
+                const data = await auditRes.json();
+                setAuditLogs(data.items);
+                setAuditTotal(data.total);
+            }
+        }
+
     } catch (e) {
       console.error("Failed to fetch data", e);
     }
-  };
+  }, [currentUser, activeTab, itemPage, woPage, auditPage, reportPage, isInitialLoad, pageSize]);
 
   useEffect(() => {
     if (currentUser) {
@@ -159,7 +207,7 @@ export default function Home() {
     
     const savedStyle = localStorage.getItem('ui_style');
     if (savedStyle) setUiStyle(savedStyle);
-  }, [currentUser, itemPage, woPage, auditPage, reportPage]);
+  }, [currentUser, activeTab, itemPage, woPage, auditPage, reportPage]);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
       e.preventDefault();

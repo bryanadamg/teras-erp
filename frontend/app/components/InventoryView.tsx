@@ -1,10 +1,46 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, memo } from 'react';
 import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
 import BulkImportModal from './BulkImportModal';
 import SearchableSelect from './SearchableSelect';
 import HistoryPane from './HistoryPane';
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
+
+// Memoized Row Component
+const InventoryRow = memo(({ item, isEditing, onEdit, onDelete, onViewHistory, getAttributeNames }: any) => (
+    <tr className={isEditing ? 'table-primary' : ''}>
+        <td className="ps-4 fw-medium font-monospace">
+            {item.code}
+        </td>
+        <td>{item.name}</td>
+        <td>{item.category && <span className="badge bg-light text-dark border">{item.category}</span>}</td>
+        <td>
+            {item.source_sample_id ? (
+                <div className="text-primary small fw-medium">
+                    <i className="bi bi-link-45deg"></i> Source Linked
+                </div>
+            ) : (
+                <span className="text-muted small">-</span>
+            )}
+        </td>
+        <td><span className="text-muted small">{getAttributeNames(item.attribute_ids)}</span></td>
+        <td>
+            <div className="d-flex gap-1">
+                <button className="btn btn-sm btn-link text-info p-0" title="View History" onClick={() => onViewHistory(item.id)}>
+                    <i className="bi bi-clock-history"></i>
+                </button>
+                <button className="btn btn-sm btn-link text-primary p-0" onClick={() => onEdit(item)}>
+                    <i className="bi bi-pencil-square"></i>
+                </button>
+                <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDelete(item.id)}>
+                    <i className="bi bi-trash"></i>
+                </button>
+            </div>
+        </td>
+    </tr>
+));
+
+InventoryRow.displayName = 'InventoryRow';
 
 export default function InventoryView({ 
     items, 
@@ -62,6 +98,13 @@ export default function InventoryView({
   // Filtering
   const [categoryFilter, setCategoryFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Debounce search
+  useEffect(() => {
+      const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+      return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   useEffect(() => {
       const savedConfig = localStorage.getItem('item_code_config');
@@ -104,7 +147,7 @@ export default function InventoryView({
       let counter = 1;
       let baseCode = `${basePattern}${config.separator}001`;
       
-      // Simple collision check against existing items
+      // Simple collision check against existing items (visible page only - better to check backend)
       while (items.some((i: any) => i.code === baseCode)) {
           counter++;
           baseCode = `${basePattern}${config.separator}${String(counter).padStart(3, '0')}`;
@@ -200,29 +243,35 @@ export default function InventoryView({
   // Derived
   const activeEditingItem = editingItem ? items.find((i: any) => i.id === editingItem.id) : null;
 
-  // Filtered Items
-  const filteredItems = items.filter((i: any) => {
-      // 1. Handle Forced Category (e.g. in the dedicated Samples tab)
-      if (forcedCategory) {
-          return i.category === forcedCategory;
-      }
+  // Filtered Items - Memoized
+  const filteredItems = useMemo(() => {
+      return items.filter((i: any) => {
+          // 1. Handle Forced Category (e.g. in the dedicated Samples tab)
+          if (forcedCategory) {
+              return i.category === forcedCategory;
+          }
 
-      // 2. Main Inventory View: Filter out "Sample" category by default
-      if (i.category === 'Sample') return false;
+          // 2. Main Inventory View: Filter out "Sample" category by default
+          if (i.category === 'Sample') return false;
 
-      // 3. Handle user filters (dropdown + search)
-      const matchesCategory = !categoryFilter || i.category === categoryFilter;
-      const matchesSearch = !searchTerm || 
-          i.code.toLowerCase().includes(searchTerm.toLowerCase()) || 
-          i.name.toLowerCase().includes(searchTerm.toLowerCase());
-      return matchesCategory && matchesSearch;
-  });
+          // 3. Handle user filters (dropdown + search)
+          const matchesCategory = !categoryFilter || i.category === categoryFilter;
+          const matchesSearch = !debouncedSearch || 
+              i.code.toLowerCase().includes(debouncedSearch.toLowerCase()) || 
+              i.name.toLowerCase().includes(debouncedSearch.toLowerCase());
+          return matchesCategory && matchesSearch;
+      });
+  }, [items, forcedCategory, categoryFilter, debouncedSearch]);
       
-  const sampleItems = items.filter((i: any) => i.category === 'Sample');
+  const sampleItems = useMemo(() => items.filter((i: any) => i.category === 'Sample'), [items]);
 
   const getAttributeNames = (ids: string[]) => {
       if (!ids || ids.length === 0) return '-';
       return ids.map(id => attributes.find((a: any) => a.id === id)?.name).filter(Boolean).join(', ');
+  };
+
+  const handleEdit = (item: any) => {
+      setEditingItem({...item, attribute_ids: item.attribute_ids || []});
   };
 
   return (
@@ -409,36 +458,15 @@ export default function InventoryView({
                 </thead>
                 <tbody>
                   {filteredItems.map((item: any) => (
-                    <tr key={item.id} className={editingItem?.id === item.id ? 'table-primary' : ''}>
-                      <td className="ps-4 fw-medium font-monospace">
-                          {item.code}
-                      </td>
-                      <td>{item.name}</td>
-                      <td>{item.category && <span className="badge bg-light text-dark border">{item.category}</span>}</td>
-                      <td>
-                          {item.source_sample_id ? (
-                              <div className="text-primary small fw-medium">
-                                  <i className="bi bi-link-45deg"></i> {items.find((i: any) => i.id === item.source_sample_id)?.name || 'Unknown'}
-                              </div>
-                          ) : (
-                              <span className="text-muted small">-</span>
-                          )}
-                      </td>
-                      <td><span className="text-muted small">{getAttributeNames(item.attribute_ids)}</span></td>
-                      <td>
-                          <div className="d-flex gap-1">
-                              <button className="btn btn-sm btn-link text-info p-0" title="View History" onClick={() => setHistoryEntityId(item.id)}>
-                                  <i className="bi bi-clock-history"></i>
-                              </button>
-                              <button className="btn btn-sm btn-link text-primary p-0" onClick={() => setEditingItem({...item, attribute_ids: item.attribute_ids || []})}>
-                                  <i className="bi bi-pencil-square"></i>
-                              </button>
-                              <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDeleteItem(item.id)}>
-                                  <i className="bi bi-trash"></i>
-                              </button>
-                          </div>
-                      </td>
-                    </tr>
+                    <InventoryRow
+                        key={item.id}
+                        item={item}
+                        isEditing={editingItem?.id === item.id}
+                        onEdit={handleEdit}
+                        onDelete={onDeleteItem}
+                        onViewHistory={setHistoryEntityId}
+                        getAttributeNames={getAttributeNames}
+                    />
                   ))}
                   {filteredItems.length === 0 && <tr><td colSpan={6} className="text-center text-muted py-5">No items found</td></tr>}
                 </tbody>
