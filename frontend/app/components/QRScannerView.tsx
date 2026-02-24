@@ -9,7 +9,7 @@ interface QRScannerViewProps {
     locations: any[];
     attributes: any[];
     stockBalance: any[];
-    onUpdateStatus: (id: string, status: string) => void;
+    onUpdateStatus: (id: string, status: string) => Promise<boolean>;
     onClose: () => void;
 }
 
@@ -28,18 +28,10 @@ export default function QRScannerView({
     const [error, setError] = useState<string | null>(null);
     const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
-    // --- Validation Logic (Mirrored from ManufacturingView) ---
+    // --- Validation Logic ---
     const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
     const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
     
-    const getAttributeValueName = (valId: string) => {
-        for (const attr of attributes) {
-            const val = attr.values.find((v: any) => v.id === valId);
-            if (val) return val.value;
-        }
-        return valId;
-    };
-
     const calculateRequiredQty = (baseQty: number, line: any, bom: any) => {
         let required = parseFloat(line.qty);
         if (line.is_percentage) {
@@ -86,33 +78,40 @@ export default function QRScannerView({
 
     // --- Scanner Lifecycle ---
     useEffect(() => {
-        scannerRef.current = new Html5QrcodeScanner(
-            "reader", 
-            { fps: 10, qrbox: { width: 250, height: 250 } }, 
-            false
-        );
+        let scanner: Html5QrcodeScanner | null = null;
 
-        const onScanSuccess = (decodedText: string) => {
-            const found = workOrders.find(wo => wo.code === decodedText);
-            if (found) {
-                setScannedWO(found);
-                setError(null);
-                if (scannerRef.current) {
-                    scannerRef.current.clear();
+        // Delay init to ensure DOM element exists
+        const initTimer = setTimeout(() => {
+            if (!document.getElementById("reader")) return;
+
+            scanner = new Html5QrcodeScanner(
+                "reader", 
+                { fps: 10, qrbox: { width: 250, height: 250 } }, 
+                false
+            );
+            scannerRef.current = scanner;
+
+            const onScanSuccess = (decodedText: string) => {
+                const found = workOrders.find(wo => wo.code === decodedText);
+                if (found) {
+                    setScannedWO(found);
+                    setError(null);
+                    scanner?.clear().catch(console.error);
+                } else {
+                    setError(`Work Order "${decodedText}" not found.`);
                 }
-            } else {
-                setError(`Work Order "${decodedText}" not found.`);
-            }
-        };
+            };
 
-        scannerRef.current.render(onScanSuccess, (e) => {});
+            scanner.render(onScanSuccess, (e) => {});
+        }, 100);
 
         return () => {
+            clearTimeout(initTimer);
             if (scannerRef.current) {
-                scannerRef.current.clear().catch(e => {});
+                scannerRef.current.clear().catch(e => console.error("Cleanup error", e));
             }
         };
-    }, [workOrders]);
+    }, [workOrders, scannedWO]); // Re-run if scannedWO changes (to re-init scanner when resetting)
 
     const handleUpdate = async (status: string) => {
         if (!scannedWO) return;
@@ -126,16 +125,20 @@ export default function QRScannerView({
             }
         }
 
-        await onUpdateStatus(scannedWO.id, status);
-        setScannedWO({ ...scannedWO, status });
-        setError(null);
+        const success = await onUpdateStatus(scannedWO.id, status);
+        if (success) {
+            setScannedWO({ ...scannedWO, status });
+            setError(null);
+        } else {
+            // Error is handled by toast in parent
+        }
     };
 
     return (
         <div className="card border-0 shadow-lg fade-in">
             <div className="card-header bg-dark text-white d-flex justify-content-between align-items-center">
                 <h5 className="mb-0 small fw-bold text-uppercase"><i className="bi bi-qr-code-scan me-2 text-info"></i>Operator Scan Terminal</h5>
-                <button className="btn btn-sm btn-outline-light py-0 border-0" onClick={onClose}><i className="bi bi-x-lg"></i></button>
+                <button className="btn btn-sm btn-outline-light py-0 border-0" type="button" onClick={onClose}><i className="bi bi-x-lg"></i></button>
             </div>
             <div className="card-body bg-light bg-opacity-50">
                 {!scannedWO ? (
@@ -158,7 +161,7 @@ export default function QRScannerView({
                                     <span className={`badge ${scannedWO.status === 'COMPLETED' ? 'bg-success' : 'bg-warning text-dark'} extra-small`}>{scannedWO.status}</span>
                                 </div>
                             </div>
-                            <button className="btn btn-sm btn-outline-secondary" onClick={() => { setScannedWO(null); window.location.reload(); }}>
+                            <button className="btn btn-sm btn-outline-secondary" type="button" onClick={() => { setScannedWO(null); window.location.reload(); }}>
                                 <i className="bi bi-arrow-repeat me-1"></i>Reset
                             </button>
                         </div>
@@ -170,12 +173,12 @@ export default function QRScannerView({
                                 <h6 className="small text-uppercase text-muted fw-bold mb-3 letter-spacing-1">Factory Floor Actions</h6>
                                 <div className="d-grid gap-3">
                                     {scannedWO.status === 'PENDING' && (
-                                        <button className="btn btn-lg btn-primary shadow py-3 fw-bold" onClick={() => handleUpdate('IN_PROGRESS')}>
+                                        <button className="btn btn-lg btn-primary shadow py-3 fw-bold" type="button" onClick={() => handleUpdate('IN_PROGRESS')}>
                                             <i className="bi bi-play-fill me-2 fs-4"></i> START PRODUCTION
                                         </button>
                                     )}
                                     {scannedWO.status === 'IN_PROGRESS' && (
-                                        <button className="btn btn-lg btn-success shadow py-3 fw-bold" onClick={() => handleUpdate('COMPLETED')}>
+                                        <button className="btn btn-lg btn-success shadow py-3 fw-bold" type="button" onClick={() => handleUpdate('COMPLETED')}>
                                             <i className="bi bi-check-lg me-2 fs-4"></i> MARK AS COMPLETED
                                         </button>
                                     )}
@@ -186,7 +189,7 @@ export default function QRScannerView({
                                             <small className="text-success opacity-75">This order has been received into inventory.</small>
                                         </div>
                                     )}
-                                    <button className="btn btn-sm btn-link text-danger mt-2" onClick={() => handleUpdate('CANCELLED')}>
+                                    <button className="btn btn-sm btn-link text-danger mt-2" type="button" onClick={() => handleUpdate('CANCELLED')}>
                                         Cancel This Order
                                     </button>
                                 </div>

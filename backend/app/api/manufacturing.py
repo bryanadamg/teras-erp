@@ -150,17 +150,26 @@ def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_
         raise HTTPException(status_code=404, detail="Work Order not found")
     
     previous_status = wo.status
-    
     valid_statuses = ["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"]
     if status not in valid_statuses:
         raise HTTPException(status_code=400, detail="Invalid status")
     
     # 1. Update start_date if moving to IN_PROGRESS
-    if status == "IN_PROGRESS" and wo.status != "IN_PROGRESS":
-        
+    if status == "IN_PROGRESS" and previous_status != "IN_PROGRESS":
         # Validate Stock Availability for all BOM Lines
         for line in wo.bom.lines:
-            required_qty = float(line.qty) * float(wo.qty)
+            # --- Logic duplicated from frontend for consistency ---
+            required_qty = float(line.qty)
+            if line.is_percentage:
+                required_qty = (float(wo.qty) * required_qty) / 100
+            else:
+                required_qty = float(wo.qty) * required_qty
+            
+            # Apply tolerance from BOM header
+            tolerance = float(wo.bom.tolerance_percentage or 0)
+            if tolerance > 0:
+                required_qty = required_qty * (1 + (tolerance / 100))
+            
             # Use line specific source, or WO source, or WO dest
             check_location_id = line.source_location_id or wo.source_location_id or wo.location_id
             
@@ -175,7 +184,6 @@ def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_
                 from app.models.item import Item
                 item_obj = db.query(Item).filter(Item.id == line.item_id).first()
                 item_name = item_obj.name if item_obj else "Unknown Item"
-                
                 location_obj = db.query(Location).filter(Location.id == check_location_id).first()
                 loc_name = location_obj.name if location_obj else "Unknown Location"
                 
@@ -187,15 +195,20 @@ def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_
         wo.start_date = datetime.utcnow()
 
     # 2. Check if completing
-    if status == "COMPLETED" and wo.status != "COMPLETED":
+    if status == "COMPLETED" and previous_status != "COMPLETED":
         wo.completed_at = datetime.utcnow()
-        
-        # 1. Deduct Materials (This will trigger the stock_service negative check as a safety net)
         for line in wo.bom.lines:
-            # Required Qty = BOM Line Qty * Work Order Qty
-            required_qty = float(line.qty) * float(wo.qty)
+            # Re-calculate with tolerance
+            qty_to_deduct = float(line.qty)
+            if line.is_percentage:
+                qty_to_deduct = (float(wo.qty) * qty_to_deduct) / 100
+            else:
+                qty_to_deduct = float(wo.qty) * qty_to_deduct
             
-            # Use line specific source, or WO source, or WO dest
+            tolerance = float(wo.bom.tolerance_percentage or 0)
+            if tolerance > 0:
+                qty_to_deduct = qty_to_deduct * (1 + (tolerance / 100))
+            
             deduct_location_id = line.source_location_id or wo.source_location_id or wo.location_id
 
             stock_service.add_stock_entry(
@@ -203,12 +216,12 @@ def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_
                 item_id=line.item_id,
                 location_id=deduct_location_id,
                 attribute_value_ids=[v.id for v in line.attribute_values],
-                qty_change=-required_qty, # Negative for deduction
+                qty_change=-qty_to_deduct,
                 reference_type="Work Order",
                 reference_id=wo.code
             )
         
-        # 2. Add Finished Good (to the destination/production location)
+        # Add Finished Good
         stock_service.add_stock_entry(
             db,
             item_id=wo.item_id,
@@ -220,7 +233,11 @@ def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_
         )
 
     wo.status = status
-    db.commit()
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database commit failed: {str(e)}")
     
     audit_service.log_activity(
         db,

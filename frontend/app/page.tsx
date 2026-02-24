@@ -514,9 +514,11 @@ export default function Home() {
       if (res.ok) {
           showToast(`WO status updated`, 'info');
           fetchData();
+          return true;
       } else {
           const err = await res.json();
           showToast(`Error: ${err.detail}`, 'danger');
+          return false;
       }
   };
 
