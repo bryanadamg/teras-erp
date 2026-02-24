@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
 import BOMAutomatorModal from './BOMAutomatorModal';
@@ -27,6 +27,60 @@ interface BOMNodeData {
     lines: BOMLineNode[];
     isNewItem?: boolean;
 }
+
+// --- Sub-Components moved outside to prevent re-creation on every render ---
+
+const TreeView = memo(({ 
+    node, 
+    level = 0, 
+    selectedNodeId, 
+    items, 
+    onSelect,
+    hasExistingBOM 
+}: { 
+    node: BOMNodeData, 
+    level: number, 
+    selectedNodeId: string, 
+    items: any[], 
+    onSelect: (id: string) => void,
+    hasExistingBOM: (code: string) => boolean
+}) => {
+    const itemExists = items.some((i: any) => (i.code || '').trim().toLowerCase() === (node.item_code || '').trim().toLowerCase());
+    const recipeExists = hasExistingBOM(node.item_code);
+    const hasLocalDef = node.lines.length > 0 || node.operations.length > 0;
+
+    return (
+        <div className="tree-node">
+            <div 
+                className={`d-flex align-items-center p-2 rounded mb-1 cursor-pointer ${selectedNodeId === node.id ? 'bg-primary text-white shadow-sm' : 'hover-bg-light'}`}
+                style={{ paddingLeft: `${level * 16 + 8}px`, cursor: 'pointer' }}
+                onClick={() => onSelect(node.id)}
+            >
+                <i className={`bi ${level === 0 ? 'bi-box-seam-fill' : 'bi-diagram-3'} me-2`}></i>
+                <span className="text-truncate small fw-bold">{node.item_code || 'Unnamed'}</span>
+                
+                <div className="ms-auto d-flex gap-1">
+                    {recipeExists && <span className="badge bg-success" style={{fontSize: '0.5rem'}}>RECIPE✓</span>}
+                    {!recipeExists && hasLocalDef && <span className="badge bg-info" style={{fontSize: '0.5rem'}}>DRAFT</span>}
+                    {!itemExists && <span className="badge bg-danger" style={{fontSize: '0.5rem'}}>NEW ITEM</span>}
+                </div>
+            </div>
+            {node.lines.map(line => line.subBOM && (
+                <TreeView 
+                    key={line.subBOM.id} 
+                    node={line.subBOM} 
+                    level={level + 1} 
+                    selectedNodeId={selectedNodeId}
+                    items={items}
+                    onSelect={onSelect}
+                    hasExistingBOM={hasExistingBOM}
+                />
+            ))}
+        </div>
+    );
+});
+
+TreeView.displayName = 'TreeView';
 
 export default function BOMDesigner({ 
     rootItemCode, 
@@ -93,13 +147,16 @@ export default function BOMDesigner({
     }, [rootItemCode]);
 
     // --- Helpers ---
-    const getItemName = (code: string) => items.find((i: any) => (i.code || '').trim().toLowerCase() === (code || '').trim().toLowerCase())?.name || code;
-    const hasExistingBOM = (code: string) => {
+    const getItemName = useCallback((code: string) => items.find((i: any) => (i.code || '').trim().toLowerCase() === (code || '').trim().toLowerCase())?.name || code, [items]);
+    
+    const hasExistingBOM = useCallback((code: string) => {
          const item = items.find((i:any) => (i.code || '').trim().toLowerCase() === (code || '').trim().toLowerCase());
          return item && existingBOMs.some((b:any) => b.item_id === item.id);
-    };
+    }, [items, existingBOMs]);
+
     const getOpName = (id: string) => operations.find((o: any) => o.id === id)?.name || id;
     const getWCName = (id: string) => workCenters.find((w: any) => w.id === id)?.name || id;
+    
     const getAttributeValueName = (valId: string) => {
         for (const attr of attributes) {
             const val = attr.values.find((v: any) => v.id === valId);
@@ -109,7 +166,7 @@ export default function BOMDesigner({
     };
 
     // --- Logic ---
-    const suggestBOMCode = (itemCode: string, attributeValueIds: string[] = [], config = codeConfig) => {
+    const suggestBOMCode = useCallback((itemCode: string, attributeValueIds: string[] = [], config = codeConfig) => {
         const parts = [];
         if (config.prefix) parts.push(config.prefix);
         if (config.includeItemCode && itemCode) parts.push(itemCode);
@@ -143,9 +200,9 @@ export default function BOMDesigner({
             baseCode = `${basePattern}${config.separator}${String(counter).padStart(3, '0')}`;
         }
         return baseCode;
-    };
+    }, [codeConfig, attributes, existingBOMs]);
 
-    const handleApplyAutomation = (levels: string[][]) => {
+    const handleApplyAutomation = useCallback((levels: string[][]) => {
         if (!rootBOM.item_code) return;
 
         const findMatchingAttributeIds = (childItemCode: string, parentAttrIds: string[]) => {
@@ -223,7 +280,7 @@ export default function BOMDesigner({
 
         const newLines = constructTreeRecursive(rootBOM.item_code, rootBOM.attribute_value_ids, 0);
         setRootBOM(prev => ({ ...prev, lines: newLines }));
-    };
+    }, [rootBOM.item_code, rootBOM.attribute_value_ids, items, attributes, existingBOMs, suggestBOMCode]);
 
     const saveNode = async (node: BOMNodeData): Promise<boolean> => {
         // Resolve Root Item to inherit attributes for new items
@@ -326,35 +383,6 @@ export default function BOMDesigner({
 
     // --- Components ---
 
-    const TreeView = ({ node, level = 0 }: { node: BOMNodeData, level: number }) => {
-        const itemExists = items.some((i: any) => (i.code || '').trim().toLowerCase() === (node.item_code || '').trim().toLowerCase());
-        const recipeExists = hasExistingBOM(node.item_code);
-        // Check if this node has valid BOM definition locally
-        const hasLocalDef = node.lines.length > 0 || node.operations.length > 0;
-
-        return (
-            <div className="tree-node">
-                <div 
-                    className={`d-flex align-items-center p-2 rounded mb-1 cursor-pointer ${selectedNodeId === node.id ? 'bg-primary text-white shadow-sm' : 'hover-bg-light'}`}
-                    style={{ paddingLeft: `${level * 16 + 8}px`, cursor: 'pointer' }}
-                    onClick={() => setSelectedNodeId(node.id)}
-                >
-                    <i className={`bi ${level === 0 ? 'bi-box-seam-fill' : 'bi-diagram-3'} me-2`}></i>
-                    <span className="text-truncate small fw-bold">{node.item_code || 'Unnamed'}</span>
-                    
-                    <div className="ms-auto d-flex gap-1">
-                        {recipeExists && <span className="badge bg-success" style={{fontSize: '0.5rem'}}>RECIPE✓</span>}
-                        {!recipeExists && hasLocalDef && <span className="badge bg-info" style={{fontSize: '0.5rem'}}>DRAFT</span>}
-                        {!itemExists && <span className="badge bg-danger" style={{fontSize: '0.5rem'}}>NEW ITEM</span>}
-                    </div>
-                </div>
-                {node.lines.map(line => line.subBOM && (
-                    <TreeView key={line.subBOM.id} node={line.subBOM} level={level + 1} />
-                ))}
-            </div>
-        );
-    };
-
     const selectedNode = findNodeById(rootBOM, selectedNodeId);
 
     return (
@@ -373,7 +401,14 @@ export default function BOMDesigner({
                         <span className="badge bg-secondary extra-small">{items.length} SKUs</span>
                     </div>
                     <div className="p-2 flex-grow-1 overflow-auto">
-                        <TreeView node={rootBOM} level={0} />
+                        <TreeView 
+                            node={rootBOM} 
+                            level={0} 
+                            selectedNodeId={selectedNodeId} 
+                            items={items} 
+                            onSelect={setSelectedNodeId} 
+                            hasExistingBOM={hasExistingBOM}
+                        />
                     </div>
                 </div>
 

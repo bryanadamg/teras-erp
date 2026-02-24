@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, memo, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 
 interface AutoBOMProfile {
@@ -16,7 +16,7 @@ interface BOMAutomatorModalProps {
 const DUMMY_CODE = "9698/22";
 const DEFAULT_LEVELS = [['WIP CBG {CODE}'], ['WIP CSBG {CODE}'], ['WIP WARPING {CODE}']];
 
-// Memoized Sub-component for the Preview to prevent re-renders on every input change
+// Memoized Sub-component for the Preview
 const BranchingPreview = memo(({ levels }: { levels: string[][] }) => (
     <div className="bg-light rounded p-3 border">
         <h6 className="extra-small fw-bold text-uppercase text-muted mb-3 letter-spacing-1">
@@ -46,7 +46,7 @@ const BranchingPreview = memo(({ levels }: { levels: string[][] }) => (
 
 BranchingPreview.displayName = 'BranchingPreview';
 
-// Memoized Level Card to prevent entire list re-render when one pattern changes
+// Memoized Level Card with no-hover to prevent scroll lag
 const LevelCard = memo(({ 
     lIdx, 
     lvl, 
@@ -67,7 +67,7 @@ const LevelCard = memo(({
             <div className="position-absolute start-50 top-0 translate-middle-x" style={{ height: '24px', width: '2px', backgroundColor: '#dee2e6', marginTop: '-24px' }}></div>
         )}
         
-        <div className="card shadow-xs border-primary border-opacity-10 overflow-hidden">
+        <div className="card no-hover border-primary border-opacity-10 overflow-hidden shadow-none border">
             <div className="card-header bg-primary bg-opacity-5 py-2 px-3 d-flex justify-content-between align-items-center border-0">
                 <div className="d-flex align-items-center">
                     <span className="badge bg-primary text-white me-2">L{lIdx + 1}</span>
@@ -110,7 +110,7 @@ const LevelCard = memo(({
 
 LevelCard.displayName = 'LevelCard';
 
-export default function BOMAutomatorModal({ isOpen, onClose, onApply }: BOMAutomatorModalProps) {
+const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalProps) => {
     const { t } = useLanguage();
     const [levels, setLevels] = useState<string[][]>(DEFAULT_LEVELS);
     const [profiles, setProfiles] = useState<AutoBOMProfile[]>([]);
@@ -222,11 +222,11 @@ export default function BOMAutomatorModal({ isOpen, onClose, onApply }: BOMAutom
                                 <div className="col-md-7">
                                     <div className="d-flex flex-wrap gap-1">
                                         {profiles.map(p => (
-                                            <div key={p.id} className="btn-group btn-group-sm shadow-xs bg-white">
-                                                <button className="btn btn-outline-secondary border-end-0 py-0" style={{fontSize: '11px'}} onClick={() => handleLoadProfile(p)}>
+                                            <div key={p.id} className="btn-group btn-group-sm bg-white border rounded shadow-none">
+                                                <button className="btn btn-outline-secondary border-0 py-0" style={{fontSize: '11px'}} onClick={() => handleLoadProfile(p)}>
                                                     {p.name}
                                                 </button>
-                                                <button className="btn btn-outline-danger py-0 px-1" style={{fontSize: '11px'}} onClick={(e) => handleDeleteProfile(e, p.id)}>
+                                                <button className="btn btn-outline-danger border-0 py-0 px-1" style={{fontSize: '11px'}} onClick={(e) => handleDeleteProfile(e, p.id)}>
                                                     <i className="bi bi-x"></i>
                                                 </button>
                                             </div>
@@ -291,4 +291,8 @@ export default function BOMAutomatorModal({ isOpen, onClose, onApply }: BOMAutom
             </div>
         </div>
     );
-}
+});
+
+BOMAutomatorModal.displayName = 'BOMAutomatorModal';
+
+export default BOMAutomatorModal;
