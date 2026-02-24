@@ -1022,6 +1022,8 @@ export default function Home() {
                 attributes={attributes}
                 workOrders={workOrders} 
                 stockBalance={stockBalance}
+                workCenters={workCenters}
+                operations={operations}
                 onCreateWO={handleCreateWO} 
                 onUpdateStatus={handleUpdateWOStatus} 
                 onDeleteWO={handleDeleteWO}

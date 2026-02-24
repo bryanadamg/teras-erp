@@ -14,6 +14,8 @@ export default function ManufacturingView({
     attributes, 
     workOrders, 
     stockBalance, 
+    workCenters,
+    operations,
     onCreateWO, 
     onUpdateStatus, 
     onDeleteWO,
@@ -186,6 +188,8 @@ export default function ManufacturingView({
   const getItemCode = (id: string) => items.find((i: any) => i.id === id)?.code || id;
   const getBOMCode = (id: string) => boms.find((b: any) => b.id === id)?.code || id;
   const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
+  const getOpName = (id: string) => operations.find((o: any) => o.id === id)?.name || id;
+  const getWCName = (id: string) => workCenters.find((w: any) => w.id === id)?.name || id;
   const getAttributeValueName = (valId: string) => {
       for (const attr of attributes) {
           const val = attr.values.find((v: any) => v.id === valId);
