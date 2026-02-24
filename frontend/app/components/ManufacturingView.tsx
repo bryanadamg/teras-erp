@@ -516,6 +516,11 @@ export default function ManufacturingView({
                           <div className="p-4">
                               <QRScannerView 
                                   workOrders={workOrders} 
+                                  items={items}
+                                  boms={boms}
+                                  locations={locations}
+                                  attributes={attributes}
+                                  stockBalance={stockBalance}
                                   onUpdateStatus={onUpdateStatus} 
                                   onClose={() => setViewMode('list')} 
                               />

@@ -4,111 +4,190 @@ import { useLanguage } from '../context/LanguageContext';
 
 interface QRScannerViewProps {
     workOrders: any[];
+    items: any[];
+    boms: any[];
+    locations: any[];
+    attributes: any[];
+    stockBalance: any[];
     onUpdateStatus: (id: string, status: string) => void;
     onClose: () => void;
 }
 
-export default function QRScannerView({ workOrders, onUpdateStatus, onClose }: QRScannerViewProps) {
+export default function QRScannerView({ 
+    workOrders, 
+    items, 
+    boms, 
+    locations, 
+    attributes, 
+    stockBalance, 
+    onUpdateStatus, 
+    onClose 
+}: QRScannerViewProps) {
     const { t } = useLanguage();
     const [scannedWO, setScannedWO] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
     const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
+    // --- Validation Logic (Mirrored from ManufacturingView) ---
+    const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
+    const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
+    
+    const getAttributeValueName = (valId: string) => {
+        for (const attr of attributes) {
+            const val = attr.values.find((v: any) => v.id === valId);
+            if (val) return val.value;
+        }
+        return valId;
+    };
+
+    const calculateRequiredQty = (baseQty: number, line: any, bom: any) => {
+        let required = parseFloat(line.qty);
+        if (line.is_percentage) {
+            required = (baseQty * required) / 100;
+        } else {
+            required = baseQty * required;
+        }
+        const tolerance = parseFloat(bom?.tolerance_percentage || 0);
+        if (tolerance > 0) {
+            required = required * (1 + (tolerance / 100));
+        }
+        return required;
+    };
+
+    const checkStockAvailability = (item_id: string, location_id: string, attribute_value_ids: string[] = [], required_qty: number) => {
+        const targetIds = attribute_value_ids || [];
+        const matchingEntries = stockBalance.filter((s: any) => 
+            s.item_id === item_id && s.location_id === location_id &&
+            (s.attribute_value_ids || []).length === targetIds.length &&
+            (s.attribute_value_ids || []).every((id: string) => targetIds.includes(id))
+        );
+        const available = matchingEntries.reduce((sum: number, e: any) => sum + parseFloat(e.qty), 0);
+        return { available, isEnough: available >= required_qty };
+    };
+
+    const validateMaterials = (wo: any) => {
+        const bom = boms.find(b => b.id === wo.bom_id);
+        if (!bom) return { ok: false, missing: [] };
+
+        const missing: any[] = [];
+        for (const line of bom.lines) {
+            const required = calculateRequiredQty(wo.qty, line, bom);
+            const checkLocId = line.source_location_id || wo.source_location_id || wo.location_id;
+            const { isEnough } = checkStockAvailability(line.item_id, checkLocId, line.attribute_value_ids, required);
+            if (!isEnough) {
+                missing.push({
+                    name: getItemName(line.item_id),
+                    location: getLocationName(checkLocId)
+                });
+            }
+        }
+        return { ok: missing.length === 0, missing };
+    };
+
+    // --- Scanner Lifecycle ---
     useEffect(() => {
-        // Initialize Scanner
         scannerRef.current = new Html5QrcodeScanner(
             "reader", 
             { fps: 10, qrbox: { width: 250, height: 250 } }, 
-            /* verbose= */ false
+            false
         );
 
         const onScanSuccess = (decodedText: string) => {
-            // Find the WO in our list
             const found = workOrders.find(wo => wo.code === decodedText);
             if (found) {
                 setScannedWO(found);
                 setError(null);
-                // We stop scanning once found to let user interact with the card
                 if (scannerRef.current) {
                     scannerRef.current.clear();
                 }
             } else {
-                setError(`Work Order "${decodedText}" not found in current list.`);
+                setError(`Work Order "${decodedText}" not found.`);
             }
         };
 
-        const onScanFailure = (error: any) => {
-            // Silent failure for most frames
-        };
-
-        scannerRef.current.render(onScanSuccess, onScanFailure);
+        scannerRef.current.render(onScanSuccess, (e) => {});
 
         return () => {
             if (scannerRef.current) {
-                scannerRef.current.clear().catch(e => console.error("Scanner cleanup failed", e));
+                scannerRef.current.clear().catch(e => {});
             }
         };
     }, [workOrders]);
 
     const handleUpdate = async (status: string) => {
         if (!scannedWO) return;
+
+        // Perform Material Check if starting
+        if (status === 'IN_PROGRESS') {
+            const { ok, missing } = validateMaterials(scannedWO);
+            if (!ok) {
+                setError(`INSUFFICIENT STOCK: Cannot start production. Missing ${missing.map(m => m.name).join(', ')} at ${missing[0].location}.`);
+                return;
+            }
+        }
+
         await onUpdateStatus(scannedWO.id, status);
-        // Refresh scanned WO locally to show new status
         setScannedWO({ ...scannedWO, status });
+        setError(null);
     };
 
     return (
         <div className="card border-0 shadow-lg fade-in">
             <div className="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                <h5 className="mb-0"><i className="bi bi-qr-code-scan me-2"></i>Operator Scan Terminal</h5>
-                <button className="btn btn-sm btn-outline-light" onClick={onClose}><i className="bi bi-x-lg"></i></button>
+                <h5 className="mb-0 small fw-bold text-uppercase"><i className="bi bi-qr-code-scan me-2 text-info"></i>Operator Scan Terminal</h5>
+                <button className="btn btn-sm btn-outline-light py-0 border-0" onClick={onClose}><i className="bi bi-x-lg"></i></button>
             </div>
-            <div className="card-body">
+            <div className="card-body bg-light bg-opacity-50">
                 {!scannedWO ? (
                     <div className="text-center py-4">
-                        <div id="reader" style={{ width: '100%', maxWidth: '500px', margin: '0 auto' }}></div>
+                        <div id="reader" className="overflow-hidden rounded border bg-white" style={{ width: '100%', maxWidth: '500px', margin: '0 auto' }}></div>
                         <div className="mt-4">
-                            <p className="lead text-muted">Point your camera at a Work Order QR Code</p>
-                            {error && <div className="alert alert-warning py-2 small">{error}</div>}
+                            <p className="lead text-muted mb-2">Ready to Scan</p>
+                            <small className="text-muted">Point your camera at a Work Order QR Code</small>
+                            {error && <div className="alert alert-danger py-2 mt-3 small shadow-sm border-0 border-start border-4 border-danger">{error}</div>}
                         </div>
                     </div>
                 ) : (
                     <div className="py-2">
-                        <div className="d-flex align-items-center justify-content-between mb-4 bg-light p-3 rounded border border-info border-opacity-25 shadow-sm">
+                        <div className="d-flex align-items-center justify-content-between mb-4 bg-white p-3 rounded border shadow-sm">
                             <div>
+                                <div className="extra-small text-muted text-uppercase fw-bold">Active Work Order</div>
                                 <h2 className="fw-bold mb-0 font-monospace text-primary">{scannedWO.code}</h2>
-                                <span className={`badge ${scannedWO.status === 'COMPLETED' ? 'bg-success' : 'bg-warning text-dark'} fs-6 mt-2`}>{scannedWO.status}</span>
+                                <div className="mt-1">
+                                    <span className="small text-muted me-2">{getItemName(scannedWO.item_id)}</span>
+                                    <span className={`badge ${scannedWO.status === 'COMPLETED' ? 'bg-success' : 'bg-warning text-dark'} extra-small`}>{scannedWO.status}</span>
+                                </div>
                             </div>
-                            <button className="btn btn-outline-secondary" onClick={() => { setScannedWO(null); window.location.reload(); }}>
-                                <i className="bi bi-arrow-repeat me-2"></i>Scan Next
+                            <button className="btn btn-sm btn-outline-secondary" onClick={() => { setScannedWO(null); window.location.reload(); }}>
+                                <i className="bi bi-arrow-repeat me-1"></i>Reset
                             </button>
                         </div>
 
+                        {error && <div className="alert alert-danger py-3 mb-4 shadow-sm border-0 border-start border-4 border-danger fw-bold"><i className="bi bi-exclamation-octagon-fill me-2"></i>{error}</div>}
+
                         <div className="row g-3">
                             <div className="col-12">
-                                <h6 className="small text-uppercase text-muted fw-bold mb-3">Available Actions</h6>
+                                <h6 className="small text-uppercase text-muted fw-bold mb-3 letter-spacing-1">Factory Floor Actions</h6>
                                 <div className="d-grid gap-3">
                                     {scannedWO.status === 'PENDING' && (
-                                        <button className="btn btn-lg btn-primary shadow py-3" onClick={() => handleUpdate('IN_PROGRESS')}>
+                                        <button className="btn btn-lg btn-primary shadow py-3 fw-bold" onClick={() => handleUpdate('IN_PROGRESS')}>
                                             <i className="bi bi-play-fill me-2 fs-4"></i> START PRODUCTION
                                         </button>
                                     )}
                                     {scannedWO.status === 'IN_PROGRESS' && (
-                                        <button className="btn btn-lg btn-success shadow py-3" onClick={() => handleUpdate('COMPLETED')}>
+                                        <button className="btn btn-lg btn-success shadow py-3 fw-bold" onClick={() => handleUpdate('COMPLETED')}>
                                             <i className="bi bi-check-lg me-2 fs-4"></i> MARK AS COMPLETED
                                         </button>
                                     )}
                                     {scannedWO.status === 'COMPLETED' && (
-                                        <div className="alert alert-success d-flex align-items-center py-4">
-                                            <i className="bi bi-check-circle-fill me-3 fs-2"></i>
-                                            <div>
-                                                <h5 className="mb-0 fw-bold">PRODUCTION COMPLETE</h5>
-                                                <small>This order has been received into inventory.</small>
-                                            </div>
+                                        <div className="card border-success border-opacity-25 bg-success bg-opacity-10 py-4 px-3 text-center">
+                                            <i className="bi bi-check-circle-fill text-success fs-1 mb-2"></i>
+                                            <h5 className="mb-0 fw-bold text-success">PRODUCTION COMPLETE</h5>
+                                            <small className="text-success opacity-75">This order has been received into inventory.</small>
                                         </div>
                                     )}
-                                    <button className="btn btn-outline-danger mt-2" onClick={() => handleUpdate('CANCELLED')}>
-                                        CANCEL ORDER
+                                    <button className="btn btn-sm btn-link text-danger mt-2" onClick={() => handleUpdate('CANCELLED')}>
+                                        Cancel This Order
                                     </button>
                                 </div>
                             </div>
@@ -116,8 +195,8 @@ export default function QRScannerView({ workOrders, onUpdateStatus, onClose }: Q
                     </div>
                 )}
             </div>
-            <div className="card-footer bg-light extra-small text-muted text-center italic">
-                Device camera required. Permissions must be granted in your browser.
+            <div className="card-footer bg-white extra-small text-muted text-center py-2 border-top-0 opacity-75">
+                Terminal ID: {Math.random().toString(36).substr(2, 6).toUpperCase()} | Secured by Terras Auth
             </div>
         </div>
     );
