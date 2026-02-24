@@ -258,21 +258,23 @@ export default function ManufacturingView({
               return (
                   <>
                       <tr key={line.id}>
-                          <td style={{paddingLeft: `${level * 20 + 8}px`}}>
-                              <span className="font-monospace small">{getItemCode(line.item_id)}</span>
+                          <td style={{paddingLeft: `${level * 12 + 8}px`}}>
+                              <span className="font-monospace extra-small">{getItemCode(line.item_id)}</span>
                           </td>
                           <td>
-                              {level > 0 && <span className="text-muted me-1">↳</span>}
-                              {getItemName(line.item_id)}
-                              {subBOM && <span className="badge bg-secondary ms-2" style={{fontSize: '0.6rem'}}>Sub-Assy</span>}
+                              <div style={{fontSize: '9pt'}}>
+                                  {level > 0 && <span className="text-muted me-1 small">↳</span>}
+                                  {getItemName(line.item_id)}
+                                  {subBOM && <span className="badge bg-secondary ms-1 p-1" style={{fontSize: '0.5rem'}}>SUB-ASSY</span>}
+                              </div>
                           </td>
-                          <td className="small fst-italic">
+                          <td className="extra-small fst-italic">
                               {line.qty}{line.is_percentage ? '%' : ''} 
                               {(line.attribute_value_ids || []).length > 0 && ` • ${(line.attribute_value_ids || []).map(getAttributeValueName).join(', ')}`}
                           </td>
-                          <td>{getLocationName(line.source_location_id || wo.source_location_id || wo.location_id)}</td>
-                          <td className="text-end">{line.qty}{line.is_percentage ? '%' : ''}</td>
-                          <td className="text-end fw-bold">{(scaledQty * wo.qty).toFixed(4)}</td> 
+                          <td><span className="extra-small">{getLocationName(line.source_location_id || wo.source_location_id || wo.location_id)}</span></td>
+                          <td className="text-end small">{line.qty}{line.is_percentage ? '%' : ''}</td>
+                          <td className="text-end fw-bold small">{(scaledQty * wo.qty).toFixed(3)}</td> 
                       </tr>
                       {subBOM && subBOM.lines && renderPrintBOMLines(subBOM.lines, level + 1, scaledQty, subBOM)}
                   </>
@@ -281,73 +283,78 @@ export default function ManufacturingView({
       };
 
       return (
-          <div className="bg-white p-5 h-100 position-fixed top-0 start-0 w-100 print-container" style={{zIndex: 2000, overflowY: 'auto'}}>
+          <div className="bg-white p-4 h-100 position-fixed top-0 start-0 w-100 print-container" style={{zIndex: 2000, overflowY: 'auto'}}>
               {/* Header */}
-              <div className="d-flex justify-content-between border-bottom pb-3 mb-4">
-                  <div className="d-flex gap-4">
+              <div className="d-flex justify-content-between border-bottom pb-2 mb-3">
+                  <div className="d-flex gap-3">
                       {/* QR Code for scanning */}
                       <div className="bg-white border p-1 rounded">
                           <img 
                               src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${wo.code}`} 
                               alt="WO QR" 
-                              style={{ width: '80px', height: '80px' }} 
+                              style={{ width: '60px', height: '60px' }} 
                           />
                       </div>
                       <div>
-                          <h2 className="fw-bold mb-0">WORK ORDER</h2>
-                          <div className="text-muted small">Terras ERP Manufacturing</div>
+                          <h3 className="fw-bold mb-0">WORK ORDER</h3>
+                          <div className="text-muted extra-small">Terras ERP Manufacturing Management</div>
                       </div>
                   </div>
                   <div className="text-end">
-                      <h3 className="font-monospace mb-0">{wo.code}</h3>
-                      <div className={`badge ${getStatusBadge(wo.status)} fs-6`}>{wo.status}</div>
+                      <h4 className="font-monospace mb-0 fw-bold">{wo.code}</h4>
+                      <div className={`badge ${getStatusBadge(wo.status)} small`}>{wo.status}</div>
                   </div>
               </div>
 
-              {/* ... (rest of details grid) ... */}
-              <div className="row mb-4">
-                  <div className="col-6">
-                      <h6 className="text-uppercase text-muted small fw-bold">Finished Good</h6>
-                      <div className="fs-5 fw-bold">{getItemName(wo.item_id)}</div>
-                      <div className="small font-monospace text-muted">{getItemCode(wo.item_id)}</div>
-                      <div className="mt-2 small">
+              {/* Details Grid */}
+              <div className="row mb-3 g-2">
+                  <div className="col-5">
+                      <h6 className="text-uppercase text-muted extra-small fw-bold mb-1">Finished Good</h6>
+                      <div className="fw-bold" style={{fontSize: '11pt'}}>{getItemName(wo.item_id)}</div>
+                      <div className="extra-small font-monospace text-muted">{getItemCode(wo.item_id)}</div>
+                      <div className="extra-small mt-1 text-muted">
                           {(wo.attribute_value_ids || []).map(getAttributeValueName).join(', ')}
                       </div>
                   </div>
-                  <div className="col-3">
-                      <h6 className="text-uppercase text-muted small fw-bold">Quantity</h6>
-                      <div className="fs-4">{wo.qty}</div>
+                  <div className="col-2">
+                      <h6 className="text-uppercase text-muted extra-small fw-bold mb-1">Qty</h6>
+                      <div className="fw-bold">{wo.qty}</div>
                   </div>
-                  <div className="col-3">
-                      <h6 className="text-uppercase text-muted small fw-bold">Schedule</h6>
-                      <div className="small">Start: {wo.start_date ? new Date(wo.start_date).toLocaleDateString() : '-'}</div>
-                      <div className="small">Due: {wo.due_date ? new Date(wo.due_date).toLocaleDateString() : '-'}</div>
+                  <div className="col-5 text-end">
+                      <h6 className="text-uppercase text-muted extra-small fw-bold mb-1">Production Schedule</h6>
+                      <div className="extra-small">Start: <strong>{wo.start_date ? new Date(wo.start_date).toLocaleDateString() : '-'}</strong></div>
+                      <div className="extra-small">Due: <strong className="text-danger">{wo.due_date ? new Date(wo.due_date).toLocaleDateString() : '-'}</strong></div>
                   </div>
               </div>
 
-              <div className="row mb-5">
+              <div className="row mb-4 g-2 border-top pt-2">
                   <div className="col-6">
-                      <h6 className="text-uppercase text-muted small fw-bold">Target Location (Output)</h6>
-                      <div>{getLocationName(wo.location_id)}</div>
+                      <h6 className="text-uppercase text-muted extra-small fw-bold mb-1">Output Target</h6>
+                      <div className="small fw-medium">{getLocationName(wo.location_id)}</div>
                   </div>
-                  <div className="col-6">
-                      <h6 className="text-uppercase text-muted small fw-bold">Source Location (Input)</h6>
-                      <div>{getLocationName(wo.source_location_id || wo.location_id)}</div>
+                  <div className="col-6 text-end">
+                      <h6 className="text-uppercase text-muted extra-small fw-bold mb-1">Main Source</h6>
+                      <div className="small fw-medium">{getLocationName(wo.source_location_id || wo.location_id)}</div>
                   </div>
               </div>
 
               {/* BOM Materials */}
-              <h5 className="fw-bold border-bottom pb-2 mb-3">Bill of Materials (Full Tree)</h5>
-              <div className="mb-2 small text-muted fst-italic">
-                  Note: Totals include configurable BOM tolerances.
-              </div>
-              <table className="table table-bordered table-sm mb-5">
+              <h6 className="fw-bold border-bottom pb-1 mb-2">Bill of Materials (Full Tree)</h6>
+              <table className="table table-bordered table-sm mb-4">
                   <thead className="table-light">
-                      <tr>
-                          <th>Component Code</th>
-                          <th>Component Name</th>
-                          <th>Attributes</th>
-                          <th>Source</th>
+                      <tr style={{fontSize: '8pt'}}>
+                          <th style={{width: '15%'}}>Code</th>
+                          <th style={{width: '25%'}}>Component Name</th>
+                          <th style={{width: '20%'}}>Attributes / Specs</th>
+                          <th style={{width: '15%'}}>Source</th>
+                          <th style={{width: '10%'}} className="text-end">Unit</th>
+                          <th style={{width: '15%'}} className="text-end">Total Required</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+                      {bom ? renderPrintBOMLines(bom.lines, 0, 1, bom) : <tr><td colSpan={6}>No BOM found</td></tr>}
+                  </tbody>
+              </table>
                           <th className="text-end">Qty Per</th>
                           <th className="text-end">Total Required</th>
                       </tr>
@@ -360,23 +367,23 @@ export default function ManufacturingView({
               {/* Operations */}
               {bom?.operations && bom.operations.length > 0 && (
                   <>
-                      <h5 className="fw-bold border-bottom pb-2 mb-3">Routing & Operations</h5>
+                      <h6 className="fw-bold border-bottom pb-1 mb-2">Routing & Operations</h6>
                       <table className="table table-bordered table-sm">
                           <thead className="table-light">
-                              <tr>
-                                  <th style={{width: '50px'}}>Seq</th>
-                                  <th>Operation</th>
-                                  <th>Work Center</th>
-                                  <th className="text-end">Time (Mins)</th>
+                              <tr style={{fontSize: '8pt'}}>
+                                  <th style={{width: '10%'}}>Seq</th>
+                                  <th style={{width: '50%'}}>Operation Name</th>
+                                  <th style={{width: '25%'}}>Work Center / Station</th>
+                                  <th style={{width: '15%'}} className="text-end">Time (Mins)</th>
                               </tr>
                           </thead>
                           <tbody>
                               {[...bom.operations].sort((a:any, b:any) => a.sequence - b.sequence).map((op: any) => (
                                   <tr key={op.id}>
                                       <td>{op.sequence}</td>
-                                      <td>{op.operation_id}</td> 
-                                      <td>{op.work_center_id}</td>
-                                      <td className="text-end">{op.time_minutes}</td>
+                                      <td><div style={{fontSize: '9pt'}}>{getOpName(op.operation_id)}</div></td> 
+                                      <td><div style={{fontSize: '9pt'}}>{getWCName(op.work_center_id)}</div></td>
+                                      <td className="text-end small">{op.time_minutes}</td>
                                   </tr>
                               ))}
                           </tbody>
