@@ -281,7 +281,7 @@ export default function ManufacturingView({
       };
 
       return (
-          <div className="bg-white p-5 h-100 position-fixed top-0 start-0 w-100" style={{zIndex: 2000, overflowY: 'auto'}}>
+          <div className="bg-white p-5 h-100 position-fixed top-0 start-0 w-100 print-container" style={{zIndex: 2000, overflowY: 'auto'}}>
               {/* Header */}
               <div className="d-flex justify-content-between border-bottom pb-3 mb-4">
                   <div className="d-flex gap-4">
@@ -304,7 +304,7 @@ export default function ManufacturingView({
                   </div>
               </div>
 
-              {/* Details Grid */}
+              {/* ... (rest of details grid) ... */}
               <div className="row mb-4">
                   <div className="col-6">
                       <h6 className="text-uppercase text-muted small fw-bold">Finished Good</h6>
@@ -374,15 +374,6 @@ export default function ManufacturingView({
                               {[...bom.operations].sort((a:any, b:any) => a.sequence - b.sequence).map((op: any) => (
                                   <tr key={op.id}>
                                       <td>{op.sequence}</td>
-                                      {/* Assuming we have access to operations/workCenters lists in parent scope, 
-                                          but we passed them to ManufacturingView? 
-                                          Wait, ManufacturingView doesn't receive operations/workCenters props directly in page.tsx currently.
-                                          They are fetched in page.tsx but passed to RoutingView/BOMView. 
-                                          We need to fix this if we want to show names.
-                                          For now, showing IDs might fail gracefully or we assume standard lookups work if ids match.
-                                          Actually, getOpName uses 'operations' list which is NOT in props here.
-                                          I need to add operations/workCenters to props.
-                                      */}
                                       <td>{op.operation_id}</td> 
                                       <td>{op.work_center_id}</td>
                                       <td className="text-end">{op.time_minutes}</td>
@@ -399,7 +390,7 @@ export default function ManufacturingView({
               </div>
 
               {/* Close Button (No Print) */}
-              <div className="position-fixed top-0 end-0 p-3 no-print">
+              <div className="position-fixed top-0 end-0 p-3 no-print" style={{ zIndex: 3000 }}>
                   <button className="btn btn-dark shadow" onClick={() => setPrintingWO(null)}>
                       <i className="bi bi-x-lg me-2"></i>Close Preview
                   </button>
