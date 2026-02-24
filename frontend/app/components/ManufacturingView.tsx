@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import QRCode from 'qrcode';
 import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
 import CalendarView from './CalendarView';
 import SearchableSelect from './SearchableSelect';
@@ -33,6 +34,7 @@ export default function ManufacturingView({
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [printingWO, setPrintingWO] = useState<any>(null); // State for single WO print
+  const [qrDataUrl, setQrDataUrl] = useState<string>(''); // Local QR code
   
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [isConfigOpen, setIsConfigOpen] = useState(false);
@@ -113,10 +115,18 @@ export default function ManufacturingView({
       window.print();
   };
 
-  const handlePrintWO = (wo: any) => {
-      setPrintingWO(wo);
-      // Wait for render then print
-      setTimeout(() => window.print(), 100);
+  const handlePrintWO = async (wo: any) => {
+      try {
+          const url = await QRCode.toDataURL(wo.code, { margin: 1, width: 200 });
+          setQrDataUrl(url);
+          setPrintingWO(wo);
+          // Wait for render then print
+          setTimeout(() => window.print(), 300);
+      } catch (err) {
+          console.error("QR Generation failed", err);
+          setPrintingWO(wo);
+          setTimeout(() => window.print(), 300);
+      }
   };
 
   const filteredWorkOrders = workOrders.filter((wo: any) => {
@@ -290,7 +300,7 @@ export default function ManufacturingView({
                       {/* QR Code for scanning */}
                       <div className="bg-white border p-1 rounded">
                           <img 
-                              src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${wo.code}`} 
+                              src={qrDataUrl} 
                               alt="WO QR" 
                               style={{ width: '60px', height: '60px' }} 
                           />
@@ -349,14 +359,6 @@ export default function ManufacturingView({
                           <th style={{width: '15%'}}>Source</th>
                           <th style={{width: '10%'}} className="text-end">Unit</th>
                           <th style={{width: '15%'}} className="text-end">Total Required</th>
-                      </tr>
-                  </thead>
-                  <tbody>
-                      {bom ? renderPrintBOMLines(bom.lines, 0, 1, bom) : <tr><td colSpan={6}>No BOM found</td></tr>}
-                  </tbody>
-              </table>
-                          <th className="text-end">Qty Per</th>
-                          <th className="text-end">Total Required</th>
                       </tr>
                   </thead>
                   <tbody>
