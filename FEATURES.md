@@ -2,37 +2,33 @@
 
 This document provides a comprehensive list of all features implemented in the Terras ERP system, categorized by module.
 
-## 🏗️ Core Architecture & System
+## 🏗️ Core Architecture & Scalability
 - **Tech Stack**: Python 3.11 (FastAPI), React 18 (Next.js 14), PostgreSQL 15, SQLAlchemy.
+- **High-Volume Performance Engine (New)**:
+  - **Server-Side Pagination**: Standardized chunked data loading (50 records/page) across all modules (Inventory, WO, Logs) to handle 100,000+ records without lag.
+  - **Database Aggregation**: Stock balances and KPIs are calculated via optimized SQL queries (`GROUP BY`, `SUM`) rather than in-memory Python loops.
+  - **Indexing Strategy**: Comprehensive B-Tree indexes on all foreign keys and frequently filtered columns (`category`, `status`, `timestamp`) for sub-50ms query times.
+  - **Persistent Caching**: Background service calculates and caches expensive Dashboard KPIs to ensure instant page loads.
 - **Containerization**: Fully Dockerized environment with `docker-compose` for easy deployment.
 - **Security**: 
   - OAuth2 Password Flow with JWT Authentication.
-  - Argon2 password hashing.
-  - Role-Based Access Control (RBAC) with granular permissions (e.g., `work_order.manage`).
-- **Internationalization (i18n)**: 
-  - Full support for English and Indonesian languages.
-  - Context-aware translations for UI elements.
-- **Theming Engine**:
-  - **Classic (Windows XP)**: Pixel-perfect retro desktop experience with "pushed-in/popped-out" 3D button states and beige aesthetics.
-  - **Modern**: Clean, flat design with rounded corners and shadows.
-  - **Compact**: High-density layout for data-heavy users.
-  - **Retro Landing**: Cyberpunk/Terminal style public landing page with CRT scanline effects.
+  - Role-Based Access Control (RBAC) with granular permissions.
+  - **Category Visibility**: API-level data filtering restricting users to specific item categories (e.g., specific departments).
 
-## 🔐 Authentication & User Management
-- **Interactive Landing Page**: Retro-themed entry point with integrated login form and typewriter effects.
-- **Session Management**: Secure token handling with auto-refresh mechanism and `localStorage` persistence.
-- **User Administration**:
-  - Create/Update/Delete users.
-  - Assign Roles (Admin, Manager, User).
-  - Granular Permission checkboxes.
-  - Password reset functionality.
-- **System-Wide Audit Trail**: 
-  - Logs every `CREATE`, `UPDATE`, `DELETE`, and `STATUS_CHANGE` action.
-  - Records the specific User ID, Timestamp, and a JSON diff of changes.
-  - **Smart Serialization**: Automatically handles UUIDs and Date objects for JSON storage.
+## 💾 Dynamic Infrastructure (New)
+- **Hot-Swap Database Manager**:
+  - **Runtime Connection Switching**: Admin UI to switch the active database connection string without restarting containers.
+  - **Multi-Provider Support**: Seamlessly handles PostgreSQL (Production) and SQLite (Archive/Dev) connections.
+- **Snapshot & Recovery**:
+  - **Point-in-Time Backups**: One-click generation of `.sql` (Postgres) or `.sqlite` database dumps.
+  - **Environment Portability**: Download/Upload snapshots to migrate data between Local, Staging, and Production environments.
+  - **Instant Rollback**: Restore functionality that cleanly disposes of active connections and re-initializes the schema from a backup file.
 
 ## 📦 Inventory Management
+- **Searchable Intelligence**: Custom **Searchable Dropdown** components replace standard selects, allowing instant type-ahead filtering for Items, Partners, and BOMs in massive lists.
 - **Item Master**: 
+  - Comprehensive CRUD with duplicate code prevention and smart suggestion logic.
+  - **Lifecycle History Pane (New)**: Slide-out audit trail visualizing chronological changes and JSON data diffs for every item.
   - Comprehensive CRUD for products and materials.
   - **Traceability**: Direct linkage to source `Sample Request` IDs for prototype-to-production tracking.
   - **Validation**: 
@@ -45,22 +41,17 @@ This document provides a comprehensive list of all features implemented in the T
   - Multi-location support (Warehouses, Bins, Shelves).
   - Real-time Stock Balance calculation.
 - **Stock Control**:
-  - Manual Stock Entries (In/Out/Transfer).
-  - Strict validation preventing negative stock.
-  - **Stock Ledger**: Historical movement tracking.
-- **UI Enhancements**:
-  - **Forced Category Views**: Specialized tabs (like "Sample Masters") that filter the inventory list by specific categories.
-  - **Confirm Modals**: Custom confirmation dialogs for all destructive actions to prevent accidental data loss.
-  - **Error Feedback**: Toast notifications parse raw backend errors (e.g., Foreign Key Integrity Violations) into user-friendly messages explaining *why* an item cannot be deleted.
+  - **Live Ledger**: Paginated view of historical stock movements.
+  - **Strict Validation**: Prevents negative stock and validates attribute compatibility.
 
-## ⚙️ Engineering & BOM (Bill of Materials)
+## ⚙️ Engineering & BOM (Advanced)
 - **Recursive BOM Designer**:
-  - **Single-Screen Workflow**: A split-pane Master-Detail interface for managing deep product structures.
-  - **Tree Navigation**: Visual tree with expansion/collapse, clearly marking "New Items" vs "Existing Recipes".
-  - **In-Place Creation**: Ability to define a sub-recipe for a component without leaving the main BOM editor.
-- **BOM Automation Wizard**:
-  - Define naming patterns (e.g., `ITEM` -> `WIP 1` -> `WIP 2`).
-  - **Full Tree Generation**: Recursively builds the entire chain of items and BOMs based on the pattern.
+  - **Branching Automation (New)**: "Wizard" mode allows defining multi-level naming patterns (e.g., Level 1 -> Level 2 -> Level 3) to auto-generate complex, branching product trees with sibling items.
+  - **Configuration Profiles**: Save and load frequently used automation structures (e.g., "Standard Textile", "Chemical Mix").
+- **Complex Recipe Logic**:
+  - **Percentage-Based BOMs**: Define components by ratio (e.g., 50% / 50%) rather than fixed units.
+  - **Configurable Tolerances**: Set a global "Tolerance %" on the BOM header to automatically calculate buffer/wastage requirements during production.
+- **Routing**: Integrated definition of Work Centers and Operations with time estimation.
   - **Smart Matching**: Case-insensitive and trimmed matching to find existing items in the database.
   - **Deduplication**: If a component in the chain already exists and has a BOM, the automator links to it instead of creating a duplicate.
   - **Attribute Inheritance**: Automatically copies attribute definitions (e.g., Color) from the Finished Good to all new WIP items in the chain.
@@ -72,36 +63,33 @@ This document provides a comprehensive list of all features implemented in the T
   - Option to include Variant values directly in the generated BOM code.
 
 ## 🏭 Manufacturing (MES)
-- **Work Orders (WO)**:
-  - Create WOs linked to BOMs.
-  - **Code Auto-Gen**: Configurable WO numbering.
-- **Logistics & Availability**:
-  - **Source Location**: Specify where raw materials are picked from.
-  - **Target Location**: Specify where finished goods are stored.
-  - **Stock Check**: Real-time validation of material availability before starting production.
-- **Production Workflow**:
-  - Status tracking: `PENDING` -> `IN_PROGRESS` -> `COMPLETED` / `CANCELLED`.
-  - **Auto-Deduction**: Completing a WO automatically deducts raw materials and increments finished goods.
-  - **Flexible Deletion**: Ability to delete Work Orders at any stage (even Completed), with audit logging.
-- **Visual Scheduling**:
-  - **Production Calendar**: Monthly calendar view of WOs based on Due Date.
-  - **Compact Dashboard Widget**: A mini version of the calendar with dot indicators for the dashboard.
-  - Color-coded status indicators (Blue=Pending, Yellow=Active, Green=Done) that respect theme contrast.
-- **Print Engine**:
-  - **Detailed PDF Printout**: Generates a professional Work Order document.
-  - **Recursive Pick List**: The printout expands the BOM tree to show *every* single component needed, even from sub-assemblies.
-  - **Quantity Scaling**: Automatically calculates required sub-component quantities based on the parent item's requirements and the WO batch size.
+- **Operator Scan Terminal (New)**:
+  - **QR Code Scanning**: Dedicated tab using the device camera to scan physical Work Order documents.
+  - **Action Card**: Instantly displays the scanned order's status and relevant actions (Start, Complete, Cancel).
+  - **Safety Interlocks**: Prevents starting production via scanner if materials are insufficient.
+- **Production Execution**:
+  - **Smart Material Calculation**: Automatically computes required quantities based on BOM ratios and tolerance factors (e.g., `Base Qty * % * 1.1`).
+  - **Availability Check**: Real-time validation of stock levels across specific source locations before releasing a WO.
+- **Documentation**:
+  - **Professional Printout**: A4-optimized PDF generation with a unique QR code for tracking.
+  - **Recursive Pick List**: Expands the entire BOM tree to show every single raw material needed, even for sub-assemblies.
 
-## 🛒 Sales & Sampling
-- **Purchase Orders (Incoming)**: 
-  - Manage incoming orders from customers.
-  - Track order status and quantities.
-- **Sample Request (PLM)**:
-  - Dedicated workflow for prototyping (`DRAFT` -> `IN_PRODUCTION` -> `SENT` -> `APPROVED`).
-  - Separate "Sample Masters" inventory to keep prototypes distinct from production stock.
+## 🛒 Supply Chain & Procurement (Refactored)
+- **Unified Partner Directory**:
+  - Centralized management for **Customers** and **Suppliers**.
+  - Track active status, addresses, and transaction history.
+- **Sales Orders (Incoming)**:
+  - Manage Customer Orders (formerly "Incoming POs").
+  - Linked to specific Customers.
+- **Purchase Orders (Outgoing)**:
+  - **New Module**: Create orders for Suppliers to buy raw materials.
+  - **Purchase-to-Stock Workflow**: "Receive" button automatically processes the PO, updating its status and incrementing inventory at the target warehouse in one transaction.
+- **Sample Requests (PLM)**:
+  - **Decoupled Workflow**: Create samples independently for internal R&D or link them to a specific Sales Order.
+  - **Sample-Specific Filtering**: Dropdowns strictly limit "Base Item" selection to the "Sample" category to prevent pollution of production master data.
 
 ## 📊 Analytics & Dashboard
-- **KPI Cards**: Real-time metrics for Inventory count, Low Stock, Active WOs, Active Samples, and Open POs.
-- **Visual Charts**: Warehouse Distribution bars.
-- **Activity Feed**: Recent system movements (last 5 entries).
-- **Monitoring Table**: Live tracking of manufacturing progress with status bars.
+- **Real-Time KPIs**: Instant metrics for Low Stock, Active Production, and Open Orders.
+- **Visual Monitoring**: Live progress bars for manufacturing status.
+- **Activity Feed**: Recent system-wide audit logs.
+- **Theming**: "Classic XP" theme for high-contrast, high-density industrial environments.

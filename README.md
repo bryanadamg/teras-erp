@@ -4,44 +4,36 @@
 
 ## Core Capabilities
 
-### 🌐 Corporate-Retro Landing Page
-*   **High-Impact Entry**: A terminal-inspired public entry point featuring interactive "AUTH_TERMINAL" effects for secure system access.
-*   **Technical Discovery**: Dynamic overview of core modules and direct access to system architecture specifications for stakeholders.
-
-### 📊 Scalable Business Intelligence
-*   **KPI Caching (New)**: Instant dashboard loading via a persistent cache layer, preventing expensive re-calculations on every refresh.
-*   **Enterprise Data Volume (New)**: Optimized to handle hundreds of thousands of records without UI lag using **Server-Side Pagination** and **SQL Aggregations**.
-*   **Visual Monitoring**: Real-time tracking of warehouse distribution, SKU diversity, and live production progress bars.
-
-### 💾 Dynamic Infrastructure & Portability (New)
-*   **Hot-Swap Database Manager**: Administrators can switch the entire system's data context at runtime by updating SQLAlchemy connection strings through the UI.
-*   **Point-in-Time Snapshots**: Native support for creating, downloading, and uploading database snapshots (PostgreSQL/SQLite) for rapid backup and recovery.
-*   **Environment Portability**: Easily migrate data between development, testing, and production environments using the built-in management dashboard.
-
-### 🛒 Refactored Supply Chain & Partners
-*   **Sales vs. Procurement**: Distinct modules for **Sales Orders (SO)** (Customer Demand) and **Purchase Orders (PO)** (Supplier Procurement).
-*   **Centralized Directory**: Unified management of **Customers** and **Suppliers** with detailed address tracking and status control.
-*   **Searchable Intelligence**: System-wide **Searchable Dropdown Module** allowing instant lookups within massive datasets of items and partners.
-*   **Industry-Standard Sampling**: Dedicated **Sample Request** workflow (Draft -> In Production -> Sent -> Approved/Rejected) linked to Incoming POs.
-*   **Master Sample Management**: Separate workspace for defining prototype templates before promotion to production items.
-*   **Strict Integrity**: Multi-attribute matching logic prevents negative stock and ensures raw material availability.
-
 ### 🏭 Advanced Manufacturing & Engineering (MES)
 *   **Recursive BOM Designer**: Split-pane Master-Detail interface for managing deep product structures and sub-assemblies.
-*   **Sampling Lifecycle (PLM)**: Dedicated **Sample Request** workflow (Draft -> Production -> Sent -> Approved) with traceability to Sales Orders.
+*   **Complex Recipe Logic (New)**: Support for **Percentage-Based Quantities** (e.g., 50% Material A + 50% Material B) and **Configurable Tolerances** to handle chemical formulas or variable-yield processes.
+*   **Advanced Automation**: 
+    *   **Branching Structure Generation**: Automatically build complex, multi-level product trees with sibling items (e.g., creating 3 color variants at Level 2 simultaneously).
+    *   **Configuration Profiles**: Save and hot-swap automation rules (e.g., "Standard Textile", "Chemical Mix") to rapidly generate standardized BOMs.
+*   **Shop Floor Terminal (New)**: dedicated **QR Scanner Interface** for operators. Scan a physical Work Order to instantly view status, validate material availability, and trigger production start/finish with a single tap.
 *   **Production Planning**: Integrated **Production Calendar** for deadline tracking and a "Live" schedule showing real-time material shortages.
-*   **Execution Monitoring**: Expandable Production Schedule showing real-time material shortages and component-level warehouse overrides.
-*   **Routing & Operations**: Define factory **Work Centers** and **Operations** directly within engineering definitions.
+
+### 🛒 Supply Chain & Procurement (Refactored)
+*   **Unified Partner Directory**: Centralized management of **Customers** and **Suppliers** with detailed address tracking and status control.
+*   **Automated Stock Receipt (New)**: **Purchase-to-Stock** workflow allowing one-click receipt of Purchase Orders. Automatically increments inventory at the designated target warehouse upon approval.
+*   **Sales vs. Procurement**: Distinct modules for **Sales Orders (SO)** (Customer Demand) and **Purchase Orders (PO)** (Supplier Procurement).
+*   **Decoupled Sampling (PLM)**: Flexible **Sample Request** workflow that can operate independently for internal prototypes or link directly to Sales Orders for customer-specific development.
+
+### 💾 Dynamic Infrastructure & Data Integrity
+*   **Lifecycle History Pane (New)**: Detailed, slide-out audit trail for Items and Samples, visualizing chronological changes and JSON data diffs for total traceability.
+*   **Hot-Swap Database Manager**: Administrators can switch the entire system's data context at runtime by updating SQLAlchemy connection strings through the UI—ideal for switching between Production, Staging, and Archive datasets instantly.
+*   **Point-in-Time Snapshots**: Native support for creating, downloading, and uploading database snapshots (PostgreSQL/SQLite) for rapid backup and recovery.
+*   **High-Volume Scalability**: Optimized to handle hundreds of thousands of records without UI lag using **Server-Side Pagination**, **SQL Aggregations**, and **KPI Caching**.
+
+### 🌐 User Experience & Search
+*   **Searchable Intelligence**: System-wide **Searchable Dropdown Module** allowing instant lookups within massive datasets of items, partners, and recipes.
+*   **Corporate-Retro Aesthetics**: A distinct, high-impact entry point featuring interactive "AUTH_TERMINAL" effects and a Windows XP-inspired "Classic" theme option.
+*   **Mobile Optimized**: Responsive navigation and data grids tailored for smartphones and tablets.
 
 ### 🔐 Enterprise Security & Audit
 *   **JWT Authentication**: Industry-standard **OAuth2 + JWT** token-based security for all sessions.
-*   **System-Wide Audit Trail**: Comprehensive logging of all `CREATE`, `UPDATE`, and `DELETE` actions, including JSON diffs of changes.
+*   **System-Wide Audit Trail**: Comprehensive logging of all `CREATE`, `UPDATE`, and `DELETE` actions.
 *   **Granular RBAC**: Role-Based Access Control with **Category-level visibility restrictions** for sensitive data protection.
-
-### 🖥️ Adaptive User Experience
-*   **Themed Interface Engine**: Instantly toggle between Modern, Compact, and the high-efficiency **Classic (Windows XP)** style.
-*   **Multi-Language Support (i18n)**: Full native support for **English** and **Indonesian**.
-*   **Mobile Optimized**: Responsive navigation and data grids tailored for smartphones and tablets.
 
 ## Technical Architecture
 
