@@ -84,6 +84,9 @@ export default function Home() {
   const [reportTotal, setReportTotal] = useState(0);
   const [pageSize] = useState(50);
 
+  // Search State
+  const [itemSearch, setItemSearch] = useState('');
+
   // Initial Load Flag
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
@@ -125,7 +128,7 @@ export default function Home() {
             // Check if we need full items or just for dropdowns? 
             // Currently API returns paginated. We fetch current page.
             const itemSkip = (itemPage - 1) * pageSize;
-            const itemsRes = await fetch(`${API_BASE}/items?skip=${itemSkip}&limit=${pageSize}`, { headers });
+            const itemsRes = await fetch(`${API_BASE}/items?skip=${itemSkip}&limit=${pageSize}&search=${encodeURIComponent(itemSearch)}`, { headers });
             if (itemsRes.ok) {
                 const data = await itemsRes.json();
                 setItems(data.items);
@@ -195,7 +198,7 @@ export default function Home() {
     } catch (e) {
       console.error("Failed to fetch data", e);
     }
-  }, [currentUser, activeTab, itemPage, woPage, auditPage, reportPage, isInitialLoad, pageSize]);
+  }, [currentUser, activeTab, itemPage, woPage, auditPage, reportPage, itemSearch, isInitialLoad, pageSize]);
 
   useEffect(() => {
     if (currentUser) {
@@ -207,7 +210,7 @@ export default function Home() {
     
     const savedStyle = localStorage.getItem('ui_style');
     if (savedStyle) setUiStyle(savedStyle);
-  }, [currentUser, activeTab, itemPage, woPage, auditPage, reportPage]);
+  }, [currentUser, activeTab, itemPage, woPage, auditPage, reportPage, itemSearch]);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
@@ -967,6 +970,8 @@ export default function Home() {
                 totalItems={itemTotal}
                 pageSize={pageSize}
                 onPageChange={setItemPage}
+                searchTerm={itemSearch}
+                onSearchChange={setItemSearch}
             />
         )}
 

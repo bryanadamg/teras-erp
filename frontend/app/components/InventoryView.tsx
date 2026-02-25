@@ -58,7 +58,9 @@ export default function InventoryView({
     currentPage,
     totalItems,
     pageSize,
-    onPageChange
+    onPageChange,
+    searchTerm,
+    onSearchChange
 }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
@@ -97,14 +99,6 @@ export default function InventoryView({
 
   // Filtering
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-
-  // Debounce search
-  useEffect(() => {
-      const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
-      return () => clearTimeout(timer);
-  }, [searchTerm]);
 
   useEffect(() => {
       const savedConfig = localStorage.getItem('item_code_config');
@@ -243,7 +237,7 @@ export default function InventoryView({
   // Derived
   const activeEditingItem = editingItem ? items.find((i: any) => i.id === editingItem.id) : null;
 
-  // Filtered Items - Memoized
+  // Filtered Items - Memoized (Backend now handles main search)
   const filteredItems = useMemo(() => {
       return items.filter((i: any) => {
           // 1. Handle Forced Category (e.g. in the dedicated Samples tab)
@@ -254,14 +248,11 @@ export default function InventoryView({
           // 2. Main Inventory View: Filter out "Sample" category by default
           if (i.category === 'Sample') return false;
 
-          // 3. Handle user filters (dropdown + search)
+          // 3. Handle user category filter (search is now on backend)
           const matchesCategory = !categoryFilter || i.category === categoryFilter;
-          const matchesSearch = !debouncedSearch || 
-              i.code.toLowerCase().includes(debouncedSearch.toLowerCase()) || 
-              i.name.toLowerCase().includes(debouncedSearch.toLowerCase());
-          return matchesCategory && matchesSearch;
+          return matchesCategory;
       });
-  }, [items, forcedCategory, categoryFilter, debouncedSearch]);
+  }, [items, forcedCategory, categoryFilter]);
       
   const sampleItems = useMemo(() => items.filter((i: any) => i.category === 'Sample'), [items]);
 
@@ -422,7 +413,7 @@ export default function InventoryView({
                             className="form-control border-start-0" 
                             placeholder={`${t('search')}...`}
                             value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
+                            onChange={e => onSearchChange(e.target.value)}
                         />
                     </div>
                 </div>

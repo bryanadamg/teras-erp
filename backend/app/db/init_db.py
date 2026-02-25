@@ -60,6 +60,20 @@ def run_migrations():
                 except Exception as e:
                     logger.warning(f"Index migration {idx_name} failed: {e}")
 
+            # 1c. Advanced Search Optimization (Trigrams)
+            try:
+                logger.info("Migration: Enabling pg_trgm extension")
+                conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+                conn.commit()
+                
+                # GIN indexes for fuzzy search on large text volumes
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_items_code_trgm ON items USING gin (code gin_trgm_ops)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_items_name_trgm ON items USING gin (name gin_trgm_ops)"))
+                conn.commit()
+                logger.info("Migration: Created GIN trigram indexes for high-speed search")
+            except Exception as e:
+                logger.warning(f"Trigram index creation failed: {e}")
+
             # 2. Data Migration: Move single attribute_id/attribute_value_id to secondary tables if data exists
             # These are the many-to-many migrations
             move_data = [
