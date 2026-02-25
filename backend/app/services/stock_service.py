@@ -108,3 +108,33 @@ def get_all_stock_balances(db: Session, user=None):
         for r in results if r.total_qty != 0
     ]
 
+def get_batch_stock_balances(db: Session, requirements: list[dict]):
+    """
+    Given a list of {item_id, location_id, attribute_value_ids}, 
+    returns a dictionary keyed by (item_id, location_id, attr_string) -> balance.
+    """
+    # 1. To avoid massive SQL logic, we'll fetch all balances for the unique item+location pairs 
+    # and then filter by attributes in Python. This is a compromise between N+1 and complex SQL.
+    unique_pairs = set((req['item_id'], req['location_id']) for req in requirements)
+    
+    results_map = {}
+    
+    # We fetch granularly for each unique pair found in requirements
+    for item_id, loc_id in unique_pairs:
+        # Get all entries for this item/loc combination
+        entries = db.query(StockLedger).filter(
+            StockLedger.item_id == item_id,
+            StockLedger.location_id == loc_id
+        ).all()
+        
+        # Group entries by attributes in memory
+        for e in entries:
+            val_ids = sorted([str(v.id) for v in e.attribute_values])
+            key = (str(item_id), str(loc_id), ",".join(val_ids))
+            
+            if key not in results_map:
+                results_map[key] = 0
+            results_map[key] += float(e.qty_change)
+            
+    return results_map
+

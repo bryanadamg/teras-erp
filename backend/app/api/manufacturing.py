@@ -114,24 +114,45 @@ def get_work_orders(
         
     total = query.count()
     items = query.order_by(WorkOrder.created_at.desc()).offset(skip).limit(limit).all()
+
+    # --- BATCH MATERIAL CHECK ---
+    requirements = []
     for item in items:
         item.attribute_value_ids = [v.id for v in item.attribute_values]
-        
+        if item.status == "PENDING":
+            for line in item.bom.lines:
+                check_location_id = line.source_location_id or item.source_location_id or item.location_id
+                requirements.append({
+                    "item_id": line.item_id,
+                    "location_id": check_location_id,
+                    "attribute_value_ids": [str(v.id) for v in line.attribute_values]
+                })
+    
+    # Fetch all balances in one go (or few queries)
+    balances_map = stock_service.get_batch_stock_balances(db, requirements) if requirements else {}
+
+    for item in items:
         # Check availability
         item.is_material_available = True
         
         if item.status == "PENDING":
             for line in item.bom.lines:
-                required_qty = float(line.qty) * float(item.qty)
-                # Use line-specific source location if set
-                check_location_id = line.source_location_id or item.source_location_id or item.location_id
+                # Calculate required qty (considering percentages and tolerances)
+                required_qty = float(line.qty)
+                if line.is_percentage:
+                    required_qty = (float(item.qty) * required_qty) / 100
+                else:
+                    required_qty = float(item.qty) * required_qty
                 
-                current = stock_service.get_stock_balance(
-                    db, 
-                    item_id=line.item_id, 
-                    location_id=check_location_id, 
-                    attribute_value_ids=[v.id for v in line.attribute_values]
-                )
+                tolerance = float(item.bom.tolerance_percentage or 0)
+                if tolerance > 0:
+                    required_qty = required_qty * (1 + (tolerance / 100))
+
+                check_location_id = line.source_location_id or item.source_location_id or item.location_id
+                val_ids_str = ",".join(sorted([str(v.id) for v in line.attribute_values]))
+                key = (str(line.item_id), str(check_location_id), val_ids_str)
+                
+                current = balances_map.get(key, 0)
                 if current < required_qty:
                     item.is_material_available = False
                     break
