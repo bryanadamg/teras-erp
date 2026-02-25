@@ -8,6 +8,7 @@ export default function SalesOrderView({ items, attributes, salesOrders, partner
   const { showToast } = useToast();
   const { t } = useLanguage();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [printingSO, setPrintingSO] = useState<any>(null);
   
   const [newSO, setNewSO] = useState({
       po_number: '',
@@ -133,10 +134,100 @@ export default function SalesOrderView({ items, attributes, salesOrders, partner
       return valId;
   };
 
+  const handlePrintSO = (so: any) => {
+      setPrintingSO(so);
+      setTimeout(() => window.print(), 300);
+  };
+
   const customers = partners.filter((p: any) => p.type === 'CUSTOMER' && p.active);
+  const getCustomerAddress = (name: string) => partners.find((p: any) => p.name === name)?.address || '-';
+
+  // --- Print Template ---
+  const SalesOrderPrintTemplate = ({ so }: { so: any }) => (
+      <div className="bg-white p-5 h-100 position-fixed top-0 start-0 w-100 print-container" style={{zIndex: 2000, overflowY: 'auto'}}>
+          <div className="d-flex justify-content-between border-bottom pb-3 mb-4">
+              <div>
+                  <h2 className="fw-bold mb-0">SALES ORDER</h2>
+                  <div className="text-muted small">Terras ERP Enterprise System</div>
+              </div>
+              <div className="text-end">
+                  <div className="small text-muted fw-bold uppercase">Order Reference</div>
+                  <h4 className="font-monospace mb-0 fw-bold text-primary">{so.po_number}</h4>
+                  <div className="small text-muted mt-1">Date: {new Date(so.order_date).toLocaleDateString()}</div>
+              </div>
+          </div>
+
+          <div className="row mb-5">
+              <div className="col-6">
+                  <div className="p-3 border rounded bg-light bg-opacity-50 h-100">
+                      <h6 className="extra-small fw-bold text-uppercase text-muted border-bottom pb-2 mb-2">Customer Details</h6>
+                      <div className="fw-bold fs-5">{so.customer_name}</div>
+                      <div className="text-muted small mt-2" style={{ whiteSpace: 'pre-wrap' }}>
+                          {getCustomerAddress(so.customer_name)}
+                      </div>
+                  </div>
+              </div>
+              <div className="col-6">
+                  <div className="p-3 border rounded h-100">
+                      <h6 className="extra-small fw-bold text-uppercase text-muted border-bottom pb-2 mb-2">Order Status</h6>
+                      <div className="badge bg-secondary mb-3">{so.status}</div>
+                      <div className="small text-muted">Authorized By: ________________</div>
+                  </div>
+              </div>
+          </div>
+
+          <table className="table table-bordered table-sm mb-5">
+              <thead className="table-light">
+                  <tr style={{fontSize: '9pt'}}>
+                      <th style={{width: '15%'}}>Item Code</th>
+                      <th style={{width: '40%'}}>Item Description / Variation</th>
+                      <th style={{width: '15%'}} className="text-end">Quantity</th>
+                      <th style={{width: '15%'}} className="text-end">Due Date</th>
+                      <th style={{width: '15%'}}>Note</th>
+                  </tr>
+              </thead>
+              <tbody>
+                  {so.lines.map((line: any) => (
+                      <tr key={line.id} style={{fontSize: '10pt'}}>
+                          <td className="font-monospace fw-bold">{getItemCode(line.item_id)}</td>
+                          <td>
+                              <div className="fw-medium">{getItemName(line.item_id)}</div>
+                              <div className="extra-small text-muted fst-italic">
+                                  {line.attribute_value_ids.map(getAttributeValueName).join(', ') || 'No variation'}
+                              </div>
+                          </td>
+                          <td className="text-end fw-bold">{line.qty}</td>
+                          <td className="text-end small">{line.due_date ? new Date(line.due_date).toLocaleDateString() : '-'}</td>
+                          <td></td>
+                      </tr>
+                  ))}
+              </tbody>
+          </table>
+
+          <div className="mt-5 pt-5 border-top row g-4 text-center">
+              <div className="col-4">
+                  <div className="small text-muted mb-5">Requested By</div>
+                  <div className="border-top mx-4 pt-2 small fw-bold">Customer Representative</div>
+              </div>
+              <div className="col-4 offset-4">
+                  <div className="small text-muted mb-5">Approved By</div>
+                  <div className="border-top mx-4 pt-2 small fw-bold">Production Manager</div>
+              </div>
+          </div>
+
+          <div className="position-fixed top-0 end-0 p-3 no-print">
+              <button className="btn btn-dark shadow rounded-pill px-4" onClick={() => setPrintingSO(null)}>
+                  <i className="bi bi-x-lg me-2"></i>Close Preview
+              </button>
+          </div>
+      </div>
+  );
 
   return (
     <div className="row g-4 fade-in">
+       {/* Print Overlay */}
+       {printingSO && <SalesOrderPrintTemplate so={printingSO} />}
+
        <CodeConfigModal 
            isOpen={isConfigOpen} 
            onClose={() => setIsConfigOpen(false)} 
@@ -283,7 +374,7 @@ export default function SalesOrderView({ items, attributes, salesOrders, partner
                                 <th>Date</th>
                                 <th>Items</th>
                                 <th>Status</th>
-                                <th style={{width: '50px'}}></th>
+                                <th style={{width: '100px'}} className="text-end pe-4">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -317,9 +408,14 @@ export default function SalesOrderView({ items, attributes, salesOrders, partner
                                     </td>
                                     <td><span className="badge bg-secondary">{so.status}</span></td>
                                     <td className="pe-4 text-end">
-                                        <button className="btn btn-sm btn-link text-danger" onClick={() => onDeleteSO(so.id)}>
-                                            <i className="bi bi-trash"></i>
-                                        </button>
+                                        <div className="d-flex justify-content-end gap-2">
+                                            <button className="btn btn-sm btn-link text-primary p-0" title="Print Order" onClick={() => handlePrintSO(so)}>
+                                                <i className="bi bi-printer fs-5"></i>
+                                            </button>
+                                            <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDeleteSO(so.id)}>
+                                                <i className="bi bi-trash fs-5"></i>
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

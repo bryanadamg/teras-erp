@@ -8,6 +8,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
   const { showToast } = useToast();
   const { t } = useLanguage();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [printingPO, setPrintingPO] = useState<any>(null);
   
   const [newPO, setNewPO] = useState({
       po_number: '',
@@ -117,8 +118,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
 
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
   const getItemCode = (id: string) => items.find((i: any) => i.id === id)?.code || id;
-  const isSample = (id: string) => items.find((i: any) => i.id === id)?.category === 'Sample';
-
+  
   const getBoundAttributes = (itemId: string) => {
       const item = items.find((i: any) => i.id === itemId);
       if (!item || !item.attribute_ids) return [];
@@ -135,11 +135,101 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
       return valId;
   };
 
+  const handlePrintPO = (po: any) => {
+      setPrintingPO(po);
+      setTimeout(() => window.print(), 300);
+  };
+
   const suppliers = partners.filter((p: any) => p.type === 'SUPPLIER' && p.active);
   const getSupplierName = (id: string) => partners.find((p: any) => p.id === id)?.name || id;
+  const getSupplierAddress = (id: string) => partners.find((p: any) => p.id === id)?.address || '-';
+  const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
+
+  // --- Print Template ---
+  const PurchaseOrderPrintTemplate = ({ po }: { po: any }) => (
+      <div className="bg-white p-5 h-100 position-fixed top-0 start-0 w-100 print-container" style={{zIndex: 2000, overflowY: 'auto'}}>
+          <div className="d-flex justify-content-between border-bottom pb-3 mb-4 text-dark">
+              <div>
+                  <h2 className="fw-bold mb-0">PURCHASE ORDER</h2>
+                  <div className="text-muted small">Terras ERP Procurement System</div>
+              </div>
+              <div className="text-end">
+                  <div className="small text-muted fw-bold uppercase">PO Number</div>
+                  <h4 className="font-monospace mb-0 fw-bold text-success">{po.po_number}</h4>
+                  <div className="small text-muted mt-1">Date: {new Date(po.order_date).toLocaleDateString()}</div>
+              </div>
+          </div>
+
+          <div className="row mb-5">
+              <div className="col-6">
+                  <div className="p-3 border rounded bg-light bg-opacity-50 h-100">
+                      <h6 className="extra-small fw-bold text-uppercase text-muted border-bottom pb-2 mb-2">Supplier Details</h6>
+                      <div className="fw-bold fs-5">{getSupplierName(po.supplier_id)}</div>
+                      <div className="text-muted small mt-2" style={{ whiteSpace: 'pre-wrap' }}>
+                          {getSupplierAddress(po.supplier_id)}
+                      </div>
+                  </div>
+              </div>
+              <div className="col-6">
+                  <div className="p-3 border rounded h-100">
+                      <h6 className="extra-small fw-bold text-uppercase text-muted border-bottom pb-2 mb-2">Ship To / Destination</h6>
+                      <div className="fw-bold text-dark mb-1">{getLocationName(po.target_location_id)}</div>
+                      <div className="small text-muted mb-3">Terras Manufacturing Facility</div>
+                      <div className="badge bg-secondary mb-3">Status: {po.status}</div>
+                  </div>
+              </div>
+          </div>
+
+          <table className="table table-bordered table-sm mb-5">
+              <thead className="table-light">
+                  <tr style={{fontSize: '9pt'}}>
+                      <th style={{width: '15%'}}>Material Code</th>
+                      <th style={{width: '45%'}}>Description / Specification</th>
+                      <th style={{width: '15%'}} className="text-end">Quantity</th>
+                      <th style={{width: '25%'}}>Expected Delivery</th>
+                  </tr>
+              </thead>
+              <tbody>
+                  {po.lines.map((line: any) => (
+                      <tr key={line.id} style={{fontSize: '10pt'}}>
+                          <td className="font-monospace fw-bold">{getItemCode(line.item_id)}</td>
+                          <td>
+                              <div className="fw-medium">{getItemName(line.item_id)}</div>
+                              <div className="extra-small text-muted fst-italic">
+                                  {line.attribute_value_ids.map(getAttributeValueName).join(', ') || 'No variation'}
+                              </div>
+                          </td>
+                          <td className="text-end fw-bold">{line.qty}</td>
+                          <td className="small">{line.due_date ? new Date(line.due_date).toLocaleDateString() : '-'}</td>
+                      </tr>
+                  ))}
+              </tbody>
+          </table>
+
+          <div className="mt-5 pt-5 border-top row g-4 text-center">
+              <div className="col-4">
+                  <div className="small text-muted mb-5">Issued By</div>
+                  <div className="border-top mx-4 pt-2 small fw-bold">Procurement Officer</div>
+              </div>
+              <div className="col-4 offset-4">
+                  <div className="small text-muted mb-5">Acknowledged By</div>
+                  <div className="border-top mx-4 pt-2 small fw-bold">Supplier Signature / Stamp</div>
+              </div>
+          </div>
+
+          <div className="position-fixed top-0 end-0 p-3 no-print">
+              <button className="btn btn-dark shadow rounded-pill px-4" onClick={() => setPrintingPO(null)}>
+                  <i className="bi bi-x-lg me-2"></i>Close Preview
+              </button>
+          </div>
+      </div>
+  );
 
   return (
     <div className="row g-4 fade-in">
+       {/* Print Overlay */}
+       {printingPO && <PurchaseOrderPrintTemplate po={printingPO} />}
+
        <CodeConfigModal 
            isOpen={isConfigOpen} 
            onClose={() => setIsConfigOpen(false)} 
@@ -295,7 +385,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                 <th>Date</th>
                                 <th>Items</th>
                                 <th>Status</th>
-                                <th style={{width: '50px'}}></th>
+                                <th style={{width: '120px'}} className="text-end pe-4">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -333,6 +423,9 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                     </td>
                                     <td className="pe-4 text-end">
                                         <div className="d-flex justify-content-end align-items-center gap-2">
+                                            <button className="btn btn-sm btn-link text-primary p-0" title="Print PO" onClick={() => handlePrintPO(po)}>
+                                                <i className="bi bi-printer fs-5"></i>
+                                            </button>
                                             {po.status !== 'RECEIVED' && (
                                                 <button 
                                                     className="btn btn-sm btn-primary shadow-sm py-0 px-2" 
@@ -343,7 +436,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                 </button>
                                             )}
                                             <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDeletePO(po.id)}>
-                                                <i className="bi bi-trash"></i>
+                                                <i className="bi bi-trash fs-5"></i>
                                             </button>
                                         </div>
                                     </td>
