@@ -55,20 +55,13 @@ const AuditLogRow = memo(({ log }: any) => {
 
 AuditLogRow.displayName = 'AuditLogRow';
 
-export default function AuditLogsView({ auditLogs, currentPage, totalItems, pageSize, onPageChange }: any) {
+export default function AuditLogsView({ auditLogs, currentPage, totalItems, pageSize, onPageChange, filterType, onFilterChange }: any) {
   const { t } = useLanguage();
-  const [filterType, setFilterType] = useState('');
 
   // Derived Pagination
   const totalPages = Math.ceil(totalItems / pageSize);
   const startRange = (currentPage - 1) * pageSize + 1;
   const endRange = Math.min(currentPage * pageSize, totalItems);
-
-  // Local filtering based on the prop (Note: This might be partial if filtered on server too)
-  const filteredLogs = auditLogs.filter((log: any) => {
-      if (!filterType) return true;
-      return log.entity_type === filterType;
-  });
 
   return (
       <div className="card fade-in border-0 shadow-sm">
@@ -80,7 +73,7 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
               <div className="d-flex gap-2">
                   <div className="input-group input-group-sm" style={{width: '180px'}}>
                       <span className="input-group-text px-2"><i className="bi bi-funnel"></i></span>
-                      <select className="form-select" value={filterType} onChange={e => setFilterType(e.target.value)}>
+                      <select className="form-select" value={filterType} onChange={e => onFilterChange(e.target.value)}>
                           <option value="">All Entities</option>
                           <option value="Item">Items</option>
                           <option value="BOM">BOMs</option>
@@ -105,10 +98,10 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
                           </tr>
                       </thead>
                       <tbody>
-                          {filteredLogs.map((log: any) => (
+                          {auditLogs.map((log: any) => (
                               <AuditLogRow key={log.id} log={log} />
                           ))}
-                          {filteredLogs.length === 0 && <tr><td colSpan={5} className="text-center py-5 text-muted">No activity logs found</td></tr>}
+                          {auditLogs.length === 0 && <tr><td colSpan={5} className="text-center py-5 text-muted">No activity logs found</td></tr>}
                       </tbody>
                   </table>
               </div>

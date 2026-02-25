@@ -151,9 +151,13 @@ class DatabaseManager:
                 # SQLite specific arguments
                 connect_args = {"check_same_thread": False} if "sqlite" in database_url else {}
                 
+                # SQLAlchemy Pooling Configuration for High Concurrency
                 self._engine = create_engine(
                     database_url,
                     pool_pre_ping=True,
+                    pool_size=20,         # Base pool size
+                    max_overflow=10,      # Temporary spike allowance
+                    pool_recycle=3600,    # Refresh connections hourly
                     connect_args=connect_args
                 )
                 

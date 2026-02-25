@@ -89,6 +89,9 @@ export default function Home() {
   const [itemSearch, setItemSearch] = useState('');
   const [itemCategory, setItemCategory] = useState('');
 
+  // Audit Log Filters
+  const [auditType, setAuditType] = useState('');
+
   // Initial Load Flag
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
@@ -195,7 +198,7 @@ export default function Home() {
         // Audit Logs
         if (activeTab === 'audit-logs') {
             const auditSkip = (auditPage - 1) * pageSize;
-            const auditRes = await fetch(`${API_BASE}/audit-logs?skip=${auditSkip}&limit=${pageSize}`, { headers });
+            const auditRes = await fetch(`${API_BASE}/audit-logs?skip=${auditSkip}&limit=${pageSize}&entity_type=${auditType}`, { headers });
             if (auditRes.ok) {
                 const data = await auditRes.json();
                 setAuditLogs(data.items);
@@ -206,7 +209,7 @@ export default function Home() {
     } catch (e) {
       console.error("Failed to fetch data", e);
     }
-  }, [currentUser, activeTab, itemPage, woPage, auditPage, reportPage, itemSearch, itemCategory, isInitialLoad, pageSize]);
+  }, [currentUser, activeTab, itemPage, woPage, auditPage, reportPage, itemSearch, itemCategory, auditType, isInitialLoad, pageSize]);
 
   useEffect(() => {
     if (currentUser) {
@@ -218,7 +221,7 @@ export default function Home() {
     
     const savedStyle = localStorage.getItem('ui_style');
     if (savedStyle) setUiStyle(savedStyle);
-  }, [currentUser, activeTab, itemPage, woPage, auditPage, reportPage, itemSearch, itemCategory]);
+  }, [currentUser, activeTab, itemPage, woPage, auditPage, reportPage, itemSearch, itemCategory, auditType]);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
@@ -1175,6 +1178,8 @@ export default function Home() {
                 totalItems={auditTotal}
                 pageSize={pageSize}
                 onPageChange={setAuditPage}
+                filterType={auditType}
+                onFilterChange={setAuditType}
             />
         )}
 
