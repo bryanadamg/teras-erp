@@ -1,32 +1,27 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.models.stock_ledger import StockLedger
+from app.models.stock_balance import StockBalance
+from app.models.attribute import AttributeValue
 from fastapi import HTTPException
 
-from app.models.attribute import AttributeValue
+def _generate_variant_key(attribute_value_ids: list[str]) -> str:
+    """Standardizes variant identification string."""
+    return ",".join(sorted(str(uid) for uid in attribute_value_ids))
 
 def get_stock_balance(db: Session, item_id, location_id, attribute_value_ids: list[str] = []):
     """
-    Calculate exact stock balance for an item+location+attributes combination.
+    PRE-CALCULATED O(1) LOOKUP: 
+    Retrieves the exact balance from the summary table instead of summing the ledger.
     """
-    # 1. Fetch all ledger entries for this item and location
-    query = db.query(StockLedger).filter(
-        StockLedger.item_id == item_id,
-        StockLedger.location_id == location_id
-    )
-    entries = query.all()
+    v_key = _generate_variant_key(attribute_value_ids)
+    balance = db.query(StockBalance).filter(
+        StockBalance.item_id == item_id,
+        StockBalance.location_id == location_id,
+        StockBalance.variant_key == v_key
+    ).first()
     
-    # 2. Filter in memory for exact attribute match
-    # (SQLAlchemy many-to-many filtering for *exact* set match is complex/slow without specific schema optimization)
-    target_attr_set = set(str(uid) for uid in attribute_value_ids)
-    
-    total = 0.0
-    for entry in entries:
-        entry_attr_set = set(str(v.id) for v in entry.attribute_values)
-        if entry_attr_set == target_attr_set:
-            total += float(entry.qty_change)
-            
-    return total
+    return float(balance.qty) if balance else 0.0
 
 def add_stock_entry(
     db: Session,
@@ -37,7 +32,7 @@ def add_stock_entry(
     reference_id,
     attribute_value_ids: list[str] = []
 ):
-    # Prevent Negative Stock
+    # 1. Prevent Negative Stock (using pre-calculated balance)
     if qty_change < 0:
         current_balance = get_stock_balance(db, item_id, location_id, attribute_value_ids)
         if current_balance + qty_change < 0:
@@ -46,6 +41,7 @@ def add_stock_entry(
                 detail=f"Insufficient stock. Current: {current_balance}, Required: {abs(qty_change)}"
             )
 
+    # 2. Create the Ledger Entry (for Audit/History)
     entry = StockLedger(
         item_id=item_id,
         location_id=location_id,
@@ -59,9 +55,33 @@ def add_stock_entry(
         entry.attribute_values = vals
 
     db.add(entry)
+
+    # 3. ATOMIC SUMMARY UPDATE (The Materialized View Logic)
+    v_key = _generate_variant_key(attribute_value_ids)
+    balance = db.query(StockBalance).filter(
+        StockBalance.item_id == item_id,
+        StockBalance.location_id == location_id,
+        StockBalance.variant_key == v_key
+    ).first()
+
+    if not balance:
+        # Create new balance record
+        balance = StockBalance(
+            item_id=item_id,
+            location_id=location_id,
+            variant_key=v_key,
+            qty=qty_change
+        )
+        # Link attribute values for traceability in the summary too
+        if attribute_value_ids:
+            vals = db.query(AttributeValue).filter(AttributeValue.id.in_(attribute_value_ids)).all()
+            balance.attribute_values = vals
+        db.add(balance)
+    else:
+        # Update existing balance
+        balance.qty = float(balance.qty) + float(qty_change)
+
     db.commit()
-
-
 
 def get_stock_entries(db: Session, skip: int = 0, limit: int = 100):
     return (
@@ -72,69 +92,52 @@ def get_stock_entries(db: Session, skip: int = 0, limit: int = 100):
         .all()
     )
 
-
 def get_all_stock_balances(db: Session, user=None):
     """
-    Optimized: Uses SQL SUM and GROUP BY to handle hundreds of thousands of rows
-    without loading them all into Python memory.
+    ENTERPRISE SCALE: Returns pre-calculated totals directly from the summary table.
     """
     from app.models.item import Item 
-    from app.models.stock_ledger import stock_ledger_values
     
-    # 1. Base query for total sum grouped by item and location
-    # Note: Handling many-to-many attribute values in GROUP BY is tricky in SQL.
-    # For MVP, we group by item and location. If exact variant tracking is needed at scale,
-    # we would use a materialized view or a cached balance table.
-    
-    query = db.query(
-        StockLedger.item_id,
-        StockLedger.location_id,
-        func.sum(StockLedger.qty_change).label("total_qty")
-    )
+    query = db.query(StockBalance)
     
     if user and user.allowed_categories:
-        query = query.join(Item, StockLedger.item_id == Item.id).filter(Item.category.in_(user.allowed_categories))
+        query = query.join(Item, StockBalance.item_id == Item.id).filter(Item.category.in_(user.allowed_categories))
         
-    results = query.group_by(StockLedger.item_id, StockLedger.location_id).all()
+    results = query.all()
     
-    # Format for response
     return [
         {
             "item_id": r.item_id,
             "location_id": r.location_id,
-            "attribute_value_ids": [], # Simplified for performance at scale
-            "qty": float(r.total_qty)
+            "attribute_value_ids": [v.id for v in r.attribute_values],
+            "qty": float(r.qty)
         }
-        for r in results if r.total_qty != 0
+        for r in results if r.qty != 0
     ]
 
 def get_batch_stock_balances(db: Session, requirements: list[dict]):
     """
-    Given a list of {item_id, location_id, attribute_value_ids}, 
-    returns a dictionary keyed by (item_id, location_id, attr_string) -> balance.
+    BATCH O(1) LOOKUP: 
+    Returns a dictionary keyed by (item_id, location_id, attr_string) -> balance.
+    Extremely efficient for Work Order material checks.
     """
-    # 1. To avoid massive SQL logic, we'll fetch all balances for the unique item+location pairs 
-    # and then filter by attributes in Python. This is a compromise between N+1 and complex SQL.
-    unique_pairs = set((req['item_id'], req['location_id']) for req in requirements)
-    
     results_map = {}
     
-    # We fetch granularly for each unique pair found in requirements
-    for item_id, loc_id in unique_pairs:
-        # Get all entries for this item/loc combination
-        entries = db.query(StockLedger).filter(
-            StockLedger.item_id == item_id,
-            StockLedger.location_id == loc_id
-        ).all()
-        
-        # Group entries by attributes in memory
-        for e in entries:
-            val_ids = sorted([str(v.id) for v in e.attribute_values])
-            key = (str(item_id), str(loc_id), ",".join(val_ids))
-            
-            if key not in results_map:
-                results_map[key] = 0
-            results_map[key] += float(e.qty_change)
+    # Extract unique requirement keys
+    unique_keys = set((str(req['item_id']), str(req['location_id']), _generate_variant_key(req['attribute_value_ids'])) for req in requirements)
+    
+    # Fetch all relevant balances in ONE query
+    # Since we use variant_key, we can do a very fast filtered fetch
+    if not unique_keys:
+        return {}
+
+    # Note: SQLAlchemy IN clause with multiple columns is tricky, 
+    # for simplicity and performance we'll just fetch by item_ids then filter.
+    item_ids = set(req['item_id'] for req in requirements)
+    balances = db.query(StockBalance).filter(StockBalance.item_id.in_(item_ids)).all()
+
+    for b in balances:
+        key = (str(b.item_id), str(b.location_id), b.variant_key)
+        results_map[key] = float(b.qty)
             
     return results_map
-

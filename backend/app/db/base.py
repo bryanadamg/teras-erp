@@ -29,3 +29,4 @@ from app.models.audit import AuditLog
 from app.models.kpi import KPICache
 from app.models.partner import Partner
 from app.models.purchase import PurchaseOrder, PurchaseOrderLine, purchase_order_line_values
+from app.models.stock_balance import StockBalance, stock_balance_values

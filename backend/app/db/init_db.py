@@ -223,6 +223,56 @@ def seed_rbac(db):
     except Exception as e:
         logger.error(f"RBAC seeding failed: {e}")
 
+from app.models.stock_ledger import StockLedger
+from app.models.stock_balance import StockBalance
+from app.models.attribute import AttributeValue
+from app.services import stock_service
+
+def sync_stock_balances(db):
+    """
+    Synchronizes the pre-calculated stock_balances table with the existing stock_ledger.
+    Crucial for data integrity after the summary table migration.
+    """
+    try:
+        logger.info("Synchronizing Stock Balances from Ledger...")
+        
+        # 1. Clear existing summary to prevent double-counting during full sync
+        db.execute(text("TRUNCATE stock_balances, stock_balance_values CASCADE"))
+        db.commit()
+
+        # 2. Fetch all ledger entries
+        entries = db.query(StockLedger).all()
+        
+        for e in entries:
+            attr_ids = [str(v.id) for v in e.attribute_values]
+            v_key = stock_service._generate_variant_key(attr_ids)
+            
+            balance = db.query(StockBalance).filter(
+                StockBalance.item_id == e.item_id,
+                StockBalance.location_id == e.location_id,
+                StockBalance.variant_key == v_key
+            ).first()
+
+            if not balance:
+                balance = StockBalance(
+                    item_id=e.item_id,
+                    location_id=e.location_id,
+                    variant_key=v_key,
+                    qty=e.qty_change
+                )
+                if attr_ids:
+                    vals = db.query(AttributeValue).filter(AttributeValue.id.in_(attr_ids)).all()
+                    balance.attribute_values = vals
+                db.add(balance)
+            else:
+                balance.qty = float(balance.qty) + float(e.qty_change)
+        
+        db.commit()
+        logger.info(f"Synchronization complete. Processed {len(entries)} ledger entries.")
+    except Exception as e:
+        logger.error(f"Stock synchronization failed: {e}")
+        db.rollback()
+
 def init_db() -> None:
     logger.info("Initializing Database...")
     # 1. Create all tables (including association tables registered in base.py)
@@ -231,13 +281,14 @@ def init_db() -> None:
     # 2. Run ad-hoc column migrations
     run_migrations()
     
-    # 3. Seed data
+    # 3. Seed and Sync data
     from app.db.session import SessionLocal
     db = SessionLocal()
     try:
         seed_categories(db)
         seed_uoms(db)
         seed_rbac(db)
+        sync_stock_balances(db) # Perform sync
     finally:
         db.close()
         
