@@ -44,10 +44,11 @@ def get_items_api(
     skip: int = 0, 
     limit: int = 100, 
     search: str | None = None,
+    category: str | None = None,
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    items, total = item_service.get_items(db, skip=skip, limit=limit, user=current_user, search=search)
+    items, total = item_service.get_items(db, skip=skip, limit=limit, user=current_user, search=search, category=category)
     # Populate attribute_ids for response
     for item in items:
         item.attribute_ids = [a.id for a in item.attributes]

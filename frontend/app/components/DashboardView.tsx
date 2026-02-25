@@ -1,33 +1,31 @@
 import { useLanguage } from '../context/LanguageContext';
 import CalendarView from './CalendarView';
 
-export default function DashboardView({ items, locations, stockBalance, workOrders, stockEntries, samples, salesOrders }: any) {
+export default function DashboardView({ items, locations, stockBalance, workOrders, stockEntries, samples, salesOrders, kpis }: any) {
   const { t } = useLanguage();
 
-  // Metrics
-  const totalItems = items.length;
-  const lowStockItems = stockBalance.filter((s: any) => s.qty < 10).length;
-  
-  // Manufacturing Metrics
-  const pendingWO = workOrders.filter((w: any) => w.status === 'PENDING').length;
-  const activeWO = workOrders.filter((w: any) => w.status === 'IN_PROGRESS').length;
-
-  // New Metrics
-  const activeSamples = (samples || []).filter((s: any) => ['DRAFT', 'IN_PRODUCTION', 'SENT'].includes(s.status)).length;
-  const openPOs = (salesOrders || []).filter((po: any) => po.status === 'PENDING').length;
+  // Unified Metric Access (prefer backend KPIs, fallback to local calc for small sets)
+  const metrics = {
+      totalItems: kpis?.total_items ?? items.length,
+      lowStock: kpis?.low_stock ?? 0,
+      activeWO: kpis?.active_wo ?? 0,
+      pendingWO: kpis?.pending_wo ?? 0,
+      activeSamples: kpis?.active_samples ?? 0,
+      openOrders: kpis?.open_sos ?? 0
+  };
 
   // Recent Activity (Last 5 stock entries)
   const recentActivity = [...stockEntries]
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       .slice(0, 5);
 
-  // Location Analysis
-  const locationStats = locations.map((loc: any) => {
-      const stockInLoc = stockBalance.filter((s: any) => s.location_id === loc.id);
+  // Optimized Location Analysis
+  const locationStats = (locations || []).map((loc: any) => {
+      // Find all balance records for this location (sum across different variants/items)
+      const stockInLoc = (stockBalance || []).filter((s: any) => String(s.location_id) === String(loc.id));
       const totalQty = stockInLoc.reduce((acc: number, curr: any) => acc + parseFloat(curr.qty), 0);
-      const itemCount = stockInLoc.length;
-      return { ...loc, totalQty, itemCount };
-  }).sort((a: any, b: any) => b.totalQty - a.totalQty);
+      return { ...loc, totalQty };
+  }).filter(l => l.totalQty !== 0).sort((a: any, b: any) => b.totalQty - a.totalQty);
 
   const totalStockQty = locationStats.reduce((acc: number, curr: any) => acc + curr.totalQty, 0);
 
@@ -38,7 +36,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
           <div className={`card h-100 border-0 shadow-sm ${colorClass} text-white`}>
               <div className="card-body p-3">
                   <div className="d-flex justify-content-between align-items-center mb-2">
-                      <h6 className="card-title mb-0 opacity-75 small text-uppercase fw-bold">{title}</h6>
+                      <h6 className="card-title mb-0 opacity-75 small text-uppercase fw-bold text-white">{title}</h6>
                       <i className={`bi ${icon} fs-4 opacity-50`}></i>
                   </div>
                   <h3 className="fw-bold mb-0">{value}</h3>
@@ -57,12 +55,12 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
         
         {/* KPI Grid */}
         <div className="row g-3 mb-4">
-            <KPICard title={t('item_inventory')} value={totalItems} subtext="Total SKUs" icon="bi-box-seam" colorClass="bg-primary" />
-            <KPICard title="Low Stock" value={lowStockItems} subtext="Items below threshold" icon="bi-exclamation-triangle" colorClass="bg-warning text-dark" />
-            <KPICard title="Active WO" value={activeWO} subtext="Production in progress" icon="bi-gear-wide-connected" colorClass="bg-success" />
-            <KPICard title="Pending WO" value={pendingWO} subtext="Waiting to start" icon="bi-clock-history" colorClass="bg-info" />
-            <KPICard title="Active Samples" value={activeSamples} subtext="Prototypes in dev" icon="bi-eyedropper" colorClass="bg-secondary" />
-            <KPICard title="Open POs" value={openPOs} subtext="Incoming Orders" icon="bi-receipt" colorClass="bg-dark" />
+            <KPICard title={t('item_inventory')} value={metrics.totalItems} subtext="Total SKUs" icon="bi-box-seam" colorClass="bg-primary" />
+            <KPICard title="Low Stock" value={metrics.lowStock} subtext="Global Alert" icon="bi-exclamation-triangle" colorClass="bg-warning text-dark" />
+            <KPICard title="Active WO" value={metrics.activeWO} subtext="Production" icon="bi-gear-wide-connected" colorClass="bg-success" />
+            <KPICard title="Pending WO" value={metrics.pendingWO} subtext="In Queue" icon="bi-clock-history" colorClass="bg-info" />
+            <KPICard title="Samples" value={metrics.activeSamples} subtext="In Development" icon="bi-eyedropper" colorClass="bg-secondary" />
+            <KPICard title="Open Orders" value={metrics.openOrders} subtext="Sales Pipeline" icon="bi-receipt" colorClass="bg-dark" />
         </div>
 
         <div className="row g-4 mb-4">
@@ -82,14 +80,20 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                     <div key={loc.id}>
                                         <div className="d-flex justify-content-between mb-1">
                                             <span className="fw-bold text-dark">{loc.name}</span>
-                                            <span className="small text-muted">{loc.totalQty} units</span>
+                                            <span className="small text-muted">{loc.totalQty.toLocaleString()} units</span>
                                         </div>
-                                        <div className="progress" style={{height: '8px'}}>
-                                            <div className={`progress-bar ${color}`} role="progressbar" style={{width: `${percentage}%`}}></div>
+                                        <div className="progress shadow-sm" style={{height: '10px'}}>
+                                            <div className={`progress-bar ${color} progress-bar-striped progress-bar-animated`} role="progressbar" style={{width: `${percentage}%`}}></div>
                                         </div>
                                     </div>
                                 );
                             })}
+                            {locationStats.length === 0 && (
+                                <div className="text-center py-5">
+                                    <i className="bi bi-pie-chart text-muted opacity-25 display-1"></i>
+                                    <p className="text-muted small mt-2">No inventory recorded in any location.</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -121,16 +125,17 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                     <div className="card-body p-0">
                         <ul className="list-group list-group-flush">
                             {recentActivity.map((entry: any) => (
-                                <li key={entry.id} className="list-group-item d-flex justify-content-between align-items-center py-2">
+                                <li key={entry.id} className="list-group-item d-flex justify-content-between align-items-center py-2 border-0 border-bottom">
                                     <div style={{minWidth: 0}}>
                                         <div className="fw-medium text-truncate small" title={getItemName(entry.item_id)}>{getItemName(entry.item_id)}</div>
-                                        <small className="text-muted d-block" style={{fontSize: '0.7rem'}}>{new Date(entry.created_at).toLocaleDateString()}</small>
+                                        <small className="text-muted d-block font-monospace" style={{fontSize: '0.65rem'}}>{new Date(entry.created_at).toLocaleString()}</small>
                                     </div>
                                     <div className={`fw-bold ms-2 small ${entry.qty_change > 0 ? 'text-success' : 'text-danger'}`}>
                                         {entry.qty_change > 0 ? '+' : ''}{entry.qty_change}
                                     </div>
                                 </li>
                             ))}
+                            {recentActivity.length === 0 && <li className="list-group-item text-center py-5 text-muted small italic">No recent movements</li>}
                         </ul>
                     </div>
                 </div>
@@ -159,22 +164,22 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                 <tbody>
                                     {workOrders.filter((w: any) => ['IN_PROGRESS', 'PENDING'].includes(w.status)).slice(0, 8).map((wo: any) => (
                                         <tr key={wo.id}>
-                                            <td className="ps-3 font-monospace">{wo.code}</td>
+                                            <td className="ps-3 font-monospace fw-bold">{wo.code}</td>
                                             <td>{getItemName(wo.item_id)}</td>
                                             <td>
-                                                <span className={`badge ${wo.status === 'IN_PROGRESS' ? 'bg-warning text-dark' : 'bg-secondary'}`}>
+                                                <span className={`badge ${wo.status === 'IN_PROGRESS' ? 'bg-warning text-dark' : 'bg-secondary'} extra-small`}>
                                                     {wo.status}
                                                 </span>
                                             </td>
                                             <td>
-                                                <div className="progress" style={{height: '4px', width: '100px'}}>
-                                                    <div className={`progress-bar ${wo.status === 'IN_PROGRESS' ? 'bg-warning' : 'bg-secondary'}`} style={{width: wo.status === 'IN_PROGRESS' ? '60%' : '0%'}}></div>
+                                                <div className="progress" style={{height: '6px', width: '120px'}}>
+                                                    <div className={`progress-bar ${wo.status === 'IN_PROGRESS' ? 'bg-warning progress-bar-striped progress-bar-animated' : 'bg-secondary'}`} style={{width: wo.status === 'IN_PROGRESS' ? '60%' : '0%'}}></div>
                                                 </div>
                                             </td>
-                                            <td className="text-end pe-3 fw-bold">{wo.qty}</td>
+                                            <td className="text-end pe-3 fw-bold">{wo.qty.toLocaleString()}</td>
                                         </tr>
                                     ))}
-                                    {workOrders.length === 0 && <tr><td colSpan={5} className="text-center py-3">No active production</td></tr>}
+                                    {workOrders.length === 0 && <tr><td colSpan={5} className="text-center py-4 text-muted">No active production runs</td></tr>}
                                 </tbody>
                             </table>
                         </div>

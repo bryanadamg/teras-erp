@@ -231,44 +231,53 @@ from app.services import stock_service
 def sync_stock_balances(db):
     """
     Synchronizes the pre-calculated stock_balances table with the existing stock_ledger.
-    Crucial for data integrity after the summary table migration.
+    Forces string keys to ensure robust grouping.
     """
     try:
         logger.info("Synchronizing Stock Balances from Ledger...")
         
-        # 1. Clear existing summary to prevent double-counting during full sync
+        # 1. Clear existing summary
         db.execute(text("TRUNCATE stock_balances, stock_balance_values CASCADE"))
         db.commit()
 
-        # 2. Fetch all ledger entries
+        # 2. Aggregate all ledger entries in memory
         entries = db.query(StockLedger).all()
-        
+        aggregated = {} # key: "item_id:loc_id:v_key" -> {qty, attr_ids, raw_item_id, raw_loc_id}
+
         for e in entries:
             attr_ids = [str(v.id) for v in e.attribute_values]
             v_key = stock_service._generate_variant_key(attr_ids)
-            
-            balance = db.query(StockBalance).filter(
-                StockBalance.item_id == e.item_id,
-                StockBalance.location_id == e.location_id,
-                StockBalance.variant_key == v_key
-            ).first()
+            # Force to string to ensure dictionary key uniqueness works across different object instances
+            s_key = f"{str(e.item_id)}:{str(e.location_id)}:{v_key}"
 
-            if not balance:
-                balance = StockBalance(
-                    item_id=e.item_id,
-                    location_id=e.location_id,
-                    variant_key=v_key,
-                    qty=e.qty_change
-                )
-                if attr_ids:
-                    vals = db.query(AttributeValue).filter(AttributeValue.id.in_(attr_ids)).all()
-                    balance.attribute_values = vals
-                db.add(balance)
-            else:
-                balance.qty = float(balance.qty) + float(e.qty_change)
+            if s_key not in aggregated:
+                aggregated[s_key] = {
+                    "qty": 0.0, 
+                    "attr_ids": attr_ids,
+                    "item_id": e.item_id,
+                    "location_id": e.location_id,
+                    "v_key": v_key
+                }
+            
+            aggregated[s_key]["qty"] += float(e.qty_change)
+
+        logger.info(f"Aggregated {len(entries)} ledger entries into {len(aggregated)} unique balance records.")
+
+        # 3. Create balance records
+        for s_key, data in aggregated.items():
+            balance = StockBalance(
+                item_id=data["item_id"],
+                location_id=data["location_id"],
+                variant_key=data["v_key"],
+                qty=data["qty"]
+            )
+            if data["attr_ids"]:
+                vals = db.query(AttributeValue).filter(AttributeValue.id.in_(data["attr_ids"])).all()
+                balance.attribute_values = vals
+            db.add(balance)
         
         db.commit()
-        logger.info(f"Synchronization complete. Processed {len(entries)} ledger entries.")
+        logger.info("Stock synchronization successfully committed.")
     except Exception as e:
         logger.error(f"Stock synchronization failed: {e}")
         db.rollback()

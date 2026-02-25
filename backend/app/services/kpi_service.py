@@ -3,7 +3,9 @@ from sqlalchemy import func
 from app.models.kpi import KPICache
 from app.models.item import Item
 from app.models.manufacturing import WorkOrder
-from app.models.stock_ledger import StockLedger
+from app.models.stock_balance import StockBalance
+from app.models.sales import SalesOrder
+from app.models.sample import SampleRequest
 from datetime import datetime, timedelta
 
 def get_kpi(db: Session, key: str, ttl_minutes: int = 10):
@@ -24,7 +26,7 @@ def update_kpi(db: Session, key: str, value: float):
 
 def refresh_all_kpis(db: Session):
     """Calculates all KPIs and updates the cache."""
-    # 1. Total Items
+    # 1. Total Items (Global)
     total_items = db.query(Item).count()
     update_kpi(db, "total_items", float(total_items))
 
@@ -36,14 +38,34 @@ def refresh_all_kpis(db: Session):
     pending_wo = db.query(WorkOrder).filter(WorkOrder.status == "PENDING").count()
     update_kpi(db, "pending_wo", float(pending_wo))
 
-    # Add more as needed...
+    # 4. Low Stock Items (Items where total qty across all locs < 10)
+    # Optimized: Group by item_id in stock_balances and sum
+    low_stock_query = db.query(StockBalance.item_id).group_by(StockBalance.item_id).having(func.sum(StockBalance.qty) < 10)
+    low_stock_count = low_stock_query.count()
+    update_kpi(db, "low_stock", float(low_stock_count))
+
+    # 5. Active Samples
+    active_samples = db.query(SampleRequest).filter(SampleRequest.status.in_(['DRAFT', 'IN_PRODUCTION', 'SENT'])).count()
+    update_kpi(db, "active_samples", float(active_samples))
+
+    # 6. Open Sales Orders (Incoming)
+    open_sos = db.query(SalesOrder).filter(SalesOrder.status == "PENDING").count()
+    update_kpi(db, "open_sos", float(open_sos))
+
     return True
 
 def get_all_cached_kpis(db: Session):
-    """Returns all cached KPIs as a dictionary."""
+    """Returns all cached KPIs, refreshing if cache is empty or older than 5 minutes."""
     kpis = db.query(KPICache).all()
-    # If cache is empty, refresh it
-    if not kpis:
+    
+    # Check if we need to refresh (any record older than 5 mins)
+    needs_refresh = not kpis
+    if kpis:
+        oldest = min(k.updated_at for k in kpis)
+        if (datetime.utcnow() - oldest) > timedelta(minutes=5):
+            needs_refresh = True
+
+    if needs_refresh:
         refresh_all_kpis(db)
         kpis = db.query(KPICache).all()
     

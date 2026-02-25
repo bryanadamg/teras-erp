@@ -60,7 +60,9 @@ export default function InventoryView({
     pageSize,
     onPageChange,
     searchTerm,
-    onSearchChange
+    onSearchChange,
+    categoryFilter,
+    onCategoryChange
 }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
@@ -96,9 +98,6 @@ export default function InventoryView({
   
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showCatInput, setShowCatInput] = useState(false);
-
-  // Filtering
-  const [categoryFilter, setCategoryFilter] = useState('');
 
   useEffect(() => {
       const savedConfig = localStorage.getItem('item_code_config');
@@ -426,7 +425,7 @@ export default function InventoryView({
                     <SearchableSelect 
                         options={[{ value: '', label: t('categories') + ' (All)' }, ...categories.map((c: any) => ({ value: c.name, label: c.name }))]}
                         value={categoryFilter}
-                        onChange={setCategoryFilter}
+                        onChange={onCategoryChange}
                         placeholder={t('categories') + "..."}
                         className="form-control-sm border-0 p-0"
                     />

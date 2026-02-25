@@ -60,7 +60,7 @@ def get_item_by_code(db: Session, code: str) -> Item | None:
     return db.query(Item).filter(Item.code == code).first()
 
 
-def get_items(db: Session, skip: int = 0, limit: int = 100, user=None, search: str = None) -> tuple[list[Item], int]:
+def get_items(db: Session, skip: int = 0, limit: int = 100, user=None, search: str = None, category: str = None) -> tuple[list[Item], int]:
     query = db.query(Item)
     
     if search:
@@ -69,6 +69,9 @@ def get_items(db: Session, skip: int = 0, limit: int = 100, user=None, search: s
             (Item.code.ilike(search_filter)) | 
             (Item.name.ilike(search_filter))
         )
+
+    if category:
+        query = query.filter(Item.category == category)
 
     if user and user.allowed_categories:
         query = query.filter(Item.category.in_(user.allowed_categories))
