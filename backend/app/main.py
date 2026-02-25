@@ -1,8 +1,9 @@
 from pathlib import Path
 from fastapi import FastAPI, Request, APIRouter
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, ORJSONResponse # Import ORJSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware # Import GZip
 from sqlalchemy import text
 import os
 
@@ -11,7 +12,10 @@ from app.db.base import Base
 from app.api import items, locations, stock, attributes, boms, manufacturing, categories, routing, auth, uoms, sales, samples, audit, admin, dashboard, partners, purchase
 from app.db.init_db import init_db
 
-app = FastAPI(title="Terras ERP")
+app = FastAPI(title="Terras ERP", default_response_class=ORJSONResponse) # Set default response class
+
+# Add GZip Middleware to compress large responses
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Initialize Database and run migrations
 init_db()

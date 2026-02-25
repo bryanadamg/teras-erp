@@ -1,5 +1,59 @@
-import { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { useLanguage } from '../context/LanguageContext';
+
+// Helper for action colors
+function getActionColor(action: string) {
+    switch(action) {
+        case 'CREATE': return 'success';
+        case 'UPDATE': return 'warning';
+        case 'DELETE': return 'danger';
+        case 'UPDATE_STATUS': return 'info';
+        default: return 'secondary';
+    }
+}
+
+// Memoized Row Component
+const AuditLogRow = memo(({ log }: any) => {
+    const [showChanges, setShowChanges] = useState(false);
+
+    return (
+        <>
+            <tr style={{ cursor: log.changes ? 'pointer' : 'default' }} onClick={() => log.changes && setShowChanges(!showChanges)}>
+                <td className="ps-4 text-muted font-monospace">{new Date(log.timestamp).toLocaleString()}</td>
+                <td><span className="fw-medium text-dark">User {log.user_id ? log.user_id.split('-')[0] : 'System'}</span></td>
+                <td>
+                    <span className={`badge bg-${getActionColor(log.action)} bg-opacity-10 text-${getActionColor(log.action)} border border-${getActionColor(log.action)} border-opacity-25`}>
+                        {log.action}
+                    </span>
+                </td>
+                <td>
+                    <span className="badge bg-light text-dark border">{log.entity_type}</span>
+                    <span className="ms-1 font-monospace text-muted">{log.entity_id.split('-')[0]}...</span>
+                </td>
+                <td className="text-muted">
+                    {log.details}
+                    {log.changes && (
+                        <i className={`bi bi-chevron-${showChanges ? 'up' : 'down'} ms-2 text-primary`}></i>
+                    )}
+                </td>
+            </tr>
+            {showChanges && log.changes && (
+                <tr className="bg-light bg-opacity-50">
+                    <td colSpan={5} className="p-0">
+                        <div className="p-3 ps-5 border-bottom shadow-inner">
+                            <h6 className="extra-small fw-bold text-uppercase text-muted mb-2">Technical Diff (JSON)</h6>
+                            <pre className="extra-small font-monospace mb-0 overflow-auto bg-white p-2 border rounded" style={{ maxHeight: '200px' }}>
+                                {JSON.stringify(log.changes, null, 2)}
+                            </pre>
+                        </div>
+                    </td>
+                </tr>
+            )}
+        </>
+    );
+});
+
+AuditLogRow.displayName = 'AuditLogRow';
 
 export default function AuditLogsView({ auditLogs, currentPage, totalItems, pageSize, onPageChange }: any) {
   const { t } = useLanguage();
@@ -21,7 +75,7 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
           <div className="card-header bg-white d-flex justify-content-between align-items-center">
               <div>
                   <h5 className="card-title mb-0">System Audit Logs</h5>
-                  <p className="text-muted small mb-0 mt-1">Track all user activities and system changes.</p>
+                  <p className="text-muted small mb-0 mt-1">Track all user activities and system changes. Click rows to see technical details.</p>
               </div>
               <div className="d-flex gap-2">
                   <div className="input-group input-group-sm" style={{width: '180px'}}>
@@ -52,20 +106,7 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
                       </thead>
                       <tbody>
                           {filteredLogs.map((log: any) => (
-                              <tr key={log.id}>
-                                  <td className="ps-4 text-muted font-monospace">{new Date(log.timestamp).toLocaleString()}</td>
-                                  <td><span className="fw-medium text-dark">User {log.user_id ? log.user_id.split('-')[0] : 'System'}</span></td>
-                                  <td>
-                                      <span className={`badge bg-${getActionColor(log.action)} bg-opacity-10 text-${getActionColor(log.action)} border border-${getActionColor(log.action)} border-opacity-25`}>
-                                          {log.action}
-                                      </span>
-                                  </td>
-                                  <td>
-                                      <span className="badge bg-light text-dark border">{log.entity_type}</span>
-                                      <span className="ms-1 font-monospace text-muted">{log.entity_id.split('-')[0]}...</span>
-                                  </td>
-                                  <td className="text-muted">{log.details}</td>
-                              </tr>
+                              <AuditLogRow key={log.id} log={log} />
                           ))}
                           {filteredLogs.length === 0 && <tr><td colSpan={5} className="text-center py-5 text-muted">No activity logs found</td></tr>}
                       </tbody>
@@ -96,14 +137,4 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
           </div>
       </div>
   );
-}
-
-function getActionColor(action: string) {
-    switch(action) {
-        case 'CREATE': return 'success';
-        case 'UPDATE': return 'warning';
-        case 'DELETE': return 'danger';
-        case 'UPDATE_STATUS': return 'info';
-        default: return 'secondary';
-    }
 }
