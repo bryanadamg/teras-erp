@@ -22,10 +22,11 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
   // Optimized Location Analysis
   const locationStats = (locations || []).map((loc: any) => {
       // Find all balance records for this location (sum across different variants/items)
+      // Ensure robust ID comparison (String casting)
       const stockInLoc = (stockBalance || []).filter((s: any) => String(s.location_id) === String(loc.id));
       const totalQty = stockInLoc.reduce((acc: number, curr: any) => acc + parseFloat(curr.qty), 0);
       return { ...loc, totalQty };
-  }).filter(l => l.totalQty !== 0).sort((a: any, b: any) => b.totalQty - a.totalQty);
+  }).filter((l: any) => l.totalQty > 0).sort((a: any, b: any) => b.totalQty - a.totalQty);
 
   const totalStockQty = locationStats.reduce((acc: number, curr: any) => acc + curr.totalQty, 0);
 
@@ -83,7 +84,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                             <span className="small text-muted">{loc.totalQty.toLocaleString()} units</span>
                                         </div>
                                         <div className="progress shadow-sm" style={{height: '10px'}}>
-                                            <div className={`progress-bar ${color} progress-bar-striped progress-bar-animated`} role="progressbar" style={{width: `${percentage}%`}}></div>
+                                            <div className={`progress-bar ${color}`} role="progressbar" style={{width: `${percentage}%`}}></div>
                                         </div>
                                     </div>
                                 );
