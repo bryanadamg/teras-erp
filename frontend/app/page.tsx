@@ -25,6 +25,7 @@ import { useLanguage } from './context/LanguageContext';
 import { useUser } from './context/UserContext';
 import DashboardView from './components/DashboardView';
 import ConfirmModal from './components/ConfirmModal';
+import QRScannerView from './components/QRScannerView';
 
 const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
 const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
@@ -907,6 +908,14 @@ export default function Home() {
                   <div className="fw-bold"><i className="bi bi-cpu-fill me-2"></i>{appName}</div>
               </div>
               <div className="d-flex align-items-center gap-3 small">
+                  {/* Quick Scan Shortcut */}
+                  <button 
+                    className="btn btn-sm p-0 text-white" 
+                    onClick={() => setActiveTab('scanner')} 
+                    title="Quick Scan Terminal"
+                  >
+                      <i className="bi bi-qr-code-scan fs-6"></i>
+                  </button>
                   <div>
                       <select 
                           className="form-select form-select-sm py-0 ps-1 pe-3" 
@@ -953,6 +962,13 @@ export default function Home() {
                   <h2 className="text-capitalize mb-0 fw-bold text-dark">{t(activeTab.replace('-', '_')) || activeTab.replace('-', ' ')}</h2>
               </div>
               <div className="d-flex align-items-center gap-3">
+                  <button 
+                    className="btn btn-primary btn-sm shadow-sm d-flex align-items-center gap-2 px-3" 
+                    onClick={() => setActiveTab('scanner')}
+                  >
+                      <i className="bi bi-qr-code-scan"></i>
+                      <span className="d-none d-sm-inline fw-bold small">SCAN</span>
+                  </button>
                   <button className="btn btn-outline-secondary btn-sm d-none d-md-block" onClick={() => fetchData()}>
                       <i className="bi bi-arrow-clockwise me-1"></i>{t('refresh')}
                   </button>
@@ -1001,6 +1017,25 @@ export default function Home() {
                 salesOrders={salesOrders}
                 kpis={dashboardKPIs}
             />
+        )}
+
+        {activeTab === 'scanner' && (
+            <div className="container-fluid py-4 h-100">
+                <div className="row justify-content-center h-100">
+                    <div className="col-md-8 col-lg-6">
+                        <QRScannerView 
+                            workOrders={workOrders} 
+                            items={items}
+                            boms={boms}
+                            locations={locations}
+                            attributes={attributes}
+                            stockBalance={stockBalance}
+                            onUpdateStatus={handleUpdateWOStatus} 
+                            onClose={() => setActiveTab('manufacturing')} 
+                        />
+                    </div>
+                </div>
+            </div>
         )}
 
         {activeTab === 'inventory' && (

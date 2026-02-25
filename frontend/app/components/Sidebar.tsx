@@ -38,6 +38,18 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         </div>
         
         <ul className="nav flex-column py-3">
+          {/* Quick Scan - High Visibility for Operators */}
+          <li className="nav-item mb-2 px-3">
+            <button 
+              className="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2 shadow-sm py-2"
+              onClick={(e) => { e.preventDefault(); setActiveTab('scanner'); }}
+              style={{ borderRadius: '8px' }}
+            >
+              <i className="bi bi-qr-code-scan fs-5"></i>
+              <span className="fw-bold">QUICK SCAN</span>
+            </button>
+          </li>
+
           {/* Dashboard */}
           <li className="nav-item">
             <a 
