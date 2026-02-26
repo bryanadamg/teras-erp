@@ -333,8 +333,18 @@ export default function ManufacturingView({
                   </div>
                   <div className="col-5 text-end">
                       <h6 className="text-uppercase text-muted extra-small fw-bold mb-1">Production Timeline</h6>
-                      <div className="extra-small">Target Start: <strong>{formatDate(wo.target_start_date)}</strong></div>
-                      <div className="extra-small text-danger">Target End: <strong>{formatDate(wo.target_end_date)}</strong></div>
+                      <div className="extra-small d-flex justify-content-end gap-2">
+                          <span className="text-muted">Target:</span> 
+                          <strong>{formatDate(wo.target_start_date)} - {formatDate(wo.target_end_date)}</strong>
+                      </div>
+                      <div className="extra-small d-flex justify-content-end gap-2 mt-1">
+                          <span className="text-muted">Actual Start:</span> 
+                          <strong>{formatDateTime(wo.actual_start_date)}</strong>
+                      </div>
+                      <div className="extra-small d-flex justify-content-end gap-2">
+                          <span className="text-muted">Actual End:</span> 
+                          <strong>{formatDateTime(wo.actual_end_date)}</strong>
+                      </div>
                   </div>
               </div>
 
