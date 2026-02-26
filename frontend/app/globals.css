@@ -80,6 +80,42 @@ body {
   font-size: 14px !important;
 }
 
+/* Classic Header (Top Bar) */
+.classic-header {
+  background: var(--win-header-grad) !important;
+  color: white !important;
+  height: 40px !important;
+  padding: 0 12px !important;
+  border-bottom: 1px solid #00309c !important;
+}
+
+.classic-header h5, 
+.classic-header .text-dark,
+.classic-header span {
+  color: white !important;
+  font-size: 13px !important;
+}
+
+.classic-header .btn {
+  padding: 2px 8px !important;
+}
+
+.classic-header .btn-light {
+  background: rgba(255,255,255,0.1) !important;
+  border: 1px solid rgba(255,255,255,0.3) !important;
+  color: white !important;
+  border-radius: 4px !important;
+}
+
+.classic-header .btn-light:hover {
+  background: rgba(255,255,255,0.2) !important;
+  border-color: white !important;
+}
+
+.classic-header .vr {
+  background-color: white !important;
+}
+
 .ui-style-classic .nav-link {
   padding: 6px 15px;
   border-left: none;

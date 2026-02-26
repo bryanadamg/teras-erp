@@ -99,11 +99,12 @@ export default function Home() {
         let masterFetched = false;
 
         if (isInitialLoad && savedCache) {
-            const { timestamp, data } = JSON.parse(savedCache);
-            if (Date.now() - timestamp < CACHE_TTL) {
-                setLocations(data.locations); setAttributes(data.attributes); setCategories(data.categories);
-                setUoms(data.uoms); setWorkCenters(data.workCenters); setOperations(data.operations);
-                setPartners(data.partners);
+            const parsed = JSON.parse(savedCache);
+            if (Date.now() - parsed.timestamp < CACHE_TTL) {
+                const data = parsed.data;
+                setLocations(data.locations || []); setAttributes(data.attributes || []); setCategories(data.categories || []);
+                setUoms(data.uoms || []); setWorkCenters(data.workCenters || []); setOperations(data.operations || []);
+                setPartners(data.partners || []);
                 setIsInitialLoad(false);
                 masterFetched = true;
             }
@@ -123,7 +124,8 @@ export default function Home() {
             requests.push(fetch(`${API_BASE}/partners`, { headers })); requestTypes.push('partners');
         }
 
-        if (['dashboard', 'inventory', 'sample-masters', 'bom', 'manufacturing', 'sales-orders', 'purchase-orders', 'stock', 'reports'].includes(fetchTarget)) {
+        // Domain Specific
+        if (['dashboard', 'inventory', 'sample-masters', 'bom', 'manufacturing', 'sales-orders', 'purchase-orders', 'stock', 'reports', 'samples'].includes(fetchTarget)) {
             const skip = (itemPage - 1) * pageSize;
             requests.push(fetch(`${API_BASE}/items?skip=${skip}&limit=${pageSize}&search=${encodeURIComponent(itemSearch)}&category=${encodeURIComponent(itemCategory)}`, { headers }));
             requestTypes.push('items');
@@ -133,7 +135,7 @@ export default function Home() {
             requests.push(fetch(`${API_BASE}/dashboard/kpis`, { headers })); requestTypes.push('kpis');
         }
 
-        if (['bom', 'manufacturing', 'dashboard'].includes(fetchTarget)) {
+        if (['bom', 'manufacturing', 'dashboard', 'samples'].includes(fetchTarget)) {
             requests.push(fetch(`${API_BASE}/boms`, { headers })); requestTypes.push('boms');
         }
 
@@ -143,7 +145,7 @@ export default function Home() {
             requestTypes.push('work-orders');
         }
 
-        if (['stock', 'dashboard', 'reports', 'manufacturing'].includes(fetchTarget)) {
+        if (['stock', 'dashboard', 'reports', 'manufacturing', 'inventory'].includes(fetchTarget)) {
             requests.push(fetch(`${API_BASE}/stock/balance`, { headers })); requestTypes.push('balance');
         }
         
@@ -153,7 +155,7 @@ export default function Home() {
              requestTypes.push('stock-ledger');
         }
 
-        if (['sales-orders', 'samples', 'dashboard'].includes(fetchTarget)) {
+        if (['sales-orders', 'samples', 'dashboard', 'inventory'].includes(fetchTarget)) {
             requests.push(fetch(`${API_BASE}/sales-orders`, { headers })); requestTypes.push('sales-orders');
             requests.push(fetch(`${API_BASE}/samples`, { headers })); requestTypes.push('samples');
         }
@@ -201,7 +203,11 @@ export default function Home() {
         }
 
         if (Object.keys(newMasterData).length > 0) {
-            localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: { ...JSON.parse(savedCache || '{}').data, ...newMasterData } }));
+            const existingCache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{"data":{}}');
+            localStorage.setItem(CACHE_KEY, JSON.stringify({ 
+                timestamp: Date.now(), 
+                data: { ...existingCache.data, ...newMasterData } 
+            }));
             setIsInitialLoad(false);
         }
 
@@ -213,12 +219,15 @@ export default function Home() {
   const handleTabHover = (tab: string) => fetchData(tab);
 
   useEffect(() => {
+    // Initialize Bootstrap JS
+    import("bootstrap/dist/js/bootstrap.bundle.min.js");
+    
     if (currentUser) fetchData();
     const savedName = localStorage.getItem('app_name'); if (savedName) setAppName(savedName);
     const savedStyle = localStorage.getItem('ui_style'); if (savedStyle) setUiStyle(savedStyle);
   }, [currentUser, activeTab, itemPage, woPage, auditPage, reportPage, itemSearch, itemCategory, auditType]);
 
-  // --- REAL-TIME INSTANT INJECTION (0ms Perception) ---
+  // --- REAL-TIME INSTANT INJECTION ---
   const workOrdersRef = useRef(workOrders);
   const activeTabRef = useRef(activeTab);
   const fetchDataRef = useRef(fetchData);
@@ -241,7 +250,6 @@ export default function Home() {
               try {
                   const data = JSON.parse(event.data);
                   if (data.type === 'WORK_ORDER_UPDATE') {
-                      // 1. INSTANT INJECTION: Update state immediately without waiting for API
                       setWorkOrders((prev: any) => prev.map((wo: any) => 
                           wo.id === data.wo_id ? { 
                               ...wo, 
@@ -250,9 +258,9 @@ export default function Home() {
                               actual_end_date: data.actual_end_date
                           } : wo
                       ));
-                      
-                      // 2. BACKGROUND REFRESH: Sync stock and remaining fields quietly
-                      fetchDataRef.current();
+                      if (['dashboard', 'manufacturing', 'stock'].includes(activeTabRef.current)) {
+                          fetchDataRef.current();
+                      }
                       showToast(`Work Order ${data.code} updated: ${data.status}`, 'info');
                   }
               } catch (e) { console.error("WS Error", e); }
@@ -264,41 +272,157 @@ export default function Home() {
       return () => { if (ws) ws.close(1000); clearTimeout(reconnectTimer); };
   }, [currentUser]);
 
-  // --- Handlers ---
-  const handleUpdateWOStatus = async (woId: string, status: string) => {
-      const res = await fetch(`${API_BASE}/work-orders/${woId}/status?status=${status}`, {
-          method: 'PUT',
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+  // --- Global Handlers ---
+  const authFetch = async (url: string, options: any = {}) => {
+      const token = localStorage.getItem('access_token');
+      return fetch(url, {
+          ...options,
+          headers: {
+              ...options.headers,
+              'Authorization': `Bearer ${token}`
+          }
       });
-      if (res.ok) {
-          fetchData(); // Sync full state
-          return true;
-      } else {
-          const err = await res.json();
-          showToast(`Error: ${err.detail}`, 'danger');
-          return false;
-      }
+  };
+
+  const handleUpdateWOStatus = async (woId: string, status: string) => {
+      const res = await authFetch(`${API_BASE}/work-orders/${woId}/status?status=${status}`, { method: 'PUT' });
+      if (res.ok) { fetchData(); return true; } 
+      else { const err = await res.json(); showToast(`Error: ${err.detail}`, 'danger'); return false; }
   };
 
   const handleCreateWO = async (payload: any) => {
-      const token = localStorage.getItem('access_token');
-      const res = await fetch(`${API_BASE}/work-orders`, {
+      const res = await authFetch(`${API_BASE}/work-orders`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
       });
-      fetchData();
-      return res;
+      fetchData(); return res;
   };
 
   const handleDeleteWO = async (woId: string) => {
-      if (!confirm('Are you sure you want to delete this Work Order?')) return;
-      const token = localStorage.getItem('access_token');
-      const res = await fetch(`${API_BASE}/work-orders/${woId}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` }
-      });
+      if (!confirm('Are you sure?')) return;
+      const res = await authFetch(`${API_BASE}/work-orders/${woId}`, { method: 'DELETE' });
       if (res.ok) { showToast('Work Order deleted', 'success'); fetchData(); }
+  };
+
+  const handleCreateItem = async (p: any) => {
+      const res = await authFetch(`${API_BASE}/items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+      if (res.ok) { showToast('Item created', 'success'); fetchData(); }
+  };
+
+  const handleUpdateItem = async (id: string, p: any) => {
+      const res = await authFetch(`${API_BASE}/items/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+      if (res.ok) { showToast('Item updated', 'success'); fetchData(); }
+  };
+
+  const handleDeleteItem = async (id: string) => {
+      if (!confirm('Delete item?')) return;
+      const res = await authFetch(`${API_BASE}/items/${id}`, { method: 'DELETE' });
+      if (res.ok) { showToast('Item deleted', 'success'); fetchData(); }
+  };
+
+  const handleAddVariantToItem = async (itemId: string, payload: any) => {
+      const res = await authFetch(`${API_BASE}/items/${itemId}/variants`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (res.ok) { showToast('Variant added', 'success'); fetchData(); }
+  };
+
+  const handleDeleteVariant = async (id: string) => {
+      if (!confirm('Delete variant?')) return;
+      const res = await authFetch(`${API_BASE}/variants/${id}`, { method: 'DELETE' });
+      if (res.ok) { showToast('Variant deleted', 'success'); fetchData(); }
+  };
+
+  const handleCreateCategory = async (p: any) => {
+      const res = await authFetch(`${API_BASE}/categories`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+      if (res.ok) { showToast('Category created', 'success'); fetchData(); }
+  };
+
+  const handleCreateUOM = async (p: any) => {
+      const res = await authFetch(`${API_BASE}/uoms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+      if (res.ok) { showToast('UOM created', 'success'); fetchData(); }
+  };
+
+  const handleCreateLocation = async (p: any) => {
+      const res = await authFetch(`${API_BASE}/locations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+      if (res.ok) { showToast('Location created', 'success'); fetchData(); }
+  };
+
+  const handleCreateAttribute = async (p: any) => {
+      const res = await authFetch(`${API_BASE}/attributes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+      if (res.ok) { showToast('Attribute created', 'success'); fetchData(); }
+  };
+
+  const handleUpdateAttribute = async (id: string, p: any) => {
+      const res = await authFetch(`${API_BASE}/attributes/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+      if (res.ok) { showToast('Attribute updated', 'success'); fetchData(); }
+  };
+
+  const handleDeleteAttribute = async (id: string) => {
+      if (!confirm('Delete attribute?')) return;
+      const res = await authFetch(`${API_BASE}/attributes/${id}`, { method: 'DELETE' });
+      if (res.ok) { showToast('Attribute deleted', 'success'); fetchData(); }
+  };
+
+  const handleCreateBOM = async (p: any) => {
+      const res = await authFetch(`${API_BASE}/boms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+      if (res.ok) { showToast('BOM created', 'success'); fetchData(); }
+  };
+
+  const handleCreateWorkCenter = async (p: any) => {
+      const res = await authFetch(`${API_BASE}/work-centers`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+      if (res.ok) { showToast('Work Center created', 'success'); fetchData(); }
+  };
+
+  const handleCreateOperation = async (p: any) => {
+      const res = await authFetch(`${API_BASE}/operations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+      if (res.ok) { showToast('Operation created', 'success'); fetchData(); }
+  };
+
+  const handleCreateSO = async (p: any) => {
+      const res = await authFetch(`${API_BASE}/sales-orders`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+      if (res.ok) { showToast('Sales Order created', 'success'); fetchData(); }
+  };
+
+  const handleCreateRealPO = async (p: any) => {
+      const res = await authFetch(`${API_BASE}/purchase-orders`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+      if (res.ok) { showToast('Purchase Order created', 'success'); fetchData(); }
+  };
+
+  const handleReceivePO = async (id: string) => {
+      const res = await authFetch(`${API_BASE}/purchase-orders/${id}/receive`, { method: 'PUT' });
+      if (res.ok) { showToast('PO Received into Stock', 'success'); fetchData(); }
+  };
+
+  const handleCreateSample = async (p: any) => {
+      const res = await authFetch(`${API_BASE}/samples`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+      if (res.ok) { showToast('Sample Request created', 'success'); fetchData(); }
+  };
+
+  const handleUpdateSampleStatus = async (id: string, status: string) => {
+      const res = await authFetch(`${API_BASE}/samples/${id}/status?status=${status}`, { method: 'PUT' });
+      if (res.ok) { showToast('Sample status updated', 'success'); fetchData(); }
+  };
+
+  const handleCreatePartner = async (p: any) => {
+      const res = await authFetch(`${API_BASE}/partners`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+      if (res.ok) { showToast('Partner created', 'success'); fetchData(); }
+  };
+
+  const handleUpdatePartner = async (id: string, p: any) => {
+      const res = await authFetch(`${API_BASE}/partners/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+      if (res.ok) { showToast('Partner updated', 'success'); fetchData(); }
+  };
+
+  const handleDeletePartner = async (id: string) => {
+      if (!confirm('Are you sure you want to delete this partner?')) return;
+      const res = await authFetch(`${API_BASE}/partners/${id}`, { method: 'DELETE' });
+      if (res.ok) { showToast('Partner deleted', 'success'); fetchData(); }
+      else { const err = await res.json(); showToast(`Error: ${err.detail}`, 'danger'); }
+  };
+
+  const handleAddStock = async (p: any) => {
+      const res = await authFetch(`${API_BASE}/stock`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+      if (res.ok) { showToast('Stock Entry recorded', 'success'); fetchData(); }
   };
 
   const handleLoginSubmit = async (e: any) => {
@@ -326,25 +450,11 @@ export default function Home() {
                               <form onSubmit={handleLoginSubmit}>
                                   <div className="mb-3">
                                       <label className="extra-small text-info font-monospace uppercase mb-1">IDENTIFIER_ACCESS</label>
-                                      <input 
-                                          type="text" 
-                                          className="form-control bg-transparent border-info border-opacity-50 text-info font-monospace shadow-none" 
-                                          placeholder="Username" 
-                                          value={loginUser}
-                                          onChange={e => setLoginUser(e.target.value)}
-                                          required 
-                                      />
+                                      <input type="text" className="form-control bg-transparent border-info border-opacity-50 text-info font-monospace shadow-none" placeholder="Username" value={loginUser} onChange={e => setLoginUser(e.target.value)} required />
                                   </div>
                                   <div className="mb-4">
                                       <label className="extra-small text-info font-monospace uppercase mb-1">ENCRYPTION_KEY</label>
-                                      <input 
-                                          type="password" 
-                                          className="form-control bg-transparent border-info border-opacity-50 text-info font-monospace shadow-none" 
-                                          placeholder="Password" 
-                                          value={loginPass}
-                                          onChange={e => setLoginPass(e.target.value)}
-                                          required 
-                                      />
+                                      <input type="password" size={32} className="form-control bg-transparent border-info border-opacity-50 text-info font-monospace shadow-none" placeholder="Password" value={loginPass} onChange={e => setLoginPass(e.target.value)} required />
                                   </div>
                                   {loginError && <div className="alert alert-danger py-2 small bg-transparent border-danger text-danger font-monospace mb-4">ERROR: {loginError}</div>}
                                   <button type="submit" className="btn btn-outline-info w-100 fw-bold letter-spacing-1 font-monospace py-2" disabled={isLoggingIn}>
@@ -361,123 +471,84 @@ export default function Home() {
 
   return (
     <div className={`app-container ui-style-${uiStyle}`}>
-        {/* Navigation Sidebar */}
-        <Sidebar 
-            activeTab={activeTab} 
-            setActiveTab={(tab) => { setActiveTab(tab); setIsMobileSidebarOpen(false); }} 
-            onTabHover={handleTabHover}
-            appName={appName} 
-            isOpen={isMobileSidebarOpen}
-        />
+        <Sidebar activeTab={activeTab} setActiveTab={(tab) => { setActiveTab(tab); setIsMobileSidebarOpen(false); }} onTabHover={handleTabHover} appName={appName} isOpen={isMobileSidebarOpen} />
 
-        {/* Main Content Area */}
         <div className="main-content flex-grow-1 overflow-auto bg-light">
-            {/* Unified Top Header */}
             <div className={`app-header sticky-top bg-white border-bottom shadow-sm px-4 d-flex justify-content-between align-items-center no-print ${uiStyle === 'classic' ? 'classic-header' : ''}`}>
               <div className="d-flex align-items-center gap-3">
-                  <button className="btn btn-link d-md-none p-0 text-dark" onClick={() => setIsMobileSidebarOpen(true)}>
-                      <i className="bi bi-list fs-3"></i>
-                  </button>
+                  <button className="btn btn-link d-md-none p-0 text-dark" onClick={() => setIsMobileSidebarOpen(true)}><i className="bi bi-list fs-3"></i></button>
                   <h5 className="mb-0 fw-bold text-dark d-none d-md-block text-uppercase letter-spacing-1">{activeTab.replace('-', ' ')}</h5>
               </div>
               
-              <div className="d-flex align-items-center gap-3">
-                  <button 
-                    className="btn btn-primary btn-sm shadow-sm d-flex align-items-center gap-2 px-3" 
-                    onClick={() => setActiveTab('scanner')}
-                  >
-                      <i className="bi bi-qr-code-scan"></i>
-                      <span className="d-none d-sm-inline fw-bold small uppercase">Fast Scan</span>
-                  </button>
-                  <div className="vr d-none d-sm-block"></div>
-                  <div className="dropdown">
-                      <button className="btn btn-sm btn-light border d-flex align-items-center gap-2 rounded-pill px-3" data-bs-toggle="dropdown">
-                          <i className="bi bi-person-circle text-primary"></i>
-                          <span className="small fw-bold">{currentUser.username}</span>
-                      </button>
-                      <ul className="dropdown-menu dropdown-menu-end shadow border-0 mt-2">
-                          <li className="px-3 py-2 border-bottom mb-1">
-                              <div className="extra-small text-muted text-uppercase">Active User</div>
-                              <div className="small fw-bold">{currentUser.full_name}</div>
-                          </li>
-                          <li><button className="dropdown-item py-2 small" onClick={() => setActiveTab('settings')}><i className="bi bi-gear me-2"></i>Preferences</button></li>
-                          <li><hr className="dropdown-divider" /></li>
-                          <li><button className="dropdown-item py-2 small text-danger" onClick={logout}><i className="bi bi-box-arrow-right me-2"></i>Terminate Session</button></li>
-                      </ul>
-                  </div>
-              </div>
+                            <div className="d-flex align-items-center gap-2">
+                                <div className="dropdown">
+                                    <button className="btn btn-sm btn-light border d-flex align-items-center gap-2 rounded-pill px-2" data-bs-toggle="dropdown" id="userDropdown">
+                                        <i className="bi bi-person-circle text-primary"></i>
+                                        <span className="small fw-bold d-none d-sm-inline">{currentUser.username}</span>
+                                    </button>
+                                    <ul className="dropdown-menu dropdown-menu-end shadow border-0 mt-2" aria-labelledby="userDropdown">
+                                        <li className="px-3 py-2 border-bottom mb-1">
+                                            <div className="extra-small text-muted text-uppercase">Session Mode</div>
+                                            <div className="small fw-bold">{currentUser.full_name}</div>
+                                        </li>
+                                        <li><button className="dropdown-item py-2 small" onClick={() => setActiveTab('scanner')}><i className="bi bi-qr-code-scan me-2"></i>Quick Scan Terminal</button></li>
+                                        <li><button className="dropdown-item py-2 small" onClick={() => setActiveTab('settings')}><i className="bi bi-gear me-2"></i>Preferences & Admin</button></li>
+                                        {hasPermission('admin.access') && (
+                                            <li><button className="dropdown-item py-2 small" onClick={() => setActiveTab('audit-logs')}><i className="bi bi-activity me-2"></i>System Audit</button></li>
+                                        )}
+                                        <li><hr className="dropdown-divider" /></li>
+                                        <li><button className="dropdown-item py-2 small text-danger" onClick={logout}><i className="bi bi-box-arrow-right me-2"></i>Logout</button></li>
+                                    </ul>
+                                </div>
+                            </div>
             </div>
 
-            <div className="p-4" style={{ minHeight: 'calc(100vh - 60px)' }}>
-                {activeTab === 'dashboard' && (
-                    <DashboardView 
-                        items={items} locations={locations} stockBalance={stockBalance}
-                        workOrders={workOrders} stockEntries={stockEntries}
-                        samples={samples} salesOrders={salesOrders} kpis={dashboardKPIs}
-                    />
-                )}
+            <div className="p-4">
+                {activeTab === 'dashboard' && <DashboardView items={items} locations={locations} stockBalance={stockBalance} workOrders={workOrders} stockEntries={stockEntries} samples={samples} salesOrders={salesOrders} kpis={dashboardKPIs} />}
+                
+                {activeTab === 'scanner' && <div className="container-fluid py-2 h-100"><div className="row justify-content-center"><div className="col-md-8 col-lg-6"><QRScannerView workOrders={workOrders} items={items} boms={boms} locations={locations} attributes={attributes} stockBalance={stockBalance} onUpdateStatus={handleUpdateWOStatus} onClose={() => setActiveTab('manufacturing')} /></div></div></div>}
 
-                {activeTab === 'scanner' && (
-                    <div className="container-fluid py-2 h-100">
-                        <div className="row justify-content-center">
-                            <div className="col-md-8 col-lg-6">
-                                <QRScannerView 
-                                    workOrders={workOrders} items={items} boms={boms}
-                                    locations={locations} attributes={attributes} stockBalance={stockBalance}
-                                    onUpdateStatus={handleUpdateWOStatus} 
-                                    onClose={() => setActiveTab('manufacturing')} 
-                                />
-                            </div>
-                        </div>
-                    </div>
-                )}
+                {activeTab === 'inventory' && <InventoryView items={items} attributes={attributes} categories={categories} uoms={uoms} onCreateItem={handleCreateItem} onUpdateItem={handleUpdateItem} onDeleteItem={handleDeleteItem} onAddVariant={handleAddVariantToItem} onDeleteVariant={handleDeleteVariant} onRefresh={fetchData} currentPage={itemPage} totalItems={itemTotal} pageSize={pageSize} onPageChange={setItemPage} searchTerm={itemSearch} onSearchChange={setItemSearch} categoryFilter={itemCategory} onCategoryChange={setItemCategory} />}
+                
+                {activeTab === 'sample-masters' && <InventoryView items={items} attributes={attributes} categories={categories} uoms={uoms} onCreateItem={handleCreateItem} onUpdateItem={handleUpdateItem} onDeleteItem={handleDeleteItem} onAddVariant={handleAddVariantToItem} onDeleteVariant={handleDeleteVariant} onRefresh={fetchData} currentPage={itemPage} totalItems={itemTotal} pageSize={pageSize} onPageChange={setItemPage} searchTerm={itemSearch} onSearchChange={setItemSearch} forcedCategory="Sample" />}
 
-                {activeTab === 'inventory' && (
-                    <InventoryView 
-                        items={items} attributes={attributes} categories={categories} uoms={uoms}
-                        onCreateItem={async (p:any) => { await fetch(`${API_BASE}/items`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }, body: JSON.stringify(p) }); fetchData(); }}
-                        onUpdateItem={async (id:string, p:any) => { await fetch(`${API_BASE}/items/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }, body: JSON.stringify(p) }); fetchData(); }}
-                        onDeleteItem={async (id:string) => { if(confirm('Delete?')) { await fetch(`${API_BASE}/items/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` } }); fetchData(); } }}
-                        onRefresh={fetchData} currentPage={itemPage} totalItems={itemTotal} pageSize={pageSize} onPageChange={setItemPage}
-                        searchTerm={itemSearch} onSearchChange={setItemSearch} categoryFilter={itemCategory} onCategoryChange={setItemCategory}
-                    />
-                )}
+                {activeTab === 'locations' && <LocationsView locations={locations} onCreate={handleCreateLocation} />}
+                
+                {activeTab === 'attributes' && <AttributesView attributes={attributes} onCreate={handleCreateAttribute} onUpdate={handleUpdateAttribute} onDelete={handleDeleteAttribute} />}
+                
+                {activeTab === 'categories' && <CategoriesView categories={categories} onCreate={handleCreateCategory} />}
+                
+                {activeTab === 'uom' && <UOMView uoms={uoms} onCreate={handleCreateUOM} />}
 
-                {activeTab === 'manufacturing' && (
-                    <ManufacturingView 
-                        items={items} boms={boms} locations={locations} attributes={attributes}
-                        workOrders={workOrders} stockBalance={stockBalance} workCenters={workCenters} operations={operations}
-                        onCreateWO={handleCreateWO} onUpdateStatus={handleUpdateWOStatus} onDeleteWO={handleDeleteWO}
-                        currentPage={woPage} totalItems={woTotal} pageSize={pageSize} onPageChange={setWoPage}
-                    />
-                )}
+                {activeTab === 'manufacturing' && <ManufacturingView items={items} boms={boms} locations={locations} attributes={attributes} workOrders={workOrders} stockBalance={stockBalance} workCenters={workCenters} operations={operations} onCreateWO={handleCreateWO} onUpdateStatus={handleUpdateWOStatus} onDeleteWO={handleDeleteWO} currentPage={woPage} totalItems={woTotal} pageSize={pageSize} onPageChange={setWoPage} />}
 
-                {/* Other views removed for brevity but they follow same logic */}
-                {activeTab === 'stock' && (
-                    <StockEntryView 
-                        items={items} locations={locations} attributes={attributes} stockBalance={stockBalance}
-                        onAddStock={async (p:any) => { await fetch(`${API_BASE}/stock`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }, body: JSON.stringify(p) }); fetchData(); }}
-                    />
-                )}
+                {activeTab === 'bom' && <BOMView items={items} attributes={attributes} boms={boms} operations={operations} workCenters={workCenters} onCreateBOM={handleCreateBOM} />}
 
-                {activeTab === 'bom' && (
-                    <BOMView 
-                        items={items} attributes={attributes} boms={boms} operations={operations} workCenters={workCenters}
-                        onCreateBOM={async (p:any) => { await fetch(`${API_BASE}/boms`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }, body: JSON.stringify(p) }); fetchData(); }}
-                    />
-                )}
+                {activeTab === 'routing' && <RoutingView workCenters={workCenters} operations={operations} onCreateWorkCenter={handleCreateWorkCenter} onCreateOperation={handleCreateOperation} />}
 
-                {activeTab === 'audit-logs' && (
-                    <AuditLogsView 
-                        auditLogs={auditLogs} currentPage={auditPage} totalItems={auditTotal} pageSize={pageSize} onPageChange={setAuditPage}
-                        filterType={auditType} onFilterChange={setAuditType}
-                    />
-                )}
+                {activeTab === 'stock' && <StockEntryView items={items} locations={locations} attributes={attributes} stockBalance={stockBalance} onAddStock={handleAddStock} />}
+
+                {activeTab === 'sales-orders' && <SalesOrderView items={items} attributes={attributes} salesOrders={salesOrders} partners={partners} onCreateSO={handleCreateSO} onDeleteSO={async (id:string)=>{await authFetch(`${API_BASE}/sales-orders/${id}`,{method:'DELETE'});fetchData();}} />}
+
+                {activeTab === 'purchase-orders' && <PurchaseOrderView items={items} attributes={attributes} purchaseOrders={purchaseOrders} partners={partners} locations={locations} onCreatePO={handleCreateRealPO} onReceivePO={handleReceivePO} onDeletePO={async (id:string)=>{await authFetch(`${API_BASE}/purchase-orders/${id}`,{method:'DELETE'});fetchData();}} />}
+
+                {activeTab === 'samples' && <SampleRequestView items={items} attributes={attributes} salesOrders={salesOrders} samples={samples} onCreateSample={handleCreateSample} onUpdateStatus={handleUpdateSampleStatus} />}
+
+                {activeTab === 'customers' && <PartnersView partners={partners} type="CUSTOMER" onCreate={handleCreatePartner} onUpdate={handleUpdatePartner} onDelete={handleDeletePartner} />}
+
+                {activeTab === 'suppliers' && <PartnersView partners={partners} type="SUPPLIER" onCreate={handleCreatePartner} onUpdate={handleUpdatePartner} onDelete={handleDeletePartner} />}
+
+                {activeTab === 'reports' && <ReportsView stockEntries={stockEntries} items={items} locations={locations} attributes={attributes} currentPage={reportPage} totalItems={reportTotal} pageSize={pageSize} onPageChange={setReportPage} />}
+
+                {activeTab === 'audit-logs' && <AuditLogsView auditLogs={auditLogs} currentPage={auditPage} totalItems={auditTotal} pageSize={pageSize} onPageChange={setAuditPage} filterType={auditType} onFilterChange={setAuditType} />}
 
                 {activeTab === 'settings' && (
                     <SettingsView 
-                        appName={appName} setAppName={setAppName} uiStyle={uiStyle} setUiStyle={setUiStyle}
-                        onClearCache={() => { localStorage.removeItem('terras_master_cache'); fetchData(); }}
+                        appName={appName} 
+                        onUpdateAppName={setAppName} 
+                        uiStyle={uiStyle} 
+                        onUpdateUIStyle={setUiStyle} 
+                        onClearCache={() => { localStorage.removeItem('terras_master_cache'); fetchData(); }} 
                     />
                 )}
             </div>

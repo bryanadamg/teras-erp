@@ -193,8 +193,8 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
 
   const handleSubmitSystem = (e: React.FormEvent) => {
       e.preventDefault();
-      onUpdateAppName(name);
-      onUpdateUIStyle(style);
+      if (onUpdateAppName) onUpdateAppName(name);
+      if (onUpdateUIStyle) onUpdateUIStyle(style);
       showToast('System preferences updated!', 'success');
   };
 
