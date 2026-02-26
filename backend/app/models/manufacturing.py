@@ -26,28 +26,30 @@ class WorkOrder(Base):
         UUID(as_uuid=True), ForeignKey("boms.id"), index=True
     )
     
-    # Redundant but useful for querying what is being made without joining BOM
+    # Produced Item
     item_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("items.id"), index=True
     )
 
+    # Destination Warehouse
     location_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("locations.id"), index=True
     )
     
-    # New: Where raw materials are taken from
+    # Raw Material Source
     source_location_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True
     )
 
     qty: Mapped[float] = mapped_column(Numeric(14, 4))
-    
-    # Status: PENDING, IN_PROGRESS, COMPLETED, CANCELLED
     status: Mapped[str] = mapped_column(String(32), default="PENDING")
     
-    start_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    due_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Lifecycle Timestamps
+    target_start_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    target_end_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    actual_start_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    actual_end_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # Relationships

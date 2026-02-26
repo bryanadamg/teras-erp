@@ -31,12 +31,23 @@ export default function ManufacturingView({
   // Derived Pagination
   const totalPages = Math.ceil(totalItems / pageSize);
   const startRange = (currentPage - 1) * pageSize + 1;
-  const endRange = Math.min(currentPage * pageSize, totalItems);  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [newWO, setNewWO] = useState({ code: '', bom_id: '', location_code: '', source_location_code: '', qty: 1.0, due_date: '' });
+  const endRange = Math.min(currentPage * pageSize, totalItems);
+
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [newWO, setNewWO] = useState({ 
+      code: '', 
+      bom_id: '', 
+      location_code: '', 
+      source_location_code: '', 
+      qty: 1.0, 
+      target_start_date: '',
+      target_end_date: ''
+  });
+  
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [printingWO, setPrintingWO] = useState<any>(null); // State for single WO print
-  const [qrDataUrl, setQrDataUrl] = useState<string>(''); // Local QR code
+  const [printingWO, setPrintingWO] = useState<any>(null); 
+  const [qrDataUrl, setQrDataUrl] = useState<string>(''); 
   
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [isConfigOpen, setIsConfigOpen] = useState(false);
@@ -62,7 +73,6 @@ export default function ManufacturingView({
       if (savedStyle) setCurrentStyle(savedStyle);
   }, []);
 
-  // ... (SaveConfig, SuggestCode, Handlers same as before) ...
   const handleSaveConfig = (newConfig: CodeConfig) => {
       setCodeConfig(newConfig);
       localStorage.setItem('wo_code_config', JSON.stringify(newConfig));
@@ -122,7 +132,6 @@ export default function ManufacturingView({
           const url = await QRCode.toDataURL(wo.code, { margin: 1, width: 200 });
           setQrDataUrl(url);
           setPrintingWO(wo);
-          // Wait for render then print
           setTimeout(() => window.print(), 300);
       } catch (err) {
           console.error("QR Generation failed", err);
@@ -153,7 +162,6 @@ export default function ManufacturingView({
       e.preventDefault();
       const res = await onCreateWO(newWO);
       if (res && res.status === 400) {
-          // ... (Duplicate logic) ...
           let baseCode = newWO.code;
           const baseMatch = baseCode.match(/^(.*)-(\d+)$/);
           if (baseMatch) baseCode = baseMatch[1];
@@ -172,7 +180,7 @@ export default function ManufacturingView({
           } else {
               showToast('Work Order created successfully!', 'success');
           }
-          setNewWO({ code: '', bom_id: '', location_code: '', source_location_code: '', qty: 1.0, due_date: '' });
+          setNewWO({ code: '', bom_id: '', location_code: '', source_location_code: '', qty: 1.0, target_start_date: '', target_end_date: '' });
           setIsCreateOpen(false);
       } else {
           showToast('Failed to create Work Order', 'danger');
@@ -190,6 +198,7 @@ export default function ManufacturingView({
   const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
   const getOpName = (id: string) => operations.find((o: any) => o.id === id)?.name || id;
   const getWCName = (id: string) => workCenters.find((w: any) => w.id === id)?.name || id;
+  
   const getAttributeValueName = (valId: string) => {
       for (const attr of attributes) {
           const val = attr.values.find((v: any) => v.id === valId);
@@ -197,6 +206,7 @@ export default function ManufacturingView({
       }
       return valId;
   };
+
   const getStatusBadge = (status: string) => {
       switch(status) {
           case 'COMPLETED': return 'bg-success';
@@ -205,29 +215,35 @@ export default function ManufacturingView({
           default: return 'bg-secondary';
       }
   };
+
+  const formatDate = (date: string | null) => {
+      if (!date) return '-';
+      return new Date(date).toLocaleDateString();
+  };
+
   const formatDateTime = (date: string | null) => {
       if (!date) return '-';
       return new Date(date).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
   };
+
   const getDueDateWarning = (wo: any) => {
       if (wo.status === 'COMPLETED' || wo.status === 'CANCELLED') return null;
-      if (!wo.due_date) return null;
-      const due = new Date(wo.due_date);
+      if (!wo.target_end_date) return null;
+      const due = new Date(wo.target_end_date);
       const now = new Date();
       const diffDays = (due.getTime() - now.getTime()) / (1000 * 3600 * 24);
       if (diffDays < 0) return { type: 'danger', icon: 'bi-exclamation-octagon-fill', text: 'Overdue!' };
       if (diffDays < 2) return { type: 'warning', icon: 'bi-exclamation-triangle-fill', text: 'Due Soon' };
       return null;
   };
+
   const calculateRequiredQty = (baseQty: number, line: any, bom: any) => {
       let required = parseFloat(line.qty);
       if (line.is_percentage) {
           required = (baseQty * required) / 100;
       } else {
-          // Absolute qty is usually per 1 unit of BOM, so scale by baseQty
           required = baseQty * required;
       }
-      // Apply tolerance from BOM header if present
       const tolerance = parseFloat(bom?.tolerance_percentage || 0);
       if (tolerance > 0) {
           required = required * (1 + (tolerance / 100));
@@ -238,9 +254,7 @@ export default function ManufacturingView({
   const checkStockAvailability = (item_id: string, location_id: string, attribute_value_ids: string[] = [], required_qty: number) => {
       const targetIds = attribute_value_ids || [];
       const matchingEntries = stockBalance.filter((s: any) => 
-          s.item_id === item_id && s.location_id === location_id &&
-          (s.attribute_value_ids || []).length === targetIds.length &&
-          (s.attribute_value_ids || []).every((id: string) => targetIds.includes(id))
+          String(s.item_id) === String(item_id) && String(s.location_id) === String(location_id)
       );
       const available = matchingEntries.reduce((sum: number, e: any) => sum + parseFloat(e.qty), 0);
       return { available, isEnough: available >= required_qty };
@@ -250,20 +264,15 @@ export default function ManufacturingView({
   const WorkOrderPrintTemplate = ({ wo }: { wo: any }) => {
       const bom = boms.find((b: any) => b.id === wo.bom_id);
       
-      // Recursive BOM Renderer
       const renderPrintBOMLines = (lines: any[], level = 0, currentParentQty = 1, currentBOM: any) => {
           return lines.map((line: any) => {
               const subBOM = boms.find((b: any) => b.item_id === line.item_id);
-              
-              // Calculate scaled qty for this line
               let scaledQty = parseFloat(line.qty);
               if (line.is_percentage) {
                   scaledQty = (currentParentQty * scaledQty) / 100;
               } else {
                   scaledQty = currentParentQty * scaledQty;
               }
-
-              // Apply tolerance of the current level's BOM
               const tolerance = parseFloat(currentBOM?.tolerance_percentage || 0);
               if (tolerance > 0) {
                   scaledQty = scaledQty * (1 + (tolerance / 100));
@@ -279,7 +288,6 @@ export default function ManufacturingView({
                               <div style={{fontSize: '9pt'}}>
                                   {level > 0 && <span className="text-muted me-1 small">↳</span>}
                                   {getItemName(line.item_id)}
-                                  {subBOM && <span className="badge bg-secondary ms-1 p-1" style={{fontSize: '0.5rem'}}>SUB-ASSY</span>}
                               </div>
                           </td>
                           <td className="extra-small fst-italic">
@@ -287,7 +295,6 @@ export default function ManufacturingView({
                               {(line.attribute_value_ids || []).length > 0 && ` • ${(line.attribute_value_ids || []).map(getAttributeValueName).join(', ')}`}
                           </td>
                           <td><span className="extra-small">{getLocationName(line.source_location_id || wo.source_location_id || wo.location_id)}</span></td>
-                          <td className="text-end small">{line.qty}{line.is_percentage ? '%' : ''}</td>
                           <td className="text-end fw-bold small">{(scaledQty * wo.qty).toFixed(3)}</td> 
                       </tr>
                       {subBOM && subBOM.lines && renderPrintBOMLines(subBOM.lines, level + 1, scaledQty, subBOM)}
@@ -298,16 +305,10 @@ export default function ManufacturingView({
 
       return (
           <div className="bg-white p-4 h-100 position-fixed top-0 start-0 w-100 print-container" style={{zIndex: 2000, overflowY: 'auto'}}>
-              {/* Header */}
               <div className="d-flex justify-content-between border-bottom pb-2 mb-3">
                   <div className="d-flex gap-3">
-                      {/* QR Code for scanning */}
                       <div className="bg-white border p-1 rounded">
-                          <img 
-                              src={qrDataUrl} 
-                              alt="WO QR" 
-                              style={{ width: '60px', height: '60px' }} 
-                          />
+                          <img src={qrDataUrl} alt="WO QR" style={{ width: '60px', height: '60px' }} />
                       </div>
                       <div>
                           <h3 className="fw-bold mb-0">WORK ORDER</h3>
@@ -320,89 +321,47 @@ export default function ManufacturingView({
                   </div>
               </div>
 
-              {/* Details Grid */}
               <div className="row mb-3 g-2">
                   <div className="col-5">
                       <h6 className="text-uppercase text-muted extra-small fw-bold mb-1">Finished Good</h6>
                       <div className="fw-bold" style={{fontSize: '11pt'}}>{getItemName(wo.item_id)}</div>
                       <div className="extra-small font-monospace text-muted">{getItemCode(wo.item_id)}</div>
-                      <div className="extra-small mt-1 text-muted">
-                          {(wo.attribute_value_ids || []).map(getAttributeValueName).join(', ')}
-                      </div>
                   </div>
-                  <div className="col-2">
-                      <h6 className="text-uppercase text-muted extra-small fw-bold mb-1">Qty</h6>
-                      <div className="fw-bold">{wo.qty}</div>
+                  <div className="col-2 text-center border-start border-end">
+                      <h6 className="text-uppercase text-muted extra-small fw-bold mb-1">Target Qty</h6>
+                      <div className="fw-bold fs-4">{wo.qty}</div>
                   </div>
                   <div className="col-5 text-end">
-                      <h6 className="text-uppercase text-muted extra-small fw-bold mb-1">Production Schedule</h6>
-                      <div className="extra-small">Start: <strong>{wo.start_date ? new Date(wo.start_date).toLocaleDateString() : '-'}</strong></div>
-                      <div className="extra-small">Due: <strong className="text-danger">{wo.due_date ? new Date(wo.due_date).toLocaleDateString() : '-'}</strong></div>
+                      <h6 className="text-uppercase text-muted extra-small fw-bold mb-1">Production Timeline</h6>
+                      <div className="extra-small">Target Start: <strong>{formatDate(wo.target_start_date)}</strong></div>
+                      <div className="extra-small text-danger">Target End: <strong>{formatDate(wo.target_end_date)}</strong></div>
                   </div>
               </div>
 
-              <div className="row mb-4 g-2 border-top pt-2">
-                  <div className="col-6">
-                      <h6 className="text-uppercase text-muted extra-small fw-bold mb-1">Output Target</h6>
-                      <div className="small fw-medium">{getLocationName(wo.location_id)}</div>
-                  </div>
-                  <div className="col-6 text-end">
-                      <h6 className="text-uppercase text-muted extra-small fw-bold mb-1">Main Source</h6>
-                      <div className="small fw-medium">{getLocationName(wo.source_location_id || wo.location_id)}</div>
-                  </div>
-              </div>
-
-              {/* BOM Materials */}
-              <h6 className="fw-bold border-bottom pb-1 mb-2">Bill of Materials (Full Tree)</h6>
+              <h6 className="fw-bold border-bottom pb-1 mb-2 mt-4">Bill of Materials (Full Tree)</h6>
               <table className="table table-bordered table-sm mb-4">
                   <thead className="table-light">
                       <tr style={{fontSize: '8pt'}}>
                           <th style={{width: '15%'}}>Code</th>
-                          <th style={{width: '25%'}}>Component Name</th>
+                          <th style={{width: '35%'}}>Component Name</th>
                           <th style={{width: '20%'}}>Attributes / Specs</th>
                           <th style={{width: '15%'}}>Source</th>
-                          <th style={{width: '10%'}} className="text-end">Unit</th>
-                          <th style={{width: '15%'}} className="text-end">Total Required</th>
+                          <th style={{width: '15%'}} className="text-end">Required Qty</th>
                       </tr>
                   </thead>
                   <tbody>
-                      {bom ? renderPrintBOMLines(bom.lines, 0, 1, bom) : <tr><td colSpan={6}>No BOM found</td></tr>}
+                      {bom ? renderPrintBOMLines(bom.lines, 0, 1, bom) : <tr><td colSpan={5}>No BOM found</td></tr>}
                   </tbody>
               </table>
 
-              {/* Operations */}
-              {bom?.operations && bom.operations.length > 0 && (
-                  <>
-                      <h6 className="fw-bold border-bottom pb-1 mb-2">Routing & Operations</h6>
-                      <table className="table table-bordered table-sm">
-                          <thead className="table-light">
-                              <tr style={{fontSize: '8pt'}}>
-                                  <th style={{width: '10%'}}>Seq</th>
-                                  <th style={{width: '50%'}}>Operation Name</th>
-                                  <th style={{width: '25%'}}>Work Center / Station</th>
-                                  <th style={{width: '15%'}} className="text-end">Time (Mins)</th>
-                              </tr>
-                          </thead>
-                          <tbody>
-                              {[...bom.operations].sort((a:any, b:any) => a.sequence - b.sequence).map((op: any) => (
-                                  <tr key={op.id}>
-                                      <td>{op.sequence}</td>
-                                      <td><div style={{fontSize: '9pt'}}>{getOpName(op.operation_id)}</div></td> 
-                                      <td><div style={{fontSize: '9pt'}}>{getWCName(op.work_center_id)}</div></td>
-                                      <td className="text-end small">{op.time_minutes}</td>
-                                  </tr>
-                              ))}
-                          </tbody>
-                      </table>
-                  </>
-              )}
-
               <div className="mt-5 pt-5 border-top d-flex justify-content-between text-muted small">
                   <div>Printed: {new Date().toLocaleString()}</div>
-                  <div>Approved By: __________________________</div>
+                  <div className="text-center" style={{width: '200px'}}>
+                      <div className="border-bottom mb-1" style={{height: '40px'}}></div>
+                      Authorized Signature
+                  </div>
               </div>
 
-              {/* Close Button (No Print) */}
               <div className="position-fixed top-0 end-0 p-3 no-print" style={{ zIndex: 3000 }}>
                   <button className="btn btn-dark shadow" onClick={() => setPrintingWO(null)}>
                       <i className="bi bi-x-lg me-2"></i>Close Preview
@@ -414,38 +373,36 @@ export default function ManufacturingView({
 
   return (
       <div className="row g-4 fade-in print-container">
-          {/* Print Overlay */}
           {printingWO && <WorkOrderPrintTemplate wo={printingWO} />}
 
           <CodeConfigModal isOpen={isConfigOpen} onClose={() => setIsConfigOpen(false)} type="WO" onSave={handleSaveConfig} initialConfig={codeConfig} attributes={attributes} />
 
-          {/* ... (Create Modal - Same as before) ... */}
           {isCreateOpen && (
           <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
               <div className={`modal-dialog modal-lg modal-dialog-centered ui-style-${currentStyle}`}>
                   <div className="modal-content shadow">
-                      {/* ... (Header) ... */}
-                      <div className="modal-header bg-success bg-opacity-10 text-success-emphasis">
-                          <h5 className="modal-title"><i className="bi bi-play-circle me-2"></i>{t('new_production_run')}</h5>
+                      <div className="modal-header bg-success bg-opacity-10 text-success-emphasis py-2">
+                          <h5 className="modal-title small fw-bold"><i className="bi bi-play-circle me-2"></i>NEW PRODUCTION RUN</h5>
                           <button type="button" className="btn-close" onClick={() => setIsCreateOpen(false)}></button>
                       </div>
                       <div className="modal-body">
                           <form onSubmit={handleSubmit}>
-                              {/* ... (Form Fields) ... */}
-                              <div className="mb-3">
-                                  <label className="form-label d-flex justify-content-between align-items-center small text-muted">
-                                      {t('item_code')}
-                                      <i 
-                                          className="bi bi-gear-fill text-muted" 
-                                          style={{cursor: 'pointer'}}
-                                          onClick={() => setIsConfigOpen(true)}
-                                          title="Configure Auto-Suggestion"
-                                      ></i>
-                                  </label>
-                                  <input className="form-control" placeholder="Auto-generated" value={newWO.code} onChange={e => setNewWO({...newWO, code: e.target.value})} required />
+                              <div className="row g-3 mb-3">
+                                  <div className="col-md-6">
+                                      <label className="form-label extra-small fw-bold text-muted uppercase">WO Reference Code</label>
+                                      <div className="input-group">
+                                          <input className="form-control form-control-sm" placeholder="Auto-generated" value={newWO.code} onChange={e => setNewWO({...newWO, code: e.target.value})} required />
+                                          <button className="btn btn-sm btn-outline-secondary" type="button" onClick={() => setIsConfigOpen(true)}><i className="bi bi-gear-fill"></i></button>
+                                      </div>
+                                  </div>
+                                  <div className="col-md-6">
+                                      <label className="form-label extra-small fw-bold text-muted uppercase">Target Quantity</label>
+                                      <input type="number" className="form-control form-control-sm" value={newWO.qty} onChange={e => setNewWO({...newWO, qty: parseFloat(e.target.value)})} required />
+                                  </div>
                               </div>
+
                               <div className="mb-3">
-                                  <label className="form-label">{t('select_recipe')}</label>
+                                  <label className="form-label extra-small fw-bold text-muted uppercase">Product Recipe (BOM)</label>
                                   <SearchableSelect 
                                       options={boms.map((b: any) => ({ value: b.id, label: `${b.code} - ${getItemName(b.item_id)}` }))}
                                       value={newWO.bom_id}
@@ -454,35 +411,38 @@ export default function ManufacturingView({
                                       placeholder="Choose a product recipe..."
                                   />
                               </div>
-                              <div className="row g-2 mb-3">
-                                  <div className="col-6">
-                                      <label className="form-label small text-muted">Source Location</label>
-                                      <select className="form-select" value={newWO.source_location_code} onChange={e => setNewWO({...newWO, source_location_code: e.target.value})}>
-                                          <option value="">Same as Production</option>
-                                          {locations.map((loc: any) => <option key={loc.id} value={loc.code}>{loc.name}</option>)}
-                                      </select>
+
+                              <div className="row g-3 mb-3">
+                                  <div className="col-md-6">
+                                      <label className="form-label extra-small fw-bold text-muted uppercase">Target Start Date</label>
+                                      <input type="date" className="form-control form-control-sm" value={newWO.target_start_date} onChange={e => setNewWO({...newWO, target_start_date: e.target.value})} />
                                   </div>
+                                  <div className="col-md-6">
+                                      <label className="form-label extra-small fw-bold text-muted uppercase">Target End Date</label>
+                                      <input type="date" className="form-control form-control-sm" value={newWO.target_end_date} onChange={e => setNewWO({...newWO, target_end_date: e.target.value})} />
+                                  </div>
+                              </div>
+
+                              <div className="row g-2 mb-4">
                                   <div className="col-6">
-                                      <label className="form-label small text-muted">Output Location</label>
-                                      <select className="form-select" value={newWO.location_code} onChange={e => setNewWO({...newWO, location_code: e.target.value})} required>
+                                      <label className="form-label extra-small fw-bold text-muted uppercase">Output Target Location</label>
+                                      <select className="form-select form-select-sm" value={newWO.location_code} onChange={e => setNewWO({...newWO, location_code: e.target.value})} required>
                                           <option value="">Select...</option>
                                           {locations.map((loc: any) => <option key={loc.id} value={loc.code}>{loc.name}</option>)}
                                       </select>
                                   </div>
-                              </div>
-                              <div className="row g-3 mb-4">
                                   <div className="col-6">
-                                      <label className="form-label">{t('qty')}</label>
-                                      <input type="number" className="form-control" placeholder="1.0" value={newWO.qty} onChange={e => setNewWO({...newWO, qty: parseFloat(e.target.value)})} required />
-                                  </div>
-                                  <div className="col-6">
-                                      <label className="form-label">{t('due_date')}</label>
-                                      <input type="date" className="form-control" value={newWO.due_date} onChange={e => setNewWO({...newWO, due_date: e.target.value})} />
+                                      <label className="form-label extra-small fw-bold text-muted uppercase">Material Source Location</label>
+                                      <select className="form-select form-select-sm" value={newWO.source_location_code} onChange={e => setNewWO({...newWO, source_location_code: e.target.value})}>
+                                          <option value="">Same as Production</option>
+                                          {locations.map((loc: any) => <option key={loc.id} value={loc.code}>{loc.name}</option>)}
+                                      </select>
                                   </div>
                               </div>
-                              <div className="d-flex justify-content-end gap-2">
-                                  <button type="button" className="btn btn-secondary" onClick={() => setIsCreateOpen(false)}>{t('cancel')}</button>
-                                  <button type="submit" className="btn btn-success fw-bold px-4">{t('create')}</button>
+
+                              <div className="d-flex justify-content-end gap-2 border-top pt-3">
+                                  <button type="button" className="btn btn-sm btn-link text-muted text-decoration-none" onClick={() => setIsCreateOpen(false)}>{t('cancel')}</button>
+                                  <button type="submit" className="btn btn-sm btn-success px-4 fw-bold shadow-sm">CREATE WORK ORDER</button>
                               </div>
                           </form>
                       </div>
@@ -492,7 +452,6 @@ export default function ManufacturingView({
           )}
 
           <div className="col-12 flex-print-fill">
-              {/* ... (Main Card) ... */}
               <div className="card h-100 border-0 shadow-sm">
                   <div className="card-header bg-white d-flex justify-content-between align-items-center no-print">
                       <div className="d-flex align-items-center gap-3">
@@ -505,19 +464,6 @@ export default function ManufacturingView({
                       </div>
                       <div className="d-flex gap-2">
                           <button className="btn btn-success btn-sm text-white" onClick={() => setIsCreateOpen(true)}><i className="bi bi-plus-lg me-1"></i>{t('create')}</button>
-                          {viewMode === 'list' && (
-                              <>
-                                <div className="vr mx-1"></div>
-                                <div className="input-group input-group-sm">
-                                    <span className="input-group-text">{t('from')}</span>
-                                    <input type="date" className="form-control" value={startDate} onChange={e => setStartDate(e.target.value)} />
-                                </div>
-                                <div className="input-group input-group-sm">
-                                    <span className="input-group-text">{t('to')}</span>
-                                    <input type="date" className="form-control" value={endDate} onChange={e => setEndDate(e.target.value)} />
-                                </div>
-                              </>
-                          )}
                           <button className="btn btn-outline-primary btn-sm btn-print" onClick={handlePrintList}><i className="bi bi-printer me-1"></i>{t('print')}</button>
                       </div>
                   </div>
@@ -525,35 +471,16 @@ export default function ManufacturingView({
                   <div className="card-body p-0">
                       {viewMode === 'calendar' ? (
                           <div className="p-3"><CalendarView workOrders={workOrders} items={items} /></div>
-                      ) : viewMode === 'scanner' ? (
-                          <div className="p-4">
-                              <QRScannerView 
-                                  workOrders={workOrders} 
-                                  items={items}
-                                  boms={boms}
-                                  locations={locations}
-                                  attributes={attributes}
-                                  stockBalance={stockBalance}
-                                  onUpdateStatus={onUpdateStatus} 
-                                  onClose={() => setViewMode('list')} 
-                              />
-                          </div>
                       ) : (
-                          <>
-                            <div className="print-header d-none d-print-block p-4 border-bottom mb-4">
-                                <h2 className="mb-1">{t('production_schedule')}</h2>
-                                <p className="text-muted mb-0">{t('from')}: {startDate || 'All Time'} {t('to')} {endDate || 'Present'}</p>
-                                <p className="text-muted small">Generated on: {new Date().toLocaleString()}</p>
-                            </div>
-                            <div className="table-responsive">
+                          <div className="table-responsive">
                                 <table className="table table-hover align-middle mb-0">
                                     <thead className="table-light">
-                                        <tr>
-                                            <th className="ps-4">{t('item_code')}</th>
-                                            <th>Product</th>
-                                            <th>{t('qty')}</th>
-                                            <th>{t('due_date')}</th>
-                                            <th>Start / Finish</th>
+                                        <tr style={{fontSize: '9pt'}}>
+                                            <th className="ps-4">WO Code</th>
+                                            <th>Product / Variant</th>
+                                            <th className="text-center">Qty</th>
+                                            <th>Target Timeline</th>
+                                            <th>Actual Progression</th>
                                             <th>{t('status')}</th>
                                             <th className="text-end pe-4 no-print">{t('actions')}</th>
                                         </tr>
@@ -566,90 +493,94 @@ export default function ManufacturingView({
 
                                             return (
                                                 <>
-                                                <tr key={wo.id} className={isExpanded ? 'bg-light' : ''}>
+                                                <tr key={wo.id} className={isExpanded ? 'table-primary bg-opacity-10' : ''}>
                                                     <td className="ps-4 fw-bold font-monospace small">{wo.code}</td>
                                                     <td style={{cursor: 'pointer'}} onClick={() => toggleRow(wo.id)}>
-                                                        {/* ... (Row Content) ... */}
                                                         <div className="d-flex align-items-center gap-2">
-                                                            <i className={`bi bi-chevron-${isExpanded ? 'down' : 'right'} small text-muted`}></i>
+                                                            <i className={`bi bi-chevron-${isExpanded ? 'down' : 'right'} text-muted`}></i>
                                                             <div>
-                                                                <div className="fw-medium">{getItemName(wo.item_id)}</div>
-                                                                <div className="small text-muted">{wo.attribute_value_ids?.map(getAttributeValueName).join(', ') || '-'}</div>
-                                                                <div className="small text-primary fst-italic">{getBOMCode(wo.bom_id)}</div>
-                                                                {wo.status === 'PENDING' && wo.is_material_available === false && <div className="text-danger small fw-bold"><i className="bi bi-exclamation-triangle-fill me-1"></i>Low Stock</div>}
+                                                                <div className="fw-bold text-dark" style={{fontSize: '9pt'}}>{getItemName(wo.item_id)}</div>
+                                                                <div className="extra-small text-muted">BOM: {getBOMCode(wo.bom_id)}</div>
+                                                                {wo.status === 'PENDING' && wo.is_material_available === false && <span className="badge bg-danger p-1 extra-small mt-1">LOW STOCK</span>}
                                                             </div>
                                                         </div>
                                                     </td>
-                                                    <td className="fw-bold">{wo.qty}</td>
+                                                    <td className="text-center fw-bold">{wo.qty}</td>
                                                     <td>
-                                                        <div className="d-flex flex-column">
-                                                            <span className={warning ? `text-${warning.type} fw-bold` : ''}>{wo.due_date ? new Date(wo.due_date).toLocaleDateString() : '-'}</span>
-                                                            {warning && <span className={`badge bg-${warning.type} mt-1`} style={{fontSize: '0.65rem'}}><i className={`bi ${warning.icon} me-1`}></i>{warning.text}</span>}
+                                                        <div className="extra-small d-flex flex-column gap-1">
+                                                            <span>S: {formatDate(wo.target_start_date)}</span>
+                                                            <span className={warning ? `text-${warning.type} fw-bold` : ''}>E: {formatDate(wo.target_end_date)}</span>
                                                         </div>
                                                     </td>
                                                     <td>
-                                                        <div className="small d-flex flex-column">
-                                                            <span className="text-muted">S: {formatDateTime(wo.start_date)}</span>
-                                                            <span className="text-muted">F: {formatDateTime(wo.completed_at)}</span>
+                                                        <div className="extra-small d-flex flex-column gap-1 text-muted">
+                                                            <span>Start: {formatDateTime(wo.actual_start_date)}</span>
+                                                            <span>End: {formatDateTime(wo.actual_end_date)}</span>
                                                         </div>
                                                     </td>
-                                                    <td><span className={`badge ${getStatusBadge(wo.status)}`}>{t(wo.status.toLowerCase())}</span></td>
+                                                    <td><span className={`badge ${getStatusBadge(wo.status)} extra-small`}>{wo.status}</span></td>
                                                     <td className="text-end pe-4 no-print">
                                                         <div className="d-flex justify-content-end align-items-center gap-2">
                                                             <button className="btn btn-sm btn-link text-primary p-0" onClick={() => handlePrintWO(wo)} title="Print Work Order">
-                                                                <i className="bi bi-printer"></i>
+                                                                <i className="bi bi-printer fs-5"></i>
                                                             </button>
-                                                            {wo.status === 'PENDING' && <button className="btn btn-sm btn-primary shadow-sm" onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}><i className="bi bi-play-fill me-1"></i>{t('start')}</button>}
-                                                            {wo.status === 'IN_PROGRESS' && <button className="btn btn-sm btn-success shadow-sm" onClick={() => onUpdateStatus(wo.id, 'COMPLETED')}><i className="bi bi-check-lg me-1"></i>{t('finish')}</button>}
-                                                            {wo.status === 'COMPLETED' && <span className="text-success small fw-bold"><i className="bi bi-check-circle-fill"></i> Done</span>}
-                                                            <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDeleteWO(wo.id)} title="Delete Work Order"><i className="bi bi-trash"></i></button>
+                                                            {wo.status === 'PENDING' && <button className="btn btn-sm btn-primary py-0 px-2" style={{fontSize: '0.75rem'}} onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>START</button>}
+                                                            {wo.status === 'IN_PROGRESS' && <button className="btn btn-sm btn-success py-0 px-2" style={{fontSize: '0.75rem'}} onClick={() => onUpdateStatus(wo.id, 'COMPLETED')}>FINISH</button>}
+                                                            <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDeleteWO(wo.id)} title="Delete"><i className="bi bi-trash fs-5"></i></button>
                                                         </div>
                                                     </td>
                                                 </tr>
-                                                {/* ... (Expanded Content) ... */}
-                                                {isExpanded && bom && (
+                                                {isExpanded && (
                                                     <tr key={`${wo.id}-detail`} className="bg-light">
-                                                        <td colSpan={7} className="p-0">
-                                                            <div className="p-3 ps-5 border-bottom shadow-inner d-flex justify-content-between align-items-start">
-                                                                <div className="flex-grow-1">
-                                                                    <h6 className="small text-uppercase text-muted fw-bold mb-2">Required Materials</h6>
-                                                                    <div className="table-responsive">
-                                                                        <table className="table table-sm table-borderless mb-0 w-75">
-                                                                            <thead className="text-muted small border-bottom">
-                                                                                <tr><th>Item</th><th>Source</th><th>Required</th><th>Available</th><th>Status</th></tr>
-                                                                            </thead>
-                                                                            <tbody>
-                                                                                {bom.lines.map((line: any) => {
-                                                                                    const required = calculateRequiredQty(wo.qty, line, bom);
-                                                                                    const checkLocId = line.source_location_id || wo.source_location_id || wo.location_id;
-                                                                                    const { available, isEnough } = checkStockAvailability(line.item_id, checkLocId, line.attribute_value_ids, required);
-                                                                                    return (
-                                                                                        <tr key={line.id}>
-                                                                                            <td>
-                                                                                                <span className="fw-medium">{getItemName(line.item_id)}</span>
-                                                                                                <div className="small text-muted fst-italic">
-                                                                                                    {line.qty}{line.is_percentage ? '%' : ''} per unit
-                                                                                                    {line.attribute_value_ids.map(getAttributeValueName).join(', ') && ` • ${line.attribute_value_ids.map(getAttributeValueName).join(', ')}`}
-                                                                                                </div>
-                                                                                            </td>
-                                                                                            <td><span className="badge bg-light text-dark border font-monospace small">{getLocationName(checkLocId)}</span></td>
-                                                                                            <td className="fw-bold">{required.toFixed(4)}</td>
-                                                                                            <td className={isEnough ? 'text-success' : 'text-danger'}>{available}</td>
-                                                                                            <td>{isEnough ? <span className="badge bg-success bg-opacity-10 text-success"><i className="bi bi-check2"></i> Ready</span> : <span className="badge bg-danger bg-opacity-10 text-danger"><i className="bi bi-x-circle"></i> Missing</span>}</td>
-                                                                                        </tr>
-                                                                                    );
-                                                                                })}
-                                                                            </tbody>
-                                                                        </table>
+                                                        <td colSpan={7} className="p-0 border-0">
+                                                            <div className="p-4 ps-5 shadow-inner border-bottom">
+                                                                <div className="row g-4">
+                                                                    {/* Left: Material Readiness */}
+                                                                    <div className="col-md-7 border-end">
+                                                                        <h6 className="extra-small fw-bold text-uppercase text-muted mb-3 letter-spacing-1">Material Readiness Check</h6>
+                                                                        <div className="table-responsive">
+                                                                            <table className="table table-sm table-borderless small mb-0">
+                                                                                <thead className="border-bottom text-muted">
+                                                                                    <tr style={{fontSize: '8pt'}}><th>Component</th><th>Required</th><th>Stock</th><th>Status</th></tr>
+                                                                                </thead>
+                                                                                <tbody>
+                                                                                    {bom?.lines.map((line: any) => {
+                                                                                        const req = calculateRequiredQty(wo.qty, line, bom);
+                                                                                        const { available, isEnough } = checkStockAvailability(line.item_id, line.source_location_id || wo.source_location_id || wo.location_id, [], req);
+                                                                                        return (
+                                                                                            <tr key={line.id}>
+                                                                                                <td>{getItemName(line.item_id)}</td>
+                                                                                                <td className="fw-bold">{req.toFixed(2)}</td>
+                                                                                                <td className={isEnough ? 'text-success' : 'text-danger'}>{available.toFixed(2)}</td>
+                                                                                                <td>{isEnough ? <i className="bi bi-check-circle-fill text-success"></i> : <i className="bi bi-x-circle-fill text-danger"></i>}</td>
+                                                                                            </tr>
+                                                                                        );
+                                                                                    })}
+                                                                                </tbody>
+                                                                            </table>
+                                                                        </div>
                                                                     </div>
-                                                                </div>
-                                                                <div className="ms-4 text-center bg-white p-2 border rounded shadow-sm no-print">
-                                                                    <img 
-                                                                        src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${wo.code}`} 
-                                                                        alt="QR" 
-                                                                        style={{ width: '64px', height: '64px' }}
-                                                                    />
-                                                                    <div className="extra-small text-muted mt-1 font-monospace">{wo.code}</div>
+                                                                    {/* Right: Production Analytics */}
+                                                                    <div className="col-md-5 ps-4">
+                                                                        <h6 className="extra-small fw-bold text-uppercase text-muted mb-3 letter-spacing-1">Production Timeline Analysis</h6>
+                                                                        <div className="d-flex flex-column gap-3">
+                                                                            <div className="p-2 rounded border bg-white shadow-xs">
+                                                                                <div className="extra-small text-muted mb-1">Lead Time Variance</div>
+                                                                                {wo.actual_start_date && wo.target_start_date ? (
+                                                                                    <div className="small fw-bold">
+                                                                                        {new Date(wo.actual_start_date) > new Date(wo.target_start_date) ? 
+                                                                                            <span className="text-danger">Delayed Start (+{Math.round((new Date(wo.actual_start_date).getTime() - new Date(wo.target_start_date).getTime()) / 3600000)}h)</span> : 
+                                                                                            <span className="text-success">On Schedule</span>
+                                                                                        }
+                                                                                    </div>
+                                                                                ) : <span className="small text-muted italic">Waiting for start signal...</span>}
+                                                                            </div>
+                                                                            <div className="p-2 rounded border bg-white shadow-xs">
+                                                                                <div className="extra-small text-muted mb-1">Output Target</div>
+                                                                                <div className="small fw-bold">{getLocationName(wo.location_id)}</div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </td>
@@ -660,30 +591,7 @@ export default function ManufacturingView({
                                         })}
                                     </tbody>
                                 </table>
-                            </div>
-                            <div className="card-footer bg-white border-top py-2 px-4 d-flex justify-content-between align-items-center no-print">
-                                <div className="small text-muted font-monospace">
-                                    Showing {startRange}-{endRange} of {totalItems} work orders
-                                </div>
-                                <div className="btn-group">
-                                    <button 
-                                        className={`btn btn-sm btn-light border ${currentPage <= 1 ? 'disabled opacity-50' : ''}`}
-                                        onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-                                    >
-                                        <i className="bi bi-chevron-left me-1"></i>Previous
-                                    </button>
-                                    <div className="btn btn-sm btn-white border-top border-bottom px-3 fw-bold">
-                                        Page {currentPage} of {totalPages || 1}
-                                    </div>
-                                    <button 
-                                        className={`btn btn-sm btn-light border ${currentPage >= totalPages ? 'disabled opacity-50' : ''}`}
-                                        onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
-                                    >
-                                        Next<i className="bi bi-chevron-right ms-1"></i>
-                                    </button>
-                                </div>
-                            </div>
-                          </>
+                          </div>
                       )}
                   </div>
               </div>

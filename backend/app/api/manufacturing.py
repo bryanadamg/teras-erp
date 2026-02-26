@@ -5,9 +5,10 @@ from app.models.manufacturing import WorkOrder
 from app.models.bom import BOM
 from app.models.location import Location
 from app.services import stock_service, audit_service
-from app.schemas import WorkOrderCreate, WorkOrderResponse
+from app.schemas import WorkOrderCreate, WorkOrderResponse, PaginatedWorkOrderResponse
 from app.models.auth import User
 from app.api.auth import get_current_user
+from app.models.item import Item
 from datetime import datetime
 from typing import Optional
 from app.core.ws_manager import manager
@@ -39,16 +40,15 @@ def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db), c
             raise HTTPException(status_code=404, detail="Source Location not found")
 
     # 4. Create Work Order
-    # We copy item_id and attribute_values from BOM for historical data integrity
     wo = WorkOrder(
         code=payload.code,
         bom_id=bom.id,
         item_id=bom.item_id,
         location_id=location.id,
-        source_location_id=source_location.id if source_location else location.id, # Default to same location if not specified
+        source_location_id=source_location.id if source_location else location.id,
         qty=payload.qty,
-        start_date=payload.start_date,
-        due_date=payload.due_date,
+        target_start_date=payload.target_start_date,
+        target_end_date=payload.target_end_date,
         status="PENDING"
     )
     
@@ -70,30 +70,7 @@ def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db), c
     )
     
     wo.attribute_value_ids = [v.id for v in wo.attribute_values]
-    
-    # Check material availability
-    wo.is_material_available = True
-    
-    for line in bom.lines:
-        required_qty = float(line.qty) * float(wo.qty)
-        # Use line-specific source location if set, otherwise WO source location, otherwise WO destination
-        check_location_id = line.source_location_id or wo.source_location_id or wo.location_id
-        
-        current = stock_service.get_stock_balance(
-            db, 
-            item_id=line.item_id, 
-            location_id=check_location_id, 
-            attribute_value_ids=[v.id for v in line.attribute_values]
-        )
-        if current < required_qty:
-            wo.is_material_available = False
-            break
-            
     return wo
-
-from app.models.item import Item # Import Item
-
-from app.schemas import WorkOrderCreate, WorkOrderResponse, PaginatedWorkOrderResponse # Add Paginated schema
 
 @router.get("/work-orders", response_model=PaginatedWorkOrderResponse)
 def get_work_orders(
@@ -130,16 +107,13 @@ def get_work_orders(
                     "attribute_value_ids": [str(v.id) for v in line.attribute_values]
                 })
     
-    # Fetch all balances in one go (or few queries)
     balances_map = stock_service.get_batch_stock_balances(db, requirements) if requirements else {}
 
     for item in items:
-        # Check availability
         item.is_material_available = True
-        
         if item.status == "PENDING":
             for line in item.bom.lines:
-                # Calculate required qty (considering percentages and tolerances)
+                # Logic for calculating required qty
                 required_qty = float(line.qty)
                 if line.is_percentage:
                     required_qty = (float(item.qty) * required_qty) / 100
@@ -166,7 +140,6 @@ def get_work_orders(
         "size": len(items)
     }
 
-
 @router.put("/work-orders/{wo_id}/status")
 async def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     wo = db.query(WorkOrder).filter(WorkOrder.id == wo_id).first()
@@ -178,51 +151,32 @@ async def update_work_order_status(wo_id: str, status: str, db: Session = Depend
     if status not in valid_statuses:
         raise HTTPException(status_code=400, detail="Invalid status")
     
-    # 1. Update start_date if moving to IN_PROGRESS
+    # 1. Update actual_start_date if moving to IN_PROGRESS
     if status == "IN_PROGRESS" and previous_status != "IN_PROGRESS":
         # Validate Stock Availability for all BOM Lines
         for line in wo.bom.lines:
-            # --- Logic duplicated from frontend for consistency ---
             required_qty = float(line.qty)
             if line.is_percentage:
                 required_qty = (float(wo.qty) * required_qty) / 100
             else:
                 required_qty = float(wo.qty) * required_qty
             
-            # Apply tolerance from BOM header
             tolerance = float(wo.bom.tolerance_percentage or 0)
             if tolerance > 0:
                 required_qty = required_qty * (1 + (tolerance / 100))
             
-            # Use line specific source, or WO source, or WO dest
             check_location_id = line.source_location_id or wo.source_location_id or wo.location_id
-            
-            current_stock = stock_service.get_stock_balance(
-                db, 
-                item_id=line.item_id, 
-                location_id=check_location_id, 
-                attribute_value_ids=[v.id for v in line.attribute_values]
-            )
+            current_stock = stock_service.get_stock_balance(db, line.item_id, check_location_id, [v.id for v in line.attribute_values])
             
             if current_stock < required_qty:
-                from app.models.item import Item
-                item_obj = db.query(Item).filter(Item.id == line.item_id).first()
-                item_name = item_obj.name if item_obj else "Unknown Item"
-                location_obj = db.query(Location).filter(Location.id == check_location_id).first()
-                loc_name = location_obj.name if location_obj else "Unknown Location"
-                
-                raise HTTPException(
-                    status_code=400, 
-                    detail=f"Insufficient stock for {item_name} at {loc_name}. Required: {required_qty}, Available: {current_stock}"
-                )
+                raise HTTPException(status_code=400, detail=f"Insufficient stock for {line.item_id}")
         
-        wo.start_date = datetime.utcnow()
+        wo.actual_start_date = datetime.utcnow()
 
     # 2. Check if completing
     if status == "COMPLETED" and previous_status != "COMPLETED":
-        wo.completed_at = datetime.utcnow()
+        wo.actual_end_date = datetime.utcnow()
         for line in wo.bom.lines:
-            # Re-calculate with tolerance
             qty_to_deduct = float(line.qty)
             if line.is_percentage:
                 qty_to_deduct = (float(wo.qty) * qty_to_deduct) / 100
@@ -234,27 +188,9 @@ async def update_work_order_status(wo_id: str, status: str, db: Session = Depend
                 qty_to_deduct = qty_to_deduct * (1 + (tolerance / 100))
             
             deduct_location_id = line.source_location_id or wo.source_location_id or wo.location_id
-
-            stock_service.add_stock_entry(
-                db,
-                item_id=line.item_id,
-                location_id=deduct_location_id,
-                attribute_value_ids=[v.id for v in line.attribute_values],
-                qty_change=-qty_to_deduct,
-                reference_type="Work Order",
-                reference_id=wo.code
-            )
+            stock_service.add_stock_entry(db, line.item_id, deduct_location_id, -qty_to_deduct, "Work Order", wo.code, [v.id for v in line.attribute_values])
         
-        # Add Finished Good
-        stock_service.add_stock_entry(
-            db,
-            item_id=wo.item_id,
-            location_id=wo.location_id,
-            attribute_value_ids=[v.id for v in wo.attribute_values],
-            qty_change=wo.qty,
-            reference_type="Work Order",
-            reference_id=wo.code
-        )
+        stock_service.add_stock_entry(db, wo.item_id, wo.location_id, wo.qty, "Work Order", wo.code, [v.id for v in wo.attribute_values])
 
     wo.status = status
     try:
@@ -263,24 +199,8 @@ async def update_work_order_status(wo_id: str, status: str, db: Session = Depend
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database commit failed: {str(e)}")
     
-    audit_service.log_activity(
-        db,
-        user_id=current_user.id,
-        action="UPDATE_STATUS",
-        entity_type="WorkOrder",
-        entity_id=wo_id,
-        details=f"Updated Work Order {wo.code} status from {previous_status} to {status}",
-        changes={"status": status, "previous_status": previous_status}
-    )
-
-    # Broadcast the event AFTER successful commit
-    await manager.broadcast({
-        "type": "WORK_ORDER_UPDATE",
-        "wo_id": wo_id,
-        "status": status,
-        "code": wo.code
-    })
-    
+    audit_service.log_activity(db, current_user.id, "UPDATE_STATUS", "WorkOrder", wo_id, f"Status: {previous_status} -> {status}", {"status": status})
+    await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": wo_id, "status": status, "code": wo.code})
     return {"status": "success", "message": f"Work Order updated to {status}"}
 
 @router.delete("/work-orders/{wo_id}")
@@ -289,18 +209,6 @@ def delete_work_order(wo_id: str, db: Session = Depends(get_db), current_user: U
     if not wo:
         raise HTTPException(status_code=404, detail="Work Order not found")
     
-    details = f"Deleted Work Order {wo.code}"
-    
     db.delete(wo)
     db.commit()
-    
-    audit_service.log_activity(
-        db,
-        user_id=current_user.id,
-        action="DELETE",
-        entity_type="WorkOrder",
-        entity_id=wo_id,
-        details=details
-    )
-    
     return {"status": "success", "message": "Work Order deleted"}

@@ -106,8 +106,8 @@ class WorkOrderCreate(BaseModel):
     location_code: str
     source_location_code: str | None = None # Optional source location
     qty: float
-    start_date: datetime | None = None
-    due_date: datetime | None = None
+    target_start_date: datetime | None = None
+    target_end_date: datetime | None = None
 
 class WorkOrderResponse(BaseModel):
     id: UUID
@@ -119,9 +119,10 @@ class WorkOrderResponse(BaseModel):
     source_location_id: UUID | None = None
     qty: float
     status: str
-    start_date: datetime | None
-    due_date: datetime | None
-    completed_at: datetime | None
+    target_start_date: datetime | None
+    target_end_date: datetime | None
+    actual_start_date: datetime | None
+    actual_end_date: datetime | None
     created_at: datetime
     is_material_available: bool = True # Calculated field
     
