@@ -200,7 +200,16 @@ async def update_work_order_status(wo_id: str, status: str, db: Session = Depend
         raise HTTPException(status_code=500, detail=f"Database commit failed: {str(e)}")
     
     audit_service.log_activity(db, current_user.id, "UPDATE_STATUS", "WorkOrder", wo_id, f"Status: {previous_status} -> {status}", {"status": status})
-    await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": wo_id, "status": status, "code": wo.code})
+    
+    # Broadcast ENRICHED event for instant UI update
+    await manager.broadcast({
+        "type": "WORK_ORDER_UPDATE",
+        "wo_id": wo_id,
+        "status": status,
+        "code": wo.code,
+        "actual_start_date": wo.actual_start_date.isoformat() if wo.actual_start_date else None,
+        "actual_end_date": wo.actual_end_date.isoformat() if wo.actual_end_date else None
+    })
     return {"status": "success", "message": f"Work Order updated to {status}"}
 
 @router.delete("/work-orders/{wo_id}")
