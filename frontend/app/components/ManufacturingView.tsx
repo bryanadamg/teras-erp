@@ -308,7 +308,7 @@ export default function ManufacturingView({
               <div className="d-flex justify-content-between border-bottom pb-2 mb-3">
                   <div className="d-flex gap-3">
                       <div className="bg-white border p-1 rounded">
-                          <img src={qrDataUrl} alt="WO QR" style={{ width: '60px', height: '60px' }} />
+                          <img src={qrDataUrl} alt="WO QR" style={{ width: '100px', height: '100px' }} />
                       </div>
                       <div>
                           <h3 className="fw-bold mb-0">WORK ORDER</h3>
@@ -588,6 +588,16 @@ export default function ManufacturingView({
                                                                             <div className="p-2 rounded border bg-white shadow-xs">
                                                                                 <div className="extra-small text-muted mb-1">Output Target</div>
                                                                                 <div className="small fw-bold">{getLocationName(wo.location_id)}</div>
+                                                                            </div>
+                                                                            {/* Large Scan-from-screen QR Code */}
+                                                                            <div className="mt-2 text-center bg-white p-3 border rounded shadow-sm no-print">
+                                                                                <img 
+                                                                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${wo.code}`} 
+                                                                                    alt="QR" 
+                                                                                    style={{ width: '120px', height: '120px' }}
+                                                                                />
+                                                                                <div className="extra-small text-muted mt-2 font-monospace fw-bold">{wo.code}</div>
+                                                                                <div className="extra-small text-info mt-1 uppercase fw-bold" style={{fontSize: '0.6rem'}}>Scan to Start/Finish</div>
                                                                             </div>
                                                                         </div>
                                                                     </div>
