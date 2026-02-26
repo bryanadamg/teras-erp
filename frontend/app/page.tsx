@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from './components/Sidebar';
 import InventoryView from './components/InventoryView';
@@ -262,6 +262,61 @@ export default function Home() {
     const savedStyle = localStorage.getItem('ui_style');
     if (savedStyle) setUiStyle(savedStyle);
   }, [currentUser, activeTab, itemPage, woPage, auditPage, reportPage, itemSearch, itemCategory, auditType]);
+
+  // --- REAL-TIME EVENT STREAM (WebSockets) ---
+  const fetchDataRef = useRef(fetchData);
+  const activeTabRef = useRef(activeTab);
+  
+  useEffect(() => {
+      fetchDataRef.current = fetchData;
+      activeTabRef.current = activeTab;
+  }, [fetchData, activeTab]);
+
+  useEffect(() => {
+      if (!currentUser) return;
+
+      // Robust URL replacement for wss support
+      const wsUrl = API_BASE.replace(/^http/, 'ws') + '/ws/events';
+      let ws: WebSocket;
+      let reconnectTimer: any;
+
+      const connect = () => {
+          ws = new WebSocket(wsUrl);
+
+          ws.onmessage = (event) => {
+              try {
+                  const data = JSON.parse(event.data);
+                  if (data.type === 'WORK_ORDER_UPDATE') {
+                      // Trigger optimized refresh if on relevant tabs using Ref to avoid stale closure
+                      if (['dashboard', 'manufacturing', 'stock'].includes(activeTabRef.current)) {
+                          fetchDataRef.current();
+                      }
+                      showToast(`Real-time: Work Order ${data.code} updated to ${data.status}`, 'info');
+                  }
+              } catch (e) {
+                  console.error("WS Message Error", e);
+              }
+          };
+
+          ws.onclose = (e) => {
+              if (e.code !== 1000) { // Don't reconnect if closed normally
+                  reconnectTimer = setTimeout(connect, 5000);
+              }
+          };
+
+          ws.onerror = (err) => {
+              console.error("WS Error", err);
+              ws.close();
+          };
+      };
+
+      connect();
+
+      return () => {
+          if (ws) ws.close(1000);
+          clearTimeout(reconnectTimer);
+      };
+  }, [currentUser]); // Only depends on currentUser, stable for the session
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
       e.preventDefault();

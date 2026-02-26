@@ -1,9 +1,9 @@
 from pathlib import Path
-from fastapi import FastAPI, Request, APIRouter
-from fastapi.responses import HTMLResponse, ORJSONResponse # Import ORJSONResponse
+from fastapi import FastAPI, Request, APIRouter, WebSocket, WebSocketDisconnect # Added WS imports
+from fastapi.responses import HTMLResponse, ORJSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware # Import GZip
+from fastapi.middleware.gzip import GZipMiddleware
 from sqlalchemy import text
 import os
 
@@ -11,14 +11,12 @@ from app.db.session import engine
 from app.db.base import Base
 from app.api import items, locations, stock, attributes, boms, manufacturing, categories, routing, auth, uoms, sales, samples, audit, admin, dashboard, partners, purchase
 from app.db.init_db import init_db
+from app.core.ws_manager import manager # Import WS manager
 
-app = FastAPI(title="Terras ERP", default_response_class=ORJSONResponse) # Set default response class
+app = FastAPI(title="Terras ERP", default_response_class=ORJSONResponse)
 
 # Add GZip Middleware to compress large responses
 app.add_middleware(GZipMiddleware, minimum_size=1000)
-
-# Initialize Database and run migrations
-init_db()
 
 # --- Router Configuration ---
 # Create a central API router to group all endpoints
@@ -41,6 +39,19 @@ api_router.include_router(admin.router)
 api_router.include_router(dashboard.router)
 api_router.include_router(partners.router)
 api_router.include_router(purchase.router)
+
+# WebSocket Endpoint for real-time events (under /api/ws/events)
+@api_router.websocket("/ws/events")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            # We keep the connection alive. 
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception:
+        manager.disconnect(websocket)
 
 @api_router.get("/health")
 async def health():

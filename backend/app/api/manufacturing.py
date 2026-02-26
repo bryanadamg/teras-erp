@@ -10,6 +10,8 @@ from app.models.auth import User
 from app.api.auth import get_current_user
 from datetime import datetime
 from typing import Optional
+from app.core.ws_manager import manager
+import asyncio
 
 router = APIRouter()
 
@@ -164,8 +166,9 @@ def get_work_orders(
         "size": len(items)
     }
 
+
 @router.put("/work-orders/{wo_id}/status")
-def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     wo = db.query(WorkOrder).filter(WorkOrder.id == wo_id).first()
     if not wo:
         raise HTTPException(status_code=404, detail="Work Order not found")
@@ -269,6 +272,14 @@ def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_
         details=f"Updated Work Order {wo.code} status from {previous_status} to {status}",
         changes={"status": status, "previous_status": previous_status}
     )
+
+    # Broadcast the event AFTER successful commit
+    await manager.broadcast({
+        "type": "WORK_ORDER_UPDATE",
+        "wo_id": wo_id,
+        "status": status,
+        "code": wo.code
+    })
     
     return {"status": "success", "message": f"Work Order updated to {status}"}
 
