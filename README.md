@@ -1,68 +1,63 @@
 # Terras ERP
 
-**Terras ERP** is a next-generation, modular Enterprise Resource Planning system engineered for agility and precision in manufacturing and inventory operations. Built on a high-performance stack of **FastAPI** and **Next.js**, Terras ERP delivers an enterprise-grade user experience with the flexibility required by modern production environments.
+**Terras ERP** is a high-performance, enterprise-grade Enterprise Resource Planning system specifically engineered for the complexities of modern manufacturing and high-volume inventory operations. Built on a cutting-edge stack of **FastAPI** and **Next.js**, Terras ERP combines industrial-strength data integrity with a fluid, desktop-class user experience.
 
-## Core Capabilities
+## 🚀 Key System Modules
 
-### 🏭 Advanced Manufacturing & Engineering (MES)
-*   **Recursive BOM Designer**: Split-pane Master-Detail interface for managing deep product structures and sub-assemblies.
-*   **Complex Recipe Logic (New)**: Support for **Percentage-Based Quantities** (e.g., 50% Material A + 50% Material B) and **Configurable Tolerances** to handle chemical formulas or variable-yield processes.
-*   **Advanced Automation**: 
-    *   **Branching Structure Generation**: Automatically build complex, multi-level product trees with sibling items (e.g., creating 3 color variants at Level 2 simultaneously).
-    *   **Configuration Profiles**: Save and hot-swap automation rules (e.g., "Standard Textile", "Chemical Mix") to rapidly generate standardized BOMs.
-*   **Shop Floor Terminal (New)**: dedicated **QR Scanner Interface** for operators. Scan a physical Work Order to instantly view status, validate material availability, and trigger production start/finish with a single tap.
-*   **Production Planning**: Integrated **Production Calendar** for deadline tracking and a "Live" schedule showing real-time material shortages.
+### 🏭 Advanced Manufacturing & MES
+*   **Master-Detail BOM Designer**: A professional, recursive interface for managing complex multi-level product hierarchies.
+*   **Precision Recipe Logic**: Native support for **Percentage-Based BOMs** and wastage **Tolerances** with recursive quantity scaling.
+*   **Dual-Track Operational Tracking**: Comprehensive lifecycle monitoring capturing Target Start/End vs. Actual Start/End timestamps.
+*   **Shop Floor QR Terminal**: A mobile-first operator interface for scanning physical work orders and updating production status in real-time with built-in material interlocks.
+*   **Lead Time Analytics**: Instant quantification of manufacturing performance and delay variance.
 
-### 🛒 Supply Chain & Procurement (Refactored)
-*   **Unified Partner Directory**: Centralized management of **Customers** and **Suppliers** with detailed address tracking and status control.
-*   **Automated Stock Receipt (New)**: **Purchase-to-Stock** workflow allowing one-click receipt of Purchase Orders. Automatically increments inventory at the designated target warehouse upon approval.
-*   **Sales vs. Procurement**: Distinct modules for **Sales Orders (SO)** (Customer Demand) and **Purchase Orders (PO)** (Supplier Procurement).
-*   **Decoupled Sampling (PLM)**: Flexible **Sample Request** workflow that can operate independently for internal prototypes or link directly to Sales Orders for customer-specific development.
+### 📦 Inventory & Material Management
+*   **Materialized Performance Backbone**: Utilizes a dedicated $O(1)$ summary architecture to provide instant stock lookups across millions of ledger entries.
+*   **Industrial Search Engine**: Powered by PostgreSQL **GIN Trigram Indexing**, enabling fuzzy, lightning-fast searches across massive product catalogs.
+*   **Attributes & Multi-Variants**: Comprehensive management of item variations (Color, Size, Material) with multi-attribute matching logic.
+*   **Lifecycle Traceability**: Detailed chronological history panes for every item, featuring JSON data diffs for total auditability.
 
-### 💾 Dynamic Infrastructure & Data Integrity
-*   **Lifecycle History Pane (New)**: Detailed, slide-out audit trail for Items and Samples, visualizing chronological changes and JSON data diffs for total traceability.
-*   **Hot-Swap Database Manager**: Administrators can switch the entire system's data context at runtime by updating SQLAlchemy connection strings through the UI—ideal for switching between Production, Staging, and Archive datasets instantly.
-*   **Point-in-Time Snapshots**: Native support for creating, downloading, and uploading database snapshots (PostgreSQL/SQLite) for rapid backup and recovery.
-*   **High-Volume Scalability**: Optimized to handle hundreds of thousands of records without UI lag using **Server-Side Pagination**, **SQL Aggregations**, and **KPI Caching**.
+### 🛒 Supply Chain & Partners
+*   **Refactored Procurement**: Dedicated modules for **Sales Orders** (Customer Demand) and **Purchase Orders** (Supplier Procurement).
+*   **Automated Purchase-to-Stock**: One-click "Receive" workflow that automatically processes deliveries and increments inventory at target warehouses.
+*   **Professional Documentation**: Industry-standard, branded A4 print templates for all order types with auto-resolved partner addresses and variant specifications.
+*   **PLM Sampling Workflow**: Independent prototype management system linked to sales demand for seamless prototype-to-production transitions.
 
-### 🌐 User Experience & Search
-*   **Searchable Intelligence**: System-wide **Searchable Dropdown Module** allowing instant lookups within massive datasets of items, partners, and recipes.
-*   **Corporate-Retro Aesthetics**: A distinct, high-impact entry point featuring interactive "AUTH_TERMINAL" effects and a Windows XP-inspired "Classic" theme option.
-*   **Mobile Optimized**: Responsive navigation and data grids tailored for smartphones and tablets.
+### 📊 Intelligence & Real-Time Ops
+*   **Terras Smart Advisor**: An operational intelligence layer calculating real-time **Production Yield** and **Delivery Readiness** through recursive material coverage analysis.
+*   **Live WebSocket Event Stream**: Bi-directional event bus that broadcasts system updates (e.g., status changes, stock movements) to all users instantly without page refreshes.
+*   **Predictive Data Lifecycle**: Hover-triggered background pre-fetching and persistent Master Data caching for zero-latency navigation.
 
-### 🔐 Enterprise Security & Audit
-*   **JWT Authentication**: Industry-standard **OAuth2 + JWT** token-based security for all sessions.
-*   **System-Wide Audit Trail**: Comprehensive logging of all `CREATE`, `UPDATE`, and `DELETE` actions.
-*   **Granular RBAC**: Role-Based Access Control with **Category-level visibility restrictions** for sensitive data protection.
+## 🛠️ System Infrastructure
+*   **Themed Interface Engine**: Instantly switch between Modern, Compact, and the high-density **Classic (Windows XP)** desktop styles.
+*   **Dynamic Database Manager**: Hot-swap SQLAlchemy connections and manage point-in-time snapshots (Postgres/SQLite) directly through the Admin UI.
+*   **Multi-Language (i18n)**: Full native support for **English** and **Indonesian**.
+*   **Enterprise Security**: Robust **OAuth2 + JWT** authentication with granular **Role-Based Access Control (RBAC)** and category-level visibility restrictions.
 
-## Technical Architecture
-
-*   **Backend**: Python 3.11+, FastAPI, SQLAlchemy 2.0 (Standard & JSONB), PostgreSQL 15.
-*   **Performance**: Redis-ready caching, B-Tree Indexing, and offloaded DB aggregations.
-*   **Frontend**: TypeScript, Next.js 14, React 18, Bootstrap 5.
-*   **Infrastructure**: Fully containerized with Docker & Docker Compose (PostgreSQL Client integrated).
+## 💻 Tech Stack
+*   **Backend**: Python 3.11+, FastAPI, SQLAlchemy 2.0, PostgreSQL 15, `orjson`, GZip compression.
+*   **Frontend**: TypeScript, Next.js 14, React 18, Bootstrap 5, `html5-qrcode`.
+*   **Infrastructure**: Fully containerized with Docker & Docker Compose.
 
 ## 📚 Documentation
+- [**Full Feature List**](FEATURES.md): An exhaustive breakdown of every capability in the system.
+- [**API Documentation**](http://localhost:8000/docs): Interactive Swagger UI (available when running).
 
-- [**Full Feature List**](FEATURES.md): A comprehensive breakdown of all system capabilities.
-- [**API Documentation**](http://localhost:8000/docs): Swagger UI (available when running).
+## ⚡ Getting Started
 
-## Getting Started
-
-### Installation & Run
+### Installation
 1.  **Clone the repository**.
 2.  **Configure Environment**: `cp .env.example .env`
 3.  **Start the System**:
     ```bash
     docker-compose up --build -d
     ```
-4.  **Simulate Large Data (Stress Test)**:
+4.  **Initialize & Sync Data (Required for First Run)**:
     ```bash
-    docker-compose exec backend python scripts/seed_volume.py
+    docker-compose exec api python -m app.db.init_db
     ```
 
 ## License
-
 This project is currently licensed under the **MIT License**.
 
 Copyright (c) 2026 Terras Systems.
