@@ -38,7 +38,7 @@ interface UserContextType {
     setCurrentUser: (user: User) => void;
     hasPermission: (permissionCode: string) => boolean;
     refreshUsers: () => Promise<void>;
-    login: (username: string, password: string) => Promise<void>;
+    login: (username: string, password: string) => Promise<boolean>;
     logout: () => void;
     loading: boolean;
 }
@@ -61,16 +61,21 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         formData.append('username', username);
         formData.append('password', password);
 
-        const res = await fetch(`${API_BASE}/token`, {
-            method: 'POST',
-            body: formData,
-        });
+        try {
+            const res = await fetch(`${API_BASE}/token`, {
+                method: 'POST',
+                body: formData,
+            });
 
-        if (!res.ok) throw new Error('Login failed');
+            if (!res.ok) return false;
 
-        const data = await res.json();
-        localStorage.setItem('access_token', data.access_token);
-        await fetchCurrentUser(data.access_token);
+            const data = await res.json();
+            localStorage.setItem('access_token', data.access_token);
+            await fetchCurrentUser(data.access_token);
+            return true;
+        } catch (e) {
+            return false;
+        }
     };
 
     const logout = () => {

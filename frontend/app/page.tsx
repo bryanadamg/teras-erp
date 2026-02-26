@@ -42,6 +42,12 @@ export default function Home() {
   const [uiStyle, setUiStyle] = useState('classic');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
+  // Login State
+  const [loginUser, setLoginUser] = useState('');
+  const [loginPass, setLoginPass] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
   // Master Data State
   const [items, setItems] = useState([]);
   const [locations, setLocations] = useState([]);
