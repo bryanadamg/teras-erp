@@ -19,12 +19,10 @@ import PurchaseOrderView from './components/PurchaseOrderView';
 import SampleRequestView from './components/SampleRequestView';
 import PartnersView from './components/PartnersView';
 import AuditLogsView from './components/AuditLogsView';
-import CalendarView from './components/CalendarView';
 import { useToast } from './components/Toast';
 import { useLanguage } from './context/LanguageContext';
 import { useUser } from './context/UserContext';
 import DashboardView from './components/DashboardView';
-import ConfirmModal from './components/ConfirmModal';
 import QRScannerView from './components/QRScannerView';
 
 const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
@@ -34,21 +32,18 @@ export default function Home() {
   const router = useRouter();
   const { showToast } = useToast();
   const { language, setLanguage, t } = useLanguage();
-  const { currentUser, loading, hasPermission, refreshUsers, logout, login } = useUser();
+  const { currentUser, loading, hasPermission, logout, login, refreshUsers } = useUser();
   
-  // App State
   const [activeTab, setActiveTab] = useState('dashboard');
   const [appName, setAppName] = useState('Terras ERP');
   const [uiStyle, setUiStyle] = useState('classic');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  // Login State
   const [loginUser, setLoginUser] = useState('');
   const [loginPass, setLoginPass] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // Master Data State
   const [items, setItems] = useState([]);
   const [locations, setLocations] = useState([]);
   const [attributes, setAttributes] = useState([]);
@@ -67,7 +62,6 @@ export default function Home() {
   const [partners, setPartners] = useState([]);
   const [dashboardKPIs, setDashboardKPIs] = useState<any>({});
 
-  // Pagination & Search State
   const [itemPage, setItemPage] = useState(1);
   const [itemTotal, setItemTotal] = useState(0);
   const [woPage, setWoPage] = useState(1);
@@ -83,7 +77,6 @@ export default function Home() {
 
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  // --- Optimized Parallel Data Fetching ---
   const fetchData = useCallback(async (targetTab?: string) => {
     if (!currentUser) return;
     const fetchTarget = targetTab || activeTab;
@@ -91,8 +84,6 @@ export default function Home() {
     try {
         const token = localStorage.getItem('access_token');
         const headers = { 'Authorization': `Bearer ${token}` };
-        
-        // 1. Master Data Cache Check
         const CACHE_KEY = 'terras_master_cache';
         const CACHE_TTL = 3600000; 
         const savedCache = localStorage.getItem(CACHE_KEY);
@@ -105,12 +96,10 @@ export default function Home() {
                 setLocations(data.locations || []); setAttributes(data.attributes || []); setCategories(data.categories || []);
                 setUoms(data.uoms || []); setWorkCenters(data.workCenters || []); setOperations(data.operations || []);
                 setPartners(data.partners || []);
-                setIsInitialLoad(false);
-                masterFetched = true;
+                setIsInitialLoad(false); masterFetched = true;
             }
         }
 
-        // 2. Prepare Parallel Requests
         const requests: Promise<any>[] = [];
         const requestTypes: string[] = [];
 
@@ -124,62 +113,24 @@ export default function Home() {
             requests.push(fetch(`${API_BASE}/partners`, { headers })); requestTypes.push('partners');
         }
 
-        // Domain Specific
         if (['dashboard', 'inventory', 'sample-masters', 'bom', 'manufacturing', 'sales-orders', 'purchase-orders', 'stock', 'reports', 'samples'].includes(fetchTarget)) {
             const skip = (itemPage - 1) * pageSize;
             requests.push(fetch(`${API_BASE}/items?skip=${skip}&limit=${pageSize}&search=${encodeURIComponent(itemSearch)}&category=${encodeURIComponent(itemCategory)}`, { headers }));
             requestTypes.push('items');
         }
+        if (fetchTarget === 'dashboard') { requests.push(fetch(`${API_BASE}/dashboard/kpis`, { headers })); requestTypes.push('kpis'); }
+        if (['bom', 'manufacturing', 'dashboard', 'samples'].includes(fetchTarget)) { requests.push(fetch(`${API_BASE}/boms`, { headers })); requestTypes.push('boms'); }
+        if (['manufacturing', 'dashboard', 'reports'].includes(fetchTarget)) { const skip = (woPage - 1) * pageSize; requests.push(fetch(`${API_BASE}/work-orders?skip=${skip}&limit=${pageSize}`, { headers })); requestTypes.push('work-orders'); }
+        if (['stock', 'dashboard', 'reports', 'manufacturing', 'inventory'].includes(fetchTarget)) { requests.push(fetch(`${API_BASE}/stock/balance`, { headers })); requestTypes.push('balance'); }
+        if (['stock', 'reports'].includes(fetchTarget)) { const skip = (reportPage - 1) * pageSize; requests.push(fetch(`${API_BASE}/stock?skip=${skip}&limit=${pageSize}`, { headers })); requestTypes.push('stock-ledger'); }
+        if (['sales-orders', 'samples', 'dashboard', 'inventory'].includes(fetchTarget)) { requests.push(fetch(`${API_BASE}/sales-orders`, { headers })); requestTypes.push('sales-orders'); requests.push(fetch(`${API_BASE}/samples`, { headers })); requestTypes.push('samples'); }
+        if (['purchase-orders', 'dashboard'].includes(fetchTarget)) { requests.push(fetch(`${API_BASE}/purchase-orders`, { headers })); requestTypes.push('purchase-orders'); }
+        if (fetchTarget === 'audit-logs') { const skip = (auditPage - 1) * pageSize; requests.push(fetch(`${API_BASE}/audit-logs?skip=${skip}&limit=${pageSize}&entity_type=${auditType}`, { headers })); requestTypes.push('audit-logs'); }
 
-        if (fetchTarget === 'dashboard') {
-            requests.push(fetch(`${API_BASE}/dashboard/kpis`, { headers })); requestTypes.push('kpis');
-        }
-
-        if (['bom', 'manufacturing', 'dashboard', 'samples'].includes(fetchTarget)) {
-            requests.push(fetch(`${API_BASE}/boms`, { headers })); requestTypes.push('boms');
-        }
-
-        if (['manufacturing', 'dashboard', 'reports'].includes(fetchTarget)) {
-            const skip = (woPage - 1) * pageSize;
-            requests.push(fetch(`${API_BASE}/work-orders?skip=${skip}&limit=${pageSize}`, { headers }));
-            requestTypes.push('work-orders');
-        }
-
-        if (['stock', 'dashboard', 'reports', 'manufacturing', 'inventory'].includes(fetchTarget)) {
-            requests.push(fetch(`${API_BASE}/stock/balance`, { headers })); requestTypes.push('balance');
-        }
-        
-        if (['stock', 'reports'].includes(fetchTarget)) {
-             const skip = (reportPage - 1) * pageSize;
-             requests.push(fetch(`${API_BASE}/stock?skip=${skip}&limit=${pageSize}`, { headers }));
-             requestTypes.push('stock-ledger');
-        }
-
-        if (['sales-orders', 'samples', 'dashboard', 'inventory'].includes(fetchTarget)) {
-            requests.push(fetch(`${API_BASE}/sales-orders`, { headers })); requestTypes.push('sales-orders');
-            requests.push(fetch(`${API_BASE}/samples`, { headers })); requestTypes.push('samples');
-        }
-
-        if (['purchase-orders', 'dashboard'].includes(fetchTarget)) {
-            requests.push(fetch(`${API_BASE}/purchase-orders`, { headers })); requestTypes.push('purchase-orders');
-        }
-
-        if (fetchTarget === 'audit-logs') {
-            const skip = (auditPage - 1) * pageSize;
-            requests.push(fetch(`${API_BASE}/audit-logs?skip=${skip}&limit=${pageSize}&entity_type=${auditType}`, { headers }));
-            requestTypes.push('audit-logs');
-        }
-
-        // 3. Execute all requests in parallel
         const responses = await Promise.all(requests);
-        
-        // 4. Process all responses
         const newMasterData: any = {};
         for (let i = 0; i < responses.length; i++) {
-            const res = responses[i];
-            const type = requestTypes[i];
-            if (!res.ok) continue;
-            
+            const res = responses[i]; const type = requestTypes[i]; if (!res.ok) continue;
             const data = await res.json();
             switch(type) {
                 case 'locations': setLocations(data); newMasterData.locations = data; break;
@@ -201,66 +152,38 @@ export default function Home() {
                 case 'audit-logs': setAuditLogs(data.items); setAuditTotal(data.total); break;
             }
         }
-
         if (Object.keys(newMasterData).length > 0) {
             const existingCache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{"data":{}}');
-            localStorage.setItem(CACHE_KEY, JSON.stringify({ 
-                timestamp: Date.now(), 
-                data: { ...existingCache.data, ...newMasterData } 
-            }));
+            localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: { ...existingCache.data, ...newMasterData } }));
             setIsInitialLoad(false);
         }
-
-    } catch (e) {
-      console.error("Fetch Error", e);
-    }
+    } catch (e) { console.error("Fetch Error", e); }
   }, [currentUser, activeTab, itemPage, woPage, auditPage, reportPage, itemSearch, itemCategory, auditType, isInitialLoad, pageSize]);
 
   const handleTabHover = (tab: string) => fetchData(tab);
 
   useEffect(() => {
-    // Initialize Bootstrap JS
-    import("bootstrap/dist/js/bootstrap.bundle.min.js");
-    
     if (currentUser) fetchData();
     const savedName = localStorage.getItem('app_name'); if (savedName) setAppName(savedName);
     const savedStyle = localStorage.getItem('ui_style'); if (savedStyle) setUiStyle(savedStyle);
   }, [currentUser, activeTab, itemPage, woPage, auditPage, reportPage, itemSearch, itemCategory, auditType]);
 
-  // --- REAL-TIME INSTANT INJECTION ---
-  const workOrdersRef = useRef(workOrders);
-  const activeTabRef = useRef(activeTab);
   const fetchDataRef = useRef(fetchData);
-
-  useEffect(() => {
-      workOrdersRef.current = workOrders;
-      activeTabRef.current = activeTab;
-      fetchDataRef.current = fetchData;
-  }, [workOrders, activeTab, fetchData]);
+  const activeTabRef = useRef(activeTab);
+  useEffect(() => { fetchDataRef.current = fetchData; activeTabRef.current = activeTab; }, [fetchData, activeTab]);
 
   useEffect(() => {
       if (!currentUser) return;
       const wsUrl = API_BASE.replace(/^http/, 'ws') + '/ws/events';
-      let ws: WebSocket;
-      let reconnectTimer: any;
-
+      let ws: WebSocket; let reconnectTimer: any;
       const connect = () => {
           ws = new WebSocket(wsUrl);
           ws.onmessage = (event) => {
               try {
                   const data = JSON.parse(event.data);
                   if (data.type === 'WORK_ORDER_UPDATE') {
-                      setWorkOrders((prev: any) => prev.map((wo: any) => 
-                          wo.id === data.wo_id ? { 
-                              ...wo, 
-                              status: data.status,
-                              actual_start_date: data.actual_start_date,
-                              actual_end_date: data.actual_end_date
-                          } : wo
-                      ));
-                      if (['dashboard', 'manufacturing', 'stock'].includes(activeTabRef.current)) {
-                          fetchDataRef.current();
-                      }
+                      setWorkOrders((prev: any) => prev.map((wo: any) => wo.id === data.wo_id ? { ...wo, status: data.status, actual_start_date: data.actual_start_date, actual_end_date: data.actual_end_date } : wo));
+                      if (['dashboard', 'manufacturing', 'stock'].includes(activeTabRef.current)) fetchDataRef.current();
                       showToast(`Work Order ${data.code} updated: ${data.status}`, 'info');
                   }
               } catch (e) { console.error("WS Error", e); }
@@ -272,16 +195,9 @@ export default function Home() {
       return () => { if (ws) ws.close(1000); clearTimeout(reconnectTimer); };
   }, [currentUser]);
 
-  // --- Global Handlers ---
   const authFetch = async (url: string, options: any = {}) => {
       const token = localStorage.getItem('access_token');
-      return fetch(url, {
-          ...options,
-          headers: {
-              ...options.headers,
-              'Authorization': `Bearer ${token}`
-          }
-      });
+      return fetch(url, { ...options, headers: { ...options.headers, 'Authorization': `Bearer ${token}` } });
   };
 
   const handleUpdateWOStatus = async (woId: string, status: string) => {
@@ -291,11 +207,7 @@ export default function Home() {
   };
 
   const handleCreateWO = async (payload: any) => {
-      const res = await authFetch(`${API_BASE}/work-orders`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-      });
+      const res = await authFetch(`${API_BASE}/work-orders`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       fetchData(); return res;
   };
 
@@ -414,7 +326,7 @@ export default function Home() {
   };
 
   const handleDeletePartner = async (id: string) => {
-      if (!confirm('Are you sure you want to delete this partner?')) return;
+      if (!confirm('Are you sure?')) return;
       const res = await authFetch(`${API_BASE}/partners/${id}`, { method: 'DELETE' });
       if (res.ok) { showToast('Partner deleted', 'success'); fetchData(); }
       else { const err = await res.json(); showToast(`Error: ${err.detail}`, 'danger'); }
@@ -426,8 +338,7 @@ export default function Home() {
   };
 
   const handleLoginSubmit = async (e: any) => {
-      e.preventDefault();
-      setIsLoggingIn(true);
+      e.preventDefault(); setIsLoggingIn(true);
       const success = await login(loginUser, loginPass);
       if (!success) setLoginError('Invalid credentials');
       setIsLoggingIn(false);
@@ -437,28 +348,27 @@ export default function Home() {
 
   if (!currentUser) {
       return (
-          <div className="landing-page vh-100 overflow-hidden position-relative">
-              <div className="terminal-overlay"></div>
-              <div className="container h-100 d-flex flex-column justify-content-center position-relative" style={{zIndex: 10}}>
+          <div className="landing-page vh-100 overflow-hidden position-relative bg-dark d-flex align-items-center">
+              <div className="container" style={{zIndex: 10}}>
                   <div className="row justify-content-center">
-                      <div className="col-md-5">
-                          <div className="terminal-card shadow-lg p-4 border border-info border-opacity-50 bg-black bg-opacity-80">
+                      <div className="col-md-4">
+                          <div className="card shadow-lg p-4 border-0">
                               <div className="text-center mb-4">
-                                  <h1 className="display-4 fw-bold text-info font-monospace letter-spacing-2 mb-0">TERRAS</h1>
-                                  <p className="extra-small text-info opacity-75 font-monospace">CENTRAL OPERATIONS HUB v0.1.0</p>
+                                  <h1 className="h3 fw-bold text-primary mb-1">Terras ERP</h1>
+                                  <p className="text-muted small">Enter your credentials to access the system</p>
                               </div>
                               <form onSubmit={handleLoginSubmit}>
                                   <div className="mb-3">
-                                      <label className="extra-small text-info font-monospace uppercase mb-1">IDENTIFIER_ACCESS</label>
-                                      <input type="text" className="form-control bg-transparent border-info border-opacity-50 text-info font-monospace shadow-none" placeholder="Username" value={loginUser} onChange={e => setLoginUser(e.target.value)} required />
+                                      <label className="form-label small">Username</label>
+                                      <input type="text" className="form-control" value={loginUser} onChange={e => setLoginUser(e.target.value)} required />
                                   </div>
                                   <div className="mb-4">
-                                      <label className="extra-small text-info font-monospace uppercase mb-1">ENCRYPTION_KEY</label>
-                                      <input type="password" size={32} className="form-control bg-transparent border-info border-opacity-50 text-info font-monospace shadow-none" placeholder="Password" value={loginPass} onChange={e => setLoginPass(e.target.value)} required />
+                                      <label className="form-label small">Password</label>
+                                      <input type="password" className="form-control" value={loginPass} onChange={e => setLoginPass(e.target.value)} required />
                                   </div>
-                                  {loginError && <div className="alert alert-danger py-2 small bg-transparent border-danger text-danger font-monospace mb-4">ERROR: {loginError}</div>}
-                                  <button type="submit" className="btn btn-outline-info w-100 fw-bold letter-spacing-1 font-monospace py-2" disabled={isLoggingIn}>
-                                      {isLoggingIn ? 'AUTHENTICATING...' : 'ESTABLISH_SESSION'}
+                                  {loginError && <div className="alert alert-danger py-2 small">{loginError}</div>}
+                                  <button type="submit" className="btn btn-primary w-100 fw-bold py-2" disabled={isLoggingIn}>
+                                      {isLoggingIn ? 'Logging in...' : 'Sign In'}
                                   </button>
                               </form>
                           </div>
@@ -480,77 +390,45 @@ export default function Home() {
                   <h5 className="mb-0 fw-bold text-dark d-none d-md-block text-uppercase letter-spacing-1">{activeTab.replace('-', ' ')}</h5>
               </div>
               
-                            <div className="d-flex align-items-center gap-2">
-                                <div className="dropdown">
-                                    <button className="btn btn-sm btn-light border d-flex align-items-center gap-2 rounded-pill px-2" data-bs-toggle="dropdown" id="userDropdown">
-                                        <i className="bi bi-person-circle text-primary"></i>
-                                        <span className="small fw-bold d-none d-sm-inline">{currentUser.username}</span>
-                                    </button>
-                                    <ul className="dropdown-menu dropdown-menu-end shadow border-0 mt-2" aria-labelledby="userDropdown">
-                                        <li className="px-3 py-2 border-bottom mb-1">
-                                            <div className="extra-small text-muted text-uppercase">Session Mode</div>
-                                            <div className="small fw-bold">{currentUser.full_name}</div>
-                                        </li>
-                                        <li><button className="dropdown-item py-2 small" onClick={() => setActiveTab('scanner')}><i className="bi bi-qr-code-scan me-2"></i>Quick Scan Terminal</button></li>
-                                        <li><button className="dropdown-item py-2 small" onClick={() => setActiveTab('settings')}><i className="bi bi-gear me-2"></i>Preferences & Admin</button></li>
-                                        {hasPermission('admin.access') && (
-                                            <li><button className="dropdown-item py-2 small" onClick={() => setActiveTab('audit-logs')}><i className="bi bi-activity me-2"></i>System Audit</button></li>
-                                        )}
-                                        <li><hr className="dropdown-divider" /></li>
-                                        <li><button className="dropdown-item py-2 small text-danger" onClick={logout}><i className="bi bi-box-arrow-right me-2"></i>Logout</button></li>
-                                    </ul>
-                                </div>
-                            </div>
+              <div className="d-flex align-items-center gap-2 gap-md-3">
+                  <button className={`btn btn-sm ${uiStyle === 'classic' ? 'btn-light' : 'btn-outline-secondary'}`} onClick={() => setActiveTab('scanner')} title="Scan QR Code"><i className="bi bi-qr-code-scan"></i></button>
+                  {hasPermission('admin.access') && <button className={`btn btn-sm ${uiStyle === 'classic' ? 'btn-light' : 'btn-outline-info'}`} onClick={() => setActiveTab('settings')} title="Settings"><i className="bi bi-gear-fill"></i></button>}
+                  <div className="dropdown">
+                      <button className="btn btn-sm btn-light border d-flex align-items-center gap-2 rounded-pill px-2" data-bs-toggle="dropdown" id="userDropdown">
+                          <i className="bi bi-person-circle text-primary"></i><span className="small fw-bold d-none d-sm-inline">{currentUser.username}</span>
+                      </button>
+                      <ul className="dropdown-menu dropdown-menu-end shadow border-0 mt-2" aria-labelledby="userDropdown">
+                          <li className="px-3 py-2 border-bottom mb-1"><div className="small fw-bold">{currentUser.full_name}</div></li>
+                          <li><button className="dropdown-item py-2 small" onClick={() => setActiveTab('settings')}><i className="bi bi-gear me-2"></i>Preferences & Admin</button></li>
+                          {hasPermission('admin.access') && <li><button className="dropdown-item py-2 small" onClick={() => setActiveTab('audit-logs')}><i className="bi bi-activity me-2"></i>System Audit</button></li>}
+                          <li><hr className="dropdown-divider" /></li>
+                          <li><button className="dropdown-item py-2 small text-danger" onClick={logout}><i className="bi bi-box-arrow-right me-2"></i>Logout</button></li>
+                      </ul>
+                  </div>
+              </div>
             </div>
 
             <div className="p-4">
                 {activeTab === 'dashboard' && <DashboardView items={items} locations={locations} stockBalance={stockBalance} workOrders={workOrders} stockEntries={stockEntries} samples={samples} salesOrders={salesOrders} kpis={dashboardKPIs} />}
-                
                 {activeTab === 'scanner' && <div className="container-fluid py-2 h-100"><div className="row justify-content-center"><div className="col-md-8 col-lg-6"><QRScannerView workOrders={workOrders} items={items} boms={boms} locations={locations} attributes={attributes} stockBalance={stockBalance} onUpdateStatus={handleUpdateWOStatus} onClose={() => setActiveTab('manufacturing')} /></div></div></div>}
-
                 {activeTab === 'inventory' && <InventoryView items={items} attributes={attributes} categories={categories} uoms={uoms} onCreateItem={handleCreateItem} onUpdateItem={handleUpdateItem} onDeleteItem={handleDeleteItem} onAddVariant={handleAddVariantToItem} onDeleteVariant={handleDeleteVariant} onRefresh={fetchData} currentPage={itemPage} totalItems={itemTotal} pageSize={pageSize} onPageChange={setItemPage} searchTerm={itemSearch} onSearchChange={setItemSearch} categoryFilter={itemCategory} onCategoryChange={setItemCategory} />}
-                
                 {activeTab === 'sample-masters' && <InventoryView items={items} attributes={attributes} categories={categories} uoms={uoms} onCreateItem={handleCreateItem} onUpdateItem={handleUpdateItem} onDeleteItem={handleDeleteItem} onAddVariant={handleAddVariantToItem} onDeleteVariant={handleDeleteVariant} onRefresh={fetchData} currentPage={itemPage} totalItems={itemTotal} pageSize={pageSize} onPageChange={setItemPage} searchTerm={itemSearch} onSearchChange={setItemSearch} forcedCategory="Sample" />}
-
                 {activeTab === 'locations' && <LocationsView locations={locations} onCreate={handleCreateLocation} />}
-                
                 {activeTab === 'attributes' && <AttributesView attributes={attributes} onCreate={handleCreateAttribute} onUpdate={handleUpdateAttribute} onDelete={handleDeleteAttribute} />}
-                
                 {activeTab === 'categories' && <CategoriesView categories={categories} onCreate={handleCreateCategory} />}
-                
                 {activeTab === 'uom' && <UOMView uoms={uoms} onCreate={handleCreateUOM} />}
-
                 {activeTab === 'manufacturing' && <ManufacturingView items={items} boms={boms} locations={locations} attributes={attributes} workOrders={workOrders} stockBalance={stockBalance} workCenters={workCenters} operations={operations} onCreateWO={handleCreateWO} onUpdateStatus={handleUpdateWOStatus} onDeleteWO={handleDeleteWO} currentPage={woPage} totalItems={woTotal} pageSize={pageSize} onPageChange={setWoPage} />}
-
                 {activeTab === 'bom' && <BOMView items={items} attributes={attributes} boms={boms} operations={operations} workCenters={workCenters} onCreateBOM={handleCreateBOM} />}
-
                 {activeTab === 'routing' && <RoutingView workCenters={workCenters} operations={operations} onCreateWorkCenter={handleCreateWorkCenter} onCreateOperation={handleCreateOperation} />}
-
                 {activeTab === 'stock' && <StockEntryView items={items} locations={locations} attributes={attributes} stockBalance={stockBalance} onAddStock={handleAddStock} />}
-
                 {activeTab === 'sales-orders' && <SalesOrderView items={items} attributes={attributes} salesOrders={salesOrders} partners={partners} onCreateSO={handleCreateSO} onDeleteSO={async (id:string)=>{await authFetch(`${API_BASE}/sales-orders/${id}`,{method:'DELETE'});fetchData();}} />}
-
                 {activeTab === 'purchase-orders' && <PurchaseOrderView items={items} attributes={attributes} purchaseOrders={purchaseOrders} partners={partners} locations={locations} onCreatePO={handleCreateRealPO} onReceivePO={handleReceivePO} onDeletePO={async (id:string)=>{await authFetch(`${API_BASE}/purchase-orders/${id}`,{method:'DELETE'});fetchData();}} />}
-
                 {activeTab === 'samples' && <SampleRequestView items={items} attributes={attributes} salesOrders={salesOrders} samples={samples} onCreateSample={handleCreateSample} onUpdateStatus={handleUpdateSampleStatus} />}
-
                 {activeTab === 'customers' && <PartnersView partners={partners} type="CUSTOMER" onCreate={handleCreatePartner} onUpdate={handleUpdatePartner} onDelete={handleDeletePartner} />}
-
                 {activeTab === 'suppliers' && <PartnersView partners={partners} type="SUPPLIER" onCreate={handleCreatePartner} onUpdate={handleUpdatePartner} onDelete={handleDeletePartner} />}
-
                 {activeTab === 'reports' && <ReportsView stockEntries={stockEntries} items={items} locations={locations} attributes={attributes} currentPage={reportPage} totalItems={reportTotal} pageSize={pageSize} onPageChange={setReportPage} />}
-
                 {activeTab === 'audit-logs' && <AuditLogsView auditLogs={auditLogs} currentPage={auditPage} totalItems={auditTotal} pageSize={pageSize} onPageChange={setAuditPage} filterType={auditType} onFilterChange={setAuditType} />}
-
-                {activeTab === 'settings' && (
-                    <SettingsView 
-                        appName={appName} 
-                        onUpdateAppName={setAppName} 
-                        uiStyle={uiStyle} 
-                        onUpdateUIStyle={setUiStyle} 
-                        onClearCache={() => { localStorage.removeItem('terras_master_cache'); fetchData(); }} 
-                    />
-                )}
+                {activeTab === 'settings' && <SettingsView appName={appName} onUpdateAppName={setAppName} uiStyle={uiStyle} onUpdateUIStyle={setUiStyle} onClearCache={() => { localStorage.removeItem('terras_master_cache'); fetchData(); }} />}
             </div>
         </div>
     </div>

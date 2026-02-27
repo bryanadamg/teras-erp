@@ -323,7 +323,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
           <li className="nav-item">
             <a 
               href="#" 
-              className={`nav-link d-flex justify-content-between align-items-center ${activeTab === 'reports' ? 'active' : ''}`}
+              className={`nav-link d-flex justify-content-between align-items-center ${['reports', 'audit-logs'].includes(activeTab) ? 'active' : ''}`}
               onClick={(e) => { e.preventDefault(); setReportsExpanded(!reportsExpanded); }}
             >
               <div className="d-flex align-items-center gap-2">
@@ -357,6 +357,21 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
                 )}
               </ul>
             )}
+          </li>
+          )}
+
+          {/* Admin Settings Section */}
+          {hasPermission('admin.access') && (
+          <li className="nav-item">
+            <a 
+              href="#" 
+              className={`nav-link ${activeTab === 'settings' ? 'active' : ''}`}
+              onClick={(e) => handleTabClick('settings', e)}
+              onMouseEnter={() => handleHover('settings')}
+            >
+              <i className="bi bi-shield-lock-fill"></i>
+              <span>System Admin</span>
+            </a>
           </li>
           )}
         </ul>
