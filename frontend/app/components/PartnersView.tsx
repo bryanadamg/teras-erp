@@ -107,8 +107,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
 
             {/* Create Modal */}
             {isCreateOpen && (
-                <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
-                    <div className="modal-dialog modal-dialog-centered">
+                                 <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10000, position: 'fixed', inset: 0 }}>                    <div className="modal-dialog modal-dialog-centered">
                         <div className="modal-content shadow-lg border-0">
                             <div className="modal-header bg-primary text-white">
                                 <h5 className="modal-title">Add New {typeLabel}</h5>
@@ -149,8 +148,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
 
             {/* Edit Modal */}
             {editingPartner && (
-                <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
-                    <div className="modal-dialog modal-dialog-centered">
+                                 <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10000, position: 'fixed', inset: 0 }}>                    <div className="modal-dialog modal-dialog-centered">
                         <div className="modal-content shadow-lg border-0">
                             <div className="modal-header bg-info text-white">
                                 <h5 className="modal-title">Edit {typeLabel}</h5>

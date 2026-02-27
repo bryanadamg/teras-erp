@@ -241,7 +241,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
 
        {/* Create PO Modal */}
        {isCreateOpen && (
-       <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+       <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10000, position: 'fixed', inset: 0 }}>
             <div className={`modal-dialog modal-lg modal-dialog-centered`}>
                 <div className="modal-content shadow">
                     <div className="modal-header bg-success bg-opacity-10 text-success-emphasis">

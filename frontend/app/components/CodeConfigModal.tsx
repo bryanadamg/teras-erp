@@ -118,7 +118,7 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
     };
 
     return (
-        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1060 }}>
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10100, position: 'fixed', inset: 0 }}>
             <div className={`modal-dialog modal-dialog-centered ui-style-${currentStyle}`}>
                 <div className="modal-content shadow">
                     <div className="modal-header bg-light">

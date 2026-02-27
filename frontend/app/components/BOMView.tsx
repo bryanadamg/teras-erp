@@ -113,7 +113,7 @@ export default function BOMView({ items, boms, locations, attributes, workCenter
     <div className="row g-4 fade-in">
        {/* New Designer Modal */}
        {isDesignerOpen && (
-       <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+       <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, position: 'fixed', inset: 0 }}>
             <div className={`modal-dialog modal-xl modal-dialog-scrollable ui-style-${currentStyle}`}>
                 <div className="modal-content shadow h-100">
                     <div className="modal-header bg-warning bg-opacity-10 text-warning-emphasis">
