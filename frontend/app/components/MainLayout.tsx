@@ -7,7 +7,7 @@ import { useData } from '../context/DataContext';
 import { useRouter, usePathname } from 'next/navigation';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
-    const { currentUser, logout, loading } = useUser();
+    const { currentUser, logout, loading, hasPermission } = useUser();
     const { handleTabHover } = useData();
     const router = useRouter();
     const pathname = usePathname();
@@ -15,23 +15,32 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     const [appName, setAppName] = useState('Terras ERP');
     const [uiStyle, setUiStyle] = useState('classic');
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+    const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
-        if (!loading && !currentUser && pathname !== '/login') {
-            router.push('/login');
-        }
-    }, [currentUser, loading, pathname, router]);
-
-    useEffect(() => {
+        setMounted(true);
         const savedName = localStorage.getItem('app_name'); if (savedName) setAppName(savedName);
         const savedStyle = localStorage.getItem('ui_style'); if (savedStyle) setUiStyle(savedStyle);
     }, []);
 
-    if (loading) return <div className="d-flex justify-content-center align-items-center vh-100 bg-light text-muted fw-bold">INITIALIZING TERRAS CORE...</div>;
-    if (!currentUser && pathname !== '/login') return null;
+    useEffect(() => {
+        if (mounted && !loading && !currentUser && pathname !== '/login') {
+            router.push('/login');
+        }
+    }, [currentUser, loading, pathname, router, mounted]);
+
+    // SSR / Initial Loading State
+    if (!mounted || loading) {
+        return <div className="d-flex justify-content-center align-items-center vh-100 bg-light text-muted fw-bold">INITIALIZING_TERRAS_CORE...</div>;
+    }
+
+    // Auth Protection
+    if (!currentUser && pathname !== '/login') {
+        return <div className="d-flex justify-content-center align-items-center vh-100 bg-light text-muted fw-bold">RE-ESTABLISHING_AUTHENTICATION...</div>;
+    }
 
     // Map pathname to activeTab for Sidebar highlighting
-    const activeTab = pathname === '/' ? 'dashboard' : pathname.substring(1).replace('/', '-');
+    const activeTab = !pathname || pathname === '/' ? 'dashboard' : pathname.substring(1).replace(/\//g, '-');
 
     const handleSetActiveTab = (tab: string) => {
         const route = tab === 'dashboard' ? '/' : `/${tab}`;
@@ -58,7 +67,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                     
                     <div className="d-flex align-items-center gap-2 gap-md-3">
                         <button className={`btn btn-sm ${uiStyle === 'classic' ? 'btn-light' : 'btn-outline-secondary'}`} onClick={() => router.push('/scanner')} title="Scan QR Code"><i className="bi bi-qr-code-scan"></i></button>
-                        {currentUser?.role?.name === 'Admin' && <button className={`btn btn-sm ${uiStyle === 'classic' ? 'btn-light' : 'btn-outline-info'}`} onClick={() => router.push('/settings')} title="Settings"><i className="bi bi-gear-fill"></i></button>}
+                        {hasPermission('admin.access') && <button className={`btn btn-sm ${uiStyle === 'classic' ? 'btn-light' : 'btn-outline-info'}`} onClick={() => router.push('/settings')} title="Settings"><i className="bi bi-gear-fill"></i></button>}
                         <div className="dropdown">
                             <button className="btn btn-sm btn-light border d-flex align-items-center gap-2 rounded-pill px-2" data-bs-toggle="dropdown" id="userDropdown">
                                 <i className="bi bi-person-circle text-primary"></i><span className="small fw-bold d-none d-sm-inline">{currentUser?.username}</span>

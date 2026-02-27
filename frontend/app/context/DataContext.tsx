@@ -235,8 +235,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         if (!currentUser) return;
+        
+        // WebSocket logic is safe here as it only runs on client
         const wsUrl = API_BASE.replace(/^http/, 'ws') + '/ws/events';
-        let ws: WebSocket; let reconnectTimer: any;
+        let ws: WebSocket;
+        let reconnectTimer: any;
+
         const connect = () => {
             ws = new WebSocket(wsUrl);
             ws.onmessage = (event) => {
@@ -256,13 +260,18 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         return () => { if (ws) ws.close(1000); clearTimeout(reconnectTimer); };
     }, [currentUser, showToast]);
 
-    const value = {
+    const value = React.useMemo(() => ({
         items, locations, attributes, categories, uoms, boms, workOrders, stockEntries, stockBalance,
         workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs, partners, dashboardKPIs,
         pagination: { itemPage, setItemPage, itemTotal, woPage, setWoPage, woTotal, auditPage, setAuditPage, auditTotal, reportPage, setReportPage, reportTotal, pageSize },
         filters: { itemSearch, setItemSearch, itemCategory, setItemCategory, auditType, setAuditType },
         fetchData, handleTabHover, authFetch
-    };
+    }), [
+        items, locations, attributes, categories, uoms, boms, workOrders, stockEntries, stockBalance,
+        workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs, partners, dashboardKPIs,
+        itemPage, itemTotal, woPage, woTotal, auditPage, auditTotal, reportPage, reportTotal, pageSize,
+        itemSearch, itemCategory, auditType, fetchData, handleTabHover, authFetch
+    ]);
 
     return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

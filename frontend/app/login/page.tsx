@@ -11,22 +11,19 @@ export default function LoginPage() {
     const [loginPass, setLoginPass] = useState('');
     const [loginError, setLoginError] = useState('');
     const [isLoggingIn, setIsLoggingIn] = useState(false);
+    const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
-        if (!loading && currentUser) {
+        setMounted(true);
+    }, []);
+
+    useEffect(() => {
+        if (mounted && !loading && currentUser) {
             router.push('/');
         }
-    }, [currentUser, loading, router]);
+    }, [currentUser, loading, router, mounted]);
 
-    const handleLoginSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsLoggingIn(true);
-        const success = await login(loginUser, loginPass);
-        if (!success) setLoginError('Invalid credentials');
-        setIsLoggingIn(false);
-    };
-
-    if (loading) return <div className="d-flex justify-content-center align-items-center vh-100 bg-dark text-info fw-bold font-monospace">SYSTEM_CHECK...</div>;
+    if (!mounted || loading) return <div className="d-flex justify-content-center align-items-center vh-100 bg-dark text-info fw-bold font-monospace">SYSTEM_CHECK...</div>;
 
     return (
         <div className="landing-page vh-100 overflow-hidden position-relative bg-dark d-flex align-items-center">
@@ -45,7 +42,7 @@ export default function LoginPage() {
                                 </div>
                                 <div className="mb-4">
                                     <label className="form-label small">Password</label>
-                                    <input type="password" className="form-control" value={loginPass} onChange={e => setLoginPass(e.target.value)} required />
+                                    <input type="password" size={32} className="form-control" value={loginPass} onChange={e => setLoginPass(e.target.value)} required />
                                 </div>
                                 {loginError && <div className="alert alert-danger py-2 small">{loginError}</div>}
                                 <button type="submit" className="btn btn-primary w-100 fw-bold py-2" disabled={isLoggingIn}>
