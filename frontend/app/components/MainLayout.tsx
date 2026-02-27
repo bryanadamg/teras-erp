@@ -25,9 +25,17 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         const savedStyle = localStorage.getItem('ui_style'); if (savedStyle) setUiStyle(savedStyle);
     }, []);
 
+    // Auth Protection Logic
     useEffect(() => {
-        if (mounted && !loading && !currentUser && pathname !== '/login') {
-            router.push('/login');
+        if (mounted && !loading) {
+            // 1. If authenticated and on root, go to dashboard
+            if (currentUser && pathname === '/') {
+                router.push('/dashboard');
+            }
+            // 2. If unauthenticated and on protected route, go to login
+            else if (!currentUser && pathname !== '/' && pathname !== '/login') {
+                router.push('/login');
+            }
         }
     }, [currentUser, loading, pathname, router, mounted]);
 
@@ -36,10 +44,13 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         return <div className="d-flex justify-content-center align-items-center vh-100 bg-light text-muted fw-bold">INITIALIZING_TERRAS_CORE...</div>;
     }
 
-    // Auth Protection
-    if (!currentUser && pathname !== '/login') {
-        return <div className="d-flex justify-content-center align-items-center vh-100 bg-light text-muted fw-bold">RE-ESTABLISHING_AUTHENTICATION...</div>;
+    // Allow Landing Page or Login Page to render without layout wrappers
+    if (pathname === '/' || pathname === '/login') {
+        return <>{children}</>;
     }
+
+    // Protect all other routes
+    if (!currentUser) return null;
 
     // Map pathname to activeTab for Sidebar highlighting
     const activeTab = !pathname || pathname === '/' ? 'dashboard' : pathname.substring(1).replace(/\//g, '-');
