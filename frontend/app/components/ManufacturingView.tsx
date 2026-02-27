@@ -415,7 +415,7 @@ export default function ManufacturingView({
           <CodeConfigModal isOpen={isConfigOpen} onClose={() => setIsConfigOpen(false)} type="WO" onSave={handleSaveConfig} initialConfig={codeConfig} attributes={attributes} />
 
           {isCreateOpen && (
-          <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10000, position: 'fixed', inset: 0 }}>
+          <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 20000, position: 'fixed', inset: 0 }}>
               <div className={`modal-dialog modal-lg modal-dialog-centered ui-style-${currentStyle}`}>
                   <div className="modal-content shadow">
                       <div className="modal-header bg-success bg-opacity-10 text-success-emphasis py-2">

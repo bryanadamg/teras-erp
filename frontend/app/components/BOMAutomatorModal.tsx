@@ -203,7 +203,7 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
     if (!isOpen) return null;
 
     return (
-        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10100, position: 'fixed', inset: 0 }}>
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 20100, position: 'fixed', inset: 0 }}>
             <div className={`modal-dialog modal-lg modal-dialog-centered ui-style-${currentStyle}`}>
                 <div className="modal-content border-0 shadow-lg overflow-hidden" style={{ borderRadius: currentStyle === 'classic' ? '0' : '8px' }}>
                     <div className="modal-header bg-dark text-white border-0 py-2">

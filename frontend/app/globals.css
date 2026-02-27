@@ -41,6 +41,7 @@ body {
 
 /* UI Style: Classic (Windows XP) */
 .ui-style-classic {
+  --sidebar-width: 200px;
   --win-bg: #ece9d8;
   --win-face: #f0f0e8;
   --win-border-light: #ffffff;
@@ -64,6 +65,7 @@ body {
   background-color: #d6dff7;
   border-right: 1px solid #718bb7;
   width: 200px;
+  z-index: 1040;
 }
 
 .ui-style-classic .sidebar-header {
@@ -174,14 +176,9 @@ body {
 
 /* Content Area for Classic */
 .ui-style-classic .main-content {
-  margin-left: 200px;
+  margin-left: var(--sidebar-width) !important;
+  width: calc(100% - var(--sidebar-width)) !important;
   padding: 10px;
-}
-
-/* Ensure Classic content area resets margin on mobile */
-.ui-style-classic .main-content {
-  margin-left: 0 !important;
-  width: 100%;
 }
 
 /* Toolbar Style */
@@ -440,7 +437,7 @@ body {
   left: 0;
   background: white;
   border-right: 1px solid #e5e7eb;
-  z-index: 1000;
+  z-index: 1040; /* Above sticky headers */
   transition: all 0.3s;
   overflow-y: auto;
   scrollbar-width: thin;
@@ -492,6 +489,7 @@ body {
 /* Main Content */
 .main-content {
   margin-left: var(--sidebar-width);
+  width: calc(100% - var(--sidebar-width));
   padding: 32px;
   transition: all 0.3s;
 }

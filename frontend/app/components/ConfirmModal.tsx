@@ -10,7 +10,7 @@ export default function ConfirmModal({ isOpen, title, message, onConfirm, onCanc
     if (!isOpen) return null;
 
     return (
-        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10200, position: 'fixed', inset: 0 }}>
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 20200, position: 'fixed', inset: 0 }}>
             <div className="modal-dialog modal-dialog-centered">
                 <div className="modal-content shadow">
                     <div className="modal-header bg-danger bg-opacity-10 text-danger-emphasis">

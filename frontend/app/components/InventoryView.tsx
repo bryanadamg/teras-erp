@@ -285,7 +285,7 @@ export default function InventoryView({
 
       {/* Create Modal */}
       {isCreateOpen && (
-       <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10000, position: 'fixed', inset: 0 }}>
+       <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 20000, position: 'fixed', inset: 0 }}>
             <div className={`modal-dialog modal-dialog-centered ui-style-${currentStyle}`}>
                 <div className="modal-content shadow">
                     <div className="modal-header bg-primary bg-opacity-10 text-primary-emphasis">
