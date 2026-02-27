@@ -12,7 +12,7 @@ interface SidebarProps {
 
 export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, isOpen }: SidebarProps) {
   const { t } = useLanguage();
-  const { hasPermission } = useUser();
+  const { hasPermission, logout } = useUser();
   const [inventoryExpanded, setInventoryExpanded] = useState(true);
   const [attributesExpanded, setAttributesExpanded] = useState(false); // Nested state
   const [salesExpanded, setSalesExpanded] = useState(true);
@@ -377,8 +377,17 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         </ul>
       </div>
       
-      <div className="p-3 text-center border-top bg-light">
-          <small className="text-muted fw-bold">{t('powered_by')} Terras ERP</small>
+      <div className="p-3 border-top bg-light">
+          <button 
+            className="btn btn-sm btn-outline-danger w-100 d-flex align-items-center justify-content-center gap-2 py-2"
+            onClick={logout}
+          >
+            <i className="bi bi-box-arrow-right"></i>
+            <span className="fw-bold small">{t('logout') || 'Logout'}</span>
+          </button>
+          <div className="mt-2 text-center">
+            <small className="text-muted extra-small">{t('powered_by')} Terras ERP</small>
+          </div>
       </div>
     </div>
   );
