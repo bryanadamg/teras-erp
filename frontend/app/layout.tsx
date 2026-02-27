@@ -4,6 +4,7 @@ import './globals.css';
 import { ToastProvider } from './components/Toast';
 import { LanguageProvider } from './context/LanguageContext';
 import { UserProvider } from './context/UserContext';
+import { DataProvider } from './context/DataContext';
 
 export const metadata = {
   title: 'Terras ERP',
@@ -20,9 +21,11 @@ export default function RootLayout({
       <body>
         <LanguageProvider>
           <UserProvider>
-            <ToastProvider>
-              {children}
-            </ToastProvider>
+            <DataProvider>
+              <ToastProvider>
+                {children}
+              </ToastProvider>
+            </DataProvider>
           </UserProvider>
         </LanguageProvider>
       </body>

@@ -1,0 +1,60 @@
+'use client';
+
+import MainLayout from '../components/MainLayout';
+import ManufacturingView from '../components/ManufacturingView';
+import { useData } from '../context/DataContext';
+import { useToast } from '../components/Toast';
+
+export default function ManufacturingPage() {
+    const { 
+        items, boms, locations, attributes, workOrders, stockBalance, 
+        workCenters, operations, fetchData, pagination, authFetch
+    } = useData();
+    const { showToast } = useToast();
+
+    const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/$/, '') + '/api';
+
+    const handleCreateWO = async (payload: any) => {
+        const res = await authFetch(`${API_BASE}/work-orders`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        fetchData();
+        return res;
+    };
+
+    const handleUpdateWOStatus = async (woId: string, status: string) => {
+        const res = await authFetch(`${API_BASE}/work-orders/${woId}/status?status=${status}`, { method: 'PUT' });
+        if (res.ok) { fetchData(); return true; } 
+        else { const err = await res.json(); showToast(`Error: ${err.detail}`, 'danger'); return false; }
+    };
+
+    const handleDeleteWO = async (woId: string) => {
+        if (!confirm('Are you sure?')) return;
+        const res = await authFetch(`${API_BASE}/work-orders/${woId}`, { method: 'DELETE' });
+        if (res.ok) { showToast('Work Order deleted', 'success'); fetchData(); }
+    };
+
+    return (
+        <MainLayout>
+            <ManufacturingView 
+                items={items} 
+                boms={boms} 
+                locations={locations} 
+                attributes={attributes}
+                workOrders={workOrders} 
+                stockBalance={stockBalance} 
+                workCenters={workCenters} 
+                operations={operations}
+                onCreateWO={handleCreateWO}
+                onUpdateStatus={handleUpdateWOStatus}
+                onDeleteWO={handleDeleteWO}
+                currentPage={pagination.woPage}
+                totalItems={pagination.woTotal}
+                pageSize={pagination.pageSize}
+                onPageChange={pagination.setWoPage}
+            />
+        </MainLayout>
+    );
+}
