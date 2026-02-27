@@ -23,6 +23,14 @@ export default function LoginPage() {
         }
     }, [currentUser, loading, router, mounted]);
 
+    const handleLoginSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsLoggingIn(true);
+        const success = await login(loginUser, loginPass);
+        if (!success) setLoginError('Invalid credentials');
+        setIsLoggingIn(false);
+    };
+
     if (!mounted || loading) return <div className="d-flex justify-content-center align-items-center vh-100 bg-dark text-info fw-bold font-monospace">SYSTEM_CHECK...</div>;
 
     return (
