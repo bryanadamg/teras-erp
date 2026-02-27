@@ -112,6 +112,18 @@ body {
   box-shadow: 1px 1px 0 rgba(0,0,0,0.1) !important;
 }
 
+.classic-header .btn-light:hover, 
+.classic-header .btn-sm:hover {
+  background: #ffffff !important;
+  border-color: #00309c !important;
+}
+
+.classic-header .btn-light:active, 
+.classic-header .btn-sm:active {
+  background: #dadada !important;
+  box-shadow: inset 1px 1px 2px rgba(0,0,0,0.2) !important;
+}
+
 .classic-header .btn-outline-danger {
   background: #ff4d4d !important;
   color: white !important;
@@ -164,6 +176,12 @@ body {
 .ui-style-classic .main-content {
   margin-left: 200px;
   padding: 10px;
+}
+
+/* Ensure Classic content area resets margin on mobile */
+.ui-style-classic .main-content {
+  margin-left: 0 !important;
+  width: 100%;
 }
 
 /* Toolbar Style */
@@ -223,6 +241,11 @@ body {
   background-color: transparent !important;
 }
 
+/* Ensure modal dialog captures pointer events (CRITICAL FIX) */
+.modal-dialog {
+  pointer-events: auto !important;
+}
+
 /* Classic Attribute Selection Section */
 .ui-style-classic .config-attributes-section {
   background-color: white !important;
@@ -260,7 +283,7 @@ body {
   border: 1px solid #d6d3ce !important;
   padding: 4px 8px;
   font-family: "Tahoma", sans-serif;
-  font-size: 13px !important; /* Slightly larger for readability */
+  font-size: 13px !important;
   white-space: nowrap;
 }
 
@@ -274,7 +297,7 @@ body {
 .ui-style-classic .form-select {
   border-radius: 0 !important;
   border: 1px solid;
-  border-color: #808080 #dfdfdf #dfdfdf #808080 !important; /* Inset look */
+  border-color: #808080 #dfdfdf #dfdfdf #808080 !important;
   padding: 2px 4px !important;
   height: auto;
   font-size: 12px;
@@ -306,7 +329,7 @@ body {
 .ui-style-classic .form-check-input {
   border-radius: 0 !important;
   border: 1px solid !important;
-  border-color: #808080 #dfdfdf #dfdfdf #808080 !important; /* Inset look */
+  border-color: #808080 #dfdfdf #dfdfdf #808080 !important;
   background-color: #fff !important;
 }
 
@@ -316,7 +339,7 @@ body {
 }
 
 .ui-style-classic .btn-light {
-  border: 1px solid #808080 !important; /* Ensure classic border */
+  border: 1px solid #808080 !important;
 }
 
 .ui-style-classic .btn-close {
@@ -343,7 +366,7 @@ body {
 
 .ui-style-classic .btn.active {
   background-color: #d4d0c8 !important;
-  border-color: #808080 #ffffff #ffffff #808080 !important; /* Inset look */
+  border-color: #808080 #ffffff #ffffff #808080 !important;
   padding-top: 4px;
   padding-bottom: 2px;
   box-shadow: inset 1px 1px 2px rgba(0,0,0,0.1) !important;
@@ -364,19 +387,10 @@ body {
 }
 
 /* Ensure indicators and status badges retain color even in Classic theme */
-.ui-style-classic .rounded-circle.bg-primary,
-.ui-style-classic .rounded-circle.bg-warning,
-.ui-style-classic .rounded-circle.bg-success,
-.ui-style-classic .rounded-circle.bg-danger,
-.ui-style-classic .calendar-day .badge,
-.ui-style-classic .compact-calendar .rounded-circle {
-    border: none !important;
-}
-
-.ui-style-classic .rounded-circle.bg-primary { background-color: #0000ff !important; }
-.ui-style-classic .rounded-circle.bg-warning { background-color: #ffff00 !important; }
-.ui-style-classic .rounded-circle.bg-success { background-color: #00ff00 !important; }
-.ui-style-classic .rounded-circle.bg-danger  { background-color: #ff0000 !important; }
+.ui-style-classic .rounded-circle.bg-primary { background-color: #0000ff !important; border: none !important; }
+.ui-style-classic .rounded-circle.bg-warning { background-color: #ffff00 !important; border: none !important; }
+.ui-style-classic .rounded-circle.bg-success { background-color: #00ff00 !important; border: none !important; }
+.ui-style-classic .rounded-circle.bg-danger  { background-color: #ff0000 !important; border: none !important; }
 
 .ui-style-classic .calendar-day .badge.bg-primary { background-color: #0000ff !important; color: white !important; }
 .ui-style-classic .calendar-day .badge.bg-warning { background-color: #ffff00 !important; color: black !important; }
@@ -402,7 +416,7 @@ body {
 }
 
 .ui-style-classic .progress-bar {
-    background-color: #000080 !important; /* Classic Windows Blue */
+    background-color: #000080 !important;
     background-image: linear-gradient(90deg, 
         rgba(255,255,255,0.3) 0%, 
         rgba(255,255,255,0) 10%, 
@@ -428,11 +442,10 @@ body {
   border-right: 1px solid #e5e7eb;
   z-index: 1000;
   transition: all 0.3s;
-  overflow-y: auto; /* Enable vertical scroll */
-  scrollbar-width: thin; /* Clean look for Firefox */
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
-/* Custom scrollbar for Webkit (Chrome/Safari) */
 .sidebar::-webkit-scrollbar {
   width: 4px;
 }
@@ -501,7 +514,7 @@ body {
 
   /* Specific overrides for Classic Theme Mobile Sidebar */
   .ui-style-classic .sidebar {
-    width: 200px; /* Keep classic width */
+    width: 200px;
     left: 0;
     top: 0;
     bottom: 0;
@@ -513,7 +526,6 @@ body {
     padding: 16px;
   }
   
-  /* Ensure Classic content area resets margin on mobile */
   .ui-style-classic .main-content {
     margin-left: 0 !important;
     width: 100%;
@@ -537,7 +549,6 @@ body {
     visibility: visible;
   }
   
-  /* Adjust Classic Toolbar for mobile */
   .classic-toolbar {
     overflow-x: auto;
     white-space: nowrap;
@@ -632,9 +643,9 @@ body {
 .table td {
   vertical-align: middle;
   color: #374151;
-  font-size: 0.95rem; /* Increased from default */
-  white-space: nowrap; /* Prevent wrapping */
-  padding: 0.75rem 1rem; /* More spacing */
+  font-size: 0.95rem;
+  white-space: nowrap;
+  padding: 0.75rem 1rem;
 }
 
 /* Utilities */
@@ -721,12 +732,11 @@ body {
   }
 
   html, body {
-    width: 210mm; /* Standard A4 width */
+    width: 210mm;
     height: auto;
     overflow: visible !important;
   }
 
-  /* Table Specific Print Fixes */
   .table {
     table-layout: fixed !important;
     width: 100% !important;
@@ -760,7 +770,7 @@ body {
 
 /* Classic Theme Toasts */
 .ui-style-classic .toast {
-    background-color: #ffffe1 !important; /* Tooltip yellow */
+    background-color: #ffffe1 !important;
     border: 1px solid #000000 !important;
     border-radius: 0 !important;
     color: black !important;
@@ -773,4 +783,3 @@ body {
 .ui-style-classic .toast-type-info {
     border-left: 1px solid black !important;
 }
-

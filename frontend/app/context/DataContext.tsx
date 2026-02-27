@@ -172,7 +172,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             }
 
             // Sales & CRM
-            if (fetchTarget.includes('sales-orders') || fetchTarget.includes('samples') || fetchTarget === 'dashboard' || fetchTarget === '') {
+            if (fetchTarget.includes('sales-orders') || fetchTarget.includes('samples') || fetchTarget === 'dashboard' || fetchTarget === '' || fetchTarget.includes('customers')) {
                 requests.push(fetch(`${API_BASE}/sales-orders`, { headers }));
                 requestTypes.push('sales-orders');
                 requests.push(fetch(`${API_BASE}/samples`, { headers }));
@@ -180,9 +180,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             }
 
             // Procurement
-            if (fetchTarget.includes('purchase-orders') || fetchTarget === 'dashboard' || fetchTarget === '') {
+            if (fetchTarget.includes('purchase-orders') || fetchTarget === 'dashboard' || fetchTarget === '' || fetchTarget.includes('suppliers')) {
                 requests.push(fetch(`${API_BASE}/purchase-orders`, { headers }));
                 requestTypes.push('purchase-orders');
+            }
+
+            // Partners (Customers/Suppliers)
+            if (fetchTarget.includes('customers') || fetchTarget.includes('suppliers') || fetchTarget === 'dashboard' || fetchTarget === '') {
+                requests.push(fetch(`${API_BASE}/partners`, { headers }));
+                requestTypes.push('partners');
             }
 
             // Admin / Audit
