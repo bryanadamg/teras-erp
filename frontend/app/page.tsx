@@ -426,7 +426,7 @@ export default function Home() {
                 {activeTab === 'samples' && <SampleRequestView items={items} attributes={attributes} salesOrders={salesOrders} samples={samples} onCreateSample={handleCreateSample} onUpdateStatus={handleUpdateSampleStatus} />}
                 {activeTab === 'customers' && <PartnersView partners={partners} type="CUSTOMER" onCreate={handleCreatePartner} onUpdate={handleUpdatePartner} onDelete={handleDeletePartner} />}
                 {activeTab === 'suppliers' && <PartnersView partners={partners} type="SUPPLIER" onCreate={handleCreatePartner} onUpdate={handleUpdatePartner} onDelete={handleDeletePartner} />}
-                {activeTab === 'reports' && <ReportsView stockEntries={stockEntries} items={items} locations={locations} attributes={attributes} currentPage={reportPage} totalItems={reportTotal} pageSize={pageSize} onPageChange={setReportPage} />}
+                {activeTab === 'reports' && <ReportsView stockEntries={stockEntries} items={items} locations={locations} categories={categories} currentPage={reportPage} totalItems={reportTotal} pageSize={pageSize} onPageChange={setReportPage} />}
                 {activeTab === 'audit-logs' && <AuditLogsView auditLogs={auditLogs} currentPage={auditPage} totalItems={auditTotal} pageSize={pageSize} onPageChange={setAuditPage} filterType={auditType} onFilterChange={setAuditType} />}
                 {activeTab === 'settings' && <SettingsView appName={appName} onUpdateAppName={setAppName} uiStyle={uiStyle} onUpdateUIStyle={setUiStyle} onClearCache={() => { localStorage.removeItem('terras_master_cache'); fetchData(); }} />}
             </div>
