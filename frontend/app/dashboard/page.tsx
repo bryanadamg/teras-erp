@@ -1,0 +1,27 @@
+'use client';
+
+import MainLayout from '../components/MainLayout';
+import DashboardView from '../components/DashboardView';
+import { useData } from '../context/DataContext';
+
+export default function DashboardPage() {
+    const { 
+        items, locations, stockBalance, workOrders, 
+        stockEntries, samples, salesOrders, dashboardKPIs 
+    } = useData();
+
+    return (
+        <MainLayout>
+            <DashboardView 
+                items={items} 
+                locations={locations} 
+                stockBalance={stockBalance} 
+                workOrders={workOrders} 
+                stockEntries={stockEntries} 
+                samples={samples} 
+                salesOrders={salesOrders} 
+                kpis={dashboardKPIs} 
+            />
+        </MainLayout>
+    );
+}

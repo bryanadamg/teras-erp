@@ -4,7 +4,7 @@ import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 import SearchableSelect from './SearchableSelect';
 
-export default function SalesOrderView({ items, attributes, salesOrders, partners, onCreateSO, onDeleteSO }: any) {
+export default function SalesOrderView({ items, attributes, salesOrders, partners, onCreateSO, onDeleteSO, onGenerateWO }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -400,6 +400,19 @@ export default function SalesOrderView({ items, attributes, salesOrders, partner
                                                                     {getAttributeValueName(vid)}
                                                                 </span>
                                                             ))}
+                                                        </div>
+                                                    )}
+                                                    {/* Generate WO Action */}
+                                                    {so.status === 'PENDING' && (
+                                                        <div className="mt-1 ps-3">
+                                                            <button 
+                                                                className="btn btn-sm btn-outline-primary py-0 px-2 extra-small"
+                                                                style={{fontSize: '0.65rem'}}
+                                                                onClick={() => onGenerateWO(so, line)}
+                                                                title="Create Work Order for this item"
+                                                            >
+                                                                <i className="bi bi-gear-wide-connected me-1"></i>PRODUCE
+                                                            </button>
                                                         </div>
                                                     )}
                                                 </div>

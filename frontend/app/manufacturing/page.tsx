@@ -4,6 +4,8 @@ import MainLayout from '../components/MainLayout';
 import ManufacturingView from '../components/ManufacturingView';
 import { useData } from '../context/DataContext';
 import { useToast } from '../components/Toast';
+import { useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 export default function ManufacturingPage() {
     const { 
@@ -11,8 +13,20 @@ export default function ManufacturingPage() {
         workCenters, operations, fetchData, pagination, authFetch
     } = useData();
     const { showToast } = useToast();
+    const searchParams = useSearchParams();
+    const [initialCreateState, setInitialCreateState] = useState<any>(null);
 
     const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/$/, '') + '/api';
+
+    useEffect(() => {
+        if (searchParams.get('action') === 'create_wo') {
+            setInitialCreateState({
+                sales_order_id: searchParams.get('sales_order_id'),
+                item_id: searchParams.get('item_id'),
+                qty: parseFloat(searchParams.get('qty') || '0')
+            });
+        }
+    }, [searchParams]);
 
     const handleCreateWO = async (payload: any) => {
         const res = await authFetch(`${API_BASE}/work-orders`, {
@@ -54,6 +68,7 @@ export default function ManufacturingPage() {
                 totalItems={pagination.woTotal}
                 pageSize={pagination.pageSize}
                 onPageChange={pagination.setWoPage}
+                initialCreateState={initialCreateState}
             />
         </MainLayout>
     );

@@ -22,7 +22,8 @@ export default function ManufacturingView({
     currentPage,
     totalItems,
     pageSize,
-    onPageChange
+    onPageChange,
+    initialCreateState // Added prop for automation
 }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
@@ -41,7 +42,8 @@ export default function ManufacturingView({
       source_location_code: '', 
       qty: 1.0, 
       target_start_date: '',
-      target_end_date: ''
+      target_end_date: '',
+      sales_order_id: '' // Added for SO linking
   });
   
   const [startDate, setStartDate] = useState('');
@@ -63,6 +65,31 @@ export default function ManufacturingView({
   });
 
   const [currentStyle, setCurrentStyle] = useState('default');
+
+  // Handle Automated Creation from Sales Order
+  useEffect(() => {
+      if (initialCreateState && items.length > 0 && boms.length > 0) {
+          const { item_id, qty, sales_order_id } = initialCreateState;
+          
+          // Find matching BOM
+          const bom = boms.find((b: any) => b.item_id === item_id);
+          
+          if (bom) {
+              const suggestedCode = suggestWOCode(bom.id);
+              setNewWO(prev => ({
+                  ...prev,
+                  code: suggestedCode,
+                  bom_id: bom.id,
+                  qty: qty,
+                  sales_order_id: sales_order_id || ''
+              }));
+              setIsCreateOpen(true);
+              showToast('Production details pre-filled from Sales Order', 'info');
+          } else {
+              showToast('No active BOM found for the requested item.', 'warning');
+          }
+      }
+  }, [initialCreateState, items, boms]);
 
   useEffect(() => {
       const savedConfig = localStorage.getItem('wo_code_config');
@@ -510,7 +537,10 @@ export default function ManufacturingView({
                                                             <i className={`bi bi-chevron-${isExpanded ? 'down' : 'right'} text-muted`}></i>
                                                             <div>
                                                                 <div className="fw-bold text-dark" style={{fontSize: '9pt'}}>{getItemName(wo.item_id)}</div>
-                                                                <div className="extra-small text-muted">BOM: {getBOMCode(wo.bom_id)}</div>
+                                                                <div className="extra-small text-muted">
+                                                                    BOM: {getBOMCode(wo.bom_id)}
+                                                                    {wo.sales_order_id && <span className="ms-2 text-primary fw-bold">From SO</span>}
+                                                                </div>
                                                                 {wo.status === 'PENDING' && wo.is_material_available === false && <span className="badge bg-danger p-1 extra-small mt-1">LOW STOCK</span>}
                                                             </div>
                                                         </div>

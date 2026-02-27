@@ -39,6 +39,15 @@ def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db), c
         if not source_location:
             raise HTTPException(status_code=404, detail="Source Location not found")
 
+    # --- Tolerance Calculation ---
+    # If a tolerance is defined in the BOM, we automatically increase the target production quantity.
+    # This ensures that even with wastage, we hit the required target.
+    # E.g. Require 100, Tolerance 10% -> Produce 110.
+    final_qty = payload.qty
+    tolerance = float(bom.tolerance_percentage or 0)
+    if tolerance > 0:
+        final_qty = final_qty * (1 + (tolerance / 100))
+
     # 4. Create Work Order
     wo = WorkOrder(
         code=payload.code,
@@ -46,7 +55,8 @@ def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db), c
         item_id=bom.item_id,
         location_id=location.id,
         source_location_id=source_location.id if source_location else location.id,
-        qty=payload.qty,
+        sales_order_id=payload.sales_order_id,
+        qty=final_qty,
         target_start_date=payload.target_start_date,
         target_end_date=payload.target_end_date,
         status="PENDING"

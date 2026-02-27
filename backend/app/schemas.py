@@ -104,7 +104,8 @@ class WorkOrderCreate(BaseModel):
     code: str
     bom_id: UUID
     location_code: str
-    source_location_code: str | None = None # Optional source location
+    source_location_code: str | None = None
+    sales_order_id: UUID | None = None # Link to SO
     qty: float
     target_start_date: datetime | None = None
     target_end_date: datetime | None = None
@@ -114,6 +115,7 @@ class WorkOrderResponse(BaseModel):
     code: str
     bom_id: UUID
     item_id: UUID
+    sales_order_id: UUID | None = None
     attribute_value_ids: list[UUID] = [] # We'll populate this in the API
     location_id: UUID
     source_location_id: UUID | None = None

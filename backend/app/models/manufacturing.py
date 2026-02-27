@@ -40,6 +40,11 @@ class WorkOrder(Base):
     source_location_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True
     )
+    
+    # Traceability
+    sales_order_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sales_orders.id"), nullable=True
+    )
 
     qty: Mapped[float] = mapped_column(Numeric(14, 4))
     status: Mapped[str] = mapped_column(String(32), default="PENDING")
