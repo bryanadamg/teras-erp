@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { useUser } from '../context/UserContext';
 
@@ -13,6 +13,22 @@ interface SidebarProps {
 export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, isOpen }: SidebarProps) {
   const { t } = useLanguage();
   const { hasPermission, logout } = useUser();
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  
+  // Persist scroll position
+  useLayoutEffect(() => {
+      const savedScroll = sessionStorage.getItem('terras_sidebar_scroll');
+      if (savedScroll && sidebarRef.current) {
+          sidebarRef.current.scrollTop = parseInt(savedScroll, 10);
+      }
+  }, []);
+
+  const handleScroll = () => {
+      if (sidebarRef.current) {
+          sessionStorage.setItem('terras_sidebar_scroll', sidebarRef.current.scrollTop.toString());
+      }
+  };
+
   const [inventoryExpanded, setInventoryExpanded] = useState(true);
   const [attributesExpanded, setAttributesExpanded] = useState(false); // Nested state
   const [salesExpanded, setSalesExpanded] = useState(true);
@@ -30,7 +46,11 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
   };
 
   return (
-    <div className={`sidebar d-flex flex-column justify-content-between ${isOpen ? 'mobile-open' : ''}`}>
+    <div 
+        className={`sidebar d-flex flex-column justify-content-between ${isOpen ? 'mobile-open' : ''}`}
+        ref={sidebarRef}
+        onScroll={handleScroll}
+    >
       <div>
         <div className="sidebar-header">
           <i className="bi bi-window-stack me-2 d-none d-classic-inline"></i>
