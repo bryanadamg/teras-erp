@@ -16,7 +16,7 @@ from app.core.ws_manager import manager # Import WS manager
 app = FastAPI(title="Terras ERP", default_response_class=ORJSONResponse)
 
 # Add GZip Middleware to compress large responses
-app.add_middleware(GZipMiddleware, minimum_size=1000)
+# app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # --- Router Configuration ---
 # Create a central API router to group all endpoints

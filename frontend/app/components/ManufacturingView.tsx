@@ -1,3 +1,11 @@
+import { useState, useEffect } from 'react';
+import QRCode from 'qrcode';
+import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
+import CalendarView from './CalendarView';
+import SearchableSelect from './SearchableSelect';
+import QRScannerView from './QRScannerView';
+import { useToast } from './Toast';
+import { useLanguage } from '../context/LanguageContext';
 import ModalWrapper from './ModalWrapper';
 
 export default function ManufacturingView({ 
@@ -7,16 +15,16 @@ export default function ManufacturingView({
     attributes, 
     workOrders, 
     stockBalance, 
-    workCenters,
-    operations,
+    workCenters, 
+    operations, 
     onCreateWO, 
     onUpdateStatus, 
-    onDeleteWO,
-    currentPage,
-    totalItems,
-    pageSize,
+    onDeleteWO, 
+    currentPage, 
+    totalItems, 
+    pageSize, 
     onPageChange,
-    initialCreateState // Added prop for automation
+    initialCreateState 
 }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
