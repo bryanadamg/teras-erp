@@ -1,6 +1,9 @@
+'use client';
+
 import { useState } from 'react';
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
+import ModalWrapper from './ModalWrapper';
 
 interface Partner {
     id: string;
@@ -106,93 +109,85 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
             </div>
 
             {/* Create Modal */}
-            {isCreateOpen && (
-                                 <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 20000, position: 'fixed', inset: 0 }}>                    <div className="modal-dialog modal-dialog-centered">
-                        <div className="modal-content shadow-lg border-0">
-                            <div className="modal-header bg-primary text-white">
-                                <h5 className="modal-title">Add New {typeLabel}</h5>
-                                <button type="button" className="btn-close btn-close-white" onClick={() => setIsCreateOpen(false)}></button>
-                            </div>
-                            <form onSubmit={handleSubmit}>
-                                <div className="modal-body p-4">
-                                    <div className="mb-3">
-                                        <label className="form-label small fw-bold">Name</label>
-                                        <input 
-                                            className="form-control" 
-                                            value={newPartner.name} 
-                                            onChange={e => setNewPartner({...newPartner, name: e.target.value})} 
-                                            required 
-                                            placeholder={`Enter ${typeLabel.toLowerCase()} name...`}
-                                        />
-                                    </div>
-                                    <div className="mb-3">
-                                        <label className="form-label small fw-bold">Address (Optional)</label>
-                                        <textarea 
-                                            className="form-control" 
-                                            rows={3} 
-                                            value={newPartner.address} 
-                                            onChange={e => setNewPartner({...newPartner, address: e.target.value})}
-                                            placeholder="Street, City, Zip Code..."
-                                        ></textarea>
-                                    </div>
-                                </div>
-                                <div className="modal-footer bg-light">
-                                    <button type="button" className="btn btn-link text-muted" onClick={() => setIsCreateOpen(false)}>Cancel</button>
-                                    <button type="submit" className="btn btn-primary px-4">Create {typeLabel}</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
+            <ModalWrapper
+                isOpen={isCreateOpen}
+                onClose={() => setIsCreateOpen(false)}
+                title={<><i className="bi bi-plus-circle me-1"></i> Add New {typeLabel}</>}
+                variant="primary"
+                footer={
+                    <>
+                        <button type="button" className="btn btn-sm btn-link text-muted" onClick={() => setIsCreateOpen(false)}>Cancel</button>
+                        <button type="button" className="btn btn-sm btn-primary px-4 fw-bold" onClick={handleSubmit}>CREATE {typeLabel.toUpperCase()}</button>
+                    </>
+                }
+            >
+                <div className="mb-3">
+                    <label className="form-label small fw-bold">Name</label>
+                    <input 
+                        className="form-control" 
+                        value={newPartner.name} 
+                        onChange={e => setNewPartner({...newPartner, name: e.target.value})} 
+                        required 
+                        placeholder={`Enter ${typeLabel.toLowerCase()} name...`}
+                    />
                 </div>
-            )}
+                <div className="mb-3">
+                    <label className="form-label small fw-bold">Address (Optional)</label>
+                    <textarea 
+                        className="form-control" 
+                        rows={3} 
+                        value={newPartner.address} 
+                        onChange={e => setNewPartner({...newPartner, address: e.target.value})}
+                        placeholder="Street, City, Zip Code..."
+                    ></textarea>
+                </div>
+            </ModalWrapper>
 
             {/* Edit Modal */}
-            {editingPartner && (
-                                 <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 20000, position: 'fixed', inset: 0 }}>                    <div className="modal-dialog modal-dialog-centered">
-                        <div className="modal-content shadow-lg border-0">
-                            <div className="modal-header bg-info text-white">
-                                <h5 className="modal-title">Edit {typeLabel}</h5>
-                                <button type="button" className="btn-close btn-close-white" onClick={() => setEditingPartner(null)}></button>
-                            </div>
-                            <form onSubmit={handleUpdateSubmit}>
-                                <div className="modal-body p-4">
-                                    <div className="mb-3">
-                                        <label className="form-label small fw-bold">Name</label>
-                                        <input 
-                                            className="form-control" 
-                                            value={editingPartner.name} 
-                                            onChange={e => setEditingPartner({...editingPartner, name: e.target.value})} 
-                                            required 
-                                        />
-                                    </div>
-                                    <div className="mb-3">
-                                        <label className="form-label small fw-bold">Address (Optional)</label>
-                                        <textarea 
-                                            className="form-control" 
-                                            rows={3} 
-                                            value={editingPartner.address || ''} 
-                                            onChange={e => setEditingPartner({...editingPartner, address: e.target.value})}
-                                        ></textarea>
-                                    </div>
-                                    <div className="form-check form-switch mt-3">
-                                        <input 
-                                            className="form-check-input" 
-                                            type="checkbox" 
-                                            checked={editingPartner.active} 
-                                            onChange={e => setEditingPartner({...editingPartner, active: e.target.checked})}
-                                        />
-                                        <label className="form-check-label">Active {typeLabel}</label>
-                                    </div>
-                                </div>
-                                <div className="modal-footer bg-light">
-                                    <button type="button" className="btn btn-link text-muted" onClick={() => setEditingPartner(null)}>Cancel</button>
-                                    <button type="submit" className="btn btn-info text-white px-4">Save Changes</button>
-                                </div>
-                            </form>
+            <ModalWrapper
+                isOpen={!!editingPartner}
+                onClose={() => setEditingPartner(null)}
+                title={<><i className="bi bi-pencil-square me-1"></i> Edit {typeLabel}</>}
+                variant="info"
+                footer={
+                    <>
+                        <button type="button" className="btn btn-sm btn-link text-muted" onClick={() => setEditingPartner(null)}>Cancel</button>
+                        <button type="button" className="btn btn-sm btn-info text-white px-4 fw-bold" onClick={handleUpdateSubmit}>SAVE CHANGES</button>
+                    </>
+                }
+            >
+                {editingPartner && (
+                    <>
+                        <div className="mb-3">
+                            <label className="form-label small fw-bold">Name</label>
+                            <input 
+                                className="form-control" 
+                                value={editingPartner.name} 
+                                onChange={e => setEditingPartner({...editingPartner, name: e.target.value})} 
+                                required 
+                            />
                         </div>
-                    </div>
-                </div>
-            )}
+                        <div className="mb-3">
+                            <label className="form-label small fw-bold">Address (Optional)</label>
+                            <textarea 
+                                className="form-control" 
+                                rows={3} 
+                                value={editingPartner.address || ''} 
+                                onChange={e => setEditingPartner({...editingPartner, address: e.target.value})}
+                            ></textarea>
+                        </div>
+                        <div className="form-check form-switch mt-3">
+                            <input 
+                                className="form-check-input" 
+                                type="checkbox" 
+                                checked={editingPartner.active} 
+                                onChange={e => setEditingPartner({...editingPartner, active: e.target.checked})}
+                            />
+                            <label className="form-check-label small fw-bold">Active {typeLabel}</label>
+                        </div>
+                    </>
+                )}
+            </ModalWrapper>
         </div>
     );
 }

@@ -1,31 +1,49 @@
+'use client';
+
+import React from 'react';
+import ModalWrapper from './ModalWrapper';
+
 interface ConfirmModalProps {
     isOpen: boolean;
+    onClose: () => void;
+    onConfirm: () => void;
     title: string;
     message: string;
-    onConfirm: () => void;
-    onCancel: () => void;
+    confirmText?: string;
+    variant?: 'danger' | 'primary' | 'warning';
 }
 
-export default function ConfirmModal({ isOpen, title, message, onConfirm, onCancel }: ConfirmModalProps) {
-    if (!isOpen) return null;
-
+export default function ConfirmModal({ 
+    isOpen, 
+    onClose, 
+    onConfirm, 
+    title, 
+    message, 
+    confirmText = 'Confirm',
+    variant = 'danger'
+}: ConfirmModalProps) {
     return (
-        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 20200, position: 'fixed', inset: 0 }}>
-            <div className="modal-dialog modal-dialog-centered">
-                <div className="modal-content shadow">
-                    <div className="modal-header bg-danger bg-opacity-10 text-danger-emphasis">
-                        <h5 className="modal-title"><i className="bi bi-exclamation-triangle-fill me-2"></i>{title}</h5>
-                        <button type="button" className="btn-close" onClick={onCancel}></button>
-                    </div>
-                    <div className="modal-body">
-                        <p className="mb-0">{message}</p>
-                    </div>
-                    <div className="modal-footer bg-light">
-                        <button type="button" className="btn btn-sm btn-secondary" onClick={onCancel}>Cancel</button>
-                        <button type="button" className="btn btn-sm btn-danger fw-bold px-4" onClick={onConfirm}>Delete</button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <ModalWrapper
+            isOpen={isOpen}
+            onClose={onClose}
+            title={<><i className={`bi ${variant === 'danger' ? 'bi-exclamation-triangle' : 'bi-info-circle'} me-1`}></i> {title}</>}
+            level={3} // Always top level
+            variant={variant === 'danger' ? 'danger' : 'primary'}
+            size="sm"
+            footer={
+                <>
+                    <button type="button" className="btn btn-sm btn-link text-muted text-decoration-none" onClick={onClose}>Cancel</button>
+                    <button 
+                        type="button" 
+                        className={`btn btn-sm btn-${variant} px-4 fw-bold shadow-sm`} 
+                        onClick={() => { onConfirm(); onClose(); }}
+                    >
+                        {confirmText.toUpperCase()}
+                    </button>
+                </>
+            }
+        >
+            <p className="mb-0 text-center py-2">{message}</p>
+        </ModalWrapper>
     );
 }

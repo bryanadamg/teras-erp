@@ -1,11 +1,4 @@
-import { useState, useEffect } from 'react';
-import QRCode from 'qrcode';
-import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
-import CalendarView from './CalendarView';
-import SearchableSelect from './SearchableSelect';
-import QRScannerView from './QRScannerView';
-import { useToast } from './Toast';
-import { useLanguage } from '../context/LanguageContext';
+import ModalWrapper from './ModalWrapper';
 
 export default function ManufacturingView({ 
     items, 
@@ -414,79 +407,72 @@ export default function ManufacturingView({
 
           <CodeConfigModal isOpen={isConfigOpen} onClose={() => setIsConfigOpen(false)} type="WO" onSave={handleSaveConfig} initialConfig={codeConfig} attributes={attributes} />
 
-          {isCreateOpen && (
-          <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 20000, position: 'fixed', inset: 0 }}>
-              <div className={`modal-dialog modal-lg modal-dialog-centered ui-style-${currentStyle}`}>
-                  <div className="modal-content shadow">
-                      <div className="modal-header bg-success bg-opacity-10 text-success-emphasis py-2">
-                          <h5 className="modal-title small fw-bold"><i className="bi bi-play-circle me-2"></i>NEW PRODUCTION RUN</h5>
-                          <button type="button" className="btn-close" onClick={() => setIsCreateOpen(false)}></button>
-                      </div>
-                      <div className="modal-body">
-                          <form onSubmit={handleSubmit}>
-                              <div className="row g-3 mb-3">
-                                  <div className="col-md-6">
-                                      <label className="form-label extra-small fw-bold text-muted uppercase">WO Reference Code</label>
-                                      <div className="input-group">
-                                          <input className="form-control form-control-sm" placeholder="Auto-generated" value={newWO.code} onChange={e => setNewWO({...newWO, code: e.target.value})} required />
-                                          <button className="btn btn-sm btn-outline-secondary" type="button" onClick={() => setIsConfigOpen(true)}><i className="bi bi-gear-fill"></i></button>
-                                      </div>
-                                  </div>
-                                  <div className="col-md-6">
-                                      <label className="form-label extra-small fw-bold text-muted uppercase">Target Quantity</label>
-                                      <input type="number" className="form-control form-control-sm" value={newWO.qty} onChange={e => setNewWO({...newWO, qty: parseFloat(e.target.value)})} required />
-                                  </div>
-                              </div>
-
-                              <div className="mb-3">
-                                  <label className="form-label extra-small fw-bold text-muted uppercase">Product Recipe (BOM)</label>
-                                  <SearchableSelect 
-                                      options={boms.map((b: any) => ({ value: b.id, label: `${b.code} - ${getItemName(b.item_id)}` }))}
-                                      value={newWO.bom_id}
-                                      onChange={handleBOMChange}
-                                      required
-                                      placeholder="Choose a product recipe..."
-                                  />
-                              </div>
-
-                              <div className="row g-3 mb-3">
-                                  <div className="col-md-6">
-                                      <label className="form-label extra-small fw-bold text-muted uppercase">Target Start Date</label>
-                                      <input type="date" className="form-control form-control-sm" value={newWO.target_start_date} onChange={e => setNewWO({...newWO, target_start_date: e.target.value})} />
-                                  </div>
-                                  <div className="col-md-6">
-                                      <label className="form-label extra-small fw-bold text-muted uppercase">Target End Date</label>
-                                      <input type="date" className="form-control form-control-sm" value={newWO.target_end_date} onChange={e => setNewWO({...newWO, target_end_date: e.target.value})} />
-                                  </div>
-                              </div>
-
-                              <div className="row g-2 mb-4">
-                                  <div className="col-6">
-                                      <label className="form-label extra-small fw-bold text-muted uppercase">Output Target Location</label>
-                                      <select className="form-select form-select-sm" value={newWO.location_code} onChange={e => setNewWO({...newWO, location_code: e.target.value})} required>
-                                          <option value="">Select...</option>
-                                          {locations.map((loc: any) => <option key={loc.id} value={loc.code}>{loc.name}</option>)}
-                                      </select>
-                                  </div>
-                                  <div className="col-6">
-                                      <label className="form-label extra-small fw-bold text-muted uppercase">Material Source Location</label>
-                                      <select className="form-select form-select-sm" value={newWO.source_location_code} onChange={e => setNewWO({...newWO, source_location_code: e.target.value})}>
-                                          <option value="">Same as Production</option>
-                                          {locations.map((loc: any) => <option key={loc.id} value={loc.code}>{loc.name}</option>)}
-                                      </select>
-                                  </div>
-                              </div>
-
-                              <div className="d-flex justify-content-end gap-2 border-top pt-3">
-                                  <button type="button" className="btn btn-sm btn-link text-muted text-decoration-none" onClick={() => setIsCreateOpen(false)}>{t('cancel')}</button>
-                                  <button type="submit" className="btn btn-sm btn-success px-4 fw-bold shadow-sm">CREATE WORK ORDER</button>
-                              </div>
-                          </form>
+          <ModalWrapper
+              isOpen={isCreateOpen}
+              onClose={() => setIsCreateOpen(false)}
+              title={<><i className="bi bi-play-circle me-1"></i> NEW PRODUCTION RUN</>}
+              variant="success"
+              size="lg"
+              footer={
+                  <>
+                      <button type="button" className="btn btn-sm btn-link text-muted text-decoration-none" onClick={() => setIsCreateOpen(false)}>{t('cancel')}</button>
+                      <button type="button" className="btn btn-sm btn-success px-4 fw-bold shadow-sm" onClick={handleSubmit}>CREATE WORK ORDER</button>
+                  </>
+              }
+          >
+              <div className="row g-3 mb-3">
+                  <div className="col-md-6">
+                      <label className="form-label extra-small fw-bold text-muted uppercase">WO Reference Code</label>
+                      <div className="input-group">
+                          <input className="form-control form-control-sm" placeholder="Auto-generated" value={newWO.code} onChange={e => setNewWO({...newWO, code: e.target.value})} required />
+                          <button className="btn btn-sm btn-outline-secondary" type="button" onClick={() => setIsConfigOpen(true)}><i className="bi bi-gear-fill"></i></button>
                       </div>
                   </div>
+                  <div className="col-md-6">
+                      <label className="form-label extra-small fw-bold text-muted uppercase">Target Quantity</label>
+                      <input type="number" className="form-control form-control-sm" value={newWO.qty} onChange={e => setNewWO({...newWO, qty: parseFloat(e.target.value)})} required />
+                  </div>
               </div>
-          </div>
-          )}
+
+              <div className="mb-3">
+                  <label className="form-label extra-small fw-bold text-muted uppercase">Product Recipe (BOM)</label>
+                  <SearchableSelect 
+                      options={boms.map((b: any) => ({ value: b.id, label: `${b.code} - ${getItemName(b.item_id)}` }))}
+                      value={newWO.bom_id}
+                      onChange={handleBOMChange}
+                      required
+                      placeholder="Choose a product recipe..."
+                  />
+              </div>
+
+              <div className="row g-3 mb-3">
+                  <div className="col-md-6">
+                      <label className="form-label extra-small fw-bold text-muted uppercase">Target Start Date</label>
+                      <input type="date" className="form-control form-control-sm" value={newWO.target_start_date} onChange={e => setNewWO({...newWO, target_start_date: e.target.value})} />
+                  </div>
+                  <div className="col-md-6">
+                      <label className="form-label extra-small fw-bold text-muted uppercase">Target End Date</label>
+                      <input type="date" className="form-control form-control-sm" value={newWO.target_end_date} onChange={e => setNewWO({...newWO, target_end_date: e.target.value})} />
+                  </div>
+              </div>
+
+              <div className="row g-2">
+                  <div className="col-6">
+                      <label className="form-label extra-small fw-bold text-muted uppercase">Output Target Location</label>
+                      <select className="form-select form-select-sm" value={newWO.location_code} onChange={e => setNewWO({...newWO, location_code: e.target.value})} required>
+                          <option value="">Select...</option>
+                          {locations.map((loc: any) => <option key={loc.id} value={loc.code}>{loc.name}</option>)}
+                      </select>
+                  </div>
+                  <div className="col-6">
+                      <label className="form-label extra-small fw-bold text-muted uppercase">Material Source Location</label>
+                      <select className="form-select form-select-sm" value={newWO.source_location_code} onChange={e => setNewWO({...newWO, source_location_code: e.target.value})}>
+                          <option value="">Same as Production</option>
+                          {locations.map((loc: any) => <option key={loc.id} value={loc.code}>{loc.name}</option>)}
+                      </select>
+                  </div>
+              </div>
+          </ModalWrapper>
 
           <div className="col-12 flex-print-fill">
               <div className="card h-100 border-0 shadow-sm">
