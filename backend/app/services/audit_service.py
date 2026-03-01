@@ -1,9 +1,12 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.audit import AuditLog
 import json
+import logging
 
-def log_activity(
-    db: Session, 
+logger = logging.getLogger(__name__)
+
+async def log_activity(
+    db: AsyncSession, 
     user_id: str | None, 
     action: str, 
     entity_type: str, 
@@ -12,7 +15,7 @@ def log_activity(
     changes: dict = None
 ):
     """
-    Records an activity in the audit log.
+    Records an activity in the audit log asynchronously.
     """
     try:
         # Pre-process changes to handle UUIDs and other non-serializable types
@@ -29,7 +32,7 @@ def log_activity(
             changes=serializable_changes
         )
         db.add(log)
-        db.commit()
+        await db.commit()
     except Exception as e:
-        print(f"Failed to create audit log: {e}")
-        db.rollback()
+        logger.error(f"Failed to create audit log: {e}")
+        await db.rollback()

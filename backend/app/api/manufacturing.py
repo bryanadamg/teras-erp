@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
-from app.db.session import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func, or_
+from sqlalchemy.orm import joinedload
+from app.db.session import get_async_db
 from app.models.manufacturing import WorkOrder
 from app.models.bom import BOM
 from app.models.location import Location
@@ -12,43 +14,37 @@ from app.models.item import Item
 from datetime import datetime
 from typing import Optional
 from app.core.ws_manager import manager
-import asyncio
 
 router = APIRouter()
 
 @router.post("/work-orders", response_model=WorkOrderResponse)
-def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    # 1. Check if WO code exists
-    if db.query(WorkOrder).filter(WorkOrder.code == payload.code).first():
+async def create_work_order(payload: WorkOrderCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+    result = await db.execute(select(WorkOrder).filter(WorkOrder.code == payload.code))
+    if result.scalars().first():
         raise HTTPException(status_code=400, detail="Work Order Code already exists")
 
-    # 2. Resolve BOM
-    bom = db.query(BOM).filter(BOM.id == payload.bom_id).first()
+    result = await db.execute(select(BOM).filter(BOM.id == payload.bom_id))
+    bom = result.scalars().first()
     if not bom:
         raise HTTPException(status_code=404, detail="BOM not found")
 
-    # 3. Resolve Location
-    location = db.query(Location).filter(Location.code == payload.location_code).first()
+    result = await db.execute(select(Location).filter(Location.code == payload.location_code))
+    location = result.scalars().first()
     if not location:
         raise HTTPException(status_code=404, detail="Location not found")
 
-    # 3b. Resolve Source Location (if provided)
     source_location = None
     if payload.source_location_code:
-        source_location = db.query(Location).filter(Location.code == payload.source_location_code).first()
+        result = await db.execute(select(Location).filter(Location.code == payload.source_location_code))
+        source_location = result.scalars().first()
         if not source_location:
             raise HTTPException(status_code=404, detail="Source Location not found")
 
-    # --- Tolerance Calculation ---
-    # If a tolerance is defined in the BOM, we automatically increase the target production quantity.
-    # This ensures that even with wastage, we hit the required target.
-    # E.g. Require 100, Tolerance 10% -> Produce 110.
     final_qty = payload.qty
     tolerance = float(bom.tolerance_percentage or 0)
     if tolerance > 0:
         final_qty = final_qty * (1 + (tolerance / 100))
 
-    # 4. Create Work Order
     wo = WorkOrder(
         code=payload.code,
         bom_id=bom.id,
@@ -62,14 +58,16 @@ def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db), c
         status="PENDING"
     )
     
-    # Copy attribute values from BOM
-    wo.attribute_values = bom.attribute_values
+    # In async, we need to explicitly load attributes if they weren't
+    result = await db.execute(select(BOM).filter(BOM.id == payload.bom_id).options(joinedload(BOM.attribute_values)))
+    bom_with_attrs = result.unique().scalars().first()
+    wo.attribute_values = bom_with_attrs.attribute_values
 
     db.add(wo)
-    db.commit()
-    db.refresh(wo)
+    await db.commit()
+    await db.refresh(wo)
     
-    audit_service.log_activity(
+    await audit_service.log_activity(
         db,
         user_id=current_user.id,
         action="CREATE",
@@ -83,15 +81,15 @@ def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db), c
     return wo
 
 @router.get("/work-orders", response_model=PaginatedWorkOrderResponse)
-def get_work_orders(
+async def get_work_orders(
     skip: int = 0, 
     limit: int = 100, 
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
-    query = db.query(WorkOrder)
+    query = select(WorkOrder)
     
     if start_date:
         query = query.filter(WorkOrder.created_at >= start_date)
@@ -101,10 +99,20 @@ def get_work_orders(
     if current_user.allowed_categories:
         query = query.join(Item, WorkOrder.item_id == Item.id).filter(Item.category.in_(current_user.allowed_categories))
         
-    total = query.count()
-    items = query.order_by(WorkOrder.created_at.desc()).offset(skip).limit(limit).all()
+    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    total = count_result.scalar()
+    
+    result = await db.execute(
+        query.options(
+            joinedload(WorkOrder.attribute_values),
+            joinedload(WorkOrder.bom).joinedload(BOM.lines).joinedload(BOMLine.attribute_values)
+        )
+        .order_by(WorkOrder.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    items = result.unique().scalars().all()
 
-    # --- BATCH MATERIAL CHECK ---
     requirements = []
     for item in items:
         item.attribute_value_ids = [v.id for v in item.attribute_values]
@@ -117,13 +125,12 @@ def get_work_orders(
                     "attribute_value_ids": [str(v.id) for v in line.attribute_values]
                 })
     
-    balances_map = stock_service.get_batch_stock_balances(db, requirements) if requirements else {}
+    balances_map = await stock_service.get_batch_stock_balances(db, requirements) if requirements else {}
 
     for item in items:
         item.is_material_available = True
         if item.status == "PENDING":
             for line in item.bom.lines:
-                # Logic for calculating required qty
                 required_qty = float(line.qty)
                 if line.is_percentage:
                     required_qty = (float(item.qty) * required_qty) / 100
@@ -151,8 +158,16 @@ def get_work_orders(
     }
 
 @router.put("/work-orders/{wo_id}/status")
-async def update_work_order_status(wo_id: str, status: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    wo = db.query(WorkOrder).filter(WorkOrder.id == wo_id).first()
+async def update_work_order_status(wo_id: str, status: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+    result = await db.execute(
+        select(WorkOrder)
+        .filter(WorkOrder.id == wo_id)
+        .options(
+            joinedload(WorkOrder.bom).joinedload(BOM.lines).joinedload(BOMLine.attribute_values),
+            joinedload(WorkOrder.attribute_values)
+        )
+    )
+    wo = result.unique().scalars().first()
     if not wo:
         raise HTTPException(status_code=404, detail="Work Order not found")
     
@@ -161,9 +176,7 @@ async def update_work_order_status(wo_id: str, status: str, db: Session = Depend
     if status not in valid_statuses:
         raise HTTPException(status_code=400, detail="Invalid status")
     
-    # 1. Update actual_start_date if moving to IN_PROGRESS
     if status == "IN_PROGRESS" and previous_status != "IN_PROGRESS":
-        # Validate Stock Availability for all BOM Lines
         for line in wo.bom.lines:
             required_qty = float(line.qty)
             if line.is_percentage:
@@ -176,14 +189,13 @@ async def update_work_order_status(wo_id: str, status: str, db: Session = Depend
                 required_qty = required_qty * (1 + (tolerance / 100))
             
             check_location_id = line.source_location_id or wo.source_location_id or wo.location_id
-            current_stock = stock_service.get_stock_balance(db, line.item_id, check_location_id, [v.id for v in line.attribute_values])
+            current_stock = await stock_service.get_stock_balance(db, line.item_id, check_location_id, [v.id for v in line.attribute_values])
             
             if current_stock < required_qty:
                 raise HTTPException(status_code=400, detail=f"Insufficient stock for {line.item_id}")
         
         wo.actual_start_date = datetime.utcnow()
 
-    # 2. Check if completing
     if status == "COMPLETED" and previous_status != "COMPLETED":
         wo.actual_end_date = datetime.utcnow()
         for line in wo.bom.lines:
@@ -198,20 +210,19 @@ async def update_work_order_status(wo_id: str, status: str, db: Session = Depend
                 qty_to_deduct = qty_to_deduct * (1 + (tolerance / 100))
             
             deduct_location_id = line.source_location_id or wo.source_location_id or wo.location_id
-            stock_service.add_stock_entry(db, line.item_id, deduct_location_id, -qty_to_deduct, "Work Order", wo.code, [v.id for v in line.attribute_values])
+            await stock_service.add_stock_entry(db, line.item_id, deduct_location_id, -qty_to_deduct, "Work Order", wo.code, [v.id for v in line.attribute_values])
         
-        stock_service.add_stock_entry(db, wo.item_id, wo.location_id, wo.qty, "Work Order", wo.code, [v.id for v in wo.attribute_values])
+        await stock_service.add_stock_entry(db, wo.item_id, wo.location_id, wo.qty, "Work Order", wo.code, [v.id for v in wo.attribute_values])
 
     wo.status = status
     try:
-        db.commit()
+        await db.commit()
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=500, detail=f"Database commit failed: {str(e)}")
     
-    audit_service.log_activity(db, current_user.id, "UPDATE_STATUS", "WorkOrder", wo_id, f"Status: {previous_status} -> {status}", {"status": status})
+    await audit_service.log_activity(db, current_user.id, "UPDATE_STATUS", "WorkOrder", wo_id, f"Status: {previous_status} -> {status}", {"status": status})
     
-    # Broadcast ENRICHED event for instant UI update
     await manager.broadcast({
         "type": "WORK_ORDER_UPDATE",
         "wo_id": wo_id,
@@ -223,11 +234,12 @@ async def update_work_order_status(wo_id: str, status: str, db: Session = Depend
     return {"status": "success", "message": f"Work Order updated to {status}"}
 
 @router.delete("/work-orders/{wo_id}")
-def delete_work_order(wo_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    wo = db.query(WorkOrder).filter(WorkOrder.id == wo_id).first()
+async def delete_work_order(wo_id: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+    result = await db.execute(select(WorkOrder).filter(WorkOrder.id == wo_id))
+    wo = result.scalars().first()
     if not wo:
         raise HTTPException(status_code=404, detail="Work Order not found")
     
-    db.delete(wo)
-    db.commit()
+    await db.delete(wo)
+    await db.commit()
     return {"status": "success", "message": "Work Order deleted"}
