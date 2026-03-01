@@ -45,15 +45,15 @@ export default function LoginPage() {
                             </div>
                             <form onSubmit={handleLoginSubmit}>
                                 <div className="mb-3">
-                                    <label className="form-label small">Username</label>
-                                    <input type="text" className="form-control" value={loginUser} onChange={e => setLoginUser(e.target.value)} required />
+                                    <label htmlFor="username-input" className="form-label small">Username</label>
+                                    <input id="username-input" data-testid="username-input" type="text" className="form-control" value={loginUser} onChange={e => setLoginUser(e.target.value)} required />
                                 </div>
                                 <div className="mb-4">
-                                    <label className="form-label small">Password</label>
-                                    <input type="password" size={32} className="form-control" value={loginPass} onChange={e => setLoginPass(e.target.value)} required />
+                                    <label htmlFor="password-input" className="form-label small">Password</label>
+                                    <input id="password-input" data-testid="password-input" type="password" size={32} className="form-control" value={loginPass} onChange={e => setLoginPass(e.target.value)} required />
                                 </div>
-                                {loginError && <div className="alert alert-danger py-2 small">{loginError}</div>}
-                                <button type="submit" className="btn btn-primary w-100 fw-bold py-2" disabled={isLoggingIn}>
+                                {loginError && <div className="alert alert-danger py-2 small" data-testid="login-error">{loginError}</div>}
+                                <button type="submit" className="btn btn-primary w-100 fw-bold py-2" data-testid="login-submit" disabled={isLoggingIn}>
                                     {isLoggingIn ? 'Logging in...' : 'Sign In'}
                                 </button>
                             </form>

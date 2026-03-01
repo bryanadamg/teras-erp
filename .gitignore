@@ -232,3 +232,9 @@ GEMINI.md
 *.skill
 .gemini/
 skills/
+
+# Playwright
+frontend/playwright-report
+frontend/test-results
+frontend/blob-report
+frontend/playwright/.cache

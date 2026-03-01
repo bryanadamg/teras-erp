@@ -391,7 +391,7 @@ export default function SettingsView({ appName, onUpdateAppName, uiStyle, onUpda
             {/* Database Infrastructure Section */}
             <div className="card shadow-sm border-0 mb-4 border-start border-4 border-info">
                 <div className="card-header bg-info bg-opacity-10 text-info-emphasis d-flex justify-content-between align-items-center">
-                    <h5 className="card-title mb-0"><i className="bi bi-database-fill-gear me-2"></i>Database Infrastructure</h5>
+                    <h5 className="card-title mb-0" data-testid="db-infrastructure-header"><i className="bi bi-database-fill-gear me-2"></i>Database Infrastructure</h5>
                     <span className="badge bg-info">Admin Only</span>
                 </div>
                 <div className="card-body">

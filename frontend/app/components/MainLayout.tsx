@@ -79,11 +79,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                     </div>
                     
                     <div className="d-flex align-items-center gap-2 gap-md-3">
-                        <button className={`btn btn-sm ${uiStyle === 'classic' ? 'btn-light' : 'btn-outline-secondary'}`} onClick={() => router.push('/scanner')} title="Scan QR Code"><i className="bi bi-qr-code-scan"></i></button>
-                        {hasPermission('admin.access') && <button className={`btn btn-sm ${uiStyle === 'classic' ? 'btn-light' : 'btn-outline-info'}`} onClick={() => router.push('/settings')} title="Settings"><i className="bi bi-gear-fill"></i></button>}
+                        <button data-testid="scanner-btn" className={`btn btn-sm ${uiStyle === 'classic' ? 'btn-light' : 'btn-outline-secondary'}`} onClick={() => router.push('/scanner')} title="Scan QR Code"><i className="bi bi-qr-code-scan"></i></button>
+                        {hasPermission('admin.access') && <button data-testid="settings-btn" className={`btn btn-sm ${uiStyle === 'classic' ? 'btn-light' : 'btn-outline-info'}`} onClick={() => router.push('/settings')} title="Settings"><i className="bi bi-gear-fill"></i></button>}
                         
                         <div className="d-flex align-items-center me-1">
                             <select 
+                                data-testid="language-select"
                                 className={`form-select form-select-sm py-0 ps-1 pe-3 ${uiStyle === 'classic' ? 'bg-transparent border-0' : 'rounded-pill border-0 bg-light'}`}
                                 style={{height: '24px', fontSize: '11px', minWidth: '60px'}}
                                 value={language}
@@ -95,18 +96,18 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                         </div>
 
                         <div className="dropdown">
-                            <button className="btn btn-sm btn-light border d-flex align-items-center gap-2 rounded-pill px-2" data-bs-toggle="dropdown" id="userDropdown">
-                                <i className="bi bi-person-circle text-primary"></i><span className="small fw-bold d-none d-sm-inline">{currentUser?.username}</span>
+                            <button data-testid="user-dropdown" className="btn btn-sm btn-light border d-flex align-items-center gap-2 rounded-pill px-2" data-bs-toggle="dropdown" id="userDropdown">
+                                <i className="bi bi-person-circle text-primary"></i><span className="small fw-bold d-none d-sm-inline" data-testid="username-display">{currentUser?.username}</span>
                             </button>
                             <ul className="dropdown-menu dropdown-menu-end shadow border-0 mt-2" aria-labelledby="userDropdown">
                                 <li className="px-3 py-2 border-bottom mb-1"><div className="small fw-bold">{currentUser?.full_name}</div></li>
                                 <li><button className="dropdown-item py-2 small" onClick={() => router.push('/settings')}><i className="bi bi-gear me-2"></i>Preferences & Admin</button></li>
                                 <li><hr className="dropdown-divider" /></li>
-                                <li><button className="dropdown-item py-2 small text-danger" onClick={logout}><i className="bi bi-box-arrow-right me-2"></i>Logout</button></li>
+                                <li><button data-testid="dropdown-logout-btn" className="dropdown-item py-2 small text-danger" onClick={logout}><i className="bi bi-box-arrow-right me-2"></i>Logout</button></li>
                             </ul>
                         </div>
 
-                        <button className={`btn btn-sm btn-outline-danger d-none d-md-flex align-items-center gap-2`} onClick={logout} title="Terminate Session">
+                        <button data-testid="logout-btn" className={`btn btn-sm btn-outline-danger d-none d-md-flex align-items-center gap-2`} onClick={logout} title="Terminate Session">
                             <i className="bi bi-box-arrow-right"></i>
                             <span className="small fw-bold">LOGOUT</span>
                         </button>
