@@ -226,3 +226,9 @@ build/
 postgres_data/
 cloudflared/
 electron/
+
+# Agents
+GEMINI.md
+*.skill
+.gemini/
+skills/

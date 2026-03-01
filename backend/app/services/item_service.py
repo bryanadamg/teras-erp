@@ -1,12 +1,13 @@
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func, or_
+from sqlalchemy.orm import joinedload
 from app.models.item import Item
 from app.models.variant import Variant
 from app.schemas import VariantCreate
-
 from app.models.attribute import Attribute
 
-def create_item(
-    db: Session,
+async def create_item(
+    db: AsyncSession,
     code: str,
     name: str,
     uom: str,
@@ -23,21 +24,23 @@ def create_item(
     )
     
     if attribute_ids:
-        attrs = db.query(Attribute).filter(Attribute.id.in_(attribute_ids)).all()
+        result = await db.execute(select(Attribute).filter(Attribute.id.in_(attribute_ids)))
+        attrs = result.scalars().all()
         item.attributes = attrs
 
     db.add(item)
-    db.commit()
-    db.refresh(item)
+    await db.commit()
+    await db.refresh(item)
     return item
 
 
-def update_item(
-    db: Session,
+async def update_item(
+    db: AsyncSession,
     item_id: str,
     data: dict
 ) -> Item | None:
-    item = db.query(Item).filter(Item.id == item_id).first()
+    result = await db.execute(select(Item).filter(Item.id == item_id))
+    item = result.scalars().first()
     if not item:
         return None
     
@@ -48,26 +51,30 @@ def update_item(
             setattr(item, key, value)
             
     if attribute_ids is not None:
-        attrs = db.query(Attribute).filter(Attribute.id.in_(attribute_ids)).all()
+        result = await db.execute(select(Attribute).filter(Attribute.id.in_(attribute_ids)))
+        attrs = result.scalars().all()
         item.attributes = attrs
             
-    db.commit()
-    db.refresh(item)
+    await db.commit()
+    await db.refresh(item)
     return item
 
 
-def get_item_by_code(db: Session, code: str) -> Item | None:
-    return db.query(Item).filter(Item.code == code).first()
+async def get_item_by_code(db: AsyncSession, code: str) -> Item | None:
+    result = await db.execute(select(Item).filter(Item.code == code))
+    return result.scalars().first()
 
 
-def get_items(db: Session, skip: int = 0, limit: int = 100, user=None, search: str = None, category: str = None) -> tuple[list[Item], int]:
-    query = db.query(Item)
+async def get_items(db: AsyncSession, skip: int = 0, limit: int = 100, user=None, search: str = None, category: str = None) -> tuple[list[Item], int]:
+    query = select(Item)
     
     if search:
         search_filter = f"%{search}%"
         query = query.filter(
-            (Item.code.ilike(search_filter)) | 
-            (Item.name.ilike(search_filter))
+            or_(
+                Item.code.ilike(search_filter),
+                Item.name.ilike(search_filter)
+            )
         )
 
     if category:
@@ -75,7 +82,15 @@ def get_items(db: Session, skip: int = 0, limit: int = 100, user=None, search: s
 
     if user and user.allowed_categories:
         query = query.filter(Item.category.in_(user.allowed_categories))
-        
-    total = query.count()
-    items = query.options(joinedload(Item.attributes)).offset(skip).limit(limit).all()
+    
+    # Get total count
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar()
+    
+    # Get paginated results
+    query = query.options(joinedload(Item.attributes)).offset(skip).limit(limit)
+    result = await db.execute(query)
+    items = result.unique().scalars().all()
+    
     return items, total

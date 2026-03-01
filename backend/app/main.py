@@ -1,25 +1,34 @@
 from pathlib import Path
-from fastapi import FastAPI, Request, APIRouter, WebSocket, WebSocketDisconnect # Added WS imports
+from fastapi import FastAPI, Request, APIRouter, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, ORJSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from sqlalchemy import text
 import os
+from contextlib import asynccontextmanager
 
 from app.db.session import engine
 from app.db.base import Base
 from app.api import items, locations, stock, attributes, boms, manufacturing, categories, routing, auth, uoms, sales, samples, audit, admin, dashboard, partners, purchase
 from app.db.init_db import init_db
-from app.core.ws_manager import manager # Import WS manager
+from app.core.ws_manager import manager 
 
-app = FastAPI(title="Terras ERP", default_response_class=ORJSONResponse)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Initialize Redis for WebSockets
+    await manager.initialize()
+    yield
+    # Shutdown: Close Redis connections
+    await manager.stop()
 
-# Add GZip Middleware to compress large responses
-# app.add_middleware(GZipMiddleware, minimum_size=1000)
+app = FastAPI(
+    title="Terras ERP", 
+    default_response_class=ORJSONResponse,
+    lifespan=lifespan
+)
 
 # --- Router Configuration ---
-# Create a central API router to group all endpoints
 api_router = APIRouter()
 
 api_router.include_router(items.router)
@@ -40,13 +49,11 @@ api_router.include_router(dashboard.router)
 api_router.include_router(partners.router)
 api_router.include_router(purchase.router)
 
-# WebSocket Endpoint for real-time events (under /api/ws/events)
 @api_router.websocket("/ws/events")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            # We keep the connection alive. 
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
@@ -57,14 +64,12 @@ async def websocket_endpoint(websocket: WebSocket):
 async def health():
     return {"status": "ok"}
 
-# Include the central router with the global prefix
 app.include_router(api_router, prefix="/api")
 # ----------------------------
 
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
-# Security: Configure CORS from environment
 origins = os.getenv("BACKEND_CORS_ORIGINS", "http://localhost:3000,http://localhost:3030").split(",")
 
 app.add_middleware(
@@ -74,7 +79,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):

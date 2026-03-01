@@ -5,8 +5,9 @@ import subprocess
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Generator, Optional, List
+from typing import Generator, AsyncGenerator, Optional, List
 from sqlalchemy import create_engine, text
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.engine import make_url
 from app.db.base import Base
@@ -20,7 +21,9 @@ class DatabaseManager:
 
     def __init__(self):
         self._engine = None
+        self._async_engine = None
         self._session_factory = None
+        self._async_session_factory = None
         self._current_url = None
         self._profiles_path = Path("database_profiles.json")
         self._snapshots_dir = Path("snapshots")
@@ -44,8 +47,6 @@ class DatabaseManager:
         
         try:
             if "postgresql" in self._current_url:
-                # Handle PostgreSQL via pg_dump
-                # Note: This requires postgresql-client installed in the container
                 url = make_url(self._current_url)
                 
                 env = os.environ.copy()
@@ -66,7 +67,6 @@ class DatabaseManager:
                 return DatabaseResponse(message=f"Postgres snapshot created: {filename}", status=True, data={"filename": f"{filename}.sql"})
 
             elif "sqlite" in self._current_url:
-                # Handle SQLite via file copy
                 db_path = self._current_url.replace("sqlite:///", "")
                 filepath = self._snapshots_dir / f"{filename}.sqlite"
                 shutil.copy2(db_path, filepath)
@@ -103,7 +103,6 @@ class DatabaseManager:
             return DatabaseResponse(message="Snapshot file not found", status=False)
 
         try:
-            # 1. Close current connections
             if self._engine:
                 self._engine.dispose()
 
@@ -128,7 +127,6 @@ class DatabaseManager:
                 db_path = self._current_url.replace("sqlite:///", "")
                 shutil.copy2(filepath, db_path)
 
-            # 2. Re-initialize
             return self.initialize(self._current_url)
         except Exception as e:
             logger.error(f"Restore failed: {e}")
@@ -136,28 +134,23 @@ class DatabaseManager:
 
     def initialize(self, database_url: str) -> DatabaseResponse:
         """
-        Initializes or re-initializes the database engine.
-        Handles schema creation and initial seeding if necessary.
+        Initializes both sync and async database engines.
         """
         with self._init_lock:
             try:
+                # 1. Sync Engine
                 if self._engine:
-                    logger.info("Disposing existing database engine...")
                     self._engine.dispose()
 
                 self._current_url = database_url
-                logger.info(f"Connecting to database: {database_url}")
-
-                # SQLite specific arguments
                 connect_args = {"check_same_thread": False} if "sqlite" in database_url else {}
                 
-                # SQLAlchemy Pooling Configuration for High Concurrency
                 self._engine = create_engine(
                     database_url,
                     pool_pre_ping=True,
-                    pool_size=20,         # Base pool size
-                    max_overflow=10,      # Temporary spike allowance
-                    pool_recycle=3600,    # Refresh connections hourly
+                    pool_size=20,
+                    max_overflow=10,
+                    pool_recycle=3600,
                     connect_args=connect_args
                 )
                 
@@ -166,6 +159,23 @@ class DatabaseManager:
                     autoflush=False,
                     bind=self._engine
                 )
+
+                # 2. Async Engine (only for PostgreSQL)
+                if "postgresql" in database_url:
+                    async_url = database_url.replace("postgresql+psycopg2://", "postgresql+asyncpg://")
+                    self._async_engine = create_async_engine(
+                        async_url,
+                        pool_pre_ping=True,
+                        pool_size=20,
+                        max_overflow=10,
+                        pool_recycle=3600
+                    )
+                    self._async_session_factory = async_sessionmaker(
+                        autocommit=False,
+                        autoflush=False,
+                        bind=self._async_engine,
+                        class_=AsyncSession
+                    )
 
                 # Ensure tables exist
                 Base.metadata.create_all(bind=self._engine)
@@ -176,10 +186,6 @@ class DatabaseManager:
                 return DatabaseResponse(message=str(e), status=False)
 
     def switch_database(self, new_url: str) -> DatabaseResponse:
-        """
-        Hot-swaps the database connection at runtime.
-        """
-        logger.info(f"Switching database to: {new_url}")
         return self.initialize(new_url)
 
     def get_session(self) -> Generator[Session, None, None]:
@@ -192,16 +198,26 @@ class DatabaseManager:
         finally:
             db.close()
 
+    async def get_async_session(self) -> AsyncGenerator[AsyncSession, None]:
+        if not self._async_session_factory:
+            raise RuntimeError("Async DatabaseManager not initialized.")
+        
+        async with self._async_session_factory() as session:
+            try:
+                yield session
+            finally:
+                await session.close()
+
     @property
     def engine(self):
-        if not self._engine:
-            raise RuntimeError("DatabaseManager not initialized.")
         return self._engine
 
     @property
+    def async_engine(self):
+        return self._async_engine
+
+    @property
     def session_factory(self):
-        if not self._session_factory:
-            raise RuntimeError("DatabaseManager not initialized.")
         return self._session_factory
 
     @property

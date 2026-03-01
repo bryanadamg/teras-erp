@@ -27,6 +27,11 @@ def SessionLocal():
 # Modules should prefer using get_engine() or db_manager.engine.
 engine = db_manager.engine
 
-# Dependency for FastAPI
+# Dependency for FastAPI (Sync)
 def get_db():
     yield from db_manager.get_session()
+
+# Dependency for FastAPI (Async)
+async def get_async_db():
+    async for session in db_manager.get_async_session():
+        yield session
