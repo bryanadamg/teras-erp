@@ -40,23 +40,46 @@ test('Full ERP Lifecycle: Buy, Make, Sell', async ({ page }) => {
   
   // Create RM-A
   await page.click('button:has-text("Create")');
+  // Wait for modal
+  await expect(page.locator('.modal-title')).toContainText('Create Item Inventory');
+  
   await page.fill('input[placeholder="ITM-001"]', rmA);
   await page.fill('input[placeholder="Product Name"]', 'Raw Material A');
-  await page.locator('select:near(:text("UOM"))').selectOption({ index: 1 });
+  // Select Category
+  await page.locator('.modal-body select').first().selectOption({ label: 'Raw Material' }); // Assuming 'Raw Material' exists, otherwise use index
+  // Select UOM (Kg) - target specifically inside modal body to avoid ambiguity
+  await page.locator('.modal-body select').last().selectOption({ label: 'kg' });
+  
   await page.click('button:has-text("Create")');
 
   // Create RM-B
   await page.click('button:has-text("Create")');
+  await expect(page.locator('.modal-title')).toContainText('Create Item Inventory');
   await page.fill('input[placeholder="ITM-001"]', rmB);
   await page.fill('input[placeholder="Product Name"]', 'Raw Material B');
-  await page.locator('select:near(:text("UOM"))').selectOption({ index: 1 });
+  await page.locator('.modal-body select').first().selectOption({ label: 'Raw Material' });
+  await page.locator('.modal-body select').last().selectOption({ label: 'kg' });
   await page.click('button:has-text("Create")');
 
   // Create FG-X
   await page.click('button:has-text("Create")');
+  await expect(page.locator('.modal-title')).toContainText('Create Item Inventory');
   await page.fill('input[placeholder="ITM-001"]', fgX);
   await page.fill('input[placeholder="Product Name"]', 'Finished Good X');
-  await page.locator('select:near(:text("UOM"))').selectOption({ index: 1 });
+  
+  // Select Finished Goods category
+  await page.locator('.modal-body select').first().selectOption({ label: 'Finished Goods' });
+  
+  // Select kg UOM
+  await page.locator('.modal-body select').last().selectOption({ label: 'kg' });
+
+  // Select all attributes (check all checkboxes in the attributes section)
+  const attributeCheckboxes = page.locator('.modal-body .form-check-input');
+  const count = await attributeCheckboxes.count();
+  for (let i = 0; i < count; ++i) {
+    await attributeCheckboxes.nth(i).check();
+  }
+
   await page.click('button:has-text("Create")');
 
   // 4. ENGINEERING (BOM)
@@ -132,6 +155,15 @@ test('Full ERP Lifecycle: Buy, Make, Sell', async ({ page }) => {
   await page.click('text=Select Item...');
   await page.fill('input[placeholder="Search..."]', fgX);
   await page.click(`text=${fgX}`);
+  
+  // Select attributes for FG-X if prompted (handle dynamic attribute dropdowns)
+  // We'll try to select the first available option for any visible attribute dropdowns
+  const attributeSelects = page.locator('.bg-light.p-3 select.form-select-sm');
+  const attrCount = await attributeSelects.count();
+  for (let i = 0; i < attrCount; ++i) {
+      await attributeSelects.nth(i).selectOption({ index: 1 }); // Select first non-placeholder option
+  }
+
   await page.fill('input[placeholder="0"]', '10');
   await page.click('button:has-text("Add")');
 
