@@ -3,7 +3,7 @@ import BOMDesigner from './BOMDesigner'; // New component
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 
-export default function BOMView({ items, boms, locations, attributes, workCenters, operations, onCreateBOM, onDeleteBOM, onCreateItem }: any) {
+export default function BOMView({ items, boms, locations, attributes, workCenters, operations, onCreateBOM, onDeleteBOM, onCreateItem, onSearchItem }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
   

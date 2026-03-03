@@ -183,10 +183,15 @@ export default function InventoryView({
 
           showToast(`Item Code "${newItem.code}" already exists. Suggesting: ${suggestedCode}`, 'warning');
           setNewItem({ ...newItem, code: suggestedCode });
-      } else {
+      } else if (res && res.ok) {
           // Success
           setNewItem({ code: '', name: '', uom: '', category: forcedCategory || '', source_sample_id: '', attribute_ids: [] });
           setIsCreateOpen(false);
+          showToast('Item created successfully', 'success');
+      } else {
+          // Error (500 or other)
+          showToast('Failed to create item. See console.', 'danger');
+          console.error("Create Item Failed", res);
       }
   };
 

@@ -484,7 +484,10 @@ export default function BOMDesigner({
                                 }).map((attr:any) => (
                                     <div key={attr.id} style={{minWidth: '150px'}}>
                                         <label className="extra-small text-muted">{attr.name}</label>
-                                        <select className="form-select form-select-sm" value={selectedNode.attribute_value_ids.find(v => attr.values.some((av:any) => av.id === v)) || ''}
+                                        <select 
+                                            data-testid={`bom-attribute-select-${attr.name}`}
+                                            className="form-select form-select-sm" 
+                                            value={selectedNode.attribute_value_ids.find(v => attr.values.some((av:any) => av.id === v)) || ''}
                                             onChange={e => {
                                                 const attrValId = e.target.value;
                                                 const others = selectedNode.attribute_value_ids.filter(v => !attr.values.some((av:any) => av.id === v));

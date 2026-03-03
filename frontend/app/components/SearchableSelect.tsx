@@ -155,7 +155,10 @@ export default function SearchableSelect({ options, value, onChange, placeholder
                                 className="form-control"
                                 placeholder="Search..."
                                 value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onChange={(e) => {
+                                    setSearchTerm(e.target.value);
+                                    if (onSearch) onSearch(e.target.value);
+                                }}
                                 onClick={(e) => e.stopPropagation()}
                                 data-testid={testId ? `${testId}-search` : undefined}
                             />

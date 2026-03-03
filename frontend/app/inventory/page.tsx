@@ -15,17 +15,20 @@ export default function InventoryPage() {
     const handleCreateItem = async (p: any) => {
         const res = await authFetch(`${API_BASE}/items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
         if (res.ok) fetchData();
+        return res;
     };
 
     const handleUpdateItem = async (id: string, p: any) => {
         const res = await authFetch(`${API_BASE}/items/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
         if (res.ok) fetchData();
+        return res;
     };
 
     const handleDeleteItem = async (id: string) => {
         if (!confirm('Delete item?')) return;
         const res = await authFetch(`${API_BASE}/items/${id}`, { method: 'DELETE' });
         if (res.ok) fetchData();
+        return res;
     };
 
     const handleAddVariant = async (itemId: string, p: any) => {
