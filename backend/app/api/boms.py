@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 from app.db.session import get_async_db
 from app.models.bom import BOM, BOMLine, BOMOperation
 from app.models.item import Item
@@ -75,11 +75,13 @@ async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db
     
     await db.commit()
     
-    # Re-fetch with FULL eager loading for serialization (Crucial: Added selectinload(BOM.operations))
+    # Re-fetch with FULL eager loading for serialization
     result = await db.execute(
         select(BOM)
         .options(
+            joinedload(BOM.item), 
             selectinload(BOM.attribute_values), 
+            selectinload(BOM.lines).joinedload(BOMLine.item), 
             selectinload(BOM.lines).selectinload(BOMLine.attribute_values),
             selectinload(BOM.operations)
         )
@@ -97,9 +99,13 @@ async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db
         changes=payload.dict()
     )
     
-    # Populate IDs for schema response
+    # Populate fields for schema response
+    refresh_bom.item_code = refresh_bom.item.code
+    refresh_bom.item_name = refresh_bom.item.name
     refresh_bom.attribute_value_ids = [v.id for v in refresh_bom.attribute_values]
     for bl in refresh_bom.lines:
+        bl.item_code = bl.item.code
+        bl.item_name = bl.item.name
         bl.attribute_value_ids = [v.id for v in bl.attribute_values]
     
     return refresh_bom
@@ -107,7 +113,9 @@ async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db
 @router.get("/boms", response_model=list[BOMResponse])
 async def get_boms(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
     query = select(BOM).options(
+        joinedload(BOM.item),
         selectinload(BOM.attribute_values), 
+        selectinload(BOM.lines).joinedload(BOMLine.item),
         selectinload(BOM.lines).selectinload(BOMLine.attribute_values),
         selectinload(BOM.operations)
     )
@@ -116,20 +124,26 @@ async def get_boms(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(g
         query = query.join(Item, BOM.item_id == Item.id).filter(Item.category.in_(current_user.allowed_categories))
         
     result = await db.execute(query.offset(skip).limit(limit))
-    items = result.unique().scalars().all()
+    items_list = result.unique().scalars().all()
     
-    for item in items:
+    for item in items_list:
+        item.item_code = item.item.code
+        item.item_name = item.item.name
         item.attribute_value_ids = [v.id for v in item.attribute_values]
         for bl in item.lines:
+            bl.item_code = bl.item.code
+            bl.item_name = bl.item.name
             bl.attribute_value_ids = [v.id for v in bl.attribute_values]
-    return items
+    return items_list
 
 @router.get("/boms/{bom_id}", response_model=BOMResponse)
 async def get_bom(bom_id: str, db: AsyncSession = Depends(get_async_db)):
     result = await db.execute(
         select(BOM)
         .options(
+            joinedload(BOM.item),
             selectinload(BOM.attribute_values), 
+            selectinload(BOM.lines).joinedload(BOMLine.item),
             selectinload(BOM.lines).selectinload(BOMLine.attribute_values),
             selectinload(BOM.operations)
         )
@@ -139,8 +153,12 @@ async def get_bom(bom_id: str, db: AsyncSession = Depends(get_async_db)):
     if not bom:
         raise HTTPException(status_code=404, detail="BOM not found")
     
+    bom.item_code = bom.item.code
+    bom.item_name = bom.item.name
     bom.attribute_value_ids = [v.id for v in bom.attribute_values]
     for bl in bom.lines:
+        bl.item_code = bl.item.code
+        bl.item_name = bl.item.name
         bl.attribute_value_ids = [v.id for v in bl.attribute_values]
         
     return bom

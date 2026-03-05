@@ -44,7 +44,8 @@ export default function BOMView({ items, boms, locations, attributes, workCenter
   };
 
   // Helpers
-  const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
+  const getItemName = (id: string, providedName?: string) => providedName || items.find((i: any) => i.id === id)?.name || id;
+  const getItemCode = (id: string, providedCode?: string) => providedCode || items.find((i: any) => i.id === id)?.code || id;
   const getOpName = (id: string) => operations.find((o: any) => o.id === id)?.name || id;
   const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || 'Default';
   const getAttributeValueName = (valId: string) => {
@@ -84,7 +85,8 @@ export default function BOMView({ items, boms, locations, attributes, workCenter
                               
                               <div className="d-flex align-items-center gap-1 border-bottom pb-1 border-light w-100 overflow-hidden">
                                   <span className="fw-bold text-primary flex-shrink-0" style={{minWidth: '20px'}}>{line.qty}</span> 
-                                  <span className="text-truncate">{getItemName(line.item_id)}</span>
+                                  <span className="text-truncate text-muted extra-small font-monospace me-1">{getItemCode(line.item_id, line.item_code)}</span>
+                                  <span className="text-truncate">{getItemName(line.item_id, line.item_name)}</span>
                                   <div className="text-muted fst-italic text-truncate flex-grow-1" style={{fontSize: '0.7rem'}}>
                                       {(line.attribute_value_ids || []).map(getAttributeValueName).join(', ')}
                                   </div>
@@ -167,7 +169,7 @@ export default function BOMView({ items, boms, locations, attributes, workCenter
                                 <tr key={bom.id}>
                                     <td className="ps-4 align-top"><span className="badge bg-light text-dark border font-monospace">{bom.code}</span></td>
                                     <td className="align-top">
-                                        <div className="fw-medium">{getItemName(bom.item_id)}</div>
+                                        <div className="fw-medium">{getItemName(bom.item_id, bom.item_name)} ({getItemCode(bom.item_id, bom.item_code)})</div>
                                         <div className="text-muted small">
                                             {(bom.attribute_value_ids || []).map(getAttributeValueName).join(', ') || '-'}
                                         </div>

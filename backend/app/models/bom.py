@@ -38,6 +38,7 @@ class BOM(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # Relationships
+    item = relationship("Item")
     attribute_values = relationship("AttributeValue", secondary=bom_values)
     lines = relationship("BOMLine", backref="bom", cascade="all, delete-orphan")
     operations = relationship("BOMOperation", backref="bom", cascade="all, delete-orphan")
@@ -67,6 +68,7 @@ class BOMLine(Base):
     is_percentage: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Relationships
+    item = relationship("Item")
     attribute_values = relationship("AttributeValue", secondary=bom_line_values)
 
 
