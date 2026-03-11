@@ -24,7 +24,8 @@ export default function ManufacturingView({
     totalItems, 
     pageSize, 
     onPageChange,
-    initialCreateState 
+    initialCreateState,
+    onClearInitialState 
 }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
@@ -86,12 +87,14 @@ export default function ManufacturingView({
                   sales_order_id: sales_order_id || ''
               }));
               setIsCreateOpen(true);
+              onClearInitialState(); // Stop the loop by signaling parent to clear state
               showToast('Production details pre-filled from Sales Order', 'info');
           } else {
               showToast('No active BOM found for the requested item.', 'warning');
+              onClearInitialState(); // Still clear state to stop the alert loop
           }
       }
-  }, [initialCreateState, items, boms]);
+  }, [initialCreateState, items, boms, onClearInitialState]);
 
   useEffect(() => {
       const savedConfig = localStorage.getItem('wo_code_config');

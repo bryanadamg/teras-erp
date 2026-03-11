@@ -51,6 +51,10 @@ export default function ManufacturingPage() {
         if (res.ok) { showToast('Work Order deleted', 'success'); fetchData(); }
     };
 
+    const handleClearInitialState = () => {
+        setInitialCreateState(null);
+    };
+
     return (
         <MainLayout>
             <ManufacturingView 
@@ -70,6 +74,7 @@ export default function ManufacturingPage() {
                 pageSize={pagination.pageSize}
                 onPageChange={pagination.setWoPage}
                 initialCreateState={initialCreateState}
+                onClearInitialState={handleClearInitialState}
             />
         </MainLayout>
     );
