@@ -138,9 +138,13 @@ class WorkOrderResponse(BaseModel):
     
     # We need to include BOM data for expansion
     bom: Optional[BOMResponse] = None
+    child_wos: list['WorkOrderResponse'] = []
 
     class Config:
         from_attributes = True
+
+# To avoid circular reference issues with Pydantic
+WorkOrderResponse.update_forward_refs()
 
 class PaginatedWorkOrderResponse(BaseModel):
     items: list[WorkOrderResponse]

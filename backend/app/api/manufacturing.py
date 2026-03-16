@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, inspect
 from sqlalchemy.orm import selectinload, joinedload
 from app.db.session import get_async_db
 from app.models.manufacturing import WorkOrder
@@ -21,7 +21,8 @@ router = APIRouter()
 
 # Helper for consistent eager loading
 def get_wo_options():
-    return [
+    # Base relationships for the main WO
+    options = [
         selectinload(WorkOrder.item),
         selectinload(WorkOrder.attribute_values),
         selectinload(WorkOrder.bom).selectinload(BOM.item),
@@ -30,6 +31,56 @@ def get_wo_options():
         selectinload(WorkOrder.bom).selectinload(BOM.lines).selectinload(BOMLine.item),
         selectinload(WorkOrder.bom).selectinload(BOM.lines).selectinload(BOMLine.attribute_values)
     ]
+    
+    # Sub-relationships for children (Level 1)
+    child_rel = selectinload(WorkOrder.child_wos)
+    options.append(child_rel.selectinload(WorkOrder.item))
+    options.append(child_rel.selectinload(WorkOrder.attribute_values))
+    
+    # Fully load BOM for children to avoid serialization errors
+    child_bom = child_rel.selectinload(WorkOrder.bom)
+    options.append(child_bom.selectinload(BOM.item))
+    options.append(child_bom.selectinload(BOM.attribute_values))
+    options.append(child_bom.selectinload(BOM.operations))
+    options.append(child_bom.selectinload(BOM.lines).selectinload(BOMLine.item))
+    options.append(child_bom.selectinload(BOM.lines).selectinload(BOMLine.attribute_values))
+    
+    # Support deeper levels if needed (Level 2)
+    gchild_rel = child_rel.selectinload(WorkOrder.child_wos)
+    options.append(gchild_rel.selectinload(WorkOrder.item))
+    options.append(gchild_rel.selectinload(WorkOrder.attribute_values))
+    
+    gchild_bom = gchild_rel.selectinload(WorkOrder.bom)
+    options.append(gchild_bom.selectinload(BOM.item))
+    options.append(gchild_bom.selectinload(BOM.attribute_values))
+    options.append(gchild_bom.selectinload(BOM.operations))
+    options.append(gchild_bom.selectinload(BOM.lines).selectinload(BOMLine.item))
+    options.append(gchild_bom.selectinload(BOM.lines).selectinload(BOMLine.attribute_values))
+    
+    return options
+
+def populate_wo_ids(wo: WorkOrder):
+    """Recursively populate attribute_value_ids for WO and its children safely."""
+    # Use inspection to avoid triggering lazy loads in async context
+    insp = inspect(wo)
+    
+    # 1. Populate Attribute Values (if loaded)
+    if "attribute_values" not in insp.unloaded:
+        wo.attribute_value_ids = [v.id for v in wo.attribute_values]
+    
+    # 2. Populate BOM IDs (if loaded)
+    if "bom" not in insp.unloaded and wo.bom:
+        bom_insp = inspect(wo.bom)
+        if "lines" not in bom_insp.unloaded:
+            for bl in wo.bom.lines:
+                bl_insp = inspect(bl)
+                if "attribute_values" not in bl_insp.unloaded:
+                    bl.attribute_value_ids = [v.id for v in bl.attribute_values]
+    
+    # 3. Recurse into children (if loaded)
+    if "child_wos" not in insp.unloaded:
+        for child in wo.child_wos:
+            populate_wo_ids(child)
 
 async def create_wo_recursive(
     db: AsyncSession,
@@ -189,10 +240,15 @@ async def get_work_orders(
     limit: int = 100, 
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
+    all_levels: bool = False, # New flag to include children in the flat list if desired
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     query = select(WorkOrder)
+    
+    # Filter only root WOs by default to avoid clutter
+    if not all_levels:
+        query = query.filter(WorkOrder.parent_wo_id == None)
     
     if start_date:
         query = query.filter(WorkOrder.created_at >= start_date)
@@ -215,10 +271,7 @@ async def get_work_orders(
 
     requirements = []
     for item in items_list:
-        item.attribute_value_ids = [v.id for v in item.attribute_values]
-        if item.bom and item.bom.lines:
-            for bl in item.bom.lines:
-                bl.attribute_value_ids = [v.id for v in bl.attribute_values]
+        populate_wo_ids(item)
 
         if item.status == "PENDING" and item.bom:
             for line in item.bom.lines:

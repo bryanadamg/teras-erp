@@ -302,6 +302,39 @@ export default function ManufacturingView({
       return { available, isEnough: available >= required_qty };
   };
 
+  // --- Nested Work Orders View ---
+  const NestedWorkOrders = ({ children, level = 1 }: { children: any[], level?: number }) => {
+      if (!children || children.length === 0) return null;
+
+      return (
+          <div className={`ms-${level * 3} mt-2 border-start ps-3`}>
+              <div className="extra-small fw-bold text-muted mb-2 text-uppercase letter-spacing-1">Child Work Orders</div>
+              {children.map(child => (
+                  <div key={child.id} className="card shadow-none border mb-2 bg-white">
+                      <div className="card-body p-2 d-flex justify-content-between align-items-center">
+                          <div className="d-flex align-items-center gap-3">
+                              <span className="font-monospace extra-small fw-bold text-primary">{child.code}</span>
+                              <div>
+                                  <div className="small fw-bold">{child.item_name || getItemName(child.item_id)}</div>
+                                  <div className="extra-small text-muted">Qty: {child.qty} • Status: <span className={`badge ${getStatusBadge(child.status)} extra-small py-0`}>{child.status}</span></div>
+                              </div>
+                          </div>
+                          <div className="d-flex gap-2">
+                              <button className="btn btn-sm btn-outline-primary py-0 px-2 extra-small" onClick={() => handlePrintWO(child)}>
+                                  <i className="bi bi-printer me-1"></i>QR
+                              </button>
+                              {child.status === 'PENDING' && <button className="btn btn-sm btn-primary py-0 px-2 extra-small" onClick={() => onUpdateStatus(child.id, 'IN_PROGRESS')}>START</button>}
+                              {child.status === 'IN_PROGRESS' && <button className="btn btn-sm btn-success py-0 px-2 extra-small" onClick={() => onUpdateStatus(child.id, 'COMPLETED')}>FINISH</button>}
+                          </div>
+                      </div>
+                      {/* Recurse for deeper levels */}
+                      <NestedWorkOrders children={child.child_wos} level={level + 1} />
+                  </div>
+              ))}
+          </div>
+      );
+  };
+
   // --- Print Template Component ---
   const WorkOrderPrintTemplate = ({ wo }: { wo: any }) => {
       const bom = boms.find((b: any) => b.id === wo.bom_id);
@@ -572,6 +605,7 @@ export default function ManufacturingView({
                                                                 <div className="extra-small text-muted">
                                                                     BOM: {getBOMCode(wo.bom_id)}
                                                                     {wo.sales_order_id && <span className="ms-2 text-primary fw-bold">From SO</span>}
+                                                                    {wo.child_wos && wo.child_wos.length > 0 && <span className="ms-2 badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" style={{fontSize: '0.65rem'}}>NESTED ({wo.child_wos.length})</span>}
                                                                 </div>
                                                                 {wo.status === 'PENDING' && wo.is_material_available === false && <span className="badge bg-danger p-1 extra-small mt-1">LOW STOCK</span>}
                                                             </div>
@@ -667,6 +701,13 @@ export default function ManufacturingView({
                                                                         </div>
                                                                     </div>
                                                                 </div>
+
+                                                                {/* Nested Work Orders Section */}
+                                                                {wo.child_wos && wo.child_wos.length > 0 && (
+                                                                    <div className="mt-4 pt-4 border-top">
+                                                                        <NestedWorkOrders children={wo.child_wos} />
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </td>
                                                     </tr>
