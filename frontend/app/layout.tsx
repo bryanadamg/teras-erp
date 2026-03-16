@@ -2,6 +2,7 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import './globals.css';
 import { ToastProvider } from './components/Toast';
+import { ConfirmProvider } from './context/ConfirmContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { Suspense } from 'react';
 import { UserProvider } from './context/UserContext';
@@ -24,13 +25,15 @@ export default function RootLayout({
         <QueryProvider>
           <LanguageProvider>
             <ToastProvider>
-              <UserProvider>
-                <DataProvider>
-                  <Suspense fallback={<div className="d-flex justify-content-center align-items-center vh-100 bg-light text-muted fw-bold">LOADING_SYSTEM_RESOURCES...</div>}>
-                    {children}
-                  </Suspense>
-                </DataProvider>
-              </UserProvider>
+              <ConfirmProvider>
+                <UserProvider>
+                  <DataProvider>
+                    <Suspense fallback={<div className="d-flex justify-content-center align-items-center vh-100 bg-light text-muted fw-bold">LOADING_SYSTEM_RESOURCES...</div>}>
+                      {children}
+                    </Suspense>
+                  </DataProvider>
+                </UserProvider>
+              </ConfirmProvider>
             </ToastProvider>
           </LanguageProvider>
         </QueryProvider>

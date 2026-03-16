@@ -3,11 +3,13 @@
 import MainLayout from '../components/MainLayout';
 import InventoryView from '../components/InventoryView';
 import { useData } from '../context/DataContext';
+import { useConfirm } from '../context/ConfirmContext';
 
 export default function SampleMastersPage() {
     const { 
         items, attributes, categories, uoms, fetchData, pagination, filters, authFetch
     } = useData();
+    const { confirm } = useConfirm();
 
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
@@ -23,7 +25,13 @@ export default function SampleMastersPage() {
     };
 
     const handleDeleteItem = async (id: string) => {
-        if (!confirm('Delete item?')) return;
+        const confirmed = await confirm({
+            title: 'Delete Sample Master',
+            message: 'Are you sure you want to delete this sample master item?',
+            confirmText: 'Delete',
+            variant: 'danger'
+        });
+        if (!confirmed) return;
         const res = await authFetch(`${API_BASE}/items/${id}`, { method: 'DELETE' });
         if (res.ok) fetchData();
     };
@@ -34,7 +42,13 @@ export default function SampleMastersPage() {
     };
 
     const handleDeleteVariant = async (id: string) => {
-        if (!confirm('Delete variant?')) return;
+        const confirmed = await confirm({
+            title: 'Delete Variant',
+            message: 'Are you sure you want to delete this variant?',
+            confirmText: 'Delete',
+            variant: 'danger'
+        });
+        if (!confirmed) return;
         const res = await authFetch(`${API_BASE}/variants/${id}`, { method: 'DELETE' });
         if (res.ok) fetchData();
     };

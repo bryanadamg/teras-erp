@@ -307,30 +307,78 @@ export default function ManufacturingView({
       if (!children || children.length === 0) return null;
 
       return (
-          <div className={`ms-${level * 3} mt-2 border-start ps-3`}>
-              <div className="extra-small fw-bold text-muted mb-2 text-uppercase letter-spacing-1">Child Work Orders</div>
-              {children.map(child => (
-                  <div key={child.id} className="card shadow-none border mb-2 bg-white">
-                      <div className="card-body p-2 d-flex justify-content-between align-items-center">
-                          <div className="d-flex align-items-center gap-3">
-                              <span className="font-monospace extra-small fw-bold text-primary">{child.code}</span>
-                              <div>
-                                  <div className="small fw-bold">{child.item_name || getItemName(child.item_id)}</div>
-                                  <div className="extra-small text-muted">Qty: {child.qty} • Status: <span className={`badge ${getStatusBadge(child.status)} extra-small py-0`}>{child.status}</span></div>
+          <div className={`${level === 1 ? 'mt-3' : 'mt-2'} ms-${level > 1 ? '3' : '0'}`}>
+              <div className="d-flex align-items-center gap-2 mb-3">
+                  <div className="flex-grow-1 border-bottom border-secondary border-opacity-25"></div>
+                  <div className="extra-small fw-bold text-muted text-uppercase letter-spacing-1 d-flex align-items-center">
+                      <i className={`bi bi-diagram-3-fill me-2 ${currentStyle === 'classic' ? 'text-secondary' : 'text-info'}`}></i>
+                      {level === 1 ? 'Sub-Production Chain' : `Level ${level} Components`}
+                  </div>
+                  <div className="flex-grow-1 border-bottom border-secondary border-opacity-25"></div>
+              </div>
+              
+              <div className="row g-3">
+                  {children.map(child => (
+                      <div key={child.id} className="col-12">
+                          <div className={`card shadow-sm border-start border-4 ${child.status === 'COMPLETED' ? 'border-success' : child.status === 'IN_PROGRESS' ? 'border-warning' : (currentStyle === 'classic' ? 'border-secondary' : 'border-info')} bg-white`}>
+                              <div className="card-body p-3">
+                                  <div className="d-flex justify-content-between align-items-start mb-2">
+                                      <div className="d-flex align-items-center gap-3">
+                                          <div className={`bg-light p-2 rounded text-center`} style={{minWidth: '60px'}}>
+                                              <div className="extra-small text-muted fw-bold">QTY</div>
+                                              <div className={`fw-bold fs-5 ${currentStyle === 'classic' ? 'text-dark' : 'text-primary'}`}>{child.qty}</div>
+                                          </div>
+                                          <div>
+                                              <div className="d-flex align-items-center gap-2 mb-1">
+                                                  <span className="badge bg-dark font-monospace extra-small">{child.code}</span>
+                                                  <span className={`badge ${getStatusBadge(child.status)} extra-small`}>{child.status}</span>
+                                              </div>
+                                              <div className="fw-bold text-dark">{child.item_name || getItemName(child.item_id)}</div>
+                                              <div className="extra-small text-muted">
+                                                  <i className="bi bi-geo-alt me-1"></i>{getLocationName(child.location_id)}
+                                                  <span className="mx-2">|</span>
+                                                  <i className="bi bi-calendar-event me-1"></i>Due: {formatDate(child.target_end_date)}
+                                              </div>
+                                          </div>
+                                      </div>
+                                      <div className="d-flex flex-column gap-2">
+                                          <div className="d-flex gap-2 justify-content-end">
+                                              <button className="btn btn-sm btn-outline-secondary p-1 px-2 extra-small d-flex align-items-center" onClick={() => handlePrintWO(child)} title="Print QR Code">
+                                                  <i className="bi bi-qr-code me-1"></i>QR
+                                              </button>
+                                              {child.status === 'PENDING' && (
+                                                  <button className="btn btn-sm btn-primary py-1 px-3 extra-small fw-bold shadow-sm" onClick={() => onUpdateStatus(child.id, 'IN_PROGRESS')}>
+                                                      START
+                                                  </button>
+                                              )}
+                                              {child.status === 'IN_PROGRESS' && (
+                                                  <button className="btn btn-sm btn-success py-1 px-3 extra-small fw-bold shadow-sm" onClick={() => onUpdateStatus(child.id, 'COMPLETED')}>
+                                                      FINISH
+                                                  </button>
+                                              )}
+                                          </div>
+                                          {/* Mini Progress Bar */}
+                                          <div className="progress mt-1" style={{height: '4px', width: '100px'}}>
+                                              <div 
+                                                  className={`progress-bar ${child.status === 'COMPLETED' ? 'bg-success' : child.status === 'IN_PROGRESS' ? 'bg-warning' : (currentStyle === 'classic' ? 'bg-secondary' : 'bg-info')}`} 
+                                                  role="progressbar" 
+                                                  style={{width: child.status === 'COMPLETED' ? '100%' : child.status === 'IN_PROGRESS' ? '50%' : '5%'}}
+                                              ></div>
+                                          </div>
+                                      </div>
+                                  </div>
+                                  
+                                  {/* Deep Nesting Visualization */}
+                                  {child.child_wos && child.child_wos.length > 0 && (
+                                      <div className="mt-3 pt-3 border-top border-dashed">
+                                          <NestedWorkOrders children={child.child_wos} level={level + 1} />
+                                      </div>
+                                  )}
                               </div>
                           </div>
-                          <div className="d-flex gap-2">
-                              <button className="btn btn-sm btn-outline-primary py-0 px-2 extra-small" onClick={() => handlePrintWO(child)}>
-                                  <i className="bi bi-printer me-1"></i>QR
-                              </button>
-                              {child.status === 'PENDING' && <button className="btn btn-sm btn-primary py-0 px-2 extra-small" onClick={() => onUpdateStatus(child.id, 'IN_PROGRESS')}>START</button>}
-                              {child.status === 'IN_PROGRESS' && <button className="btn btn-sm btn-success py-0 px-2 extra-small" onClick={() => onUpdateStatus(child.id, 'COMPLETED')}>FINISH</button>}
-                          </div>
                       </div>
-                      {/* Recurse for deeper levels */}
-                      <NestedWorkOrders children={child.child_wos} level={level + 1} />
-                  </div>
-              ))}
+                  ))}
+              </div>
           </div>
       );
   };
@@ -376,6 +424,37 @@ export default function ManufacturingView({
                   </>
               );
           });
+      };
+
+      const renderChildWOsPrint = (children: any[]) => {
+          if (!children || children.length === 0) return null;
+          return (
+              <div className="mt-5 pt-4 border-top">
+                  <h6 className="fw-bold text-uppercase text-muted extra-small mb-3"><i className="bi bi-diagram-3-fill me-2"></i>Child Work Orders (Nested Chain)</h6>
+                  <div className="row g-3">
+                      {children.map(child => (
+                          <div key={child.id} className="col-12 border rounded p-2 bg-light bg-opacity-10 d-flex justify-content-between align-items-center">
+                              <div className="d-flex align-items-center gap-3">
+                                  <img 
+                                      src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${child.code}`} 
+                                      alt="QR" 
+                                      style={{ width: '60px', height: '60px' }}
+                                  />
+                                  <div>
+                                      <div className="font-monospace extra-small fw-bold text-primary">{child.code}</div>
+                                      <div className="fw-bold small">{child.item_name || getItemName(child.item_id)}</div>
+                                      <div className="extra-small text-muted">Qty: {child.qty} • Loc: {getLocationName(child.location_id)}</div>
+                                  </div>
+                              </div>
+                              <div className="text-end pe-2">
+                                  <div className="extra-small text-muted">Status: {child.status}</div>
+                                  <div className="extra-small text-muted">Due: {formatDate(child.target_end_date)}</div>
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              </div>
+          );
       };
 
       return (
@@ -443,6 +522,8 @@ export default function ManufacturingView({
                       {bom ? renderPrintBOMLines(bom.lines, 0, 1, bom) : <tr><td colSpan={5}>No BOM found</td></tr>}
                   </tbody>
               </table>
+
+              {renderChildWOsPrint(wo.child_wos)}
 
               <div className="mt-5 pt-5 border-top d-flex justify-content-between text-muted small">
                   <div>Printed: {new Date().toLocaleString()}</div>

@@ -6,6 +6,7 @@ import { useData } from '../context/DataContext';
 import { useToast } from '../components/Toast';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { useConfirm } from '../context/ConfirmContext';
 
 export default function ManufacturingPage() {
     const { 
@@ -13,6 +14,7 @@ export default function ManufacturingPage() {
         workCenters, operations, fetchData, pagination, authFetch
     } = useData();
     const { showToast } = useToast();
+    const { confirm } = useConfirm();
     const searchParams = useSearchParams();
     const [initialCreateState, setInitialCreateState] = useState<any>(null);
 
@@ -46,7 +48,14 @@ export default function ManufacturingPage() {
     };
 
     const handleDeleteWO = async (woId: string) => {
-        if (!confirm('Are you sure?')) return;
+        const confirmed = await confirm({
+            title: 'Delete Work Order',
+            message: 'Are you sure you want to delete this work order? This will remove it from the schedule.',
+            confirmText: 'Delete',
+            variant: 'danger'
+        });
+        if (!confirmed) return;
+        
         const res = await authFetch(`${API_BASE}/work-orders/${woId}`, { method: 'DELETE' });
         if (res.ok) { showToast('Work Order deleted', 'success'); fetchData(); }
     };

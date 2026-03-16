@@ -5,11 +5,14 @@ import SalesOrderView from '../components/SalesOrderView';
 import { useData } from '../context/DataContext';
 import { useRouter } from 'next/navigation';
 import { useToast } from '../components/Toast';
+import { useConfirm } from '../context/ConfirmContext';
 
 export default function SalesOrdersPage() {
     const { items, attributes, salesOrders, partners, fetchData, authFetch } = useData();
     const { showToast } = useToast();
+    const { confirm } = useConfirm();
     const router = useRouter();
+
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
@@ -19,7 +22,13 @@ export default function SalesOrdersPage() {
     };
 
     const handleDeleteSO = async (id: string) => {
-        if (!confirm('Are you sure?')) return;
+        const confirmed = await confirm({
+            title: 'Delete Sales Order',
+            message: 'Are you sure you want to delete this sales order?',
+            confirmText: 'Delete',
+            variant: 'danger'
+        });
+        if (!confirmed) return;
         const res = await authFetch(`${API_BASE}/sales-orders/${id}`, { method: 'DELETE' });
         if (res.ok) fetchData();
     };

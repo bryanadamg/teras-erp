@@ -3,9 +3,11 @@
 import MainLayout from '../components/MainLayout';
 import BOMView from '../components/BOMView';
 import { useData } from '../context/DataContext';
+import { useConfirm } from '../context/ConfirmContext';
 
 export default function BOMPage() {
     const { items, attributes, boms, operations, workCenters, fetchData, authFetch, filters } = useData();
+    const { confirm } = useConfirm();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
@@ -21,6 +23,20 @@ export default function BOMPage() {
         return res;
     };
 
+    const handleDeleteBOM = async (id: string) => {
+        const confirmed = await confirm({
+            title: 'Delete BOM',
+            message: 'Are you sure you want to delete this BOM? This action cannot be undone.',
+            confirmText: 'Delete',
+            variant: 'danger'
+        });
+        if (!confirmed) return;
+        
+        const res = await authFetch(`${API_BASE}/boms/${id}`, { method: 'DELETE' });
+        if (res.ok) fetchData();
+        return res;
+    };
+
     return (
         <MainLayout>
             <BOMView 
@@ -30,6 +46,7 @@ export default function BOMPage() {
                 operations={operations} 
                 workCenters={workCenters} 
                 onCreateBOM={handleCreateBOM} 
+                onDeleteBOM={handleDeleteBOM}
                 onSearchItem={filters.setItemSearch}
                 onCreateItem={handleCreateItem}
                 locations={[]} 
