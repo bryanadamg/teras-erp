@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 
 from fastapi.staticfiles import StaticFiles
 from app.db.session import engine
+from app.core.db_manager import db_manager
 from app.db.base import Base
 from app.api import items, locations, stock, attributes, boms, manufacturing, categories, routing, auth, uoms, sales, samples, audit, admin, dashboard, partners, purchase, settings
 from app.core.ws_manager import manager
@@ -69,6 +70,28 @@ async def websocket_endpoint(websocket: WebSocket):
 @api_router.get("/health")
 async def health():
     return {"status": "ok"}
+
+@api_router.get("/health/ready")
+async def health_readiness():
+    checks = {"db": "fail", "redis": "fail"}
+    # DB probe
+    try:
+        if db_manager.async_engine:
+            async with db_manager.async_engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+                checks["db"] = "ok"
+    except Exception:
+        pass
+    # Redis probe
+    try:
+        if manager.redis and await manager.redis.ping():
+            checks["redis"] = "ok"
+    except Exception:
+        pass
+
+    all_ok = all(v == "ok" for v in checks.values())
+    status_code = 200 if all_ok else 503
+    return ORJSONResponse({"status": "ready" if all_ok else "degraded", **checks}, status_code=status_code)
 
 app.include_router(api_router, prefix="/api")
 # ----------------------------

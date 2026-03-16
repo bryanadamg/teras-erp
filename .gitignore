@@ -232,6 +232,7 @@ GEMINI.md
 *.skill
 .gemini/
 skills/
+CLAUDE.md
 
 # Playwright
 frontend/playwright-report

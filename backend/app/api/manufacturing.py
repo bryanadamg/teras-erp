@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_, inspect
-from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.orm import selectinload, joinedload, attributes as sa_attributes
 from app.db.session import get_async_db
 from app.models.manufacturing import WorkOrder
 from app.models.bom import BOM, BOMLine
@@ -77,10 +77,13 @@ def populate_wo_ids(wo: WorkOrder):
                 if "attribute_values" not in bl_insp.unloaded:
                     bl.attribute_value_ids = [v.id for v in bl.attribute_values]
     
-    # 3. Recurse into children (if loaded)
+    # 3. Recurse into children (if loaded); stub unloaded child_wos as []
     if "child_wos" not in insp.unloaded:
         for child in wo.child_wos:
             populate_wo_ids(child)
+    else:
+        # Prevent Pydantic from triggering a lazy-load in async context
+        sa_attributes.set_committed_value(wo, "child_wos", [])
 
 async def create_wo_recursive(
     db: AsyncSession,
