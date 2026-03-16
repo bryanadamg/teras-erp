@@ -85,6 +85,7 @@ TreeView.displayName = 'TreeView';
 
 export default function BOMDesigner({ 
     rootItemCode, 
+    initialAttributeValueIds, // New Prop
     items, 
     locations, 
     attributes, 
@@ -103,7 +104,7 @@ export default function BOMDesigner({
         id: 'root',
         code: '',
         item_code: rootItemCode || '',
-        attribute_value_ids: [],
+        attribute_value_ids: initialAttributeValueIds || [], // Use it here
         qty: 1.0,
         tolerance_percentage: 0.0,
         operations: [],

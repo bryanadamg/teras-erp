@@ -4,12 +4,29 @@ import MainLayout from '../components/MainLayout';
 import BOMView from '../components/BOMView';
 import { useData } from '../context/DataContext';
 import { useConfirm } from '../context/ConfirmContext';
+import { useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 export default function BOMPage() {
     const { items, attributes, boms, operations, workCenters, fetchData, authFetch, filters } = useData();
     const { confirm } = useConfirm();
+    const searchParams = useSearchParams();
+    const [initialCreateState, setInitialCreateState] = useState<any>(null);
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
+
+    useEffect(() => {
+        if (searchParams.get('action') === 'create_bom') {
+            setInitialCreateState({
+                item_id: searchParams.get('item_id'),
+                attribute_value_ids: searchParams.get('attribute_value_ids')
+            });
+        }
+    }, [searchParams]);
+
+    const handleClearInitialState = () => {
+        setInitialCreateState(null);
+    };
 
     const handleCreateBOM = async (p: any) => {
         const res = await authFetch(`${API_BASE}/boms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
@@ -50,6 +67,8 @@ export default function BOMPage() {
                 onSearchItem={filters.setItemSearch}
                 onCreateItem={handleCreateItem}
                 locations={[]} 
+                initialCreateState={initialCreateState}
+                onClearInitialState={handleClearInitialState}
             />
         </MainLayout>
     );

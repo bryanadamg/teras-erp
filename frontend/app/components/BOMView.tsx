@@ -1,9 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import BOMDesigner from './BOMDesigner'; // New component
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 
-export default function BOMView({ items, boms, locations, attributes, workCenters, operations, onCreateBOM, onDeleteBOM, onCreateItem, onSearchItem }: any) {
+export default function BOMView({ 
+    items, boms, locations, attributes, workCenters, operations, 
+    onCreateBOM, onDeleteBOM, onCreateItem, onSearchItem,
+    initialCreateState, onClearInitialState 
+}: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
   
@@ -13,10 +17,25 @@ export default function BOMView({ items, boms, locations, attributes, workCenter
   // Tree Expansion State for List View
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
 
-  useState(() => {
+  useEffect(() => {
       const savedStyle = localStorage.getItem('ui_style');
       if (savedStyle) setCurrentStyle(savedStyle);
-  });
+  }, []);
+
+  // Handle Initial State from URL
+  useEffect(() => {
+      if (initialCreateState && items.length > 0) {
+          const item = items.find((i: any) => i.id === initialCreateState.item_id);
+          if (item) {
+              setIsDesignerOpen(true);
+          }
+      }
+  }, [initialCreateState, items]);
+
+  const handleCloseDesigner = () => {
+      setIsDesignerOpen(false);
+      if (onClearInitialState) onClearInitialState();
+  };
 
   const handleCreateBOMWrapper = async (bomData: any) => {
       const res = await onCreateBOM(bomData);
@@ -126,7 +145,8 @@ export default function BOMView({ items, boms, locations, attributes, workCenter
                     </div>
                     
                     <BOMDesigner 
-                        rootItemCode=""
+                        rootItemCode={initialItemCode || ""}
+                        initialAttributeValueIds={initialAttributeIds}
                         items={items}
                         locations={locations || []}
                         attributes={attributes}
@@ -135,7 +155,7 @@ export default function BOMView({ items, boms, locations, attributes, workCenter
                         existingBOMs={boms}
                         onSave={handleCreateBOMWrapper}
                         onCreateItem={onCreateItem}
-                        onCancel={() => setIsDesignerOpen(false)}
+                        onCancel={handleCloseDesigner}
                         onSearchItem={onSearchItem}
                     />
                 </div>

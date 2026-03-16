@@ -8,7 +8,7 @@ import { useToast } from '../components/Toast';
 import { useConfirm } from '../context/ConfirmContext';
 
 export default function SalesOrdersPage() {
-    const { items, attributes, salesOrders, partners, fetchData, authFetch } = useData();
+    const { items, attributes, salesOrders, partners, fetchData, authFetch, boms } = useData();
     const { showToast } = useToast();
     const { confirm } = useConfirm();
     const router = useRouter();
@@ -34,14 +34,44 @@ export default function SalesOrdersPage() {
     };
 
     const handleGenerateWO = (so: any, line: any) => {
-        // Navigate to manufacturing page with pre-filled data in query params
-        const params = new URLSearchParams({
-            action: 'create_wo',
-            sales_order_id: so.id,
-            item_id: line.item_id,
-            qty: line.qty.toString()
+        // 1. Check if BOM exists for this item + attributes
+        const lineAttrIds = line.attribute_value_ids || [];
+        
+        // Find a BOM that matches the item ID
+        const matchingBOM = boms.find((b: any) => {
+            if (b.item_id !== line.item_id) return false;
+            
+            // Check if BOM attributes match the line attributes
+            // A BOM matches if its attribute_value_ids (Set) is EQUAL to the line's attribute_value_ids (Set)
+            // Or if the BOM covers the specific configuration.
+            // Simplified: Exact match of sorted IDs or if BOM has no attributes and line has none.
+            const bomAttrIds = b.attribute_value_ids || [];
+            
+            if (lineAttrIds.length !== bomAttrIds.length) return false;
+            
+            // Check if every ID in lineAttrIds is present in bomAttrIds
+            return lineAttrIds.every((id: string) => bomAttrIds.includes(id));
         });
-        router.push(`/manufacturing?${params.toString()}`);
+
+        if (matchingBOM) {
+            // Navigate to manufacturing page with pre-filled data
+            const params = new URLSearchParams({
+                action: 'create_wo',
+                sales_order_id: so.id,
+                item_id: line.item_id,
+                qty: line.qty.toString()
+            });
+            router.push(`/manufacturing?${params.toString()}`);
+        } else {
+            // No BOM found - Redirect to BOM creation
+            showToast('No matching BOM found. Please create a recipe first.', 'warning');
+            const params = new URLSearchParams({
+                action: 'create_bom',
+                item_id: line.item_id,
+                attribute_value_ids: (line.attribute_value_ids || []).join(',')
+            });
+            router.push(`/bom?${params.toString()}`);
+        }
     };
 
     const handleUpdateSOStatus = async (soId: string, status: string) => {

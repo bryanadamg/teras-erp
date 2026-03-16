@@ -150,7 +150,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             }
 
             // Engineering
-            if (fetchTarget.includes('bom') || fetchTarget.includes('manufacturing') || fetchTarget.includes('samples')) {
+            if (fetchTarget.includes('bom') || fetchTarget.includes('manufacturing') || fetchTarget.includes('samples') || fetchTarget.includes('sales-orders')) {
                 requests.push(fetch(`${API_BASE}/boms`, { headers }));
                 requestTypes.push('boms');
             }
