@@ -233,6 +233,7 @@ GEMINI.md
 .gemini/
 skills/
 CLAUDE.md
+.claude/
 
 # Playwright
 frontend/playwright-report

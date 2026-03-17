@@ -22,6 +22,13 @@ export default function BOMView({
       if (savedStyle) setCurrentStyle(savedStyle);
   }, []);
 
+  const initialItemCode = initialCreateState
+      ? (items.find((i: any) => i.id === initialCreateState.item_id)?.code || "")
+      : "";
+  const initialAttributeIds = initialCreateState
+      ? (initialCreateState.attribute_value_ids || "").split(',').filter(Boolean)
+      : [];
+
   // Handle Initial State from URL
   useEffect(() => {
       if (initialCreateState && items.length > 0) {

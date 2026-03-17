@@ -4,8 +4,8 @@ import MainLayout from '../components/MainLayout';
 import ManufacturingView from '../components/ManufacturingView';
 import { useData } from '../context/DataContext';
 import { useToast } from '../components/Toast';
-import { useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useConfirm } from '../context/ConfirmContext';
 
 export default function ManufacturingPage() {
@@ -16,18 +16,23 @@ export default function ManufacturingPage() {
     const { showToast } = useToast();
     const { confirm } = useConfirm();
     const searchParams = useSearchParams();
+    const router = useRouter();
     const [initialCreateState, setInitialCreateState] = useState<any>(null);
+    const consumedSOIdRef = useRef<string | null>(null);
 
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
     useEffect(() => {
-        if (searchParams.get('action') === 'create_wo') {
+        const soId = searchParams.get('sales_order_id');
+        if (searchParams.get('action') === 'create_wo' && soId !== consumedSOIdRef.current) {
+            consumedSOIdRef.current = soId;
             setInitialCreateState({
-                sales_order_id: searchParams.get('sales_order_id'),
+                sales_order_id: soId,
                 item_id: searchParams.get('item_id'),
                 qty: parseFloat(searchParams.get('qty') || '0')
             });
+            router.replace('/manufacturing');
         }
     }, [searchParams]);
 
@@ -60,9 +65,9 @@ export default function ManufacturingPage() {
         if (res.ok) { showToast('Work Order deleted', 'success'); fetchData(); }
     };
 
-    const handleClearInitialState = () => {
+    const handleClearInitialState = useCallback(() => {
         setInitialCreateState(null);
-    };
+    }, []);
 
     return (
         <MainLayout>

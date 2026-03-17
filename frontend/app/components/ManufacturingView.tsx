@@ -57,6 +57,7 @@ export default function ManufacturingView({
   
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [codeConfig, setCodeConfig] = useState<CodeConfig>({
       prefix: 'WO',
       suffix: '',
@@ -193,39 +194,44 @@ export default function ManufacturingView({
 
   const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
-      
-      // Clean dates: convert empty strings to null for Pydantic
-      const payload = {
-          ...newWO,
-          target_start_date: newWO.target_start_date || null,
-          target_end_date: newWO.target_end_date || null,
-          sales_order_id: newWO.sales_order_id || null
-      };
+      if (isSubmitting) return;
+      setIsSubmitting(true);
+      try {
+          // Clean dates: convert empty strings to null for Pydantic
+          const payload = {
+              ...newWO,
+              target_start_date: newWO.target_start_date || null,
+              target_end_date: newWO.target_end_date || null,
+              sales_order_id: newWO.sales_order_id || null
+          };
 
-      const res = await onCreateWO(payload);
-      if (res && res.status === 400) {
-          let baseCode = newWO.code;
-          const baseMatch = baseCode.match(/^(.*)-(\d+)$/);
-          if (baseMatch) baseCode = baseMatch[1];
-          let counter = 1;
-          let suggestedCode = `${baseCode}-${counter}`;
-          while (workOrders.some((w: any) => w.code === suggestedCode)) {
-              counter++;
-              suggestedCode = `${baseCode}-${counter}`;
-          }
-          showToast(`Work Order Code "${newWO.code}" already exists. Suggesting: ${suggestedCode}`, 'warning');
-          setNewWO({ ...newWO, code: suggestedCode });
-      } else if (res && res.ok) {
-          const createdWO = await res.json();
-          if (createdWO.is_material_available === false) {
-              showToast('Work Order created, but insufficient materials!', 'warning');
+          const res = await onCreateWO(payload);
+          if (res && res.status === 400) {
+              let baseCode = newWO.code;
+              const baseMatch = baseCode.match(/^(.*)-(\d+)$/);
+              if (baseMatch) baseCode = baseMatch[1];
+              let counter = 1;
+              let suggestedCode = `${baseCode}-${counter}`;
+              while (workOrders.some((w: any) => w.code === suggestedCode)) {
+                  counter++;
+                  suggestedCode = `${baseCode}-${counter}`;
+              }
+              showToast(`Work Order Code "${newWO.code}" already exists. Suggesting: ${suggestedCode}`, 'warning');
+              setNewWO({ ...newWO, code: suggestedCode });
+          } else if (res && res.ok) {
+              const createdWO = await res.json();
+              if (createdWO.is_material_available === false) {
+                  showToast('Work Order created, but insufficient materials!', 'warning');
+              } else {
+                  showToast('Work Order created successfully!', 'success');
+              }
+              setNewWO({ code: '', bom_id: '', location_code: '', source_location_code: '', qty: 1.0, target_start_date: '', target_end_date: '' });
+              setIsCreateOpen(false);
           } else {
-              showToast('Work Order created successfully!', 'success');
+              showToast('Failed to create Work Order', 'danger');
           }
-          setNewWO({ code: '', bom_id: '', location_code: '', source_location_code: '', qty: 1.0, target_start_date: '', target_end_date: '' });
-          setIsCreateOpen(false);
-      } else {
-          showToast('Failed to create Work Order', 'danger');
+      } finally {
+          setIsSubmitting(false);
       }
   };
 
@@ -557,7 +563,7 @@ export default function ManufacturingView({
               footer={
                   <>
                       <button type="button" className="btn btn-sm btn-link text-muted text-decoration-none" onClick={() => setIsCreateOpen(false)}>{t('cancel')}</button>
-                      <button type="button" className="btn btn-sm btn-success px-4 fw-bold shadow-sm" onClick={handleSubmit}>CREATE WORK ORDER</button>
+                      <button type="button" className="btn btn-sm btn-success px-4 fw-bold shadow-sm" onClick={handleSubmit} disabled={isSubmitting}>{isSubmitting ? 'Creating...' : 'CREATE WORK ORDER'}</button>
                   </>
               }
           >
