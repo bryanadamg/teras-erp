@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import QRCode from 'qrcode';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
 import CalendarView from './CalendarView';
 import SearchableSelect from './SearchableSelect';
@@ -60,6 +61,9 @@ export default function ManufacturingView({
   const [qrDataUrl, setQrDataUrl] = useState<string>(''); 
   
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+  const [selectedTreeNodes, setSelectedTreeNodes] = useState<Record<string, string>>({});
+  const [qrDataUrls, setQrDataUrls] = useState<Record<string, string>>({});
+  const [scanningWOId, setScanningWOId] = useState<string | null>(null);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [codeConfig, setCodeConfig] = useState<CodeConfig>({
@@ -112,6 +116,22 @@ export default function ManufacturingView({
       const savedStyle = localStorage.getItem('ui_style');
       if (savedStyle) setCurrentStyle(savedStyle);
   }, []);
+
+  useEffect(() => {
+      const expandedIds = Object.keys(expandedRows).filter(id => expandedRows[id]);
+      for (const woId of expandedIds) {
+          const wo = workOrders.find((w: any) => w.id === woId);
+          if (!wo) continue;
+          const nodes = flattenTree(wo);
+          for (const { wo: node } of nodes) {
+              if (!qrDataUrls[node.code]) {
+                  QRCode.toDataURL(node.code, { margin: 1, width: 160 })
+                      .then(url => setQrDataUrls(prev => ({ ...prev, [node.code]: url })))
+                      .catch(() => {});
+              }
+          }
+      }
+  }, [expandedRows, workOrders]);
 
   const buildWOBasePattern = (bomId: string, config = codeConfig) => {
       const bom = boms.find((b: any) => b.id === bomId);
@@ -252,6 +272,23 @@ export default function ManufacturingView({
   const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
   const getOpName = (id: string) => operations.find((o: any) => o.id === id)?.name || id;
   const getWCName = (id: string) => workCenters.find((w: any) => w.id === id)?.name || id;
+
+  const findNodeById = (node: any, id: string): any => {
+      if (node.id === id) return node;
+      for (const child of (node.child_wos || [])) {
+          const found = findNodeById(child, id);
+          if (found) return found;
+      }
+      return null;
+  };
+
+  const flattenTree = (node: any, level = 0): Array<{wo: any; level: number}> => {
+      const result: Array<{wo: any; level: number}> = [{wo: node, level}];
+      for (const child of (node.child_wos || [])) {
+          result.push(...flattenTree(child, level + 1));
+      }
+      return result;
+  };
   
   const getAttributeValueName = (valId: string) => {
       for (const attr of attributes) {
@@ -314,82 +351,250 @@ export default function ManufacturingView({
       return { available, isEnough: available >= required_qty };
   };
 
-  // --- Nested Work Orders View ---
-  const NestedWorkOrders = ({ children, level = 1 }: { children: any[], level?: number }) => {
-      if (!children || children.length === 0) return null;
+  // --- Inline QR Scanner Widget ---
+  const InlineScanWidget = ({ rootWoId, onClose }: { rootWoId: string; onClose: () => void }) => {
+      const scannerRef2 = useRef<any>(null);
+      const readerId = `reader-${rootWoId}`;
+
+      useEffect(() => {
+          const timer = setTimeout(() => {
+              if (!document.getElementById(readerId)) return;
+              const scanner = new Html5QrcodeScanner(readerId, { fps: 10, qrbox: { width: 180, height: 180 } }, false);
+              scannerRef2.current = scanner;
+              scanner.render((code: string) => {
+                  const found = workOrders.find((w: any) => w.code === code);
+                  if (found) {
+                      scanner.clear().catch(() => {});
+                      onUpdateStatus(found.id, found.status === 'PENDING' ? 'IN_PROGRESS' : 'COMPLETED');
+                      onClose();
+                  } else {
+                      showToast(`WO "${code}" not found`, 'danger');
+                  }
+              }, () => {});
+          }, 100);
+          return () => {
+              clearTimeout(timer);
+              scannerRef2.current?.clear().catch(() => {});
+          };
+      }, [readerId]);
 
       return (
-          <div className={`${level === 1 ? 'mt-3' : 'mt-2'} ms-${level > 1 ? '3' : '0'}`}>
-              <div className="d-flex align-items-center gap-2 mb-3">
-                  <div className="flex-grow-1 border-bottom border-secondary border-opacity-25"></div>
-                  <div className="extra-small fw-bold text-muted text-uppercase letter-spacing-1 d-flex align-items-center">
-                      <i className={`bi bi-diagram-3-fill me-2 ${currentStyle === 'classic' ? 'text-secondary' : 'text-info'}`}></i>
-                      {level === 1 ? 'Sub-Production Chain' : `Level ${level} Components`}
+          <div style={{ width: '100%' }}>
+              <div id={readerId} style={{ width: '100%' }}></div>
+              <button className="btn btn-sm btn-outline-secondary w-100 mt-1 extra-small" onClick={onClose}>
+                  <i className="bi bi-x me-1"></i>Cancel Scan
+              </button>
+          </div>
+      );
+  };
+
+  // --- Work Order Expanded Panel (Tree + Detail) ---
+  const WOExpandedPanel = ({ wo }: { wo: any }) => {
+      const selectedNodeId = selectedTreeNodes[wo.id] ?? wo.id;
+      const selectedNode = findNodeById(wo, selectedNodeId) ?? wo;
+      const bom = boms.find((b: any) => b.id === selectedNode.bom_id);
+      const treeNodes = flattenTree(wo);
+      const isScanActive = scanningWOId === wo.id;
+      const classic = currentStyle === 'classic';
+
+      const selectNode = (nodeId: string) => {
+          setSelectedTreeNodes(prev => ({ ...prev, [wo.id]: nodeId }));
+          if (scanningWOId === wo.id) setScanningWOId(null);
+      };
+
+      return (
+          <div style={{ display: 'flex', minHeight: '280px', background: classic ? '#f5f3ee' : '#f8f9fa', border: classic ? '1px solid #808080' : undefined }}>
+
+              {/* ── LEFT: WO Tree ── */}
+              <div style={{
+                  width: '210px', minWidth: '210px',
+                  borderRight: classic ? '2px solid #808080' : '1px solid #dee2e6',
+                  background: '#fff',
+                  display: 'flex', flexDirection: 'column'
+              }}>
+                  <div style={{
+                      background: classic ? 'linear-gradient(to right,#0058e6,#08a5ff)' : '#343a40',
+                      color: '#fff', fontWeight: 'bold', fontSize: '11px',
+                      padding: '5px 8px', letterSpacing: '0.3px'
+                  }}>
+                      <i className="bi bi-diagram-3-fill me-2"></i>WO Tree
                   </div>
-                  <div className="flex-grow-1 border-bottom border-secondary border-opacity-25"></div>
-              </div>
-              
-              <div className="row g-3">
-                  {children.map(child => (
-                      <div key={child.id} className="col-12">
-                          <div className={`card shadow-sm border-start border-4 ${child.status === 'COMPLETED' ? 'border-success' : child.status === 'IN_PROGRESS' ? 'border-warning' : (currentStyle === 'classic' ? 'border-secondary' : 'border-info')} bg-white`}>
-                              <div className="card-body p-3">
-                                  <div className="d-flex justify-content-between align-items-start mb-2">
-                                      <div className="d-flex align-items-center gap-3">
-                                          <div className={`bg-light p-2 rounded text-center`} style={{minWidth: '60px'}}>
-                                              <div className="extra-small text-muted fw-bold">QTY</div>
-                                              <div className={`fw-bold fs-5 ${currentStyle === 'classic' ? 'text-dark' : 'text-primary'}`}>{child.qty}</div>
-                                          </div>
-                                          <div>
-                                              <div className="d-flex align-items-center gap-2 mb-1">
-                                                  <span className="badge bg-dark font-monospace extra-small">{child.code}</span>
-                                                  <span className={`badge ${getStatusBadge(child.status)} extra-small`}>{child.status}</span>
-                                              </div>
-                                              <div className="fw-bold text-dark">{child.item_name || getItemName(child.item_id)}</div>
-                                              <div className="extra-small text-muted">
-                                                  <i className="bi bi-geo-alt me-1"></i>{getLocationName(child.location_id)}
-                                                  <span className="mx-2">|</span>
-                                                  <i className="bi bi-calendar-event me-1"></i>Due: {formatDate(child.target_end_date)}
-                                              </div>
-                                          </div>
+                  <div style={{ padding: '4px', overflowY: 'auto', flex: 1 }}>
+                      {treeNodes.map(({ wo: node, level }) => {
+                          const isActive = node.id === selectedNodeId;
+                          const statusColor = node.status === 'COMPLETED' ? '#2d7a2d' : node.status === 'IN_PROGRESS' ? (classic ? '#0058e6' : '#fd7e14') : '#6c757d';
+                          return (
+                              <div
+                                  key={node.id}
+                                  onClick={() => selectNode(node.id)}
+                                  style={{
+                                      display: 'flex', alignItems: 'flex-start', gap: '4px',
+                                      padding: `3px 6px 3px ${level * 14 + 6}px`,
+                                      cursor: 'pointer', borderRadius: classic ? '0' : '3px',
+                                      background: isActive ? (classic ? '#316ac5' : '#0d6efd') : 'transparent',
+                                      color: isActive ? '#fff' : '#000',
+                                      border: isActive ? (classic ? '1px solid #003080' : 'none') : '1px solid transparent',
+                                      marginBottom: '1px',
+                                      userSelect: 'none'
+                                  }}
+                              >
+                                  <span style={{ fontSize: '10px', color: isActive ? '#cce0ff' : '#888', minWidth: '10px', marginTop: '1px' }}>
+                                      {level === 0 ? '●' : '└'}
+                                  </span>
+                                  <div style={{ flex: 1, overflow: 'hidden' }}>
+                                      <div style={{ fontFamily: 'monospace', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                          {node.code}
                                       </div>
-                                      <div className="d-flex flex-column gap-2">
-                                          <div className="d-flex gap-2 justify-content-end">
-                                              <button className="btn btn-sm btn-outline-secondary p-1 px-2 extra-small d-flex align-items-center" onClick={() => handlePrintWO(child)} title="Print QR Code">
-                                                  <i className="bi bi-qr-code me-1"></i>QR
-                                              </button>
-                                              {child.status === 'PENDING' && (
-                                                  <button className="btn btn-sm btn-primary py-1 px-3 extra-small fw-bold shadow-sm" onClick={() => onUpdateStatus(child.id, 'IN_PROGRESS')}>
-                                                      START
-                                                  </button>
-                                              )}
-                                              {child.status === 'IN_PROGRESS' && (
-                                                  <button className="btn btn-sm btn-success py-1 px-3 extra-small fw-bold shadow-sm" onClick={() => onUpdateStatus(child.id, 'COMPLETED')}>
-                                                      FINISH
-                                                  </button>
-                                              )}
-                                          </div>
-                                          {/* Mini Progress Bar */}
-                                          <div className="progress mt-1" style={{height: '4px', width: '100px'}}>
-                                              <div 
-                                                  className={`progress-bar ${child.status === 'COMPLETED' ? 'bg-success' : child.status === 'IN_PROGRESS' ? 'bg-warning' : (currentStyle === 'classic' ? 'bg-secondary' : 'bg-info')}`} 
-                                                  role="progressbar" 
-                                                  style={{width: child.status === 'COMPLETED' ? '100%' : child.status === 'IN_PROGRESS' ? '50%' : '5%'}}
-                                              ></div>
-                                          </div>
+                                      <div style={{ fontSize: '10px', color: isActive ? '#e0ecff' : '#444', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                          {node.item_name}
                                       </div>
                                   </div>
-                                  
-                                  {/* Deep Nesting Visualization */}
-                                  {child.child_wos && child.child_wos.length > 0 && (
-                                      <div className="mt-3 pt-3 border-top border-dashed">
-                                          <NestedWorkOrders children={child.child_wos} level={level + 1} />
-                                      </div>
-                                  )}
+                                  <span style={{ fontSize: '8px', background: statusColor, color: '#fff', padding: '1px 4px', borderRadius: classic ? '0' : '2px', whiteSpace: 'nowrap', alignSelf: 'center', flexShrink: 0 }}>
+                                      {node.status === 'IN_PROGRESS' ? 'IN PROG' : node.status}
+                                  </span>
                               </div>
-                          </div>
+                          );
+                      })}
+                  </div>
+              </div>
+
+              {/* ── CENTRE: BOM Components ── */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                  {/* Detail header */}
+                  <div style={{
+                      background: classic ? 'linear-gradient(to bottom,#fff,#e8e4d8)' : '#fff',
+                      borderBottom: classic ? '1px solid #808080' : '1px solid #dee2e6',
+                      padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap'
+                  }}>
+                      <span style={{ fontFamily: 'monospace', fontSize: '12px', fontWeight: 'bold', color: '#000' }}>{selectedNode.code}</span>
+                      <span style={{ fontSize: '12px', color: '#000' }}>{selectedNode.item_name}</span>
+                      {bom && <span style={{ fontSize: '10px', color: '#444' }}>BOM: <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#000' }}>{bom.code}</span></span>}
+                      <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px' }}>
+                          {selectedNode.status === 'PENDING' && (
+                              <button className="btn btn-sm btn-primary py-0 px-2" style={{ fontSize: '0.72rem' }} onClick={() => onUpdateStatus(selectedNode.id, 'IN_PROGRESS')}>
+                                  <i className="bi bi-play-fill me-1"></i>Start
+                              </button>
+                          )}
+                          {selectedNode.status === 'IN_PROGRESS' && (
+                              <button className="btn btn-sm btn-success py-0 px-2" style={{ fontSize: '0.72rem' }} onClick={() => onUpdateStatus(selectedNode.id, 'COMPLETED')}>
+                                  <i className="bi bi-check-lg me-1"></i>Finish
+                              </button>
+                          )}
                       </div>
-                  ))}
+                  </div>
+
+                  {/* Section title */}
+                  <div style={{
+                      background: classic ? '#d4d0c8' : '#f1f3f5',
+                      borderBottom: classic ? '1px solid #808080' : '1px solid #dee2e6',
+                      padding: '2px 10px', fontSize: '10px', fontWeight: 'bold', color: '#000',
+                      display: 'flex', alignItems: 'center', gap: '6px'
+                  }}>
+                      <i className="bi bi-boxes"></i>BOM Components
+                      {!bom && <span style={{ fontWeight: 'normal', color: '#888' }}>— No BOM linked</span>}
+                  </div>
+
+                  {/* Components table */}
+                  <div style={{ flex: 1, overflowY: 'auto' }}>
+                      {bom ? (
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                              <thead>
+                                  <tr style={{ background: classic ? 'linear-gradient(to bottom,#fff,#d4d0c8)' : '#f8f9fa', position: 'sticky', top: 0 }}>
+                                      {['Component', 'Variant', 'Required', 'In Stock', '✔', 'Source'].map(h => (
+                                          <th key={h} style={{ border: classic ? '1px solid #808080' : '1px solid #dee2e6', padding: '3px 6px', textAlign: h === 'Required' || h === 'In Stock' ? 'right' : h === '✔' ? 'center' : 'left', color: '#000', fontSize: '10px' }}>{h}</th>
+                                      ))}
+                                  </tr>
+                              </thead>
+                              <tbody>
+                                  {bom.lines.map((line: any, i: number) => {
+                                      const req = calculateRequiredQty(selectedNode.qty, line, bom);
+                                      const locId = line.source_location_id || selectedNode.source_location_id || selectedNode.location_id;
+                                      const { available, isEnough } = checkStockAvailability(line.item_id, locId, line.attribute_value_ids || [], req);
+                                      const hasSubBOM = boms.some((b: any) => b.item_id === line.item_id && b.active !== false);
+                                      const attrLabel = (line.attribute_value_ids || []).map(getAttributeValueName).filter(Boolean).join(', ');
+                                      const rowBg = i % 2 === 0 ? '#fff' : (classic ? '#f5f3ee' : '#f8f9fa');
+                                      return (
+                                          <tr key={line.id} style={{ background: rowBg }}>
+                                              <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', color: '#000' }}>
+                                                  <div style={{ fontWeight: 500 }}>{line.item_name || getItemName(line.item_id)}</div>
+                                                  <div style={{ fontSize: '9px', color: '#555', fontFamily: 'monospace' }}>{line.item_code || getItemCode(line.item_id)}</div>
+                                                  {hasSubBOM && <span style={{ fontSize: '8px', background: '#fff3cd', border: '1px solid #b8860b', color: '#6b4e00', padding: '0 4px', fontWeight: 'bold' }}>SUB-BOM</span>}
+                                              </td>
+                                              <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', color: '#333', fontSize: '10px' }}>{attrLabel || '—'}</td>
+                                              <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', textAlign: 'right', fontFamily: 'monospace', color: '#000', fontWeight: 'bold' }}>{req.toFixed(2)}</td>
+                                              <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', textAlign: 'right', fontFamily: 'monospace', color: isEnough ? '#1a6e1a' : '#c00000', fontWeight: 'bold' }}>{available.toFixed(2)}</td>
+                                              <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', textAlign: 'center' }}>
+                                                  {hasSubBOM ? <span style={{ color: '#b8860b' }}>⟳</span> : isEnough ? <i className="bi bi-check-circle-fill text-success"></i> : <i className="bi bi-x-circle-fill text-danger"></i>}
+                                              </td>
+                                              <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', color: '#444', fontSize: '10px' }}>{getLocationName(locId)}</td>
+                                          </tr>
+                                      );
+                                  })}
+                              </tbody>
+                          </table>
+                      ) : (
+                          <div style={{ padding: '16px', color: '#555', fontSize: '11px', textAlign: 'center' }}>No BOM lines to display for this work order.</div>
+                      )}
+                  </div>
+              </div>
+
+              {/* ── RIGHT: Meta + QR ── */}
+              <div style={{
+                  width: '170px', minWidth: '170px',
+                  borderLeft: classic ? '2px solid #808080' : '1px solid #dee2e6',
+                  background: classic ? '#fafaf7' : '#fff',
+                  display: 'flex', flexDirection: 'column'
+              }}>
+                  {/* Timeline */}
+                  <div style={{ borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '6px 8px' }}>
+                      <div style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', letterSpacing: '0.5px', marginBottom: '4px' }}>Timeline</div>
+                      {([
+                          { label: 'Target S', val: formatDate(selectedNode.target_start_date), warn: null },
+                          { label: 'Target E', val: formatDate(selectedNode.target_end_date), warn: getDueDateWarning(selectedNode) },
+                          { label: 'Actual S', val: formatDateTime(selectedNode.actual_start_date), warn: null },
+                          { label: 'Actual E', val: formatDateTime(selectedNode.actual_end_date), warn: null },
+                      ] as {label:string;val:string;warn:any}[]).map(({ label, val, warn }) => (
+                          <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginBottom: '2px' }}>
+                              <span style={{ color: '#555' }}>{label}:</span>
+                              <span style={{ fontWeight: 'bold', color: warn ? '#c00000' : '#000' }}>{val}</span>
+                          </div>
+                      ))}
+                  </div>
+
+                  {/* Output */}
+                  <div style={{ borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '6px 8px' }}>
+                      <div style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', letterSpacing: '0.5px', marginBottom: '4px' }}>Output</div>
+                      <div style={{ fontSize: '10px', color: '#000', fontWeight: 'bold' }}>{getLocationName(selectedNode.location_id)}</div>
+                      <div style={{ fontSize: '10px', color: '#444' }}>Qty: <strong style={{ color: '#000' }}>{selectedNode.qty}</strong></div>
+                  </div>
+
+                  {/* QR + Scan */}
+                  <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', flex: 1 }}>
+                      <div style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', letterSpacing: '0.5px', alignSelf: 'flex-start' }}>QR Code</div>
+                      {!isScanActive ? (
+                          <>
+                              {qrDataUrls[selectedNode.code] ? (
+                                  <img src={qrDataUrls[selectedNode.code]} alt="QR" style={{ width: '90px', height: '90px', border: '2px solid #000' }} />
+                              ) : (
+                                  <div style={{ width: '90px', height: '90px', background: '#eee', border: '1px solid #ccc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', color: '#888' }}>Loading...</div>
+                              )}
+                              <div style={{ fontFamily: 'monospace', fontSize: '8px', color: '#000', textAlign: 'center', wordBreak: 'break-all' }}>{selectedNode.code}</div>
+                              <button
+                                  style={{
+                                      width: '100%', padding: '3px 0', fontSize: '10px',
+                                      background: classic ? 'linear-gradient(to bottom,#fff,#d4d0c8)' : '#e9ecef',
+                                      border: classic ? '1px solid #808080' : '1px solid #ced4da',
+                                      cursor: 'pointer', color: '#000', fontFamily: 'inherit', fontWeight: 'bold'
+                                  }}
+                                  onClick={() => setScanningWOId(wo.id)}
+                              >
+                                  <i className="bi bi-qr-code-scan me-1"></i>Scan
+                              </button>
+                          </>
+                      ) : (
+                          <InlineScanWidget rootWoId={wo.id} onClose={() => setScanningWOId(null)} />
+                      )}
+                  </div>
               </div>
           </div>
       );
@@ -448,8 +653,8 @@ export default function ManufacturingView({
                           <div key={child.id} className="col-12 border rounded p-2 bg-light bg-opacity-10 d-flex justify-content-between align-items-center">
                               <div className="d-flex align-items-center gap-3">
                                   <img 
-                                      src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${child.code}`} 
-                                      alt="QR" 
+                                      src={qrDataUrls[child.code] || ''}
+                                      alt="QR"
                                       style={{ width: '60px', height: '60px' }}
                                   />
                                   <div>
@@ -684,7 +889,6 @@ export default function ManufacturingView({
                                         {filteredWorkOrders.map((wo: any) => {
                                             const warning = getDueDateWarning(wo);
                                             const isExpanded = expandedRows[wo.id];
-                                            const bom = boms.find((b:any) => b.id === wo.bom_id);
 
                                             return (
                                                 <>
@@ -730,78 +934,9 @@ export default function ManufacturingView({
                                                     </td>
                                                 </tr>
                                                 {isExpanded && (
-                                                    <tr key={`${wo.id}-detail`} className="bg-light">
+                                                    <tr key={`${wo.id}-detail`}>
                                                         <td colSpan={7} className="p-0 border-0">
-                                                            <div className="p-4 ps-5 shadow-inner border-bottom">
-                                                                <div className="row g-4">
-                                                                    {/* Left: Material Readiness */}
-                                                                    <div className="col-md-7 border-end">
-                                                                        <h6 className="extra-small fw-bold text-uppercase text-muted mb-3 letter-spacing-1">Material Readiness Check</h6>
-                                                                        <div className="table-responsive">
-                                                                            <table className="table table-sm table-borderless small mb-0">
-                                                                                <thead className="border-bottom text-muted">
-                                                                                    <tr style={{fontSize: '8pt'}}><th>Component</th><th>Required</th><th>Stock</th><th>Status</th></tr>
-                                                                                </thead>
-                                                                                <tbody>
-                                                                                    {bom?.lines.map((line: any) => {
-                                                                                        const req = calculateRequiredQty(wo.qty, line, bom);
-                                                                                        const { available, isEnough } = checkStockAvailability(line.item_id, line.source_location_id || wo.source_location_id || wo.location_id, [], req);
-                                                                                        return (
-                                                                                            <tr key={line.id}>
-                                                                                                <td>
-                                                                                                    <div className="fw-bold">{line.item_name || getItemName(line.item_id)}</div>
-                                                                                                    <div className="extra-small text-muted font-monospace">{line.item_code || getItemCode(line.item_id)}</div>
-                                                                                                </td>
-                                                                                                <td className="fw-bold">{req.toFixed(2)}</td>
-                                                                                                <td className={isEnough ? 'text-success' : 'text-danger'}>{available.toFixed(2)}</td>
-                                                                                                <td>{isEnough ? <i className="bi bi-check-circle-fill text-success"></i> : <i className="bi bi-x-circle-fill text-danger"></i>}</td>
-                                                                                            </tr>
-                                                                                        );
-                                                                                    })}
-                                                                                </tbody>
-                                                                            </table>
-                                                                        </div>
-                                                                    </div>
-                                                                    {/* Right: Production Analytics */}
-                                                                    <div className="col-md-5 ps-4">
-                                                                        <h6 className="extra-small fw-bold text-uppercase text-muted mb-3 letter-spacing-1">Production Timeline Analysis</h6>
-                                                                        <div className="d-flex flex-column gap-3">
-                                                                            <div className="p-2 rounded border bg-white shadow-xs">
-                                                                                <div className="extra-small text-muted mb-1">Lead Time Variance</div>
-                                                                                {wo.actual_start_date && wo.target_start_date ? (
-                                                                                    <div className="small fw-bold">
-                                                                                        {new Date(wo.actual_start_date) > new Date(wo.target_start_date) ? 
-                                                                                            <span className="text-danger">Delayed Start (+{Math.round((new Date(wo.actual_start_date).getTime() - new Date(wo.target_start_date).getTime()) / 3600000)}h)</span> : 
-                                                                                            <span className="text-success">On Schedule</span>
-                                                                                        }
-                                                                                    </div>
-                                                                                ) : <span className="small text-muted italic">Waiting for start signal...</span>}
-                                                                            </div>
-                                                                            <div className="p-2 rounded border bg-white shadow-xs">
-                                                                                <div className="extra-small text-muted mb-1">Output Target</div>
-                                                                                <div className="small fw-bold">{getLocationName(wo.location_id)}</div>
-                                                                            </div>
-                                                                            {/* Large Scan-from-screen QR Code */}
-                                                                            <div className="mt-2 text-center bg-white p-3 border rounded shadow-sm no-print">
-                                                                                <img 
-                                                                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${wo.code}`} 
-                                                                                    alt="QR" 
-                                                                                    style={{ width: '120px', height: '120px' }}
-                                                                                />
-                                                                                <div className="extra-small text-muted mt-2 font-monospace fw-bold">{wo.code}</div>
-                                                                                <div className="extra-small text-info mt-1 uppercase fw-bold" style={{fontSize: '0.6rem'}}>Scan to Start/Finish</div>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-
-                                                                {/* Nested Work Orders Section */}
-                                                                {wo.child_wos && wo.child_wos.length > 0 && (
-                                                                    <div className="mt-4 pt-4 border-top">
-                                                                        <NestedWorkOrders children={wo.child_wos} />
-                                                                    </div>
-                                                                )}
-                                                            </div>
+                                                            <WOExpandedPanel wo={wo} />
                                                         </td>
                                                     </tr>
                                                 )}

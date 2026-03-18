@@ -234,6 +234,7 @@ GEMINI.md
 skills/
 CLAUDE.md
 .claude/
+.superpowers/
 
 # Playwright
 frontend/playwright-report
