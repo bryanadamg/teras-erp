@@ -7,8 +7,16 @@ import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 
 // Memoized Row Component
-const InventoryRow = memo(({ item, isEditing, onEdit, onDelete, onViewHistory, getAttributeNames }: any) => (
-    <tr className={isEditing ? 'table-primary' : ''}>
+const InventoryRow = memo(({ item, isEditing, isSelected, onToggleSelect, onEdit, onDelete, onViewHistory, getAttributeNames }: any) => (
+    <tr className={isEditing ? 'table-primary' : isSelected ? 'table-active' : ''}>
+        <td className="ps-3">
+            <input
+                className="form-check-input"
+                type="checkbox"
+                checked={isSelected}
+                onChange={() => onToggleSelect(item.id)}
+            />
+        </td>
         <td className="ps-4 fw-medium font-monospace">
             {item.code}
         </td>
@@ -42,14 +50,15 @@ const InventoryRow = memo(({ item, isEditing, onEdit, onDelete, onViewHistory, g
 
 InventoryRow.displayName = 'InventoryRow';
 
-export default function InventoryView({ 
-    items, 
+export default function InventoryView({
+    items,
     attributes,
     categories,
     uoms,
-    onCreateItem, 
+    onCreateItem,
     onUpdateItem,
     onDeleteItem,
+    onDeleteMultipleItems,
     onCreateCategory,
     onDownloadTemplate,
     onImportItems,
@@ -95,6 +104,7 @@ export default function InventoryView({
   // Editing State
   const [editingItem, setEditingItem] = useState<any>(null);
   const [historyEntityId, setHistoryEntityId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showCatInput, setShowCatInput] = useState(false);
@@ -260,6 +270,34 @@ export default function InventoryView({
       
   const sampleItems = useMemo(() => items.filter((i: any) => i.category === 'Sample'), [items]);
 
+  const allSelected = filteredItems.length > 0 && selectedIds.size === filteredItems.length;
+  const someSelected = selectedIds.size > 0 && !allSelected;
+
+  const toggleSelect = (id: string) => {
+      setSelectedIds(prev => {
+          const next = new Set(prev);
+          if (next.has(id)) next.delete(id); else next.add(id);
+          return next;
+      });
+  };
+
+  const toggleSelectAll = () => {
+      if (allSelected) {
+          setSelectedIds(new Set());
+      } else {
+          setSelectedIds(new Set(filteredItems.map((i: any) => i.id)));
+      }
+  };
+
+  const handleBulkDelete = async () => {
+      if (onDeleteMultipleItems) {
+          await onDeleteMultipleItems([...selectedIds]);
+          setSelectedIds(new Set());
+      }
+  };
+
+  useEffect(() => { setSelectedIds(new Set()); }, [currentPage]);
+
   const getAttributeNames = (ids: string[]) => {
       if (!ids || ids.length === 0) return '-';
       return ids.map(id => attributes.find((a: any) => a.id === id)?.name).filter(Boolean).join(', ');
@@ -396,6 +434,17 @@ export default function InventoryView({
                     <p className="text-muted small mb-0 mt-1">
                         {forcedCategory ? 'Manage product samples and prototypes' : 'Master list of all products and materials'}
                     </p>
+                    {selectedIds.size > 0 && (
+                        <div className="d-flex align-items-center gap-2 mt-2">
+                            <span className="text-muted small">{selectedIds.size} selected</span>
+                            <button className="btn btn-sm btn-danger" onClick={handleBulkDelete}>
+                                <i className="bi bi-trash me-1"></i>Delete Selected
+                            </button>
+                            <button className="btn btn-sm btn-link text-secondary p-0" onClick={() => setSelectedIds(new Set())}>
+                                Clear
+                            </button>
+                        </div>
+                    )}
                 </div>
                 <div className="d-flex gap-2">
                     <button className="btn btn-light btn-sm border" onClick={() => setIsImportOpen(true)}>
@@ -443,6 +492,15 @@ export default function InventoryView({
               <table className="table table-hover align-middle mb-0">
                 <thead className="table-light">
                   <tr>
+                    <th className="ps-3" style={{width: '40px'}}>
+                        <input
+                            className="form-check-input"
+                            type="checkbox"
+                            checked={allSelected}
+                            ref={el => { if (el) el.indeterminate = someSelected; }}
+                            onChange={toggleSelectAll}
+                        />
+                    </th>
                     <th className="ps-4">{t('item_code')}</th>
                     <th>{t('item_name')}</th>
                     <th>{t('categories')}</th>
@@ -457,13 +515,15 @@ export default function InventoryView({
                         key={item.id}
                         item={item}
                         isEditing={editingItem?.id === item.id}
+                        isSelected={selectedIds.has(item.id)}
+                        onToggleSelect={toggleSelect}
                         onEdit={handleEdit}
                         onDelete={onDeleteItem}
                         onViewHistory={setHistoryEntityId}
                         getAttributeNames={getAttributeNames}
                     />
                   ))}
-                  {filteredItems.length === 0 && <tr><td colSpan={6} className="text-center text-muted py-5">No items found</td></tr>}
+                  {filteredItems.length === 0 && <tr><td colSpan={7} className="text-center text-muted py-5">No items found</td></tr>}
                 </tbody>
               </table>
             </div>

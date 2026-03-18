@@ -39,6 +39,18 @@ export default function InventoryPage() {
         return res;
     };
 
+    const handleDeleteMultipleItems = async (ids: string[]) => {
+        const confirmed = await confirm({
+            title: 'Delete Items',
+            message: `Delete ${ids.length} item(s)? This will also remove all associated variants and stock records.`,
+            confirmText: 'Delete',
+            variant: 'danger'
+        });
+        if (!confirmed) return;
+        await Promise.all(ids.map(id => authFetch(`${API_BASE}/items/${id}`, { method: 'DELETE' })));
+        fetchData();
+    };
+
     const handleAddVariant = async (itemId: string, p: any) => {
         const res = await authFetch(`${API_BASE}/items/${itemId}/variants`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
         if (res.ok) fetchData();
@@ -66,6 +78,7 @@ export default function InventoryPage() {
                 onCreateItem={handleCreateItem}
                 onUpdateItem={handleUpdateItem}
                 onDeleteItem={handleDeleteItem}
+                onDeleteMultipleItems={handleDeleteMultipleItems}
                 onAddVariant={handleAddVariant}
                 onDeleteVariant={handleDeleteVariant}
                 onRefresh={fetchData}
