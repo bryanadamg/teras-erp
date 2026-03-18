@@ -3,19 +3,48 @@ import BOMDesigner from './BOMDesigner'; // New component
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 
-export default function BOMView({ 
-    items, boms, locations, attributes, workCenters, operations, 
-    onCreateBOM, onDeleteBOM, onCreateItem, onSearchItem,
-    initialCreateState, onClearInitialState 
+export default function BOMView({
+    items, boms, locations, attributes, workCenters, operations,
+    onCreateBOM, onDeleteBOM, onDeleteMultipleBOMs, onCreateItem, onSearchItem,
+    initialCreateState, onClearInitialState
 }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
-  
+
   const [isDesignerOpen, setIsDesignerOpen] = useState(false);
   const [currentStyle, setCurrentStyle] = useState('default');
-  
+
   // Tree Expansion State for List View
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
+
+  // Multi-select state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const allSelected = boms.length > 0 && selectedIds.size === boms.length;
+  const someSelected = selectedIds.size > 0 && !allSelected;
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(boms.map((b: any) => b.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (onDeleteMultipleBOMs) {
+      await onDeleteMultipleBOMs([...selectedIds]);
+      setSelectedIds(new Set());
+    }
+  };
 
   useEffect(() => {
       const savedStyle = localStorage.getItem('ui_style');
@@ -174,7 +203,20 @@ export default function BOMView({
        <div className="col-12">
           <div className="card h-100 shadow-sm border-0">
              <div className="card-header bg-white d-flex justify-content-between align-items-center">
-                 <h5 className="card-title mb-0">{t('active_boms')}</h5>
+                 <div className="d-flex align-items-center gap-3">
+                     <h5 className="card-title mb-0">{t('active_boms')}</h5>
+                     {selectedIds.size > 0 && (
+                         <div className="d-flex align-items-center gap-2">
+                             <span className="text-muted small">{selectedIds.size} selected</span>
+                             <button className="btn btn-sm btn-danger" onClick={handleBulkDelete}>
+                                 <i className="bi bi-trash me-1"></i>Delete Selected
+                             </button>
+                             <button className="btn btn-sm btn-link text-secondary p-0" onClick={() => setSelectedIds(new Set())}>
+                                 Clear
+                             </button>
+                         </div>
+                     )}
+                 </div>
                  <button data-testid="create-bom-btn" className="btn btn-sm btn-primary" onClick={() => setIsDesignerOpen(true)}>
                      <i className="bi bi-plus-lg me-2"></i>{t('create_recipe')}
                  </button>
@@ -184,7 +226,16 @@ export default function BOMView({
                     <table className="table table-hover align-middle mb-0">
                         <thead className="table-light">
                             <tr>
-                                <th className="ps-4">{t('item_code')}</th>
+                                <th className="ps-3" style={{width: '40px'}}>
+                                    <input
+                                        className="form-check-input"
+                                        type="checkbox"
+                                        checked={allSelected}
+                                        ref={el => { if (el) el.indeterminate = someSelected; }}
+                                        onChange={toggleSelectAll}
+                                    />
+                                </th>
+                                <th className="ps-2">{t('item_code')}</th>
                                 <th>{t('finished_good')}</th>
                                 <th>{t('routing')}</th>
                                 <th>{t('materials')}</th>
@@ -193,8 +244,16 @@ export default function BOMView({
                         </thead>
                         <tbody>
                             {boms.map((bom: any) => (
-                                <tr key={bom.id}>
-                                    <td className="ps-4 align-top"><span className="badge bg-light text-dark border font-monospace">{bom.code}</span></td>
+                                <tr key={bom.id} className={selectedIds.has(bom.id) ? 'table-active' : ''}>
+                                    <td className="ps-3 align-top">
+                                        <input
+                                            className="form-check-input"
+                                            type="checkbox"
+                                            checked={selectedIds.has(bom.id)}
+                                            onChange={() => toggleSelect(bom.id)}
+                                        />
+                                    </td>
+                                    <td className="ps-2 align-top"><span className="badge bg-light text-dark border font-monospace">{bom.code}</span></td>
                                     <td className="align-top">
                                         <div className="fw-medium">{getItemName(bom.item_id, bom.item_name)} ({getItemCode(bom.item_id, bom.item_code)})</div>
                                         <div className="text-muted small">

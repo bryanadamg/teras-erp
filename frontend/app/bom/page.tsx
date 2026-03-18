@@ -48,10 +48,23 @@ export default function BOMPage() {
             variant: 'danger'
         });
         if (!confirmed) return;
-        
+
         const res = await authFetch(`${API_BASE}/boms/${id}`, { method: 'DELETE' });
         if (res.ok) fetchData();
         return res;
+    };
+
+    const handleDeleteMultipleBOMs = async (ids: string[]) => {
+        const confirmed = await confirm({
+            title: 'Delete BOMs',
+            message: `Delete ${ids.length} BOM(s)? This action cannot be undone.`,
+            confirmText: 'Delete',
+            variant: 'danger'
+        });
+        if (!confirmed) return;
+
+        await Promise.all(ids.map(id => authFetch(`${API_BASE}/boms/${id}`, { method: 'DELETE' })));
+        fetchData();
     };
 
     return (
@@ -64,6 +77,7 @@ export default function BOMPage() {
                 workCenters={workCenters} 
                 onCreateBOM={handleCreateBOM} 
                 onDeleteBOM={handleDeleteBOM}
+                onDeleteMultipleBOMs={handleDeleteMultipleBOMs}
                 onSearchItem={filters.setItemSearch}
                 onCreateItem={handleCreateItem}
                 locations={[]} 
