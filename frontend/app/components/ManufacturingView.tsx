@@ -852,99 +852,318 @@ export default function ManufacturingView({
           </ModalWrapper>
 
           <div className="col-12 flex-print-fill">
-              <div className="card h-100 border-0 shadow-sm">
-                  <div className="card-header bg-white d-flex justify-content-between align-items-center no-print">
-                      <div className="d-flex align-items-center gap-3">
-                          <h5 className="card-title mb-0">{t('production_schedule')}</h5>
-                          <div className="btn-group ms-2">
-                              <button className={`btn btn-sm btn-light border ${viewMode === 'calendar' ? 'active' : ''}`} onClick={() => setViewMode('calendar')}><i className="bi bi-calendar-event me-1"></i>Calendar</button>
-                              <button className={`btn btn-sm btn-light border ${viewMode === 'list' ? 'active' : ''}`} onClick={() => setViewMode('list')}><i className="bi bi-list-ul me-1"></i>List</button>
-                              <button className={`btn btn-sm btn-light border ${viewMode === 'scanner' ? 'active' : ''}`} onClick={() => setViewMode('scanner')}><i className="bi bi-qr-code-scan me-1"></i>Scanner</button>
+              {/* ── Outer window shell ── */}
+              <div style={{
+                  border: currentStyle === 'classic' ? '2px solid' : undefined,
+                  borderColor: currentStyle === 'classic' ? '#dfdfdf #808080 #808080 #dfdfdf' : undefined,
+                  borderRadius: 0,
+                  boxShadow: currentStyle === 'classic' ? '2px 2px 4px rgba(0,0,0,0.3)' : undefined,
+                  background: currentStyle === 'classic' ? '#ece9d8' : undefined,
+              }} className={currentStyle === 'classic' ? '' : 'card h-100 border-0 shadow-sm'}>
+
+                  {/* ── Title bar / toolbar ── */}
+                  <div
+                      className="no-print"
+                      style={{
+                          background: currentStyle === 'classic'
+                              ? 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)'
+                              : '#fff',
+                          borderBottom: currentStyle === 'classic' ? '1px solid #003080' : '1px solid #dee2e6',
+                          padding: currentStyle === 'classic' ? '4px 8px' : '8px 16px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          boxShadow: currentStyle === 'classic' ? 'inset 0 1px 0 rgba(255,255,255,0.3)' : undefined,
+                      }}
+                  >
+                      {/* Left: title + view switcher */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{
+                              fontFamily: currentStyle === 'classic' ? 'Tahoma, Arial, sans-serif' : undefined,
+                              fontSize: currentStyle === 'classic' ? '12px' : undefined,
+                              fontWeight: 'bold',
+                              color: currentStyle === 'classic' ? '#fff' : '#000',
+                              textShadow: currentStyle === 'classic' ? '1px 1px 1px rgba(0,0,0,0.4)' : undefined,
+                              letterSpacing: currentStyle === 'classic' ? '0.3px' : undefined,
+                          }}>
+                              <i className="bi bi-play-circle-fill me-2" style={{ fontSize: '13px' }}></i>
+                              {t('production_schedule')}
+                          </span>
+
+                          {/* View-mode buttons */}
+                          <div style={{ display: 'flex', gap: currentStyle === 'classic' ? '2px' : '0' }}>
+                              {[
+                                  { key: 'calendar', icon: 'bi-calendar-event', label: 'Calendar' },
+                                  { key: 'list',     icon: 'bi-list-ul',        label: 'List' },
+                                  { key: 'scanner',  icon: 'bi-qr-code-scan',   label: 'Scanner' },
+                              ].map(({ key, icon, label }) => {
+                                  const isActive = viewMode === key;
+                                  if (currentStyle === 'classic') {
+                                      return (
+                                          <button
+                                              key={key}
+                                              onClick={() => setViewMode(key)}
+                                              style={{
+                                                  fontFamily: 'Tahoma, Arial, sans-serif',
+                                                  fontSize: '11px',
+                                                  padding: '2px 8px',
+                                                  background: isActive
+                                                      ? 'linear-gradient(to bottom,#fff 0%,#d4d0c8 100%)'
+                                                      : 'linear-gradient(to bottom,#d4d0c8 0%,#b8b4ac 100%)',
+                                                  border: '1px solid',
+                                                  borderColor: isActive
+                                                      ? '#808080 #dfdfdf #dfdfdf #808080'
+                                                      : '#dfdfdf #808080 #808080 #dfdfdf',
+                                                  color: '#000',
+                                                  cursor: 'pointer',
+                                                  fontWeight: isActive ? 'bold' : 'normal',
+                                              }}
+                                          >
+                                              <i className={`bi ${icon} me-1`}></i>{label}
+                                          </button>
+                                      );
+                                  }
+                                  return (
+                                      <button key={key} className={`btn btn-sm btn-light border ${isActive ? 'active' : ''}`} onClick={() => setViewMode(key)}>
+                                          <i className={`bi ${icon} me-1`}></i>{label}
+                                      </button>
+                                  );
+                              })}
                           </div>
                       </div>
-                      <div className="d-flex gap-2">
-                          <button className="btn btn-success btn-sm text-white" onClick={() => setIsCreateOpen(true)}><i className="bi bi-plus-lg me-1"></i>{t('create')}</button>
-                          <button className="btn btn-outline-primary btn-sm btn-print" onClick={handlePrintList}><i className="bi bi-printer me-1"></i>{t('print')}</button>
+
+                      {/* Right: Create + Print */}
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                          {currentStyle === 'classic' ? (
+                              <>
+                                  <button
+                                      onClick={() => setIsCreateOpen(true)}
+                                      style={{
+                                          fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px',
+                                          padding: '2px 10px', cursor: 'pointer', fontWeight: 'bold',
+                                          background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)',
+                                          border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a',
+                                          color: '#fff',
+                                      }}
+                                  >
+                                      <i className="bi bi-plus-lg me-1"></i>{t('create')}
+                                  </button>
+                                  <button
+                                      onClick={handlePrintList}
+                                      style={{
+                                          fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px',
+                                          padding: '2px 10px', cursor: 'pointer',
+                                          background: 'linear-gradient(to bottom,#fff,#d4d0c8)',
+                                          border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
+                                          color: '#000',
+                                      }}
+                                  >
+                                      <i className="bi bi-printer me-1"></i>{t('print')}
+                                  </button>
+                              </>
+                          ) : (
+                              <>
+                                  <button className="btn btn-success btn-sm text-white" onClick={() => setIsCreateOpen(true)}><i className="bi bi-plus-lg me-1"></i>{t('create')}</button>
+                                  <button className="btn btn-outline-primary btn-sm btn-print" onClick={handlePrintList}><i className="bi bi-printer me-1"></i>{t('print')}</button>
+                              </>
+                          )}
                       </div>
                   </div>
-                  
-                  <div className="card-body p-0">
+
+                  {/* ── Body ── */}
+                  <div style={{ background: currentStyle === 'classic' ? '#ece9d8' : undefined }} className={currentStyle === 'classic' ? '' : 'card-body p-0'}>
                       {viewMode === 'calendar' ? (
                           <div className="p-3"><CalendarView workOrders={workOrders} items={items} /></div>
                       ) : (
                           <div className="table-responsive">
-                                <table className="table table-hover align-middle mb-0">
-                                    <thead className="table-light">
-                                        <tr style={{fontSize: '9pt'}}>
-                                            <th className="ps-4">WO Code</th>
-                                            <th>Product / Variant</th>
-                                            <th className="text-center">Qty</th>
-                                            <th>Target Timeline</th>
-                                            <th>Actual Progression</th>
-                                            <th>{t('status')}</th>
-                                            <th className="text-end pe-4 no-print">{t('actions')}</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {filteredWorkOrders.map((wo: any) => {
-                                            const warning = getDueDateWarning(wo);
-                                            const isExpanded = expandedRows[wo.id];
+                              <table style={{
+                                  width: '100%',
+                                  borderCollapse: 'collapse',
+                                  fontFamily: currentStyle === 'classic' ? 'Tahoma, Arial, sans-serif' : undefined,
+                                  fontSize: currentStyle === 'classic' ? '11px' : undefined,
+                                  background: currentStyle === 'classic' ? '#fff' : undefined,
+                              }} className={currentStyle === 'classic' ? '' : 'table table-hover align-middle mb-0'}>
+                                  <thead>
+                                      <tr style={{
+                                          background: currentStyle === 'classic'
+                                              ? 'linear-gradient(to bottom,#fff 0%,#d4d0c8 100%)'
+                                              : undefined,
+                                          fontSize: currentStyle === 'classic' ? '10px' : '9pt',
+                                      }} className={currentStyle === 'classic' ? '' : 'table-light'}>
+                                          {[
+                                              { label: 'WO Code',           align: 'left',   cls: 'ps-3' },
+                                              { label: 'Product / Variant', align: 'left',   cls: '' },
+                                              { label: 'Qty',               align: 'center', cls: '' },
+                                              { label: 'Target Timeline',   align: 'left',   cls: '' },
+                                              { label: 'Actual Progression',align: 'left',   cls: '' },
+                                              { label: t('status'),         align: 'left',   cls: '' },
+                                              { label: t('actions'),        align: 'right',  cls: 'pe-3 no-print' },
+                                          ].map(({ label, align, cls }) => (
+                                              <th key={label} className={cls} style={{
+                                                  border: currentStyle === 'classic' ? '1px solid #808080' : undefined,
+                                                  padding: currentStyle === 'classic' ? '3px 8px' : undefined,
+                                                  textAlign: align as any,
+                                                  color: '#000',
+                                                  fontWeight: 'bold',
+                                                  whiteSpace: 'nowrap',
+                                              }}>{label}</th>
+                                          ))}
+                                      </tr>
+                                  </thead>
+                                  <tbody>
+                                      {filteredWorkOrders.map((wo: any, rowIdx: number) => {
+                                          const warning = getDueDateWarning(wo);
+                                          const isExpanded = expandedRows[wo.id];
+                                          const rowBg = currentStyle === 'classic'
+                                              ? (isExpanded ? '#d6e4f7' : rowIdx % 2 === 0 ? '#fff' : '#f5f3ee')
+                                              : undefined;
+                                          const tdStyle: React.CSSProperties = currentStyle === 'classic' ? {
+                                              border: '1px solid #c0bdb5',
+                                              padding: '4px 8px',
+                                              color: '#000',
+                                              verticalAlign: 'middle',
+                                          } : {};
 
-                                            return (
-                                                <>
-                                                <tr key={wo.id} className={isExpanded ? 'table-primary bg-opacity-10' : ''}>
-                                                    <td className="ps-4 fw-bold font-monospace small">{wo.code}</td>
-                                                    <td style={{cursor: 'pointer'}} onClick={() => toggleRow(wo.id)}>
-                                                        <div className="d-flex align-items-center gap-2">
-                                                            <i className={`bi bi-chevron-${isExpanded ? 'down' : 'right'} text-muted`}></i>
-                                                            <div>
-                                                                <div className="fw-bold text-dark" style={{fontSize: '9pt'}}>{wo.item_name || getItemName(wo.item_id)}</div>
-                                                                <div className="extra-small text-muted">
-                                                                    BOM: {getBOMCode(wo.bom_id)}
-                                                                    {wo.sales_order_id && <span className="ms-2 text-primary fw-bold">From SO</span>}
-                                                                    {wo.child_wos && wo.child_wos.length > 0 && <span className="ms-2 badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" style={{fontSize: '0.65rem'}}>NESTED ({wo.child_wos.length})</span>}
-                                                                </div>
-                                                                {wo.status === 'PENDING' && wo.is_material_available === false && <span className="badge bg-danger p-1 extra-small mt-1">LOW STOCK</span>}
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="text-center fw-bold">{wo.qty}</td>
-                                                    <td>
-                                                        <div className="extra-small d-flex flex-column gap-1">
-                                                            <span>S: {formatDate(wo.target_start_date)}</span>
-                                                            <span className={warning ? `text-${warning.type} fw-bold` : ''}>E: {formatDate(wo.target_end_date)}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <div className="extra-small d-flex flex-column gap-1 text-muted">
-                                                            <span>Start: {formatDateTime(wo.actual_start_date)}</span>
-                                                            <span>End: {formatDateTime(wo.actual_end_date)}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td><span className={`badge ${getStatusBadge(wo.status)} extra-small`}>{wo.status}</span></td>
-                                                    <td className="text-end pe-4 no-print">
-                                                        <div className="d-flex justify-content-end align-items-center gap-2">
-                                                            <button className="btn btn-sm btn-link text-primary p-0" onClick={() => handlePrintWO(wo)} title="Print Work Order">
-                                                                <i className="bi bi-printer fs-5"></i>
-                                                            </button>
-                                                            {wo.status === 'PENDING' && <button className="btn btn-sm btn-primary py-0 px-2" style={{fontSize: '0.75rem'}} onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>START</button>}
-                                                            {wo.status === 'IN_PROGRESS' && <button className="btn btn-sm btn-success py-0 px-2" style={{fontSize: '0.75rem'}} onClick={() => onUpdateStatus(wo.id, 'COMPLETED')}>FINISH</button>}
-                                                            <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDeleteWO(wo.id)} title="Delete"><i className="bi bi-trash fs-5"></i></button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                                {isExpanded && (
-                                                    <tr key={`${wo.id}-detail`}>
-                                                        <td colSpan={7} className="p-0 border-0">
-                                                            <WOExpandedPanel wo={wo} />
-                                                        </td>
-                                                    </tr>
-                                                )}
-                                                </>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
+                                          // XP-style status chip
+                                          const statusChip = (status: string) => {
+                                              if (currentStyle !== 'classic') {
+                                                  return <span className={`badge ${getStatusBadge(status)} extra-small`}>{status}</span>;
+                                              }
+                                              const chipStyle: React.CSSProperties = {
+                                                  display: 'inline-block', fontSize: '9px', fontWeight: 'bold',
+                                                  padding: '1px 6px', borderRadius: 0, border: '1px solid',
+                                                  fontFamily: 'Tahoma, Arial, sans-serif',
+                                              };
+                                              switch (status) {
+                                                  case 'COMPLETED':  return <span style={{ ...chipStyle, background: '#2d7a2d', borderColor: '#1a5e1a', color: '#fff' }}>COMPLETED</span>;
+                                                  case 'IN_PROGRESS': return <span style={{ ...chipStyle, background: '#0058e6', borderColor: '#003080', color: '#fff' }}>IN PROGRESS</span>;
+                                                  case 'CANCELLED': return <span style={{ ...chipStyle, background: '#c00000', borderColor: '#800000', color: '#fff' }}>CANCELLED</span>;
+                                                  default:          return <span style={{ ...chipStyle, background: '#d4d0c8', borderColor: '#808080', color: '#333' }}>PENDING</span>;
+                                              }
+                                          };
+
+                                          // XP-style action button
+                                          const xpBtn = (label: string, colorScheme: 'primary'|'success'|'danger'|'default', onClick: () => void, title?: string, iconCls?: string) => {
+                                              if (currentStyle !== 'classic') return null; // rendered separately below
+                                              const schemes: Record<string, React.CSSProperties> = {
+                                                  primary: { background: 'linear-gradient(to bottom,#5a9ae0,#0058e6)', borderColor: '#003080 #001840 #001840 #003080', color: '#fff' },
+                                                  success: { background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff' },
+                                                  danger:  { background: 'linear-gradient(to bottom,#fff,#d4d0c8)', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#c00000' },
+                                                  default: { background: 'linear-gradient(to bottom,#fff,#d4d0c8)', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000' },
+                                              };
+                                              return (
+                                                  <button key={label} onClick={onClick} title={title} style={{
+                                                      fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px',
+                                                      padding: '2px 7px', cursor: 'pointer', border: '1px solid',
+                                                      ...schemes[colorScheme],
+                                                  }}>
+                                                      {iconCls && <i className={`${iconCls} me-1`}></i>}{label}
+                                                  </button>
+                                              );
+                                          };
+
+                                          return (
+                                              <>
+                                              <tr key={wo.id} style={{ background: rowBg, cursor: 'default' }}
+                                                  className={currentStyle !== 'classic' && isExpanded ? 'table-primary bg-opacity-10' : ''}>
+
+                                                  {/* WO Code */}
+                                                  <td style={{ ...tdStyle, paddingLeft: currentStyle === 'classic' ? '10px' : undefined }}
+                                                      className={currentStyle !== 'classic' ? 'ps-4 fw-bold font-monospace small' : ''}>
+                                                      <span style={{ fontFamily: 'monospace', fontWeight: 'bold', fontSize: '11px', color: '#000' }}>{wo.code}</span>
+                                                  </td>
+
+                                                  {/* Product / Variant — click to expand */}
+                                                  <td style={{ ...tdStyle, cursor: 'pointer' }} onClick={() => toggleRow(wo.id)}>
+                                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                          <i className={`bi bi-chevron-${isExpanded ? 'down' : 'right'}`} style={{ color: '#555', fontSize: '10px' }}></i>
+                                                          <div>
+                                                              <div style={{ fontWeight: 'bold', color: '#000', fontSize: currentStyle === 'classic' ? '11px' : '9pt' }}>
+                                                                  {wo.item_name || getItemName(wo.item_id)}
+                                                              </div>
+                                                              <div style={{ fontSize: '9px', color: '#555' }}>
+                                                                  BOM: {getBOMCode(wo.bom_id)}
+                                                                  {wo.sales_order_id && (
+                                                                      <span style={{ marginLeft: '6px', fontWeight: 'bold', color: currentStyle === 'classic' ? '#0058e6' : undefined }} className={currentStyle !== 'classic' ? 'text-primary' : ''}>From SO</span>
+                                                                  )}
+                                                                  {wo.child_wos && wo.child_wos.length > 0 && (
+                                                                      currentStyle === 'classic'
+                                                                          ? <span style={{ marginLeft: '6px', fontSize: '8px', background: '#fff3cd', border: '1px solid #b8860b', color: '#6b4e00', padding: '0 4px', fontWeight: 'bold' }}>NESTED ×{wo.child_wos.length}</span>
+                                                                          : <span className="ms-2 badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" style={{fontSize: '0.65rem'}}>NESTED ({wo.child_wos.length})</span>
+                                                                  )}
+                                                              </div>
+                                                              {wo.status === 'PENDING' && wo.is_material_available === false && (
+                                                                  currentStyle === 'classic'
+                                                                      ? <span style={{ fontSize: '8px', background: '#c00000', border: '1px solid #800000', color: '#fff', padding: '0 4px', fontWeight: 'bold' }}>LOW STOCK</span>
+                                                                      : <span className="badge bg-danger p-1 extra-small mt-1">LOW STOCK</span>
+                                                              )}
+                                                          </div>
+                                                      </div>
+                                                  </td>
+
+                                                  {/* Qty */}
+                                                  <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold', color: '#000' }}
+                                                      className={currentStyle !== 'classic' ? 'text-center fw-bold' : ''}>
+                                                      {wo.qty}
+                                                  </td>
+
+                                                  {/* Target Timeline */}
+                                                  <td style={tdStyle}>
+                                                      <div style={{ fontSize: currentStyle === 'classic' ? '10px' : undefined, display: 'flex', flexDirection: 'column', gap: '1px' }}
+                                                           className={currentStyle !== 'classic' ? 'extra-small' : ''}>
+                                                          <span style={{ color: '#000' }}>S: {formatDate(wo.target_start_date)}</span>
+                                                          <span style={{ color: warning ? '#c00000' : '#000', fontWeight: warning ? 'bold' : undefined }}>
+                                                              E: {formatDate(wo.target_end_date)}
+                                                              {warning && <i className={`bi ${warning.icon} ms-1`} style={{ fontSize: '9px' }}></i>}
+                                                          </span>
+                                                      </div>
+                                                  </td>
+
+                                                  {/* Actual Progression */}
+                                                  <td style={tdStyle}>
+                                                      <div style={{ fontSize: currentStyle === 'classic' ? '10px' : undefined, display: 'flex', flexDirection: 'column', gap: '1px' }}
+                                                           className={currentStyle !== 'classic' ? 'extra-small text-muted' : ''}>
+                                                          <span style={{ color: '#555' }}>Start: {formatDateTime(wo.actual_start_date)}</span>
+                                                          <span style={{ color: '#555' }}>End: {formatDateTime(wo.actual_end_date)}</span>
+                                                      </div>
+                                                  </td>
+
+                                                  {/* Status */}
+                                                  <td style={tdStyle}>{statusChip(wo.status)}</td>
+
+                                                  {/* Actions */}
+                                                  <td style={{ ...tdStyle, textAlign: 'right' }} className="no-print">
+                                                      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
+                                                          {currentStyle === 'classic' ? (
+                                                              <>
+                                                                  {xpBtn('Print', 'default', () => handlePrintWO(wo), 'Print Work Order', 'bi bi-printer')}
+                                                                  {wo.status === 'PENDING'     && xpBtn('Start',  'primary', () => onUpdateStatus(wo.id, 'IN_PROGRESS'))}
+                                                                  {wo.status === 'IN_PROGRESS' && xpBtn('Finish', 'success', () => onUpdateStatus(wo.id, 'COMPLETED'))}
+                                                                  {xpBtn('Del', 'danger', () => onDeleteWO(wo.id), 'Delete', 'bi bi-trash')}
+                                                              </>
+                                                          ) : (
+                                                              <>
+                                                                  <button className="btn btn-sm btn-link text-primary p-0" onClick={() => handlePrintWO(wo)} title="Print Work Order"><i className="bi bi-printer fs-5"></i></button>
+                                                                  {wo.status === 'PENDING'     && <button className="btn btn-sm btn-primary py-0 px-2" style={{fontSize: '0.75rem'}} onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>START</button>}
+                                                                  {wo.status === 'IN_PROGRESS' && <button className="btn btn-sm btn-success py-0 px-2" style={{fontSize: '0.75rem'}} onClick={() => onUpdateStatus(wo.id, 'COMPLETED')}>FINISH</button>}
+                                                                  <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDeleteWO(wo.id)} title="Delete"><i className="bi bi-trash fs-5"></i></button>
+                                                              </>
+                                                          )}
+                                                      </div>
+                                                  </td>
+                                              </tr>
+                                              {isExpanded && (
+                                                  <tr key={`${wo.id}-detail`}>
+                                                      <td colSpan={7} className="p-0 border-0">
+                                                          <WOExpandedPanel wo={wo} />
+                                                      </td>
+                                                  </tr>
+                                              )}
+                                              </>
+                                          );
+                                      })}
+                                  </tbody>
+                              </table>
                           </div>
                       )}
                   </div>
