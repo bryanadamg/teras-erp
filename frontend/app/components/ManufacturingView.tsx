@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import QRCode from 'qrcode';
 import CodeConfigModal, { CodeConfig } from './CodeConfigModal';
 import CalendarView from './CalendarView';
@@ -6,6 +6,7 @@ import SearchableSelect from './SearchableSelect';
 import QRScannerView from './QRScannerView';
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
+import { useData } from '../context/DataContext';
 import ModalWrapper from './ModalWrapper';
 import PrintHeader from './PrintHeader';
 
@@ -30,7 +31,10 @@ export default function ManufacturingView({
 }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
-  const [viewMode, setViewMode] = useState('list'); 
+  const { authFetch } = useData();
+  const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
+  const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
+  const [viewMode, setViewMode] = useState('list');
 
   // Derived Pagination
   const totalPages = Math.ceil(totalItems / pageSize);
@@ -80,17 +84,19 @@ export default function ManufacturingView({
           const bom = boms.find((b: any) => b.id === bom_id);
 
           if (bom) {
-              const suggestedCode = suggestWOCode(bom.id);
-              setNewWO(prev => ({
-                  ...prev,
-                  code: suggestedCode,
-                  bom_id: bom.id,
-                  qty: qty,
-                  sales_order_id: sales_order_id || ''
-              }));
-              setIsCreateOpen(true);
-              onClearInitialState();
-              showToast('Production details pre-filled from Sales Order', 'info');
+              const base = buildWOBasePattern(bom.id);
+              fetchAvailableCode(base).then(suggestedCode => {
+                  setNewWO(prev => ({
+                      ...prev,
+                      code: suggestedCode,
+                      bom_id: bom.id,
+                      qty: qty,
+                      sales_order_id: sales_order_id || ''
+                  }));
+                  setIsCreateOpen(true);
+                  onClearInitialState();
+                  showToast('Production details pre-filled from Sales Order', 'info');
+              });
           } else {
               showToast('No active BOM found for the requested item.', 'warning');
               onClearInitialState();
@@ -107,21 +113,12 @@ export default function ManufacturingView({
       if (savedStyle) setCurrentStyle(savedStyle);
   }, []);
 
-  const handleSaveConfig = (newConfig: CodeConfig) => {
-      setCodeConfig(newConfig);
-      localStorage.setItem('wo_code_config', JSON.stringify(newConfig));
-      if (newWO.bom_id) {
-          const suggested = suggestWOCode(newWO.bom_id, newConfig);
-          setNewWO(prev => ({ ...prev, code: suggested }));
-      }
-  };
-
-  const suggestWOCode = (bomId: string, config = codeConfig) => {
+  const buildWOBasePattern = (bomId: string, config = codeConfig) => {
       const bom = boms.find((b: any) => b.id === bomId);
       if (!bom) return '';
       const item = items.find((i: any) => i.id === bom.item_id);
       const itemCode = item ? item.code : 'PROD';
-      
+
       let variantName = '';
       if (config.includeVariant && bom.attribute_value_ids && bom.attribute_value_ids.length > 0) {
           const names: string[] = [];
@@ -147,14 +144,28 @@ export default function ManufacturingView({
       if (config.includeYear) parts.push(now.getFullYear());
       if (config.includeMonth) parts.push(String(now.getMonth() + 1).padStart(2, '0'));
       if (config.suffix) parts.push(config.suffix);
-      const basePattern = parts.join(config.separator);
-      let counter = 1;
-      let baseCode = `${basePattern}${config.separator}001`;
-      while (workOrders.some((w: any) => w.code === baseCode)) {
-          counter++;
-          baseCode = `${basePattern}${config.separator}${String(counter).padStart(3, '0')}`;
+      return parts.join(config.separator);
+  };
+
+  const fetchAvailableCode = async (base: string): Promise<string> => {
+      try {
+          const res = await authFetch(`${API_BASE}/work-orders/available-code?base=${encodeURIComponent(base)}`);
+          if (res.ok) {
+              const data = await res.json();
+              return data.code;
+          }
+      } catch (_) {}
+      return `${base}-001`;
+  };
+
+  const handleSaveConfig = async (newConfig: CodeConfig) => {
+      setCodeConfig(newConfig);
+      localStorage.setItem('wo_code_config', JSON.stringify(newConfig));
+      if (newWO.bom_id) {
+          const base = buildWOBasePattern(newWO.bom_id, newConfig);
+          const suggested = await fetchAvailableCode(base);
+          setNewWO(prev => ({ ...prev, code: suggested }));
       }
-      return baseCode;
   };
 
   const handlePrintList = () => {
@@ -187,8 +198,9 @@ export default function ManufacturingView({
       return true;
   });
 
-  const handleBOMChange = (bomId: string) => {
-      const suggestedCode = suggestWOCode(bomId);
+  const handleBOMChange = async (bomId: string) => {
+      const base = buildWOBasePattern(bomId);
+      const suggestedCode = base ? await fetchAvailableCode(base) : '';
       setNewWO({...newWO, bom_id: bomId, code: suggestedCode});
   };
 
@@ -207,15 +219,9 @@ export default function ManufacturingView({
 
           const res = await onCreateWO(payload);
           if (res && res.status === 400) {
-              let baseCode = newWO.code;
-              const baseMatch = baseCode.match(/^(.*)-(\d+)$/);
-              if (baseMatch) baseCode = baseMatch[1];
-              let counter = 1;
-              let suggestedCode = `${baseCode}-${counter}`;
-              while (workOrders.some((w: any) => w.code === suggestedCode)) {
-                  counter++;
-                  suggestedCode = `${baseCode}-${counter}`;
-              }
+              const baseMatch = newWO.code.match(/^(.*)-\d+$/);
+              const base = baseMatch ? baseMatch[1] : newWO.code;
+              const suggestedCode = await fetchAvailableCode(base);
               showToast(`Work Order Code "${newWO.code}" already exists. Suggesting: ${suggestedCode}`, 'warning');
               setNewWO({ ...newWO, code: suggestedCode });
           } else if (res && res.ok) {

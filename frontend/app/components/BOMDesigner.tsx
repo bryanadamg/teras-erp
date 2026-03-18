@@ -205,31 +205,31 @@ export default function BOMDesigner({
         return baseCode;
     }, [codeConfig, attributes, existingBOMs]);
 
-    const handleApplyAutomation = useCallback((levels: string[][]) => {
-        if (!rootBOM.item_code) return;
-
-        const findMatchingAttributeIds = (childItemCode: string, parentAttrIds: string[]) => {
-            const childItem = items.find((i: any) => 
-                (i.code || '').trim().toLowerCase() === (childItemCode || '').trim().toLowerCase()
-            );
-            if (!childItem || !childItem.attribute_ids) return [];
-            const matches: string[] = [];
-            for (const parentValId of parentAttrIds) {
-                let attrName = ''; let valName = '';
-                for (const attr of attributes) {
-                    const val = attr.values.find((v:any) => v.id === parentValId);
-                    if (val) { attrName = attr.name; valName = val.value; break; }
-                }
-                if (attrName && valName) {
-                    const childAttr = attributes.find((a:any) => a.name === attrName && childItem.attribute_ids.includes(a.id));
-                    if (childAttr) {
-                        const childVal = childAttr.values.find((v:any) => v.value === valName);
-                        if (childVal) matches.push(childVal.id);
-                    }
+    const findMatchingAttributeIds = useCallback((childItemCode: string, parentAttrIds: string[]): string[] => {
+        const childItem = items.find((i: any) =>
+            (i.code || '').trim().toLowerCase() === (childItemCode || '').trim().toLowerCase()
+        );
+        if (!childItem || !childItem.attribute_ids) return [];
+        const matches: string[] = [];
+        for (const parentValId of parentAttrIds) {
+            let attrName = ''; let valName = '';
+            for (const attr of attributes) {
+                const val = attr.values.find((v: any) => v.id === parentValId);
+                if (val) { attrName = attr.name; valName = val.value; break; }
+            }
+            if (attrName && valName) {
+                const childAttr = attributes.find((a: any) => a.name === attrName && childItem.attribute_ids.includes(a.id));
+                if (childAttr) {
+                    const childVal = childAttr.values.find((v: any) => v.value === valName);
+                    if (childVal) matches.push(childVal.id);
                 }
             }
-            return matches;
-        };
+        }
+        return matches;
+    }, [items, attributes]);
+
+    const handleApplyAutomation = useCallback((levels: string[][]) => {
+        if (!rootBOM.item_code) return;
 
         const constructTreeRecursive = (parentAttrs: string[], levelIdx: number): any[] => {
             if (levelIdx >= levels.length) return [];
@@ -586,7 +586,7 @@ export default function BOMDesigner({
                                                             const newLine: BOMLineNode = {
                                                                 id: Math.random().toString(36).substr(2, 9),
                                                                 item_code: pendingItemCode,
-                                                                attribute_value_ids: [],
+                                                                attribute_value_ids: findMatchingAttributeIds(pendingItemCode, selectedNode.attribute_value_ids),
                                                                 qty: parseFloat(pendingQty),
                                                                 is_percentage: pendingIsPercentage,
                                                                 source_location_code: '',

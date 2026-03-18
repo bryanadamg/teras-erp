@@ -237,6 +237,20 @@ async def create_work_order(payload: WorkOrderCreate, db: AsyncSession = Depends
 
     return wo
 
+@router.get("/work-orders/available-code")
+async def get_available_wo_code(
+    base: str = Query(..., description="Base code pattern, e.g. WO-ITEM"),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user)
+):
+    counter = 1
+    while True:
+        candidate = f"{base}-{str(counter).zfill(3)}"
+        result = await db.execute(select(WorkOrder.id).filter(WorkOrder.code == candidate).limit(1))
+        if result.scalars().first() is None:
+            return {"code": candidate}
+        counter += 1
+
 @router.get("/work-orders", response_model=PaginatedWorkOrderResponse)
 async def get_work_orders(
     skip: int = 0, 
