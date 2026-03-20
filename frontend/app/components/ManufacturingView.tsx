@@ -32,7 +32,7 @@ export default function ManufacturingView({
 }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
-  const { authFetch } = useData();
+  const { authFetch, companyProfile } = useData();
   const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
   const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
   const [viewMode, setViewMode] = useState('list');
@@ -79,6 +79,30 @@ export default function ManufacturingView({
 
   const [currentStyle, setCurrentStyle] = useState('default');
 
+  interface PrintSettings {
+    showBOMTable: boolean;
+    showTimeline: boolean;
+    showChildWOs: boolean;
+    showSignatureLine: boolean;
+    headerCompanyName: string;
+    headerDepartment: string;
+    headerApprovedBy: string;
+    headerReference: string;
+  }
+
+  const defaultPrintSettings: PrintSettings = {
+    showBOMTable: true,
+    showTimeline: true,
+    showChildWOs: false,
+    showSignatureLine: true,
+    headerCompanyName: '',
+    headerDepartment: '',
+    headerApprovedBy: '',
+    headerReference: '',
+  };
+
+  const [printSettings, setPrintSettings] = useState<PrintSettings>(defaultPrintSettings);
+
   // Handle Automated Creation from Sales Order
   useEffect(() => {
       if (initialCreateState && items.length > 0 && boms.length > 0) {
@@ -115,7 +139,15 @@ export default function ManufacturingView({
       }
       const savedStyle = localStorage.getItem('ui_style');
       if (savedStyle) setCurrentStyle(savedStyle);
+      const savedPrintSettings = localStorage.getItem('wo_print_settings');
+      if (savedPrintSettings) {
+          try { setPrintSettings(JSON.parse(savedPrintSettings)); } catch (e) {}
+      }
   }, []);
+
+  useEffect(() => {
+      localStorage.setItem('wo_print_settings', JSON.stringify(printSettings));
+  }, [printSettings]);
 
   useEffect(() => {
       const expandedIds = Object.keys(expandedRows).filter(id => expandedRows[id]);
