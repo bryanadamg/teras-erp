@@ -925,6 +925,23 @@ body {
     white-space: normal !important;
     font-size: 10pt !important;
   }
+
+  /* WO print preview modal — hide everything except the paper portal */
+  body.wo-print-preview-active > *:not(.wo-print-paper-portal) {
+    display: none !important;
+  }
+  body.wo-print-preview-active .wo-print-paper-portal {
+    display: block !important;
+    position: static !important;
+    left: 0 !important;
+    width: 100% !important;
+  }
+  body.wo-print-preview-active .wo-print-paper-portal .wo-print-paper {
+    box-shadow: none !important;
+    padding: 20px !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
 }
 
 /* Toast Styles */
