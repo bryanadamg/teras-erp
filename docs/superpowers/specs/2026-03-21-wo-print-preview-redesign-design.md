@@ -174,7 +174,7 @@ Left: `font-size: 10px; color: #666` — `"Settings saved automatically"`
 
 Right buttons (XP-styled in classic mode, Bootstrap in default):
 - **Close** — grey XP button / `btn btn-sm btn-secondary`; calls `onClose()`
-- **Print** — green XP button / `btn btn-sm btn-success`; calls `window.print()` then `onClose()`
+- **Print** — green XP button / `btn btn-sm btn-success`; calls `window.print()`, then defers `onClose()` until after the print dialog closes using `window.onafterprint = onClose` (set before calling `window.print()`). This ensures the portal DOM is not removed before the browser finishes rendering the print output. Pattern: `window.onafterprint = onClose; window.print();` — do **not** call `onClose()` directly in the click handler after `window.print()`.
 
 ---
 
@@ -253,7 +253,7 @@ The existing `globals.css` `@media print` rule `.btn { display: none !important 
 - The existing `const { authFetch } = useData()` destructure (line 35) must be updated to `const { authFetch, companyProfile } = useData()` so the company profile is available for the document header inside `PrintPreviewModal`. `PrintPreviewModal` is defined inside `ManufacturingView` and accesses `companyProfile` via closure — it is **not** passed as a prop.
 - Hoist `renderPrintBOMLines` and `renderChildWOsPrint` from inside `WorkOrderPrintTemplate` to the outer `ManufacturingView` function scope, so both `WorkOrderPrintTemplate` and `PrintPreviewModal` can call them.
   - `renderPrintBOMLines` accesses `boms`, `getItemCode`, `getItemName`, `getAttributeValueName`, and `getLocationName` from the `ManufacturingView` scope by closure. It also uses `wo.qty`, `wo.source_location_id`, and `wo.location_id` from the enclosing `WorkOrderPrintTemplate` scope — after hoisting, `wo` is no longer in scope. **Add `wo` as the first parameter:** `renderPrintBOMLines(wo: any, lines: any[], level = 0, currentParentQty = 1, currentBOM: any)`. Update the internal recursive call at line 640 to pass `wo` as the first argument. Call sites: `renderPrintBOMLines(wo, bom.lines, 0, 1, bom)` in both `WorkOrderPrintTemplate` and `PrintPreviewModal`.
-  - `renderChildWOsPrint` must accept the QR URL map as an explicit parameter: `renderChildWOsPrint(children: any[], qrUrls: Record<string, string>)`.
+  - `renderChildWOsPrint` must accept the QR URL map as an explicit parameter: `renderChildWOsPrint(children: any[], qrUrls: Record<string, string>)`. **Also update the function body** to replace all references to the outer `qrDataUrls` variable with the local `qrUrls` parameter (e.g., `qrDataUrls[child.code]` → `qrUrls[child.code]`).
   - **Update the existing `WorkOrderPrintTemplate` call site** (currently `renderChildWOsPrint(wo.child_wos)`) to `renderChildWOsPrint(wo.child_wos, qrDataUrls)`.
   - The new `PrintPreviewModal` call site uses `renderChildWOsPrint(wo.child_wos, childQrUrls)`.
 - Replace `const [printingWO, setPrintingWO] = useState<any>(null)` with `const [printPreviewWO, setPrintPreviewWO] = useState<any>(null)`.
