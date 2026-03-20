@@ -632,79 +632,80 @@ export default function ManufacturingView({
       );
   };
 
+  // --- Hoisted print render helpers (shared with PrintPreviewModal) ---
+  const renderPrintBOMLines = (wo: any, lines: any[], level = 0, currentParentQty = 1, currentBOM: any): any => {
+      return lines.map((line: any) => {
+          const subBOM = boms.find((b: any) => b.item_id === line.item_id);
+          let scaledQty = parseFloat(line.qty);
+          if (line.is_percentage) {
+              scaledQty = (currentParentQty * scaledQty) / 100;
+          } else {
+              scaledQty = currentParentQty * scaledQty;
+          }
+          const tolerance = parseFloat(currentBOM?.tolerance_percentage || 0);
+          if (tolerance > 0) {
+              scaledQty = scaledQty * (1 + (tolerance / 100));
+          }
+
+          return (
+              <>
+                  <tr key={line.id}>
+                      <td style={{paddingLeft: `${level * 12 + 8}px`}}>
+                          <span className="font-monospace extra-small">{line.item_code || getItemCode(line.item_id)}</span>
+                      </td>
+                      <td>
+                          <div style={{fontSize: '9pt'}}>
+                              {level > 0 && <span className="text-muted me-1 small">↳</span>}
+                              {line.item_name || getItemName(line.item_id)}
+                          </div>
+                      </td>
+                      <td className="extra-small fst-italic">
+                          {line.qty}{line.is_percentage ? '%' : ''}
+                          {(line.attribute_value_ids || []).length > 0 && ` • ${(line.attribute_value_ids || []).map(getAttributeValueName).join(', ')}`}
+                      </td>
+                      <td><span className="extra-small">{getLocationName(line.source_location_id || wo.source_location_id || wo.location_id)}</span></td>
+                      <td className="text-end fw-bold small">{(scaledQty * wo.qty).toFixed(3)}</td>
+                  </tr>
+                  {subBOM && subBOM.lines && renderPrintBOMLines(wo, subBOM.lines, level + 1, scaledQty, subBOM)}
+              </>
+          );
+      });
+  };
+
+  const renderChildWOsPrint = (children: any[], qrUrls: Record<string, string>) => {
+      if (!children || children.length === 0) return null;
+      return (
+          <div className="mt-5 pt-4 border-top">
+              <h6 className="fw-bold text-uppercase text-muted extra-small mb-3"><i className="bi bi-diagram-3-fill me-2"></i>Child Work Orders (Nested Chain)</h6>
+              <div className="row g-3">
+                  {children.map(child => (
+                      <div key={child.id} className="col-12 border rounded p-2 bg-light bg-opacity-10 d-flex justify-content-between align-items-center">
+                          <div className="d-flex align-items-center gap-3">
+                              <img
+                                  src={qrUrls[child.code] || ''}
+                                  alt="QR"
+                                  style={{ width: '60px', height: '60px' }}
+                              />
+                              <div>
+                                  <div className="font-monospace extra-small fw-bold text-primary">{child.code}</div>
+                                  <div className="fw-bold small">{child.item_name || getItemName(child.item_id)}</div>
+                                  <div className="extra-small text-muted">Qty: {child.qty} • Loc: {getLocationName(child.location_id)}</div>
+                              </div>
+                          </div>
+                          <div className="text-end pe-2">
+                              <div className="extra-small text-muted">Status: {child.status}</div>
+                              <div className="extra-small text-muted">Due: {formatDate(child.target_end_date)}</div>
+                          </div>
+                      </div>
+                  ))}
+              </div>
+          </div>
+      );
+  };
+
   // --- Print Template Component ---
   const WorkOrderPrintTemplate = ({ wo }: { wo: any }) => {
       const bom = boms.find((b: any) => b.id === wo.bom_id);
-      
-      const renderPrintBOMLines = (lines: any[], level = 0, currentParentQty = 1, currentBOM: any) => {
-          return lines.map((line: any) => {
-              const subBOM = boms.find((b: any) => b.item_id === line.item_id);
-              let scaledQty = parseFloat(line.qty);
-              if (line.is_percentage) {
-                  scaledQty = (currentParentQty * scaledQty) / 100;
-              } else {
-                  scaledQty = currentParentQty * scaledQty;
-              }
-              const tolerance = parseFloat(currentBOM?.tolerance_percentage || 0);
-              if (tolerance > 0) {
-                  scaledQty = scaledQty * (1 + (tolerance / 100));
-              }
-              
-              return (
-                  <>
-                      <tr key={line.id}>
-                          <td style={{paddingLeft: `${level * 12 + 8}px`}}>
-                              <span className="font-monospace extra-small">{line.item_code || getItemCode(line.item_id)}</span>
-                          </td>
-                          <td>
-                              <div style={{fontSize: '9pt'}}>
-                                  {level > 0 && <span className="text-muted me-1 small">↳</span>}
-                                  {line.item_name || getItemName(line.item_id)}
-                              </div>
-                          </td>
-                          <td className="extra-small fst-italic">
-                              {line.qty}{line.is_percentage ? '%' : ''} 
-                              {(line.attribute_value_ids || []).length > 0 && ` • ${(line.attribute_value_ids || []).map(getAttributeValueName).join(', ')}`}
-                          </td>
-                          <td><span className="extra-small">{getLocationName(line.source_location_id || wo.source_location_id || wo.location_id)}</span></td>
-                          <td className="text-end fw-bold small">{(scaledQty * wo.qty).toFixed(3)}</td> 
-                      </tr>
-                      {subBOM && subBOM.lines && renderPrintBOMLines(subBOM.lines, level + 1, scaledQty, subBOM)}
-                  </>
-              );
-          });
-      };
-
-      const renderChildWOsPrint = (children: any[]) => {
-          if (!children || children.length === 0) return null;
-          return (
-              <div className="mt-5 pt-4 border-top">
-                  <h6 className="fw-bold text-uppercase text-muted extra-small mb-3"><i className="bi bi-diagram-3-fill me-2"></i>Child Work Orders (Nested Chain)</h6>
-                  <div className="row g-3">
-                      {children.map(child => (
-                          <div key={child.id} className="col-12 border rounded p-2 bg-light bg-opacity-10 d-flex justify-content-between align-items-center">
-                              <div className="d-flex align-items-center gap-3">
-                                  <img 
-                                      src={qrDataUrls[child.code] || ''}
-                                      alt="QR"
-                                      style={{ width: '60px', height: '60px' }}
-                                  />
-                                  <div>
-                                      <div className="font-monospace extra-small fw-bold text-primary">{child.code}</div>
-                                      <div className="fw-bold small">{child.item_name || getItemName(child.item_id)}</div>
-                                      <div className="extra-small text-muted">Qty: {child.qty} • Loc: {getLocationName(child.location_id)}</div>
-                                  </div>
-                              </div>
-                              <div className="text-end pe-2">
-                                  <div className="extra-small text-muted">Status: {child.status}</div>
-                                  <div className="extra-small text-muted">Due: {formatDate(child.target_end_date)}</div>
-                              </div>
-                          </div>
-                      ))}
-                  </div>
-              </div>
-          );
-      };
 
       return (
           <div className="bg-white p-4 h-100 position-fixed top-0 start-0 w-100 print-container" style={{zIndex: 2000, overflowY: 'auto'}}>
@@ -768,11 +769,11 @@ export default function ManufacturingView({
                       </tr>
                   </thead>
                   <tbody>
-                      {bom ? renderPrintBOMLines(bom.lines, 0, 1, bom) : <tr><td colSpan={5}>No BOM found</td></tr>}
+                      {bom ? renderPrintBOMLines(wo, bom.lines, 0, 1, bom) : <tr><td colSpan={5}>No BOM found</td></tr>}
                   </tbody>
               </table>
 
-              {renderChildWOsPrint(wo.child_wos)}
+              {renderChildWOsPrint(wo.child_wos, qrDataUrls)}
 
               <div className="mt-5 pt-5 border-top d-flex justify-content-between text-muted small">
                   <div>Printed: {new Date().toLocaleString()}</div>
