@@ -95,12 +95,12 @@ export function configToSegments(
 export function segmentsToConfig(segs: Segment[], separator: string): CodeConfig {
   const normalized = normalizeCounter(segs);
   return {
-    prefix:                (normalized.find(s => s.type === 'prefix') as any)?.value ?? '',
-    suffix:                (normalized.find(s => s.type === 'suffix') as any)?.value ?? '',
+    prefix:                normalized.find((s): s is Extract<Segment, { type: 'prefix' }> => s.type === 'prefix')?.value ?? '',
+    suffix:                normalized.find((s): s is Extract<Segment, { type: 'suffix' }> => s.type === 'suffix')?.value ?? '',
     separator,
     includeItemCode:       normalized.some(s => s.type === 'item'),
     includeVariant:        normalized.some(s => s.type === 'attribute'),
-    variantAttributeNames: normalized.filter(s => s.type === 'attribute').map((s: any) => s.name),
+    variantAttributeNames: (normalized.filter((s): s is Extract<Segment, { type: 'attribute' }> => s.type === 'attribute')).map(s => s.name),
     includeYear:           normalized.some(s => s.type === 'year'),
     includeMonth:          normalized.some(s => s.type === 'month'),
   };
@@ -114,12 +114,12 @@ export function getSegmentPreviewValue(
     case 'prefix':    return seg.value || 'PREFIX';
     case 'item':      return 'ITEM001';
     case 'attribute': {
-      const attr = attributes.find(a => a.name === (seg as any).name);
+      const attr = attributes.find(a => a.name === seg.name);
       return attr?.values[0]?.value.toUpperCase() ?? 'VAR';
     }
     case 'year':    return String(new Date().getFullYear());
     case 'month':   return String(new Date().getMonth() + 1).padStart(2, '0');
-    case 'suffix':  return (seg as any).value || 'SUFFIX';
+    case 'suffix':  return seg.value || 'SUFFIX';
     case 'counter': return '001';
   }
 }
