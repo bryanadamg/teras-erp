@@ -185,12 +185,24 @@ export default function LoginPage() {
                         Manufacturing &amp; Inventory
                     </div>
                 </div>
-                <div style={{
-                    fontSize: 'clamp(7px,0.9vw,11px)', color: '#6a8ab8',
-                    textAlign: 'right', lineHeight: 1.9, letterSpacing: 1,
-                }}>
-                    Production · Stock · Sales<br />
-                    BOM · Work Orders · Reports
+                <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                    <div style={{ fontSize: 'clamp(7px,0.9vw,11px)', color: '#6a8ab8', lineHeight: 1.9, letterSpacing: 1 }}>
+                        Production · Stock · Sales<br />
+                        BOM · Work Orders · Reports
+                    </div>
+                    <a
+                        href="/docs"
+                        style={{
+                            fontSize: 'clamp(7px,0.85vw,10px)',
+                            color: '#7ab0e8',
+                            textDecoration: 'none',
+                            border: '1px solid rgba(122,176,232,0.3)',
+                            borderRadius: 2,
+                            padding: 'clamp(1px,0.3vw,3px) clamp(4px,0.8vw,8px)',
+                        }}
+                    >
+                        📋 View Documentation
+                    </a>
                 </div>
             </div>
 
