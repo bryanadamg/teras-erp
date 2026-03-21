@@ -180,6 +180,141 @@ function getTypeName(type: string): string {
   return names[type] ?? 'Document';
 }
 
+function SegmentChipDefault({
+  seg, index, activeGap, separator,
+  onDragStart, onDragEnd,
+  onGapDragOver, onGapDragLeave, onGapDrop,
+  onRemove, onPrefixChange, onSuffixChange,
+}: {
+  seg: Segment; index: number; activeGap: number | null; separator: string;
+  onDragStart: (e: React.DragEvent) => void;
+  onDragEnd: () => void;
+  onGapDragOver: (e: React.DragEvent, g: number) => void;
+  onGapDragLeave: () => void;
+  onGapDrop: (e: React.DragEvent, g: number) => void;
+  onRemove: () => void;
+  onPrefixChange: (v: string) => void;
+  onSuffixChange: (v: string) => void;
+}) {
+  const color = CHIP_COLORS[seg.type] ?? '#64748b';
+  const isCounter = seg.type === 'counter';
+  const isPrefix = seg.type === 'prefix';
+  const isSuffix = seg.type === 'suffix';
+  const isEditable = isPrefix || isSuffix;
+
+  return (
+    <Fragment>
+      {/* Gap indicator before this chip — doubles as separator char display */}
+      <div
+        onDragOver={e => onGapDragOver(e, index)}
+        onDragLeave={onGapDragLeave}
+        onDrop={e => onGapDrop(e, index)}
+        style={{
+          width: activeGap === index ? '16px' : '4px',
+          minWidth: activeGap === index ? '16px' : '4px',
+          height: '36px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: '12px', fontWeight: 700, color: '#4b5563',
+          background: activeGap === index ? `${color}22` : 'transparent',
+          borderLeft: activeGap === index ? `2px solid ${color}` : 'none',
+          transition: 'width 0.1s, background 0.1s',
+          cursor: 'crosshair', userSelect: 'none', flexShrink: 0,
+        }}
+      >
+        {activeGap !== index && index > 0 ? separator : ''}
+      </div>
+
+      {/* Chip */}
+      <div
+        draggable={!isCounter}
+        onDragStart={isCounter ? undefined : onDragStart}
+        onDragEnd={isCounter ? undefined : onDragEnd}
+        style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px',
+          cursor: isCounter ? 'default' : 'grab',
+          opacity: isCounter ? 0.75 : 1,
+          flexShrink: 0,
+        }}
+      >
+        <div style={{
+          background: color,
+          color: '#fff',
+          borderRadius: '5px',
+          padding: isEditable ? '3px 6px' : '4px 10px',
+          display: 'flex', alignItems: 'center', gap: '5px',
+          minHeight: '28px',
+        }}>
+          {!isCounter && (
+            <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: '11px', cursor: 'grab' }}>⠿</span>
+          )}
+
+          {isPrefix && (
+            <input
+              value={(seg as Extract<Segment, { type: 'prefix' }>).value}
+              onChange={e => onPrefixChange(e.target.value)}
+              placeholder="PREFIX"
+              style={{
+                background: 'transparent', border: '1px solid rgba(255,255,255,0.4)',
+                borderRadius: '3px', color: '#fff', fontFamily: "'Courier New', monospace",
+                fontSize: '12px', fontWeight: 700, letterSpacing: '1px',
+                width: Math.max(50, (seg as Extract<Segment, { type: 'prefix' }>).value.length * 9 + 12) + 'px',
+                padding: '1px 4px', outline: 'none',
+              }}
+            />
+          )}
+          {isSuffix && (
+            <input
+              value={(seg as Extract<Segment, { type: 'suffix' }>).value}
+              onChange={e => onSuffixChange(e.target.value)}
+              placeholder="SUFFIX"
+              style={{
+                background: 'transparent', border: '1px solid rgba(255,255,255,0.4)',
+                borderRadius: '3px', color: '#fff', fontFamily: "'Courier New', monospace",
+                fontSize: '12px', fontWeight: 700, letterSpacing: '1px',
+                width: Math.max(50, (seg as Extract<Segment, { type: 'suffix' }>).value.length * 9 + 12) + 'px',
+                padding: '1px 4px', outline: 'none',
+              }}
+            />
+          )}
+          {!isEditable && (
+            <span style={{
+              fontFamily: "'Courier New', monospace", fontSize: '12px', fontWeight: 700,
+              letterSpacing: '0.5px', color: '#fff',
+            }}>
+              {seg.type === 'item' ? 'ITEM001'
+               : seg.type === 'attribute' ? (seg as Extract<Segment, { type: 'attribute' }>).name.toUpperCase()
+               : seg.type === 'year' ? new Date().getFullYear()
+               : seg.type === 'month' ? String(new Date().getMonth() + 1).padStart(2, '0')
+               : '001'}
+            </span>
+          )}
+
+          {!isCounter && (
+            <button
+              type="button"
+              onClick={onRemove}
+              style={{
+                background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)',
+                cursor: 'pointer', padding: '0 0 0 3px', fontSize: '13px', lineHeight: 1,
+              }}
+            >×</button>
+          )}
+        </div>
+        {/* Label below chip */}
+        <div style={{
+          fontSize: '9px', fontWeight: 600,
+          color: isCounter ? '#64748b' : color,
+          letterSpacing: '0.3px',
+        }}>
+          {seg.type === 'attribute' ? (seg as Extract<Segment, { type: 'attribute' }>).name
+           : seg.type === 'counter' ? 'counter'
+           : seg.type}
+        </div>
+      </div>
+    </Fragment>
+  );
+}
+
 interface CodeConfigModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -372,11 +507,49 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
             </select>
           </div>
 
-          {/* Track placeholder — replaced in Task 4 */}
-          <div style={{ minHeight: 60, background: '#f8fafc', border: '1.5px dashed #cbd5e1', borderRadius: 8,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: '#94a3b8', fontSize: 12 }}>
-            Track (Task 4)
+          {/* Active Track */}
+          <div>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: '#9ca3af',
+                          textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '6px' }}>
+              Code Sequence
+              <span style={{ fontWeight: 400, textTransform: 'none', marginLeft: '6px', color: '#cbd5e1',
+                             fontSize: '10px' }}>
+                drag to reorder — click × to remove
+              </span>
+            </div>
+            <div style={{
+              background: segments.filter(s => s.type !== 'counter').length === 0
+                ? 'transparent' : '#f8fafc',
+              border: segments.filter(s => s.type !== 'counter').length === 0
+                ? '1.5px dashed #cbd5e1' : '1.5px solid #e2e8f0',
+              borderRadius: '8px',
+              padding: '10px 12px',
+              display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', gap: '2px',
+              minHeight: '60px',
+            }}>
+              {segments.length === 1 && segments[0].type === 'counter' ? (
+                <span style={{ color: '#94a3b8', fontSize: '12px', margin: 'auto' }}>
+                  Drag segments here
+                </span>
+              ) : null}
+              {segments.map((seg, i) => (
+                <SegmentChipDefault
+                  key={`${seg.type}-${seg.type === 'attribute' ? (seg as any).name : seg.type === 'prefix' || seg.type === 'suffix' ? (seg as any).value : ''}-${i}`}
+                  seg={seg}
+                  index={i}
+                  activeGap={activeGap}
+                  separator={separator}
+                  onDragStart={e => handleTrackDragStart(e, i)}
+                  onDragEnd={handleDragEnd}
+                  onGapDragOver={handleGapDragOver}
+                  onGapDragLeave={handleGapDragLeave}
+                  onGapDrop={handleGapDrop}
+                  onRemove={() => handleRemoveFromTrack(i)}
+                  onPrefixChange={handlePrefixChange}
+                  onSuffixChange={handleSuffixChange}
+                />
+              ))}
+            </div>
           </div>
 
           {/* Palette placeholder — replaced in Task 5 */}
