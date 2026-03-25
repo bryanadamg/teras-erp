@@ -422,27 +422,32 @@ export default function SalesOrderView({ items, attributes, salesOrders, partner
        <ModalWrapper
            isOpen={isCreateOpen}
            onClose={() => { setIsCreateOpen(false); setNewSO({ po_number: '', customer_name: '', order_date: new Date().toISOString().split('T')[0], lines: [] }); }}
-           title={<><i className="bi bi-cart-plus me-2"></i>Create Sales Order</>}
+           title={<><i className="bi bi-cart-plus" style={classic ? {marginRight:6} : {marginRight:8}}></i>Create Sales Order</>}
            variant="primary"
            size="lg"
-           footer={
+           footer={classic ? (
+               <>
+                   <button type="button" style={xpBtn()} onClick={() => setIsCreateOpen(false)}>{t('cancel')}</button>
+                   <button type="button" style={xpBtn({background:'linear-gradient(to bottom,#316ac5,#1a4a8a)',borderColor:'#1a3a7a #0a2a5a #0a2a5a #1a3a7a',color:'#ffffff',fontWeight:'bold',padding:'2px 16px'})} onClick={handleSubmit as any}><i className="bi bi-floppy" style={{marginRight:4}}></i>{t('save')} Order</button>
+               </>
+           ) : (
                <>
                    <button type="button" className="btn btn-sm btn-link text-muted" onClick={() => setIsCreateOpen(false)}>{t('cancel')}</button>
                    <button type="button" className="btn btn-sm btn-primary px-4 fw-bold" onClick={handleSubmit as any}>{t('save')} Order</button>
                </>
-           }
+           )}
        >
            <form onSubmit={handleSubmit} id="create-so-form">
                <div className="row g-3 mb-3">
                    <div className="col-md-4">
-                       <label className="form-label d-flex justify-content-between align-items-center small text-muted">
+                       <label style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:2} : undefined} className={classic ? '' : 'form-label d-flex justify-content-between align-items-center small text-muted'}>
                            Ref No. (PO#)
-                           <i className="bi bi-gear-fill text-muted" style={{cursor: 'pointer'}} onClick={() => setIsConfigOpen(true)} title="Configure Auto-Suggestion"></i>
+                           <i className="bi bi-gear-fill" style={{cursor:'pointer',color:classic?'#555':'',fontSize:classic?'11px':''}} onClick={() => setIsConfigOpen(true)} title="Configure Auto-Suggestion"></i>
                        </label>
-                       <input className="form-control" placeholder="Auto-generated" value={newSO.po_number} onChange={e => setNewSO({...newSO, po_number: e.target.value})} required />
+                       <input className="form-control" style={classic ? xpInput : undefined} placeholder="Auto-generated" value={newSO.po_number} onChange={e => setNewSO({...newSO, po_number: e.target.value})} required />
                    </div>
                    <div className="col-md-5">
-                       <label className="form-label small text-muted">Customer</label>
+                       <label style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2} : undefined} className={classic ? '' : 'form-label small text-muted'}>Customer</label>
                        <SearchableSelect
                            options={customers.map((c: any) => ({ value: c.name, label: c.name, subLabel: c.address }))}
                            value={newSO.customer_name}
@@ -452,16 +457,19 @@ export default function SalesOrderView({ items, attributes, salesOrders, partner
                        />
                    </div>
                    <div className="col-md-3">
-                       <label className="form-label small text-muted">Date</label>
-                       <input type="date" className="form-control" value={newSO.order_date} onChange={e => setNewSO({...newSO, order_date: e.target.value})} required />
+                       <label style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2} : undefined} className={classic ? '' : 'form-label small text-muted'}>Date</label>
+                       <input type="date" className="form-control" style={classic ? {...xpInput,width:'100%',height:'22px'} : undefined} value={newSO.order_date} onChange={e => setNewSO({...newSO, order_date: e.target.value})} required />
                    </div>
                </div>
 
-               <h6 className="small text-uppercase text-muted fw-bold mb-2">Order Items</h6>
-               <div className="p-3 mb-3 border" style={{ background: 'rgba(0,0,0,0.02)' }}>
+               {classic
+                   ? <div style={{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',fontWeight:'bold',color:'#444',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:4,paddingBottom:2,borderBottom:'1px solid #c0bdb5'}}>Order Items</div>
+                   : <h6 className="small text-uppercase text-muted fw-bold mb-2">Order Items</h6>
+               }
+               <div style={{background:classic?'#f5f4ef':'rgba(0,0,0,0.02)',border:classic?'1px solid #b0a898':'1px solid #dee2e6',padding:classic?'6px 8px':'12px',marginBottom:classic?6:12}}>
                    <div className="row g-2 mb-2">
                        <div className="col-5">
-                           <label className="form-label small text-muted mb-1">Item</label>
+                           <label style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2} : undefined} className={classic ? '' : 'form-label small text-muted mb-1'}>Item</label>
                            <SearchableSelect
                                options={items.map((item: any) => ({ value: item.id, label: item.name, subLabel: `${item.code}${item.category === 'Sample' ? ' ★' : ''}` }))}
                                value={newLine.item_id}
@@ -470,27 +478,28 @@ export default function SalesOrderView({ items, attributes, salesOrders, partner
                            />
                        </div>
                        <div className="col-2">
-                           <label className="form-label small text-muted mb-1">Qty</label>
-                           <input type="number" className="form-control" placeholder="0" value={newLine.qty || ''} onChange={e => setNewLine({...newLine, qty: parseFloat(e.target.value)})} />
+                           <label style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2} : undefined} className={classic ? '' : 'form-label small text-muted mb-1'}>Qty</label>
+                           <input type="number" className="form-control" style={classic ? xpInput : undefined} placeholder="0" value={newLine.qty || ''} onChange={e => setNewLine({...newLine, qty: parseFloat(e.target.value)})} />
                        </div>
                        <div className="col-3">
-                           <label className="form-label small text-muted mb-1">Due Date</label>
-                           <input type="date" className="form-control" value={newLine.due_date} onChange={e => setNewLine({...newLine, due_date: e.target.value})} />
+                           <label style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2} : undefined} className={classic ? '' : 'form-label small text-muted mb-1'}>Due Date</label>
+                           <input type="date" className="form-control" style={classic ? {...xpInput,width:'100%',height:'22px'} : undefined} value={newLine.due_date} onChange={e => setNewLine({...newLine, due_date: e.target.value})} />
                        </div>
                        <div className="col-2 d-flex align-items-end">
-                           <button type="button" className="btn btn-secondary w-100" onClick={handleAddLine} disabled={!newLine.item_id || newLine.qty <= 0}>
+                           <button type="button" style={classic ? {...xpBtn(),width:'100%',padding:'2px 6px'} : undefined} className={classic ? '' : 'btn btn-secondary w-100'} onClick={handleAddLine} disabled={!newLine.item_id || newLine.qty <= 0}>
                                <i className="bi bi-plus-lg"></i>
                            </button>
                        </div>
                        {currentBoundAttrs.length > 0 && (
                            <div className="col-12 mt-1">
-                               <div className="p-2 border" style={{ background: 'white' }}>
-                                   <small className="text-muted fw-bold mb-2 d-block">Variants</small>
+                               <div style={{background:'#ffffff',border:classic?'1px solid #b0a898':'1px solid #dee2e6',padding:classic?'4px 6px':'8px'}}>
+                                   <div style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',fontWeight:'bold',color:'#444',marginBottom:4} : undefined} className={classic ? '' : 'text-muted fw-bold mb-2 small'}>Variants</div>
                                    <div className="row g-2">
                                        {currentBoundAttrs.map((attr: any) => (
                                            <div key={attr.id} className="col-md-4">
                                                <select
                                                    className="form-select form-select-sm"
+                                                   style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',border:'1px solid #7f9db9',height:'22px',borderRadius:0,padding:'1px 4px',background:'#ffffff',outline:'none'} : undefined}
                                                    value={newLine.attribute_value_ids.find(vid => attr.values.some((v: any) => v.id === vid)) || ''}
                                                    onChange={e => handleValueChange(e.target.value, attr.id)}
                                                >
@@ -506,23 +515,23 @@ export default function SalesOrderView({ items, attributes, salesOrders, partner
                    </div>
                    <div>
                        {newSO.lines.map((line: any, idx) => (
-                           <div key={idx} className="d-flex justify-content-between align-items-center p-2 border mb-1 small" style={{ background: 'white' }}>
+                           <div key={idx} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:classic?'3px 6px':'8px',background:classic?(idx%2===0?'#ffffff':'#f5f3ee'):'white',border:classic?'1px solid #c0bdb5':'1px solid #dee2e6',marginBottom:2,fontFamily:classic?'Tahoma,Arial,sans-serif':undefined,fontSize:classic?'11px':undefined}}>
                                <div>
-                                   <span className="fw-bold">{getItemName(line.item_id)}</span>
-                                   <span className="text-muted ms-2 font-monospace small">{getItemCode(line.item_id)}</span>
-                                   {isSample(line.item_id) && <span className="badge bg-warning text-dark ms-2" style={{fontSize: '0.6rem'}}>Sample</span>}
-                                   {line.due_date && <span className="text-muted ms-2 small"><i className="bi bi-calendar2 me-1"></i>{new Date(line.due_date).toLocaleDateString()}</span>}
-                                   <div className="small text-muted fst-italic">{(line.attribute_value_ids || []).map(getAttributeValueName).join(', ')}</div>
+                                   <span style={{fontWeight:'bold'}}>{getItemName(line.item_id)}</span>
+                                   <span style={{color:classic?'#555':'',marginLeft:8,fontFamily:classic?'Tahoma,Arial,sans-serif':'',fontSize:classic?'10px':''}} className={classic?'':'text-muted ms-2 font-monospace small'}>{getItemCode(line.item_id)}</span>
+                                   {isSample(line.item_id) && <span style={{background:'#fff8dc',border:'1px solid #c8a000',color:'#4a3000',padding:'0 4px',fontSize:'9px',fontFamily:classic?'Tahoma,Arial,sans-serif':'',marginLeft:6}} className={classic?'':'badge bg-warning text-dark ms-2'}>Sample</span>}
+                                   {line.due_date && <span style={{color:classic?'#666':'',marginLeft:8,fontSize:classic?'10px':''}} className={classic?'':'text-muted ms-2 small'}><i className="bi bi-calendar2" style={{marginRight:3}}></i>{new Date(line.due_date).toLocaleDateString()}</span>}
+                                   {(line.attribute_value_ids || []).length > 0 && <div style={{color:classic?'#666':'',fontSize:classic?'10px':'',fontStyle:'italic'}} className={classic?'':'small text-muted fst-italic'}>{(line.attribute_value_ids || []).map(getAttributeValueName).join(', ')}</div>}
                                </div>
-                               <div className="d-flex align-items-center gap-3">
-                                   <span className="fw-bold">×{line.qty}</span>
-                                   <button type="button" className="btn btn-sm btn-link text-danger p-0" onClick={() => handleRemoveLine(idx)}>
-                                       <i className="bi bi-x-circle"></i>
+                               <div style={{display:'flex',alignItems:'center',gap:12}}>
+                                   <span style={{fontWeight:'bold'}}>×{line.qty}</span>
+                                   <button type="button" style={classic?{...xpBtn(),border:'1px solid transparent',background:'transparent',padding:'1px 5px'}:undefined} className={classic?'':'btn btn-sm btn-link text-danger p-0'} onClick={() => handleRemoveLine(idx)}>
+                                       <i className="bi bi-x-circle" style={{color:classic?'#c00000':''}}></i>
                                    </button>
                                </div>
                            </div>
                        ))}
-                       {newSO.lines.length === 0 && <div className="text-center text-muted small fst-italic py-2">No items added yet</div>}
+                       {newSO.lines.length === 0 && <div style={{textAlign:'center',padding:classic?'8px':'8px',fontFamily:classic?'Tahoma,Arial,sans-serif':'',fontSize:classic?'11px':'',color:classic?'#888':'',fontStyle:'italic'}} className={classic?'':'text-center text-muted small fst-italic py-2'}>No items added yet</div>}
                    </div>
                </div>
            </form>

@@ -359,15 +359,29 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                 variant="primary"
                 footer={
                     <>
-                        <button type="button" className="btn btn-sm btn-link text-muted" onClick={() => setIsCreateOpen(false)}>Cancel</button>
-                        <button type="button" className="btn btn-sm btn-primary px-4 fw-bold" onClick={handleSubmit}>CREATE {typeLabel.toUpperCase()}</button>
+                        <button
+                            type="button"
+                            style={classic ? xpBtn() : undefined}
+                            className={classic ? '' : 'btn btn-sm btn-link text-muted'}
+                            onClick={() => setIsCreateOpen(false)}
+                        >Cancel</button>
+                        <button
+                            type="button"
+                            style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', color: '#ffffff', fontWeight: 'bold' }) : undefined}
+                            className={classic ? '' : 'btn btn-sm btn-primary px-4 fw-bold'}
+                            onClick={handleSubmit}
+                        >CREATE {typeLabel.toUpperCase()}</button>
                     </>
                 }
             >
                 <div className="mb-3">
-                    <label className="form-label small fw-bold">Name</label>
+                    <label
+                        style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
+                        className={classic ? '' : 'form-label small fw-bold'}
+                    >Name</label>
                     <input
-                        className="form-control"
+                        style={classic ? xpInput : undefined}
+                        className={classic ? '' : 'form-control'}
                         value={newPartner.name}
                         onChange={e => setNewPartner({...newPartner, name: e.target.value})}
                         required
@@ -376,9 +390,13 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                     />
                 </div>
                 <div className="mb-3">
-                    <label className="form-label small fw-bold">Address <span className="fw-normal text-muted">(Optional)</span></label>
+                    <label
+                        style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
+                        className={classic ? '' : 'form-label small fw-bold'}
+                    >Address <span style={classic ? { fontWeight: 'normal', color: '#666' } : undefined} className={classic ? '' : 'fw-normal text-muted'}>(Optional)</span></label>
                     <textarea
-                        className="form-control"
+                        style={classic ? { ...xpInput, height: 'auto', padding: '4px 6px', width: '100%', resize: 'vertical' as const } : undefined}
+                        className={classic ? '' : 'form-control'}
                         rows={3}
                         value={newPartner.address}
                         onChange={e => setNewPartner({...newPartner, address: e.target.value})}
@@ -395,40 +413,63 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                 variant="info"
                 footer={
                     <>
-                        <button type="button" className="btn btn-sm btn-link text-muted" onClick={() => setEditingPartner(null)}>Cancel</button>
-                        <button type="button" className="btn btn-sm btn-info text-white px-4 fw-bold" onClick={handleUpdateSubmit}>SAVE CHANGES</button>
+                        <button
+                            type="button"
+                            style={classic ? xpBtn() : undefined}
+                            className={classic ? '' : 'btn btn-sm btn-link text-muted'}
+                            onClick={() => setEditingPartner(null)}
+                        >Cancel</button>
+                        <button
+                            type="button"
+                            style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #006e8e, #004a5e)', borderColor: '#004a5e #001a2e #001a2e #004a5e', color: '#ffffff', fontWeight: 'bold' }) : undefined}
+                            className={classic ? '' : 'btn btn-sm btn-info text-white px-4 fw-bold'}
+                            onClick={handleUpdateSubmit}
+                        >SAVE CHANGES</button>
                     </>
                 }
             >
                 {editingPartner && (
                     <>
                         <div className="mb-3">
-                            <label className="form-label small fw-bold">Name</label>
+                            <label
+                                style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
+                                className={classic ? '' : 'form-label small fw-bold'}
+                            >Name</label>
                             <input
-                                className="form-control"
+                                style={classic ? xpInput : undefined}
+                                className={classic ? '' : 'form-control'}
                                 value={editingPartner.name}
                                 onChange={e => setEditingPartner({...editingPartner, name: e.target.value})}
                                 required
                             />
                         </div>
                         <div className="mb-3">
-                            <label className="form-label small fw-bold">Address <span className="fw-normal text-muted">(Optional)</span></label>
+                            <label
+                                style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
+                                className={classic ? '' : 'form-label small fw-bold'}
+                            >Address <span style={classic ? { fontWeight: 'normal', color: '#666' } : undefined} className={classic ? '' : 'fw-normal text-muted'}>(Optional)</span></label>
                             <textarea
-                                className="form-control"
+                                style={classic ? { ...xpInput, height: 'auto', padding: '4px 6px', width: '100%', resize: 'vertical' as const } : undefined}
+                                className={classic ? '' : 'form-control'}
                                 rows={3}
                                 value={editingPartner.address || ''}
                                 onChange={e => setEditingPartner({...editingPartner, address: e.target.value})}
                             ></textarea>
                         </div>
-                        <div className="form-check mt-3">
+                        <div style={classic ? { marginTop: 10, display: 'flex', alignItems: 'center', gap: 6 } : undefined} className={classic ? '' : 'form-check mt-3'}>
                             <input
-                                className="form-check-input"
+                                style={classic ? { cursor: 'pointer' } : undefined}
+                                className={classic ? '' : 'form-check-input'}
                                 type="checkbox"
                                 id="activeCheck"
                                 checked={editingPartner.active}
                                 onChange={e => setEditingPartner({...editingPartner, active: e.target.checked})}
                             />
-                            <label className="form-check-label small fw-bold" htmlFor="activeCheck">Active {typeLabel}</label>
+                            <label
+                                style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', cursor: 'pointer' } : undefined}
+                                className={classic ? '' : 'form-check-label small fw-bold'}
+                                htmlFor="activeCheck"
+                            >Active {typeLabel}</label>
                         </div>
                     </>
                 )}

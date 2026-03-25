@@ -271,22 +271,38 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
            size="lg"
            footer={
                <>
-                   <button type="button" className="btn btn-sm btn-link text-muted" onClick={() => setIsCreateOpen(false)}>{t('cancel')}</button>
-                   <button type="button" className="btn btn-sm btn-primary px-4 fw-bold" onClick={handleSubmit as any}>Create Request</button>
+                   <button
+                       type="button"
+                       style={classic ? xpBtn() : undefined}
+                       className={classic ? '' : 'btn btn-sm btn-link text-muted'}
+                       onClick={() => setIsCreateOpen(false)}
+                   >{t('cancel')}</button>
+                   <button
+                       type="button"
+                       style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', color: '#ffffff', fontWeight: 'bold' }) : undefined}
+                       className={classic ? '' : 'btn btn-sm btn-primary px-4 fw-bold'}
+                       onClick={handleSubmit as any}
+                   >Create Request</button>
                </>
            }
        >
            <form onSubmit={handleSubmit} id="create-sample-form">
                <div className="row g-3 mb-3">
                    <div className="col-md-6">
-                       <label className="form-label d-flex justify-content-between align-items-center small text-muted">
+                       <label
+                           style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 } : undefined}
+                           className={classic ? '' : 'form-label d-flex justify-content-between align-items-center small text-muted'}
+                       >
                            Request Code
                            <i className="bi bi-gear-fill text-muted" style={{cursor: 'pointer'}} onClick={() => setIsConfigOpen(true)} title="Configure Auto-Suggestion"></i>
                        </label>
-                       <input className="form-control" placeholder="Auto-generated" value={newSample.code} onChange={e => setNewSample({...newSample, code: e.target.value})} required />
+                       <input style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} placeholder="Auto-generated" value={newSample.code} onChange={e => setNewSample({...newSample, code: e.target.value})} required />
                    </div>
                    <div className="col-md-6">
-                       <label className="form-label small text-muted">Link to Sales Order <span className="fw-normal">(Optional)</span></label>
+                       <label
+                           style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
+                           className={classic ? '' : 'form-label small text-muted'}
+                       >Link to Sales Order <span style={classic ? { fontWeight: 'normal', color: '#666' } : undefined} className={classic ? '' : 'fw-normal'}>(Optional)</span></label>
                        <SearchableSelect
                            options={[
                                { value: "", label: "No Sales Order (Internal/Prototype)" },
@@ -299,7 +315,10 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
                    </div>
                </div>
                <div className="mb-3">
-                   <label className="form-label small text-muted">Base Item <span className="fw-normal text-muted">(Prototype Model)</span></label>
+                   <label
+                       style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
+                       className={classic ? '' : 'form-label small text-muted'}
+                   >Base Item <span style={classic ? { fontWeight: 'normal', color: '#666' } : undefined} className={classic ? '' : 'fw-normal text-muted'}>(Prototype Model)</span></label>
                    <SearchableSelect
                        options={items.filter((i: any) => i.category === 'Sample').map((item: any) => ({ value: item.id, label: item.name, subLabel: item.code }))}
                        value={newSample.base_item_id}
@@ -309,14 +328,27 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
                    />
                </div>
                {currentBoundAttrs.length > 0 && (
-                   <div className="mb-3 p-3 border config-attributes-section">
-                       <label className="form-label small text-muted mb-2">Define Configuration</label>
+                   <div
+                       style={classic ? { marginBottom: 8, padding: '6px 8px', background: '#f5f4ef', border: '1px solid #b0a898' } : undefined}
+                       className={classic ? '' : 'mb-3 p-3 border config-attributes-section'}
+                   >
+                       {classic ? (
+                           <div style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' as const, letterSpacing: '0.5px', color: '#555', borderBottom: '1px solid #c0bdb5', paddingBottom: 3, marginBottom: 6 }}>
+                               Define Configuration
+                           </div>
+                       ) : (
+                           <label className="form-label small text-muted mb-2">Define Configuration</label>
+                       )}
                        <div className="row g-2">
                            {currentBoundAttrs.map((attr: any) => (
                                <div key={attr.id} className="col-md-6">
-                                   <label className="form-label small mb-1">{attr.name}</label>
+                                   <label
+                                       style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
+                                       className={classic ? '' : 'form-label small mb-1'}
+                                   >{attr.name}</label>
                                    <select
-                                       className="form-select form-select-sm"
+                                       style={classic ? { ...xpInput, height: 'auto', padding: '2px 4px', width: '100%' } : undefined}
+                                       className={classic ? '' : 'form-select form-select-sm'}
                                        value={newSample.attribute_value_ids.find(vid => attr.values.some((v: any) => v.id === vid)) || ''}
                                        onChange={e => handleValueChange(e.target.value, attr.id)}
                                        required
@@ -330,8 +362,11 @@ export default function SampleRequestView({ samples, salesOrders, items, attribu
                    </div>
                )}
                <div className="mb-3">
-                   <label className="form-label small text-muted">Notes</label>
-                   <textarea className="form-control" rows={3} value={newSample.notes} onChange={e => setNewSample({...newSample, notes: e.target.value})} placeholder="e.g. Client requested softer fabric…"></textarea>
+                   <label
+                       style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
+                       className={classic ? '' : 'form-label small text-muted'}
+                   >Notes</label>
+                   <textarea style={classic ? { ...xpInput, height: 'auto', padding: '4px 6px', width: '100%', resize: 'vertical' as const } : undefined} className={classic ? '' : 'form-control'} rows={3} value={newSample.notes} onChange={e => setNewSample({...newSample, notes: e.target.value})} placeholder="e.g. Client requested softer fabric…"></textarea>
                </div>
            </form>
        </ModalWrapper>

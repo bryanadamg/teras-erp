@@ -3,6 +3,7 @@ import CodeConfigModal, { CodeConfig, buildCodeParts } from './CodeConfigModal';
 import BulkImportModal from './BulkImportModal';
 import SearchableSelect from './SearchableSelect';
 import HistoryPane from './HistoryPane';
+import ModalWrapper from './ModalWrapper';
 import { useToast } from './Toast';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -520,102 +521,129 @@ export default function InventoryView({
        />
 
       {/* Create Modal */}
-      {isCreateOpen && (
-       <div className="modal d-block" data-testid="create-item-modal" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 20000, position: 'fixed', inset: 0 }}>
-            <div className={`modal-dialog modal-dialog-centered ui-style-${currentStyle}`}>
-                <div className="modal-content shadow">
-                    <div className="modal-header bg-primary bg-opacity-10 text-primary-emphasis">
-                        <h5 className="modal-title" data-testid="modal-title"><i className="bi bi-box-seam me-2"></i>{t('create')} {forcedCategory ? t('sample_masters') : t('item_inventory')}</h5>
-                        <button type="button" className="btn-close" onClick={() => setIsCreateOpen(false)}></button>
-                    </div>
-                    <div className="modal-body">
-                        <form onSubmit={handleSubmitItem}>
-                          <div className="mb-3">
-                              <label className="form-label d-flex justify-content-between align-items-center small text-muted">
-                                  {t('item_code')}
-                                  <i
-                                      className="bi bi-gear-fill text-muted"
-                                      style={{cursor: 'pointer'}}
-                                      onClick={() => setIsConfigOpen(true)}
-                                      title="Configure Auto-Suggestion"
-                                  ></i>
-                              </label>
-                              <input data-testid="item-code-input" className="form-control" placeholder="ITM-001" value={newItem.code} onChange={e => setNewItem({...newItem, code: e.target.value})} required />
+      <ModalWrapper
+          isOpen={isCreateOpen}
+          onClose={() => setIsCreateOpen(false)}
+          title={<span data-testid="modal-title"><i className="bi bi-box-seam me-2"></i>{t('create')} {forcedCategory ? t('sample_masters') : t('item_inventory')}</span>}
+          variant="primary"
+          size="md"
+          footer={
+              <>
+                  <button
+                      type="button"
+                      style={classic ? xpBtn() : undefined}
+                      className={classic ? '' : 'btn btn-secondary'}
+                      onClick={() => setIsCreateOpen(false)}
+                  >{t('cancel')}</button>
+                  <button
+                      data-testid="submit-create-item"
+                      type="button"
+                      style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', color: '#ffffff', fontWeight: 'bold' }) : undefined}
+                      className={classic ? '' : 'btn btn-primary fw-bold px-4'}
+                      onClick={() => (document.getElementById('create-item-form') as HTMLFormElement)?.requestSubmit()}
+                  >{t('create')}</button>
+              </>
+          }
+      >
+          <form id="create-item-form" onSubmit={handleSubmitItem} data-testid="create-item-modal">
+              <div className="mb-3">
+                  <label
+                      style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 } : undefined}
+                      className={classic ? '' : 'form-label d-flex justify-content-between align-items-center small text-muted'}
+                  >
+                      {t('item_code')}
+                      <i className="bi bi-gear-fill text-muted" style={{cursor: 'pointer'}} onClick={() => setIsConfigOpen(true)} title="Configure Auto-Suggestion"></i>
+                  </label>
+                  <input data-testid="item-code-input" style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} placeholder="ITM-001" value={newItem.code} onChange={e => setNewItem({...newItem, code: e.target.value})} required />
+              </div>
+              <div className="mb-3">
+                  <label
+                      style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
+                      className={classic ? '' : 'form-label small text-muted'}
+                  >{t('item_name')}</label>
+                  <input data-testid="item-name-input" style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} placeholder="Product Name" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
+              </div>
+              <div className="row g-2 mb-3">
+                  <div className="col-7">
+                      <label
+                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 } : undefined}
+                          className={classic ? '' : 'form-label d-flex justify-content-between small text-muted'}
+                      >
+                          {t('categories')}
+                          {!forcedCategory && <span className={classic ? '' : 'text-primary'} style={{cursor:'pointer', color: classic ? '#0058e6' : undefined}} onClick={() => setShowCatInput(!showCatInput)}><i className="bi bi-plus-circle"></i></span>}
+                      </label>
+                      {forcedCategory ? (
+                          <input style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} value={newItem.category} disabled />
+                      ) : showCatInput ? (
+                          <div style={classic ? { display: 'flex', gap: 2 } : undefined} className={classic ? '' : 'input-group input-group-sm'}>
+                              <input style={classic ? { ...xpInput, flex: 1 } : undefined} className={classic ? '' : 'form-control'} placeholder="New..." value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} autoFocus />
+                              <button type="button" style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', color: '#fff', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a' }) : undefined} className={classic ? '' : 'btn btn-primary'} onClick={handleAddCategory}><i className="bi bi-check"></i></button>
                           </div>
-                          <div className="mb-3">
-                              <label className="form-label small text-muted">{t('item_name')}</label>
-                              <input data-testid="item-name-input" className="form-control" placeholder="Product Name" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
-                          </div>
-                          <div className="row g-2 mb-3">
-                              <div className="col-7">
-                                  <label className="form-label d-flex justify-content-between small text-muted">
-                                      {t('categories')}
-                                      {!forcedCategory && <span className="text-primary" style={{cursor:'pointer'}} onClick={() => setShowCatInput(!showCatInput)}><i className="bi bi-plus-circle"></i></span>}
-                                  </label>
-                                  {forcedCategory ? (
-                                      <input className="form-control" value={newItem.category} disabled />
-                                  ) : showCatInput ? (
-                                      <div className="input-group input-group-sm">
-                                          <input className="form-control" placeholder="New..." value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} autoFocus />
-                                          <button type="button" className="btn btn-primary" onClick={handleAddCategory}><i className="bi bi-check"></i></button>
-                                      </div>
-                                  ) : (
-                                      <select data-testid="category-select" className="form-select" value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})}>
-                                          <option value="">Select...</option>
-                                          {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
-                                      </select>
-                                  )}
-                              </div>
-                              <div className="col-5">
-                                  <label className="form-label small text-muted">{t('uom')}</label>
-                                  <select data-testid="uom-select" className="form-select" value={newItem.uom} onChange={e => setNewItem({...newItem, uom: e.target.value})} required>
-                                      <option value="">Unit...</option>
-                                      {(uoms || []).map((u: any) => <option key={u.id} value={u.name}>{u.name}</option>)}
-                                  </select>
-                              </div>
-                          </div>
+                      ) : (
+                          <select data-testid="category-select" style={classic ? { ...xpInput, height: 'auto', padding: '2px 4px', width: '100%' } : undefined} className={classic ? '' : 'form-select'} value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})}>
+                              <option value="">Select...</option>
+                              {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                          </select>
+                      )}
+                  </div>
+                  <div className="col-5">
+                      <label
+                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
+                          className={classic ? '' : 'form-label small text-muted'}
+                      >{t('uom')}</label>
+                      <select data-testid="uom-select" style={classic ? { ...xpInput, height: 'auto', padding: '2px 4px', width: '100%' } : undefined} className={classic ? '' : 'form-select'} value={newItem.uom} onChange={e => setNewItem({...newItem, uom: e.target.value})} required>
+                          <option value="">Unit...</option>
+                          {(uoms || []).map((u: any) => <option key={u.id} value={u.name}>{u.name}</option>)}
+                      </select>
+                  </div>
+              </div>
 
-                          <div className="mb-3">
-                              <label className="form-label small text-muted d-block">{t('attributes')}</label>
-                              <div className="d-flex flex-wrap gap-2 p-2 border rounded bg-light" style={{maxHeight: '120px', overflowY: 'auto'}}>
-                                  {attributes.map((attr: any) => (
-                                      <div key={attr.id} className="form-check">
-                                          <input
-                                              className="form-check-input"
-                                              type="checkbox"
-                                              id={`new-attr-${attr.id}`}
-                                              checked={newItem.attribute_ids.includes(attr.id)}
-                                              onChange={() => toggleAttribute(attr.id, false)}
-                                          />
-                                          <label className="form-check-label small" htmlFor={`new-attr-${attr.id}`}>
-                                              {attr.name}
-                                          </label>
-                                      </div>
-                                  ))}
-                                  {attributes.length === 0 && <small className="text-muted fst-italic">No attributes defined</small>}
-                              </div>
-                          </div>
-
-                          <div className="mb-3">
-                              <label className="form-label small text-muted">{t('source_sample')}</label>
-                              <SearchableSelect
-                                  options={sampleItems.map((s: any) => ({ value: s.id, label: s.name, subLabel: s.code }))}
-                                  value={newItem.source_sample_id}
-                                  onChange={(val) => setNewItem({...newItem, source_sample_id: val})}
-                                  placeholder="None"
+              <div className="mb-3">
+                  <label
+                      style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
+                      className={classic ? '' : 'form-label small text-muted d-block'}
+                  >{t('attributes')}</label>
+                  <div
+                      style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 6, padding: '4px 6px', background: '#f5f4ef', border: '1px solid #b0a898', maxHeight: 120, overflowY: 'auto' as const } : { maxHeight: 120, overflowY: 'auto' as const }}
+                      className={classic ? '' : 'd-flex flex-wrap gap-2 p-2 border rounded bg-light'}
+                  >
+                      {attributes.map((attr: any) => (
+                          <div key={attr.id} style={classic ? { display: 'flex', alignItems: 'center', gap: 4 } : undefined} className={classic ? '' : 'form-check'}>
+                              <input
+                                  style={classic ? { cursor: 'pointer' } : undefined}
+                                  className={classic ? '' : 'form-check-input'}
+                                  type="checkbox"
+                                  id={`new-attr-${attr.id}`}
+                                  checked={newItem.attribute_ids.includes(attr.id)}
+                                  onChange={() => toggleAttribute(attr.id, false)}
                               />
+                              <label
+                                  style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', cursor: 'pointer' } : undefined}
+                                  className={classic ? '' : 'form-check-label small'}
+                                  htmlFor={`new-attr-${attr.id}`}
+                              >
+                                  {attr.name}
+                              </label>
                           </div>
+                      ))}
+                      {attributes.length === 0 && <small style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#888', fontStyle: 'italic' } : undefined} className={classic ? '' : 'text-muted fst-italic'}>No attributes defined</small>}
+                  </div>
+              </div>
 
-                          <div className="d-flex justify-content-end gap-2 mt-3">
-                              <button type="button" className="btn btn-secondary" onClick={() => setIsCreateOpen(false)}>{t('cancel')}</button>
-                              <button data-testid="submit-create-item" type="submit" className="btn btn-primary fw-bold px-4">{t('create')}</button>
-                          </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-       </div>
-      )}
+              <div className="mb-3">
+                  <label
+                      style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
+                      className={classic ? '' : 'form-label small text-muted'}
+                  >{t('source_sample')}</label>
+                  <SearchableSelect
+                      options={sampleItems.map((s: any) => ({ value: s.id, label: s.name, subLabel: s.code }))}
+                      value={newItem.source_sample_id}
+                      onChange={(val) => setNewItem({...newItem, source_sample_id: val})}
+                      placeholder="None"
+                  />
+              </div>
+          </form>
+      </ModalWrapper>
 
       {/* LEFT COLUMN: Items List */}
       <div className={`${activeEditingItem ? 'col-md-8' : 'col-12'} order-2 order-md-1`}>
