@@ -97,7 +97,6 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
   };
 
   const [inventoryExpanded,   setInventoryExpanded]   = useState(true);
-  const [attributesExpanded,  setAttributesExpanded]  = useState(false);
   const [salesExpanded,       setSalesExpanded]       = useState(true);
   const [procurementExpanded, setProcurementExpanded] = useState(true);
   const [engineeringExpanded, setEngineeringExpanded] = useState(true);
@@ -245,32 +244,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
                     <NavItem tab="inventory"     label={t('item_inventory') || 'Item Inventory'} icon="📋" isSub />
                     <NavItem tab="sample-masters" label={t('sample_masters') || 'Sample Masters'} icon="🧡" isSub />
 
-                    {/* Nested: Attributes & Metadata */}
-                    <div
-                      style={{
-                        ...navItemStyle(
-                          ['attributes','categories','uom'].includes(activeTab),
-                          hovered === 'hdr-attrs',
-                          true,
-                        ),
-                        justifyContent: 'space-between',
-                      }}
-                      onClick={() => setAttributesExpanded(!attributesExpanded)}
-                      {...H('hdr-attrs')}
-                    >
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <span style={{ width: 14, textAlign: 'center', fontSize: 12 }}>🏷</span>
-                        <span>{t('attributes') || 'Attributes'} &amp; Metadata</span>
-                      </span>
-                      {chevron(attributesExpanded)}
-                    </div>
-                    {attributesExpanded && (
-                      <>
-                        <NavItem tab="attributes" label="Variants"              icon="🎨" isSub isDeepSub />
-                        <NavItem tab="categories" label={t('categories') || 'Categories'} icon="🔲" isSub isDeepSub />
-                        <NavItem tab="uom"         label="UOM"                   icon="📏" isSub isDeepSub />
-                      </>
-                    )}
+                    <NavItem tab="item-metadata" label={t('attributes') || 'Attributes'} icon="🏷" isSub />
                   </>
                 )}
                 {hasPermission('stock.entry') && (
