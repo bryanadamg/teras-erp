@@ -1,6 +1,5 @@
 'use client';
 
-import MainLayout from '../components/MainLayout';
 import AuditLogsView from '../components/AuditLogsView';
 import { useData } from '../context/DataContext';
 
@@ -8,7 +7,6 @@ export default function AuditLogsPage() {
     const { auditLogs, pagination, filters } = useData();
 
     return (
-        <MainLayout>
             <AuditLogsView 
                 auditLogs={auditLogs} 
                 currentPage={pagination.auditPage} 
@@ -18,6 +16,5 @@ export default function AuditLogsPage() {
                 filterType={filters.auditType} 
                 onFilterChange={filters.setAuditType} 
             />
-        </MainLayout>
     );
 }

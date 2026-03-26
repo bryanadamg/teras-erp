@@ -1,6 +1,5 @@
 'use client';
 
-import MainLayout from '../components/MainLayout';
 import SampleRequestView from '../components/SampleRequestView';
 import { useData } from '../context/DataContext';
 import { useToast } from '../components/Toast';
@@ -33,7 +32,6 @@ export default function SamplesPage() {
     };
 
     return (
-        <MainLayout>
             <SampleRequestView
                 items={items}
                 attributes={attributes}
@@ -43,6 +41,5 @@ export default function SamplesPage() {
                 onUpdateStatus={handleUpdateSampleStatus}
                 onDeleteSample={handleDeleteSample}
             />
-        </MainLayout>
     );
 }

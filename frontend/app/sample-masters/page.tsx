@@ -1,6 +1,5 @@
 'use client';
 
-import MainLayout from '../components/MainLayout';
 import InventoryView from '../components/InventoryView';
 import { useData } from '../context/DataContext';
 import { useConfirm } from '../context/ConfirmContext';
@@ -54,7 +53,6 @@ export default function SampleMastersPage() {
     };
 
     return (
-        <MainLayout>
             <InventoryView 
                 items={items} 
                 attributes={attributes} 
@@ -74,6 +72,5 @@ export default function SampleMastersPage() {
                 onSearchChange={filters.setItemSearch}
                 forcedCategory="Sample"
             />
-        </MainLayout>
     );
 }

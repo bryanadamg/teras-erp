@@ -1,6 +1,5 @@
 'use client';
 
-import MainLayout from '../components/MainLayout';
 import StockEntryView from '../components/StockEntryView';
 import { useData } from '../context/DataContext';
 import { useToast } from '../components/Toast';
@@ -17,7 +16,6 @@ export default function StockEntryPage() {
     };
 
     return (
-        <MainLayout>
             <StockEntryView 
                 items={items} 
                 locations={locations} 
@@ -25,6 +23,5 @@ export default function StockEntryPage() {
                 stockBalance={stockBalance} 
                 onAddStock={handleAddStock} 
             />
-        </MainLayout>
     );
 }

@@ -1,6 +1,5 @@
 'use client';
 
-import MainLayout from '../components/MainLayout';
 import PartnersView from '../components/PartnersView';
 import { useData } from '../context/DataContext';
 import { useToast } from '../components/Toast';
@@ -36,7 +35,6 @@ export default function SuppliersPage() {
     };
 
     return (
-        <MainLayout>
             <PartnersView 
                 partners={partners} 
                 type="SUPPLIER" 
@@ -44,6 +42,5 @@ export default function SuppliersPage() {
                 onUpdate={handleUpdatePartner} 
                 onDelete={handleDeletePartner} 
             />
-        </MainLayout>
     );
 }

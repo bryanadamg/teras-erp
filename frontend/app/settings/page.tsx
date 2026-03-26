@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import MainLayout from '../components/MainLayout';
 import SettingsView from '../components/SettingsView';
 import { useData } from '../context/DataContext';
 
@@ -47,7 +46,6 @@ export default function SettingsPage() {
     };
 
     return (
-        <MainLayout>
             <SettingsView 
                 appName={appName} 
                 onUpdateAppName={handleUpdateAppName} 
@@ -58,6 +56,5 @@ export default function SettingsPage() {
                 onUploadLogo={handleUploadLogo}
                 onClearCache={() => { localStorage.removeItem('terras_master_cache'); fetchData(); }} 
             />
-        </MainLayout>
     );
 }

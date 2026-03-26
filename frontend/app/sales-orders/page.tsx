@@ -1,6 +1,5 @@
 'use client';
 
-import MainLayout from '../components/MainLayout';
 import SalesOrderView from '../components/SalesOrderView';
 import { useData } from '../context/DataContext';
 import { useRouter } from 'next/navigation';
@@ -87,7 +86,6 @@ export default function SalesOrdersPage() {
     };
 
     return (
-        <MainLayout>
             <SalesOrderView 
                 items={items} 
                 attributes={attributes} 
@@ -98,5 +96,4 @@ export default function SalesOrdersPage() {
                 onUpdateSOStatus={handleUpdateSOStatus}
                 onGenerateWO={handleGenerateWO}
             />
-        </MainLayout>
     );}

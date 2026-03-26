@@ -1,6 +1,5 @@
 'use client';
 
-import MainLayout from '../components/MainLayout';
 import InventoryView from '../components/InventoryView';
 import { useData } from '../context/DataContext';
 import { useConfirm } from '../context/ConfirmContext';
@@ -69,7 +68,6 @@ export default function InventoryPage() {
     };
 
     return (
-        <MainLayout>
             <InventoryView 
                 items={items} 
                 attributes={attributes} 
@@ -91,6 +89,5 @@ export default function InventoryPage() {
                 categoryFilter={filters.itemCategory}
                 onCategoryChange={filters.setItemCategory}
             />
-        </MainLayout>
     );
 }

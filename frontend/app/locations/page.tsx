@@ -1,6 +1,5 @@
 'use client';
 
-import MainLayout from '../components/MainLayout';
 import LocationsView from '../components/LocationsView';
 import { useData } from '../context/DataContext';
 
@@ -14,8 +13,6 @@ export default function LocationsPage() {
     };
 
     return (
-        <MainLayout>
             <LocationsView locations={locations} onCreate={handleCreateLocation} />
-        </MainLayout>
     );
 }

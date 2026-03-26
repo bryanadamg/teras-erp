@@ -1,6 +1,5 @@
 'use client';
 
-import MainLayout from '../components/MainLayout';
 import ItemMetadataView from '../components/ItemMetadataView';
 import { useData } from '../context/DataContext';
 import { useConfirm } from '../context/ConfirmContext';
@@ -91,7 +90,6 @@ export default function ItemMetadataPage() {
     };
 
     return (
-        <MainLayout>
             <ItemMetadataView
                 categories={categories}
                 uoms={uoms}
@@ -107,6 +105,5 @@ export default function ItemMetadataPage() {
                 onUpdateValue={handleUpdateValue}
                 onDeleteValue={handleDeleteValue}
             />
-        </MainLayout>
     );
 }

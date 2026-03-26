@@ -1,6 +1,5 @@
 'use client';
 
-import MainLayout from '../components/MainLayout';
 import PurchaseOrderView from '../components/PurchaseOrderView';
 import { useData } from '../context/DataContext';
 import { useToast } from '../components/Toast';
@@ -36,7 +35,6 @@ export default function PurchaseOrdersPage() {
     };
 
     return (
-        <MainLayout>
             <PurchaseOrderView 
                 items={items} 
                 attributes={attributes} 
@@ -47,6 +45,5 @@ export default function PurchaseOrdersPage() {
                 onReceivePO={handleReceivePO} 
                 onDeletePO={handleDeletePO} 
             />
-        </MainLayout>
     );
 }

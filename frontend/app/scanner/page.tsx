@@ -1,6 +1,5 @@
 'use client';
 
-import MainLayout from '../components/MainLayout';
 import QRScannerView from '../components/QRScannerView';
 import { useData } from '../context/DataContext';
 import { useRouter } from 'next/navigation';
@@ -19,7 +18,6 @@ export default function ScannerPage() {
     };
 
     return (
-        <MainLayout>
             <div className="container-fluid py-2 h-100">
                 <div className="row justify-content-center">
                     <div className="col-md-8 col-lg-6">
@@ -36,6 +34,5 @@ export default function ScannerPage() {
                     </div>
                 </div>
             </div>
-        </MainLayout>
     );
 }

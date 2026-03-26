@@ -1,6 +1,5 @@
 'use client';
 
-import MainLayout from './components/MainLayout';
 import DashboardView from './components/DashboardView';
 import { useData } from './context/DataContext';
 
@@ -11,7 +10,6 @@ export default function RootPage() {
     } = useData();
 
     return (
-        <MainLayout>
             <DashboardView
                 items={items}
                 locations={locations}
@@ -22,6 +20,5 @@ export default function RootPage() {
                 salesOrders={salesOrders}
                 kpis={dashboardKPIs}
             />
-        </MainLayout>
     );
 }

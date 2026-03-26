@@ -1,6 +1,5 @@
 'use client';
 
-import MainLayout from '../components/MainLayout';
 import ManufacturingView from '../components/ManufacturingView';
 import { useData } from '../context/DataContext';
 import { useToast } from '../components/Toast';
@@ -71,7 +70,6 @@ export default function ManufacturingPage() {
     }, []);
 
     return (
-        <MainLayout>
             <ManufacturingView 
                 items={items} 
                 boms={boms} 
@@ -91,6 +89,5 @@ export default function ManufacturingPage() {
                 initialCreateState={initialCreateState}
                 onClearInitialState={handleClearInitialState}
             />
-        </MainLayout>
     );
 }

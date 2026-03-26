@@ -1,6 +1,5 @@
 'use client';
 
-import MainLayout from '../components/MainLayout';
 import RoutingView from '../components/RoutingView';
 import { useData } from '../context/DataContext';
 
@@ -20,13 +19,11 @@ export default function RoutingPage() {
     };
 
     return (
-        <MainLayout>
             <RoutingView 
                 workCenters={workCenters} 
                 operations={operations} 
                 onCreateWorkCenter={handleCreateWorkCenter} 
                 onCreateOperation={handleCreateOperation} 
             />
-        </MainLayout>
     );
 }

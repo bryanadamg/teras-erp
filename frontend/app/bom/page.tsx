@@ -1,6 +1,5 @@
 'use client';
 
-import MainLayout from '../components/MainLayout';
 import BOMView from '../components/BOMView';
 import { useData } from '../context/DataContext';
 import { useConfirm } from '../context/ConfirmContext';
@@ -68,7 +67,6 @@ export default function BOMPage() {
     };
 
     return (
-        <MainLayout>
             <BOMView 
                 items={items} 
                 attributes={attributes} 
@@ -84,6 +82,5 @@ export default function BOMPage() {
                 initialCreateState={initialCreateState}
                 onClearInitialState={handleClearInitialState}
             />
-        </MainLayout>
     );
 }
