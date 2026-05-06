@@ -76,10 +76,12 @@ export default function SalesOrdersPage() {
                 router.push(`/production-runs?${new URLSearchParams(params).toString()}`);
             } else {
                 // No-size or free-measurement BOM where lines have no bom_size_id
-                const covered = (productionRuns || []).some((pr: any) =>
-                    String(pr.sales_order_id) === String(so.id) &&
-                    String(pr.bom_id) === String(matchingBOM.id)
-                );
+                const covered = (productionRuns || []).some((pr: any) => {
+                    if (String(pr.sales_order_id) !== String(so.id)) return false;
+                    // Check legacy bom_id field and new bom_entries list
+                    if (String(pr.bom_id) === String(matchingBOM.id)) return true;
+                    return (pr.bom_entries || []).some((e: any) => String(e.bom_id) === String(matchingBOM.id));
+                });
                 if (covered) {
                     showToast('This item already has a Production Run.', 'info');
                     return;

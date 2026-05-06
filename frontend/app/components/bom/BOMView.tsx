@@ -907,11 +907,11 @@ export default function BOMView({
         )}
         {startPRBom && locations && (
             <ProductionRunModal
-                bom={startPRBom}
                 boms={boms || []}
                 locations={locations}
                 onSave={onCreateProductionRun}
                 onClose={() => setStartPRBom(null)}
+                initialBomId={startPRBom?.id}
             />
         )}
         </>

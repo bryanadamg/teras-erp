@@ -575,6 +575,67 @@ def run_migrations():
                 conn.rollback()
                 logger.warning(f"system UOM marking failed: {e}")
 
+            # 5. Multi-BOM Production Run support
+            try:
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS pr_bom_entries (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        pr_id UUID NOT NULL REFERENCES production_runs(id) ON DELETE CASCADE,
+                        bom_id UUID NOT NULL REFERENCES boms(id),
+                        total_qty NUMERIC(14,4)
+                    )
+                """))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS pr_bom_entry_sizes (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        pr_bom_entry_id UUID NOT NULL REFERENCES pr_bom_entries(id) ON DELETE CASCADE,
+                        bom_size_id UUID NOT NULL REFERENCES bom_sizes(id),
+                        qty NUMERIC(14,4) NOT NULL
+                    )
+                """))
+                conn.commit()
+                logger.info("Migration: Created pr_bom_entries and pr_bom_entry_sizes tables")
+            except Exception as e:
+                conn.rollback()
+                logger.warning(f"pr_bom_entries table creation failed: {e}")
+
+            try:
+                # Migrate existing PRs: one pr_bom_entries row per PR using its current bom_id
+                conn.execute(text("""
+                    INSERT INTO pr_bom_entries (id, pr_id, bom_id, total_qty)
+                    SELECT gen_random_uuid(), pr.id, pr.bom_id, NULL
+                    FROM production_runs pr
+                    WHERE pr.bom_id IS NOT NULL
+                      AND NOT EXISTS (SELECT 1 FROM pr_bom_entries e WHERE e.pr_id = pr.id)
+                """))
+                # Migrate size data from existing root MOs
+                conn.execute(text("""
+                    INSERT INTO pr_bom_entry_sizes (id, pr_bom_entry_id, bom_size_id, qty)
+                    SELECT gen_random_uuid(), e.id, mo.bom_size_id, mo.qty
+                    FROM pr_bom_entries e
+                    JOIN manufacturing_orders mo
+                      ON mo.production_run_id = e.pr_id
+                     AND mo.parent_mo_id IS NULL
+                     AND mo.is_shared_component = FALSE
+                     AND mo.bom_size_id IS NOT NULL
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM pr_bom_entry_sizes s WHERE s.pr_bom_entry_id = e.id
+                    )
+                """))
+                conn.commit()
+                logger.info("Migration: Migrated existing PR bom_id data to pr_bom_entries")
+            except Exception as e:
+                conn.rollback()
+                logger.warning(f"pr_bom_entries data migration failed: {e}")
+
+            try:
+                conn.execute(text("ALTER TABLE production_runs ALTER COLUMN bom_id DROP NOT NULL"))
+                conn.commit()
+                logger.info("Migration: Made production_runs.bom_id nullable")
+            except Exception as e:
+                conn.rollback()
+                logger.warning(f"production_runs.bom_id nullable migration failed: {e}")
+
     except Exception as e:
         logger.error(f"Migration engine failed: {e}")
 

@@ -1,14 +1,44 @@
 import uuid
 from datetime import datetime
 from typing import Optional, List, TYPE_CHECKING
-from sqlalchemy import String, Text, ForeignKey, DateTime
+from sqlalchemy import String, Text, ForeignKey, DateTime, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 if TYPE_CHECKING:
-    from app.models.bom import BOM
+    from app.models.bom import BOM, BOMSize
     from app.models.manufacturing import ManufacturingOrder
+
+
+class PRBomEntrySize(Base):
+    __tablename__ = "pr_bom_entry_sizes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    pr_bom_entry_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("pr_bom_entries.id", ondelete="CASCADE"), index=True
+    )
+    bom_size_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("bom_sizes.id"))
+    qty: Mapped[float] = mapped_column(Numeric(14, 4))
+
+    pr_bom_entry: Mapped["PRBomEntry"] = relationship("PRBomEntry", back_populates="sizes")
+    bom_size = relationship("BOMSize", foreign_keys=[bom_size_id])
+
+
+class PRBomEntry(Base):
+    __tablename__ = "pr_bom_entries"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    pr_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("production_runs.id", ondelete="CASCADE"), index=True
+    )
+    bom_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("boms.id"))
+    total_qty: Mapped[Optional[float]] = mapped_column(Numeric(14, 4), nullable=True)
+
+    bom = relationship("BOM", foreign_keys=[bom_id])
+    sizes: Mapped[List["PRBomEntrySize"]] = relationship(
+        "PRBomEntrySize", back_populates="pr_bom_entry", cascade="all, delete-orphan"
+    )
 
 
 class ProductionRun(Base):
@@ -16,7 +46,7 @@ class ProductionRun(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     code: Mapped[str] = mapped_column(String(64), unique=True, index=True)
-    bom_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("boms.id"))
+    bom_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("boms.id"), nullable=True)
     sales_order_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("sales_orders.id"), nullable=True)
     location_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("locations.id"))
     source_location_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True)
@@ -28,7 +58,12 @@ class ProductionRun(Base):
     actual_end_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
-    bom: Mapped["BOM"] = relationship("BOM", foreign_keys=[bom_id])
+    bom: Mapped[Optional["BOM"]] = relationship("BOM", foreign_keys=[bom_id])
+    bom_entries: Mapped[List["PRBomEntry"]] = relationship(
+        "PRBomEntry", cascade="all, delete-orphan",
+        primaryjoin="PRBomEntry.pr_id == ProductionRun.id",
+        foreign_keys="PRBomEntry.pr_id",
+    )
     manufacturing_orders: Mapped[List["ManufacturingOrder"]] = relationship(
         "ManufacturingOrder",
         back_populates="production_run",

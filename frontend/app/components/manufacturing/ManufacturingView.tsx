@@ -1343,10 +1343,19 @@ export default function ManufacturingView({
                                                           <td style={{ ...tdStyle, fontFamily: 'monospace', fontWeight: 'bold' }}>{pr.code}</td>
                                                           <td style={tdStyle}>
                                                               <div style={{ fontWeight: 'bold', fontSize: currentStyle === 'classic' ? '11px' : undefined }}>
-                                                                  {pr.bom?.item_name || pr.bom?.item_code || pr.bom?.code || pr.bom_id}
+                                                                  {pr.bom_entries?.length > 0
+                                                                      ? pr.bom_entries.map((e: any) => e.bom?.item_name || e.bom?.item_code || e.bom?.code).filter(Boolean).join(' / ')
+                                                                      : (pr.bom?.item_name || pr.bom?.item_code || pr.bom?.code || pr.bom_id)}
                                                               </div>
-                                                              {pr.bom?.code && (
-                                                                  <div style={{ fontSize: 9, color: '#666', fontFamily: 'monospace' }}>{pr.bom.code}</div>
+                                                              {(pr.bom_entries?.length > 0
+                                                                  ? pr.bom_entries.map((e: any) => e.bom?.code).filter(Boolean).join(' / ')
+                                                                  : pr.bom?.code
+                                                              ) && (
+                                                                  <div style={{ fontSize: 9, color: '#666', fontFamily: 'monospace' }}>
+                                                                      {pr.bom_entries?.length > 0
+                                                                          ? pr.bom_entries.map((e: any) => e.bom?.code).filter(Boolean).join(' / ')
+                                                                          : pr.bom?.code}
+                                                                  </div>
                                                               )}
                                                           </td>
                                                           <td style={{ ...tdStyle, textAlign: 'center' }}>{total}</td>
@@ -1721,11 +1730,11 @@ export default function ManufacturingView({
 
           {isPRModalOpen && (
               <ProductionRunModal
-                  bom={prModalBom || undefined}
                   boms={boms}
                   locations={locations}
                   onSave={onCreateProductionRun}
                   onClose={() => { setIsPRModalOpen(false); setPrModalBom(null); setPrModalInitialSizes(undefined); setPrModalTotalQty(undefined); setPrModalSalesOrderId(undefined); }}
+                  initialBomId={prModalBom?.id}
                   initialSizes={prModalInitialSizes}
                   initialTotalQty={prModalTotalQty}
                   salesOrderId={prModalSalesOrderId}

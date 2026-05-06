@@ -12,69 +12,171 @@ const xpLabel: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11, display: 'block', marginBottom: 2,
 };
 
+interface BomEntryState {
+    bomId: string;
+    sizeQtys: Record<string, string>;
+    totalQty: string;
+    locked?: boolean;
+}
+
 interface Props {
-    bom?: any;
     boms: any[];
     locations: any[];
     onSave: (payload: any) => Promise<any>;
     onClose: () => void;
+    initialBomId?: string;
     initialSizes?: Record<string, string>;
     initialTotalQty?: string;
     salesOrderId?: string;
 }
 
-export default function ProductionRunModal({ bom: initialBom, boms, locations, onSave, onClose, initialSizes, initialTotalQty, salesOrderId }: Props) {
+function BomEntryRow({
+    entry, index, boms, onChange, onRemove, canRemove,
+}: {
+    entry: BomEntryState;
+    index: number;
+    boms: any[];
+    onChange: (updated: BomEntryState) => void;
+    onRemove: () => void;
+    canRemove: boolean;
+}) {
+    const selectedBom = boms.find((b: any) => b.id === entry.bomId) || null;
+    const sizes = selectedBom?.sizes || [];
+
+    return (
+        <div style={{ border: '1px solid #aca899', borderRadius: 3, padding: '10px 8px 8px', background: '#f5f4ee', position: 'relative' }}>
+            <span style={{ position: 'absolute', top: -8, left: 8, background: '#f5f4ee', padding: '0 4px', fontSize: 10, fontWeight: 'bold', color: '#000080' }}>
+                BOM Entry {index + 1}
+            </span>
+            {canRemove && (
+                <button
+                    onClick={onRemove}
+                    style={{ position: 'absolute', top: -8, right: 6, background: '#c84040', border: '1px solid #800', color: '#fff', fontSize: 9, padding: '1px 5px', cursor: 'pointer', fontFamily: xpFont }}
+                >
+                    Remove
+                </button>
+            )}
+            <div style={{ marginBottom: 6 }}>
+                <label style={xpLabel}>Product Recipe (BOM)</label>
+                <select
+                    style={{ ...xpInput, height: 20 }}
+                    value={entry.bomId}
+                    onChange={e => onChange({ ...entry, bomId: e.target.value, sizeQtys: {}, totalQty: '' })}
+                    disabled={entry.locked}
+                >
+                    <option value="">-- Select a BOM --</option>
+                    {boms.map((b: any) => (
+                        <option key={b.id} value={b.id}>[{b.code}]  {b.item_name || b.item_code}</option>
+                    ))}
+                </select>
+            </div>
+
+            {selectedBom && sizes.length > 0 && (
+                <div>
+                    <label style={{ ...xpLabel, fontWeight: 'bold', marginBottom: 4 }}>Qty per Size</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 4 }}>
+                        {sizes.map((s: any) => (
+                            <div key={s.id}>
+                                <label style={{ ...xpLabel, fontWeight: 'bold', fontSize: 10 }}>
+                                    {s.label || s.size?.name || s.size_name || (s.target_measurement ? String(s.target_measurement) : `S${s.id.slice(0, 4)}`)}
+                                </label>
+                                <input
+                                    type="number" min="0" style={xpInput} placeholder="0"
+                                    value={entry.sizeQtys[s.id] || ''}
+                                    onChange={e => onChange({ ...entry, sizeQtys: { ...entry.sizeQtys, [s.id]: e.target.value } })}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {selectedBom && sizes.length === 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <label style={xpLabel}>Total Quantity</label>
+                    <input
+                        type="number" min="0" style={{ ...xpInput, width: 100 }} placeholder="0"
+                        value={entry.totalQty}
+                        onChange={e => onChange({ ...entry, totalQty: e.target.value })}
+                    />
+                </div>
+            )}
+        </div>
+    );
+}
+
+export default function ProductionRunModal({
+    boms, locations, onSave, onClose,
+    initialBomId, initialSizes, initialTotalQty, salesOrderId,
+}: Props) {
     const [code, setCode] = useState('');
-    const [selectedBom, setSelectedBom] = useState<any>(initialBom || null);
     const [locationCode, setLocationCode] = useState('');
     const [sourceLocationCode, setSourceLocationCode] = useState('');
     const [targetStart, setTargetStart] = useState('');
     const [targetEnd, setTargetEnd] = useState('');
-    const [sizeQtys, setSizeQtys] = useState<Record<string, string>>(initialSizes || {});
-    const [totalQty, setTotalQty] = useState(initialTotalQty || '');
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState('');
 
+    const [bomEntries, setBomEntries] = useState<BomEntryState[]>(() => {
+        if (initialBomId) {
+            return [{ bomId: initialBomId, sizeQtys: initialSizes || {}, totalQty: initialTotalQty || '', locked: true }];
+        }
+        return [{ bomId: '', sizeQtys: {}, totalQty: '' }];
+    });
+
     useEffect(() => {
-        if (selectedBom) {
-            const item = selectedBom.item_name || selectedBom.item_code || 'ITEM';
+        if (initialBomId) {
+            setBomEntries([{ bomId: initialBomId, sizeQtys: initialSizes || {}, totalQty: initialTotalQty || '', locked: true }]);
+        }
+    }, [initialBomId, initialSizes, initialTotalQty]);
+
+    useEffect(() => {
+        const firstBom = boms.find((b: any) => b.id === bomEntries[0]?.bomId);
+        if (firstBom) {
+            const item = firstBom.item_name || firstBom.item_code || 'ITEM';
             setCode(`PR-${item.toUpperCase().replace(/\s+/g, '-').slice(0, 12)}-001`);
         }
-    }, [selectedBom]);
+    }, [bomEntries[0]?.bomId]);
 
-    useEffect(() => {
-        if (initialSizes) setSizeQtys(initialSizes);
-    }, [initialSizes]);
-
-    useEffect(() => {
-        if (initialTotalQty !== undefined) setTotalQty(initialTotalQty);
-    }, [initialTotalQty]);
-
-    const sizes = selectedBom?.sizes || [];
+    const addEntry = () => setBomEntries(prev => [...prev, { bomId: '', sizeQtys: {}, totalQty: '' }]);
+    const removeEntry = (i: number) => setBomEntries(prev => prev.filter((_, idx) => idx !== i));
+    const updateEntry = (i: number, updated: BomEntryState) =>
+        setBomEntries(prev => prev.map((e, idx) => idx === i ? updated : e));
 
     const handleSave = async () => {
-        if (!code || !selectedBom || !locationCode) {
-            setError('Code, BOM, and Location are required.');
+        if (!code || !locationCode) {
+            setError('Code and Location are required.');
             return;
         }
+        const validEntries = bomEntries.filter(e => e.bomId);
+        if (!validEntries.length) {
+            setError('At least one BOM must be selected.');
+            return;
+        }
+
         setError('');
         setIsSaving(true);
         try {
-            const sizeEntries = sizes
-                .filter((s: any) => parseFloat(sizeQtys[s.id] || '0') > 0)
-                .map((s: any) => ({ bom_size_id: s.id, qty: parseFloat(sizeQtys[s.id]) }));
-
-            const parsedTotalQty = parseFloat(totalQty || '0');
+            const bom_entries = validEntries.map(entry => {
+                const selectedBom = boms.find((b: any) => b.id === entry.bomId);
+                const sizes = selectedBom?.sizes || [];
+                if (sizes.length > 0) {
+                    const sizeEntries = sizes
+                        .filter((s: any) => parseFloat(entry.sizeQtys[s.id] || '0') > 0)
+                        .map((s: any) => ({ bom_size_id: s.id, qty: parseFloat(entry.sizeQtys[s.id]) }));
+                    return { bom_id: entry.bomId, sizes: sizeEntries };
+                }
+                const qty = parseFloat(entry.totalQty || '0');
+                return { bom_id: entry.bomId, total_qty: qty > 0 ? qty : undefined };
+            });
 
             const res = await onSave({
                 code,
-                bom_id: selectedBom.id,
+                bom_entries,
                 location_code: locationCode,
                 source_location_code: sourceLocationCode || undefined,
                 target_start_date: targetStart || undefined,
                 target_end_date: targetEnd || undefined,
-                sizes: sizeEntries,
-                total_qty: sizes.length === 0 && parsedTotalQty > 0 ? parsedTotalQty : undefined,
                 sales_order_id: salesOrderId || undefined,
             });
             if (res && !res.ok) {
@@ -92,7 +194,7 @@ export default function ProductionRunModal({ bom: initialBom, boms, locations, o
 
     return createPortal(
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ width: 520, background: '#ece9d8', border: '2px solid #0a246a', fontFamily: xpFont, borderRadius: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ width: 560, background: '#ece9d8', border: '2px solid #0a246a', fontFamily: xpFont, borderRadius: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ background: 'linear-gradient(to right, #0a246a, #a6caf0, #0a246a)', padding: '3px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 12, textShadow: '1px 1px 2px rgba(0,0,0,0.6)' }}>
                         New Production Run
@@ -105,19 +207,6 @@ export default function ProductionRunModal({ bom: initialBom, boms, locations, o
                         <div style={{ flex: 1 }}>
                             <label style={xpLabel}>Run Code</label>
                             <input style={xpInput} value={code} onChange={e => setCode(e.target.value)} />
-                        </div>
-                        <div style={{ flex: 2 }}>
-                            <label style={xpLabel}>Product Recipe (BOM)</label>
-                            <select style={{ ...xpInput, height: 20 }}
-                                value={selectedBom?.id || ''}
-                                onChange={e => setSelectedBom(boms.find((b: any) => b.id === e.target.value) || null)}
-                                disabled={!!initialBom}
-                            >
-                                <option value="">-- Select a BOM --</option>
-                                {boms.map((b: any) => (
-                                    <option key={b.id} value={b.id}>[{b.code}]  {b.item_name || b.item_code}</option>
-                                ))}
-                            </select>
                         </div>
                     </div>
 
@@ -149,51 +238,24 @@ export default function ProductionRunModal({ bom: initialBom, boms, locations, o
                         </div>
                     </div>
 
-                    {sizes.length > 0 && (
-                        <div style={{ border: '1px solid #aca899', borderRadius: 3, padding: '10px 8px 8px', background: '#f5f4ee', position: 'relative' }}>
-                            <span style={{ position: 'absolute', top: -8, left: 8, background: '#f5f4ee', padding: '0 4px', fontSize: 10, fontWeight: 'bold', color: '#000080' }}>
-                                Production Qty per Size
-                            </span>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 6 }}>
-                                {sizes.map((s: any) => (
-                                    <div key={s.id}>
-                                        <label style={{ ...xpLabel, fontWeight: 'bold', fontSize: 10 }}>
-                                            {s.label || s.size?.name || s.size_name || (s.target_measurement ? String(s.target_measurement) : `S${s.id.slice(0, 4)}`)}
-                                        </label>
-                                        <input
-                                            type="number" min="0" style={xpInput}
-                                            placeholder="0"
-                                            value={sizeQtys[s.id] || ''}
-                                            onChange={e => setSizeQtys(prev => ({ ...prev, [s.id]: e.target.value }))}
-                                        />
-                                    </div>
-                                ))}
-                            </div>
-                            <div style={{ fontSize: 9, color: '#666', marginTop: 4 }}>
-                                Leave 0 to skip a size. One Manufacturing Order will be created per size with qty &gt; 0.
-                            </div>
-                        </div>
-                    )}
+                    {bomEntries.map((entry, i) => (
+                        <BomEntryRow
+                            key={i}
+                            entry={entry}
+                            index={i}
+                            boms={boms}
+                            onChange={updated => updateEntry(i, updated)}
+                            onRemove={() => removeEntry(i)}
+                            canRemove={bomEntries.length > 1 && !entry.locked}
+                        />
+                    ))}
 
-                    {sizes.length === 0 && selectedBom && (
-                        <div style={{ border: '1px solid #aca899', borderRadius: 3, padding: '10px 8px 8px', background: '#f5f4ee', position: 'relative' }}>
-                            <span style={{ position: 'absolute', top: -8, left: 8, background: '#f5f4ee', padding: '0 4px', fontSize: 10, fontWeight: 'bold', color: '#000080' }}>
-                                Production Qty
-                            </span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <label style={xpLabel}>Total Quantity</label>
-                                <input
-                                    type="number" min="0" style={{ ...xpInput, width: 100 }}
-                                    placeholder="0"
-                                    value={totalQty}
-                                    onChange={e => setTotalQty(e.target.value)}
-                                />
-                            </div>
-                            <div style={{ fontSize: 9, color: '#666', marginTop: 4 }}>
-                                No sizes defined. One Manufacturing Order will be created for this total qty.
-                            </div>
-                        </div>
-                    )}
+                    <button
+                        onClick={addEntry}
+                        style={{ fontFamily: xpFont, fontSize: 11, padding: '2px 10px', background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', alignSelf: 'flex-start' }}
+                    >
+                        + Add BOM
+                    </button>
 
                     {error && <div style={{ fontSize: 10, color: '#a00', background: '#fff0f0', border: '1px solid #f0a0a0', padding: '4px 8px' }}>{error}</div>}
                 </div>

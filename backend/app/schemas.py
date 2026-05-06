@@ -260,27 +260,49 @@ class PaginatedManufacturingOrderResponse(BaseModel):
 
 # --- Production Run Schemas ---
 
+class PRBomSizeEntry(BaseModel):
+    bom_size_id: UUID
+    qty: float
+
+class PRBomEntryCreate(BaseModel):
+    bom_id: UUID
+    sizes: list[PRBomSizeEntry] = []
+    total_qty: float | None = None
+
+class PRBomEntrySizeResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    bom_size_id: UUID
+    qty: float
+
+class PRBomEntryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    bom_id: UUID
+    total_qty: float | None = None
+    bom: Optional['BOMResponse'] = None
+    sizes: list[PRBomEntrySizeResponse] = []
+
+# Kept for backward compatibility (used by SO-page deep-link flow)
 class ProductionRunSizeEntry(BaseModel):
     bom_size_id: UUID
     qty: float
 
 class ProductionRunCreate(BaseModel):
     code: str
-    bom_id: UUID
+    bom_entries: list[PRBomEntryCreate]
     location_code: str
     source_location_code: str | None = None
     sales_order_id: UUID | None = None
     target_start_date: datetime | None = None
     target_end_date: datetime | None = None
     notes: str | None = None
-    sizes: list[ProductionRunSizeEntry] = []
-    total_qty: float | None = None  # used when BOM has no sizes
 
 class ProductionRunResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
     code: str
-    bom_id: UUID
+    bom_id: UUID | None = None
     sales_order_id: UUID | None = None
     location_id: UUID
     source_location_id: UUID | None = None
@@ -292,6 +314,7 @@ class ProductionRunResponse(BaseModel):
     actual_end_date: datetime | None = None
     created_at: datetime
     bom: Optional['BOMResponse'] = None
+    bom_entries: list[PRBomEntryResponse] = []
     manufacturing_orders: list['ManufacturingOrderResponse'] = []
 
 class PaginatedProductionRunResponse(BaseModel):
