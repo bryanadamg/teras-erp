@@ -16,6 +16,8 @@ export const overviewPage: DocPage = {
                 'Real-time inventory tracking across multiple warehouse locations with O(1) stock lookups',
                 'Multi-level Manufacturing Orders (MO) and Work Orders (WO) with MES-level production tracking',
                 'Recursive Bill of Materials (BOM) supporting nested assemblies, percentage-based quantities, and tolerance controls',
+                'Variant BOM support — colour and attribute variants share a common greige/base BOM; only variant-specific components differ',
+                'Multi-BOM Production Runs — batch size and colour variants together; shared sub-assemblies are automatically consolidated into a single preparation order',
                 'BOM Automator wizard for one-click generation of child MOs across all assembly levels',
                 'Sales and Purchase order lifecycle management with print-ready A4 templates',
                 'PLM Sample Request workflow for new product development with design file attachments',
