@@ -23,6 +23,11 @@ export interface DocPageSection {
     heading: string;
     body?: string;
     items?: string[];
+    steps?: string[];
+    code?: string;
+    table?: { headers: string[]; rows: string[][] };
+    callout?: { type: 'info' | 'tip' | 'warning'; text: string };
+    columns?: { label: string; items: string[] }[];
 }
 
 // ─── Sidebar Navigation ───────────────────────────────────────────────────────

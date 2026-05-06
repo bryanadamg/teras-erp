@@ -93,9 +93,155 @@ export default function DocsPage() {
                     </h2>
 
                     {section.body && (
-                        <p style={{ color: '#334', fontSize: 13, lineHeight: 1.7, marginBottom: section.items ? 10 : 0 }}>
+                        <p style={{ color: '#334', fontSize: 13, lineHeight: 1.7, marginBottom: 10, whiteSpace: 'pre-line' }}>
                             {section.body}
                         </p>
+                    )}
+
+                    {section.callout && (
+                        <div style={{
+                            margin: '8px 0 10px',
+                            padding: '10px 14px',
+                            borderLeft: `3px solid ${section.callout.type === 'warning' ? '#e08030' : section.callout.type === 'tip' ? '#2aa060' : '#2563c4'}`,
+                            background: section.callout.type === 'warning' ? '#fff8f0' : section.callout.type === 'tip' ? '#f0faf4' : '#f0f6ff',
+                            borderRadius: '0 4px 4px 0',
+                            fontSize: 13,
+                            color: '#334',
+                            lineHeight: 1.6,
+                        }}>
+                            <strong style={{ color: section.callout.type === 'warning' ? '#b05010' : section.callout.type === 'tip' ? '#1a7a48' : '#1a3fa8', marginRight: 6 }}>
+                                {section.callout.type === 'warning' ? 'Note:' : section.callout.type === 'tip' ? 'Tip:' : 'Info:'}
+                            </strong>
+                            {section.callout.text}
+                        </div>
+                    )}
+
+                    {section.code && (
+                        <pre style={{
+                            background: '#1e2533',
+                            color: '#c8d8f0',
+                            fontSize: 12,
+                            lineHeight: 1.6,
+                            padding: '12px 16px',
+                            borderRadius: 4,
+                            overflowX: 'auto',
+                            margin: '8px 0 10px',
+                            fontFamily: '"Consolas", "Courier New", monospace',
+                            border: '1px solid #0a1428',
+                        }}>
+                            {section.code}
+                        </pre>
+                    )}
+
+                    {section.table && (
+                        <div style={{ overflowX: 'auto', margin: '8px 0 10px' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                                <thead>
+                                    <tr style={{ background: 'linear-gradient(to bottom, #2a6fd4, #1a3fa8)' }}>
+                                        {section.table.headers.map((h, j) => (
+                                            <th key={j} style={{
+                                                padding: '7px 12px',
+                                                color: '#fff',
+                                                fontWeight: 700,
+                                                textAlign: 'left',
+                                                borderRight: j < section.table!.headers.length - 1 ? '1px solid #3a80e4' : 'none',
+                                                whiteSpace: 'nowrap',
+                                            }}>
+                                                {h}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {section.table.rows.map((row, ri) => (
+                                        <tr key={ri} style={{ background: ri % 2 === 0 ? '#f5f8ff' : '#fff', borderBottom: '1px solid #d8e8f8' }}>
+                                            {row.map((cell, ci) => (
+                                                <td key={ci} style={{
+                                                    padding: '6px 12px',
+                                                    color: '#334',
+                                                    borderRight: ci < row.length - 1 ? '1px solid #d8e8f8' : 'none',
+                                                    fontWeight: cell.startsWith('**') ? 700 : 400,
+                                                }}>
+                                                    {cell.replace(/\*\*/g, '')}
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {section.steps && (
+                        <ol style={{ margin: '8px 0 10px', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {section.steps.map((step, j) => (
+                                <li key={j} style={{
+                                    display: 'flex',
+                                    alignItems: 'flex-start',
+                                    gap: 10,
+                                    fontSize: 13,
+                                    color: '#334',
+                                    lineHeight: 1.6,
+                                    padding: '8px 12px',
+                                    background: '#f5f8ff',
+                                    border: '1px solid #d4e4f8',
+                                    borderRadius: 4,
+                                }}>
+                                    <span style={{
+                                        minWidth: 22,
+                                        height: 22,
+                                        background: 'linear-gradient(to bottom, #2a6fd4, #1a3fa8)',
+                                        color: '#fff',
+                                        borderRadius: '50%',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: 11,
+                                        fontWeight: 700,
+                                        flexShrink: 0,
+                                    }}>
+                                        {j + 1}
+                                    </span>
+                                    {step}
+                                </li>
+                            ))}
+                        </ol>
+                    )}
+
+                    {section.columns && (
+                        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${section.columns.length}, 1fr)`, gap: 10, margin: '8px 0 10px' }}>
+                            {section.columns.map((col, ci) => (
+                                <div key={ci} style={{
+                                    border: '1px solid #d4e4f8',
+                                    borderRadius: 4,
+                                    overflow: 'hidden',
+                                }}>
+                                    <div style={{
+                                        background: 'linear-gradient(to bottom, #2a6fd4, #1a3fa8)',
+                                        color: '#fff',
+                                        fontSize: 12,
+                                        fontWeight: 700,
+                                        padding: '6px 12px',
+                                    }}>
+                                        {col.label}
+                                    </div>
+                                    <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+                                        {col.items.map((item, ii) => (
+                                            <li key={ii} style={{
+                                                fontSize: 12,
+                                                color: '#334',
+                                                padding: '5px 12px',
+                                                borderBottom: ii < col.items.length - 1 ? '1px solid #e8f0f8' : 'none',
+                                                background: ii % 2 === 0 ? '#f5f8ff' : '#fff',
+                                                lineHeight: 1.5,
+                                            }}>
+                                                {item}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            ))}
+                        </div>
                     )}
 
                     {section.items && (
