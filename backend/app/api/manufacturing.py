@@ -790,5 +790,5 @@ async def delete_manufacturing_order(mo_id: str, db: AsyncSession = Depends(get_
     mo_code = mo.code
     await db.delete(mo)
     await db.commit()
-    await audit_service.log_activity(db, current_user.id, "DELETE", "manufacturing_order", mo_id, details={"code": mo_code})
+    await audit_service.log_activity(db, current_user.id, "DELETE", "manufacturing_order", mo_id, details=f"Deleted MO {mo_code}")
     return {"status": "success"}

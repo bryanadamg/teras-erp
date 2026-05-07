@@ -83,8 +83,16 @@ export default function ProductionRunsPage() {
     };
 
     const handleDeleteProductionRun = async (id: string) => {
+        const confirmed = await confirm({
+            title: 'Delete Production Run',
+            message: 'Are you sure you want to delete this production run? All associated Manufacturing Orders must be deleted first.',
+            confirmText: 'Delete',
+            variant: 'danger'
+        });
+        if (!confirmed) return;
         const res = await authFetch(`${API_BASE}/production-runs/${id}`, { method: 'DELETE' });
-        if (res.ok) fetchData();
+        if (res.ok) { showToast('Production Run deleted', 'success'); fetchData(); }
+        else { const err = await res.json().catch(() => ({})); showToast(`Error: ${err.detail || 'Delete failed'}`, 'danger'); }
     };
 
     const handleUpdatePRStatus = async (id: string, status: string) => {
