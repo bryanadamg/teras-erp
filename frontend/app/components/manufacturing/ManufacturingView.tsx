@@ -71,6 +71,7 @@ export default function ManufacturingView({
   const [prModalInitialSizes, setPrModalInitialSizes] = useState<Record<string, string> | undefined>(undefined);
   const [prModalTotalQty, setPrModalTotalQty] = useState<string | undefined>(undefined);
   const [prModalSalesOrderId, setPrModalSalesOrderId] = useState<string | undefined>(undefined);
+  const [prModalInitialEntries, setPrModalInitialEntries] = useState<Array<{bomId: string; sizeQtys: Record<string,string>; totalQty: string; locked?: boolean}> | undefined>(undefined);
 
   // Derived Pagination
   const totalPages = Math.ceil(totalItems / pageSize);
@@ -168,22 +169,47 @@ export default function ManufacturingView({
   // Handle PR creation pre-fill from Sales Order
   useEffect(() => {
       if (initialPRState && boms.length > 0) {
-          const { bom_id, sizes, sales_order_id, total_qty } = initialPRState;
-          const bom = boms.find((b: any) => b.id === bom_id);
-          if (bom) {
-              const sizeMap: Record<string, string> = {};
-              (sizes || []).forEach((s: any) => { sizeMap[s.bom_size_id] = String(s.qty); });
-              setActiveTab('production-runs');
-              setPrModalBom(bom);
-              setPrModalInitialSizes(Object.keys(sizeMap).length > 0 ? sizeMap : undefined);
-              setPrModalTotalQty(total_qty ? String(total_qty) : undefined);
-              setPrModalSalesOrderId(sales_order_id || undefined);
-              setIsPRModalOpen(true);
-              onClearInitialPRState?.();
-              showToast('Production Run pre-filled from Sales Order', 'info');
+          if (initialPRState.bom_entries) {
+              // Multi-BOM entries path
+              const entries = (initialPRState.bom_entries as any[]).map((e: any) => {
+                  const bom = boms.find((b: any) => b.id === e.bom_id);
+                  if (!bom) return null;
+                  const sizeMap: Record<string, string> = {};
+                  (e.sizes || []).forEach((s: any) => { sizeMap[s.bom_size_id] = String(s.qty); });
+                  return { bomId: e.bom_id, sizeQtys: sizeMap, totalQty: e.total_qty ? String(e.total_qty) : '', locked: true };
+              }).filter(Boolean) as Array<{bomId: string; sizeQtys: Record<string,string>; totalQty: string; locked?: boolean}>;
+
+              if (entries.length > 0) {
+                  setActiveTab('production-runs');
+                  setPrModalInitialEntries(entries);
+                  setPrModalSalesOrderId(initialPRState.sales_order_id || undefined);
+                  setIsPRModalOpen(true);
+                  onClearInitialPRState?.();
+                  const count = entries.length;
+                  showToast(`Production Run pre-filled with ${count} BOM${count > 1 ? 's' : ''} from Sales Order`, 'info');
+              } else {
+                  showToast('No matching BOMs found for Production Run.', 'warning');
+                  onClearInitialPRState?.();
+              }
           } else {
-              showToast('No matching BOM found for Production Run.', 'warning');
-              onClearInitialPRState?.();
+              // Legacy single-BOM path
+              const { bom_id, sizes, sales_order_id, total_qty } = initialPRState;
+              const bom = boms.find((b: any) => b.id === bom_id);
+              if (bom) {
+                  const sizeMap: Record<string, string> = {};
+                  (sizes || []).forEach((s: any) => { sizeMap[s.bom_size_id] = String(s.qty); });
+                  setActiveTab('production-runs');
+                  setPrModalBom(bom);
+                  setPrModalInitialSizes(Object.keys(sizeMap).length > 0 ? sizeMap : undefined);
+                  setPrModalTotalQty(total_qty ? String(total_qty) : undefined);
+                  setPrModalSalesOrderId(sales_order_id || undefined);
+                  setIsPRModalOpen(true);
+                  onClearInitialPRState?.();
+                  showToast('Production Run pre-filled from Sales Order', 'info');
+              } else {
+                  showToast('No matching BOM found for Production Run.', 'warning');
+                  onClearInitialPRState?.();
+              }
           }
       }
   }, [initialPRState, boms]);
@@ -1733,10 +1759,11 @@ export default function ManufacturingView({
                   boms={boms}
                   locations={locations}
                   onSave={onCreateProductionRun}
-                  onClose={() => { setIsPRModalOpen(false); setPrModalBom(null); setPrModalInitialSizes(undefined); setPrModalTotalQty(undefined); setPrModalSalesOrderId(undefined); }}
+                  onClose={() => { setIsPRModalOpen(false); setPrModalBom(null); setPrModalInitialSizes(undefined); setPrModalTotalQty(undefined); setPrModalSalesOrderId(undefined); setPrModalInitialEntries(undefined); }}
                   initialBomId={prModalBom?.id}
                   initialSizes={prModalInitialSizes}
                   initialTotalQty={prModalTotalQty}
+                  initialBomEntries={prModalInitialEntries}
                   salesOrderId={prModalSalesOrderId}
               />
           )}

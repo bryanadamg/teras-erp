@@ -33,14 +33,23 @@ export default function ProductionRunsPage() {
         const action = searchParams.get('action');
         if (action === 'create_pr' && soId !== consumedSOIdRef.current) {
             consumedSOIdRef.current = soId;
-            const sizesRaw = searchParams.get('sizes');
-            const totalQtyRaw = searchParams.get('total_qty');
-            setInitialPRState({
-                sales_order_id: soId,
-                bom_id: searchParams.get('bom_id'),
-                sizes: sizesRaw ? JSON.parse(decodeURIComponent(sizesRaw)) : [],
-                total_qty: totalQtyRaw ? parseFloat(totalQtyRaw) : undefined,
-            });
+            const bomEntriesRaw = searchParams.get('bom_entries');
+            if (bomEntriesRaw) {
+                setInitialPRState({
+                    sales_order_id: soId,
+                    bom_entries: JSON.parse(decodeURIComponent(bomEntriesRaw)),
+                });
+            } else {
+                // Legacy single-BOM path
+                const sizesRaw = searchParams.get('sizes');
+                const totalQtyRaw = searchParams.get('total_qty');
+                setInitialPRState({
+                    sales_order_id: soId,
+                    bom_id: searchParams.get('bom_id'),
+                    sizes: sizesRaw ? JSON.parse(decodeURIComponent(sizesRaw)) : [],
+                    total_qty: totalQtyRaw ? parseFloat(totalQtyRaw) : undefined,
+                });
+            }
             router.replace('/production-runs');
         }
     }, [searchParams]);

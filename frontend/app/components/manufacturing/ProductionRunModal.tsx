@@ -27,6 +27,7 @@ interface Props {
     initialBomId?: string;
     initialSizes?: Record<string, string>;
     initialTotalQty?: string;
+    initialBomEntries?: Array<{ bomId: string; sizeQtys: Record<string, string>; totalQty: string; locked?: boolean }>;
     salesOrderId?: string;
 }
 
@@ -107,7 +108,7 @@ function BomEntryRow({
 
 export default function ProductionRunModal({
     boms, locations, onSave, onClose,
-    initialBomId, initialSizes, initialTotalQty, salesOrderId,
+    initialBomId, initialSizes, initialTotalQty, initialBomEntries, salesOrderId,
 }: Props) {
     const [code, setCode] = useState('');
     const [locationCode, setLocationCode] = useState('');
@@ -118,6 +119,9 @@ export default function ProductionRunModal({
     const [error, setError] = useState('');
 
     const [bomEntries, setBomEntries] = useState<BomEntryState[]>(() => {
+        if (initialBomEntries && initialBomEntries.length > 0) {
+            return initialBomEntries.map(e => ({ ...e, locked: true }));
+        }
         if (initialBomId) {
             return [{ bomId: initialBomId, sizeQtys: initialSizes || {}, totalQty: initialTotalQty || '', locked: true }];
         }
@@ -125,10 +129,12 @@ export default function ProductionRunModal({
     });
 
     useEffect(() => {
-        if (initialBomId) {
+        if (initialBomEntries && initialBomEntries.length > 0) {
+            setBomEntries(initialBomEntries.map(e => ({ ...e, locked: true })));
+        } else if (initialBomId) {
             setBomEntries([{ bomId: initialBomId, sizeQtys: initialSizes || {}, totalQty: initialTotalQty || '', locked: true }]);
         }
-    }, [initialBomId, initialSizes, initialTotalQty]);
+    }, [initialBomEntries, initialBomId, initialSizes, initialTotalQty]);
 
     useEffect(() => {
         const firstBom = boms.find((b: any) => b.id === bomEntries[0]?.bomId);

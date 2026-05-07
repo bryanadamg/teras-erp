@@ -34,79 +34,87 @@ export default function SalesOrdersPage() {
     };
 
     const handleGeneratePR = (so: any, line: any) => {
-        const lineAttrIds = line.attribute_value_ids || [];
-        const matchingBOM = boms.find((b: any) => {
-            if (b.item_id !== line.item_id) return false;
-            const bomAttrIds = b.attribute_value_ids || [];
-            if (lineAttrIds.length !== bomAttrIds.length) return false;
-            return lineAttrIds.every((id: string) => bomAttrIds.includes(id));
+        const soLines: any[] = so.lines || [];
+
+        // Group all lines with same item_id by their attribute set (one group = one color/variant = one BOM)
+        const variantLines = soLines.filter((l: any) => l.item_id === line.item_id);
+        const attrGroupMap = new Map<string, any[]>();
+        variantLines.forEach((l: any) => {
+            const key = [...(l.attribute_value_ids || [])].sort().join(',');
+            if (!attrGroupMap.has(key)) attrGroupMap.set(key, []);
+            attrGroupMap.get(key)!.push(l);
         });
 
-        if (matchingBOM) {
-            const soLines: any[] = so.lines || [];
-            const linesForBOM = soLines.filter((l: any) => l.item_id === matchingBOM.item_id);
-            const linesWithSizeId = linesForBOM.filter((l: any) => !!l.bom_size_id);
-            const useSizedPath = linesWithSizeId.length > 0;
+        const clickedAttrKey = [...(line.attribute_value_ids || [])].sort().join(',');
+        const coveredSizeIds = new Set<string>();
+        (productionRuns || []).forEach((pr: any) => {
+            if (String(pr.sales_order_id) !== String(so.id)) return;
+            (pr.manufacturing_orders || []).forEach((mo: any) => {
+                if (mo.bom_size_id) coveredSizeIds.add(String(mo.bom_size_id));
+            });
+        });
 
-            if (useSizedPath) {
-                // Per bom_size_id coverage check
-                const coveredSizeIds = new Set<string>();
-                (productionRuns || []).forEach((pr: any) => {
-                    if (String(pr.sales_order_id) !== String(so.id)) return;
-                    (pr.manufacturing_orders || []).forEach((mo: any) => {
-                        if (mo.bom_size_id) coveredSizeIds.add(String(mo.bom_size_id));
-                    });
-                });
+        const entries: Array<{ bom_id: string; sizes?: { bom_size_id: string; qty: number }[]; total_qty?: number }> = [];
+        let clickedBomMissing = false;
 
-                const sizes = linesWithSizeId
+        for (const [attrKey, groupLines] of attrGroupMap) {
+            const firstLine = groupLines[0];
+            const matchingBOM = boms.find((b: any) => {
+                if (b.item_id !== firstLine.item_id) return false;
+                const bomAttrIds = b.attribute_value_ids || [];
+                const lineAttrIds = firstLine.attribute_value_ids || [];
+                if (lineAttrIds.length !== bomAttrIds.length) return false;
+                return lineAttrIds.every((id: string) => bomAttrIds.includes(id));
+            });
+
+            if (!matchingBOM) {
+                if (attrKey === clickedAttrKey) clickedBomMissing = true;
+                continue;
+            }
+
+            const linesWithSize = groupLines.filter((l: any) => !!l.bom_size_id);
+
+            if (linesWithSize.length > 0) {
+                const uncoveredSizes = linesWithSize
                     .filter((l: any) => !coveredSizeIds.has(String(l.bom_size_id)))
-                    .map((l: any) => ({ bom_size_id: l.bom_size_id, qty: l.qty }));
-
-                if (sizes.length === 0) {
-                    showToast('All sizes for this item already have a Production Run.', 'info');
-                    return;
+                    .map((l: any) => ({ bom_size_id: l.bom_size_id, qty: parseFloat(l.qty) || 0 }));
+                if (uncoveredSizes.length > 0) {
+                    entries.push({ bom_id: matchingBOM.id, sizes: uncoveredSizes });
                 }
-
-                const params: Record<string, string> = {
-                    action: 'create_pr',
-                    sales_order_id: so.id,
-                    bom_id: matchingBOM.id,
-                    sizes: encodeURIComponent(JSON.stringify(sizes)),
-                };
-                router.push(`/production-runs?${new URLSearchParams(params).toString()}`);
             } else {
-                // No-size or free-measurement BOM where lines have no bom_size_id
                 const covered = (productionRuns || []).some((pr: any) => {
                     if (String(pr.sales_order_id) !== String(so.id)) return false;
-                    // Check legacy bom_id field and new bom_entries list
                     if (String(pr.bom_id) === String(matchingBOM.id)) return true;
                     return (pr.bom_entries || []).some((e: any) => String(e.bom_id) === String(matchingBOM.id));
                 });
-                if (covered) {
-                    showToast('This item already has a Production Run.', 'info');
-                    return;
+                if (!covered) {
+                    const totalQty = groupLines.reduce((acc: number, l: any) => acc + (parseFloat(l.qty) || 0), 0);
+                    entries.push({ bom_id: matchingBOM.id, total_qty: totalQty });
                 }
-
-                const totalQty = linesForBOM
-                    .reduce((acc: number, l: any) => acc + (parseFloat(l.qty) || 0), 0);
-
-                const params: Record<string, string> = {
-                    action: 'create_pr',
-                    sales_order_id: so.id,
-                    bom_id: matchingBOM.id,
-                    total_qty: String(totalQty),
-                };
-                router.push(`/production-runs?${new URLSearchParams(params).toString()}`);
             }
-        } else {
-            showToast('No matching BOM found. Please create a recipe first.', 'warning');
-            const params = new URLSearchParams({
-                action: 'create_bom',
-                item_id: line.item_id,
-                attribute_value_ids: (line.attribute_value_ids || []).join(',')
-            });
-            router.push(`/bom?${params.toString()}`);
         }
+
+        if (entries.length === 0) {
+            if (clickedBomMissing) {
+                showToast('No matching BOM found. Please create a recipe first.', 'warning');
+                const params = new URLSearchParams({
+                    action: 'create_bom',
+                    item_id: line.item_id,
+                    attribute_value_ids: (line.attribute_value_ids || []).join(',')
+                });
+                router.push(`/bom?${params.toString()}`);
+            } else {
+                showToast('All variants already have a Production Run.', 'info');
+            }
+            return;
+        }
+
+        const params: Record<string, string> = {
+            action: 'create_pr',
+            sales_order_id: so.id,
+            bom_entries: encodeURIComponent(JSON.stringify(entries)),
+        };
+        router.push(`/production-runs?${new URLSearchParams(params).toString()}`);
     };
 
     const handleUpdateSOStatus = async (soId: string, status: string) => {
