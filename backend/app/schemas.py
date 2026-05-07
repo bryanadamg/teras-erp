@@ -580,6 +580,8 @@ class SalesOrderLineResponse(SalesOrderLineCreate):
     id: UUID
     attribute_value_ids: list[UUID] = []
     bom_size_id: UUID | None = None
+    item_name: str | None = None
+    item_code: str | None = None
 
     class Config:
         from_attributes = True

@@ -438,8 +438,8 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       }
   };
 
-  const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
-  const getItemCode = (id: string) => items.find((i: any) => i.id === id)?.code || id;
+  const getItemName = (id: string, embedded?: string) => items.find((i: any) => i.id === id)?.name || embedded || id;
+  const getItemCode = (id: string, embedded?: string) => items.find((i: any) => i.id === id)?.code || embedded || id;
   const isSample = (id: string) => items.find((i: any) => i.id === id)?.category === 'Sample';
 
   const getStatusBadge = (status: string) => {
@@ -960,8 +960,8 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                        {newSO.lines.map((line: any, idx) => (
                            <div key={idx} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:classic?'3px 6px':'8px',background:classic?(idx%2===0?'#ffffff':'#f5f3ee'):'white',border:classic?'1px solid #c0bdb5':'1px solid #dee2e6',marginBottom:2,fontFamily:classic?'Tahoma,Arial,sans-serif':undefined,fontSize:classic?'11px':undefined}}>
                                <div>
-                                   <span style={{fontWeight:'bold'}}>{getItemName(line.item_id)}</span>
-                                   <span style={{color:classic?'#555':'',marginLeft:8,fontFamily:classic?'Tahoma,Arial,sans-serif':'',fontSize:classic?'10px':''}} className={classic?'':'text-muted ms-2 font-monospace small'}>{getItemCode(line.item_id)}</span>
+                                   <span style={{fontWeight:'bold'}}>{getItemName(line.item_id, line.item_name)}</span>
+                                   <span style={{color:classic?'#555':'',marginLeft:8,fontFamily:classic?'Tahoma,Arial,sans-serif':'',fontSize:classic?'10px':''}} className={classic?'':'text-muted ms-2 font-monospace small'}>{getItemCode(line.item_id, line.item_code)}</span>
                                    {isSample(line.item_id) && <span style={{background:'#fff8dc',border:'1px solid #c8a000',color:'#4a3000',padding:'0 4px',fontSize:'9px',fontFamily:classic?'Tahoma,Arial,sans-serif':'',marginLeft:6}} className={classic?'':'badge bg-warning text-dark ms-2'}>Sample</span>}
                                    {line.due_date && <span style={{color:classic?'#666':'',marginLeft:8,fontSize:classic?'10px':''}} className={classic?'':'text-muted ms-2 small'}><i className="bi bi-calendar2" style={{marginRight:3}}></i>{new Date(line.due_date).toLocaleDateString()}</span>}
                                    {(line.attribute_value_ids || []).length > 0 && <div style={{color:classic?'#666':'',fontSize:classic?'10px':'',fontStyle:'italic'}} className={classic?'':'small text-muted fst-italic'}>{(line.attribute_value_ids || []).map(getAttributeValueName).join(', ')}</div>}
@@ -1227,7 +1227,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:6 }}>
                                                    <div style={{ flex:1, minWidth:0 }}>
                                                        <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'10px', fontWeight:'bold', lineHeight:1.3 }} className={classic ? '' : 'fw-semibold'}>
-                                                           {getItemName(line.item_id)}
+                                                           {getItemName(line.item_id, line.item_name)}
                                                            {isSample(line.item_id) && <i className="bi bi-star-fill text-warning ms-1" style={{fontSize:'0.6rem'}}></i>}
                                                        </div>
                                                        {(line.attribute_value_ids || []).length > 0 && (

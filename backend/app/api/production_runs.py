@@ -342,7 +342,7 @@ async def create_production_run(
         await db.flush()
 
         entry_root_mos: list[ManufacturingOrder] = []
-        bom_label = bom.item.code if bom.item else f"B{entry_idx+1}"
+        bom_label = bom.code if bom.code else (bom.item.code if bom.item else f"B{entry_idx+1}")
 
         if bom_entry.sizes:
             for size_entry in bom_entry.sizes:

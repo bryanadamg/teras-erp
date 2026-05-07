@@ -64,58 +64,73 @@ async def create_sales_order(payload: SalesOrderCreate, db: AsyncSession = Depen
     # Refresh with eager loading
     final_result = await db.execute(
         select(SalesOrder)
-        .options(selectinload(SalesOrder.lines).selectinload(SalesOrderLine.attribute_values))
+        .options(
+            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.attribute_values),
+            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.item),
+        )
         .filter(SalesOrder.id == so.id)
     )
     so_refreshed = final_result.scalars().first()
-    
-    # Manually populate attribute_value_ids for the response
+
     for line in so_refreshed.lines:
         line.attribute_value_ids = [v.id for v in line.attribute_values]
-        
+        if line.item:
+            line.item_name = line.item.name
+            line.item_code = line.item.code
+
     return so_refreshed
 
 @router.get("", response_model=list[SalesOrderResponse])
 async def get_sales_orders(db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(
         select(SalesOrder)
-        .options(selectinload(SalesOrder.lines).selectinload(SalesOrderLine.attribute_values))
+        .options(
+            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.attribute_values),
+            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.item),
+        )
         .order_by(SalesOrder.created_at.desc())
     )
     orders = result.scalars().all()
-    
-    # Manually populate attribute_value_ids for the response
+
     for so in orders:
         for line in so.lines:
             line.attribute_value_ids = [v.id for v in line.attribute_values]
-            
+            if line.item:
+                line.item_name = line.item.name
+                line.item_code = line.item.code
+
     return orders
 
 @router.put("/{so_id}/status", response_model=SalesOrderResponse)
 async def update_sales_order_status(so_id: uuid.UUID, status: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(
         select(SalesOrder)
-        .options(selectinload(SalesOrder.lines).selectinload(SalesOrderLine.attribute_values))
+        .options(
+            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.attribute_values),
+            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.item),
+        )
         .filter(SalesOrder.id == so_id)
     )
     so = result.scalars().first()
     if not so:
         raise HTTPException(status_code=404, detail="SO not found")
-    
+
     prev_status = so.status
     valid_statuses = ["PENDING", "READY", "SENT", "DELIVERED", "CANCELLED"]
     if status not in valid_statuses:
         raise HTTPException(status_code=400, detail="Invalid status")
-    
+
     so.status = status
     if status == "DELIVERED":
         so.delivered_at = datetime.utcnow()
-    
+
     await db.commit()
-    
-    # Populate attribute_value_ids
+
     for line in so.lines:
         line.attribute_value_ids = [v.id for v in line.attribute_values]
+        if line.item:
+            line.item_name = line.item.name
+            line.item_code = line.item.code
     
     await audit_service.log_activity(
         db,
