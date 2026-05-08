@@ -609,6 +609,24 @@ export default function ManufacturingView({
       const isScanActive = scanningWOId === wo.id;
       const classic = currentStyle === 'classic';
 
+      // Compute per-parent-MO breakdown for shared component MOs (⇒ nodes)
+      const parentMOBreakdown: Array<{ mo: any; qty: number }> = [];
+      if (selectedNode.id !== wo.id && Object.keys(moMap).length > 0) {
+          for (const mo of Object.values(moMap) as any[]) {
+              if ((mo.required_mo_ids || []).includes(selectedNode.id)) {
+                  const parentBOM = boms.find((b: any) => b.id === mo.bom_id);
+                  const parentLine = parentBOM?.lines?.find((l: any) => l.item_id === selectedNode.item_id);
+                  if (parentLine) {
+                      parentMOBreakdown.push({
+                          mo,
+                          qty: calculateRequiredQty(mo.qty, parentLine, parentBOM),
+                      });
+                  }
+              }
+          }
+      }
+      const showBreakdown = parentMOBreakdown.length > 0;
+
       const selectNode = (nodeId: string) => {
           setSelectedTreeNodes(prev => ({ ...prev, [wo.id]: nodeId }));
           if (scanningWOId === wo.id) setScanningWOId(null);
@@ -751,7 +769,7 @@ export default function ManufacturingView({
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
                               <thead>
                                   <tr style={{ background: classic ? 'linear-gradient(to bottom,#fff,#d4d0c8)' : '#f8f9fa', position: 'sticky', top: 0 }}>
-                                      {['Component', 'Variant', 'Required', 'In Stock', 'Source'].map(h => (
+                                      {['Component', 'Variant', 'Required', ...(showBreakdown ? ['Breakdown'] : []), 'In Stock', 'Source'].map(h => (
                                           <th key={h} style={{ border: classic ? '1px solid #808080' : '1px solid #dee2e6', padding: '3px 6px', textAlign: h === 'Required' || h === 'In Stock' ? 'right' : 'left', color: '#000', fontSize: '10px' }}>{h}</th>
                                       ))}
                                   </tr>
@@ -780,6 +798,20 @@ export default function ManufacturingView({
                                               </td>
                                               <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', color: '#333', fontSize: '10px' }}>{attrLabel || '—'}</td>
                                               <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', textAlign: 'right', fontFamily: 'monospace', color: '#000', fontWeight: 'bold' }}>{req.toFixed(2)}</td>
+                                              {showBreakdown && (
+                                                  <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', verticalAlign: 'top' }}>
+                                                      {parentMOBreakdown.map(({ mo, qty: parentContrib }) => {
+                                                          const proportion = selectedNode.qty > 0 ? parentContrib / selectedNode.qty : 0;
+                                                          const componentShare = req * proportion;
+                                                          return (
+                                                              <div key={mo.id} style={{ fontSize: '10px', display: 'flex', gap: 6, whiteSpace: 'nowrap', justifyContent: 'space-between' }}>
+                                                                  <span style={{ fontFamily: 'monospace', color: '#666' }}>{mo.code}:</span>
+                                                                  <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#000' }}>{componentShare.toFixed(2)}</span>
+                                                              </div>
+                                                          );
+                                                      })}
+                                                  </td>
+                                              )}
                                               <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', textAlign: 'right' }}>
                                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
                                                       <span style={{ fontFamily: 'monospace', color: isEnough ? '#004400' : available > 0 ? '#664400' : '#880000', fontWeight: 'bold' }}>{available.toFixed(2)}</span>
