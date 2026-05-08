@@ -182,10 +182,24 @@ class BOMResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class MOCompletionItemCreate(BaseModel):
+    item_id: UUID
+    qty_used: float
+
+class MOCompletionItemResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    item_id: UUID
+    item_code: str | None = None
+    item_name: str | None = None
+    qty_used: float
+
 class MOCompletionCreate(BaseModel):
     qty_completed: float
     operator_name: str | None = None
     notes: str | None = None
+    work_center_id: UUID | None = None
+    actual_items: list[MOCompletionItemCreate] = []
 
 class MOCompletionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -194,6 +208,9 @@ class MOCompletionResponse(BaseModel):
     qty_completed: float
     operator_name: str | None = None
     notes: str | None = None
+    work_center_id: UUID | None = None
+    work_center_name: str | None = None
+    actual_items: list[MOCompletionItemResponse] = []
     created_at: datetime
 
 class ManufacturingOrderCreate(BaseModel):

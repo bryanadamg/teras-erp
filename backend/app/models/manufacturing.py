@@ -10,6 +10,8 @@ from sqlalchemy.sql import func
 if TYPE_CHECKING:
     from app.models.production_run import ProductionRun
     from app.models.work_order import WorkOrder
+    from app.models.routing import WorkCenter
+    from app.models.item import Item
 
 # Association table for ManufacturingOrder <-> AttributeValue
 manufacturing_order_values = Table(
@@ -159,6 +161,35 @@ class MOCompletion(Base):
     qty_completed: Mapped[float] = mapped_column(Numeric(14, 4))
     operator_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    work_center_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("work_centers.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
     mo = relationship("ManufacturingOrder", back_populates="completions")
+    work_center: Mapped[Optional["WorkCenter"]] = relationship("WorkCenter", lazy="joined")
+    actual_items: Mapped[List["MOCompletionItem"]] = relationship(
+        "MOCompletionItem", back_populates="completion", cascade="all, delete-orphan", lazy="joined"
+    )
+
+    @property
+    def work_center_name(self) -> str | None:
+        return self.work_center.name if self.work_center else None
+
+
+class MOCompletionItem(Base):
+    __tablename__ = "mo_completion_items"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    completion_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("mo_completions.id", ondelete="CASCADE"), index=True)
+    item_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("items.id"))
+    qty_used: Mapped[float] = mapped_column(Numeric(14, 4))
+
+    completion: Mapped["MOCompletion"] = relationship("MOCompletion", back_populates="actual_items")
+    item: Mapped["Item"] = relationship("Item", lazy="joined")
+
+    @property
+    def item_code(self) -> str | None:
+        return self.item.code if self.item else None
+
+    @property
+    def item_name(self) -> str | None:
+        return self.item.name if self.item else None

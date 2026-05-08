@@ -4,7 +4,7 @@ from sqlalchemy import select, func, or_, inspect
 from sqlalchemy.orm import selectinload, joinedload, attributes as sa_attributes
 from collections import defaultdict
 from app.db.session import get_async_db
-from app.models.manufacturing import ManufacturingOrder, MOCompletion, MODependency
+from app.models.manufacturing import ManufacturingOrder, MOCompletion, MODependency, MOCompletionItem
 from app.models.work_order import WorkOrder as WorkOrderModel  # noqa: F401 — eager load
 from app.models.bom import BOM, BOMLine, BOMSize
 from app.models.location import Location
@@ -15,7 +15,7 @@ from app.schemas import (
     PaginatedManufacturingOrderResponse,
     MOCompleteWithBatchesPayload,
     BatchConsumptionInMO,
-    MOCompletionCreate, MOCompletionResponse,
+    MOCompletionCreate, MOCompletionResponse, MOCompletionItemCreate,
 )
 from app.models.auth import User
 from app.api.auth import get_current_user
@@ -634,12 +634,33 @@ async def add_mo_completion(
         qty_completed=payload.qty_completed,
         operator_name=payload.operator_name,
         notes=payload.notes,
+        work_center_id=payload.work_center_id,
     )
     db.add(completion)
     await db.flush()
 
-    # Proportional raw material deduction for this entry
-    if mo.bom:
+    # Save actual items used (substitutes)
+    for ai in payload.actual_items:
+        db.add(MOCompletionItem(
+            completion_id=completion.id,
+            item_id=ai.item_id,
+            qty_used=ai.qty_used,
+        ))
+
+    # Stock deduction: use actual items if provided, otherwise BOM proportional
+    if payload.actual_items:
+        source_loc = mo.source_location_id or mo.location_id
+        for ai in payload.actual_items:
+            await stock_service.add_stock_entry(
+                db,
+                item_id=ai.item_id,
+                location_id=source_loc,
+                qty_change=-float(ai.qty_used),
+                reference_type="Manufacturing Order",
+                reference_id=mo.code,
+                attribute_value_ids=[],
+            )
+    elif mo.bom:
         for line in mo.bom.lines:
             if not line.percentage:
                 continue

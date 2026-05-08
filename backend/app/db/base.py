@@ -19,7 +19,7 @@ from app.models.category import Category
 from app.models.size import Size
 from app.models.bom import BOM, BOMLine, bom_values, bom_line_values, BOMOperation, BOMSize
 from app.models.production_run import ProductionRun, PRBomEntry, PRBomEntrySize
-from app.models.manufacturing import ManufacturingOrder, manufacturing_order_values
+from app.models.manufacturing import ManufacturingOrder, manufacturing_order_values, MOCompletion, MOCompletionItem
 from app.models.work_order import WorkOrder
 from app.models.stock_ledger import StockLedger, stock_ledger_values
 from app.models.variant import Variant

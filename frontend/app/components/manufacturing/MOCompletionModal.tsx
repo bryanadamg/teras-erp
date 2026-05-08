@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../shared/Toast';
+import SearchableSelect from '../shared/SearchableSelect';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -26,6 +27,11 @@ const xpBtn = (primary?: boolean): React.CSSProperties => primary ? {
     cursor: 'pointer',
 };
 
+interface ActualItem {
+    item_id: string;
+    qty_used: string;
+}
+
 interface MOCompletionModalProps {
     mo: any;
     onClose: () => void;
@@ -33,7 +39,7 @@ interface MOCompletionModalProps {
 }
 
 export default function MOCompletionModal({ mo, onClose, onSaved }: MOCompletionModalProps) {
-    const { authFetch } = useData();
+    const { authFetch, workCenters, items } = useData() as any;
     const { showToast } = useToast();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
@@ -41,6 +47,8 @@ export default function MOCompletionModal({ mo, onClose, onSaved }: MOCompletion
     const [qtyCompleted, setQtyCompleted] = useState('');
     const [operatorName, setOperatorName] = useState('');
     const [notes, setNotes] = useState('');
+    const [workCenterId, setWorkCenterId] = useState('');
+    const [actualItems, setActualItems] = useState<ActualItem[]>([]);
     const [submitting, setSubmitting] = useState(false);
 
     const totalCompleted = mo.qty_completed_total ?? 0;
@@ -48,12 +56,23 @@ export default function MOCompletionModal({ mo, onClose, onSaved }: MOCompletion
     const remaining = Math.max(0, target - totalCompleted);
     const pct = target > 0 ? Math.min(100, Math.round((totalCompleted / target) * 100)) : 0;
 
+    const addActualItem = () => setActualItems(prev => [...prev, { item_id: '', qty_used: '' }]);
+    const removeActualItem = (idx: number) => setActualItems(prev => prev.filter((_, i) => i !== idx));
+    const updateActualItem = (idx: number, field: keyof ActualItem, value: string) =>
+        setActualItems(prev => prev.map((row, i) => i === idx ? { ...row, [field]: value } : row));
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const qty = parseFloat(qtyCompleted);
         if (!qty || qty <= 0) {
             showToast('Enter a positive quantity', 'danger');
             return;
+        }
+        for (const ai of actualItems) {
+            if (!ai.item_id || !ai.qty_used || parseFloat(ai.qty_used) <= 0) {
+                showToast('Each actual item row needs an item and a positive quantity', 'danger');
+                return;
+            }
         }
         setSubmitting(true);
         try {
@@ -64,6 +83,11 @@ export default function MOCompletionModal({ mo, onClose, onSaved }: MOCompletion
                     qty_completed: qty,
                     operator_name: operatorName || null,
                     notes: notes || null,
+                    work_center_id: workCenterId || null,
+                    actual_items: actualItems.map(ai => ({
+                        item_id: ai.item_id,
+                        qty_used: parseFloat(ai.qty_used),
+                    })),
                 }),
             });
             if (!res.ok) {
@@ -83,12 +107,19 @@ export default function MOCompletionModal({ mo, onClose, onSaved }: MOCompletion
 
     const completions = mo.completions ? [...mo.completions].reverse() : [];
 
+    const wcOptions = (workCenters || []).map((wc: any) => ({
+        value: wc.id, label: wc.name, subLabel: wc.code,
+    }));
+    const itemOptions = (items || []).map((it: any) => ({
+        value: it.id, label: it.name, subLabel: it.code,
+    }));
+
     return createPortal(
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ width: 420, background: '#ece9d8', border: '2px solid #0a246a', fontFamily: xpFont, borderRadius: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ width: 480, background: '#ece9d8', border: '2px solid #0a246a', fontFamily: xpFont, borderRadius: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
 
                 {/* Title bar */}
-                <div style={{ background: 'linear-gradient(to right, #0a246a, #a6caf0, #0a246a)', padding: '3px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none' }}>
+                <div style={{ background: 'linear-gradient(to right, #0a246a, #a6caf0, #0a246a)', padding: '3px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none', flexShrink: 0 }}>
                     <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 12, textShadow: '1px 1px 2px rgba(0,0,0,0.6)' }}>
                         Log Completion — {mo.code}
                     </span>
@@ -96,7 +127,7 @@ export default function MOCompletionModal({ mo, onClose, onSaved }: MOCompletion
                 </div>
 
                 {/* Body */}
-                <form onSubmit={handleSubmit}>
+                <form onSubmit={handleSubmit} style={{ overflowY: 'auto', flex: 1 }}>
                     <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
 
                         {/* Product info + progress */}
@@ -148,6 +179,63 @@ export default function MOCompletionModal({ mo, onClose, onSaved }: MOCompletion
                                     <input type="text" style={xpInput} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Batch, shift, remarks..." />
                                 </div>
                             </div>
+                            {/* Work Center */}
+                            <div>
+                                <label style={xpLabel}>Work Center / Machine</label>
+                                <SearchableSelect
+                                    options={wcOptions}
+                                    value={workCenterId}
+                                    onChange={setWorkCenterId}
+                                    placeholder="Select machine (optional)…"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Actual Items Used */}
+                        <div style={{ border: '1px solid #aca899', background: '#f5f4ee', position: 'relative', paddingTop: 10 }}>
+                            <span style={{ position: 'absolute', top: -7, left: 8, background: '#f5f4ee', padding: '0 4px', fontSize: 10, fontWeight: 'bold', color: '#000080' }}>
+                                Actual Items Used
+                            </span>
+                            <div style={{ padding: '4px 8px 8px' }}>
+                                {actualItems.length === 0 && (
+                                    <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>
+                                        No substitutes — BOM materials will be deducted automatically.
+                                    </div>
+                                )}
+                                {actualItems.map((row, idx) => (
+                                    <div key={idx} style={{ display: 'flex', gap: 6, alignItems: 'flex-end', marginBottom: 4 }}>
+                                        <div style={{ flex: 3 }}>
+                                            {idx === 0 && <label style={xpLabel}>Item</label>}
+                                            <SearchableSelect
+                                                options={itemOptions}
+                                                value={row.item_id}
+                                                onChange={v => updateActualItem(idx, 'item_id', v)}
+                                                placeholder="Select item…"
+                                            />
+                                        </div>
+                                        <div style={{ flex: 1 }}>
+                                            {idx === 0 && <label style={xpLabel}>Qty Used</label>}
+                                            <input
+                                                type="number"
+                                                style={xpInput}
+                                                value={row.qty_used}
+                                                onChange={e => updateActualItem(idx, 'qty_used', e.target.value)}
+                                                min="0.0001"
+                                                step="any"
+                                                placeholder="0"
+                                            />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeActualItem(idx)}
+                                            style={{ ...xpBtn(), padding: '0 6px', height: 20, lineHeight: '18px', color: '#900', flexShrink: 0 }}
+                                        >×</button>
+                                    </div>
+                                ))}
+                                <button type="button" onClick={addActualItem} style={{ ...xpBtn(), fontSize: 10, padding: '1px 8px' }}>
+                                    + Add Item
+                                </button>
+                            </div>
                         </div>
 
                         {/* History */}
@@ -156,12 +244,14 @@ export default function MOCompletionModal({ mo, onClose, onSaved }: MOCompletion
                                 <span style={{ position: 'absolute', top: -7, left: 8, background: '#f5f4ee', padding: '0 4px', fontSize: 10, fontWeight: 'bold', color: '#000080' }}>
                                     Previous Entries
                                 </span>
-                                <div style={{ maxHeight: 120, overflowY: 'auto' }}>
+                                <div style={{ maxHeight: 140, overflowY: 'auto' }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10, fontFamily: xpFont }}>
                                         <thead>
                                             <tr style={{ background: '#dddbd0' }}>
                                                 <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>Qty</th>
                                                 <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Operator</th>
+                                                <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Machine</th>
+                                                <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Items Used</th>
                                                 <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Time</th>
                                             </tr>
                                         </thead>
@@ -170,6 +260,12 @@ export default function MOCompletionModal({ mo, onClose, onSaved }: MOCompletion
                                                 <tr key={c.id} style={{ background: i % 2 === 0 ? '#fff' : '#f5f4ee' }}>
                                                     <td style={{ padding: '2px 6px', textAlign: 'right', fontWeight: 'bold' }}>{parseFloat(c.qty_completed).toFixed(2)}</td>
                                                     <td style={{ padding: '2px 6px', color: '#555' }}>{c.operator_name || '—'}</td>
+                                                    <td style={{ padding: '2px 6px', color: '#555' }}>{c.work_center_name || '—'}</td>
+                                                    <td style={{ padding: '2px 6px', color: '#555' }}>
+                                                        {c.actual_items && c.actual_items.length > 0
+                                                            ? c.actual_items.map((ai: any) => `${ai.item_code || ai.item_id} ×${parseFloat(ai.qty_used).toFixed(2)}`).join(', ')
+                                                            : '—'}
+                                                    </td>
                                                     <td style={{ padding: '2px 6px', color: '#555' }}>{new Date(c.created_at).toLocaleString()}</td>
                                                 </tr>
                                             ))}
@@ -181,7 +277,7 @@ export default function MOCompletionModal({ mo, onClose, onSaved }: MOCompletion
                     </div>
 
                     {/* Footer */}
-                    <div style={{ borderTop: '1px solid #aca899', padding: '6px 10px', display: 'flex', justifyContent: 'flex-end', gap: 6, background: '#ece9d8' }}>
+                    <div style={{ borderTop: '1px solid #aca899', padding: '6px 10px', display: 'flex', justifyContent: 'flex-end', gap: 6, background: '#ece9d8', flexShrink: 0 }}>
                         <button type="button" onClick={onClose} style={xpBtn()}>Cancel</button>
                         <button type="submit" disabled={submitting} style={{ ...xpBtn(true), opacity: submitting ? 0.6 : 1 }}>
                             {submitting ? 'Saving...' : 'Log Completion'}
