@@ -487,6 +487,34 @@ def run_migrations():
                 conn.rollback()
                 logger.warning(f"mo_completions table creation failed: {e}")
 
+            # ── MO Completion: work_center_id column ──────────────────────────────────
+            try:
+                conn.execute(text("""
+                    ALTER TABLE mo_completions
+                    ADD COLUMN IF NOT EXISTS work_center_id UUID REFERENCES work_centers(id)
+                """))
+                conn.commit()
+                logger.info("Migration: Added work_center_id to mo_completions")
+            except Exception as e:
+                conn.rollback()
+                logger.warning(f"mo_completions.work_center_id migration failed: {e}")
+
+            # ── MO Completion Items ───────────────────────────────────────────────────
+            try:
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS mo_completion_items (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        completion_id UUID NOT NULL REFERENCES mo_completions(id) ON DELETE CASCADE,
+                        item_id UUID NOT NULL REFERENCES items(id),
+                        qty_used NUMERIC(14,4) NOT NULL
+                    )
+                """))
+                conn.commit()
+                logger.info("Migration: Created mo_completion_items table")
+            except Exception as e:
+                conn.rollback()
+                logger.warning(f"mo_completion_items table creation failed: {e}")
+
             # ── Batch / Lot Tracking ───────────────────────────────────────────────────
 
             # Create batches table
