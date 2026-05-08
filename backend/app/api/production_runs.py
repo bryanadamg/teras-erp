@@ -5,7 +5,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from app.db.session import get_async_db
 from uuid import UUID
 from app.models.production_run import ProductionRun
-from app.models.manufacturing import ManufacturingOrder, MODependency
+from app.models.manufacturing import ManufacturingOrder, MODependency, MOPlannedComponent
 from app.models.bom import BOM, BOMLine, BOMSize
 from app.models.work_order import WorkOrder as WorkOrderModel
 from app.models.location import Location
@@ -143,6 +143,7 @@ def _pr_load_options():
         mos.selectinload(ManufacturingOrder.bom).selectinload(BOM.lines).selectinload(BOMLine.attribute_values),
         mos.selectinload(ManufacturingOrder.bom).selectinload(BOM.operations),
         mos.selectinload(ManufacturingOrder.bom).selectinload(BOM.sizes).selectinload(BOMSize.size),
+        mos.selectinload(ManufacturingOrder.planned_components),
     ]
 
 
@@ -221,22 +222,20 @@ async def get_production_run_material_requirements(
     agg: dict[tuple, dict] = defaultdict(lambda: {"total_required": 0.0, "mo_contributions": []})
 
     for mo in pr.manufacturing_orders:
-        if not mo.bom:
-            continue
-        for line in mo.bom.lines:
-            if not line.percentage and not line.qty:
+        for comp in mo.planned_components:
+            if not comp.percentage and not comp.qty:
                 continue
-            req = (float(mo.qty) * float(line.percentage)) / 100 if line.percentage else float(mo.qty) * float(line.qty)
-            tol = float(mo.bom.tolerance_percentage or 0)
+            req = (float(mo.qty) * float(comp.percentage)) / 100 if comp.percentage else float(mo.qty) * float(comp.qty)
+            tol = float(mo.bom.tolerance_percentage or 0) if mo.bom else 0
             if tol > 0:
                 req *= (1 + tol / 100)
 
-            attr_ids = sorted([str(v.id) for v in line.attribute_values])
+            attr_ids = sorted(comp.attribute_value_ids)
             attr_key = ",".join(attr_ids)
-            loc_id = line.source_location_id or mo.source_location_id or mo.location_id or pr.source_location_id or pr.location_id
-            key = (str(line.item_id), attr_key, str(loc_id))
+            loc_id = comp.source_location_id or mo.source_location_id or mo.location_id or pr.source_location_id or pr.location_id
+            key = (str(comp.item_id), attr_key, str(loc_id))
 
-            agg[key]["item_id"] = line.item_id
+            agg[key]["item_id"] = comp.item_id
             agg[key]["attr_ids"] = attr_ids
             agg[key]["location_id"] = loc_id
             agg[key]["total_required"] += req

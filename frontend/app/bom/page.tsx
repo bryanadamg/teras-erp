@@ -39,6 +39,12 @@ export default function BOMPage() {
         return res;
     };
 
+    const handleUpdateBOM = async (id: string, p: any) => {
+        const res = await authFetch(`${API_BASE}/boms/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+        if (res.ok) fetchData();
+        return res;
+    };
+
     const handleDeleteBOM = async (id: string) => {
         const confirmed = await confirm({
             title: 'Delete BOM',
@@ -98,6 +104,7 @@ export default function BOMPage() {
                 workCenters={workCenters}
                 partners={partners}
                 onCreateBOM={handleCreateBOM}
+                onUpdateBOM={handleUpdateBOM}
                 onUploadBOMPhoto={handleUploadBOMPhoto}
                 onUploadBOMDesign={handleUploadBOMDesign}
                 onDeleteBOM={handleDeleteBOM}

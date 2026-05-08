@@ -49,7 +49,7 @@ const xpSectionHdr: React.CSSProperties = {
 
 export default function BOMView({
     items, boms, locations, attributes, sizes, workCenters, operations, partners,
-    onCreateBOM, onDeleteBOM, onDeleteMultipleBOMs, onCreateItem, onSearchItem,
+    onCreateBOM, onUpdateBOM, onDeleteBOM, onDeleteMultipleBOMs, onCreateItem, onSearchItem,
     onUploadBOMPhoto, onUploadBOMDesign,
     companyProfile,
     initialCreateState, onClearInitialState,
@@ -61,6 +61,7 @@ export default function BOMView({
     const classic = currentStyle === 'classic';
 
     const [isDesignerOpen, setIsDesignerOpen] = useState(false);
+    const [editingBOM, setEditingBOM] = useState<any>(null);
     const [printBOM, setPrintBOM] = useState<any>(null);
     const [startPRBom, setStartPRBom] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -175,7 +176,9 @@ export default function BOMView({
         }
     }, [initialCreateState, items]);
 
-    const handleCloseDesigner = () => { setIsDesignerOpen(false); if (onClearInitialState) onClearInitialState(); };
+    const handleCloseDesigner = () => { setIsDesignerOpen(false); setEditingBOM(null); if (onClearInitialState) onClearInitialState(); };
+
+    const handleEditBOM = (bom: any) => { setEditingBOM(bom); setIsDesignerOpen(true); };
 
     const handleCreateBOMWrapper = async (bomData: any) => {
         const cleaned = {
@@ -191,19 +194,24 @@ export default function BOMView({
                 measurement_max: s.measurement_max,
             })),
         };
-        const res = await onCreateBOM(cleaned);
+
+        const isEdit = !!editingBOM;
+        const res = isEdit
+            ? await onUpdateBOM(editingBOM.id, cleaned)
+            : await onCreateBOM(cleaned);
+
         if (res?.status === 400) {
             const err = await res.json();
-            showToast(`Error creating BOM ${bomData.code}: ${err.detail || 'Duplicate?'}`, 'warning');
-            throw new Error(err.detail || 'Duplicate');
+            showToast(`Error saving BOM ${bomData.code}: ${err.detail || 'Invalid data'}`, 'warning');
+            throw new Error(err.detail || 'Invalid');
         } else if (res?.status === 404) {
             const err = await res.json();
             showToast(`Failed to save BOM ${bomData.code}: ${err.detail}`, 'danger');
-            throw new Error(err.detail || 'Item not found');
+            throw new Error(err.detail || 'Not found');
         } else if (res?.ok) {
-            const created = await res.json();
-            showToast(`BOM ${bomData.code} saved`, 'success');
-            return created.id;
+            const saved = await res.json();
+            showToast(`BOM ${bomData.code} ${isEdit ? 'updated' : 'saved'}`, 'success');
+            return saved.id;
         } else {
             try { const err = await res.json(); showToast(`Failed to save BOM ${bomData.code}: ${err.detail}`, 'danger'); } catch (_) { showToast(`Failed to save BOM ${bomData.code}`, 'danger'); }
             throw new Error('Failed');
@@ -690,14 +698,15 @@ export default function BOMView({
                         <div style={{ background: 'linear-gradient(to right, #0a246a, #a6caf0, #0a246a)', padding: '3px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, userSelect: 'none' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                 <i className="bi bi-collection-fill" style={{ fontSize: 14 }} />
-                                <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 12, fontFamily: 'Tahoma, "Segoe UI", sans-serif', textShadow: '1px 1px 2px rgba(0,0,0,0.6)' }}>BOM Designer (Recursive)</span>
+                                <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 12, fontFamily: 'Tahoma, "Segoe UI", sans-serif', textShadow: '1px 1px 2px rgba(0,0,0,0.6)' }}>{editingBOM ? `Edit BOM: ${editingBOM.code}` : 'BOM Designer (Recursive)'}</span>
                             </div>
                             <button onClick={() => setIsDesignerOpen(false)} style={{ width: 21, height: 21, padding: 0, background: 'linear-gradient(to bottom, #e06060, #b03030)', border: '1px solid #800', borderRadius: 2, cursor: 'pointer', color: '#fff', fontSize: 12, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>✕</button>
                         </div>
                         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                             <BOMDesigner
-                                rootItemCode={initialItemCode || ''}
-                                initialAttributeValueIds={initialAttributeIds}
+                                rootItemCode={editingBOM ? editingBOM.item_code : (initialItemCode || '')}
+                                initialAttributeValueIds={editingBOM ? (editingBOM.attribute_value_ids || []) : initialAttributeIds}
+                                initialBOMData={editingBOM || null}
                                 items={items} locations={locations || []} attributes={attributes}
                                 sizes={sizes || []}
                                 partners={partners || []}
@@ -874,6 +883,14 @@ export default function BOMView({
                                                     </td>
                                                     <td style={classic ? { padding: '5px 6px', textAlign: 'right', verticalAlign: 'top' } : undefined} className={classic ? '' : 'pe-4 text-end align-top'}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'flex-end' }}>
+                                                            <button
+                                                                title="Edit BOM"
+                                                                style={classic ? { background: 'none', border: 'none', cursor: 'pointer', color: '#00508a', padding: '0 2px' } : undefined}
+                                                                className={classic ? '' : 'btn btn-sm btn-link text-primary'}
+                                                                onClick={() => handleEditBOM(bom)}
+                                                            >
+                                                                <i className="bi bi-pencil" />
+                                                            </button>
                                                             <button
                                                                 style={classic ? { background: 'none', border: 'none', cursor: 'pointer', color: '#a00', padding: '0 2px' } : undefined}
                                                                 className={classic ? '' : 'btn btn-sm btn-link text-danger'}

@@ -255,6 +255,7 @@ function applyFieldsToDescendants(node: BOMNodeData, fields: InheritableFields):
 export default function BOMDesigner({
     rootItemCode,
     initialAttributeValueIds,
+    initialBOMData,
     items,
     locations,
     attributes,
@@ -272,20 +273,74 @@ export default function BOMDesigner({
 }: any) {
     const { t } = useLanguage();
 
-    const [rootBOM, setRootBOM] = useState<BOMNodeData>({
-        id: 'root', code: '',
-        item_code: rootItemCode || '',
-        attribute_value_ids: initialAttributeValueIds || [],
-        qty: 1.0, tolerance_percentage: 0.0,
-        operations: [], lines: [], sizes: [],
-        kerapatan_picks: null, kerapatan_unit: '/cm',
-        sisir_no: null, pemakaian_obat: '', pembuatan_sample_oleh: '',
-        customer_id: '', work_center_id: '', sizeMode: 'sized',
-        berat_bahan_mateng: null, berat_bahan_mentah_pelesan: null,
-        mesin_lebar: null, mesin_panjang_tulisan: null, mesin_panjang_tarikan: null,
-        mesin_panjang_tarikan_bandul_1kg: null, mesin_panjang_tarikan_bandul_9kg: null,
-        celup_lebar: null, celup_panjang_tulisan: null, celup_panjang_tarikan: null,
-        celup_panjang_tarikan_bandul_1kg: null, celup_panjang_tarikan_bandul_9kg: null,
+    const [rootBOM, setRootBOM] = useState<BOMNodeData>(() => {
+        if (initialBOMData) {
+            return {
+                id: 'root',
+                code: initialBOMData.code || '',
+                item_code: initialBOMData.item_code || '',
+                attribute_value_ids: (initialBOMData.attribute_value_ids || []).map(String),
+                qty: initialBOMData.qty ?? 1.0,
+                tolerance_percentage: initialBOMData.tolerance_percentage ?? 0.0,
+                operations: (initialBOMData.operations || []).map((op: any) => ({
+                    operation_id: op.operation_id || null,
+                    work_center_id: op.work_center_id || null,
+                    sequence: op.sequence ?? 10,
+                    time_minutes: op.time_minutes ?? 0,
+                })),
+                lines: (initialBOMData.lines || []).map((l: any) => ({
+                    id: l.id || Math.random().toString(36),
+                    item_code: l.item_code || '',
+                    attribute_value_ids: (l.attribute_value_ids || []).map(String),
+                    percentage: l.percentage ?? 0,
+                    source_location_code: locations?.find((loc: any) => loc.id === l.source_location_id)?.code || '',
+                    subBOM: undefined,
+                    isNewItem: false,
+                })),
+                sizes: (initialBOMData.sizes || []).map((s: any) => ({
+                    size_id: s.size_id || null,
+                    label: s.label || null,
+                    target_measurement: s.target_measurement ?? null,
+                    measurement_min: s.measurement_min ?? null,
+                    measurement_max: s.measurement_max ?? null,
+                })),
+                sizeMode: initialBOMData.size_mode || 'sized',
+                kerapatan_picks: initialBOMData.kerapatan_picks ?? null,
+                kerapatan_unit: initialBOMData.kerapatan_unit || '/cm',
+                sisir_no: initialBOMData.sisir_no ?? null,
+                pemakaian_obat: initialBOMData.pemakaian_obat || '',
+                pembuatan_sample_oleh: initialBOMData.pembuatan_sample_oleh || '',
+                customer_id: initialBOMData.customer_id || '',
+                work_center_id: initialBOMData.work_center_id || '',
+                berat_bahan_mateng: initialBOMData.berat_bahan_mateng ?? null,
+                berat_bahan_mentah_pelesan: initialBOMData.berat_bahan_mentah_pelesan ?? null,
+                mesin_lebar: initialBOMData.mesin_lebar ?? null,
+                mesin_panjang_tulisan: initialBOMData.mesin_panjang_tulisan ?? null,
+                mesin_panjang_tarikan: initialBOMData.mesin_panjang_tarikan ?? null,
+                mesin_panjang_tarikan_bandul_1kg: initialBOMData.mesin_panjang_tarikan_bandul_1kg ?? null,
+                mesin_panjang_tarikan_bandul_9kg: initialBOMData.mesin_panjang_tarikan_bandul_9kg ?? null,
+                celup_lebar: initialBOMData.celup_lebar ?? null,
+                celup_panjang_tulisan: initialBOMData.celup_panjang_tulisan ?? null,
+                celup_panjang_tarikan: initialBOMData.celup_panjang_tarikan ?? null,
+                celup_panjang_tarikan_bandul_1kg: initialBOMData.celup_panjang_tarikan_bandul_1kg ?? null,
+                celup_panjang_tarikan_bandul_9kg: initialBOMData.celup_panjang_tarikan_bandul_9kg ?? null,
+            };
+        }
+        return {
+            id: 'root', code: '',
+            item_code: rootItemCode || '',
+            attribute_value_ids: initialAttributeValueIds || [],
+            qty: 1.0, tolerance_percentage: 0.0,
+            operations: [], lines: [], sizes: [],
+            kerapatan_picks: null, kerapatan_unit: '/cm',
+            sisir_no: null, pemakaian_obat: '', pembuatan_sample_oleh: '',
+            customer_id: '', work_center_id: '', sizeMode: 'sized',
+            berat_bahan_mateng: null, berat_bahan_mentah_pelesan: null,
+            mesin_lebar: null, mesin_panjang_tulisan: null, mesin_panjang_tarikan: null,
+            mesin_panjang_tarikan_bandul_1kg: null, mesin_panjang_tarikan_bandul_9kg: null,
+            celup_lebar: null, celup_panjang_tulisan: null, celup_panjang_tarikan: null,
+            celup_panjang_tarikan_bandul_1kg: null, celup_panjang_tarikan_bandul_9kg: null,
+        };
     });
 
     const [selectedNodeId, setSelectedNodeId] = useState<string>('root');

@@ -664,6 +664,28 @@ def run_migrations():
                 conn.rollback()
                 logger.warning(f"production_runs.bom_id nullable migration failed: {e}")
 
+            try:
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS mo_planned_components (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        mo_id UUID NOT NULL REFERENCES manufacturing_orders(id) ON DELETE CASCADE,
+                        item_id UUID NOT NULL REFERENCES items(id),
+                        percentage NUMERIC(6,2) NOT NULL DEFAULT 0,
+                        qty NUMERIC(14,4) NOT NULL DEFAULT 0,
+                        source_location_id UUID REFERENCES locations(id),
+                        bom_line_id UUID REFERENCES bom_lines(id) ON DELETE SET NULL,
+                        attribute_value_ids JSONB NOT NULL DEFAULT '[]'
+                    )
+                """))
+                conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_mo_planned_components_mo_id ON mo_planned_components(mo_id)"
+                ))
+                conn.commit()
+                logger.info("Migration: Created mo_planned_components table")
+            except Exception as e:
+                conn.rollback()
+                logger.warning(f"mo_planned_components table creation failed: {e}")
+
     except Exception as e:
         logger.error(f"Migration engine failed: {e}")
 

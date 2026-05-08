@@ -1,4 +1,4 @@
-from sqlalchemy import String, ForeignKey, Numeric, DateTime, Table, Column, Boolean
+from sqlalchemy import String, ForeignKey, Numeric, DateTime, Table, Column, Boolean, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
@@ -104,6 +104,12 @@ class ManufacturingOrder(Base):
     # Relationships
     bom = relationship("BOM", back_populates="manufacturing_orders")
     item = relationship("Item")
+    planned_components: Mapped[List["MOPlannedComponent"]] = relationship(
+        "MOPlannedComponent",
+        back_populates="mo",
+        cascade="all, delete-orphan",
+        lazy="noload",
+    )
     attribute_values = relationship("AttributeValue", secondary=manufacturing_order_values)
     parent_mo = relationship("ManufacturingOrder", remote_side=[id], backref="child_mos")
     sales_order = relationship("SalesOrder", foreign_keys=[sales_order_id], lazy="noload")
@@ -193,3 +199,26 @@ class MOCompletionItem(Base):
     @property
     def item_name(self) -> str | None:
         return self.item.name if self.item else None
+
+
+class MOPlannedComponent(Base):
+    """Snapshot of BOM lines captured at MO creation. Isolates running MOs from BOM edits."""
+    __tablename__ = "mo_planned_components"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    mo_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("manufacturing_orders.id", ondelete="CASCADE"), index=True
+    )
+    item_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("items.id"))
+    percentage: Mapped[float] = mapped_column(Numeric(6, 2), default=0)
+    qty: Mapped[float] = mapped_column(Numeric(14, 4), default=0)
+    source_location_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True
+    )
+    bom_line_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("bom_lines.id", ondelete="SET NULL"), nullable=True
+    )
+    attribute_value_ids: Mapped[list] = mapped_column(JSON, default=list)
+
+    mo = relationship("ManufacturingOrder", back_populates="planned_components")
+    item = relationship("Item")

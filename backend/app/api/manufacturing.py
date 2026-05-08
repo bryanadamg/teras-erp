@@ -4,7 +4,7 @@ from sqlalchemy import select, func, or_, inspect
 from sqlalchemy.orm import selectinload, joinedload, attributes as sa_attributes
 from collections import defaultdict
 from app.db.session import get_async_db
-from app.models.manufacturing import ManufacturingOrder, MOCompletion, MODependency, MOCompletionItem
+from app.models.manufacturing import ManufacturingOrder, MOCompletion, MODependency, MOCompletionItem, MOPlannedComponent
 from app.models.work_order import WorkOrder as WorkOrderModel  # noqa: F401 — eager load
 from app.models.bom import BOM, BOMLine, BOMSize
 from app.models.location import Location
@@ -35,6 +35,7 @@ def get_mo_options():
     options = [
         selectinload(ManufacturingOrder.item),
         selectinload(ManufacturingOrder.attribute_values),
+        selectinload(ManufacturingOrder.planned_components),
         selectinload(ManufacturingOrder.work_orders),
         selectinload(ManufacturingOrder.sales_order),
         selectinload(ManufacturingOrder.required_dependencies),
@@ -139,6 +140,21 @@ def populate_mo_ids(mo: ManufacturingOrder):
         mo.required_mo_ids = []
         sa_attributes.set_committed_value(mo, "required_dependencies", [])
 
+async def _snapshot_bom_lines(db: AsyncSession, mo: ManufacturingOrder, bom: BOM):
+    """Snapshot BOM lines into MOPlannedComponent rows at MO creation time."""
+    for line in bom.lines:
+        attr_ids = [str(v.id) for v in line.attribute_values]
+        db.add(MOPlannedComponent(
+            mo_id=mo.id,
+            item_id=line.item_id,
+            percentage=line.percentage,
+            qty=line.qty,
+            source_location_id=line.source_location_id,
+            bom_line_id=line.id,
+            attribute_value_ids=attr_ids,
+        ))
+
+
 async def load_mo_tree(db: AsyncSession, root_ids: list) -> dict:
     """
     Load a MO tree of arbitrary depth using a recursive CTE.
@@ -170,6 +186,7 @@ async def load_mo_tree(db: AsyncSession, root_ids: list) -> dict:
         .options(
             selectinload(ManufacturingOrder.item),
             selectinload(ManufacturingOrder.attribute_values),
+            selectinload(ManufacturingOrder.planned_components),
             selectinload(ManufacturingOrder.sales_order),
             selectinload(ManufacturingOrder.required_dependencies),
             selectinload(ManufacturingOrder.work_orders).selectinload(WorkOrderModel.work_center),
@@ -219,10 +236,13 @@ async def create_mo_recursive(
 ) -> ManufacturingOrder:
     """Recursively creates manufacturing orders for sub-assemblies.
     Pass create_children=False to create only the root MO (used in two-pass PR creation)."""
-    # 1. Fetch BOM with lines
+    # 1. Fetch BOM with lines (including attribute_values per line for snapshotting)
     result = await db.execute(
         select(BOM)
-        .options(selectinload(BOM.lines), selectinload(BOM.attribute_values))
+        .options(
+            selectinload(BOM.lines).selectinload(BOMLine.attribute_values),
+            selectinload(BOM.attribute_values),
+        )
         .filter(BOM.id == bom_id)
     )
     bom = result.scalars().first()
@@ -263,6 +283,9 @@ async def create_mo_recursive(
     mo.attribute_values = list(bom.attribute_values)
     db.add(mo)
     await db.flush()
+
+    # Snapshot BOM lines at creation time so future BOM edits don't affect this MO
+    await _snapshot_bom_lines(db, mo, bom)
 
     # 4. Look for sub-BOMs in lines — only active BOMs, percentage-based qty
     if create_children:
@@ -358,6 +381,18 @@ async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: Asyn
             mo.attribute_values = bom_with_attrs.attribute_values
 
         db.add(mo)
+        await db.flush()
+
+        # Snapshot BOM lines
+        bom_lines_result = await db.execute(
+            select(BOM)
+            .options(selectinload(BOM.lines).selectinload(BOMLine.attribute_values))
+            .filter(BOM.id == payload.bom_id)
+        )
+        bom_for_snapshot = bom_lines_result.scalars().first()
+        if bom_for_snapshot:
+            await _snapshot_bom_lines(db, mo, bom_for_snapshot)
+
         await db.commit()
 
     # 3. Re-fetch the full tree (unlimited depth) for response
@@ -427,30 +462,30 @@ async def get_manufacturing_orders(
     for item in items_list:
         populate_mo_ids(item)
 
-        if item.status == "PENDING" and item.bom:
-            for line in item.bom.lines:
-                check_loc_id = line.source_location_id or item.source_location_id or item.location_id
+        if item.status == "PENDING" and item.planned_components:
+            for comp in item.planned_components:
+                check_loc_id = comp.source_location_id or item.source_location_id or item.location_id
                 requirements.append({
-                    "item_id": line.item_id,
+                    "item_id": comp.item_id,
                     "location_id": check_loc_id,
-                    "attribute_value_ids": [str(v.id) for v in line.attribute_values]
+                    "attribute_value_ids": comp.attribute_value_ids,
                 })
 
     balances_map = await stock_service.get_batch_stock_balances(db, requirements) if requirements else {}
 
     for item in items_list:
         item.is_material_available = True
-        if item.status == "PENDING" and item.bom:
-            for line in item.bom.lines:
-                if not line.percentage:
+        if item.status == "PENDING" and item.planned_components:
+            for comp in item.planned_components:
+                if not comp.percentage:
                     continue
-                req = (float(item.qty) * float(line.percentage)) / 100
-                tol = float(item.bom.tolerance_percentage or 0)
+                req = (float(item.qty) * float(comp.percentage)) / 100
+                tol = float(item.bom.tolerance_percentage or 0) if item.bom else 0
                 if tol > 0: req *= (1 + (tol / 100))
 
-                check_loc_id = line.source_location_id or item.source_location_id or item.location_id
-                v_key = ",".join(sorted([str(v.id) for v in line.attribute_values]))
-                key = (str(line.item_id), str(check_loc_id), v_key)
+                check_loc_id = comp.source_location_id or item.source_location_id or item.location_id
+                v_key = ",".join(sorted(comp.attribute_value_ids))
+                key = (str(comp.item_id), str(check_loc_id), v_key)
                 if balances_map.get(key, 0) < req:
                     item.is_material_available = False
                     break
@@ -500,18 +535,17 @@ async def update_manufacturing_order_status(mo_id: str, status: str, db: AsyncSe
                 raise HTTPException(status_code=400, detail=f"Required component MOs must be completed first: {', '.join(incomplete_dep_codes)}")
 
     if status == "IN_PROGRESS" and previous_status != "IN_PROGRESS":
-        if mo.bom:
-            for line in mo.bom.lines:
-                if not line.percentage:
-                    continue
-                req = (float(mo.qty) * float(line.percentage)) / 100
-                tol = float(mo.bom.tolerance_percentage or 0)
-                if tol > 0: req *= (1 + (tol / 100))
+        for comp in mo.planned_components:
+            if not comp.percentage:
+                continue
+            req = (float(mo.qty) * float(comp.percentage)) / 100
+            tol = float(mo.bom.tolerance_percentage or 0) if mo.bom else 0
+            if tol > 0: req *= (1 + (tol / 100))
 
-                check_loc_id = line.source_location_id or mo.source_location_id or mo.location_id
-                stock = await stock_service.get_stock_balance(db, line.item_id, check_loc_id, [v.id for v in line.attribute_values])
-                if stock < req:
-                    raise HTTPException(status_code=400, detail=f"Insufficient stock for component {line.item_id}")
+            check_loc_id = comp.source_location_id or mo.source_location_id or mo.location_id
+            stock = await stock_service.get_stock_balance(db, comp.item_id, check_loc_id, [uuid.UUID(s) for s in comp.attribute_value_ids])
+            if stock < req:
+                raise HTTPException(status_code=400, detail=f"Insufficient stock for component {comp.item_id}")
 
         mo.actual_start_date = datetime.utcnow()
 
@@ -525,21 +559,21 @@ async def update_manufacturing_order_status(mo_id: str, status: str, db: AsyncSe
         already_completed = float(completed_result.scalar() or 0)
         remaining_qty = max(0.0, float(mo.qty) - already_completed)
 
-        if remaining_qty > 0 and mo.bom:
+        if remaining_qty > 0 and mo.planned_components:
             # 1. DEDUCT Raw Materials for remaining (uncovered) qty
-            for line in mo.bom.lines:
-                if not line.percentage:
+            for comp in mo.planned_components:
+                if not comp.percentage:
                     continue
-                req = (remaining_qty * float(line.percentage)) / 100
-                deduct_loc_id = line.source_location_id or mo.source_location_id or mo.location_id
+                req = (remaining_qty * float(comp.percentage)) / 100
+                deduct_loc_id = comp.source_location_id or mo.source_location_id or mo.location_id
                 await stock_service.add_stock_entry(
                     db,
-                    item_id=line.item_id,
+                    item_id=comp.item_id,
                     location_id=deduct_loc_id,
                     qty_change=-req,
                     reference_type="Manufacturing Order",
                     reference_id=mo.code,
-                    attribute_value_ids=[v.id for v in line.attribute_values]
+                    attribute_value_ids=[uuid.UUID(s) for s in comp.attribute_value_ids]
                 )
 
             # 2. ADD remaining Finished Goods
@@ -613,18 +647,17 @@ async def add_mo_completion(
 
     # Auto-start if PENDING — pre-check stock before committing
     if mo.status == "PENDING":
-        if mo.bom:
-            for line in mo.bom.lines:
-                if not line.percentage:
-                    continue
-                req = (float(mo.qty) * float(line.percentage)) / 100
-                tol = float(mo.bom.tolerance_percentage or 0)
-                if tol > 0:
-                    req *= (1 + (tol / 100))
-                check_loc_id = line.source_location_id or mo.source_location_id or mo.location_id
-                stock = await stock_service.get_stock_balance(db, line.item_id, check_loc_id, [v.id for v in line.attribute_values])
-                if stock < req:
-                    raise HTTPException(status_code=400, detail=f"Insufficient stock for component {line.item_id}")
+        for comp in mo.planned_components:
+            if not comp.percentage:
+                continue
+            req = (float(mo.qty) * float(comp.percentage)) / 100
+            tol = float(mo.bom.tolerance_percentage or 0) if mo.bom else 0
+            if tol > 0:
+                req *= (1 + (tol / 100))
+            check_loc_id = comp.source_location_id or mo.source_location_id or mo.location_id
+            stock = await stock_service.get_stock_balance(db, comp.item_id, check_loc_id, [uuid.UUID(s) for s in comp.attribute_value_ids])
+            if stock < req:
+                raise HTTPException(status_code=400, detail=f"Insufficient stock for component {comp.item_id}")
         mo.status = "IN_PROGRESS"
         mo.actual_start_date = datetime.utcnow()
 
@@ -660,20 +693,20 @@ async def add_mo_completion(
                 reference_id=mo.code,
                 attribute_value_ids=[],
             )
-    elif mo.bom:
-        for line in mo.bom.lines:
-            if not line.percentage:
+    elif mo.planned_components:
+        for comp in mo.planned_components:
+            if not comp.percentage:
                 continue
-            req = (float(payload.qty_completed) * float(line.percentage)) / 100
-            deduct_loc_id = line.source_location_id or mo.source_location_id or mo.location_id
+            req = (float(payload.qty_completed) * float(comp.percentage)) / 100
+            deduct_loc_id = comp.source_location_id or mo.source_location_id or mo.location_id
             await stock_service.add_stock_entry(
                 db,
-                item_id=line.item_id,
+                item_id=comp.item_id,
                 location_id=deduct_loc_id,
                 qty_change=-req,
                 reference_type="Manufacturing Order",
                 reference_id=mo.code,
-                attribute_value_ids=[v.id for v in line.attribute_values],
+                attribute_value_ids=[uuid.UUID(s) for s in comp.attribute_value_ids],
             )
 
     # Credit proportional finished goods
@@ -740,23 +773,23 @@ async def complete_manufacturing_order_with_batches(
         key = (str(mb.bom_line_item_id), ",".join(sorted(str(v) for v in mb.attribute_value_ids)))
         batch_map[key] = (mb.batch_id, mb.qty)
 
-    if mo.bom:
-        for line in mo.bom.lines:
-            if not line.percentage:
+    if mo.planned_components:
+        for comp in mo.planned_components:
+            if not comp.percentage:
                 continue
-            req = (float(mo.qty) * float(line.percentage)) / 100
-            tol = float(mo.bom.tolerance_percentage or 0)
+            req = (float(mo.qty) * float(comp.percentage)) / 100
+            tol = float(mo.bom.tolerance_percentage or 0) if mo.bom else 0
             if tol > 0:
                 req *= (1 + (tol / 100))
 
-            deduct_loc_id = line.source_location_id or mo.source_location_id or mo.location_id
-            attr_ids = [v.id for v in line.attribute_values]
-            key = (str(line.item_id), ",".join(sorted(str(v) for v in attr_ids)))
+            deduct_loc_id = comp.source_location_id or mo.source_location_id or mo.location_id
+            attr_ids = [uuid.UUID(s) for s in comp.attribute_value_ids]
+            key = (str(comp.item_id), ",".join(sorted(str(v) for v in attr_ids)))
             batch_id, _ = batch_map.get(key, (None, req))
 
             await stock_service.add_stock_entry(
                 db,
-                item_id=line.item_id,
+                item_id=comp.item_id,
                 location_id=deduct_loc_id,
                 qty_change=-req,
                 reference_type="Manufacturing Order",

@@ -182,6 +182,36 @@ class BOMResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class BOMUpdate(BaseModel):
+    description: str | None = None
+    qty: float | None = None
+    tolerance_percentage: float | None = None
+    active: bool | None = None
+    size_mode: str | None = None
+    lines: list[BOMLineCreate] | None = None
+    operations: list[BOMOperationCreate] | None = None
+    sizes: list[BOMSizeCreate] | None = None
+    customer_id: Optional[UUID] = None
+    work_center_id: Optional[UUID] = None
+    kerapatan_picks: float | None = None
+    kerapatan_unit: str | None = None
+    sisir_no: int | None = None
+    pemakaian_obat: str | None = None
+    pembuatan_sample_oleh: str | None = None
+    berat_bahan_mateng: float | None = None
+    berat_bahan_mentah_pelesan: float | None = None
+    mesin_lebar: float | None = None
+    mesin_panjang_tulisan: float | None = None
+    mesin_panjang_tarikan: float | None = None
+    mesin_panjang_tarikan_bandul_1kg: float | None = None
+    mesin_panjang_tarikan_bandul_9kg: float | None = None
+    celup_lebar: float | None = None
+    celup_panjang_tulisan: float | None = None
+    celup_panjang_tarikan: float | None = None
+    celup_panjang_tarikan_bandul_1kg: float | None = None
+    celup_panjang_tarikan_bandul_9kg: float | None = None
+
+
 class MOCompletionItemCreate(BaseModel):
     item_id: UUID
     qty_used: float

@@ -11,7 +11,7 @@ from app.models.size import Size
 from app.models.item import Item
 from app.models.location import Location
 from app.models.routing import WorkCenter, Operation
-from app.schemas import BOMCreate, BOMResponse, SizeResponse
+from app.schemas import BOMCreate, BOMUpdate, BOMResponse, SizeResponse
 from app.models.auth import User
 from app.api.auth import get_current_user
 from app.services import audit_service
@@ -263,6 +263,140 @@ async def upload_bom_design_file(
     bom.design_file_url = f"/static/boms/{bom_id}_design{ext}"
     await db.commit()
     return {"design_file_url": bom.design_file_url}
+
+def _bom_eager_options():
+    return [
+        joinedload(BOM.item),
+        joinedload(BOM.customer),
+        joinedload(BOM.work_center),
+        selectinload(BOM.attribute_values),
+        selectinload(BOM.lines).joinedload(BOMLine.item),
+        selectinload(BOM.lines).selectinload(BOMLine.attribute_values),
+        selectinload(BOM.operations),
+        selectinload(BOM.sizes).joinedload(BOMSize.size),
+    ]
+
+
+@router.put("/boms/{bom_id}", response_model=BOMResponse)
+async def update_bom(
+    bom_id: str,
+    payload: BOMUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(BOM).options(*_bom_eager_options()).filter(BOM.id == bom_id)
+    )
+    bom = result.unique().scalars().first()
+    if not bom:
+        raise HTTPException(status_code=404, detail="BOM not found")
+
+    # Capture before state for audit diff
+    before_lines = [
+        {"item_id": str(bl.item_id), "qty": float(bl.qty), "percentage": float(bl.percentage)}
+        for bl in bom.lines
+    ]
+
+    # Update header fields
+    scalar_fields = [
+        "description", "qty", "tolerance_percentage", "active", "size_mode",
+        "customer_id", "work_center_id", "kerapatan_picks", "kerapatan_unit", "sisir_no",
+        "pemakaian_obat", "pembuatan_sample_oleh", "berat_bahan_mateng",
+        "berat_bahan_mentah_pelesan", "mesin_lebar", "mesin_panjang_tulisan",
+        "mesin_panjang_tarikan", "mesin_panjang_tarikan_bandul_1kg",
+        "mesin_panjang_tarikan_bandul_9kg", "celup_lebar", "celup_panjang_tulisan",
+        "celup_panjang_tarikan", "celup_panjang_tarikan_bandul_1kg",
+        "celup_panjang_tarikan_bandul_9kg",
+    ]
+    for field in scalar_fields:
+        val = getattr(payload, field, None)
+        if val is not None:
+            setattr(bom, field, val)
+
+    # Replace lines if provided
+    if payload.lines is not None:
+        for bl in list(bom.lines):
+            await db.delete(bl)
+        await db.flush()
+        for lc in payload.lines:
+            item_result = await db.execute(select(Item).filter(Item.code == lc.item_code))
+            material = item_result.scalars().first()
+            if not material:
+                raise HTTPException(status_code=404, detail=f"Material item '{lc.item_code}' not found")
+            bom_line = BOMLine(bom_id=bom.id, item_id=material.id, qty=lc.qty, percentage=lc.percentage)
+            if lc.source_location_code:
+                loc_result = await db.execute(select(Location).filter(Location.code == lc.source_location_code))
+                loc = loc_result.scalars().first()
+                if not loc:
+                    raise HTTPException(status_code=404, detail=f"Source location '{lc.source_location_code}' not found")
+                bom_line.source_location_id = loc.id
+            if lc.attribute_value_ids:
+                av_result = await db.execute(
+                    select(AttributeValue).filter(AttributeValue.id.in_(lc.attribute_value_ids))
+                )
+                bom_line.attribute_values = av_result.scalars().all()
+            db.add(bom_line)
+
+    # Replace operations if provided
+    if payload.operations is not None:
+        for op in list(bom.operations):
+            await db.delete(op)
+        await db.flush()
+        for oc in payload.operations:
+            if oc.work_center_id is None and oc.operation_id is None:
+                continue
+            db.add(BOMOperation(
+                bom_id=bom.id,
+                operation_id=oc.operation_id,
+                work_center_id=oc.work_center_id,
+                sequence=oc.sequence,
+                time_minutes=oc.time_minutes,
+            ))
+
+    # Replace sizes if provided
+    if payload.sizes is not None:
+        for sz in list(bom.sizes):
+            await db.delete(sz)
+        await db.flush()
+        for sc in payload.sizes:
+            if sc.target_measurement is None and sc.measurement_min is None and sc.measurement_max is None:
+                continue
+            db.add(BOMSize(
+                bom_id=bom.id,
+                size_id=sc.size_id,
+                label=sc.label,
+                target_measurement=sc.target_measurement,
+                measurement_min=sc.measurement_min,
+                measurement_max=sc.measurement_max,
+            ))
+
+    await db.commit()
+
+    # Re-fetch with full eager loading
+    result = await db.execute(select(BOM).options(*_bom_eager_options()).filter(BOM.id == bom.id))
+    updated_bom = result.unique().scalars().first()
+
+    after_lines = [
+        {"item_id": str(bl.item_id), "qty": float(bl.qty), "percentage": float(bl.percentage)}
+        for bl in updated_bom.lines
+    ]
+
+    await audit_service.log_activity(
+        db,
+        user_id=current_user.id,
+        action="UPDATE",
+        entity_type="BOM",
+        entity_id=str(updated_bom.id),
+        details=f"Updated BOM {updated_bom.code}",
+        changes={"lines_before": before_lines, "lines_after": after_lines},
+    )
+
+    updated_bom.attribute_value_ids = [v.id for v in updated_bom.attribute_values]
+    for bl in updated_bom.lines:
+        bl.attribute_value_ids = [v.id for v in bl.attribute_values]
+
+    return updated_bom
+
 
 @router.delete("/boms/{bom_id}")
 async def delete_bom(bom_id: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
