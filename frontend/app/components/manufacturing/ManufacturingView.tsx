@@ -387,7 +387,14 @@ export default function ManufacturingView({
   };
 
   const toggleRow = (id: string) => {
+      const isCollapsing = !!expandedRows[id];
       setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
+      if (isCollapsing && moCodeFilter) {
+          const wo = manufacturingOrders.find((w: any) => w.id === id);
+          if (wo && wo.code.toLowerCase().includes(moCodeFilter.toLowerCase())) {
+              setMoCodeFilter('');
+          }
+      }
   };
 
   // Helpers
