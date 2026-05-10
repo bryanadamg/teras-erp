@@ -1,14 +1,29 @@
 'use client';
 
+import { useMemo } from 'react';
 import WorkOrderListView from '../components/manufacturing/WorkOrderListView';
 import { useData } from '../context/DataContext';
 
 export default function WorkOrdersPage() {
     const {
         manufacturingOrders,
+        productionRuns,
         workCenters,
         fetchData, authFetch,
     } = useData();
+
+    // Include shared component MOs (is_shared_component=true) that are filtered out of
+    // the root manufacturingOrders list but appear under productionRuns.
+    const allMOs = useMemo(() => {
+        const moIds = new Set((manufacturingOrders || []).map((m: any) => m.id));
+        const extra: any[] = [];
+        for (const pr of (productionRuns || [])) {
+            for (const mo of (pr.manufacturing_orders || [])) {
+                if (!moIds.has(mo.id)) extra.push(mo);
+            }
+        }
+        return [...(manufacturingOrders || []), ...extra];
+    }, [manufacturingOrders, productionRuns]);
 
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
@@ -34,7 +49,7 @@ export default function WorkOrdersPage() {
 
     return (
         <WorkOrderListView
-            manufacturingOrders={manufacturingOrders}
+            manufacturingOrders={allMOs}
             workCenters={workCenters}
             onUpdate={handleUpdateWO}
             onUpdateStatus={handleUpdateWOStatus}

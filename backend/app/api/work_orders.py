@@ -16,7 +16,7 @@ from datetime import datetime
 router = APIRouter()
 
 def _wo_options():
-    return [joinedload(WorkOrder.work_center)]
+    return [joinedload(WorkOrder.work_center), selectinload(WorkOrder.completions)]
 
 @router.get("/work-orders", response_model=list[WorkOrderResponse])
 async def list_work_orders(
