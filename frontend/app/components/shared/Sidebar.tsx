@@ -100,6 +100,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
   const [salesExpanded,       setSalesExpanded]       = useState(true);
   const [procurementExpanded, setProcurementExpanded] = useState(true);
   const [engineeringExpanded, setEngineeringExpanded] = useState(true);
+  const [dyeingExpanded,      setDyeingExpanded]      = useState(true);
   const [reportsExpanded,     setReportsExpanded]     = useState(true);
 
   const [hovered, setHovered] = useState<string | null>(null);
@@ -289,6 +290,23 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
                   </>
                 )}
               </>
+            )}
+          </>
+        )}
+
+        {/* ── Dyeing & Setting ── */}
+        {hasPermission('manufacturing.manage') && (
+          <>
+            <div
+              style={sectionHdrStyle(hovered === 'hdr-dyeing')}
+              onClick={() => setDyeingExpanded(!dyeingExpanded)}
+              {...H('hdr-dyeing')}
+            >
+              <span><i className="bi bi-droplet-half" /> Dyeing &amp; Setting</span>
+              {chevron(dyeingExpanded)}
+            </div>
+            {dyeingExpanded && (
+              <NavItem tab="dyeing-setting" label="Dyeing & Setting" icon="bi-palette" isSub />
             )}
           </>
         )}
