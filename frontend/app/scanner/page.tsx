@@ -9,7 +9,7 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import { useEffect, useState, useCallback } from 'react';
 
 export default function ScannerPage() {
-    const { items, boms, locations, attributes, stockBalance, workCenters, fetchData, authFetch } = useData();
+    const { items, boms, locations, attributes, stockBalance, workCenters, fetchData, authFetch } = useData() as any;
     const router = useRouter();
     const { showToast } = useToast();
     const isMobile = useIsMobile();
@@ -63,6 +63,7 @@ export default function ScannerPage() {
             <MobileScannerView
                 manufacturingOrders={localMOs}
                 workCenters={workCenters}
+                items={items || []}
                 authFetch={authFetch}
                 onRefresh={reload}
                 onClose={() => router.push('/manufacturing-orders')}

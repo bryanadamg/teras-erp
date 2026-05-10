@@ -6,6 +6,7 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 interface MobileScannerViewProps {
     manufacturingOrders: any[];
     workCenters: any[];
+    items: any[];
     authFetch: (url: string, options?: any) => Promise<Response>;
     onRefresh: () => Promise<void> | void;
     onClose: () => void;
@@ -18,6 +19,10 @@ interface MaterialRow {
     planned_pct: number;
     actual_qty: string;
     is_custom: boolean;
+    is_substitute: boolean;
+    orig_item_id: string;
+    orig_item_name: string;
+    orig_item_code: string;
 }
 
 const XP_BEIGE = '#ece9d8';
@@ -68,7 +73,7 @@ const isUUID = (s: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 
 export default function MobileScannerView({
-    manufacturingOrders, workCenters, authFetch, onRefresh, onClose,
+    manufacturingOrders, workCenters, items, authFetch, onRefresh, onClose,
 }: MobileScannerViewProps) {
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
@@ -83,6 +88,8 @@ export default function MobileScannerView({
     const [logSuccess, setLogSuccess]           = useState('');
     const [logError, setLogError]               = useState('');
     const [error, setError]                     = useState<string | null>(null);
+    const [subPickerIdx, setSubPickerIdx]       = useState<number | null>(null);
+    const [subQuery, setSubQuery]               = useState('');
 
     const scannerRef = useRef<Html5QrcodeScanner | null>(null);
     const terminalId = useRef(Math.random().toString(36).substr(2, 6).toUpperCase());
@@ -143,6 +150,10 @@ export default function MobileScannerView({
             planned_pct: parseFloat(line.percentage) || 0,
             actual_qty: '',
             is_custom: false,
+            is_substitute: false,
+            orig_item_id: line.item_id,
+            orig_item_name: line.item_name || '',
+            orig_item_code: line.item_code || '',
         })));
         setLogQty('');
         setLogOperator('');
@@ -150,6 +161,8 @@ export default function MobileScannerView({
         setLogWorkCenterId('');
         setLogSuccess('');
         setLogError('');
+        setSubPickerIdx(null);
+        setSubQuery('');
     }, [scannedWOId]);
 
     // Recalculate planned actuals when output qty changes
@@ -324,19 +337,26 @@ export default function MobileScannerView({
                         </div>
 
                         {/* Material Consumption */}
-                        {materialRows.length > 0 && (
+                        {materialRows.length > 0 && (() => {
+                            const filteredItems = subQuery.length >= 2
+                                ? items.filter((it: any) =>
+                                    (it.code || '').toLowerCase().includes(subQuery.toLowerCase()) ||
+                                    (it.name || '').toLowerCase().includes(subQuery.toLowerCase())
+                                  ).slice(0, 10)
+                                : [];
+                            return (
                             <div style={{ marginBottom: 10 }}>
                                 <div style={{ ...xpSectionLabel, marginTop: 4 }}>Material Consumption</div>
                                 <div style={{ fontSize: 9, color: '#888', marginBottom: 6, fontFamily: XP_FONT }}>
-                                    Planned = BOM% x output. Edit Actual to record real consumption or substitution.
+                                    Planned = BOM% x output. Tap Sub to use a substitute item if stock is unavailable.
                                 </div>
                                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: XP_FONT }}>
                                     <thead>
                                         <tr style={{ background: '#dddbd0' }}>
                                             <th style={{ padding: '3px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Material</th>
-                                            <th style={{ padding: '3px 6px', textAlign: 'right', borderBottom: '1px solid #aca899', width: 64 }}>Planned</th>
-                                            <th style={{ padding: '3px 4px', textAlign: 'right', borderBottom: '1px solid #aca899', width: 80 }}>Actual</th>
-                                            <th style={{ padding: '3px 6px', textAlign: 'right', borderBottom: '1px solid #aca899', width: 60 }}>Var</th>
+                                            <th style={{ padding: '3px 6px', textAlign: 'right', borderBottom: '1px solid #aca899', width: 54 }}>Planned</th>
+                                            <th style={{ padding: '3px 4px', textAlign: 'right', borderBottom: '1px solid #aca899', width: 76 }}>Actual</th>
+                                            <th style={{ padding: '3px 6px', textAlign: 'right', borderBottom: '1px solid #aca899', width: 50 }}>Var</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -345,13 +365,54 @@ export default function MobileScannerView({
                                             const planned = (qty * row.planned_pct) / 100;
                                             const actual = parseFloat(row.actual_qty) || 0;
                                             const variance = actual - planned;
+                                            const isPickingThis = subPickerIdx === idx;
                                             return (
-                                                <tr key={row.item_id} style={{ background: idx % 2 === 0 ? '#fff' : '#f5f4ee' }}>
-                                                    <td style={{ padding: '3px 6px' }}>
-                                                        <span style={{ fontWeight: 500 }}>{row.item_code}</span>
-                                                        {row.item_name && row.item_name !== row.item_code && (
-                                                            <span style={{ color: '#666', marginLeft: 4, fontSize: 10 }}>{row.item_name}</span>
-                                                        )}
+                                                <tr key={idx} style={{ background: idx % 2 === 0 ? '#fff' : '#f5f4ee', verticalAlign: 'top' }}>
+                                                    <td style={{ padding: '3px 4px' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                                            <span style={{ fontWeight: 500 }}>{row.item_code}</span>
+                                                            {row.is_substitute && (
+                                                                <span style={{ fontSize: 9, background: '#fff3cd', border: '1px solid #b8860b', color: '#7a5000', padding: '0 3px', whiteSpace: 'nowrap' }}>
+                                                                    SUB
+                                                                </span>
+                                                            )}
+                                                            {row.is_substitute && (
+                                                                <span style={{ fontSize: 9, color: '#999', textDecoration: 'line-through', whiteSpace: 'nowrap' }}>
+                                                                    {row.orig_item_code}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div style={{ display: 'flex', gap: 3, marginTop: 2 }}>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    if (isPickingThis) { setSubPickerIdx(null); setSubQuery(''); }
+                                                                    else { setSubPickerIdx(idx); setSubQuery(''); }
+                                                                }}
+                                                                style={{ fontFamily: XP_FONT, fontSize: 9, padding: '1px 5px', cursor: 'pointer', background: isPickingThis ? '#c8d8f0' : 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid #808080', color: '#000040' }}
+                                                            >
+                                                                {isPickingThis ? 'Cancel' : 'Sub'}
+                                                            </button>
+                                                            {row.is_substitute && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setMaterialRows(prev => prev.map((r, i) => i === idx ? {
+                                                                            ...r,
+                                                                            item_id: r.orig_item_id,
+                                                                            item_name: r.orig_item_name,
+                                                                            item_code: r.orig_item_code,
+                                                                            is_substitute: false,
+                                                                            is_custom: false,
+                                                                        } : r));
+                                                                        if (isPickingThis) { setSubPickerIdx(null); setSubQuery(''); }
+                                                                    }}
+                                                                    style={{ fontFamily: XP_FONT, fontSize: 9, padding: '1px 5px', cursor: 'pointer', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid #808080', color: '#900' }}
+                                                                >
+                                                                    Clear
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                     <td style={{ padding: '3px 6px', textAlign: 'right', color: '#555' }}>
                                                         {qty > 0 ? planned.toFixed(3) : '—'}
@@ -378,8 +439,54 @@ export default function MobileScannerView({
                                         })}
                                     </tbody>
                                 </table>
+
+                                {/* Substitute item picker */}
+                                {subPickerIdx !== null && (
+                                    <div style={{ marginTop: 8, border: '2px solid #1a4a8a', background: '#f0f4ff', padding: 8 }}>
+                                        <div style={{ fontFamily: XP_FONT, fontSize: 10, fontWeight: 'bold', color: '#000080', marginBottom: 6 }}>
+                                            Select substitute for: {materialRows[subPickerIdx]?.orig_item_code}
+                                        </div>
+                                        <input
+                                            type="text"
+                                            autoFocus
+                                            placeholder="Type item code or name (min 2 chars)..."
+                                            value={subQuery}
+                                            onChange={e => setSubQuery(e.target.value)}
+                                            style={{ ...xpInput, marginBottom: 6 }}
+                                        />
+                                        {subQuery.length >= 2 && filteredItems.length === 0 && (
+                                            <div style={{ fontFamily: XP_FONT, fontSize: 11, color: '#888', padding: '4px 0' }}>No items found.</div>
+                                        )}
+                                        {filteredItems.map((it: any) => (
+                                            <button
+                                                key={it.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    const idx = subPickerIdx;
+                                                    setMaterialRows(prev => prev.map((r, i) => i === idx ? {
+                                                        ...r,
+                                                        item_id: it.id,
+                                                        item_name: it.name || '',
+                                                        item_code: it.code || '',
+                                                        is_substitute: true,
+                                                        is_custom: true,
+                                                    } : r));
+                                                    setSubPickerIdx(null);
+                                                    setSubQuery('');
+                                                }}
+                                                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', marginBottom: 2, fontFamily: XP_FONT, fontSize: 12, cursor: 'pointer', background: '#fff', border: '1px solid #7f9db9', borderRadius: 0 }}
+                                            >
+                                                <span style={{ fontWeight: 'bold' }}>{it.code}</span>
+                                                {it.name && it.name !== it.code && (
+                                                    <span style={{ color: '#555', marginLeft: 8, fontSize: 11 }}>{it.name}</span>
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
-                        )}
+                            );
+                        })()}
 
                         <button
                             onClick={handleLogWO}

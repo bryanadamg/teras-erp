@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import QRCode from 'qrcode';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import CodeConfigModal, { CodeConfig, buildCodeParts } from '../shared/CodeConfigModal';
 import CalendarView from '../shared/CalendarView';
@@ -103,7 +102,6 @@ export default function ManufacturingView({
   const [prMaterialReqs, setPrMaterialReqs] = useState<Record<string, any[]>>({});
   const [prMaterialReqsLoading, setPrMaterialReqsLoading] = useState<Record<string, boolean>>({});
   const [selectedTreeNodes, setSelectedTreeNodes] = useState<Record<string, string>>({});
-  const [qrDataUrls, setQrDataUrls] = useState<Record<string, string>>({});
   const [scanningWOId, setScanningWOId] = useState<string | null>(null);
   const [completionMO, setCompletionMO] = useState<any>(null);
   const [completionWO, setCompletionWO] = useState<any>(null);
@@ -259,13 +257,6 @@ export default function ManufacturingView({
               }
           }
           const nodes = flattenTree(wo, 0, moMap);
-          for (const { wo: node } of nodes) {
-              if (!qrDataUrls[node.code]) {
-                  QRCode.toDataURL(node.code, { margin: 1, width: 160 })
-                      .then(url => setQrDataUrls(prev => ({ ...prev, [node.code]: url })))
-                      .catch(() => {});
-              }
-          }
       }
   }, [expandedRows, manufacturingOrders, productionRuns]);
 
@@ -946,27 +937,6 @@ export default function ManufacturingView({
                       })()}
                   </div>
 
-                  {/* QR + Scan */}
-                  <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', flex: 1 }}>
-                      <div style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', letterSpacing: '0.5px', alignSelf: 'flex-start' }}>QR Code</div>
-                      {qrDataUrls[selectedNode.code] ? (
-                          <img src={qrDataUrls[selectedNode.code]} alt="QR" style={{ width: '90px', height: '90px', border: '2px solid #000' }} />
-                      ) : (
-                          <div style={{ width: '90px', height: '90px', background: '#eee', border: '1px solid #ccc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', color: '#888' }}>Loading...</div>
-                      )}
-                      <div style={{ fontFamily: 'monospace', fontSize: '8px', color: '#000', textAlign: 'center', wordBreak: 'break-all' }}>{selectedNode.code}</div>
-                      <button
-                          style={{
-                              width: '100%', padding: '3px 0', fontSize: '10px',
-                              background: classic ? 'linear-gradient(to bottom,#fff,#d4d0c8)' : '#e9ecef',
-                              border: classic ? '1px solid #808080' : '1px solid #ced4da',
-                              cursor: 'pointer', color: '#000', fontFamily: 'inherit', fontWeight: 'bold'
-                          }}
-                          onClick={() => router.push('/scanner')}
-                      >
-                          <i className="bi bi-qr-code-scan me-1"></i>Scan
-                      </button>
-                  </div>
               </div>
           </div>
 

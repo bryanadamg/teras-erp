@@ -39,6 +39,10 @@ interface MaterialRow {
     planned_pct: number;
     actual_qty: string;
     is_custom: boolean;
+    is_substitute: boolean;
+    orig_item_id: string;
+    orig_item_name: string;
+    orig_item_code: string;
 }
 
 interface MOCompletionModalProps {
@@ -61,6 +65,7 @@ export default function MOCompletionModal({ mo, onClose, onSaved, workOrder }: M
     const [actualItems, setActualItems] = useState<ActualItem[]>([]);
     const [materialRows, setMaterialRows] = useState<MaterialRow[]>([]);
     const [submitting, setSubmitting] = useState(false);
+    const [subPickerIdx, setSubPickerIdx] = useState<number | null>(null);
 
     // Build material rows from BOM lines when in WO mode
     useEffect(() => {
@@ -73,7 +78,12 @@ export default function MOCompletionModal({ mo, onClose, onSaved, workOrder }: M
             planned_pct: line.percentage ?? 0,
             actual_qty: '',
             is_custom: false,
+            is_substitute: false,
+            orig_item_id: line.item_id,
+            orig_item_name: line.item_name || '',
+            orig_item_code: line.item_code || '',
         })));
+        setSubPickerIdx(null);
     }, [workOrder?.id]);
 
     // Recalculate planned qty column and update uncustomized actuals when output qty changes
@@ -279,37 +289,102 @@ export default function MOCompletionModal({ mo, onClose, onSaved, workOrder }: M
                                                 const planned = (qty * row.planned_pct) / 100;
                                                 const actual = parseFloat(row.actual_qty) || 0;
                                                 const variance = actual - planned;
+                                                const isPickingThis = subPickerIdx === idx;
                                                 return (
-                                                    <tr key={row.item_id} style={{ background: idx % 2 === 0 ? '#fff' : '#f5f4ee' }}>
-                                                        <td style={{ padding: '2px 6px' }}>
-                                                            <span style={{ fontWeight: 500 }}>{row.item_code}</span>
-                                                            {row.item_name && row.item_name !== row.item_code && (
-                                                                <span style={{ color: '#666', marginLeft: 4 }}>{row.item_name}</span>
-                                                            )}
-                                                        </td>
-                                                        <td style={{ padding: '2px 6px', textAlign: 'right', color: '#555' }}>
-                                                            {qty > 0 ? planned.toFixed(3) : '—'}
-                                                        </td>
-                                                        <td style={{ padding: '2px 4px' }}>
-                                                            <input
-                                                                type="number"
-                                                                min="0"
-                                                                step="any"
-                                                                style={{ ...xpInput, textAlign: 'right', height: 18, fontSize: 10 }}
-                                                                value={row.actual_qty}
-                                                                onChange={e => {
-                                                                    const val = e.target.value;
-                                                                    setMaterialRows(prev => prev.map((r, i) =>
-                                                                        i === idx ? { ...r, actual_qty: val, is_custom: true } : r
-                                                                    ));
-                                                                }}
-                                                                placeholder="0"
-                                                            />
-                                                        </td>
-                                                        <td style={{ padding: '2px 6px', textAlign: 'right', color: variance > 0.0001 ? '#900' : variance < -0.0001 ? '#007000' : '#888', fontSize: 10 }}>
-                                                            {qty > 0 && row.actual_qty ? (variance > 0 ? '+' : '') + variance.toFixed(3) : '—'}
-                                                        </td>
-                                                    </tr>
+                                                    <React.Fragment key={idx}>
+                                                        <tr style={{ background: idx % 2 === 0 ? '#fff' : '#f5f4ee' }}>
+                                                            <td style={{ padding: '2px 6px' }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                                                    <span style={{ fontWeight: 500 }}>{row.item_code}</span>
+                                                                    {row.item_name && row.item_name !== row.item_code && (
+                                                                        <span style={{ color: '#666', fontSize: 10 }}>{row.item_name}</span>
+                                                                    )}
+                                                                    {row.is_substitute && (
+                                                                        <span style={{ fontSize: 9, background: '#fff3cd', border: '1px solid #b8860b', color: '#7a5000', padding: '0 3px' }}>SUB</span>
+                                                                    )}
+                                                                    {row.is_substitute && (
+                                                                        <span style={{ fontSize: 9, color: '#999', textDecoration: 'line-through' }}>{row.orig_item_code}</span>
+                                                                    )}
+                                                                </div>
+                                                                <div style={{ display: 'flex', gap: 3, marginTop: 2 }}>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setSubPickerIdx(isPickingThis ? null : idx)}
+                                                                        style={{ fontFamily: xpFont, fontSize: 9, padding: '0 5px', cursor: 'pointer', background: isPickingThis ? '#c8d8f0' : 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid #808080', color: '#000040' }}
+                                                                    >
+                                                                        {isPickingThis ? 'Cancel' : 'Sub'}
+                                                                    </button>
+                                                                    {row.is_substitute && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                setMaterialRows(prev => prev.map((r, i) => i === idx ? {
+                                                                                    ...r,
+                                                                                    item_id: r.orig_item_id,
+                                                                                    item_name: r.orig_item_name,
+                                                                                    item_code: r.orig_item_code,
+                                                                                    is_substitute: false,
+                                                                                    is_custom: false,
+                                                                                } : r));
+                                                                                if (isPickingThis) setSubPickerIdx(null);
+                                                                            }}
+                                                                            style={{ fontFamily: xpFont, fontSize: 9, padding: '0 5px', cursor: 'pointer', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid #808080', color: '#900' }}
+                                                                        >
+                                                                            Clear
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                            <td style={{ padding: '2px 6px', textAlign: 'right', color: '#555' }}>
+                                                                {qty > 0 ? planned.toFixed(3) : '—'}
+                                                            </td>
+                                                            <td style={{ padding: '2px 4px' }}>
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    step="any"
+                                                                    style={{ ...xpInput, textAlign: 'right', height: 18, fontSize: 10 }}
+                                                                    value={row.actual_qty}
+                                                                    onChange={e => {
+                                                                        const val = e.target.value;
+                                                                        setMaterialRows(prev => prev.map((r, i) =>
+                                                                            i === idx ? { ...r, actual_qty: val, is_custom: true } : r
+                                                                        ));
+                                                                    }}
+                                                                    placeholder="0"
+                                                                />
+                                                            </td>
+                                                            <td style={{ padding: '2px 6px', textAlign: 'right', color: variance > 0.0001 ? '#900' : variance < -0.0001 ? '#007000' : '#888', fontSize: 10 }}>
+                                                                {qty > 0 && row.actual_qty ? (variance > 0 ? '+' : '') + variance.toFixed(3) : '—'}
+                                                            </td>
+                                                        </tr>
+                                                        {isPickingThis && (
+                                                            <tr style={{ background: '#eef2ff' }}>
+                                                                <td colSpan={4} style={{ padding: '6px 8px', borderTop: '1px solid #a8c0f0', borderBottom: '1px solid #a8c0f0' }}>
+                                                                    <div style={{ fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#000080', marginBottom: 4 }}>
+                                                                        Substitute for: {row.orig_item_code}
+                                                                    </div>
+                                                                    <SearchableSelect
+                                                                        options={itemOptions}
+                                                                        value={row.is_substitute ? row.item_id : ''}
+                                                                        onChange={v => {
+                                                                            const chosen = (items || []).find((it: any) => it.id === v);
+                                                                            setMaterialRows(prev => prev.map((r, i) => i === idx ? {
+                                                                                ...r,
+                                                                                item_id: chosen?.id || r.orig_item_id,
+                                                                                item_name: chosen?.name || r.orig_item_name,
+                                                                                item_code: chosen?.code || r.orig_item_code,
+                                                                                is_substitute: !!chosen,
+                                                                                is_custom: true,
+                                                                            } : r));
+                                                                            if (chosen) setSubPickerIdx(null);
+                                                                        }}
+                                                                        placeholder="Search substitute item..."
+                                                                    />
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                    </React.Fragment>
                                                 );
                                             })}
                                         </tbody>
