@@ -120,6 +120,18 @@ export default function ManufacturingView({
   });
   const [moCodeFilter, setMoCodeFilter] = useState<string>(initialMOFilter || '');
 
+  useEffect(() => {
+      if (initialMOFilter) setMoCodeFilter(initialMOFilter);
+  }, [initialMOFilter]);
+
+  useEffect(() => {
+      if (!moCodeFilter || manufacturingOrders.length === 0) return;
+      const match = manufacturingOrders.find((wo: any) =>
+          wo.code.toLowerCase().includes(moCodeFilter.toLowerCase())
+      );
+      if (match) setExpandedRows(prev => ({ ...prev, [match.id]: true }));
+  }, [moCodeFilter, manufacturingOrders]);
+
   const { uiStyle: currentStyle } = useTheme();
 
   const defaultPrintSettings: PrintSettings = {
@@ -1504,29 +1516,27 @@ export default function ManufacturingView({
                                                                                       <span style={{ fontSize: currentStyle === 'classic' ? 9 : 10, color: '#555', fontFamily: currentStyle === 'classic' ? 'Tahoma, Arial, sans-serif' : undefined, marginRight: 2, whiteSpace: 'nowrap' }}>
                                                                                           Linked MOs:
                                                                                       </span>
-                                                                                      {rootMos.map((mo: any) => {
-                                                                                          const moColor = mo.status === 'COMPLETED' ? '#2d7a2d' : mo.status === 'IN_PROGRESS' ? '#0058e6' : mo.status === 'CANCELLED' ? '#c00000' : '#808080';
-                                                                                          return (
+                                                                                      {rootMos.map((mo: any) => (
                                                                                               <button
                                                                                                   key={mo.id}
                                                                                                   onClick={() => router.push(`/manufacturing-orders?mo=${encodeURIComponent(mo.code)}`)}
                                                                                                   title={`View ${mo.code} in Manufacturing Orders (${mo.status})`}
-                                                                                                  style={{
-                                                                                                      fontSize: currentStyle === 'classic' ? 9 : 11,
-                                                                                                      fontFamily: 'monospace',
-                                                                                                      padding: currentStyle === 'classic' ? '1px 5px' : '2px 7px',
-                                                                                                      cursor: 'pointer',
-                                                                                                      border: `1px solid ${moColor}`,
-                                                                                                      background: '#fff',
-                                                                                                      color: moColor,
-                                                                                                      fontWeight: 'bold',
-                                                                                                      borderRadius: currentStyle === 'classic' ? 0 : 3,
+                                                                                                  style={currentStyle === 'classic' ? {
+                                                                                                      fontSize: 9, fontFamily: 'Tahoma, Arial, sans-serif',
+                                                                                                      padding: '1px 6px', cursor: 'pointer',
+                                                                                                      background: 'linear-gradient(to bottom,#4da6ff,#0058e6)',
+                                                                                                      border: '1px solid', borderColor: '#dfdfdf #003080 #003080 #dfdfdf',
+                                                                                                      color: '#fff', fontWeight: 'bold',
+                                                                                                  } : {
+                                                                                                      fontSize: 11, fontFamily: 'monospace',
+                                                                                                      padding: '2px 7px', cursor: 'pointer',
+                                                                                                      background: '#0d6efd', border: '1px solid #0a58ca',
+                                                                                                      color: '#fff', fontWeight: 'bold', borderRadius: 3,
                                                                                                   }}
                                                                                               >
                                                                                                   {mo.code}
                                                                                               </button>
-                                                                                          );
-                                                                                      })}
+                                                                                          ))}
                                                                                   </div>
                                                                               );
                                                                           })()}
@@ -1660,9 +1670,10 @@ export default function ManufacturingView({
                                       {filteredWorkOrders.map((wo: any, rowIdx: number) => {
                                           const warning = getDueDateWarning(wo);
                                           const isExpanded = expandedRows[wo.id];
+                                          const isHighlighted = !!moCodeFilter && wo.code.toLowerCase().includes(moCodeFilter.toLowerCase());
                                           const rowBg = currentStyle === 'classic'
-                                              ? (isExpanded ? '#d6e4f7' : rowIdx % 2 === 0 ? '#fff' : '#f5f3ee')
-                                              : undefined;
+                                              ? (isHighlighted ? '#fff8c4' : isExpanded ? '#d6e4f7' : rowIdx % 2 === 0 ? '#fff' : '#f5f3ee')
+                                              : (isHighlighted ? '#fffde7' : undefined);
                                           const tdStyle: React.CSSProperties = currentStyle === 'classic' ? {
                                               border: '1px solid #c0bdb5',
                                               padding: '4px 8px',
