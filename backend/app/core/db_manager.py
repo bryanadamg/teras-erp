@@ -11,7 +11,6 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.engine import make_url
-from app.db.base import Base
 from app.schemas import DatabaseResponse, ConnectionProfile
 
 logger = logging.getLogger(__name__)
@@ -197,9 +196,6 @@ class DatabaseManager:
                         class_=AsyncSession
                     )
 
-                # Ensure tables exist
-                Base.metadata.create_all(bind=self._engine)
-                
                 return DatabaseResponse(message="Database initialized successfully", status=True)
             except Exception as e:
                 logger.error(f"Database initialization failed: {e}")
