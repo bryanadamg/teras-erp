@@ -596,6 +596,7 @@ export default function ManufacturingView({
 
   // --- Work Order Expanded Panel (Tree + Detail) ---
   const WOExpandedPanel = ({ wo }: { wo: any }) => {
+      const [detailTab, setDetailTab] = useState<'bom' | 'steps'>('bom');
       const selectedNodeId = selectedTreeNodes[wo.id] ?? wo.id;
 
       // Build a map of all MOs in the same PR so required component MOs appear in the tree
@@ -648,6 +649,46 @@ export default function ManufacturingView({
 
       return (
           <>
+          {/* ── TABS ── */}
+          <div style={{
+              display: 'flex',
+              borderBottom: classic ? '2px solid #808080' : '1px solid #dee2e6',
+              background: classic ? '#ece9d8' : '#f1f3f5',
+              padding: '0 8px',
+          }}>
+              <button
+                  onClick={() => setDetailTab('bom')}
+                  style={{
+                      fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
+                      padding: '5px 12px', marginRight: 2, marginBottom: detailTab === 'bom' ? -2 : -1,
+                      border: classic ? '1px solid #808080' : '1px solid #dee2e6',
+                      borderBottom: detailTab === 'bom' ? (classic ? '2px solid #ece9d8' : '2px solid #fff') : '1px solid transparent',
+                      background: detailTab === 'bom' ? (classic ? '#ece9d8' : '#fff') : 'transparent',
+                      cursor: 'pointer', fontWeight: detailTab === 'bom' ? 'bold' : 'normal',
+                      color: detailTab === 'bom' ? (classic ? '#000080' : '#0d6efd') : '#555',
+                      position: 'relative' as const,
+                  }}
+              >
+                  <i className="bi bi-boxes me-1" />BOM &amp; Stock
+              </button>
+              <button
+                  onClick={() => setDetailTab('steps')}
+                  style={{
+                      fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
+                      padding: '5px 12px', marginRight: 2, marginBottom: detailTab === 'steps' ? -2 : -1,
+                      border: classic ? '1px solid #808080' : '1px solid #dee2e6',
+                      borderBottom: detailTab === 'steps' ? (classic ? '2px solid #ece9d8' : '2px solid #fff') : '1px solid transparent',
+                      background: detailTab === 'steps' ? (classic ? '#ece9d8' : '#fff') : 'transparent',
+                      cursor: 'pointer', fontWeight: detailTab === 'steps' ? 'bold' : 'normal',
+                      color: detailTab === 'steps' ? (classic ? '#000080' : '#0d6efd') : '#555',
+                      position: 'relative' as const,
+                  }}
+              >
+                  <i className="bi bi-list-ol me-1" />Operation Steps ({(selectedNode.work_orders || []).length})
+              </button>
+          </div>
+
+          {detailTab === 'bom' && (
           <div style={{ display: 'flex', minHeight: '280px', background: classic ? '#f5f3ee' : '#f8f9fa', border: classic ? '1px solid #808080' : undefined }}>
 
               {/* ── LEFT: MO Tree ── */}
@@ -939,21 +980,23 @@ export default function ManufacturingView({
 
               </div>
           </div>
+          )}
 
-          {/* ── BOTTOM: Operation Steps ── */}
-          <div style={{ marginTop: 10, borderTop: '1px solid #d4d0c8', paddingTop: 8, padding: '8px 12px' }}>
-              <WorkOrderPanel
-                  manufacturingOrderId={selectedNode.id}
-                  workOrders={selectedNode.work_orders || []}
-                  workCenters={workCenters || []}
-                  onAdd={onCreateWO}
-                  onUpdate={onUpdateWO}
-                  onUpdateStatus={onUpdateWOStatus}
-                  onDelete={onDeleteWO}
-                  onLogWO={(wo) => { setCompletionWO(wo); setCompletionMO(selectedNode); }}
-                  parentMO={selectedNode}
-              />
-          </div>
+          {detailTab === 'steps' && (
+              <div style={{ padding: '8px 12px' }}>
+                  <WorkOrderPanel
+                      manufacturingOrderId={selectedNode.id}
+                      workOrders={selectedNode.work_orders || []}
+                      workCenters={workCenters || []}
+                      onAdd={onCreateWO}
+                      onUpdate={onUpdateWO}
+                      onUpdateStatus={onUpdateWOStatus}
+                      onDelete={onDeleteWO}
+                      onLogWO={(wo) => { setCompletionWO(wo); setCompletionMO(selectedNode); }}
+                      parentMO={selectedNode}
+                  />
+              </div>
+          )}
       </>
       );
   };
