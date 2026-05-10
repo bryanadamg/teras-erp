@@ -15,6 +15,16 @@ interface MobileScannerViewProps {
     onClose: () => void;
 }
 
+interface MaterialRow {
+    item_id: string;
+    item_name: string;
+    item_code: string;
+    is_percentage: boolean;
+    line_qty: number;
+    actual_qty: string;
+    is_custom: boolean;
+}
+
 const XP_BEIGE = '#ece9d8';
 const XP_FONT  = 'Tahoma, "Segoe UI", Arial, sans-serif';
 
@@ -53,6 +63,9 @@ const xpStatusBadge = (status: string): React.CSSProperties => {
     return { ...base, background: '#b8860b', color: '#fff' };
 };
 
+const isUUID = (s: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+
 export default function MobileScannerView({
     manufacturingOrders, items, boms, locations, stockBalance,
     workCenters, authFetch, onRefresh, onClose,
@@ -60,31 +73,53 @@ export default function MobileScannerView({
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
+    // MO scan state
     const [scannedMOId, setScannedMOId]     = useState<string | null>(null);
-    const [error, setError]                 = useState<string | null>(null);
-    const [manualCode, setManualCode]       = useState('');
     const [updatingRunId, setUpdatingRunId] = useState<string | null>(null);
     const [addingRun, setAddingRun]         = useState(false);
     const [runWcId, setRunWcId]             = useState('');
     const [runQty, setRunQty]               = useState('');
     const [submittingRun, setSubmittingRun] = useState(false);
-    const scannerRef = useRef<Html5QrcodeScanner | null>(null);
-    const terminalId = useRef(Math.random().toString(36).substr(2, 6).toUpperCase());
 
-    // Derive reactively — auto-updates when manufacturingOrders prop refreshes
-    const scannedMO = scannedMOId ? (manufacturingOrders.find((mo: any) => mo.id === scannedMOId) || null) : null;
+    // WO scan state
+    const [scannedWOId, setScannedWOId]     = useState<string | null>(null);
+    const [logQty, setLogQty]               = useState('');
+    const [logOperator, setLogOperator]     = useState('');
+    const [logNotes, setLogNotes]           = useState('');
+    const [logMaterialRows, setLogMaterialRows] = useState<MaterialRow[]>([]);
+    const [submittingLog, setSubmittingLog] = useState(false);
+    const [logSuccess, setLogSuccess]       = useState('');
+    const [logError, setLogError]           = useState('');
+
+    // Shared state
+    const [error, setError]       = useState<string | null>(null);
+    const [manualCode, setManualCode] = useState('');
+    const scannerRef  = useRef<Html5QrcodeScanner | null>(null);
+    const terminalId  = useRef(Math.random().toString(36).substr(2, 6).toUpperCase());
+
+    // Derived
+    const allWOs = manufacturingOrders.flatMap((mo: any) =>
+        (mo.work_orders || []).map((wo: any) => ({ ...wo, _mo: mo }))
+    );
+    const scannedMO = scannedMOId
+        ? (manufacturingOrders.find((mo: any) => mo.id === scannedMOId) || null)
+        : null;
+    const scannedWO = scannedWOId
+        ? (allWOs.find((wo: any) => wo.id === scannedWOId) || null)
+        : null;
+    const scannedWOParentMO = scannedWO?._mo || null;
 
     const getItemName     = (id: string) => items.find((i: any) => i.id === id)?.name || id;
     const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
 
-    const getRuns       = (mo: any) => (mo.work_orders || []).filter((wo: any) => wo.qty != null);
-    const getRunQtySum  = (mo: any) => getRuns(mo).reduce((s: number, wo: any) => s + parseFloat(wo.qty || 0), 0);
+    // MO helpers
+    const getRuns        = (mo: any) => (mo.work_orders || []).filter((wo: any) => wo.qty != null);
+    const getRunQtySum   = (mo: any) => getRuns(mo).reduce((s: number, wo: any) => s + parseFloat(wo.qty || 0), 0);
     const getToleranceMax = (mo: any) => {
         const bom = mo.bom || boms.find((b: any) => b.id === mo.bom_id);
-        const tol = parseFloat(bom?.tolerance_percentage || 0);
-        return mo.qty * (1 + tol / 100);
+        return mo.qty * (1 + parseFloat(bom?.tolerance_percentage || 0) / 100);
     };
-    const getRemaining  = (mo: any) => Math.max(0, mo.qty - getRunQtySum(mo));
+    const getRemaining   = (mo: any) => Math.max(0, mo.qty - getRunQtySum(mo));
 
     const validateMaterials = (mo: any) => {
         const bom = mo.bom || boms.find((b: any) => b.id === mo.bom_id);
@@ -108,9 +143,9 @@ export default function MobileScannerView({
         return { ok: missing.length === 0, missing };
     };
 
-    // Scanner lifecycle
+    // Scanner lifecycle — restart when no target selected
     useEffect(() => {
-        if (scannedMOId) return;
+        if (scannedMOId || scannedWOId) return;
 
         const timer = setTimeout(() => {
             if (!document.getElementById('mobile-reader')) return;
@@ -118,9 +153,27 @@ export default function MobileScannerView({
             scannerRef.current = scanner;
             scanner.render(
                 (decodedText: string) => {
-                    const found = manufacturingOrders.find((mo: any) => mo.code === decodedText);
-                    if (found) { setScannedMOId(found.id); setError(null); scanner.clear().catch(() => {}); }
-                    else setError(`MO "${decodedText}" not found.`);
+                    if (isUUID(decodedText)) {
+                        const found = allWOs.find((wo: any) => wo.id === decodedText);
+                        if (found) {
+                            setScannedWOId(found.id);
+                            setScannedMOId(null);
+                            setError(null);
+                            scanner.clear().catch(() => {});
+                        } else {
+                            setError(`WO "${decodedText.slice(0, 8)}..." not found in active orders.`);
+                        }
+                    } else {
+                        const found = manufacturingOrders.find((mo: any) => mo.code === decodedText);
+                        if (found) {
+                            setScannedMOId(found.id);
+                            setScannedWOId(null);
+                            setError(null);
+                            scanner.clear().catch(() => {});
+                        } else {
+                            setError(`MO "${decodedText}" not found.`);
+                        }
+                    }
                 },
                 () => {}
             );
@@ -130,22 +183,59 @@ export default function MobileScannerView({
             clearTimeout(timer);
             scannerRef.current?.clear().catch(() => {});
         };
-    }, [manufacturingOrders, scannedMOId]);
+    }, [manufacturingOrders, scannedMOId, scannedWOId]);
+
+    // Build material rows when WO is scanned
+    useEffect(() => {
+        if (!scannedWO || !scannedWOParentMO) return;
+        const bomLines: any[] = scannedWOParentMO.bom?.lines || [];
+        setLogMaterialRows(bomLines.map((line: any) => ({
+            item_id: line.item_id,
+            item_name: line.item_name || '',
+            item_code: line.item_code || '',
+            is_percentage: !!line.is_percentage,
+            line_qty: parseFloat(line.qty) ?? 0,
+            actual_qty: '',
+            is_custom: false,
+        })));
+        setLogQty('');
+        setLogOperator('');
+        setLogNotes('');
+        setLogSuccess('');
+        setLogError('');
+    }, [scannedWOId]);
+
+    // Recalculate material actuals when logQty changes
+    useEffect(() => {
+        const qty = parseFloat(logQty);
+        if (!qty || qty <= 0) return;
+        setLogMaterialRows(prev => prev.map(row => {
+            if (row.is_custom) return row;
+            const planned = row.is_percentage
+                ? (qty * row.line_qty) / 100
+                : qty * row.line_qty;
+            return { ...row, actual_qty: planned.toFixed(4) };
+        }));
+    }, [logQty]);
+
+    const handleReset = () => {
+        setScannedMOId(null);
+        setScannedWOId(null);
+        setError(null);
+        setManualCode('');
+        setAddingRun(false);
+        setLogSuccess('');
+        setLogError('');
+    };
 
     const handleManualLookup = () => {
         const code = manualCode.trim().toUpperCase();
         const found = manufacturingOrders.find((mo: any) => mo.code === code);
-        if (found) { setScannedMOId(found.id); setError(null); setManualCode(''); }
+        if (found) { setScannedMOId(found.id); setScannedWOId(null); setError(null); setManualCode(''); }
         else setError(`MO "${manualCode}" not found.`);
     };
 
-    const handleReset = () => {
-        setScannedMOId(null);
-        setError(null);
-        setManualCode('');
-        setAddingRun(false);
-    };
-
+    // MO handlers
     const handleRunStatus = async (runId: string, status: string) => {
         setUpdatingRunId(runId);
         try {
@@ -192,16 +282,64 @@ export default function MobileScannerView({
         }
     };
 
+    // WO log handler
+    const handleLogWO = async () => {
+        setLogError('');
+        setLogSuccess('');
+        const qty = parseFloat(logQty);
+        if (!qty || qty <= 0) { setLogError('Enter a positive quantity'); return; }
+        if (!scannedWO || !scannedWOParentMO) return;
+
+        setSubmittingLog(true);
+        try {
+            const actualItems = logMaterialRows
+                .filter(row => parseFloat(row.actual_qty) > 0)
+                .map(row => ({ item_id: row.item_id, qty_used: parseFloat(row.actual_qty) }));
+
+            const res = await authFetch(`${API_BASE}/manufacturing-orders/${scannedWOParentMO.id}/completions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    qty_completed: qty,
+                    operator_name: logOperator || null,
+                    notes: logNotes || null,
+                    work_order_id: scannedWO.id,
+                    actual_items: actualItems,
+                }),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || 'Failed to log');
+            }
+            const updated = await res.json();
+            const newTotal = (updated.qty_completed_total ?? 0).toFixed(2);
+            setLogSuccess(`Logged ${qty} — MO total: ${newTotal} / ${scannedWOParentMO.qty}`);
+            setLogQty('');
+            setLogNotes('');
+            setLogMaterialRows(prev => prev.map(r => ({ ...r, actual_qty: '', is_custom: false })));
+            await onRefresh();
+        } catch (err: any) {
+            setLogError(err.message);
+        } finally {
+            setSubmittingLog(false);
+        }
+    };
+
+    // MO derived values
     const runs        = scannedMO ? getRuns(scannedMO) : [];
     const runQtySum   = scannedMO ? getRunQtySum(scannedMO) : 0;
     const remaining   = scannedMO ? getRemaining(scannedMO) : 0;
     const maxQty      = scannedMO ? getToleranceMax(scannedMO) : 0;
-    const newRunQtyNum = parseFloat(runQty) || 0;
-    const wouldExceed  = addingRun && scannedMO && (runQtySum + newRunQtyNum) > maxQty;
+    const wouldExceed = addingRun && scannedMO && (runQtySum + (parseFloat(runQty) || 0)) > maxQty;
     const materialCheck = scannedMO ? validateMaterials(scannedMO) : null;
-    const target    = scannedMO?.qty || 0;
-    const completed = scannedMO?.qty_completed_total || 0;
-    const pct       = target > 0 ? Math.min(100, Math.round((completed / target) * 100)) : 0;
+    const moTarget    = scannedMO?.qty || 0;
+    const moCompleted = scannedMO?.qty_completed_total || 0;
+    const moPct       = moTarget > 0 ? Math.min(100, Math.round((moCompleted / moTarget) * 100)) : 0;
+
+    // WO derived values
+    const woTarget  = scannedWO?.qty ?? 0;
+    const woDone    = scannedWO?.qty_completed_total ?? 0;
+    const woPct     = woTarget > 0 ? Math.min(100, Math.round((woDone / woTarget) * 100)) : 0;
 
     return (
         <div style={{ background: XP_BEIGE, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -213,49 +351,187 @@ export default function MobileScannerView({
                 <span style={{ marginLeft: 'auto', fontWeight: 'normal', fontSize: 10, color: '#888' }}>ID: {terminalId.current}</span>
             </div>
 
-            {!scannedMO ? (
+            {/* ── WO Log View ── */}
+            {scannedWO && scannedWOParentMO ? (
                 <>
-                    {/* Camera viewfinder */}
-                    <div style={{ ...xpInset, overflow: 'hidden' }}>
-                        <div id="mobile-reader" style={{ width: '100%' }} />
+                    {/* WO identity panel */}
+                    <div style={{ ...xpPanel, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontFamily: XP_FONT, fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', color: '#666', marginBottom: 2 }}>
+                                Work Order Step
+                            </div>
+                            <div style={{ fontFamily: XP_FONT, fontSize: 16, fontWeight: 'bold', color: '#000080', lineHeight: 1.2 }}>
+                                {scannedWO.name}
+                            </div>
+                            <div style={{ fontFamily: XP_FONT, fontSize: 11, color: '#555', marginTop: 2 }}>
+                                {scannedWOParentMO.code} — {scannedWOParentMO.item_name || ''}
+                                {scannedWO.work_center_name && <span style={{ marginLeft: 6 }}>| {scannedWO.work_center_name}</span>}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+                                <span style={xpStatusBadge(scannedWO.status)}>{scannedWO.status === 'IN_PROGRESS' ? 'IN PROGRESS' : scannedWO.status}</span>
+                                {woTarget > 0 && <span style={{ fontFamily: XP_FONT, fontSize: 11, color: '#555' }}>Target: {woTarget}</span>}
+                            </div>
+                            {woTarget > 0 && (
+                                <div style={{ marginTop: 6 }}>
+                                    <div style={{ border: '1px solid #7f9db9', height: 12, background: '#fff', position: 'relative', overflow: 'hidden' }}>
+                                        <div style={{
+                                            height: '100%', width: `${woPct}%`,
+                                            background: woPct >= 100
+                                                ? 'repeating-linear-gradient(45deg, #2e7d32, #2e7d32 4px, #4caf50 4px, #4caf50 8px)'
+                                                : 'repeating-linear-gradient(45deg, #000080, #000080 4px, #1565c0 4px, #1565c0 8px)',
+                                            transition: 'width 0.2s',
+                                        }} />
+                                        <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 'bold', color: woPct > 50 ? '#fff' : '#000080', textShadow: woPct > 50 ? '0 0 3px rgba(0,0,0,0.8)' : 'none' }}>
+                                            {woDone.toFixed(2)} / {woTarget} ({woPct}%)
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <button style={xpBtn({ flexShrink: 0, padding: '6px 12px' })} type="button" onClick={handleReset}>
+                            <i className="bi bi-arrow-repeat"></i> Reset
+                        </button>
                     </div>
 
-                    <div style={{ textAlign: 'center', fontFamily: XP_FONT, fontSize: 12, color: '#333' }}>
-                        <div style={{ fontWeight: 'bold', marginBottom: 2 }}>Ready to Scan</div>
-                        <div style={{ fontSize: 11, color: '#666' }}>Point camera at a Manufacturing Order QR code</div>
-                    </div>
-
-                    {error && (
+                    {/* Feedback */}
+                    {logSuccess && (
+                        <div style={{ background: '#e8f5e9', border: '1px solid #2e7d32', borderLeft: '4px solid #2e7d32', padding: '8px 10px', fontFamily: XP_FONT, fontSize: 12, color: '#1b5e20' }}>
+                            <i className="bi bi-check-circle-fill" style={{ marginRight: 5 }}></i>{logSuccess}
+                        </div>
+                    )}
+                    {logError && (
                         <div style={{ background: '#fce8e8', border: '1px solid #cc0000', borderLeft: '4px solid #cc0000', padding: '8px 10px', fontFamily: XP_FONT, fontSize: 12, color: '#6b0000' }}>
-                            <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 5 }}></i>{error}
+                            <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 5 }}></i>{logError}
                         </div>
                     )}
 
-                    {/* Manual entry */}
-                    <div style={{ ...xpPanel, marginTop: 4 }}>
-                        <div style={xpSectionLabel}>Or enter MO code manually</div>
-                        <div style={{ display: 'flex', gap: 6 }}>
+                    {/* Log form */}
+                    <div style={xpPanel}>
+                        <div style={xpSectionLabel}>Log Hasil Produksi</div>
+
+                        {/* Qty input */}
+                        <div style={{ marginBottom: 10 }}>
+                            <div style={{ fontFamily: XP_FONT, fontSize: 11, fontWeight: 'bold', marginBottom: 4 }}>
+                                Qty Aktual Diproduksi
+                            </div>
                             <input
-                                type="text"
-                                value={manualCode}
-                                onChange={e => setManualCode(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && handleManualLookup()}
-                                placeholder="e.g. MO-2024-0042"
+                                type="number"
+                                inputMode="decimal"
+                                min="0.0001"
+                                step="any"
+                                autoFocus
+                                value={logQty}
+                                onChange={e => setLogQty(e.target.value)}
+                                placeholder="Masukkan qty aktual..."
                                 style={{
-                                    ...xpInset, flex: 1, padding: '8px 10px',
-                                    fontFamily: XP_FONT, fontSize: 14,
-                                    outline: 'none', minHeight: 40,
+                                    width: '100%', fontSize: 20, padding: '8px 10px',
+                                    border: '2px solid #7f9db9', boxSizing: 'border-box',
+                                    fontFamily: XP_FONT,
                                 }}
                             />
-                            <button onClick={handleManualLookup} style={xpBtn({ padding: '8px 14px', fontSize: 14, fontWeight: 'bold', minHeight: 40, minWidth: 48 })}>
-                                →
-                            </button>
                         </div>
+
+                        {/* Operator + Notes */}
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontFamily: XP_FONT, fontSize: 10, marginBottom: 3 }}>Operator</div>
+                                <input
+                                    type="text"
+                                    value={logOperator}
+                                    onChange={e => setLogOperator(e.target.value)}
+                                    placeholder="Nama (opsional)"
+                                    style={{ width: '100%', fontSize: 13, padding: '6px 8px', border: '1px solid #7f9db9', boxSizing: 'border-box', fontFamily: XP_FONT }}
+                                />
+                            </div>
+                            <div style={{ flex: 2 }}>
+                                <div style={{ fontFamily: XP_FONT, fontSize: 10, marginBottom: 3 }}>Catatan</div>
+                                <input
+                                    type="text"
+                                    value={logNotes}
+                                    onChange={e => setLogNotes(e.target.value)}
+                                    placeholder="Batch, shift, keterangan..."
+                                    style={{ width: '100%', fontSize: 13, padding: '6px 8px', border: '1px solid #7f9db9', boxSizing: 'border-box', fontFamily: XP_FONT }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Material consumption */}
+                        {logMaterialRows.length > 0 && (
+                            <>
+                                <div style={{ fontFamily: XP_FONT, fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase', color: '#555', borderBottom: '1px solid #c0bdb5', paddingBottom: 3, marginBottom: 6 }}>
+                                    Material Terpakai
+                                </div>
+                                <div style={{ fontSize: 10, color: '#888', marginBottom: 8, fontFamily: XP_FONT }}>
+                                    Qty planned otomatis dari BOM%. Edit jika ada perbedaan aktual.
+                                </div>
+                                {logMaterialRows.map((row, idx) => {
+                                    const qty = parseFloat(logQty) || 0;
+                                    const planned = qty > 0
+                                        ? (row.is_percentage ? (qty * row.line_qty) / 100 : qty * row.line_qty)
+                                        : null;
+                                    const actual = parseFloat(row.actual_qty) || 0;
+                                    const variance = planned != null && row.actual_qty ? actual - planned : null;
+
+                                    return (
+                                        <div key={row.item_id} style={{ borderBottom: idx < logMaterialRows.length - 1 ? '1px solid #e4e1d8' : 'none', paddingBottom: 8, marginBottom: 8 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
+                                                <span style={{ fontFamily: XP_FONT, fontSize: 12, fontWeight: 500 }}>
+                                                    {row.item_code && <span style={{ color: '#888', marginRight: 4, fontSize: 10 }}>{row.item_code}</span>}
+                                                    {row.item_name || row.item_id}
+                                                </span>
+                                                {planned != null && (
+                                                    <span style={{ fontFamily: XP_FONT, fontSize: 10, color: '#555' }}>Planned: {planned.toFixed(3)}</span>
+                                                )}
+                                            </div>
+                                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                <input
+                                                    type="number"
+                                                    inputMode="decimal"
+                                                    min="0"
+                                                    step="any"
+                                                    value={row.actual_qty}
+                                                    onChange={e => {
+                                                        const val = e.target.value;
+                                                        setLogMaterialRows(prev => prev.map((r, i) =>
+                                                            i === idx ? { ...r, actual_qty: val, is_custom: true } : r
+                                                        ));
+                                                    }}
+                                                    placeholder="0"
+                                                    style={{ flex: 1, fontSize: 14, padding: '6px 8px', border: '1px solid #7f9db9', boxSizing: 'border-box', fontFamily: XP_FONT }}
+                                                />
+                                                {variance != null && (
+                                                    <span style={{ fontFamily: XP_FONT, fontSize: 11, color: variance > 0.001 ? '#900' : variance < -0.001 ? '#007000' : '#888', minWidth: 52, textAlign: 'right' }}>
+                                                        {variance > 0 ? '+' : ''}{variance.toFixed(3)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </>
+                        )}
+
+                        {/* Submit */}
+                        <button
+                            onClick={handleLogWO}
+                            disabled={submittingLog}
+                            style={xpBtn({
+                                width: '100%', justifyContent: 'center', fontSize: 14,
+                                padding: '12px 14px', fontWeight: 'bold',
+                                background: submittingLog ? '#aaa' : 'linear-gradient(to bottom, #5ec85e, #2d7a2d)',
+                                borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a',
+                                color: '#fff', opacity: submittingLog ? 0.6 : 1,
+                                cursor: submittingLog ? 'not-allowed' : 'pointer',
+                            })}
+                        >
+                            {submittingLog ? 'Menyimpan...' : 'Simpan Log'}
+                        </button>
                     </div>
                 </>
-            ) : (
+
+            ) : scannedMO ? (
                 <>
-                    {/* MO identity panel */}
+                    {/* ── MO View ── */}
                     <div style={{ ...xpPanel, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                         <div style={{ minWidth: 0, flex: 1 }}>
                             <div style={{ fontFamily: XP_FONT, fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', color: '#666', marginBottom: 2 }}>
@@ -271,19 +547,18 @@ export default function MobileScannerView({
                                 <span style={xpStatusBadge(scannedMO.status)}>{scannedMO.status === 'IN_PROGRESS' ? 'IN PROGRESS' : scannedMO.status}</span>
                                 <span style={{ fontFamily: XP_FONT, fontSize: 11, color: '#555' }}>Target: {parseFloat(scannedMO.qty)}</span>
                             </div>
-                            {/* Progress bar */}
-                            {target > 0 && (
+                            {moTarget > 0 && (
                                 <div style={{ marginTop: 6 }}>
                                     <div style={{ border: '1px solid #7f9db9', height: 12, background: '#fff', position: 'relative', overflow: 'hidden' }}>
                                         <div style={{
-                                            height: '100%', width: `${pct}%`,
-                                            background: pct >= 100
+                                            height: '100%', width: `${moPct}%`,
+                                            background: moPct >= 100
                                                 ? 'repeating-linear-gradient(45deg, #2e7d32, #2e7d32 4px, #4caf50 4px, #4caf50 8px)'
                                                 : 'repeating-linear-gradient(45deg, #000080, #000080 4px, #1565c0 4px, #1565c0 8px)',
                                             transition: 'width 0.2s',
                                         }} />
-                                        <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 'bold', color: pct > 50 ? '#fff' : '#000080', textShadow: pct > 50 ? '0 0 3px rgba(0,0,0,0.8)' : 'none' }}>
-                                            {completed.toFixed(2)} / {target} ({pct}%)
+                                        <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 'bold', color: moPct > 50 ? '#fff' : '#000080', textShadow: moPct > 50 ? '0 0 3px rgba(0,0,0,0.8)' : 'none' }}>
+                                            {moCompleted.toFixed(2)} / {moTarget} ({moPct}%)
                                         </span>
                                     </div>
                                 </div>
@@ -294,7 +569,6 @@ export default function MobileScannerView({
                         </button>
                     </div>
 
-                    {/* Material check */}
                     {materialCheck && (
                         <div style={{
                             border: '1px solid', padding: '8px 10px', fontFamily: XP_FONT,
@@ -314,14 +588,12 @@ export default function MobileScannerView({
                         </div>
                     )}
 
-                    {/* Error */}
                     {error && (
                         <div style={{ background: '#fce8e8', border: '1px solid #cc0000', borderLeft: '4px solid #cc0000', padding: '8px 10px', fontFamily: XP_FONT, fontSize: 12, color: '#6b0000' }}>
                             <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 5 }}></i>{error}
                         </div>
                     )}
 
-                    {/* Runs panel */}
                     <div style={xpPanel}>
                         <div style={xpSectionLabel}>
                             Runs
@@ -377,7 +649,6 @@ export default function MobileScannerView({
                             </div>
                         )}
 
-                        {/* Add Run form */}
                         {!addingRun ? (
                             <button onClick={handleOpenAddRun} style={xpBtn({ fontSize: 12, padding: '8px 14px', width: '100%', justifyContent: 'center' })}>
                                 + Add Run
@@ -418,9 +689,7 @@ export default function MobileScannerView({
                                     </div>
                                 )}
                                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                                    <button onClick={() => setAddingRun(false)} style={xpBtn({ fontSize: 12, padding: '6px 12px' })}>
-                                        Cancel
-                                    </button>
+                                    <button onClick={() => setAddingRun(false)} style={xpBtn({ fontSize: 12, padding: '6px 12px' })}>Cancel</button>
                                     <button
                                         disabled={submittingRun || !runQty || parseFloat(runQty) <= 0}
                                         onClick={handleAddRun}
@@ -437,6 +706,46 @@ export default function MobileScannerView({
                                 </div>
                             </div>
                         )}
+                    </div>
+                </>
+
+            ) : (
+                <>
+                    {/* ── Scanner idle view ── */}
+                    <div style={{ ...xpInset, overflow: 'hidden' }}>
+                        <div id="mobile-reader" style={{ width: '100%' }} />
+                    </div>
+
+                    <div style={{ textAlign: 'center', fontFamily: XP_FONT, fontSize: 12, color: '#333' }}>
+                        <div style={{ fontWeight: 'bold', marginBottom: 2 }}>Ready to Scan</div>
+                        <div style={{ fontSize: 11, color: '#666' }}>Point camera at a Work Order or Manufacturing Order QR code</div>
+                    </div>
+
+                    {error && (
+                        <div style={{ background: '#fce8e8', border: '1px solid #cc0000', borderLeft: '4px solid #cc0000', padding: '8px 10px', fontFamily: XP_FONT, fontSize: 12, color: '#6b0000' }}>
+                            <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 5 }}></i>{error}
+                        </div>
+                    )}
+
+                    <div style={{ ...xpPanel, marginTop: 4 }}>
+                        <div style={xpSectionLabel}>Or enter MO code manually</div>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                            <input
+                                type="text"
+                                value={manualCode}
+                                onChange={e => setManualCode(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && handleManualLookup()}
+                                placeholder="e.g. MO-2024-0042"
+                                style={{
+                                    ...xpInset, flex: 1, padding: '8px 10px',
+                                    fontFamily: XP_FONT, fontSize: 14,
+                                    outline: 'none', minHeight: 40,
+                                }}
+                            />
+                            <button onClick={handleManualLookup} style={xpBtn({ padding: '8px 14px', fontSize: 14, fontWeight: 'bold', minHeight: 40, minWidth: 48 })}>
+                                →
+                            </button>
+                        </div>
                     </div>
                 </>
             )}

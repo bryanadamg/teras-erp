@@ -48,9 +48,7 @@ export default function WOStepPrintModal({
     }, []);
 
     useEffect(() => {
-        if (typeof window === 'undefined') return;
-        const url = `${window.location.origin}/log/wo/${workOrder.id}`;
-        QRCode.toDataURL(url, { margin: 1, width: 240 })
+        QRCode.toDataURL(workOrder.id, { margin: 1, width: 240 })
             .then(setQrDataUrl)
             .catch(() => {});
     }, [workOrder.id]);
@@ -98,7 +96,7 @@ export default function WOStepPrintModal({
                         ? <img src={qrDataUrl} alt="QR" style={{ width: '90px', height: '90px', display: 'block' }} />
                         : <div style={{ width: '90px', height: '90px', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '7px', color: '#888' }}>Generating...</div>
                     }
-                    <div style={{ fontSize: '6px', color: '#555', marginTop: '2px' }}>Scan to log progress</div>
+                    <div style={{ fontSize: '6px', color: '#555', marginTop: '2px' }}>Scan in ERP Scanner</div>
                 </div>
             </div>
 
@@ -273,7 +271,7 @@ export default function WOStepPrintModal({
                                 </div>
                             </div>
                             <div style={{ fontSize: '10px', color: '#555', marginTop: 'auto', paddingTop: '8px', borderTop: '1px solid #dee2e6' }}>
-                                QR links to the mobile log form for this work order step.
+                                QR encodes the WO ID. Scan in the ERP Scanner tab to open the log form.
                             </div>
                         </div>
 
