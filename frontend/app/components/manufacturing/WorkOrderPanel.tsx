@@ -23,6 +23,8 @@ interface WO {
     status: string;
     planned_duration_hours?: number;
     actual_duration_hours?: number;
+    qty?: number;
+    qty_completed_total?: number;
     notes?: string;
 }
 
@@ -34,19 +36,20 @@ interface Props {
     onUpdate: (id: string, payload: any) => Promise<any>;
     onUpdateStatus: (id: string, status: string) => Promise<any>;
     onDelete: (id: string) => Promise<any>;
+    onLogWO?: (wo: WO) => void;
 }
 
 export default function WorkOrderPanel({
     manufacturingOrderId, workOrders, workCenters,
-    onAdd, onUpdate, onUpdateStatus, onDelete,
+    onAdd, onUpdate, onUpdateStatus, onDelete, onLogWO,
 }: Props) {
     const [addingRow, setAddingRow] = useState(false);
     const [editId, setEditId] = useState<string | null>(null);
-    const [form, setForm] = useState({ sequence: '', name: '', work_center_id: '', planned_duration_hours: '' });
+    const [form, setForm] = useState({ sequence: '', name: '', work_center_id: '', planned_duration_hours: '', qty: '' });
     const [isSaving, setIsSaving] = useState(false);
 
     const resetForm = () => {
-        setForm({ sequence: '', name: '', work_center_id: '', planned_duration_hours: '' });
+        setForm({ sequence: '', name: '', work_center_id: '', planned_duration_hours: '', qty: '' });
         setAddingRow(false);
         setEditId(null);
     };
@@ -61,6 +64,7 @@ export default function WorkOrderPanel({
                 name: form.name.trim(),
                 work_center_id: form.work_center_id || undefined,
                 planned_duration_hours: form.planned_duration_hours ? parseFloat(form.planned_duration_hours) : undefined,
+                qty: form.qty ? parseFloat(form.qty) : undefined,
             };
             if (editId) {
                 await onUpdate(editId, payload);
@@ -80,6 +84,7 @@ export default function WorkOrderPanel({
             name: wo.name,
             work_center_id: wo.work_center_id || '',
             planned_duration_hours: wo.planned_duration_hours ? String(wo.planned_duration_hours) : '',
+            qty: wo.qty != null ? String(wo.qty) : '',
         });
         setAddingRow(false);
     };
@@ -105,8 +110,9 @@ export default function WorkOrderPanel({
                         <th style={{ padding: '2px 6px', textAlign: 'left' }}>Name</th>
                         <th style={{ padding: '2px 6px', textAlign: 'left', width: 110 }}>Work Center</th>
                         <th style={{ padding: '2px 6px', textAlign: 'left', width: 80 }}>Planned hrs</th>
+                        <th style={{ padding: '2px 6px', textAlign: 'right', width: 90 }}>Target / Done</th>
                         <th style={{ padding: '2px 6px', textAlign: 'left', width: 80 }}>Status</th>
-                        <th style={{ padding: '2px 6px', width: 70 }} />
+                        <th style={{ padding: '2px 6px', width: 90 }} />
                     </tr>
                 </thead>
                 <tbody>
@@ -128,6 +134,9 @@ export default function WorkOrderPanel({
                                 <td style={{ padding: '2px 4px' }}>
                                     <input type="number" min="0" step="0.5" style={{ ...xpInput, width: 56 }} value={form.planned_duration_hours} onChange={e => setForm(f => ({ ...f, planned_duration_hours: e.target.value }))} />
                                 </td>
+                                <td style={{ padding: '2px 4px' }}>
+                                    <input type="number" min="0" step="any" style={{ ...xpInput, width: 70 }} value={form.qty} onChange={e => setForm(f => ({ ...f, qty: e.target.value }))} placeholder="Target qty" />
+                                </td>
                                 <td />
                                 <td style={{ padding: '2px 4px', whiteSpace: 'nowrap' }}>
                                     <button onClick={handleSave} disabled={isSaving} style={{ fontFamily: xpFont, fontSize: 10, padding: '1px 6px', background: 'linear-gradient(to bottom, #b0e8b0, #70c870)', border: '1px solid #0a3e0a', cursor: 'pointer', marginRight: 2 }}>Save</button>
@@ -143,6 +152,16 @@ export default function WorkOrderPanel({
                                     {wo.planned_duration_hours != null ? `${wo.planned_duration_hours}h` : '—'}
                                     {wo.actual_duration_hours != null ? ` / ${wo.actual_duration_hours}h actual` : ''}
                                 </td>
+                                <td style={{ padding: '2px 6px', textAlign: 'right', fontSize: 10 }}>
+                                    {wo.qty != null ? (
+                                        <span>
+                                            <span style={{ color: (wo.qty_completed_total ?? 0) >= wo.qty ? '#007000' : '#555' }}>
+                                                {(wo.qty_completed_total ?? 0).toFixed(2)}
+                                            </span>
+                                            <span style={{ color: '#999' }}> / {wo.qty}</span>
+                                        </span>
+                                    ) : '—'}
+                                </td>
                                 <td style={{ padding: '2px 6px' }}>
                                     <select
                                         value={wo.status}
@@ -155,6 +174,14 @@ export default function WorkOrderPanel({
                                     </select>
                                 </td>
                                 <td style={{ padding: '2px 4px', whiteSpace: 'nowrap' }}>
+                                    {onLogWO && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
+                                        <button
+                                            onClick={() => onLogWO(wo)}
+                                            style={{ fontFamily: xpFont, fontSize: 10, padding: '1px 6px', background: 'linear-gradient(to bottom, #b0e8b0, #70c870)', border: '1px solid #0a3e0a', cursor: 'pointer', color: '#004000', marginRight: 4 }}
+                                        >
+                                            Log
+                                        </button>
+                                    )}
                                     <button onClick={() => startEdit(wo)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#0058e6', marginRight: 4 }}>
                                         <i className="bi bi-pencil" />
                                     </button>
@@ -183,6 +210,9 @@ export default function WorkOrderPanel({
                             <td style={{ padding: '2px 4px' }}>
                                 <input type="number" min="0" step="0.5" style={{ ...xpInput, width: 56 }} value={form.planned_duration_hours} onChange={e => setForm(f => ({ ...f, planned_duration_hours: e.target.value }))} placeholder="0" />
                             </td>
+                            <td style={{ padding: '2px 4px' }}>
+                                <input type="number" min="0" step="any" style={{ ...xpInput, width: 70 }} value={form.qty} onChange={e => setForm(f => ({ ...f, qty: e.target.value }))} placeholder="Target qty" />
+                            </td>
                             <td />
                             <td style={{ padding: '2px 4px', whiteSpace: 'nowrap' }}>
                                 <button onClick={handleSave} disabled={isSaving} style={{ fontFamily: xpFont, fontSize: 10, padding: '1px 6px', background: 'linear-gradient(to bottom, #b0e8b0, #70c870)', border: '1px solid #0a3e0a', cursor: 'pointer', marginRight: 2 }}>Add</button>
@@ -193,7 +223,7 @@ export default function WorkOrderPanel({
 
                     {workOrders.length === 0 && !addingRow && (
                         <tr>
-                            <td colSpan={6} style={{ padding: '6px 8px', color: '#888', fontStyle: 'italic', textAlign: 'center' }}>
+                            <td colSpan={7} style={{ padding: '6px 8px', color: '#888', fontStyle: 'italic', textAlign: 'center' }}>
                                 No operation steps yet. Click + Add Step to add one.
                             </td>
                         </tr>

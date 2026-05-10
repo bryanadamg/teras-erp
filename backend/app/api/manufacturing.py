@@ -190,6 +190,7 @@ async def load_mo_tree(db: AsyncSession, root_ids: list) -> dict:
             selectinload(ManufacturingOrder.sales_order),
             selectinload(ManufacturingOrder.required_dependencies),
             selectinload(ManufacturingOrder.work_orders).selectinload(WorkOrderModel.work_center),
+            selectinload(ManufacturingOrder.work_orders).selectinload(WorkOrderModel.completions),
             selectinload(ManufacturingOrder.bom).selectinload(BOM.item),
             selectinload(ManufacturingOrder.bom).selectinload(BOM.attribute_values),
             selectinload(ManufacturingOrder.bom).selectinload(BOM.operations),
@@ -625,6 +626,15 @@ async def add_mo_completion(
     if payload.qty_completed <= 0:
         raise HTTPException(status_code=400, detail="qty_completed must be positive")
 
+    # Validate WO if provided
+    wo = None
+    if payload.work_order_id:
+        wo = next((w for w in mo.work_orders if str(w.id) == str(payload.work_order_id)), None)
+        if not wo:
+            raise HTTPException(status_code=400, detail="Work order does not belong to this MO")
+        if wo.status in ("COMPLETED", "CANCELLED"):
+            raise HTTPException(status_code=400, detail=f"Cannot log on a {wo.status} work order")
+
     # Check traditional child MOs
     incomplete_children = [c for c in mo.child_mos if c.status != "COMPLETED"]
     if incomplete_children:
@@ -668,9 +678,15 @@ async def add_mo_completion(
         operator_name=payload.operator_name,
         notes=payload.notes,
         work_center_id=payload.work_center_id,
+        work_order_id=payload.work_order_id,
     )
     db.add(completion)
     await db.flush()
+
+    # Auto-advance WO to IN_PROGRESS on first log
+    if wo and wo.status == "PENDING":
+        wo.status = "IN_PROGRESS"
+        wo.actual_start_date = datetime.utcnow()
 
     # Save actual items used (substitutes)
     for ai in payload.actual_items:
@@ -735,6 +751,17 @@ async def add_mo_completion(
             if so:
                 so.status = "READY"
                 await audit_service.log_activity(db, current_user.id, "STATUS_CHANGE", "SalesOrder", str(so.id), f"Ready by root MO {mo.code}")
+
+    # Auto-complete WO if cumulative logged qty reaches WO target
+    if wo and wo.qty:
+        wo_total_result = await db.execute(
+            select(func.sum(MOCompletion.qty_completed))
+            .filter(MOCompletion.mo_id == mo.id, MOCompletion.work_order_id == wo.id)
+        )
+        wo_total = float(wo_total_result.scalar() or 0)
+        if wo_total >= float(wo.qty) and wo.status != "COMPLETED":
+            wo.status = "COMPLETED"
+            wo.actual_end_date = datetime.utcnow()
 
     await db.commit()
     await audit_service.log_activity(db, current_user.id, "COMPLETION", "ManufacturingOrder", mo_id, f"Logged {payload.qty_completed} completed (total {total_completed}/{mo.qty})")

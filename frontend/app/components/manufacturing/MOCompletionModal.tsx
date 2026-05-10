@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../shared/Toast';
@@ -32,13 +32,23 @@ interface ActualItem {
     qty_used: string;
 }
 
+interface MaterialRow {
+    item_id: string;
+    item_name: string;
+    item_code: string;
+    planned_pct: number;
+    actual_qty: string;
+    is_custom: boolean;
+}
+
 interface MOCompletionModalProps {
     mo: any;
     onClose: () => void;
     onSaved: (updatedMO: any) => void;
+    workOrder?: any;
 }
 
-export default function MOCompletionModal({ mo, onClose, onSaved }: MOCompletionModalProps) {
+export default function MOCompletionModal({ mo, onClose, onSaved, workOrder }: MOCompletionModalProps) {
     const { authFetch, workCenters, items } = useData() as any;
     const { showToast } = useToast();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
@@ -49,7 +59,33 @@ export default function MOCompletionModal({ mo, onClose, onSaved }: MOCompletion
     const [notes, setNotes] = useState('');
     const [workCenterId, setWorkCenterId] = useState('');
     const [actualItems, setActualItems] = useState<ActualItem[]>([]);
+    const [materialRows, setMaterialRows] = useState<MaterialRow[]>([]);
     const [submitting, setSubmitting] = useState(false);
+
+    // Build material rows from BOM lines when in WO mode
+    useEffect(() => {
+        if (!workOrder || !mo.bom?.lines?.length) return;
+        const bomLines: any[] = mo.bom.lines;
+        setMaterialRows(bomLines.map((line: any) => ({
+            item_id: line.item_id,
+            item_name: line.item_name || '',
+            item_code: line.item_code || '',
+            planned_pct: line.percentage ?? 0,
+            actual_qty: '',
+            is_custom: false,
+        })));
+    }, [workOrder?.id]);
+
+    // Recalculate planned qty column and update uncustomized actuals when output qty changes
+    useEffect(() => {
+        if (!workOrder) return;
+        const qty = parseFloat(qtyCompleted);
+        if (!qty || qty <= 0) return;
+        setMaterialRows(prev => prev.map(row => {
+            const planned = (qty * row.planned_pct) / 100;
+            return row.is_custom ? row : { ...row, actual_qty: planned.toFixed(4) };
+        }));
+    }, [qtyCompleted]);
 
     const totalCompleted = mo.qty_completed_total ?? 0;
     const target = mo.qty ?? 0;
@@ -68,14 +104,33 @@ export default function MOCompletionModal({ mo, onClose, onSaved }: MOCompletion
             showToast('Enter a positive quantity', 'danger');
             return;
         }
-        for (const ai of actualItems) {
-            if (!ai.item_id || !ai.qty_used || parseFloat(ai.qty_used) <= 0) {
-                showToast('Each actual item row needs an item and a positive quantity', 'danger');
-                return;
+
+        // WO mode: validate material rows
+        if (workOrder) {
+            for (const row of materialRows) {
+                const v = parseFloat(row.actual_qty);
+                if (isNaN(v) || v < 0) {
+                    showToast(`Invalid quantity for ${row.item_code || row.item_name}`, 'danger');
+                    return;
+                }
+            }
+        } else {
+            for (const ai of actualItems) {
+                if (!ai.item_id || !ai.qty_used || parseFloat(ai.qty_used) <= 0) {
+                    showToast('Each actual item row needs an item and a positive quantity', 'danger');
+                    return;
+                }
             }
         }
+
         setSubmitting(true);
         try {
+            const woActualItems = workOrder
+                ? materialRows
+                    .filter(row => parseFloat(row.actual_qty) > 0)
+                    .map(row => ({ item_id: row.item_id, qty_used: parseFloat(row.actual_qty) }))
+                : actualItems.map(ai => ({ item_id: ai.item_id, qty_used: parseFloat(ai.qty_used) }));
+
             const res = await authFetch(`${API_BASE}/manufacturing-orders/${mo.id}/completions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -84,10 +139,8 @@ export default function MOCompletionModal({ mo, onClose, onSaved }: MOCompletion
                     operator_name: operatorName || null,
                     notes: notes || null,
                     work_center_id: workCenterId || null,
-                    actual_items: actualItems.map(ai => ({
-                        item_id: ai.item_id,
-                        qty_used: parseFloat(ai.qty_used),
-                    })),
+                    work_order_id: workOrder?.id || null,
+                    actual_items: woActualItems,
                 }),
             });
             if (!res.ok) {
@@ -121,7 +174,7 @@ export default function MOCompletionModal({ mo, onClose, onSaved }: MOCompletion
                 {/* Title bar */}
                 <div style={{ background: 'linear-gradient(to right, #0a246a, #a6caf0, #0a246a)', padding: '3px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none', flexShrink: 0 }}>
                     <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 12, textShadow: '1px 1px 2px rgba(0,0,0,0.6)' }}>
-                        Log Completion — {mo.code}
+                        {workOrder ? `Log WO: ${workOrder.name} — ${mo.code}` : `Log Completion — ${mo.code}`}
                     </span>
                     <button onClick={onClose} style={{ width: 21, height: 21, background: 'linear-gradient(to bottom, #e06060, #b03030)', border: '1px solid #800', borderRadius: 2, cursor: 'pointer', color: '#fff', fontSize: 12, fontWeight: 'bold', lineHeight: 1 }}>x</button>
                 </div>
@@ -155,8 +208,21 @@ export default function MOCompletionModal({ mo, onClose, onSaved }: MOCompletion
 
                         {/* Entry fields */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {/* WO reference */}
+                            {workOrder && (
+                                <div style={{ background: '#e8f0fe', border: '1px solid #a8c0f0', padding: '4px 8px', fontSize: 10 }}>
+                                    <span style={{ color: '#000080', fontWeight: 'bold' }}>WO: {workOrder.name}</span>
+                                    {workOrder.qty != null && (
+                                        <span style={{ color: '#555', marginLeft: 8 }}>
+                                            Target: {workOrder.qty} | Done so far: {(workOrder.qty_completed_total ?? 0).toFixed(2)}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
                             <div>
-                                <label style={{ ...xpLabel, fontWeight: 'bold' }}>Qty Completed</label>
+                                <label style={{ ...xpLabel, fontWeight: 'bold' }}>
+                                    {workOrder ? 'Actual Qty Produced' : 'Qty Completed'}
+                                </label>
                                 <input
                                     type="number"
                                     style={{ ...xpInput, fontSize: 13, height: 22 }}
@@ -164,7 +230,7 @@ export default function MOCompletionModal({ mo, onClose, onSaved }: MOCompletion
                                     onChange={e => setQtyCompleted(e.target.value)}
                                     min="0.0001"
                                     step="any"
-                                    placeholder={remaining > 0 ? remaining.toFixed(2) : String(target)}
+                                    placeholder={workOrder ? 'Enter actual qty produced...' : (remaining > 0 ? remaining.toFixed(2) : String(target))}
                                     autoFocus
                                     required
                                 />
@@ -191,7 +257,72 @@ export default function MOCompletionModal({ mo, onClose, onSaved }: MOCompletion
                             </div>
                         </div>
 
-                        {/* Actual Items Used */}
+                        {/* Material Consumption (WO mode) */}
+                        {workOrder && materialRows.length > 0 && (
+                            <div style={{ border: '1px solid #aca899', background: '#f5f4ee', position: 'relative', paddingTop: 10 }}>
+                                <span style={{ position: 'absolute', top: -7, left: 8, background: '#f5f4ee', padding: '0 4px', fontSize: 10, fontWeight: 'bold', color: '#000080' }}>
+                                    Material Consumption
+                                </span>
+                                <div style={{ padding: '4px 8px 8px' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+                                        <thead>
+                                            <tr style={{ background: '#dddbd0' }}>
+                                                <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Material</th>
+                                                <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899', width: 80 }}>Planned</th>
+                                                <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899', width: 90 }}>Actual</th>
+                                                <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899', width: 70 }}>Variance</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {materialRows.map((row, idx) => {
+                                                const qty = parseFloat(qtyCompleted) || 0;
+                                                const planned = (qty * row.planned_pct) / 100;
+                                                const actual = parseFloat(row.actual_qty) || 0;
+                                                const variance = actual - planned;
+                                                return (
+                                                    <tr key={row.item_id} style={{ background: idx % 2 === 0 ? '#fff' : '#f5f4ee' }}>
+                                                        <td style={{ padding: '2px 6px' }}>
+                                                            <span style={{ fontWeight: 500 }}>{row.item_code}</span>
+                                                            {row.item_name && row.item_name !== row.item_code && (
+                                                                <span style={{ color: '#666', marginLeft: 4 }}>{row.item_name}</span>
+                                                            )}
+                                                        </td>
+                                                        <td style={{ padding: '2px 6px', textAlign: 'right', color: '#555' }}>
+                                                            {qty > 0 ? planned.toFixed(3) : '—'}
+                                                        </td>
+                                                        <td style={{ padding: '2px 4px' }}>
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                step="any"
+                                                                style={{ ...xpInput, textAlign: 'right', height: 18, fontSize: 10 }}
+                                                                value={row.actual_qty}
+                                                                onChange={e => {
+                                                                    const val = e.target.value;
+                                                                    setMaterialRows(prev => prev.map((r, i) =>
+                                                                        i === idx ? { ...r, actual_qty: val, is_custom: true } : r
+                                                                    ));
+                                                                }}
+                                                                placeholder="0"
+                                                            />
+                                                        </td>
+                                                        <td style={{ padding: '2px 6px', textAlign: 'right', color: variance > 0.0001 ? '#900' : variance < -0.0001 ? '#007000' : '#888', fontSize: 10 }}>
+                                                            {qty > 0 && row.actual_qty ? (variance > 0 ? '+' : '') + variance.toFixed(3) : '—'}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                    <div style={{ fontSize: 9, color: '#888', marginTop: 4 }}>
+                                        Planned = BOM% x actual output. Edit Actual to record real consumption.
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Actual Items Used (non-WO mode: substitutes) */}
+                        {!workOrder && (
                         <div style={{ border: '1px solid #aca899', background: '#f5f4ee', position: 'relative', paddingTop: 10 }}>
                             <span style={{ position: 'absolute', top: -7, left: 8, background: '#f5f4ee', padding: '0 4px', fontSize: 10, fontWeight: 'bold', color: '#000080' }}>
                                 Actual Items Used
@@ -237,6 +368,7 @@ export default function MOCompletionModal({ mo, onClose, onSaved }: MOCompletion
                                 </button>
                             </div>
                         </div>
+                        )}
 
                         {/* History */}
                         {completions.length > 0 && (

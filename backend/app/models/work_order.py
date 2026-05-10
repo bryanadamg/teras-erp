@@ -1,13 +1,13 @@
 import uuid
 from datetime import datetime
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, List, TYPE_CHECKING
 from sqlalchemy import String, Text, ForeignKey, DateTime, Integer, Float
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 if TYPE_CHECKING:
-    from app.models.manufacturing import ManufacturingOrder
+    from app.models.manufacturing import ManufacturingOrder, MOCompletion
     from app.models.routing import WorkCenter
 
 class WorkOrder(Base):
@@ -39,7 +39,14 @@ class WorkOrder(Base):
     work_center: Mapped[Optional["WorkCenter"]] = relationship(
         "WorkCenter", foreign_keys=[work_center_id]
     )
+    completions: Mapped[List["MOCompletion"]] = relationship(
+        "MOCompletion", back_populates="work_order", lazy="select"
+    )
 
     @property
     def work_center_name(self) -> Optional[str]:
         return self.work_center.name if self.work_center else None
+
+    @property
+    def qty_completed_total(self) -> float:
+        return sum(float(c.qty_completed) for c in self.completions)

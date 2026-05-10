@@ -229,12 +229,14 @@ class MOCompletionCreate(BaseModel):
     operator_name: str | None = None
     notes: str | None = None
     work_center_id: UUID | None = None
+    work_order_id: UUID | None = None
     actual_items: list[MOCompletionItemCreate] = []
 
 class MOCompletionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
     mo_id: UUID
+    work_order_id: UUID | None = None
     qty_completed: float
     operator_name: str | None = None
     notes: str | None = None
@@ -410,6 +412,7 @@ class WorkOrderResponse(BaseModel):
     work_center_id: UUID | None = None
     work_center_name: str | None = None
     qty: float | None = None
+    qty_completed_total: float = 0.0
     status: str
     planned_duration_hours: float | None = None
     actual_duration_hours: float | None = None

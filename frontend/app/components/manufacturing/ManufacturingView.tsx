@@ -106,6 +106,7 @@ export default function ManufacturingView({
   const [qrDataUrls, setQrDataUrls] = useState<Record<string, string>>({});
   const [scanningWOId, setScanningWOId] = useState<string | null>(null);
   const [completionMO, setCompletionMO] = useState<any>(null);
+  const [completionWO, setCompletionWO] = useState<any>(null);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [codeConfig, setCodeConfig] = useState<CodeConfig>({
@@ -992,6 +993,7 @@ export default function ManufacturingView({
                   onUpdate={onUpdateWO}
                   onUpdateStatus={onUpdateWOStatus}
                   onDelete={onDeleteWO}
+                  onLogWO={(wo) => { setCompletionWO(wo); setCompletionMO(selectedNode); }}
               />
           </div>
       </>
@@ -1876,9 +1878,11 @@ export default function ManufacturingView({
           {completionMO && (
               <MOCompletionModal
                   mo={completionMO}
-                  onClose={() => setCompletionMO(null)}
+                  workOrder={completionWO ?? undefined}
+                  onClose={() => { setCompletionMO(null); setCompletionWO(null); }}
                   onSaved={(updated) => {
                       setCompletionMO(null);
+                      setCompletionWO(null);
                       fetchData('work-orders');
                   }}
               />

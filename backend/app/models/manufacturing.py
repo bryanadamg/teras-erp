@@ -164,6 +164,9 @@ class MOCompletion(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     mo_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("manufacturing_orders.id"), index=True)
+    work_order_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("work_orders.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     qty_completed: Mapped[float] = mapped_column(Numeric(14, 4))
     operator_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
@@ -171,6 +174,7 @@ class MOCompletion(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
     mo = relationship("ManufacturingOrder", back_populates="completions")
+    work_order: Mapped[Optional["WorkOrder"]] = relationship("WorkOrder", back_populates="completions")
     work_center: Mapped[Optional["WorkCenter"]] = relationship("WorkCenter", lazy="joined")
     actual_items: Mapped[List["MOCompletionItem"]] = relationship(
         "MOCompletionItem", back_populates="completion", cascade="all, delete-orphan", lazy="joined"
