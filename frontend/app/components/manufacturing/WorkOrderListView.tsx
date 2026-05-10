@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import MOCompletionModal from './MOCompletionModal';
+import WOStepPrintModal from './WOStepPrintModal';
 
 const STATUS_COLORS: Record<string, string> = {
     PENDING: '#888',
@@ -47,6 +48,8 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
     const [editId, setEditId] = useState<string | null>(null);
     const [completionMO, setCompletionMO] = useState<any>(null);
     const [completionWO, setCompletionWO] = useState<any>(null);
+    const [printWO, setPrintWO] = useState<FlatWO | null>(null);
+    const [printMO, setPrintMO] = useState<any>(null);
     const [form, setForm] = useState({ sequence: '', name: '', work_center_id: '', planned_duration_hours: '' });
     const [isSaving, setIsSaving] = useState(false);
     const [filterStatus, setFilterStatus] = useState('');
@@ -359,6 +362,11 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                                                                 style={{ fontFamily: 'Tahoma', fontSize: 10, padding: '1px 6px', background: 'linear-gradient(to bottom,#b0e8b0,#70c870)', border: '1px solid #0a3e0a', cursor: 'pointer', color: '#004000', marginRight: 4 }}
                                                             >Log</button>
                                                         )}
+                                                        <button
+                                                            onClick={() => { const mo = manufacturingOrders.find(m => m.id === wo.mo_id); setPrintWO(wo); setPrintMO(mo ?? null); }}
+                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#555', marginRight: 4 }}
+                                                            title="Print Kartu Kerja"
+                                                        ><i className="bi bi-printer" /></button>
                                                         <button onClick={() => startEdit(wo)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#0058e6', marginRight: 4 }}>
                                                             <i className="bi bi-pencil" />
                                                         </button>
@@ -383,6 +391,11 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                                                                 onClick={() => onUpdateStatus(wo.id, 'COMPLETED')}
                                                             >Finish</button>
                                                         )}
+                                                        <button
+                                                            className="btn btn-sm btn-link text-secondary p-0 me-1"
+                                                            onClick={() => { const mo = manufacturingOrders.find(m => m.id === wo.mo_id); setPrintWO(wo); setPrintMO(mo ?? null); }}
+                                                            title="Print Kartu Kerja"
+                                                        ><i className="bi bi-printer fs-6" /></button>
                                                         <button className="btn btn-sm btn-link text-primary p-0 me-1" onClick={() => startEdit(wo)}><i className="bi bi-pencil fs-6" /></button>
                                                         <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDelete(wo.id)}><i className="bi bi-trash fs-6" /></button>
                                                     </>
@@ -404,6 +417,13 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                 workOrder={completionWO ?? undefined}
                 onClose={() => { setCompletionMO(null); setCompletionWO(null); }}
                 onSaved={() => { setCompletionMO(null); setCompletionWO(null); fetchData('work-orders'); }}
+            />
+        )}
+        {printWO && printMO && (
+            <WOStepPrintModal
+                workOrder={printWO}
+                parentMO={printMO}
+                onClose={() => { setPrintWO(null); setPrintMO(null); }}
             />
         )}
         </>

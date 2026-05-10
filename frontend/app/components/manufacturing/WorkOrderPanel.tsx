@@ -1,5 +1,6 @@
 'use client';
 import React, { useState } from 'react';
+import WOStepPrintModal from './WOStepPrintModal';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -37,16 +38,18 @@ interface Props {
     onUpdateStatus: (id: string, status: string) => Promise<any>;
     onDelete: (id: string) => Promise<any>;
     onLogWO?: (wo: WO) => void;
+    parentMO?: any;
 }
 
 export default function WorkOrderPanel({
     manufacturingOrderId, workOrders, workCenters,
-    onAdd, onUpdate, onUpdateStatus, onDelete, onLogWO,
+    onAdd, onUpdate, onUpdateStatus, onDelete, onLogWO, parentMO,
 }: Props) {
     const [addingRow, setAddingRow] = useState(false);
     const [editId, setEditId] = useState<string | null>(null);
     const [form, setForm] = useState({ sequence: '', name: '', work_center_id: '', planned_duration_hours: '', qty: '' });
     const [isSaving, setIsSaving] = useState(false);
+    const [printWO, setPrintWO] = useState<WO | null>(null);
 
     const resetForm = () => {
         setForm({ sequence: '', name: '', work_center_id: '', planned_duration_hours: '', qty: '' });
@@ -189,6 +192,11 @@ export default function WorkOrderPanel({
                                             Log
                                         </button>
                                     )}
+                                    {parentMO && (
+                                        <button onClick={() => setPrintWO(wo)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#555', marginRight: 4 }} title="Print Kartu Kerja">
+                                            <i className="bi bi-printer" />
+                                        </button>
+                                    )}
                                     <button onClick={() => startEdit(wo)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#0058e6', marginRight: 4 }}>
                                         <i className="bi bi-pencil" />
                                     </button>
@@ -237,6 +245,14 @@ export default function WorkOrderPanel({
                     )}
                 </tbody>
             </table>
+
+            {printWO && parentMO && (
+                <WOStepPrintModal
+                    workOrder={printWO}
+                    parentMO={parentMO}
+                    onClose={() => setPrintWO(null)}
+                />
+            )}
         </div>
     );
 }

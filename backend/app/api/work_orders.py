@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from typing import Optional
 from app.db.session import get_async_db
 from app.models.work_order import WorkOrder
@@ -71,6 +71,22 @@ async def create_work_order(
         changes=payload.model_dump()
     )
     await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": str(wo.id), "status": "PENDING"})
+    return wo
+
+@router.get("/work-orders/{wo_id}", response_model=WorkOrderResponse)
+async def get_work_order(
+    wo_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(WorkOrder)
+        .options(joinedload(WorkOrder.work_center), selectinload(WorkOrder.completions))
+        .filter(WorkOrder.id == wo_id)
+    )
+    wo = result.scalars().first()
+    if not wo:
+        raise HTTPException(status_code=404, detail="Work Order not found")
     return wo
 
 @router.put("/work-orders/{wo_id}", response_model=WorkOrderResponse)

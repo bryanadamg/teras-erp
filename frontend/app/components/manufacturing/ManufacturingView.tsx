@@ -981,6 +981,7 @@ export default function ManufacturingView({
                   onUpdateStatus={onUpdateWOStatus}
                   onDelete={onDeleteWO}
                   onLogWO={(wo) => { setCompletionWO(wo); setCompletionMO(selectedNode); }}
+                  parentMO={selectedNode}
               />
           </div>
       </>

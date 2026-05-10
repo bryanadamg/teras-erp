@@ -1,7 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import QRCode from 'qrcode';
 
 const STATIC_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000').replace(/\/api$/, '');
 
@@ -78,7 +77,6 @@ const renderPrintBOMLines = (
 
 const renderChildWOsPrint = (
     children: any[],
-    qrUrls: Record<string, string>,
     helpers: {
         getItemName: (id: any) => string;
         getLocationName: (id: any) => string;
@@ -94,7 +92,6 @@ const renderChildWOsPrint = (
             </div>
             {children.map(child => (
                 <div key={child.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', border: '1px solid #ddd', padding: '4px 6px', background: '#fafafa' }}>
-                    <img src={qrUrls[child.code] || ''} alt="QR" style={{ width: '40px', height: '40px', flexShrink: 0 }} />
                     <div style={{ flex: 1, fontSize: '8px' }}>
                         <div style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#0058e6' }}>{child.code}</div>
                         <div style={{ fontWeight: 'bold' }}>{child.item_name || getItemName(child.item_id)}</div>
@@ -142,28 +139,10 @@ export default function WOPrintModal({
     } = printSettings;
     const showChildMOs = hideChildMOs ? false : showChildMOsSetting;
 
-    const [qrDataUrl, setQrDataUrl] = useState('');
-    const [childQrUrls, setChildQrUrls] = useState<Record<string, string>>({});
-
     useEffect(() => {
         document.body.classList.add('wo-print-preview-active');
         return () => { document.body.classList.remove('wo-print-preview-active'); };
     }, []);
-
-    useEffect(() => {
-        QRCode.toDataURL(wo.code, { margin: 1, width: 200 })
-            .then(setQrDataUrl)
-            .catch(() => {});
-    }, [wo.code]);
-
-    useEffect(() => {
-        if (!showChildMOs) return;
-        (wo.child_mos || []).forEach((child: any) => {
-            QRCode.toDataURL(child.code, { margin: 1, width: 160 })
-                .then(url => setChildQrUrls(prev => prev[child.code] ? prev : { ...prev, [child.code]: url }))
-                .catch(() => {});
-        });
-    }, [showChildMOs, wo.child_mos]);
 
     const update = (patch: Partial<PrintSettings>) =>
         onPrintSettingsChange({ ...printSettings, ...patch });
@@ -232,12 +211,8 @@ export default function WOPrintModal({
                         </div>
                     )}
                 </div>
-                <div style={{ border: '2px solid #000', padding: '2px', flexShrink: 0 }}>
-                    {qrDataUrl
-                        ? <img src={qrDataUrl} alt="QR" style={{ width: '70px', height: '70px', display: 'block' }} />
-                        : <div style={{ width: '70px', height: '70px', background: '#eee' }} />
-                    }
-                    <div style={{ fontFamily: 'monospace', fontSize: '6px', textAlign: 'center', marginTop: '1px', color: '#000' }}>{wo.code}</div>
+                <div style={{ textAlign: 'right', fontSize: '8px', color: '#555' }}>
+                    <div style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#000' }}>{wo.code}</div>
                 </div>
             </div>
 
@@ -373,7 +348,7 @@ export default function WOPrintModal({
             )}
 
             {/* ── Child MOs ── */}
-            {showChildMOs && renderChildWOsPrint(wo.child_mos || [], childQrUrls, { getItemName, getLocationName, formatDate })}
+            {showChildMOs && renderChildWOsPrint(wo.child_mos || [], { getItemName, getLocationName, formatDate })}
 
             {/* ── Fill-in fields ── */}
             {showFillFields && (
