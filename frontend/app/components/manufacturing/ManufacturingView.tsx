@@ -50,7 +50,8 @@ export default function ManufacturingView({
     initialPRState,
     onClearInitialPRState,
     initialTab,
-    showTabSwitcher = true
+    showTabSwitcher = true,
+    initialMOFilter,
 }: any) {
   const { showToast } = useToast();
   const router = useRouter();
@@ -117,6 +118,7 @@ export default function ManufacturingView({
       includeYear: false,
       includeMonth: false
   });
+  const [moCodeFilter, setMoCodeFilter] = useState<string>(initialMOFilter || '');
 
   const { uiStyle: currentStyle } = useTheme();
 
@@ -324,6 +326,7 @@ export default function ManufacturingView({
           endDateTime.setHours(23, 59, 59, 999);
           if (date > endDateTime) return false;
       }
+      if (moCodeFilter) return wo.code.toLowerCase().includes(moCodeFilter.toLowerCase());
       return true;
   });
 
@@ -1493,6 +1496,40 @@ export default function ManufacturingView({
                                                                       </span>
                                                                   ) : (
                                                                       <div>
+                                                                          {(() => {
+                                                                              const rootMos = mos.filter((mo: any) => !mo.is_shared_component);
+                                                                              if (rootMos.length === 0) return null;
+                                                                              return (
+                                                                                  <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                                                                      <span style={{ fontSize: currentStyle === 'classic' ? 9 : 10, color: '#555', fontFamily: currentStyle === 'classic' ? 'Tahoma, Arial, sans-serif' : undefined, marginRight: 2, whiteSpace: 'nowrap' }}>
+                                                                                          Linked MOs:
+                                                                                      </span>
+                                                                                      {rootMos.map((mo: any) => {
+                                                                                          const moColor = mo.status === 'COMPLETED' ? '#2d7a2d' : mo.status === 'IN_PROGRESS' ? '#0058e6' : mo.status === 'CANCELLED' ? '#c00000' : '#808080';
+                                                                                          return (
+                                                                                              <button
+                                                                                                  key={mo.id}
+                                                                                                  onClick={() => router.push(`/manufacturing-orders?mo=${encodeURIComponent(mo.code)}`)}
+                                                                                                  title={`View ${mo.code} in Manufacturing Orders (${mo.status})`}
+                                                                                                  style={{
+                                                                                                      fontSize: currentStyle === 'classic' ? 9 : 11,
+                                                                                                      fontFamily: 'monospace',
+                                                                                                      padding: currentStyle === 'classic' ? '1px 5px' : '2px 7px',
+                                                                                                      cursor: 'pointer',
+                                                                                                      border: `1px solid ${moColor}`,
+                                                                                                      background: '#fff',
+                                                                                                      color: moColor,
+                                                                                                      fontWeight: 'bold',
+                                                                                                      borderRadius: currentStyle === 'classic' ? 0 : 3,
+                                                                                                  }}
+                                                                                              >
+                                                                                                  {mo.code}
+                                                                                              </button>
+                                                                                          );
+                                                                                      })}
+                                                                                  </div>
+                                                                              );
+                                                                          })()}
                                                                           <div style={{ fontSize: currentStyle === 'classic' ? 10 : 11, fontWeight: 'bold', marginBottom: 4, fontFamily: currentStyle === 'classic' ? 'Tahoma, Arial, sans-serif' : undefined, color: '#333' }}>
                                                                               Consolidated Material Requirements — {reqs.length} component{reqs.length !== 1 ? 's' : ''}
                                                                               {hasShortfall && <span style={{ marginLeft: 8, color: '#c00000', fontWeight: 'bold' }}>SHORTFALL DETECTED</span>}
@@ -1567,6 +1604,24 @@ export default function ManufacturingView({
                           <div className="p-3"><CalendarView workOrders={manufacturingOrders} items={items} /></div>
                       ) : activeTab === 'manufacturing-orders' && (
                           <div className="table-responsive">
+                              {moCodeFilter && (
+                                  <div style={{
+                                      padding: '5px 12px',
+                                      background: currentStyle === 'classic' ? '#fffbe6' : '#fff3cd',
+                                      borderBottom: currentStyle === 'classic' ? '1px solid #808080' : '1px solid #ffc107',
+                                      display: 'flex', alignItems: 'center', gap: 6,
+                                      fontSize: currentStyle === 'classic' ? 10 : 12,
+                                      fontFamily: currentStyle === 'classic' ? 'Tahoma, Arial, sans-serif' : undefined,
+                                  }}>
+                                      <i className="bi bi-funnel-fill" style={{ color: '#856404', fontSize: 11 }}></i>
+                                      <span style={{ color: '#856404' }}>Filtered: <strong style={{ fontFamily: 'monospace' }}>{moCodeFilter}</strong></span>
+                                      <button
+                                          onClick={() => setMoCodeFilter('')}
+                                          title="Clear filter"
+                                          style={{ marginLeft: 4, cursor: 'pointer', border: 'none', background: 'transparent', color: '#856404', fontWeight: 'bold', padding: '0 4px', fontSize: 13, lineHeight: 1 }}
+                                      >x</button>
+                                  </div>
+                              )}
                               <table style={{
                                   width: '100%',
                                   borderCollapse: 'collapse',

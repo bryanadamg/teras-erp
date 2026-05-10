@@ -26,7 +26,9 @@ export default function ManufacturingOrdersPage() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const [initialCreateState, setInitialCreateState] = useState<any>(null);
+    const [initialMOFilter, setInitialMOFilter] = useState<string>('');
     const consumedSOIdRef = useRef<string | null>(null);
+    const consumedMOFilterRef = useRef<string | null>(null);
 
     useEffect(() => {
         const soId = searchParams.get('sales_order_id');
@@ -39,6 +41,12 @@ export default function ManufacturingOrdersPage() {
                 bom_id: searchParams.get('bom_id'),
                 bom_size_id: searchParams.get('bom_size_id') || null,
             });
+            router.replace('/manufacturing-orders');
+        }
+        const moCode = searchParams.get('mo');
+        if (moCode && moCode !== consumedMOFilterRef.current) {
+            consumedMOFilterRef.current = moCode;
+            setInitialMOFilter(moCode);
             router.replace('/manufacturing-orders');
         }
     }, [searchParams]);
@@ -169,6 +177,7 @@ export default function ManufacturingOrdersPage() {
             setPrPage={setPrPage}
             initialCreateState={initialCreateState}
             onClearInitialState={handleClearInitialState}
+            initialMOFilter={initialMOFilter}
             initialTab="manufacturing-orders"
             showTabSwitcher={false}
         />

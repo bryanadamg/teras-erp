@@ -20,6 +20,7 @@ COPY app app
 COPY alembic alembic
 COPY alembic.ini alembic.ini
 COPY scripts scripts
+RUN sed -i 's/\r//' scripts/migrate.sh && chmod +x scripts/migrate.sh
 
 # Chown the application directory to the non-root user
 RUN chown -R appuser:appgroup /app
