@@ -759,11 +759,6 @@ export default function ManufacturingView({
                                   <i className="bi bi-play-fill me-1"></i>Start
                               </button>
                           )}
-                          {selectedNode.status === 'IN_PROGRESS' && (
-                              <button className="btn btn-sm btn-success py-0 px-2" style={{ fontSize: '0.72rem' }} onClick={() => setCompletionMO(selectedNode)}>
-                                  <i className="bi bi-check-lg me-1"></i>Log
-                              </button>
-                          )}
                           <button
                               title="Print this MO"
                               className={classic ? '' : 'btn btn-sm btn-outline-secondary py-0 px-2'}
@@ -912,14 +907,6 @@ export default function ManufacturingView({
                                   <span>Done: <strong style={{ color: '#000' }}>{done.toFixed(2)}</strong></span>
                                   <span>Left: <strong style={{ color: done >= total ? '#1a6e1a' : '#c00' }}>{Math.max(0, total - done).toFixed(2)}</strong></span>
                               </div>
-                              {selectedNode.status === 'IN_PROGRESS' && (
-                                  <button
-                                      onClick={() => setCompletionMO(selectedNode)}
-                                      style={{ marginTop: 5, width: '100%', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', padding: '2px 0', background: 'linear-gradient(to bottom,#b0e8b0,#70c870)', border: '1px solid', borderColor: '#d0f0d0 #0a3e0a #0a3e0a #1a5e1a', cursor: 'pointer', fontWeight: 'bold', color: '#004000' }}
-                                  >
-                                      + Log Entry
-                                  </button>
-                              )}
                           </div>
                       );
                   })()}
@@ -1829,14 +1816,12 @@ export default function ManufacturingView({
                                                               <>
                                                                   {xpBtn('Print', 'default', () => handlePrintWO(wo), 'Print Manufacturing Order', 'bi bi-printer')}
                                                                   {wo.status === 'PENDING'     && xpBtn('Start',  'primary', () => onUpdateStatus(wo.id, 'IN_PROGRESS'))}
-                                                                  {wo.status === 'IN_PROGRESS' && xpBtn('Log', 'success', () => setCompletionMO(wo))}
                                                                   {xpBtn('Del', 'danger', () => onDeleteMO(wo.id), 'Delete', 'bi bi-trash')}
                                                               </>
                                                           ) : (
                                                               <>
                                                                   <button className="btn btn-sm btn-link text-primary p-0" onClick={() => handlePrintWO(wo)} title="Print Manufacturing Order"><i className="bi bi-printer fs-5"></i></button>
                                                                   {wo.status === 'PENDING'     && <button className="btn btn-sm btn-primary py-0 px-2" style={{fontSize: '0.75rem'}} onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>START</button>}
-                                                                  {wo.status === 'IN_PROGRESS' && <button className="btn btn-sm btn-success py-0 px-2" style={{fontSize: '0.75rem'}} onClick={() => setCompletionMO(wo)}>LOG</button>}
                                                                   <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDeleteMO(wo.id)} title="Delete"><i className="bi bi-trash fs-5"></i></button>
                                                               </>
                                                           )}

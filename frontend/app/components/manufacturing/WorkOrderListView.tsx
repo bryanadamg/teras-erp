@@ -1,6 +1,8 @@
 'use client';
 import React, { useState, useMemo } from 'react';
 import { useTheme } from '../../context/ThemeContext';
+import { useData } from '../../context/DataContext';
+import MOCompletionModal from './MOCompletionModal';
 
 const STATUS_COLORS: Record<string, string> = {
     PENDING: '#888',
@@ -30,6 +32,8 @@ interface FlatWO {
     actual_duration_hours?: number;
     actual_start_date?: string;
     actual_end_date?: string;
+    qty?: number;
+    qty_completed_total?: number;
     mo_id: string;
     mo_code: string;
     item_name: string;
@@ -38,8 +42,11 @@ interface FlatWO {
 export default function WorkOrderListView({ manufacturingOrders, workCenters, onUpdate, onUpdateStatus, onDelete }: Props) {
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
+    const { fetchData } = useData();
 
     const [editId, setEditId] = useState<string | null>(null);
+    const [completionMO, setCompletionMO] = useState<any>(null);
+    const [completionWO, setCompletionWO] = useState<any>(null);
     const [form, setForm] = useState({ sequence: '', name: '', work_center_id: '', planned_duration_hours: '' });
     const [isSaving, setIsSaving] = useState(false);
     const [filterStatus, setFilterStatus] = useState('');
@@ -94,6 +101,14 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
         } finally {
             setIsSaving(false);
         }
+    };
+
+    const canComplete = (wo: FlatWO) => !wo.qty || (wo.qty_completed_total ?? 0) >= wo.qty;
+
+    const openLog = (wo: FlatWO) => {
+        const mo = manufacturingOrders.find(m => m.id === wo.mo_id);
+        setCompletionMO(mo ?? null);
+        setCompletionWO(wo);
     };
 
     const xpInput: React.CSSProperties = {
@@ -160,6 +175,7 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
     } : { verticalAlign: 'middle' };
 
     return (
+        <>
         <div className="row g-4 fade-in">
             <div className="col-12">
                 <div style={containerStyle} className={classic ? '' : 'card h-100 border-0 shadow-sm'}>
@@ -228,7 +244,7 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                         >
                             <thead>
                                 <tr className={classic ? '' : 'table-light'}>
-                                    {['#', 'Name', 'MO', 'Product', 'Work Center', 'Planned', 'Actual', 'Start', 'End', 'Status', ''].map(h => (
+                                    {['#', 'Name', 'MO', 'Product', 'Work Center', 'Planned', 'Actual', 'Target / Done', 'Start', 'End', 'Status', ''].map(h => (
                                         <th key={h} style={{ ...thStyle, textAlign: h === '' ? 'right' : 'left' }}
                                             className={classic ? '' : 'ps-3'}>{h}</th>
                                     ))}
@@ -237,7 +253,7 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                             <tbody>
                                 {filtered.length === 0 && (
                                     <tr>
-                                        <td colSpan={11} style={{ padding: 24, textAlign: 'center', color: '#888', fontSize: classic ? 11 : undefined }}>
+                                        <td colSpan={12} style={{ padding: 24, textAlign: 'center', color: '#888', fontSize: classic ? 11 : undefined }}>
                                             No work orders found.
                                         </td>
                                     </tr>
@@ -275,7 +291,7 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                                                         value={form.planned_duration_hours}
                                                         onChange={e => setForm(f => ({ ...f, planned_duration_hours: e.target.value }))} />
                                                 </td>
-                                                <td style={tdBase} colSpan={3} />
+                                                <td style={tdBase} colSpan={4} />
                                                 <td style={tdBase} />
                                                 <td style={{ ...tdBase, textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                     <button onClick={() => handleSave(wo)} disabled={isSaving}
@@ -302,13 +318,30 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                                             <td style={{ ...tdBase, fontSize: classic ? 10 : 11, color: '#555' }}>{wo.work_center_name || '—'}</td>
                                             <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>{wo.planned_duration_hours != null ? `${wo.planned_duration_hours}h` : '—'}</td>
                                             <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>{wo.actual_duration_hours != null ? `${wo.actual_duration_hours}h` : '—'}</td>
+                                            <td style={{ ...tdBase, fontSize: classic ? 10 : 11, textAlign: 'right' }}>
+                                                {wo.qty != null ? (
+                                                    <span>
+                                                        <span style={{ color: (wo.qty_completed_total ?? 0) >= wo.qty ? '#007000' : '#555' }}>
+                                                            {(wo.qty_completed_total ?? 0).toFixed(2)}
+                                                        </span>
+                                                        <span style={{ color: '#999' }}> / {wo.qty}</span>
+                                                    </span>
+                                                ) : '—'}
+                                            </td>
                                             <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>{formatDateTime(wo.actual_start_date)}</td>
                                             <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>{formatDateTime(wo.actual_end_date)}</td>
                                             <td style={tdBase}>
                                                 {classic ? (
                                                     <select
                                                         value={wo.status}
-                                                        onChange={e => onUpdateStatus(wo.id, e.target.value)}
+                                                        onChange={e => {
+                                                            const s = e.target.value;
+                                                            if (s === 'COMPLETED' && !canComplete(wo)) {
+                                                                alert(`Target not reached: ${(wo.qty_completed_total ?? 0).toFixed(2)} of ${wo.qty} produced. Log more output first.`);
+                                                                return;
+                                                            }
+                                                            onUpdateStatus(wo.id, s);
+                                                        }}
                                                         style={{ fontFamily: 'Tahoma', fontSize: 10, border: '1px solid #aca899', background: '#ece9d8', color: STATUS_COLORS[wo.status] || '#000', height: 18, padding: '0 2px' }}
                                                     >
                                                         {STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
@@ -320,6 +353,12 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                                             <td style={{ ...tdBase, textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                 {classic ? (
                                                     <>
+                                                        {(wo.status === 'PENDING' || wo.status === 'IN_PROGRESS') && (
+                                                            <button
+                                                                onClick={() => openLog(wo)}
+                                                                style={{ fontFamily: 'Tahoma', fontSize: 10, padding: '1px 6px', background: 'linear-gradient(to bottom,#b0e8b0,#70c870)', border: '1px solid #0a3e0a', cursor: 'pointer', color: '#004000', marginRight: 4 }}
+                                                            >Log</button>
+                                                        )}
                                                         <button onClick={() => startEdit(wo)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#0058e6', marginRight: 4 }}>
                                                             <i className="bi bi-pencil" />
                                                         </button>
@@ -332,8 +371,17 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                                                         {wo.status === 'PENDING' && (
                                                             <button className="btn btn-sm btn-primary py-0 px-2 me-1" style={{ fontSize: '0.72rem' }} onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>Start</button>
                                                         )}
+                                                        {(wo.status === 'PENDING' || wo.status === 'IN_PROGRESS') && (
+                                                            <button className="btn btn-sm btn-success py-0 px-2 me-1" style={{ fontSize: '0.72rem' }} onClick={() => openLog(wo)}>Log</button>
+                                                        )}
                                                         {wo.status === 'IN_PROGRESS' && (
-                                                            <button className="btn btn-sm btn-success py-0 px-2 me-1" style={{ fontSize: '0.72rem' }} onClick={() => onUpdateStatus(wo.id, 'COMPLETED')}>Finish</button>
+                                                            <button
+                                                                className="btn btn-sm btn-outline-success py-0 px-2 me-1"
+                                                                style={{ fontSize: '0.72rem' }}
+                                                                disabled={!canComplete(wo)}
+                                                                title={!canComplete(wo) ? `Target ${wo.qty} not reached` : undefined}
+                                                                onClick={() => onUpdateStatus(wo.id, 'COMPLETED')}
+                                                            >Finish</button>
                                                         )}
                                                         <button className="btn btn-sm btn-link text-primary p-0 me-1" onClick={() => startEdit(wo)}><i className="bi bi-pencil fs-6" /></button>
                                                         <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDelete(wo.id)}><i className="bi bi-trash fs-6" /></button>
@@ -349,5 +397,15 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                 </div>
             </div>
         </div>
+
+        {completionMO && (
+            <MOCompletionModal
+                mo={completionMO}
+                workOrder={completionWO ?? undefined}
+                onClose={() => { setCompletionMO(null); setCompletionWO(null); }}
+                onSaved={() => { setCompletionMO(null); setCompletionWO(null); fetchData('work-orders'); }}
+            />
+        )}
+        </>
     );
 }

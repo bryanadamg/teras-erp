@@ -165,7 +165,14 @@ export default function WorkOrderPanel({
                                 <td style={{ padding: '2px 6px' }}>
                                     <select
                                         value={wo.status}
-                                        onChange={e => onUpdateStatus(wo.id, e.target.value)}
+                                        onChange={e => {
+                                            const s = e.target.value;
+                                            if (s === 'COMPLETED' && wo.qty && (wo.qty_completed_total ?? 0) < wo.qty) {
+                                                alert(`Target not reached: ${(wo.qty_completed_total ?? 0).toFixed(2)} of ${wo.qty} produced. Log more output first.`);
+                                                return;
+                                            }
+                                            onUpdateStatus(wo.id, s);
+                                        }}
                                         style={{ fontFamily: xpFont, fontSize: 10, border: '1px solid #aca899', background: '#ece9d8', color: STATUS_COLORS[wo.status] || '#000', height: 18, padding: '0 2px' }}
                                     >
                                         {['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].map(s => (
