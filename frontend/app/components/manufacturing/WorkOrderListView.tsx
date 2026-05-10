@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import MOCompletionModal from './MOCompletionModal';
+import WOCompletionModal from './WOCompletionModal';
 import WOStepPrintModal from './WOStepPrintModal';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -412,7 +412,7 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
         </div>
 
         {completionMO && (
-            <MOCompletionModal
+            <WOCompletionModal
                 mo={completionMO}
                 workOrder={completionWO ?? undefined}
                 onClose={() => { setCompletionMO(null); setCompletionWO(null); }}

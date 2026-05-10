@@ -45,14 +45,14 @@ interface MaterialRow {
     orig_item_code: string;
 }
 
-interface MOCompletionModalProps {
+interface WOCompletionModalProps {
     mo: any;
     onClose: () => void;
     onSaved: (updatedMO: any) => void;
     workOrder?: any;
 }
 
-export default function MOCompletionModal({ mo, onClose, onSaved, workOrder }: MOCompletionModalProps) {
+export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: WOCompletionModalProps) {
     const { authFetch, workCenters, items } = useData() as any;
     const { showToast } = useToast();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';

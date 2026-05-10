@@ -14,7 +14,7 @@ import PrintHeader from '../shared/PrintHeader';
 import WOPrintModal, { PrintSettings } from './WOPrintModal';
 import ProductionRunModal from './ProductionRunModal';
 import WorkOrderPanel from './WorkOrderPanel';
-import MOCompletionModal from './MOCompletionModal';
+import WOCompletionModal from './WOCompletionModal';
 import MOCreationPreview from './MOCreationPreview';
 
 export default function ManufacturingView({
@@ -1832,7 +1832,7 @@ export default function ManufacturingView({
           )}
 
           {completionMO && (
-              <MOCompletionModal
+              <WOCompletionModal
                   mo={completionMO}
                   workOrder={completionWO ?? undefined}
                   onClose={() => { setCompletionMO(null); setCompletionWO(null); }}
