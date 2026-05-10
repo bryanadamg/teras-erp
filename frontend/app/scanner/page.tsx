@@ -62,10 +62,6 @@ export default function ScannerPage() {
         return (
             <MobileScannerView
                 manufacturingOrders={localMOs}
-                items={items}
-                boms={localBoms}
-                locations={locations}
-                stockBalance={localStockBalance}
                 workCenters={workCenters}
                 authFetch={authFetch}
                 onRefresh={reload}
