@@ -147,6 +147,38 @@ def seed_rbac(db):
         logger.error(f"RBAC seeding failed: {e}")
 
 
+def backfill_mo_planned_components(db):
+    """One-time backfill for MOs created before the BOM snapshot feature.
+    Idempotent — skips MOs that already have planned_component rows."""
+    try:
+        db.execute(text("""
+            INSERT INTO mo_planned_components
+                (id, mo_id, item_id, percentage, qty, source_location_id, bom_line_id, attribute_value_ids)
+            SELECT
+                gen_random_uuid(),
+                mo.id,
+                bl.item_id,
+                bl.percentage,
+                bl.qty,
+                bl.source_location_id,
+                bl.id,
+                COALESCE(
+                    (SELECT jsonb_agg(blv.attribute_value_id::text ORDER BY blv.attribute_value_id::text)
+                     FROM bom_line_values blv WHERE blv.bom_line_id = bl.id),
+                    '[]'::jsonb
+                )
+            FROM manufacturing_orders mo
+            JOIN bom_lines bl ON bl.bom_id = mo.bom_id
+            WHERE mo.bom_id IS NOT NULL
+              AND mo.id NOT IN (SELECT DISTINCT mo_id FROM mo_planned_components)
+        """))
+        db.commit()
+        logger.info("mo_planned_components backfill check complete")
+    except Exception as e:
+        db.rollback()
+        logger.warning(f"mo_planned_components backfill failed: {e}")
+
+
 def sync_stock_balances(db):
     """Rebuild stock_balances from stock_ledger. Runs on every startup."""
     try:
@@ -208,6 +240,7 @@ def init_db() -> None:
         seed_rbac(db)
         seed_colors_attribute(db)
         seed_sizes(db)
+        backfill_mo_planned_components(db)
         sync_stock_balances(db)
     finally:
         db.close()
