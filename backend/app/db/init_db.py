@@ -686,6 +686,37 @@ def run_migrations():
                 conn.rollback()
                 logger.warning(f"mo_planned_components table creation failed: {e}")
 
+            # Backfill planned_components for any MO that has a bom_id but no snapshot rows.
+            # Runs on every startup but the INSERT is a no-op when all MOs are already covered.
+            try:
+                conn.execute(text("""
+                    INSERT INTO mo_planned_components
+                        (id, mo_id, item_id, percentage, qty, source_location_id, bom_line_id, attribute_value_ids)
+                    SELECT
+                        gen_random_uuid(),
+                        mo.id,
+                        bl.item_id,
+                        bl.percentage,
+                        bl.qty,
+                        bl.source_location_id,
+                        bl.id,
+                        COALESCE(
+                            (SELECT jsonb_agg(blv.attribute_value_id::text ORDER BY blv.attribute_value_id::text)
+                             FROM bom_line_values blv
+                             WHERE blv.bom_line_id = bl.id),
+                            '[]'::jsonb
+                        )
+                    FROM manufacturing_orders mo
+                    JOIN bom_lines bl ON bl.bom_id = mo.bom_id
+                    WHERE mo.bom_id IS NOT NULL
+                      AND mo.id NOT IN (SELECT DISTINCT mo_id FROM mo_planned_components)
+                """))
+                conn.commit()
+                logger.info("Migration: mo_planned_components backfill check complete")
+            except Exception as e:
+                conn.rollback()
+                logger.warning(f"mo_planned_components backfill failed: {e}")
+
     except Exception as e:
         logger.error(f"Migration engine failed: {e}")
 
