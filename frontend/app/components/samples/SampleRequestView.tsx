@@ -725,11 +725,9 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                border: `1px solid ${c.is_repeat ? '#7ab0d8' : '#7aba7a'}`,
                                                fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11,
                                            }}>
-                                               {isColor && (
-                                                   <span style={{ fontSize: 9, fontWeight: 'bold', color: c.is_repeat ? '#0047c8' : '#228b22', textTransform: 'uppercase' as const }}>
-                                                       {c.is_repeat ? 'RPT' : 'NEW'}
-                                                   </span>
-                                               )}
+                                               <span style={{ fontSize: 9, fontWeight: 'bold', color: c.is_repeat ? '#0047c8' : '#228b22', textTransform: 'uppercase' as const }}>
+                                                   {c.is_repeat ? 'RPT' : 'NEW'}
+                                               </span>
                                                {c.name}
                                                <span onClick={() => removeColorRow(idx)} style={{ cursor: 'pointer', color: '#a00', marginLeft: 2, fontWeight: 'bold', fontSize: 12, lineHeight: 1 }} title="Remove">×</span>
                                            </span>
@@ -747,17 +745,15 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                            size="sm"
                                        />
                                    </div>
-                                   {isColor && (
-                                       <button
-                                           type="button"
-                                           style={pendingColorIsRepeat
-                                               ? xpBtn({ background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', color: '#fff', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', minWidth: 52 })
-                                               : xpBtn({ minWidth: 52 })}
-                                           onClick={() => setPendingColorIsRepeat(!pendingColorIsRepeat)}
-                                           title="Toggle New / Repeat">
-                                           {pendingColorIsRepeat ? 'Repeat' : 'New'}
-                                       </button>
-                                   )}
+                                   <button
+                                       type="button"
+                                       style={pendingColorIsRepeat
+                                           ? xpBtn({ background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', color: '#fff', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', minWidth: 52 })
+                                           : xpBtn({ minWidth: 52 })}
+                                       onClick={() => setPendingColorIsRepeat(!pendingColorIsRepeat)}
+                                       title="Toggle New / Repeat">
+                                       {pendingColorIsRepeat ? 'Repeat' : 'New'}
+                                   </button>
                                    <button type="button" style={xpBtn()} onClick={addPendingColor}>
                                        <i className="bi bi-plus-lg" /> Add
                                    </button>
@@ -799,7 +795,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                        ? <span className="text-muted fst-italic small">No variants added yet…</span>
                                        : newSample.colors.map((c, idx) => (
                                            <span key={idx} className={`badge me-1 mb-1 d-inline-flex align-items-center gap-1 ${c.is_repeat ? 'bg-primary' : 'bg-success'}`} style={{ fontSize: 11, fontWeight: 'normal' }}>
-                                               {isColor && <small className="fw-bold">{c.is_repeat ? 'RPT' : 'NEW'}</small>}
+                                               <small className="fw-bold">{c.is_repeat ? 'RPT' : 'NEW'}</small>
                                                {c.name}
                                                <span onClick={() => removeColorRow(idx)} style={{ cursor: 'pointer', marginLeft: 2 }} title="Remove">×</span>
                                            </span>
@@ -817,11 +813,9 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                            size="sm"
                                        />
                                    </div>
-                                   {isColor && (
-                                       <button type="button" className={`btn btn-sm ${pendingColorIsRepeat ? 'btn-primary' : 'btn-outline-secondary'}`} style={{ minWidth: 60 }} onClick={() => setPendingColorIsRepeat(!pendingColorIsRepeat)}>
-                                           {pendingColorIsRepeat ? 'Repeat' : 'New'}
-                                       </button>
-                                   )}
+                                   <button type="button" className={`btn btn-sm ${pendingColorIsRepeat ? 'btn-primary' : 'btn-outline-secondary'}`} style={{ minWidth: 60 }} onClick={() => setPendingColorIsRepeat(!pendingColorIsRepeat)}>
+                                       {pendingColorIsRepeat ? 'Repeat' : 'New'}
+                                   </button>
                                    <button type="button" className="btn btn-sm btn-outline-secondary" onClick={addPendingColor}>
                                        <i className="bi bi-plus-lg me-1" />Add
                                    </button>
