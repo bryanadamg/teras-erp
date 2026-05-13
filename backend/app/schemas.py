@@ -38,6 +38,7 @@ class AttributeUpdate(BaseModel):
 class AttributeResponse(AttributeCreate):
     id: UUID
     is_system: bool = False
+    system_role: str | None = None
     values: list[AttributeValueResponse] = []
 
     class Config:
@@ -681,6 +682,7 @@ class SampleRequestCreate(BaseModel):
     customer_article_code: Optional[str] = None
     internal_article_code: Optional[str] = None
     width: Optional[str] = None
+    variant_type: str = "color"
     colors: list[SampleColorCreate] = []
     main_material: Optional[str] = None
     middle_material: Optional[str] = None
@@ -711,6 +713,7 @@ class SampleRequestUpdate(BaseModel):
     customer_article_code: Optional[str] = None
     internal_article_code: Optional[str] = None
     width: Optional[str] = None
+    variant_type: str = "color"
     colors: list[SampleColorUpdate] = []
     main_material: Optional[str] = None
     middle_material: Optional[str] = None
@@ -733,6 +736,7 @@ class SampleRequestResponse(BaseModel):
     code: str
     version: int
     status: str
+    variant_type: str = "color"
     created_at: datetime
     is_unread: bool = False
     customer_id: Optional[UUID] = None

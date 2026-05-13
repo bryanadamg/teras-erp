@@ -429,8 +429,10 @@ export default function ItemMetadataView({
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
                                                     <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', fontWeight: 'bold', color: isActive ? '#ffffff' : '#000' }}>{attr.name}</span>
                                                     <span style={{ background: isActive ? 'rgba(255,255,255,0.2)' : '#e0dfd8', border: `1px solid ${isActive ? 'rgba(255,255,255,0.4)' : '#b0a898'}`, padding: '0 4px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: isActive ? '#ffffff' : '#555' }}>{attr.values.length}</span>
-                                                    {attr.is_system && (
-                                                        <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '9px', background: isActive ? 'rgba(180,220,255,0.3)' : '#dce8ff', border: `1px solid ${isActive ? 'rgba(180,220,255,0.5)' : '#7fa8e0'}`, color: isActive ? '#d0e8ff' : '#003080', padding: '0 4px' }}>Sample Colors</span>
+                                                    {attr.system_role && (
+                                                        <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '9px', background: isActive ? 'rgba(180,220,255,0.3)' : '#dce8ff', border: `1px solid ${isActive ? 'rgba(180,220,255,0.5)' : '#7fa8e0'}`, color: isActive ? '#d0e8ff' : '#003080', padding: '0 4px' }}>
+                                                            {attr.system_role === 'color' ? 'Sample Colors' : 'Sample Combo'}
+                                                        </span>
                                                     )}
                                                 </div>
                                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
@@ -659,8 +661,10 @@ export default function ItemMetadataView({
                                             <div className="d-flex justify-content-between mb-1">
                                                 <div className="d-flex align-items-center gap-2">
                                                     <h6 className="mb-0 fw-bold">{attr.name}</h6>
-                                                    {attr.is_system && (
-                                                        <span className="badge bg-primary bg-opacity-10 text-primary border border-primary" style={{ fontSize: 9, fontWeight: 'normal' }}>Sample Colors</span>
+                                                    {attr.system_role && (
+                                                        <span className="badge bg-primary bg-opacity-10 text-primary border border-primary" style={{ fontSize: 9, fontWeight: 'normal' }}>
+                                                            {attr.system_role === 'color' ? 'Sample Colors' : 'Sample Combo'}
+                                                        </span>
                                                     )}
                                                 </div>
                                                 <span className={`badge ${activeAttribute?.id === attr.id ? 'bg-light text-primary' : 'bg-light text-dark border'}`}>{attr.values.length}</span>

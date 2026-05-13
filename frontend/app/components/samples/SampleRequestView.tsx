@@ -27,11 +27,18 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
   };
   const { companyProfile, attributes } = useData();
   const colorOptions = useMemo(() => {
-    const colorsAttr = (attributes as any[]).find((a: any) => a.is_system);
-    return (colorsAttr?.values ?? []).map((v: any) => ({ value: v.value, label: v.value }));
+    const attr = (attributes as any[]).find((a: any) => a.system_role === 'color');
+    return (attr?.values ?? []).map((v: any) => ({ value: v.value, label: v.value }));
   }, [attributes]);
   const colorsAttrName = useMemo(() => {
-    return (attributes as any[]).find((a: any) => a.is_system)?.name ?? null;
+    return (attributes as any[]).find((a: any) => a.system_role === 'color')?.name ?? null;
+  }, [attributes]);
+  const comboOptions = useMemo(() => {
+    const attr = (attributes as any[]).find((a: any) => a.system_role === 'combo');
+    return (attr?.values ?? []).map((v: any) => ({ value: v.value, label: v.value }));
+  }, [attributes]);
+  const comboAttrName = useMemo(() => {
+    return (attributes as any[]).find((a: any) => a.system_role === 'combo')?.name ?? null;
   }, [attributes]);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -216,6 +223,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       customer_article_code: '',
       internal_article_code: '',
       width: '',
+      variant_type: 'color' as 'color' | 'combo',
       colors: [] as { id?: string; name: string; is_repeat: boolean }[],
       main_material: '',
       middle_material: '',
@@ -295,6 +303,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
           customer_article_code: sample.customer_article_code || '',
           internal_article_code: sample.internal_article_code || '',
           width: sample.width || '',
+          variant_type: (sample.variant_type || 'color') as 'color' | 'combo',
           colors: (sample.colors || []).map((c: any) => ({ id: c.id, name: c.name, is_repeat: c.is_repeat })),
           main_material: sample.main_material || '',
           middle_material: sample.middle_material || '',
@@ -652,119 +661,175 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                )}
 
                {/* ══ ② Colors & Specs ══ */}
-               {classic ? (
-                   <div style={xpGroupBox}>
-                       <div style={xpGroupHeader}>② Colors &amp; Specs</div>
-                       <div style={xpGroupBody}>
-                           <div style={{ marginBottom: 10 }}>
-                               <label style={xpLbl}>Width</label>
-                               <input style={{ ...xpInput, width: 130 }}
-                                      value={newSample.width} onChange={e => setNewSample({ ...newSample, width: e.target.value })}
-                                      placeholder="e.g. 8 mm" />
-                           </div>
-                           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 2 }}>
-                               <label style={xpLbl}>Colors</label>
-                               {colorsAttrName && (
-                                   <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 9, color: '#555', background: '#e8eef8', border: '1px solid #aabbd8', padding: '0 5px' }}>
-                                       attr: {colorsAttrName}
-                                   </span>
-                               )}
-                           </div>
-                           <div style={{
-                               background: '#f5f9ff', border: '1px solid #b0c8e8', minHeight: 40,
-                               padding: '6px 8px', marginBottom: 6,
-                               display: 'flex', flexWrap: 'wrap' as const, alignContent: 'flex-start' as const,
-                           }}>
-                               {newSample.colors.length === 0
-                                   ? <span style={{ fontFamily: 'Tahoma', fontSize: 11, color: '#999', fontStyle: 'italic' }}>No colors added yet…</span>
-                                   : newSample.colors.map((c, idx) => (
-                                       <span key={idx} style={{
-                                           display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 7px',
-                                           marginRight: 4, marginBottom: 4,
-                                           background: c.is_repeat ? '#dce8f8' : '#e8f4e8',
-                                           border: `1px solid ${c.is_repeat ? '#7ab0d8' : '#7aba7a'}`,
-                                           fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11,
-                                       }}>
-                                           <span style={{ fontSize: 9, fontWeight: 'bold', color: c.is_repeat ? '#0047c8' : '#228b22', textTransform: 'uppercase' as const }}>
-                                               {c.is_repeat ? 'RPT' : 'NEW'}
+               {(() => {
+                   const isColor = newSample.variant_type === 'color';
+                   const activeOptions = isColor ? colorOptions : comboOptions;
+                   const activeAttrName = isColor ? colorsAttrName : comboAttrName;
+                   const switchTab = (tab: 'color' | 'combo') => {
+                       if (tab === newSample.variant_type) return;
+                       setNewSample(prev => ({ ...prev, variant_type: tab, colors: [] }));
+                       setPendingColorName('');
+                       setPendingColorIsRepeat(false);
+                   };
+                   return classic ? (
+                       <div style={xpGroupBox}>
+                           <div style={xpGroupHeader}>② Colors &amp; Specs</div>
+                           <div style={xpGroupBody}>
+                               <div style={{ marginBottom: 10 }}>
+                                   <label style={xpLbl}>Width</label>
+                                   <input style={{ ...xpInput, width: 130 }}
+                                          value={newSample.width} onChange={e => setNewSample({ ...newSample, width: e.target.value })}
+                                          placeholder="e.g. 8 mm" />
+                               </div>
+                               {/* Tab bar */}
+                               <div style={{ display: 'flex', borderBottom: '2px solid #c0bdb5', marginBottom: 8, gap: 2 }}>
+                                   {(['color', 'combo'] as const).map(tab => {
+                                       const label = tab === 'color' ? (colorsAttrName || 'Colors') : (comboAttrName || 'Combo');
+                                       const active = newSample.variant_type === tab;
+                                       return (
+                                           <button
+                                               key={tab}
+                                               type="button"
+                                               onClick={() => switchTab(tab)}
+                                               style={{
+                                                   fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11,
+                                                   padding: '2px 12px', cursor: 'pointer',
+                                                   border: '1px solid', borderBottom: active ? '2px solid #fff' : '1px solid #c0bdb5',
+                                                   marginBottom: active ? -2 : 0,
+                                                   borderColor: active ? '#808080 #c0bdb5 transparent #808080' : '#d0cfc8',
+                                                   background: active ? '#ffffff' : 'linear-gradient(to bottom, #f5f3ee, #e0dfd8)',
+                                                   color: active ? '#000' : '#555', fontWeight: active ? 'bold' : 'normal',
+                                               }}
+                                           >{label}</button>
+                                       );
+                                   })}
+                                   {activeAttrName && (
+                                       <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 9, color: '#555', background: '#e8eef8', border: '1px solid #aabbd8', padding: '0 5px', marginLeft: 'auto', alignSelf: 'center' }}>
+                                           attr: {activeAttrName}
+                                       </span>
+                                   )}
+                               </div>
+                               {/* Added variants */}
+                               <div style={{
+                                   background: '#f5f9ff', border: '1px solid #b0c8e8', minHeight: 40,
+                                   padding: '6px 8px', marginBottom: 6,
+                                   display: 'flex', flexWrap: 'wrap' as const, alignContent: 'flex-start' as const,
+                               }}>
+                                   {newSample.colors.length === 0
+                                       ? <span style={{ fontFamily: 'Tahoma', fontSize: 11, color: '#999', fontStyle: 'italic' }}>No variants added yet…</span>
+                                       : newSample.colors.map((c, idx) => (
+                                           <span key={idx} style={{
+                                               display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 7px',
+                                               marginRight: 4, marginBottom: 4,
+                                               background: c.is_repeat ? '#dce8f8' : '#e8f4e8',
+                                               border: `1px solid ${c.is_repeat ? '#7ab0d8' : '#7aba7a'}`,
+                                               fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11,
+                                           }}>
+                                               {isColor && (
+                                                   <span style={{ fontSize: 9, fontWeight: 'bold', color: c.is_repeat ? '#0047c8' : '#228b22', textTransform: 'uppercase' as const }}>
+                                                       {c.is_repeat ? 'RPT' : 'NEW'}
+                                                   </span>
+                                               )}
+                                               {c.name}
+                                               <span onClick={() => removeColorRow(idx)} style={{ cursor: 'pointer', color: '#a00', marginLeft: 2, fontWeight: 'bold', fontSize: 12, lineHeight: 1 }} title="Remove">×</span>
                                            </span>
-                                           {c.name}
-                                           <span onClick={() => removeColorRow(idx)} style={{ cursor: 'pointer', color: '#a00', marginLeft: 2, fontWeight: 'bold', fontSize: 12, lineHeight: 1 }} title="Remove">×</span>
-                                       </span>
-                                   ))
-                               }
-                           </div>
-                           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                               <div style={{ flex: 1 }}>
-                                   <SearchableSelect
-                                       options={colorOptions}
-                                       value={pendingColorName}
-                                       onChange={setPendingColorName}
-                                       placeholder="Select color…"
-                                       size="sm"
-                                   />
+                                       ))
+                                   }
                                </div>
-                               <button
-                                   type="button"
-                                   style={pendingColorIsRepeat
-                                       ? xpBtn({ background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', color: '#fff', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', minWidth: 52 })
-                                       : xpBtn({ minWidth: 52 })}
-                                   onClick={() => setPendingColorIsRepeat(!pendingColorIsRepeat)}
-                                   title="Toggle New / Repeat">
-                                   {pendingColorIsRepeat ? 'Repeat' : 'New'}
-                               </button>
-                               <button type="button" style={xpBtn()} onClick={addPendingColor}>
-                                   <i className="bi bi-plus-lg" /> Add Color
-                               </button>
+                               {/* Add row */}
+                               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                   <div style={{ flex: 1 }}>
+                                       <SearchableSelect
+                                           options={activeOptions}
+                                           value={pendingColorName}
+                                           onChange={setPendingColorName}
+                                           placeholder={`Select ${isColor ? 'color' : 'combo'}…`}
+                                           size="sm"
+                                       />
+                                   </div>
+                                   {isColor && (
+                                       <button
+                                           type="button"
+                                           style={pendingColorIsRepeat
+                                               ? xpBtn({ background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', color: '#fff', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', minWidth: 52 })
+                                               : xpBtn({ minWidth: 52 })}
+                                           onClick={() => setPendingColorIsRepeat(!pendingColorIsRepeat)}
+                                           title="Toggle New / Repeat">
+                                           {pendingColorIsRepeat ? 'Repeat' : 'New'}
+                                       </button>
+                                   )}
+                                   <button type="button" style={xpBtn()} onClick={addPendingColor}>
+                                       <i className="bi bi-plus-lg" /> Add
+                                   </button>
+                               </div>
                            </div>
                        </div>
-                   </div>
-               ) : (
-                   <div className="card border-0 mb-3">
-                       <div className="card-header py-1 px-2 text-white small fw-bold" style={{ background: 'linear-gradient(to right, #2a5fbe, #4a8fd8)' }}>② Colors &amp; Specs</div>
-                       <div className="card-body p-2">
-                           <div className="mb-2">
-                               <label className="form-label small text-muted">Width</label>
-                               <input className="form-control form-control-sm" style={{ maxWidth: 160 }} value={newSample.width} onChange={e => setNewSample({ ...newSample, width: e.target.value })} placeholder="e.g. 8 mm" />
-                           </div>
-                           <div className="d-flex align-items-baseline gap-2 mb-1">
-                               <label className="form-label small text-muted mb-0">Colors</label>
-                               {colorsAttrName && (
-                                   <span className="badge bg-secondary bg-opacity-10 text-secondary border" style={{ fontSize: 9, fontWeight: 'normal' }}>attr: {colorsAttrName}</span>
-                               )}
-                           </div>
-                           <div className="p-2 mb-2 d-flex flex-wrap" style={{ background: '#f0f5ff', border: '1px solid #c8d8f0', minHeight: 40 }}>
-                               {newSample.colors.length === 0
-                                   ? <span className="text-muted fst-italic small">No colors added yet…</span>
-                                   : newSample.colors.map((c, idx) => (
-                                       <span key={idx} className={`badge me-1 mb-1 d-inline-flex align-items-center gap-1 ${c.is_repeat ? 'bg-primary' : 'bg-success'}`} style={{ fontSize: 11, fontWeight: 'normal' }}>
-                                           <small className="fw-bold">{c.is_repeat ? 'RPT' : 'NEW'}</small>
-                                           {c.name}
-                                           <span onClick={() => removeColorRow(idx)} style={{ cursor: 'pointer', marginLeft: 2 }} title="Remove">×</span>
-                                       </span>
-                                   ))
-                               }
-                           </div>
-                           <div className="d-flex gap-2 align-items-center">
-                               <div className="flex-grow-1">
-                                   <SearchableSelect
-                                       options={colorOptions}
-                                       value={pendingColorName}
-                                       onChange={setPendingColorName}
-                                       placeholder="Select color…"
-                                       size="sm"
-                                   />
+                   ) : (
+                       <div className="card border-0 mb-3">
+                           <div className="card-header py-1 px-2 text-white small fw-bold" style={{ background: 'linear-gradient(to right, #2a5fbe, #4a8fd8)' }}>② Colors &amp; Specs</div>
+                           <div className="card-body p-2">
+                               <div className="mb-2">
+                                   <label className="form-label small text-muted">Width</label>
+                                   <input className="form-control form-control-sm" style={{ maxWidth: 160 }} value={newSample.width} onChange={e => setNewSample({ ...newSample, width: e.target.value })} placeholder="e.g. 8 mm" />
                                </div>
-                               <button type="button" className={`btn btn-sm ${pendingColorIsRepeat ? 'btn-primary' : 'btn-outline-secondary'}`} style={{ minWidth: 60 }} onClick={() => setPendingColorIsRepeat(!pendingColorIsRepeat)}>
-                                   {pendingColorIsRepeat ? 'Repeat' : 'New'}
-                               </button>
-                               <button type="button" className="btn btn-sm btn-outline-secondary" onClick={addPendingColor}>
-                                   <i className="bi bi-plus-lg me-1" />Add Color
-                               </button>
+                               {/* Tab bar */}
+                               <ul className="nav nav-tabs mb-2" style={{ fontSize: 11 }}>
+                                   {(['color', 'combo'] as const).map(tab => {
+                                       const label = tab === 'color' ? (colorsAttrName || 'Colors') : (comboAttrName || 'Combo');
+                                       return (
+                                           <li key={tab} className="nav-item">
+                                               <button
+                                                   type="button"
+                                                   className={`nav-link py-1 px-3 ${newSample.variant_type === tab ? 'active' : ''}`}
+                                                   style={{ fontSize: 11 }}
+                                                   onClick={() => switchTab(tab)}
+                                               >{label}</button>
+                                           </li>
+                                       );
+                                   })}
+                                   {activeAttrName && (
+                                       <li className="nav-item ms-auto d-flex align-items-center">
+                                           <span className="badge bg-secondary bg-opacity-10 text-secondary border" style={{ fontSize: 9, fontWeight: 'normal' }}>attr: {activeAttrName}</span>
+                                       </li>
+                                   )}
+                               </ul>
+                               {/* Added variants */}
+                               <div className="p-2 mb-2 d-flex flex-wrap" style={{ background: '#f0f5ff', border: '1px solid #c8d8f0', minHeight: 40 }}>
+                                   {newSample.colors.length === 0
+                                       ? <span className="text-muted fst-italic small">No variants added yet…</span>
+                                       : newSample.colors.map((c, idx) => (
+                                           <span key={idx} className={`badge me-1 mb-1 d-inline-flex align-items-center gap-1 ${c.is_repeat ? 'bg-primary' : 'bg-success'}`} style={{ fontSize: 11, fontWeight: 'normal' }}>
+                                               {isColor && <small className="fw-bold">{c.is_repeat ? 'RPT' : 'NEW'}</small>}
+                                               {c.name}
+                                               <span onClick={() => removeColorRow(idx)} style={{ cursor: 'pointer', marginLeft: 2 }} title="Remove">×</span>
+                                           </span>
+                                       ))
+                                   }
+                               </div>
+                               {/* Add row */}
+                               <div className="d-flex gap-2 align-items-center">
+                                   <div className="flex-grow-1">
+                                       <SearchableSelect
+                                           options={activeOptions}
+                                           value={pendingColorName}
+                                           onChange={setPendingColorName}
+                                           placeholder={`Select ${isColor ? 'color' : 'combo'}…`}
+                                           size="sm"
+                                       />
+                                   </div>
+                                   {isColor && (
+                                       <button type="button" className={`btn btn-sm ${pendingColorIsRepeat ? 'btn-primary' : 'btn-outline-secondary'}`} style={{ minWidth: 60 }} onClick={() => setPendingColorIsRepeat(!pendingColorIsRepeat)}>
+                                           {pendingColorIsRepeat ? 'Repeat' : 'New'}
+                                       </button>
+                                   )}
+                                   <button type="button" className="btn btn-sm btn-outline-secondary" onClick={addPendingColor}>
+                                       <i className="bi bi-plus-lg me-1" />Add
+                                   </button>
+                               </div>
                            </div>
                        </div>
-                   </div>
-               )}
+                   );
+               })()}
 
                {/* ══ ③ Materials ══ */}
                {classic ? (

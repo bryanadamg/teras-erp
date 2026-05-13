@@ -12,6 +12,7 @@ class Attribute(Base):
     )
     name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     is_system: Mapped[bool] = mapped_column(default=False)
+    system_role: Mapped[str | None] = mapped_column(String(32), nullable=True, default=None)
 
     values = relationship("AttributeValue", backref="attribute", cascade="all, delete-orphan")
 

@@ -63,6 +63,7 @@ class SampleRequest(Base):
     estimated_completion_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     completion_description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    variant_type: Mapped[str] = mapped_column(String(16), default="color")
     version: Mapped[int] = mapped_column(Integer, default=1)
     status: Mapped[str] = mapped_column(String(32), default="DRAFT", index=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -40,20 +40,28 @@ def seed_sizes(db):
         logger.warning(f"Size seeding skipped: {e}")
 
 
-def seed_colors_attribute(db):
+def seed_system_attributes(db):
     try:
         from app.models.attribute import Attribute
-        existing = db.query(Attribute).filter(Attribute.name == "Colors").first()
-        if not existing:
-            db.add(Attribute(name="Colors", is_system=True))
-            db.commit()
-            logger.info("Seeded 'Colors' attribute")
-        elif not existing.is_system:
-            existing.is_system = True
-            db.commit()
-            logger.info("Marked existing 'Colors' attribute as system")
+        for name, role in [("Colors", "color"), ("Combo", "combo")]:
+            existing = db.query(Attribute).filter(Attribute.name == name).first()
+            if not existing:
+                db.add(Attribute(name=name, is_system=True, system_role=role))
+                db.commit()
+                logger.info(f"Seeded '{name}' system attribute (role={role})")
+            else:
+                changed = False
+                if not existing.is_system:
+                    existing.is_system = True
+                    changed = True
+                if existing.system_role != role:
+                    existing.system_role = role
+                    changed = True
+                if changed:
+                    db.commit()
+                    logger.info(f"Updated '{name}' attribute: is_system=True, system_role={role}")
     except Exception as e:
-        logger.warning(f"Colors attribute seeding skipped: {e}")
+        logger.warning(f"System attribute seeding skipped: {e}")
 
 
 def seed_categories(db):
@@ -238,7 +246,7 @@ def init_db() -> None:
         seed_categories(db)
         seed_uoms(db)
         seed_rbac(db)
-        seed_colors_attribute(db)
+        seed_system_attributes(db)
         seed_sizes(db)
         backfill_mo_planned_components(db)
         sync_stock_balances(db)

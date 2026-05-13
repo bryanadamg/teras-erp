@@ -54,6 +54,7 @@ async def create_sample_request(
         customer_article_code=payload.customer_article_code,
         internal_article_code=payload.internal_article_code,
         width=payload.width,
+        variant_type=payload.variant_type,
         main_material=payload.main_material,
         middle_material=payload.middle_material,
         bottom_material=payload.bottom_material,
@@ -162,6 +163,7 @@ async def update_sample_request(
     sample.customer_article_code = payload.customer_article_code
     sample.internal_article_code = payload.internal_article_code
     sample.width = payload.width
+    sample.variant_type = payload.variant_type
     sample.main_material = payload.main_material
     sample.middle_material = payload.middle_material
     sample.bottom_material = payload.bottom_material
