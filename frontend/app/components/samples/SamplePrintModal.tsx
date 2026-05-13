@@ -35,8 +35,12 @@ function FieldRow({ label, value, tall }: { label: string; value?: string | null
             <td style={{ border: '1px solid #555', padding: '4px 7px', fontWeight: 'bold', whiteSpace: 'nowrap', width: '38%', verticalAlign: tall ? 'top' : 'middle' }}>
                 {label}
             </td>
-            <td style={{ border: '1px solid #555', padding: '4px 7px', verticalAlign: tall ? 'top' : 'middle', minHeight: tall ? 36 : undefined }}>
-                {value || ''}
+            <td style={{ border: '1px solid #555', padding: '4px 7px', verticalAlign: tall ? 'top' : 'middle' }}>
+                {tall ? (
+                    <div style={{ minHeight: Math.max(60, (value || '').split('\n').length * 20), whiteSpace: 'pre-wrap' }}>
+                        {value || ''}
+                    </div>
+                ) : (value || '')}
             </td>
         </tr>
     );
