@@ -26,10 +26,10 @@ const LINE_TYPES = ['DYE', 'AUXILIARY', 'SALT', 'OTHER'];
 
 interface RecipeLine {
     id?: string;
-    type: string;
+    chemical_type: string;
     item_id: string;
     qty_per_100kg: number | string;
-    uom: string;
+    uom_id?: string | null;
     sort_order: number | string;
 }
 
@@ -116,10 +116,10 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
             is_active: recipe.is_active !== false,
             lines: (recipe.lines || []).map((l: any) => ({
                 id: l.id,
-                type: l.type || 'DYE',
+                chemical_type: l.chemical_type || 'OTHER',
                 item_id: String(l.item_id || ''),
                 qty_per_100kg: l.qty_per_100kg ?? '',
-                uom: l.uom || '',
+                uom_id: l.uom_id || null,
                 sort_order: l.sort_order ?? '',
             })),
         });
@@ -202,10 +202,10 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
             lines: [
                 ...f.lines,
                 {
-                    type: 'DYE',
-                    item_id: items.length > 0 ? String(items[0].id) : '',
+                    chemical_type: 'DYE',
+                    item_id: '',
                     qty_per_100kg: '',
-                    uom: '',
+                    uom_id: null,
                     sort_order: f.lines.length + 1,
                 },
             ],
@@ -399,7 +399,6 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
                                                 <th style={{ padding: '2px 4px', borderBottom: '1px solid #c0d4e8', textAlign: 'left', width: 80 }}>Type</th>
                                                 <th style={{ padding: '2px 4px', borderBottom: '1px solid #c0d4e8', textAlign: 'left' }}>Item</th>
                                                 <th style={{ padding: '2px 4px', borderBottom: '1px solid #c0d4e8', textAlign: 'left', width: 80 }}>Qty/100kg</th>
-                                                <th style={{ padding: '2px 4px', borderBottom: '1px solid #c0d4e8', textAlign: 'left', width: 60 }}>UOM</th>
                                                 <th style={{ padding: '2px 4px', borderBottom: '1px solid #c0d4e8', textAlign: 'left', width: 50 }}>Sort</th>
                                                 <th style={{ padding: '2px 4px', borderBottom: '1px solid #c0d4e8', textAlign: 'center', width: 28 }}></th>
                                             </tr>
@@ -407,7 +406,7 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
                                         <tbody>
                                             {form.lines.length === 0 && (
                                                 <tr>
-                                                    <td colSpan={7} style={{ padding: '6px', color: '#888', textAlign: 'center' }}>
+                                                    <td colSpan={6} style={{ padding: '6px', color: '#888', textAlign: 'center' }}>
                                                         No lines. Click "Add Line" to begin.
                                                     </td>
                                                 </tr>
@@ -418,8 +417,8 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
                                                     <td style={{ padding: '2px 4px' }}>
                                                         <select
                                                             style={{ ...xpInput, height: 20, width: '100%' }}
-                                                            value={line.type}
-                                                            onChange={e => updateLine(idx, 'type', e.target.value)}
+                                                            value={line.chemical_type}
+                                                            onChange={e => updateLine(idx, 'chemical_type', e.target.value)}
                                                         >
                                                             {LINE_TYPES.map(t => (
                                                                 <option key={t} value={t}>{t}</option>
@@ -447,14 +446,6 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
                                                             placeholder="0"
                                                             min={0}
                                                             step="any"
-                                                        />
-                                                    </td>
-                                                    <td style={{ padding: '2px 4px' }}>
-                                                        <input
-                                                            style={{ ...xpInput, width: '100%' }}
-                                                            value={line.uom}
-                                                            onChange={e => updateLine(idx, 'uom', e.target.value)}
-                                                            placeholder="kg"
                                                         />
                                                     </td>
                                                     <td style={{ padding: '2px 4px' }}>
@@ -593,13 +584,13 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
                                                         <td style={{ padding: '3px 6px', color: '#666' }}>{idx + 1}</td>
                                                         <td style={{ padding: '3px 6px' }}>
                                                             <span style={{
-                                                                background: typeColor(line.type).bg,
-                                                                color: typeColor(line.type).fg,
+                                                                background: typeColor(line.chemical_type).bg,
+                                                                color: typeColor(line.chemical_type).fg,
                                                                 padding: '1px 5px', borderRadius: 2,
                                                                 fontWeight: 'bold', fontSize: 9,
-                                                                border: `1px solid ${typeColor(line.type).border}`,
+                                                                border: `1px solid ${typeColor(line.chemical_type).border}`,
                                                             }}>
-                                                                {line.type || '-'}
+                                                                {line.chemical_type || '-'}
                                                             </span>
                                                         </td>
                                                         <td style={{ padding: '3px 6px' }}>
@@ -608,7 +599,7 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
                                                         <td style={{ padding: '3px 6px', textAlign: 'right' }}>
                                                             {line.qty_per_100kg != null ? Number(line.qty_per_100kg).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '-'}
                                                         </td>
-                                                        <td style={{ padding: '3px 6px' }}>{line.uom || '-'}</td>
+                                                        <td style={{ padding: '3px 6px' }}>{line.uom_name || '-'}</td>
                                                         <td style={{ padding: '3px 6px', textAlign: 'center' }}>{line.sort_order ?? '-'}</td>
                                                     </tr>
                                                 );
