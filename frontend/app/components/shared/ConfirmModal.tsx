@@ -11,10 +11,10 @@ interface ConfirmModalProps {
     title: string;
     message: string;
     confirmText?: string;
-    variant?: 'danger' | 'primary' | 'warning';
+    variant?: 'danger' | 'primary' | 'warning' | 'success';
 }
 
-const xpConfirmBtn = (variant: 'danger' | 'primary' | 'warning'): React.CSSProperties => {
+const xpConfirmBtn = (variant: 'danger' | 'primary' | 'warning' | 'success'): React.CSSProperties => {
     const base: React.CSSProperties = {
         fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, padding: '3px 20px',
         cursor: 'pointer', borderRadius: 0, border: '1px solid',
@@ -31,6 +31,12 @@ const xpConfirmBtn = (variant: 'danger' | 'primary' | 'warning'): React.CSSPrope
         ...base,
         background: 'linear-gradient(to bottom, #6090e0, #2050c0)',
         borderColor: '#4070d0 #102060 #102060 #4070d0',
+        color: '#fff', fontWeight: 'bold',
+    };
+    if (variant === 'success') return {
+        ...base,
+        background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)',
+        borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a',
         color: '#fff', fontWeight: 'bold',
     };
     return base;
@@ -59,9 +65,9 @@ export default function ConfirmModal({
         <ModalWrapper
             isOpen={isOpen}
             onClose={onClose}
-            title={<><i className={`bi ${variant === 'danger' ? 'bi-exclamation-triangle' : 'bi-info-circle'} me-1`}></i> {title}</>}
+            title={<><i className={`bi ${variant === 'danger' || variant === 'warning' ? 'bi-exclamation-triangle' : variant === 'success' ? 'bi-check-circle' : 'bi-info-circle'} me-1`}></i> {title}</>}
             level={3}
-            variant={variant === 'danger' ? 'danger' : 'primary'}
+            variant={variant === 'danger' ? 'danger' : variant === 'success' ? 'success' : 'primary'}
             size="sm"
             footer={
                 <>

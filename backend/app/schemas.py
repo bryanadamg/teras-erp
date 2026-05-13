@@ -669,6 +669,8 @@ class SampleColorResponse(BaseModel):
     is_repeat: bool = False
     order: int = 0
     status: str = "PENDING"
+    item_id: UUID | None = None
+    item_code: str | None = None
     class Config:
         from_attributes = True
 

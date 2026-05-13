@@ -4,6 +4,7 @@ from sqlalchemy import select, func, delete
 from sqlalchemy.orm import joinedload
 from app.db.session import get_async_db
 from app.models.sample import SampleRequest, SampleColor, SampleRequestRead
+from app.models.item import Item as ItemModel
 from app.schemas import SampleRequestCreate, SampleRequestUpdate, SampleRequestResponse, SampleColorResponse
 from app.models.auth import User
 from app.api.auth import get_current_user
@@ -13,6 +14,22 @@ from pathlib import Path
 import shutil, os, uuid
 
 router = APIRouter()
+
+
+async def _enrich_colors_with_items(db: AsyncSession, samples: list) -> None:
+    all_color_ids = [c.id for s in samples for c in (s.colors or [])]
+    if not all_color_ids:
+        return
+    item_rows = await db.execute(
+        select(ItemModel.source_color_id, ItemModel.id, ItemModel.code)
+        .where(ItemModel.source_color_id.in_(all_color_ids))
+    )
+    color_item_map = {row[0]: (row[1], row[2]) for row in item_rows.all()}
+    for sample in samples:
+        for color in (sample.colors or []):
+            item_info = color_item_map.get(color.id)
+            color.item_id = item_info[0] if item_info else None
+            color.item_code = item_info[1] if item_info else None
 
 
 @router.post("/samples", response_model=SampleRequestResponse)
@@ -84,6 +101,7 @@ async def create_sample_request(
         changes={"code": sample.code, "customer_article_code": sample.customer_article_code},
     )
 
+    await _enrich_colors_with_items(db, [sample])
     sample.is_unread = False
     return sample
 
@@ -108,6 +126,8 @@ async def get_samples(
         select(SampleRequestRead).filter(SampleRequestRead.user_id == current_user.id)
     )
     reads = {str(r.sample_request_id): r.read_at for r in reads_result.scalars().all()}
+
+    await _enrich_colors_with_items(db, samples)
 
     for sample in samples:
         read_at = reads.get(str(sample.id))
@@ -204,6 +224,7 @@ async def update_sample_request(
         changes={"customer_article_code": sample.customer_article_code},
     )
 
+    await _enrich_colors_with_items(db, [sample])
     sample.is_unread = False
     return sample
 
@@ -260,6 +281,9 @@ async def update_color_status(
     if status not in valid_statuses:
         raise HTTPException(status_code=400, detail="Invalid status")
 
+    if color.status == "APPROVED":
+        raise HTTPException(status_code=400, detail="Approved color status cannot be changed")
+
     previous_status = color.status
     color.status = status
 
@@ -271,6 +295,8 @@ async def update_color_status(
 
     await db.commit()
     await db.refresh(color)
+    color.item_id = None
+    color.item_code = None
 
     await audit_service.log_activity(
         db,

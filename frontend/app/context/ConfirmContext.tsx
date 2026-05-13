@@ -7,7 +7,7 @@ interface ConfirmOptions {
     title?: string;
     message: string;
     confirmText?: string;
-    variant?: 'danger' | 'primary' | 'warning';
+    variant?: 'danger' | 'primary' | 'warning' | 'success';
 }
 
 interface ConfirmContextType {

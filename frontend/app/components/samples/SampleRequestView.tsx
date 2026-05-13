@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../shared/Toast';
+import { useConfirm } from '../../context/ConfirmContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
 import CodeConfigModal, { CodeConfig, buildCodeWithCounter } from '../shared/CodeConfigModal';
@@ -12,7 +13,18 @@ import SamplePrintModal from './SamplePrintModal';
 
 export default function SampleRequestView({ samples, customers, onCreateSample, onEditSample, onUpdateStatus, onUpdateColorStatus, onDeleteSample, onMarkRead, onMarkUnread, onMarkAllRead }: any) {
   const { showToast } = useToast();
+  const { confirm } = useConfirm();
   const { t } = useLanguage();
+
+  const handleApproveColor = async (sampleId: string, colorId: string, colorName: string) => {
+      const ok = await confirm({
+          title: 'Approve Color',
+          message: `Approve "${colorName}"? Status will be locked and cannot be changed after approval.`,
+          confirmText: 'Approve',
+          variant: 'success',
+      });
+      if (ok) onUpdateColorStatus(sampleId, colorId, 'APPROVED');
+  };
   const { companyProfile, attributes } = useData();
   const colorOptions = useMemo(() => {
     const colorsAttr = (attributes as any[]).find((a: any) => a.is_system);
@@ -1428,19 +1440,27 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                                                    </td>
                                                                                    <td style={{ ...tdStyle, borderRight: 'none' }}></td>
                                                                                    <td style={{ ...tdStyle, textAlign: 'center' as const }}>
-                                                                                       <div style={{ display: 'inline-flex' }}>
-                                                                                           <button type="button" style={cbInprod(isInProd)} onClick={() => onUpdateColorStatus(s.id, c.id, isInProd ? 'PENDING' : 'IN_PRODUCTION')} title={isInProd ? 'Reset to Pending' : 'Set In Production'}>⚙ In Prod</button>
-                                                                                           <button type="button" style={cbApprove(isApproved)} onClick={() => onUpdateColorStatus(s.id, c.id, isApproved ? 'PENDING' : 'APPROVED')} title={isApproved ? 'Reset to Pending' : 'Approve'}>✓ Approve</button>
-                                                                                           <button type="button" style={cbReject(isRejected)} onClick={() => onUpdateColorStatus(s.id, c.id, isRejected ? 'PENDING' : 'REJECTED')} title={isRejected ? 'Reset to Pending' : 'Reject'}>✗ Reject</button>
-                                                                                       </div>
+                                                                                       {isApproved ? (
+                                                                                           <span style={{ fontSize: 10, color: '#1b5e20', fontWeight: 'bold', fontFamily: 'Tahoma, Arial, sans-serif' }}>Approved</span>
+                                                                                       ) : (
+                                                                                           <div style={{ display: 'inline-flex' }}>
+                                                                                               <button type="button" style={cbInprod(isInProd)} onClick={() => onUpdateColorStatus(s.id, c.id, isInProd ? 'PENDING' : 'IN_PRODUCTION')} title={isInProd ? 'Reset to Pending' : 'Set In Production'}>&#9881; In Prod</button>
+                                                                                               <button type="button" style={cbApprove(false)} onClick={() => handleApproveColor(s.id, c.id, c.name)} title="Approve">&#10003; Approve</button>
+                                                                                               <button type="button" style={cbReject(isRejected)} onClick={() => onUpdateColorStatus(s.id, c.id, isRejected ? 'PENDING' : 'REJECTED')} title={isRejected ? 'Reset to Pending' : 'Reject'}>&#10007; Reject</button>
+                                                                                           </div>
+                                                                                       )}
                                                                                    </td>
                                                                                    <td style={{ ...tdStyle, borderRight: 'none', textAlign: 'center' as const }}>
                                                                                        {isApproved && (
-                                                                                           <button
-                                                                                               style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontSize: 10, padding: '1px 6px' })}
-                                                                                               onClick={() => createItemFromColor(s, c)}
-                                                                                               title="Create Item from this approved color"
-                                                                                           >+ Item</button>
+                                                                                           c.item_id ? (
+                                                                                               <span style={{ fontSize: 10, color: '#1b5e20', fontWeight: 'bold', fontFamily: 'Tahoma, Arial, sans-serif' }}>Item: {c.item_code}</span>
+                                                                                           ) : (
+                                                                                               <button
+                                                                                                   style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontSize: 10, padding: '1px 6px' })}
+                                                                                                   onClick={() => createItemFromColor(s, c)}
+                                                                                                   title="Create Item from this approved color"
+                                                                                               >+ Item</button>
+                                                                                           )
                                                                                        )}
                                                                                    </td>
                                                                                </tr>
@@ -1596,15 +1616,23 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                                                </td>
                                                                                <td style={{ borderBottom: '1px solid #e9ecef' }}></td>
                                                                                <td style={{ padding: '3px 6px', borderBottom: '1px solid #e9ecef', textAlign: 'center' as const }}>
-                                                                                   <div className="btn-group btn-group-sm" role="group">
-                                                                                       <button type="button" className={`btn ${isInProd ? 'btn-warning' : 'btn-outline-warning'}`} style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => onUpdateColorStatus(s.id, c.id, isInProd ? 'PENDING' : 'IN_PRODUCTION')}>⚙ In Prod</button>
-                                                                                       <button type="button" className={`btn ${isApproved ? 'btn-success' : 'btn-outline-success'}`} style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => onUpdateColorStatus(s.id, c.id, isApproved ? 'PENDING' : 'APPROVED')}>✓ Approve</button>
-                                                                                       <button type="button" className={`btn ${isRejected ? 'btn-danger' : 'btn-outline-danger'}`} style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => onUpdateColorStatus(s.id, c.id, isRejected ? 'PENDING' : 'REJECTED')}>✗ Reject</button>
-                                                                                   </div>
+                                                                                   {isApproved ? (
+                                                                                       <span className="badge bg-success" style={{ fontSize: 10 }}>Approved</span>
+                                                                                   ) : (
+                                                                                       <div className="btn-group btn-group-sm" role="group">
+                                                                                           <button type="button" className={`btn ${isInProd ? 'btn-warning' : 'btn-outline-warning'}`} style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => onUpdateColorStatus(s.id, c.id, isInProd ? 'PENDING' : 'IN_PRODUCTION')}>&#9881; In Prod</button>
+                                                                                           <button type="button" className="btn btn-outline-success" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => handleApproveColor(s.id, c.id, c.name)}>&#10003; Approve</button>
+                                                                                           <button type="button" className={`btn ${isRejected ? 'btn-danger' : 'btn-outline-danger'}`} style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => onUpdateColorStatus(s.id, c.id, isRejected ? 'PENDING' : 'REJECTED')}>&#10007; Reject</button>
+                                                                                       </div>
+                                                                                   )}
                                                                                </td>
                                                                                <td style={{ padding: '3px 6px', borderBottom: '1px solid #e9ecef', textAlign: 'center' as const }}>
                                                                                    {isApproved && (
-                                                                                       <button className="btn btn-sm btn-success" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => createItemFromColor(s, c)}>+ Item</button>
+                                                                                       c.item_id ? (
+                                                                                           <span className="badge bg-success bg-opacity-10 text-success border" style={{ fontSize: 10 }}>Item: {c.item_code}</span>
+                                                                                       ) : (
+                                                                                           <button className="btn btn-sm btn-success" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => createItemFromColor(s, c)}>+ Item</button>
+                                                                                       )
                                                                                    )}
                                                                                </td>
                                                                            </tr>
