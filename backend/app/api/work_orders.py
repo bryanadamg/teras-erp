@@ -6,6 +6,7 @@ from typing import Optional
 from app.db.session import get_async_db
 from app.models.work_order import WorkOrder
 from app.models.manufacturing import ManufacturingOrder, MOCompletion
+from app.models.routing import WorkCenter
 from app.schemas import WorkOrderCreate, WorkOrderResponse
 from app.models.auth import User
 from app.api.auth import get_current_user
@@ -21,6 +22,7 @@ def _wo_options():
 @router.get("/work-orders", response_model=list[WorkOrderResponse])
 async def list_work_orders(
     manufacturing_order_id: Optional[str] = Query(None),
+    center_type: Optional[str] = Query(None),
     skip: int = 0,
     limit: int = 9999,
     db: AsyncSession = Depends(get_async_db),
@@ -29,6 +31,8 @@ async def list_work_orders(
     q = select(WorkOrder).options(*_wo_options()).order_by(WorkOrder.sequence)
     if manufacturing_order_id:
         q = q.filter(WorkOrder.manufacturing_order_id == manufacturing_order_id)
+    if center_type:
+        q = q.join(WorkCenter, WorkOrder.work_center_id == WorkCenter.id).filter(WorkCenter.center_type == center_type)
     result = await db.execute(q.offset(skip).limit(limit))
     return result.scalars().all()
 

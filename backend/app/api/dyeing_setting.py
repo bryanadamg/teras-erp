@@ -1,0 +1,567 @@
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload, joinedload
+from typing import Optional
+from datetime import datetime, timezone
+import uuid
+
+from app.db.session import get_async_db
+from app.models.dyeing_setting import DyeRecipe, DyeRecipeLine, DyeingRun, DyeingRunChemical, SettingRun
+from app.models.batch import Batch
+from app.models.work_order import WorkOrder
+from app.models.routing import WorkCenter
+from app.models.auth import User
+from app.api.auth import get_current_user
+from app.services import audit_service
+from app.schemas import (
+    DyeRecipeCreate, DyeRecipeUpdate, DyeRecipeResponse,
+    DyeingRunCreate, DyeingRunCompletePayload, DyeingRunResponse,
+    SettingRunCreate, SettingRunCompletePayload, SettingRunResponse,
+)
+
+router = APIRouter()
+
+
+# ─── helpers ────────────────────────────────────────────────────────────────
+
+def _recipe_opts():
+    return [selectinload(DyeRecipe.lines)]
+
+
+def _dyeing_run_opts():
+    return [
+        selectinload(DyeingRun.chemicals),
+        joinedload(DyeingRun.recipe),
+        joinedload(DyeingRun.input_batch),
+        joinedload(DyeingRun.output_batch),
+    ]
+
+
+def _setting_run_opts():
+    return [
+        joinedload(SettingRun.input_batch),
+        joinedload(SettingRun.output_batch),
+    ]
+
+
+def _enrich_dyeing_run(run: DyeingRun) -> dict:
+    d = {c.name: getattr(run, c.name) for c in run.__table__.columns}
+    d["recipe_name"] = run.recipe.name if run.recipe else None
+    d["input_batch_number"] = run.input_batch.batch_number if run.input_batch else None
+    d["output_batch_number"] = run.output_batch.batch_number if run.output_batch else None
+    chems = []
+    for c in run.chemicals:
+        cd = {col.name: getattr(c, col.name) for col in c.__table__.columns}
+        cd["item_name"] = c.item.name if c.item else None
+        cd["uom_name"] = c.uom.name if c.uom else None
+        chems.append(cd)
+    d["chemicals"] = chems
+    return d
+
+
+def _enrich_setting_run(run: SettingRun) -> dict:
+    d = {c.name: getattr(run, c.name) for c in run.__table__.columns}
+    d["input_batch_number"] = run.input_batch.batch_number if run.input_batch else None
+    d["output_batch_number"] = run.output_batch.batch_number if run.output_batch else None
+    return d
+
+
+async def _get_next_run_number(db: AsyncSession, model, work_order_id) -> int:
+    result = await db.execute(
+        select(model).filter(model.work_order_id == work_order_id)
+    )
+    existing = result.scalars().all()
+    return len(existing) + 1
+
+
+# ─── Dye Recipes ─────────────────────────────────────────────────────────────
+
+@router.get("/dye-recipes", response_model=list[DyeRecipeResponse])
+async def list_dye_recipes(
+    active_only: bool = Query(False),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    q = select(DyeRecipe).options(*_recipe_opts()).order_by(DyeRecipe.code)
+    if active_only:
+        q = q.filter(DyeRecipe.is_active == True)
+    result = await db.execute(q)
+    recipes = result.scalars().all()
+    out = []
+    for r in recipes:
+        lines = []
+        for ln in r.lines:
+            ld = {col.name: getattr(ln, col.name) for col in ln.__table__.columns}
+            ld["item_name"] = ln.item.name if ln.item else None
+            ld["uom_name"] = ln.uom.name if ln.uom else None
+            lines.append(ld)
+        rd = {col.name: getattr(r, col.name) for col in r.__table__.columns}
+        rd["lines"] = lines
+        out.append(rd)
+    return out
+
+
+@router.post("/dye-recipes", response_model=DyeRecipeResponse)
+async def create_dye_recipe(
+    payload: DyeRecipeCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    existing = await db.execute(select(DyeRecipe).filter(DyeRecipe.code == payload.code))
+    if existing.scalars().first():
+        raise HTTPException(status_code=400, detail="Recipe code already exists")
+
+    recipe = DyeRecipe(
+        code=payload.code,
+        name=payload.name,
+        color_standard=payload.color_standard,
+        substrate_type=payload.substrate_type,
+        notes=payload.notes,
+        is_active=payload.is_active,
+    )
+    db.add(recipe)
+    await db.flush()
+
+    for i, ln in enumerate(payload.lines):
+        line = DyeRecipeLine(
+            recipe_id=recipe.id,
+            item_id=ln.item_id,
+            qty_per_100kg=ln.qty_per_100kg,
+            uom_id=ln.uom_id,
+            chemical_type=ln.chemical_type,
+            sort_order=ln.sort_order if ln.sort_order else i,
+        )
+        db.add(line)
+
+    await db.commit()
+    result = await db.execute(
+        select(DyeRecipe).options(*_recipe_opts()).filter(DyeRecipe.id == recipe.id)
+    )
+    r = result.scalars().first()
+    lines = []
+    for ln in r.lines:
+        ld = {col.name: getattr(ln, col.name) for col in ln.__table__.columns}
+        ld["item_name"] = ln.item.name if ln.item else None
+        ld["uom_name"] = ln.uom.name if ln.uom else None
+        lines.append(ld)
+    rd = {col.name: getattr(r, col.name) for col in r.__table__.columns}
+    rd["lines"] = lines
+
+    await audit_service.log_activity(
+        db, "CREATE", "DyeRecipe", str(r.id),
+        details=f"Created recipe {r.code}", changes={}
+    )
+    return rd
+
+
+@router.get("/dye-recipes/{recipe_id}", response_model=DyeRecipeResponse)
+async def get_dye_recipe(
+    recipe_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(DyeRecipe).options(*_recipe_opts()).filter(DyeRecipe.id == recipe_id)
+    )
+    r = result.scalars().first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+    lines = []
+    for ln in r.lines:
+        ld = {col.name: getattr(ln, col.name) for col in ln.__table__.columns}
+        ld["item_name"] = ln.item.name if ln.item else None
+        ld["uom_name"] = ln.uom.name if ln.uom else None
+        lines.append(ld)
+    rd = {col.name: getattr(r, col.name) for col in r.__table__.columns}
+    rd["lines"] = lines
+    return rd
+
+
+@router.put("/dye-recipes/{recipe_id}", response_model=DyeRecipeResponse)
+async def update_dye_recipe(
+    recipe_id: str,
+    payload: DyeRecipeUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(DyeRecipe).options(*_recipe_opts()).filter(DyeRecipe.id == recipe_id)
+    )
+    r = result.scalars().first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    for field in ("name", "color_standard", "substrate_type", "notes", "is_active"):
+        val = getattr(payload, field)
+        if val is not None:
+            setattr(r, field, val)
+
+    if payload.lines is not None:
+        for ln in list(r.lines):
+            await db.delete(ln)
+        await db.flush()
+        for i, ln in enumerate(payload.lines):
+            line = DyeRecipeLine(
+                recipe_id=r.id,
+                item_id=ln.item_id,
+                qty_per_100kg=ln.qty_per_100kg,
+                uom_id=ln.uom_id,
+                chemical_type=ln.chemical_type,
+                sort_order=ln.sort_order if ln.sort_order else i,
+            )
+            db.add(line)
+
+    await db.commit()
+    result = await db.execute(
+        select(DyeRecipe).options(*_recipe_opts()).filter(DyeRecipe.id == recipe_id)
+    )
+    r = result.scalars().first()
+    lines = []
+    for ln in r.lines:
+        ld = {col.name: getattr(ln, col.name) for col in ln.__table__.columns}
+        ld["item_name"] = ln.item.name if ln.item else None
+        ld["uom_name"] = ln.uom.name if ln.uom else None
+        lines.append(ld)
+    rd = {col.name: getattr(r, col.name) for col in r.__table__.columns}
+    rd["lines"] = lines
+
+    await audit_service.log_activity(
+        db, "UPDATE", "DyeRecipe", str(r.id),
+        details=f"Updated recipe {r.code}", changes={}
+    )
+    return rd
+
+
+@router.delete("/dye-recipes/{recipe_id}")
+async def delete_dye_recipe(
+    recipe_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(DyeRecipe).filter(DyeRecipe.id == recipe_id))
+    r = result.scalars().first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+    await db.delete(r)
+    await db.commit()
+    return {"status": "success"}
+
+
+# ─── Dyeing Runs ─────────────────────────────────────────────────────────────
+
+@router.get("/dyeing-runs", response_model=list[DyeingRunResponse])
+async def list_dyeing_runs(
+    work_order_id: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    q = select(DyeingRun).options(*_dyeing_run_opts()).order_by(DyeingRun.created_at)
+    if work_order_id:
+        q = q.filter(DyeingRun.work_order_id == work_order_id)
+    result = await db.execute(q)
+    return [_enrich_dyeing_run(r) for r in result.scalars().all()]
+
+
+@router.post("/dyeing-runs", response_model=DyeingRunResponse)
+async def create_dyeing_run(
+    payload: DyeingRunCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    wo_result = await db.execute(select(WorkOrder).filter(WorkOrder.id == payload.work_order_id))
+    if not wo_result.scalars().first():
+        raise HTTPException(status_code=404, detail="Work Order not found")
+
+    run_number = await _get_next_run_number(db, DyeingRun, payload.work_order_id)
+    run = DyeingRun(
+        work_order_id=payload.work_order_id,
+        run_number=run_number,
+        recipe_id=payload.recipe_id,
+        substrate_qty=payload.substrate_qty,
+        input_batch_id=payload.input_batch_id,
+        machine_name=payload.machine_name,
+        liquor_ratio=payload.liquor_ratio,
+        temperature_c=payload.temperature_c,
+        duration_min=payload.duration_min,
+        operator_name=payload.operator_name,
+        notes=payload.notes,
+        status="PENDING",
+    )
+    db.add(run)
+    await db.commit()
+    result = await db.execute(
+        select(DyeingRun).options(*_dyeing_run_opts()).filter(DyeingRun.id == run.id)
+    )
+    run = result.scalars().first()
+    await audit_service.log_activity(
+        db, "CREATE", "DyeingRun", str(run.id),
+        details=f"Created dyeing run #{run.run_number} for WO {run.work_order_id}", changes={}
+    )
+    return _enrich_dyeing_run(run)
+
+
+@router.get("/dyeing-runs/{run_id}", response_model=DyeingRunResponse)
+async def get_dyeing_run(
+    run_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(DyeingRun).options(*_dyeing_run_opts()).filter(DyeingRun.id == run_id)
+    )
+    run = result.scalars().first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Dyeing run not found")
+    return _enrich_dyeing_run(run)
+
+
+@router.post("/dyeing-runs/{run_id}/start", response_model=DyeingRunResponse)
+async def start_dyeing_run(
+    run_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(DyeingRun).options(*_dyeing_run_opts()).filter(DyeingRun.id == run_id)
+    )
+    run = result.scalars().first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Dyeing run not found")
+    if run.status != "PENDING":
+        raise HTTPException(status_code=400, detail=f"Run is already {run.status}")
+    run.status = "IN_PROGRESS"
+    run.started_at = datetime.now(timezone.utc)
+    await db.commit()
+    result = await db.execute(
+        select(DyeingRun).options(*_dyeing_run_opts()).filter(DyeingRun.id == run_id)
+    )
+    return _enrich_dyeing_run(result.scalars().first())
+
+
+@router.post("/dyeing-runs/{run_id}/complete", response_model=DyeingRunResponse)
+async def complete_dyeing_run(
+    run_id: str,
+    payload: DyeingRunCompletePayload,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(DyeingRun).options(*_dyeing_run_opts()).filter(DyeingRun.id == run_id)
+    )
+    run = result.scalars().first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Dyeing run not found")
+    if run.status == "COMPLETED":
+        raise HTTPException(status_code=400, detail="Run already completed")
+
+    # Create output batch
+    batch_check = await db.execute(
+        select(Batch).filter(Batch.batch_number == payload.output_batch_number)
+    )
+    out_batch = batch_check.scalars().first()
+    if not out_batch:
+        wo_result = await db.execute(
+            select(WorkOrder).filter(WorkOrder.id == run.work_order_id)
+        )
+        wo = wo_result.scalars().first()
+        out_batch = Batch(
+            batch_number=payload.output_batch_number,
+            item_id=wo.manufacturing_order_id,  # placeholder — batch item derived from WO's MO output item
+            created_by=str(current_user.id),
+        )
+        # Use the MO's item_id for the batch
+        from app.models.manufacturing import ManufacturingOrder
+        mo_result = await db.execute(
+            select(ManufacturingOrder).filter(ManufacturingOrder.id == wo.manufacturing_order_id)
+        )
+        mo = mo_result.scalars().first()
+        if mo:
+            out_batch.item_id = mo.item_id
+        db.add(out_batch)
+        await db.flush()
+
+    run.output_batch_id = out_batch.id
+    run.status = "COMPLETED"
+    run.shade_result = payload.shade_result
+    run.shade_notes = payload.shade_notes
+    run.completed_at = datetime.now(timezone.utc)
+    if not run.started_at:
+        run.started_at = run.completed_at
+
+    # Replace chemicals with actual quantities
+    for old_chem in list(run.chemicals):
+        await db.delete(old_chem)
+    await db.flush()
+
+    for chem in payload.chemicals:
+        c = DyeingRunChemical(
+            run_id=run.id,
+            item_id=chem.item_id,
+            planned_qty=chem.planned_qty,
+            actual_qty=chem.actual_qty,
+            uom_id=chem.uom_id,
+        )
+        db.add(c)
+
+    await db.commit()
+    result = await db.execute(
+        select(DyeingRun).options(*_dyeing_run_opts()).filter(DyeingRun.id == run_id)
+    )
+    run = result.scalars().first()
+    await audit_service.log_activity(
+        db, "COMPLETE", "DyeingRun", str(run.id),
+        details=f"Completed dyeing run #{run.run_number}, shade={payload.shade_result}", changes={}
+    )
+    return _enrich_dyeing_run(run)
+
+
+# ─── Setting Runs ─────────────────────────────────────────────────────────────
+
+@router.get("/setting-runs", response_model=list[SettingRunResponse])
+async def list_setting_runs(
+    work_order_id: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    q = select(SettingRun).options(*_setting_run_opts()).order_by(SettingRun.created_at)
+    if work_order_id:
+        q = q.filter(SettingRun.work_order_id == work_order_id)
+    result = await db.execute(q)
+    return [_enrich_setting_run(r) for r in result.scalars().all()]
+
+
+@router.post("/setting-runs", response_model=SettingRunResponse)
+async def create_setting_run(
+    payload: SettingRunCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    wo_result = await db.execute(select(WorkOrder).filter(WorkOrder.id == payload.work_order_id))
+    if not wo_result.scalars().first():
+        raise HTTPException(status_code=404, detail="Work Order not found")
+
+    run_number = await _get_next_run_number(db, SettingRun, payload.work_order_id)
+    run = SettingRun(
+        work_order_id=payload.work_order_id,
+        run_number=run_number,
+        substrate_qty=payload.substrate_qty,
+        input_batch_id=payload.input_batch_id,
+        machine_name=payload.machine_name,
+        temperature_c=payload.temperature_c,
+        speed_mpm=payload.speed_mpm,
+        width_cm=payload.width_cm,
+        overfeed_pct=payload.overfeed_pct,
+        operator_name=payload.operator_name,
+        notes=payload.notes,
+        status="PENDING",
+    )
+    db.add(run)
+    await db.commit()
+    result = await db.execute(
+        select(SettingRun).options(*_setting_run_opts()).filter(SettingRun.id == run.id)
+    )
+    run = result.scalars().first()
+    await audit_service.log_activity(
+        db, "CREATE", "SettingRun", str(run.id),
+        details=f"Created setting run #{run.run_number} for WO {run.work_order_id}", changes={}
+    )
+    return _enrich_setting_run(run)
+
+
+@router.get("/setting-runs/{run_id}", response_model=SettingRunResponse)
+async def get_setting_run(
+    run_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(SettingRun).options(*_setting_run_opts()).filter(SettingRun.id == run_id)
+    )
+    run = result.scalars().first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Setting run not found")
+    return _enrich_setting_run(run)
+
+
+@router.post("/setting-runs/{run_id}/start", response_model=SettingRunResponse)
+async def start_setting_run(
+    run_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(SettingRun).options(*_setting_run_opts()).filter(SettingRun.id == run_id)
+    )
+    run = result.scalars().first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Setting run not found")
+    if run.status != "PENDING":
+        raise HTTPException(status_code=400, detail=f"Run is already {run.status}")
+    run.status = "IN_PROGRESS"
+    run.started_at = datetime.now(timezone.utc)
+    await db.commit()
+    result = await db.execute(
+        select(SettingRun).options(*_setting_run_opts()).filter(SettingRun.id == run_id)
+    )
+    return _enrich_setting_run(result.scalars().first())
+
+
+@router.post("/setting-runs/{run_id}/complete", response_model=SettingRunResponse)
+async def complete_setting_run(
+    run_id: str,
+    payload: SettingRunCompletePayload,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(SettingRun).options(*_setting_run_opts()).filter(SettingRun.id == run_id)
+    )
+    run = result.scalars().first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Setting run not found")
+    if run.status == "COMPLETED":
+        raise HTTPException(status_code=400, detail="Run already completed")
+
+    # Create output batch
+    batch_check = await db.execute(
+        select(Batch).filter(Batch.batch_number == payload.output_batch_number)
+    )
+    out_batch = batch_check.scalars().first()
+    if not out_batch:
+        wo_result = await db.execute(
+            select(WorkOrder).filter(WorkOrder.id == run.work_order_id)
+        )
+        wo = wo_result.scalars().first()
+        from app.models.manufacturing import ManufacturingOrder
+        mo_result = await db.execute(
+            select(ManufacturingOrder).filter(ManufacturingOrder.id == wo.manufacturing_order_id)
+        )
+        mo = mo_result.scalars().first()
+        out_batch = Batch(
+            batch_number=payload.output_batch_number,
+            item_id=mo.item_id if mo else wo.manufacturing_order_id,
+            created_by=str(current_user.id),
+        )
+        db.add(out_batch)
+        await db.flush()
+
+    run.output_batch_id = out_batch.id
+    run.status = "COMPLETED"
+    run.actual_width_cm = payload.actual_width_cm
+    run.actual_gsm = payload.actual_gsm
+    run.actual_shrinkage_pct = payload.actual_shrinkage_pct
+    run.completed_at = datetime.now(timezone.utc)
+    if not run.started_at:
+        run.started_at = run.completed_at
+
+    await db.commit()
+    result = await db.execute(
+        select(SettingRun).options(*_setting_run_opts()).filter(SettingRun.id == run_id)
+    )
+    run = result.scalars().first()
+    await audit_service.log_activity(
+        db, "COMPLETE", "SettingRun", str(run.id),
+        details=f"Completed setting run #{run.run_number}", changes={}
+    )
+    return _enrich_setting_run(run)
