@@ -149,7 +149,7 @@ async def create_dye_recipe(
     rd["lines"] = lines
 
     await audit_service.log_activity(
-        db, "CREATE", "DyeRecipe", str(r.id),
+        db, str(current_user.id), "CREATE", "DyeRecipe", str(r.id),
         details=f"Created recipe {r.code}", changes={}
     )
     return rd
@@ -227,7 +227,7 @@ async def update_dye_recipe(
     rd["lines"] = lines
 
     await audit_service.log_activity(
-        db, "UPDATE", "DyeRecipe", str(r.id),
+        db, str(current_user.id), "UPDATE", "DyeRecipe", str(r.id),
         details=f"Updated recipe {r.code}", changes={}
     )
     return rd
@@ -295,7 +295,7 @@ async def create_dyeing_run(
     )
     run = result.scalars().first()
     await audit_service.log_activity(
-        db, "CREATE", "DyeingRun", str(run.id),
+        db, str(current_user.id), "CREATE", "DyeingRun", str(run.id),
         details=f"Created dyeing run #{run.run_number} for WO {run.work_order_id}", changes={}
     )
     return _enrich_dyeing_run(run)
@@ -410,7 +410,7 @@ async def complete_dyeing_run(
     )
     run = result.scalars().first()
     await audit_service.log_activity(
-        db, "COMPLETE", "DyeingRun", str(run.id),
+        db, str(current_user.id), "COMPLETE", "DyeingRun", str(run.id),
         details=f"Completed dyeing run #{run.run_number}, shade={payload.shade_result}", changes={}
     )
     return _enrich_dyeing_run(run)
@@ -463,7 +463,7 @@ async def create_setting_run(
     )
     run = result.scalars().first()
     await audit_service.log_activity(
-        db, "CREATE", "SettingRun", str(run.id),
+        db, str(current_user.id), "CREATE", "SettingRun", str(run.id),
         details=f"Created setting run #{run.run_number} for WO {run.work_order_id}", changes={}
     )
     return _enrich_setting_run(run)
@@ -561,7 +561,7 @@ async def complete_setting_run(
     )
     run = result.scalars().first()
     await audit_service.log_activity(
-        db, "COMPLETE", "SettingRun", str(run.id),
+        db, str(current_user.id), "COMPLETE", "SettingRun", str(run.id),
         details=f"Completed setting run #{run.run_number}", changes={}
     )
     return _enrich_setting_run(run)
