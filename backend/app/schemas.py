@@ -546,6 +546,7 @@ class WorkCenterCreate(BaseModel):
     name: str
     description: str | None = None
     cost_per_hour: float = 0.0
+    center_type: str = "GENERAL"
 
 class WorkCenterResponse(WorkCenterCreate):
     id: UUID
@@ -844,6 +845,151 @@ class PaginatedAuditLogResponse(BaseModel):
     total: int
     page: int
     size: int
+
+# ── Dyeing & Setting ──────────────────────────────────────────────────
+
+class DyeRecipeLineCreate(BaseModel):
+    item_id: UUID
+    qty_per_100kg: float
+    uom_id: UUID | None = None
+    chemical_type: str = "OTHER"
+    sort_order: int = 0
+
+class DyeRecipeLineResponse(DyeRecipeLineCreate):
+    id: UUID
+    recipe_id: UUID
+    item_name: str | None = None
+    uom_name: str | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+class DyeRecipeCreate(BaseModel):
+    code: str
+    name: str
+    color_standard: str | None = None
+    substrate_type: str | None = None
+    notes: str | None = None
+    is_active: bool = True
+    lines: list[DyeRecipeLineCreate] = []
+
+class DyeRecipeUpdate(BaseModel):
+    name: str | None = None
+    color_standard: str | None = None
+    substrate_type: str | None = None
+    notes: str | None = None
+    is_active: bool | None = None
+    lines: list[DyeRecipeLineCreate] | None = None
+
+class DyeRecipeResponse(BaseModel):
+    id: UUID
+    code: str
+    name: str
+    color_standard: str | None = None
+    substrate_type: str | None = None
+    notes: str | None = None
+    is_active: bool
+    created_at: datetime
+    lines: list[DyeRecipeLineResponse] = []
+    model_config = ConfigDict(from_attributes=True)
+
+class DyeingRunChemicalCreate(BaseModel):
+    item_id: UUID
+    planned_qty: float
+    actual_qty: float
+    uom_id: UUID | None = None
+
+class DyeingRunChemicalResponse(DyeingRunChemicalCreate):
+    id: UUID
+    run_id: UUID
+    item_name: str | None = None
+    uom_name: str | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+class DyeingRunCreate(BaseModel):
+    work_order_id: UUID
+    recipe_id: UUID | None = None
+    substrate_qty: float
+    input_batch_id: UUID | None = None
+    machine_name: str | None = None
+    liquor_ratio: float | None = None
+    temperature_c: float | None = None
+    duration_min: int | None = None
+    operator_name: str | None = None
+    notes: str | None = None
+
+class DyeingRunCompletePayload(BaseModel):
+    shade_result: str | None = None
+    shade_notes: str | None = None
+    output_batch_number: str
+    chemicals: list[DyeingRunChemicalCreate]
+
+class DyeingRunResponse(BaseModel):
+    id: UUID
+    work_order_id: UUID
+    run_number: int
+    recipe_id: UUID | None = None
+    substrate_qty: float
+    input_batch_id: UUID | None = None
+    output_batch_id: UUID | None = None
+    machine_name: str | None = None
+    liquor_ratio: float | None = None
+    temperature_c: float | None = None
+    duration_min: int | None = None
+    status: str
+    shade_result: str | None = None
+    shade_notes: str | None = None
+    operator_name: str | None = None
+    notes: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    created_at: datetime
+    chemicals: list[DyeingRunChemicalResponse] = []
+    recipe_name: str | None = None
+    input_batch_number: str | None = None
+    output_batch_number: str | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+class SettingRunCreate(BaseModel):
+    work_order_id: UUID
+    substrate_qty: float
+    input_batch_id: UUID | None = None
+    machine_name: str | None = None
+    temperature_c: float | None = None
+    speed_mpm: float | None = None
+    width_cm: float | None = None
+    overfeed_pct: float | None = None
+    operator_name: str | None = None
+    notes: str | None = None
+
+class SettingRunCompletePayload(BaseModel):
+    output_batch_number: str
+    actual_width_cm: float | None = None
+    actual_gsm: float | None = None
+    actual_shrinkage_pct: float | None = None
+
+class SettingRunResponse(BaseModel):
+    id: UUID
+    work_order_id: UUID
+    run_number: int
+    substrate_qty: float
+    input_batch_id: UUID | None = None
+    output_batch_id: UUID | None = None
+    machine_name: str | None = None
+    temperature_c: float | None = None
+    speed_mpm: float | None = None
+    width_cm: float | None = None
+    overfeed_pct: float | None = None
+    actual_width_cm: float | None = None
+    actual_gsm: float | None = None
+    actual_shrinkage_pct: float | None = None
+    status: str
+    operator_name: str | None = None
+    notes: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    created_at: datetime
+    input_batch_number: str | None = None
+    output_batch_number: str | None = None
+    model_config = ConfigDict(from_attributes=True)
 
 # --- Settings Schemas ---
 class CompanyProfileBase(BaseModel):

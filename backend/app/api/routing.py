@@ -18,7 +18,8 @@ def create_work_center(payload: WorkCenterCreate, db: Session = Depends(get_db),
         code=payload.code,
         name=payload.name,
         description=payload.description,
-        cost_per_hour=payload.cost_per_hour
+        cost_per_hour=payload.cost_per_hour,
+        center_type=payload.center_type
     )
     db.add(wc)
     db.commit()
