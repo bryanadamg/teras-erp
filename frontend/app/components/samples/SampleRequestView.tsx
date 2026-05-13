@@ -30,6 +30,9 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
     const colorsAttr = (attributes as any[]).find((a: any) => a.is_system);
     return (colorsAttr?.values ?? []).map((v: any) => ({ value: v.value, label: v.value }));
   }, [attributes]);
+  const colorsAttrName = useMemo(() => {
+    return (attributes as any[]).find((a: any) => a.is_system)?.name ?? null;
+  }, [attributes]);
   const router = useRouter();
   const searchParams = useSearchParams();
   const highlightRef = useRef<HTMLTableRowElement | null>(null);
@@ -659,7 +662,14 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                       value={newSample.width} onChange={e => setNewSample({ ...newSample, width: e.target.value })}
                                       placeholder="e.g. 8 mm" />
                            </div>
-                           <label style={xpLbl}>Colors</label>
+                           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 2 }}>
+                               <label style={xpLbl}>Colors</label>
+                               {colorsAttrName && (
+                                   <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 9, color: '#555', background: '#e8eef8', border: '1px solid #aabbd8', padding: '0 5px' }}>
+                                       attr: {colorsAttrName}
+                                   </span>
+                               )}
+                           </div>
                            <div style={{
                                background: '#f5f9ff', border: '1px solid #b0c8e8', minHeight: 40,
                                padding: '6px 8px', marginBottom: 6,
@@ -717,7 +727,12 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                <label className="form-label small text-muted">Width</label>
                                <input className="form-control form-control-sm" style={{ maxWidth: 160 }} value={newSample.width} onChange={e => setNewSample({ ...newSample, width: e.target.value })} placeholder="e.g. 8 mm" />
                            </div>
-                           <label className="form-label small text-muted mb-1">Colors</label>
+                           <div className="d-flex align-items-baseline gap-2 mb-1">
+                               <label className="form-label small text-muted mb-0">Colors</label>
+                               {colorsAttrName && (
+                                   <span className="badge bg-secondary bg-opacity-10 text-secondary border" style={{ fontSize: 9, fontWeight: 'normal' }}>attr: {colorsAttrName}</span>
+                               )}
+                           </div>
                            <div className="p-2 mb-2 d-flex flex-wrap" style={{ background: '#f0f5ff', border: '1px solid #c8d8f0', minHeight: 40 }}>
                                {newSample.colors.length === 0
                                    ? <span className="text-muted fst-italic small">No colors added yet…</span>
