@@ -4,7 +4,7 @@ import { useTheme } from '../../context/ThemeContext';
 
 export default function RoutingView({ workCenters, operations, onCreateWorkCenter, onDeleteWorkCenter, onCreateOperation, onDeleteOperation, onRefresh }: any) {
   const { t } = useLanguage();
-  const [newWorkCenter, setNewWorkCenter] = useState({ code: '', name: '', cost_per_hour: 0 });
+  const [newWorkCenter, setNewWorkCenter] = useState({ code: '', name: '', cost_per_hour: 0, center_type: 'GENERAL' });
   const [newOperation, setNewOperation] = useState({ code: '', name: '' });
   const [wcSearch, setWcSearch] = useState('');
   const [opSearch, setOpSearch] = useState('');
@@ -15,7 +15,7 @@ export default function RoutingView({ workCenters, operations, onCreateWorkCente
   const handleCreateWC = (e: React.FormEvent) => {
       e.preventDefault();
       onCreateWorkCenter(newWorkCenter);
-      setNewWorkCenter({ code: '', name: '', cost_per_hour: 0 });
+      setNewWorkCenter({ code: '', name: '', cost_per_hour: 0, center_type: 'GENERAL' });
   };
 
   const handleCreateOp = (e: React.FormEvent) => {
@@ -121,6 +121,14 @@ export default function RoutingView({ workCenters, operations, onCreateWorkCente
                                   <label style={xpLabel}>{t('station_name')}</label>
                                   <input style={{ ...xpInput, width: '100%' }} placeholder="Assembly Line 1" value={newWorkCenter.name} onChange={e => setNewWorkCenter({ ...newWorkCenter, name: e.target.value })} required />
                               </div>
+                              <div>
+                                  <label style={xpLabel}>Type</label>
+                                  <select style={{ ...xpInput, width: 90 }} value={newWorkCenter.center_type} onChange={e => setNewWorkCenter({ ...newWorkCenter, center_type: e.target.value })}>
+                                      <option value="GENERAL">GENERAL</option>
+                                      <option value="DYEING">DYEING</option>
+                                      <option value="SETTING">SETTING</option>
+                                  </select>
+                              </div>
                               <button type="submit" style={xpBtn({ background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold', padding: '2px 10px' })}>
                                   <i className="bi bi-plus-lg" style={{ marginRight: 3 }}></i>{t('add')}
                               </button>
@@ -132,6 +140,7 @@ export default function RoutingView({ workCenters, operations, onCreateWorkCente
                                   <tr>
                                       <th style={{ ...xpTableHeader, padding: '3px 8px', width: 80 }}>{t('item_code')}</th>
                                       <th style={{ ...xpTableHeader, padding: '3px 8px' }}>{t('station_name')}</th>
+                                      <th style={{ ...xpTableHeader, padding: '3px 8px', width: 70 }}>Type</th>
                                       <th style={{ ...xpTableHeader, padding: '3px 8px', width: 36 }}></th>
                                   </tr>
                               </thead>
@@ -140,6 +149,13 @@ export default function RoutingView({ workCenters, operations, onCreateWorkCente
                                       <tr key={wc.id} style={{ background: i % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' }}>
                                           <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', fontWeight: 'bold', color: '#00008b', fontVariant: 'all-small-caps' }}>{wc.code}</td>
                                           <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#000' }}>{wc.name}</td>
+                                          <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px' }}>
+                                              <span style={{
+                                                  padding: '1px 5px', borderRadius: 2,
+                                                  background: wc.center_type === 'DYEING' ? '#cce4ff' : wc.center_type === 'SETTING' ? '#ffeacc' : '#e8e8e8',
+                                                  color: wc.center_type === 'DYEING' ? '#003d80' : wc.center_type === 'SETTING' ? '#7a3d00' : '#444',
+                                              }}>{wc.center_type || 'GENERAL'}</span>
+                                          </td>
                                           <td style={{ padding: '2px 4px', textAlign: 'center' }}>
                                               <button
                                                   style={{ ...xpBtn(), border: hoveredId === `wc-${wc.id}` ? '1px solid #808080' : '1px solid transparent', background: hoveredId === `wc-${wc.id}` ? 'linear-gradient(to bottom,#ffffff,#d4d0c8)' : 'transparent', padding: '1px 5px' }}
@@ -244,13 +260,21 @@ export default function RoutingView({ workCenters, operations, onCreateWorkCente
                   <div className="card-body">
                       <form onSubmit={handleCreateWC} className="mb-3 p-3 bg-light rounded border">
                           <div className="row g-2 align-items-end">
-                              <div className="col-4">
+                              <div className="col-3">
                                   <label className="form-label small">{t('item_code')}</label>
                                   <input className="form-control form-control-sm" placeholder="WC-01" value={newWorkCenter.code} onChange={e => setNewWorkCenter({ ...newWorkCenter, code: e.target.value })} required />
                               </div>
-                              <div className="col-5">
+                              <div className="col-4">
                                   <label className="form-label small">{t('station_name')}</label>
                                   <input className="form-control form-control-sm" placeholder="Assembly Line 1" value={newWorkCenter.name} onChange={e => setNewWorkCenter({ ...newWorkCenter, name: e.target.value })} required />
+                              </div>
+                              <div className="col-2">
+                                  <label className="form-label small">Type</label>
+                                  <select className="form-select form-select-sm" value={newWorkCenter.center_type} onChange={e => setNewWorkCenter({ ...newWorkCenter, center_type: e.target.value })}>
+                                      <option value="GENERAL">GENERAL</option>
+                                      <option value="DYEING">DYEING</option>
+                                      <option value="SETTING">SETTING</option>
+                                  </select>
                               </div>
                               <div className="col-3">
                                   <button type="submit" className="btn btn-sm btn-primary w-100">{t('add')}</button>
@@ -267,6 +291,7 @@ export default function RoutingView({ workCenters, operations, onCreateWorkCente
                                   <tr>
                                       <th>{t('item_code')}</th>
                                       <th>{t('station_name')}</th>
+                                      <th>Type</th>
                                       <th style={{ width: '50px' }}></th>
                                   </tr>
                               </thead>
@@ -275,6 +300,7 @@ export default function RoutingView({ workCenters, operations, onCreateWorkCente
                                       <tr key={wc.id}>
                                           <td className="fw-bold font-monospace text-primary small">{wc.code}</td>
                                           <td>{wc.name}</td>
+                                          <td><span className={`badge ${wc.center_type === 'DYEING' ? 'bg-primary' : wc.center_type === 'SETTING' ? 'bg-warning text-dark' : 'bg-secondary'}`} style={{ fontSize: 10 }}>{wc.center_type || 'GENERAL'}</span></td>
                                           <td>
                                               <button className="btn btn-sm text-danger" onClick={() => onDeleteWorkCenter && onDeleteWorkCenter(wc.id)}>
                                                   <i className="bi bi-trash"></i>
@@ -282,7 +308,7 @@ export default function RoutingView({ workCenters, operations, onCreateWorkCente
                                           </td>
                                       </tr>
                                   ))}
-                                  {filteredWC.length === 0 && <tr><td colSpan={3} className="text-center py-3 text-muted small">No work centers defined</td></tr>}
+                                  {filteredWC.length === 0 && <tr><td colSpan={4} className="text-center py-3 text-muted small">No work centers defined</td></tr>}
                               </tbody>
                           </table>
                       </div>
