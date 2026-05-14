@@ -4,13 +4,15 @@ import { useState } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../shared/Toast';
+import CategoriesView from './CategoriesView';
 
 interface Props {
     categories: any[];
     uoms: any[];
     attributes: any[];
-    onCreateCategory: (name: string) => void;
+    onCreateCategory: (name: string, parentId?: string) => Promise<any>;
     onDeleteCategory: (id: string) => void;
+    onRenameCategory: (id: string, name: string) => Promise<void>;
     onCreateUOM: (name: string) => void;
     onDeleteUOM: (id: string) => void;
     onCreateUOMFactor: (uomId: string, value: number, label: string) => void;
@@ -25,7 +27,7 @@ interface Props {
 
 export default function ItemMetadataView({
     categories, uoms, attributes,
-    onCreateCategory, onDeleteCategory,
+    onCreateCategory, onDeleteCategory, onRenameCategory,
     onCreateUOM, onDeleteUOM, onCreateUOMFactor, onDeleteUOMFactor,
     onCreateAttribute, onUpdateAttribute, onDeleteAttribute,
     onAddValue, onUpdateValue, onDeleteValue,
@@ -37,11 +39,7 @@ export default function ItemMetadataView({
     const { uiStyle: currentStyle } = useTheme();
     const classic = currentStyle === 'classic';
 
-    // ── Category state ────────────────────────────────────────────────────────
-    const [newCategoryName, setNewCategoryName] = useState('');
-    const [catSearch, setCatSearch] = useState('');
-    const [catHovered, setCatHovered] = useState<string | null>(null);
-    const [isCatSubmitting, setIsCatSubmitting] = useState(false);
+    // ── Category state (managed by CategoriesView) ────────────────────────────
 
     // ── UOM state ─────────────────────────────────────────────────────────────
     const [newUOMName, setNewUOMName] = useState('');
@@ -72,23 +70,10 @@ export default function ItemMetadataView({
     const nextValForNew = getNextValue(newAttribute.values);
     const nextValForEdit = activeAttribute ? getNextValue(activeAttribute.values) : null;
 
-    const filteredCats = (categories || []).filter((c: any) => c.name.toLowerCase().includes(catSearch.toLowerCase()));
     const filteredUOMs = (uoms || []).filter((u: any) => u.name.toLowerCase().includes(uomSearch.toLowerCase()));
     const filteredAttrs = (attributes || []).filter((a: any) => a.name.toLowerCase().includes(attrSearch.toLowerCase()));
 
     // ── Handlers ──────────────────────────────────────────────────────────────
-    const handleCreateCategory = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!newCategoryName.trim() || isCatSubmitting) return;
-        setIsCatSubmitting(true);
-        try {
-            const res = await onCreateCategory(newCategoryName.trim());
-            if (res?.ok) { showToast('Category added', 'success'); setNewCategoryName(''); }
-            else if (res?.status === 400) showToast(`Category "${newCategoryName.trim()}" already exists`, 'warning');
-            else showToast('Failed to add category', 'danger');
-        } finally { setIsCatSubmitting(false); }
-    };
-
     const handleCreateUOM = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newUOMName.trim() || isUomSubmitting) return;
@@ -200,35 +185,14 @@ export default function ItemMetadataView({
                         <div style={xpTitleBar({ background: 'linear-gradient(to right,#1a8a1a,#3ec83e)', borderBottom: '1px solid #0a4e0a' })}>
                             <span><i className="bi bi-tag-fill" style={{ marginRight: 6 }}></i>Categories</span>
                         </div>
-                        <form onSubmit={handleCreateCategory}>
-                            <div style={xpToolbar}>
-                                <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', whiteSpace: 'nowrap' }}>New:</span>
-                                <input style={{ ...xpInput, flex: 1, minWidth: 80 }} placeholder="e.g. Spare Parts..." value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} />
-                                <button type="submit" disabled={isCatSubmitting} style={{ ...xpBtnGreen, opacity: isCatSubmitting ? 0.6 : 1 }}><i className="bi bi-plus-lg" style={{ marginRight: 3 }}></i>{isCatSubmitting ? '...' : 'Add'}</button>
-                            </div>
-                        </form>
-                        <div style={xpToolbar}>
-                            <i className="bi bi-search" style={{ fontSize: '11px', color: '#666' }}></i>
-                            <input style={{ ...xpInput, flex: 1 }} placeholder="Search..." value={catSearch} onChange={e => setCatSearch(e.target.value)} />
-                            <div style={xpSep} />
-                            <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#444' }}>{filteredCats.length}</span>
+                        <div style={{ padding: '6px 8px 8px' }}>
+                            <CategoriesView
+                                categories={categories || []}
+                                onCreateCategory={onCreateCategory}
+                                onDeleteCategory={onDeleteCategory}
+                                onRenameCategory={onRenameCategory}
+                            />
                         </div>
-                        <div style={{ background: '#ffffff', maxHeight: 200, overflowY: 'auto' }}>
-                            {filteredCats.map((cat: any, i: number) => (
-                                <div key={cat.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', background: i % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' }}>
-                                    <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px' }}>{cat.name}</span>
-                                    <button
-                                        style={{ ...xpBtn(), border: catHovered === cat.id ? '1px solid #808080' : '1px solid transparent', background: catHovered === cat.id ? 'linear-gradient(to bottom,#ffffff,#d4d0c8)' : 'transparent', padding: '1px 6px' }}
-                                        onMouseEnter={() => setCatHovered(cat.id)} onMouseLeave={() => setCatHovered(null)}
-                                        onClick={() => onDeleteCategory(cat.id)} title="Delete"
-                                    >
-                                        <i className="bi bi-trash" style={{ color: '#c00000', fontSize: '11px' }}></i>
-                                    </button>
-                                </div>
-                            ))}
-                            {filteredCats.length === 0 && <div style={{ textAlign: 'center', padding: '16px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#666' }}>No categories</div>}
-                        </div>
-                        <div style={xpStatusBar}><b>{(categories || []).length}</b> Total</div>
                     </div>
 
                     {/* UOM mini-window */}
@@ -478,25 +442,12 @@ export default function ItemMetadataView({
                             <p className="text-muted small mb-0 mt-1">Classify your inventory items.</p>
                         </div>
                         <div className="card-body">
-                            <form onSubmit={handleCreateCategory} className="mb-3">
-                                <div className="input-group">
-                                    <input className="form-control" placeholder="e.g. Spare Parts, Raw Materials..." value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} required />
-                                    <button type="submit" className="btn btn-success px-4" disabled={isCatSubmitting}>{isCatSubmitting ? '...' : t('add')}</button>
-                                </div>
-                            </form>
-                            <div className="input-group mb-3">
-                                <span className="input-group-text"><i className="bi bi-search"></i></span>
-                                <input className="form-control" placeholder="Search categories..." value={catSearch} onChange={e => setCatSearch(e.target.value)} />
-                            </div>
-                            <div className="list-group list-group-flush border rounded">
-                                {filteredCats.map((cat: any) => (
-                                    <div key={cat.id} className="list-group-item d-flex justify-content-between align-items-center">
-                                        <span className="fw-medium">{cat.name}</span>
-                                        <button className="btn btn-sm text-danger" onClick={() => onDeleteCategory(cat.id)}><i className="bi bi-trash me-1"></i>{t('delete')}</button>
-                                    </div>
-                                ))}
-                                {filteredCats.length === 0 && <div className="list-group-item text-center text-muted py-4 fst-italic">No categories found</div>}
-                            </div>
+                            <CategoriesView
+                                categories={categories || []}
+                                onCreateCategory={onCreateCategory}
+                                onDeleteCategory={onDeleteCategory}
+                                onRenameCategory={onRenameCategory}
+                            />
                         </div>
                     </div>
                 </div>

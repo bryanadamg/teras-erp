@@ -11,9 +11,11 @@ export default function ItemMetadataPage() {
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
     // ── Categories ────────────────────────────────────────────────────────────
-    const handleCreateCategory = async (name: string) => {
+    const handleCreateCategory = async (name: string, parentId?: string) => {
         const res = await authFetch(`${API_BASE}/categories`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }),
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, parent_id: parentId ?? null }),
         });
         if (res.ok) fetchData();
         return res;
@@ -26,6 +28,15 @@ export default function ItemMetadataPage() {
         });
         if (!confirmed) return;
         const res = await authFetch(`${API_BASE}/categories/${id}`, { method: 'DELETE' });
+        if (res.ok) fetchData();
+    };
+
+    const handleRenameCategory = async (id: string, name: string) => {
+        const res = await authFetch(`${API_BASE}/categories/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name }),
+        });
         if (res.ok) fetchData();
     };
 
@@ -113,6 +124,7 @@ export default function ItemMetadataPage() {
                 attributes={attributes}
                 onCreateCategory={handleCreateCategory}
                 onDeleteCategory={handleDeleteCategory}
+                onRenameCategory={handleRenameCategory}
                 onCreateUOM={handleCreateUOM}
                 onDeleteUOM={handleDeleteUOM}
                 onCreateUOMFactor={handleCreateUOMFactor}
