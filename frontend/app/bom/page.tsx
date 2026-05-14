@@ -73,6 +73,12 @@ export default function BOMPage() {
         if (res.ok) fetchData();
     };
 
+    const handleFetchBOMTree = async (id: string) => {
+        const res = await authFetch(`${API_BASE}/boms/${id}/tree`);
+        if (!res.ok) return null;
+        return res.json();
+    };
+
     const handleCreateProductionRun = async (p: any) => {
         const res = await authFetch(`${API_BASE}/production-runs`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p)
@@ -105,6 +111,7 @@ export default function BOMPage() {
                 partners={partners}
                 onCreateBOM={handleCreateBOM}
                 onUpdateBOM={handleUpdateBOM}
+                onFetchBOMTree={handleFetchBOMTree}
                 onUploadBOMPhoto={handleUploadBOMPhoto}
                 onUploadBOMDesign={handleUploadBOMDesign}
                 onDeleteBOM={handleDeleteBOM}

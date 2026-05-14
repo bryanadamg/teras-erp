@@ -183,6 +183,21 @@ class BOMResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class BOMLineTreeResponse(BOMLineResponse):
+    sub_bom: Optional["BOMTreeResponse"] = None
+
+    class Config:
+        from_attributes = True
+
+class BOMTreeResponse(BOMResponse):
+    lines: list[BOMLineTreeResponse] = []
+
+    class Config:
+        from_attributes = True
+
+BOMLineTreeResponse.model_rebuild()
+BOMTreeResponse.model_rebuild()
+
 class BOMUpdate(BaseModel):
     description: str | None = None
     qty: float | None = None

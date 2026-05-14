@@ -50,7 +50,7 @@ const xpSectionHdr: React.CSSProperties = {
 export default function BOMView({
     items, boms, locations, attributes, sizes, workCenters, operations, partners,
     onCreateBOM, onUpdateBOM, onDeleteBOM, onDeleteMultipleBOMs, onCreateItem, onSearchItem,
-    onUploadBOMPhoto, onUploadBOMDesign,
+    onUploadBOMPhoto, onUploadBOMDesign, onFetchBOMTree,
     companyProfile,
     initialCreateState, onClearInitialState,
     onCreateProductionRun
@@ -62,6 +62,7 @@ export default function BOMView({
 
     const [isDesignerOpen, setIsDesignerOpen] = useState(false);
     const [editingBOM, setEditingBOM] = useState<any>(null);
+    const [editLoading, setEditLoading] = useState(false);
     const [printBOM, setPrintBOM] = useState<any>(null);
     const [startPRBom, setStartPRBom] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -178,7 +179,21 @@ export default function BOMView({
 
     const handleCloseDesigner = () => { setIsDesignerOpen(false); setEditingBOM(null); if (onClearInitialState) onClearInitialState(); };
 
-    const handleEditBOM = (bom: any) => { setEditingBOM(bom); setIsDesignerOpen(true); };
+    const handleEditBOM = async (bom: any) => {
+        if (onFetchBOMTree) {
+            setEditLoading(true);
+            try {
+                const tree = await onFetchBOMTree(bom.id);
+                setEditingBOM(tree);
+                setIsDesignerOpen(true);
+            } finally {
+                setEditLoading(false);
+            }
+        } else {
+            setEditingBOM(bom);
+            setIsDesignerOpen(true);
+        }
+    };
 
     const handleCreateBOMWrapper = async (bomData: any) => {
         const cleaned = {
@@ -195,9 +210,9 @@ export default function BOMView({
             })),
         };
 
-        const isEdit = !!editingBOM;
+        const isEdit = !!bomData.bomId;
         const res = isEdit
-            ? await onUpdateBOM(editingBOM.id, cleaned)
+            ? await onUpdateBOM(bomData.bomId, cleaned)
             : await onCreateBOM(cleaned);
 
         if (res?.status === 400) {
@@ -888,8 +903,9 @@ export default function BOMView({
                                                                 style={classic ? { background: 'none', border: 'none', cursor: 'pointer', color: '#00508a', padding: '0 2px' } : undefined}
                                                                 className={classic ? '' : 'btn btn-sm btn-link text-primary'}
                                                                 onClick={() => handleEditBOM(bom)}
+                                                                disabled={editLoading}
                                                             >
-                                                                <i className="bi bi-pencil" />
+                                                                <i className={editLoading ? 'bi bi-hourglass-split' : 'bi bi-pencil'} />
                                                             </button>
                                                             <button
                                                                 style={classic ? { background: 'none', border: 'none', cursor: 'pointer', color: '#a00', padding: '0 2px' } : undefined}

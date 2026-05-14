@@ -26,6 +26,7 @@ interface BOMLineNode {
 
 interface BOMNodeData {
     id: string;
+    bomId?: string;
     code: string;
     item_code: string;
     attribute_value_ids: string[];
@@ -253,6 +254,61 @@ function applyFieldsToDescendants(node: BOMNodeData, fields: InheritableFields):
     };
 }
 
+function buildNodeFromTree(data: any, locations: any[]): BOMNodeData {
+    return {
+        id: Math.random().toString(36).substr(2, 9),
+        bomId: data.id,
+        code: data.code || '',
+        item_code: data.item_code || '',
+        attribute_value_ids: (data.attribute_value_ids || []).map(String),
+        qty: data.qty ?? 1.0,
+        tolerance_percentage: data.tolerance_percentage ?? 0.0,
+        operations: (data.operations || []).map((op: any) => ({
+            operation_id: op.operation_id || null,
+            work_center_id: op.work_center_id || null,
+            sequence: op.sequence ?? 10,
+            time_minutes: op.time_minutes ?? 0,
+        })),
+        lines: (data.lines || []).map((l: any) => ({
+            id: l.id || Math.random().toString(36).substr(2, 9),
+            item_code: l.item_code || '',
+            attribute_value_ids: (l.attribute_value_ids || []).map(String),
+            percentage: l.percentage ?? 0,
+            qty: l.qty ?? 0,
+            source_location_code: locations?.find((loc: any) => loc.id === l.source_location_id)?.code || '',
+            subBOM: l.sub_bom ? buildNodeFromTree(l.sub_bom, locations) : undefined,
+            isNewItem: false,
+        })),
+        sizes: (data.sizes || []).map((s: any) => ({
+            size_id: s.size_id || null,
+            label: s.label || null,
+            target_measurement: s.target_measurement ?? null,
+            measurement_min: s.measurement_min ?? null,
+            measurement_max: s.measurement_max ?? null,
+        })),
+        sizeMode: data.size_mode || data.sizeMode || 'sized',
+        kerapatan_picks: data.kerapatan_picks ?? null,
+        kerapatan_unit: data.kerapatan_unit || '/cm',
+        sisir_no: data.sisir_no ?? null,
+        pemakaian_obat: data.pemakaian_obat || '',
+        pembuatan_sample_oleh: data.pembuatan_sample_oleh || '',
+        customer_id: data.customer_id || '',
+        work_center_id: data.work_center_id || '',
+        berat_bahan_mateng: data.berat_bahan_mateng ?? null,
+        berat_bahan_mentah_pelesan: data.berat_bahan_mentah_pelesan ?? null,
+        mesin_lebar: data.mesin_lebar ?? null,
+        mesin_panjang_tulisan: data.mesin_panjang_tulisan ?? null,
+        mesin_panjang_tarikan: data.mesin_panjang_tarikan ?? null,
+        mesin_panjang_tarikan_bandul_1kg: data.mesin_panjang_tarikan_bandul_1kg ?? null,
+        mesin_panjang_tarikan_bandul_9kg: data.mesin_panjang_tarikan_bandul_9kg ?? null,
+        celup_lebar: data.celup_lebar ?? null,
+        celup_panjang_tulisan: data.celup_panjang_tulisan ?? null,
+        celup_panjang_tarikan: data.celup_panjang_tarikan ?? null,
+        celup_panjang_tarikan_bandul_1kg: data.celup_panjang_tarikan_bandul_1kg ?? null,
+        celup_panjang_tarikan_bandul_9kg: data.celup_panjang_tarikan_bandul_9kg ?? null,
+    };
+}
+
 export default function BOMDesigner({
     rootItemCode,
     initialAttributeValueIds,
@@ -276,57 +332,9 @@ export default function BOMDesigner({
 
     const [rootBOM, setRootBOM] = useState<BOMNodeData>(() => {
         if (initialBOMData) {
-            return {
-                id: 'root',
-                code: initialBOMData.code || '',
-                item_code: initialBOMData.item_code || '',
-                attribute_value_ids: (initialBOMData.attribute_value_ids || []).map(String),
-                qty: initialBOMData.qty ?? 1.0,
-                tolerance_percentage: initialBOMData.tolerance_percentage ?? 0.0,
-                operations: (initialBOMData.operations || []).map((op: any) => ({
-                    operation_id: op.operation_id || null,
-                    work_center_id: op.work_center_id || null,
-                    sequence: op.sequence ?? 10,
-                    time_minutes: op.time_minutes ?? 0,
-                })),
-                lines: (initialBOMData.lines || []).map((l: any) => ({
-                    id: l.id || Math.random().toString(36),
-                    item_code: l.item_code || '',
-                    attribute_value_ids: (l.attribute_value_ids || []).map(String),
-                    percentage: l.percentage ?? 0,
-                    qty: l.qty ?? 0,
-                    source_location_code: locations?.find((loc: any) => loc.id === l.source_location_id)?.code || '',
-                    subBOM: undefined,
-                    isNewItem: false,
-                })),
-                sizes: (initialBOMData.sizes || []).map((s: any) => ({
-                    size_id: s.size_id || null,
-                    label: s.label || null,
-                    target_measurement: s.target_measurement ?? null,
-                    measurement_min: s.measurement_min ?? null,
-                    measurement_max: s.measurement_max ?? null,
-                })),
-                sizeMode: initialBOMData.size_mode || 'sized',
-                kerapatan_picks: initialBOMData.kerapatan_picks ?? null,
-                kerapatan_unit: initialBOMData.kerapatan_unit || '/cm',
-                sisir_no: initialBOMData.sisir_no ?? null,
-                pemakaian_obat: initialBOMData.pemakaian_obat || '',
-                pembuatan_sample_oleh: initialBOMData.pembuatan_sample_oleh || '',
-                customer_id: initialBOMData.customer_id || '',
-                work_center_id: initialBOMData.work_center_id || '',
-                berat_bahan_mateng: initialBOMData.berat_bahan_mateng ?? null,
-                berat_bahan_mentah_pelesan: initialBOMData.berat_bahan_mentah_pelesan ?? null,
-                mesin_lebar: initialBOMData.mesin_lebar ?? null,
-                mesin_panjang_tulisan: initialBOMData.mesin_panjang_tulisan ?? null,
-                mesin_panjang_tarikan: initialBOMData.mesin_panjang_tarikan ?? null,
-                mesin_panjang_tarikan_bandul_1kg: initialBOMData.mesin_panjang_tarikan_bandul_1kg ?? null,
-                mesin_panjang_tarikan_bandul_9kg: initialBOMData.mesin_panjang_tarikan_bandul_9kg ?? null,
-                celup_lebar: initialBOMData.celup_lebar ?? null,
-                celup_panjang_tulisan: initialBOMData.celup_panjang_tulisan ?? null,
-                celup_panjang_tarikan: initialBOMData.celup_panjang_tarikan ?? null,
-                celup_panjang_tarikan_bandul_1kg: initialBOMData.celup_panjang_tarikan_bandul_1kg ?? null,
-                celup_panjang_tarikan_bandul_9kg: initialBOMData.celup_panjang_tarikan_bandul_9kg ?? null,
-            };
+            const node = buildNodeFromTree(initialBOMData, locations);
+            node.id = 'root';
+            return node;
         }
         return {
             id: 'root', code: '',

@@ -11,7 +11,7 @@ from app.models.size import Size
 from app.models.item import Item
 from app.models.location import Location
 from app.models.routing import WorkCenter, Operation
-from app.schemas import BOMCreate, BOMUpdate, BOMResponse, SizeResponse
+from app.schemas import BOMCreate, BOMUpdate, BOMResponse, BOMTreeResponse, SizeResponse
 from app.models.auth import User
 from app.api.auth import get_current_user
 from app.services import audit_service
@@ -212,7 +212,57 @@ async def get_bom(bom_id: str, db: AsyncSession = Depends(get_async_db), current
     bom.attribute_value_ids = [v.id for v in bom.attribute_values]
     for bl in bom.lines:
         bl.attribute_value_ids = [v.id for v in bl.attribute_values]
-        
+
+    return bom
+
+async def _load_bom_subtree(bom_id: str, db: AsyncSession, visited: set) -> any:
+    if bom_id in visited:
+        return None
+    visited.add(bom_id)
+    result = await db.execute(
+        select(BOM).options(
+            joinedload(BOM.item),
+            joinedload(BOM.customer),
+            joinedload(BOM.work_center),
+            selectinload(BOM.attribute_values),
+            selectinload(BOM.lines).joinedload(BOMLine.item),
+            selectinload(BOM.lines).selectinload(BOMLine.attribute_values),
+            selectinload(BOM.operations),
+            selectinload(BOM.sizes).joinedload(BOMSize.size),
+        ).filter(BOM.id == bom_id)
+    )
+    bom = result.unique().scalars().first()
+    if not bom:
+        return None
+    bom.attribute_value_ids = [v.id for v in bom.attribute_values]
+    for bl in bom.lines:
+        bl.attribute_value_ids = [v.id for v in bl.attribute_values]
+        sub_result = await db.execute(
+            select(BOM).filter(BOM.item_id == bl.item_id).order_by(BOM.created_at.desc())
+        )
+        sub_boms = sub_result.scalars().all()
+        matched = None
+        if sub_boms:
+            line_av_ids = set(str(v) for v in bl.attribute_value_ids)
+            for candidate in sub_boms:
+                cand_result = await db.execute(
+                    select(BOM).options(selectinload(BOM.attribute_values)).filter(BOM.id == candidate.id)
+                )
+                cand = cand_result.unique().scalars().first()
+                cand_av_ids = set(str(v.id) for v in (cand.attribute_values or []))
+                if cand_av_ids == line_av_ids:
+                    matched = candidate
+                    break
+            if not matched:
+                matched = sub_boms[0]
+        bl.sub_bom = await _load_bom_subtree(str(matched.id), db, visited) if matched else None
+    return bom
+
+@router.get("/boms/{bom_id}/tree", response_model=BOMTreeResponse)
+async def get_bom_tree(bom_id: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+    bom = await _load_bom_subtree(bom_id, db, set())
+    if not bom:
+        raise HTTPException(status_code=404, detail="BOM not found")
     return bom
 
 @router.post("/boms/{bom_id}/sample-photo")
