@@ -19,8 +19,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # Add new FK column
-    op.add_column('items', sa.Column('category_id', postgresql.UUID(as_uuid=True), nullable=True))
-    op.create_index(op.f('ix_items_category_id'), 'items', ['category_id'])
+    op.execute("ALTER TABLE items ADD COLUMN IF NOT EXISTS category_id UUID")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_items_category_id ON items (category_id)")
+    op.execute("ALTER TABLE items DROP CONSTRAINT IF EXISTS fk_items_category_id_categories")
     op.create_foreign_key(
         op.f('fk_items_category_id_categories'), 'items', 'categories',
         ['category_id'], ['id'], ondelete='SET NULL'
@@ -33,11 +34,13 @@ def upgrade() -> None:
         FROM categories
         WHERE items.category = categories.name
           AND categories.parent_id IS NULL
+          AND items.category_id IS NULL
     """)
 
-    # Drop old string column
-    op.drop_index(op.f('ix_items_category'), table_name='items')
-    op.drop_column('items', 'category')
+    # Drop old string column (may not exist on stamped DBs where c344af2c8543 already handled it)
+    op.execute("DROP INDEX IF EXISTS ix_items_category")
+    op.execute("DROP INDEX IF EXISTS idx_items_category")
+    op.execute("ALTER TABLE items DROP COLUMN IF EXISTS category")
 
 
 def downgrade() -> None:

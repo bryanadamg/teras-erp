@@ -17,18 +17,14 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column('mo_completions',
-        sa.Column('work_order_id', postgresql.UUID(as_uuid=True), nullable=True)
-    )
-    op.create_index(
-        op.f('ix_mo_completions_work_order_id'), 'mo_completions', ['work_order_id'], unique=False
-    )
-    op.create_foreign_key(
-        op.f('fk_mo_completions_work_order_id_work_orders'),
-        'mo_completions', 'work_orders',
-        ['work_order_id'], ['id'],
-        ondelete='SET NULL'
-    )
+    op.execute("ALTER TABLE mo_completions ADD COLUMN IF NOT EXISTS work_order_id UUID")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_mo_completions_work_order_id ON mo_completions (work_order_id)")
+    op.execute("ALTER TABLE mo_completions DROP CONSTRAINT IF EXISTS fk_mo_completions_work_order_id_work_orders")
+    op.execute("""
+        ALTER TABLE mo_completions
+        ADD CONSTRAINT fk_mo_completions_work_order_id_work_orders
+        FOREIGN KEY (work_order_id) REFERENCES work_orders(id) ON DELETE SET NULL
+    """)
 
 
 def downgrade() -> None:

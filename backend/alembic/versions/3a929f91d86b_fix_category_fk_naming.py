@@ -17,11 +17,13 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.drop_constraint('fk_categories_parent_id', 'categories', type_='foreignkey')
-    op.create_foreign_key(
-        op.f('fk_categories_parent_id_categories'), 'categories', 'categories',
-        ['parent_id'], ['id'], ondelete='RESTRICT'
-    )
+    op.execute("ALTER TABLE categories DROP CONSTRAINT IF EXISTS fk_categories_parent_id")
+    op.execute("ALTER TABLE categories DROP CONSTRAINT IF EXISTS fk_categories_parent_id_categories")
+    op.execute("""
+        ALTER TABLE categories
+        ADD CONSTRAINT fk_categories_parent_id_categories
+        FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE RESTRICT
+    """)
 
 
 def downgrade() -> None:

@@ -15,8 +15,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column('categories', sa.Column('is_system', sa.Boolean(), nullable=False, server_default='false'))
-    # Mark the 4 system categories at root level (parent_id IS NULL)
+    op.execute("ALTER TABLE categories ADD COLUMN IF NOT EXISTS is_system BOOLEAN NOT NULL DEFAULT false")
     op.execute("""
         UPDATE categories
         SET is_system = true
