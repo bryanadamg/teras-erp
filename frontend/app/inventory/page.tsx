@@ -86,8 +86,8 @@ export default function InventoryPage() {
                 onPageChange={pagination.setItemPage}
                 searchTerm={filters.itemSearch}
                 onSearchChange={filters.setItemSearch}
-                categoryFilter={filters.itemCategory}
-                onCategoryChange={filters.setItemCategory}
+                categoryFilter={filters.categoryL1}
+                onCategoryChange={filters.setCategoryL1}
             />
     );
 }

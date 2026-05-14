@@ -41,7 +41,9 @@ interface DataContextType {
     
     filters: {
         itemSearch: string; setItemSearch: (s: string) => void;
-        itemCategory: string; setItemCategory: (c: string) => void;
+        categoryL1: string; setCategoryL1: (c: string) => void;
+        categoryL2: string; setCategoryL2: (c: string) => void;
+        categoryL3: string; setCategoryL3: (c: string) => void;
         auditType: string; setAuditType: (t: string) => void;
     };
 
@@ -91,9 +93,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const [reportTotal, setReportTotal] = useState(0);
     const [pageSize] = useState(50);
     const [itemSearch, setItemSearch] = useState('');
-    const [itemCategory, setItemCategory] = useState('');
+    const [categoryL1, setCategoryL1] = useState('');
+    const [categoryL2, setCategoryL2] = useState('');
+    const [categoryL3, setCategoryL3] = useState('');
     const [auditType, setAuditType] = useState('');
     const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+    const handleSetCategoryL1 = useCallback((v: string) => {
+        setCategoryL1(v); setCategoryL2(''); setCategoryL3('');
+    }, []);
+
+    const handleSetCategoryL2 = useCallback((v: string) => {
+        setCategoryL2(v); setCategoryL3('');
+    }, []);
 
     const authFetch = useCallback(async (url: string, options: any = {}) => {
         const token = localStorage.getItem('access_token');
@@ -108,7 +120,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         try {
             const token = localStorage.getItem('access_token');
             const headers = { 'Authorization': `Bearer ${token}` };
-            const CACHE_KEY = 'terras_master_cache';
+            const CACHE_KEY = 'terras_master_cache_v2';
             const CACHE_TTL = 3600000; 
             const savedCache = localStorage.getItem(CACHE_KEY);
             let masterFetched = false;
@@ -147,7 +159,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             // Items & Inventory
             if (['dashboard', 'inventory', 'sample-masters', 'bom', 'manufacturing', 'work-orders', 'manufacturing-orders', 'production-runs', 'sales-orders', 'purchase-orders', 'stock', 'reports', 'samples'].some(t => fetchTarget.includes(t))) {
                 const skip = (itemPage - 1) * pageSize;
-                requests.push(fetch(`${API_BASE}/items?skip=${skip}&limit=${pageSize}&search=${encodeURIComponent(itemSearch)}&category=${encodeURIComponent(itemCategory)}`, { headers }));
+                const effectiveCategoryId = categoryL3 || categoryL2 || categoryL1;
+                const categoryParam = effectiveCategoryId ? `&category_id=${effectiveCategoryId}` : '';
+                requests.push(fetch(`${API_BASE}/items?skip=${skip}&limit=${pageSize}&search=${encodeURIComponent(itemSearch)}${categoryParam}`, { headers }));
                 requestTypes.push('items');
             }
 
@@ -247,11 +261,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 setIsInitialLoad(false);
             }
         } catch (e) { console.error("Fetch Error", e); }
-    }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, itemSearch, itemCategory, auditType, isInitialLoad, pageSize]);
+    }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, itemSearch, categoryL1, categoryL2, categoryL3, auditType, isInitialLoad, pageSize]);
 
     const handleTabHover = (tab: string) => fetchData(tab);
 
-    useEffect(() => { if (currentUser) fetchData(); }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, itemSearch, itemCategory, auditType, fetchData]);
+    useEffect(() => { if (currentUser) fetchData(); }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, itemSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData]);
 
     // WebSocket Logic
     const fetchDataRef = useRef(fetchData);
@@ -299,14 +313,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
         partners, dashboardKPIs, companyProfile,
         pagination: { itemPage, setItemPage, itemTotal, woPage, setWoPage, woTotal, prPage, setPrPage, prTotal, auditPage, setAuditPage, auditTotal, reportPage, setReportPage, reportTotal, pageSize },
-        filters: { itemSearch, setItemSearch, itemCategory, setItemCategory, auditType, setAuditType },
+        filters: { itemSearch, setItemSearch, categoryL1, setCategoryL1: handleSetCategoryL1, categoryL2, setCategoryL2: handleSetCategoryL2, categoryL3, setCategoryL3, auditType, setAuditType },
         fetchData, handleTabHover, authFetch
     }), [
         items, locations, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
         partners, dashboardKPIs, companyProfile,
         itemPage, itemTotal, woPage, woTotal, prPage, prTotal, auditPage, auditTotal, reportPage, reportTotal, pageSize,
-        itemSearch, itemCategory, auditType, fetchData, handleTabHover, authFetch
+        itemSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData, handleTabHover, authFetch,
+        handleSetCategoryL1, handleSetCategoryL2
     ]);
 
     return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
