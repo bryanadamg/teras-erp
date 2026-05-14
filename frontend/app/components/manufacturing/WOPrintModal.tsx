@@ -35,11 +35,11 @@ const renderPrintBOMLines = (
     const { boms, getItemName, getItemCode, getLocationName, getAttributeValueName } = helpers;
     return lines.map((line: any) => {
         const subBOM = boms.find((b: any) => b.item_id === line.item_id);
-        let scaledQty = parseFloat(line.qty);
-        if (line.is_percentage) {
-            scaledQty = (currentParentQty * scaledQty) / 100;
+        let scaledQty: number;
+        if (parseFloat(line.percentage) > 0) {
+            scaledQty = (currentParentQty * parseFloat(line.percentage)) / 100;
         } else {
-            scaledQty = currentParentQty * scaledQty;
+            scaledQty = currentParentQty * parseFloat(line.qty || 0);
         }
         const tolerance = parseFloat(currentBOM?.tolerance_percentage || 0);
         if (tolerance > 0) {

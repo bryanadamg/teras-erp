@@ -160,7 +160,7 @@ export default function WOStepPrintModal({
                         <tbody>
                             {bomLines.map((line: any) => {
                                 const reqQty = woQty > 0
-                                    ? (line.is_percentage ? (woQty * parseFloat(line.qty)) / 100 : woQty * parseFloat(line.qty))
+                                    ? (parseFloat(line.percentage) > 0 ? (woQty * parseFloat(line.percentage)) / 100 : woQty * parseFloat(line.qty || 0))
                                     : null;
                                 return (
                                     <tr key={line.id}>
