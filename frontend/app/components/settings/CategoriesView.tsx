@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 
 type Category = {
@@ -20,6 +20,9 @@ interface CategoriesViewProps {
     onRenameCategory: (id: string, name: string) => Promise<void>;
 }
 
+type EditingState = { type: 'rename'; id: string; value: string } | null;
+type AddingState = { parentId: string | undefined; value: string } | null;
+
 function buildTree(cats: Category[]): Category[] {
     const map = new Map(cats.map(c => [c.id, { ...c, children: [] as Category[] }]));
     const roots: Category[] = [];
@@ -33,6 +36,13 @@ function buildTree(cats: Category[]): Category[] {
     return roots;
 }
 
+// Auto-focus helper component
+function AutoFocusInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
+    const ref = useRef<HTMLInputElement>(null);
+    useEffect(() => { ref.current?.focus(); ref.current?.select(); }, []);
+    return <input ref={ref} {...props} />;
+}
+
 export default function CategoriesView({
     categories,
     onCreateCategory,
@@ -43,8 +53,10 @@ export default function CategoriesView({
     const classic = currentStyle === 'classic';
 
     const [selectedId, setSelectedId] = useState<string | null>(null);
-    const [newName, setNewName] = useState('');
     const [search, setSearch] = useState('');
+    const [editingState, setEditingState] = useState<EditingState>(null);
+    const [addingState, setAddingState] = useState<AddingState>(null);
+    const [hoveredId, setHoveredId] = useState<string | null>(null);
 
     const selectedNode = selectedId ? categories.find(c => c.id === selectedId) ?? null : null;
     const tree = buildTree(
@@ -52,6 +64,37 @@ export default function CategoriesView({
             ? categories.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
             : [...categories]
     );
+
+    // ── Shared action handlers ────────────────────────────────────────────────
+    const handleConfirmRename = async () => {
+        if (editingState && editingState.value.trim()) {
+            await onRenameCategory(editingState.id, editingState.value.trim());
+        }
+        setEditingState(null);
+    };
+
+    const handleConfirmAdd = async () => {
+        if (addingState && addingState.value.trim()) {
+            await onCreateCategory(addingState.value.trim(), addingState.parentId);
+        }
+        setAddingState(null);
+    };
+
+    const handleDelete = async (id: string) => {
+        await onDeleteCategory(id);
+        if (selectedId === id) setSelectedId(null);
+        if (editingState?.id === id) setEditingState(null);
+    };
+
+    const startAdd = (parentId: string | undefined) => {
+        setEditingState(null);
+        setAddingState({ parentId, value: '' });
+    };
+
+    const startRename = (node: Category) => {
+        setAddingState(null);
+        setEditingState({ type: 'rename', id: node.id, value: node.name });
+    };
 
     // ── XP style helpers ──────────────────────────────────────────────────────
     const xpToolbar: React.CSSProperties = {
@@ -73,6 +116,17 @@ export default function CategoriesView({
         borderRadius: 0,
         ...extra,
     });
+    const xpIconBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
+        background: 'none',
+        border: 'none',
+        padding: '0 2px',
+        fontFamily: 'Tahoma, Arial, sans-serif',
+        fontSize: 11,
+        cursor: 'pointer',
+        borderRadius: 0,
+        lineHeight: 1,
+        ...extra,
+    });
     const xpInput: React.CSSProperties = {
         fontFamily: 'Tahoma, Arial, sans-serif',
         fontSize: 11,
@@ -83,40 +137,206 @@ export default function CategoriesView({
         outline: 'none',
     };
 
-    // ── Tree node renderer ────────────────────────────────────────────────────
-    const renderNode = (node: Category): React.ReactNode => {
-        const indent = (node.level - 1) * 16;
-        const isSelected = node.id === selectedId;
-        const rowStyle: React.CSSProperties = {
-            display: 'flex',
-            alignItems: 'center',
-            padding: '1px 4px',
-            paddingLeft: indent + 4,
-            cursor: 'pointer',
-            fontFamily: 'Tahoma, Arial, sans-serif',
-            fontSize: 11,
-            fontWeight: node.level === 1 ? 'bold' : 'normal',
-            background: isSelected ? '#316ac5' : 'transparent',
-            color: isSelected ? '#fff' : '#000',
-            userSelect: 'none' as const,
-        };
+    // ── Classic add-row renderer ──────────────────────────────────────────────
+    const renderAddRowClassic = (level: number): React.ReactNode => {
+        const indent = (level - 1) * 16;
         return (
-            <div key={node.id}>
-                <div style={rowStyle} onClick={() => setSelectedId(node.id)}>
-                    <span style={{ marginRight: 4, fontSize: 10, fontFamily: 'monospace' }}>
-                        {node.children?.length ? '[-]' : '--'}
-                    </span>
-                    {node.name}
-                </div>
-                {node.children?.map(child => renderNode(child))}
+            <div
+                key="__adding__"
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '1px 4px',
+                    paddingLeft: indent + 4,
+                    gap: 4,
+                }}
+            >
+                <span style={{ marginRight: 4, fontSize: 10, fontFamily: 'monospace', color: '#999' }}>—</span>
+                <AutoFocusInput
+                    style={{ ...xpInput, flex: 1 }}
+                    placeholder="New category name..."
+                    value={addingState?.value ?? ''}
+                    onChange={e => setAddingState(s => s ? { ...s, value: e.target.value } : s)}
+                    onKeyDown={e => {
+                        if (e.key === 'Enter') { e.preventDefault(); handleConfirmAdd(); }
+                        if (e.key === 'Escape') { e.preventDefault(); setAddingState(null); }
+                    }}
+                />
+                <button style={xpBtn()} onClick={handleConfirmAdd} title="Save">✓</button>
+                <button style={xpBtn()} onClick={() => setAddingState(null)} title="Cancel">✕</button>
             </div>
         );
     };
 
-    // ── Modern mode node renderer ─────────────────────────────────────────────
+    // ── Classic tree node renderer ────────────────────────────────────────────
+    const renderNodeClassic = (node: Category): React.ReactNode => {
+        const indent = (node.level - 1) * 16;
+        const isSelected = node.id === selectedId;
+        const isHovered = node.id === hoveredId;
+        const isEditing = editingState?.id === node.id;
+        const hasChildren = (node.children?.length ?? 0) > 0;
+        const chevron = hasChildren ? '▼' : '—';
+        const chevronColor = isSelected ? '#fff' : (hasChildren ? '#444' : '#bbb');
+        const actionsOpacity = isHovered || isEditing ? 1 : 0;
+
+        if (isEditing) {
+            return (
+                <div key={node.id}>
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '1px 4px',
+                            paddingLeft: indent + 4,
+                            background: '#316ac5',
+                            gap: 4,
+                        }}
+                    >
+                        <span style={{ marginRight: 4, fontSize: 10, color: '#fff', fontFamily: 'monospace' }}>{chevron}</span>
+                        <AutoFocusInput
+                            style={{ ...xpInput, flex: 1 }}
+                            value={editingState.value}
+                            onChange={e => setEditingState(s => s ? { ...s, value: e.target.value } : s)}
+                            onKeyDown={e => {
+                                if (e.key === 'Enter') { e.preventDefault(); handleConfirmRename(); }
+                                if (e.key === 'Escape') { e.preventDefault(); setEditingState(null); }
+                            }}
+                        />
+                        <button style={xpBtn()} onClick={handleConfirmRename} title="Save">✓</button>
+                        <button style={xpBtn()} onClick={() => setEditingState(null)} title="Cancel">✕</button>
+                    </div>
+                    {node.children?.map(child => renderNodeClassic(child))}
+                    {addingState?.parentId === node.id && renderAddRowClassic(node.level + 1)}
+                </div>
+            );
+        }
+
+        return (
+            <div key={node.id}>
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '1px 4px',
+                        paddingLeft: indent + 4,
+                        cursor: 'pointer',
+                        fontFamily: 'Tahoma, Arial, sans-serif',
+                        fontSize: 11,
+                        fontWeight: node.level === 1 ? 'bold' : 'normal',
+                        background: isSelected ? '#316ac5' : (isHovered ? '#dde8fb' : 'transparent'),
+                        color: isSelected ? '#fff' : '#000',
+                        userSelect: 'none' as const,
+                        position: 'relative',
+                    }}
+                    onClick={() => setSelectedId(node.id)}
+                    onMouseEnter={() => setHoveredId(node.id)}
+                    onMouseLeave={() => setHoveredId(null)}
+                >
+                    <span style={{ marginRight: 4, fontSize: 10, fontFamily: 'monospace', color: chevronColor }}>{chevron}</span>
+                    <span style={{ flex: 1 }}>{node.name}</span>
+                    <span style={{ display: 'flex', gap: 2, opacity: actionsOpacity, transition: 'opacity 0.1s' }}>
+                        {node.level < 3 && (
+                            <button
+                                style={xpIconBtn({ color: isSelected ? '#fff' : '#316ac5' })}
+                                title="Add child"
+                                onClick={e => { e.stopPropagation(); startAdd(node.id); }}
+                            >＋</button>
+                        )}
+                        <button
+                            style={xpIconBtn({ color: isSelected ? '#fff' : '#555' })}
+                            title="Rename"
+                            onClick={e => { e.stopPropagation(); startRename(node); }}
+                        >✎</button>
+                        <button
+                            style={xpIconBtn({ color: isSelected ? '#ffc0c0' : '#c00' })}
+                            title="Delete"
+                            onClick={e => { e.stopPropagation(); handleDelete(node.id); }}
+                        >✕</button>
+                    </span>
+                </div>
+                {node.children?.map(child => renderNodeClassic(child))}
+                {addingState?.parentId === node.id && renderAddRowClassic(node.level + 1)}
+            </div>
+        );
+    };
+
+    // ── Modern add-row renderer ───────────────────────────────────────────────
+    const renderAddRowModern = (level: number): React.ReactNode => {
+        const indent = (level - 1) * 16;
+        return (
+            <div
+                key="__adding__"
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '3px 8px',
+                    paddingLeft: indent + 8,
+                    gap: 4,
+                }}
+            >
+                <span style={{ marginRight: 6, fontSize: 11, color: '#bbb', fontFamily: 'monospace' }}>—</span>
+                <AutoFocusInput
+                    className="form-control form-control-sm"
+                    style={{ flex: 1, border: '1px dashed #0d6efd' }}
+                    placeholder="New category name..."
+                    value={addingState?.value ?? ''}
+                    onChange={e => setAddingState(s => s ? { ...s, value: e.target.value } : s)}
+                    onKeyDown={e => {
+                        if (e.key === 'Enter') { e.preventDefault(); handleConfirmAdd(); }
+                        if (e.key === 'Escape') { e.preventDefault(); setAddingState(null); }
+                    }}
+                />
+                <button className="btn btn-sm btn-outline-primary" style={{ padding: '1px 6px' }} onClick={handleConfirmAdd} title="Save">✓</button>
+                <button className="btn btn-sm btn-outline-secondary" style={{ padding: '1px 6px' }} onClick={() => setAddingState(null)} title="Cancel">✕</button>
+            </div>
+        );
+    };
+
+    // ── Modern tree node renderer ─────────────────────────────────────────────
     const renderNodeModern = (node: Category): React.ReactNode => {
         const indent = (node.level - 1) * 16;
         const isSelected = node.id === selectedId;
+        const isHovered = node.id === hoveredId;
+        const isEditing = editingState?.id === node.id;
+        const hasChildren = (node.children?.length ?? 0) > 0;
+        const chevron = hasChildren ? '▼' : '—';
+        const chevronColor = isSelected ? 'rgba(255,255,255,0.8)' : (hasChildren ? '#495057' : '#ced4da');
+        const actionsOpacity = isHovered || isEditing ? 1 : 0;
+
+        if (isEditing) {
+            return (
+                <div key={node.id}>
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '3px 8px',
+                            paddingLeft: indent + 8,
+                            background: '#0d6efd',
+                            borderRadius: 4,
+                            gap: 4,
+                        }}
+                    >
+                        <span style={{ marginRight: 6, fontSize: 11, color: 'rgba(255,255,255,0.8)', fontFamily: 'monospace' }}>{chevron}</span>
+                        <AutoFocusInput
+                            className="form-control form-control-sm"
+                            style={{ flex: 1 }}
+                            value={editingState.value}
+                            onChange={e => setEditingState(s => s ? { ...s, value: e.target.value } : s)}
+                            onKeyDown={e => {
+                                if (e.key === 'Enter') { e.preventDefault(); handleConfirmRename(); }
+                                if (e.key === 'Escape') { e.preventDefault(); setEditingState(null); }
+                            }}
+                        />
+                        <button className="btn btn-sm btn-light" style={{ padding: '1px 6px' }} onClick={handleConfirmRename} title="Save">✓</button>
+                        <button className="btn btn-sm btn-light" style={{ padding: '1px 6px' }} onClick={() => setEditingState(null)} title="Cancel">✕</button>
+                    </div>
+                    {node.children?.map(child => renderNodeModern(child))}
+                    {addingState?.parentId === node.id && renderAddRowModern(node.level + 1)}
+                </div>
+            );
+        }
+
         return (
             <div key={node.id}>
                 <div
@@ -127,24 +347,70 @@ export default function CategoriesView({
                         paddingLeft: indent + 8,
                         cursor: 'pointer',
                         fontWeight: node.level === 1 ? 600 : 'normal',
-                        background: isSelected ? '#0d6efd' : 'transparent',
+                        background: isSelected ? '#0d6efd' : (isHovered ? '#e8f0fe' : 'transparent'),
                         color: isSelected ? '#fff' : '#212529',
                         borderRadius: 4,
-                        userSelect: 'none',
+                        userSelect: 'none' as const,
                         fontSize: 13,
+                        position: 'relative',
                     }}
                     onClick={() => setSelectedId(node.id)}
+                    onMouseEnter={() => setHoveredId(node.id)}
+                    onMouseLeave={() => setHoveredId(null)}
                 >
-                    <span style={{ marginRight: 6, fontFamily: 'monospace', fontSize: 11, opacity: 0.6 }}>
-                        {node.children?.length ? '[-]' : '--'}
+                    <span style={{ marginRight: 6, fontFamily: 'monospace', fontSize: 11, color: chevronColor }}>{chevron}</span>
+                    <span style={{ flex: 1 }}>{node.name}</span>
+                    <span style={{ display: 'flex', gap: 2, opacity: actionsOpacity, transition: 'opacity 0.1s' }}>
+                        {node.level < 3 && (
+                            <button
+                                className="btn btn-sm"
+                                style={{
+                                    padding: '0 4px',
+                                    lineHeight: 1.2,
+                                    fontSize: 13,
+                                    color: isSelected ? '#fff' : '#0d6efd',
+                                    background: 'none',
+                                    border: 'none',
+                                }}
+                                title="Add child"
+                                onClick={e => { e.stopPropagation(); startAdd(node.id); }}
+                            >＋</button>
+                        )}
+                        <button
+                            className="btn btn-sm"
+                            style={{
+                                padding: '0 4px',
+                                lineHeight: 1.2,
+                                fontSize: 13,
+                                color: isSelected ? '#fff' : '#6c757d',
+                                background: 'none',
+                                border: 'none',
+                            }}
+                            title="Rename"
+                            onClick={e => { e.stopPropagation(); startRename(node); }}
+                        >✎</button>
+                        <button
+                            className="btn btn-sm"
+                            style={{
+                                padding: '0 4px',
+                                lineHeight: 1.2,
+                                fontSize: 13,
+                                color: isSelected ? '#ffc0c0' : '#dc3545',
+                                background: 'none',
+                                border: 'none',
+                            }}
+                            title="Delete"
+                            onClick={e => { e.stopPropagation(); handleDelete(node.id); }}
+                        >✕</button>
                     </span>
-                    {node.name}
                 </div>
                 {node.children?.map(child => renderNodeModern(child))}
+                {addingState?.parentId === node.id && renderAddRowModern(node.level + 1)}
             </div>
         );
     };
 
+    // ── Classic mode ─────────────────────────────────────────────────────────
     if (classic) {
         return (
             <div>
@@ -152,25 +418,9 @@ export default function CategoriesView({
                 <div style={xpToolbar}>
                     <button
                         style={xpBtn()}
-                        onClick={() => { if (newName.trim()) { onCreateCategory(newName.trim()); setNewName(''); } }}
+                        onClick={() => startAdd(undefined)}
                     >
                         + Level 1
-                    </button>
-                    <button
-                        style={xpBtn(selectedId && selectedNode?.level !== 3 ? {} : { opacity: 0.5, cursor: 'default' })}
-                        disabled={!selectedId || selectedNode?.level === 3}
-                        onClick={() => {
-                            if (newName.trim() && selectedId) { onCreateCategory(newName.trim(), selectedId); setNewName(''); }
-                        }}
-                    >
-                        + Add Child
-                    </button>
-                    <button
-                        style={xpBtn(selectedId ? { borderColor: '#c00000 #800000 #800000 #c00000' } : { opacity: 0.5, cursor: 'default' })}
-                        disabled={!selectedId}
-                        onClick={() => { if (selectedId) { onDeleteCategory(selectedId); setSelectedId(null); } }}
-                    >
-                        Delete
                     </button>
                     <div style={{ flex: 1 }} />
                     <input
@@ -191,36 +441,13 @@ export default function CategoriesView({
                     overflow: 'auto',
                     padding: 4,
                 }}>
-                    {tree.length === 0 && (
+                    {tree.length === 0 && !addingState && (
                         <div style={{ color: '#888', fontSize: 11, padding: 8, fontFamily: 'Tahoma, Arial, sans-serif' }}>
                             No categories found.
                         </div>
                     )}
-                    {tree.map(node => renderNode(node))}
-                </div>
-
-                {/* Rename / new name input */}
-                <div style={{ marginTop: 6, display: 'flex', gap: 4, alignItems: 'center' }}>
-                    <input
-                        style={{ ...xpInput, flex: 1 }}
-                        placeholder={selectedId ? 'Type new name to rename, or name for Add...' : 'Type name for + Level 1 or + Add Child...'}
-                        value={newName}
-                        onChange={e => setNewName(e.target.value)}
-                        onKeyDown={e => {
-                            if (e.key === 'Enter') {
-                                if (selectedId && newName.trim()) { onRenameCategory(selectedId, newName.trim()); setNewName(''); }
-                                else if (newName.trim()) { onCreateCategory(newName.trim()); setNewName(''); }
-                            }
-                        }}
-                    />
-                    {selectedId && (
-                        <button
-                            style={xpBtn()}
-                            onClick={() => { if (newName.trim()) { onRenameCategory(selectedId, newName.trim()); setNewName(''); } }}
-                        >
-                            Rename
-                        </button>
-                    )}
+                    {tree.map(node => renderNodeClassic(node))}
+                    {addingState?.parentId === undefined && renderAddRowClassic(1)}
                 </div>
 
                 {/* Status bar */}
@@ -255,25 +482,9 @@ export default function CategoriesView({
             <div style={{ display: 'flex', gap: 8, padding: '8px 0', alignItems: 'center' }}>
                 <button
                     className="btn btn-sm btn-outline-secondary"
-                    onClick={() => { if (newName.trim()) { onCreateCategory(newName.trim()); setNewName(''); } }}
+                    onClick={() => startAdd(undefined)}
                 >
                     + Level 1
-                </button>
-                <button
-                    className="btn btn-sm btn-outline-secondary"
-                    disabled={!selectedId || selectedNode?.level === 3}
-                    onClick={() => {
-                        if (newName.trim() && selectedId) { onCreateCategory(newName.trim(), selectedId); setNewName(''); }
-                    }}
-                >
-                    + Add Child
-                </button>
-                <button
-                    className="btn btn-sm btn-outline-danger"
-                    disabled={!selectedId}
-                    onClick={() => { if (selectedId) { onDeleteCategory(selectedId); setSelectedId(null); } }}
-                >
-                    Delete
                 </button>
                 <div style={{ flex: 1 }} />
                 <input
@@ -294,36 +505,13 @@ export default function CategoriesView({
                 overflow: 'auto',
                 padding: 8,
             }}>
-                {tree.length === 0 && (
+                {tree.length === 0 && !addingState && (
                     <div className="text-muted" style={{ fontSize: 13, padding: 8 }}>
                         No categories found.
                     </div>
                 )}
                 {tree.map(node => renderNodeModern(node))}
-            </div>
-
-            {/* Rename / new name input */}
-            <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input
-                    className="form-control form-control-sm"
-                    placeholder={selectedId ? 'Type new name to rename, or name for Add...' : 'Type name for + Level 1 or + Add Child...'}
-                    value={newName}
-                    onChange={e => setNewName(e.target.value)}
-                    onKeyDown={e => {
-                        if (e.key === 'Enter') {
-                            if (selectedId && newName.trim()) { onRenameCategory(selectedId, newName.trim()); setNewName(''); }
-                            else if (newName.trim()) { onCreateCategory(newName.trim()); setNewName(''); }
-                        }
-                    }}
-                />
-                {selectedId && (
-                    <button
-                        className="btn btn-sm btn-outline-primary"
-                        onClick={() => { if (newName.trim()) { onRenameCategory(selectedId, newName.trim()); setNewName(''); } }}
-                    >
-                        Rename
-                    </button>
-                )}
+                {addingState?.parentId === undefined && renderAddRowModern(1)}
             </div>
 
             {/* Status bar */}
