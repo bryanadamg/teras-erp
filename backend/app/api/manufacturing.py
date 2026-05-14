@@ -511,27 +511,6 @@ async def update_manufacturing_order_status(mo_id: str, status: str, db: AsyncSe
     if status not in valid_statuses:
         raise HTTPException(status_code=400, detail="Invalid status")
 
-    if status in ("IN_PROGRESS", "COMPLETED") and previous_status not in ("IN_PROGRESS", "COMPLETED"):
-        # Check traditional child MOs (single-parent, created via create_mo_recursive)
-        incomplete_children = [c for c in mo.child_mos if c.status != "COMPLETED"]
-        if incomplete_children:
-            codes = ", ".join(c.code for c in incomplete_children)
-            raise HTTPException(status_code=400, detail=f"Child MOs must be completed first: {codes}")
-
-        # Check shared component MOs linked via mo_dependencies
-        dep_ids_result = await db.execute(
-            select(MODependency.required_mo_id).filter(MODependency.dependent_mo_id == mo.id)
-        )
-        required_dep_ids = [row[0] for row in dep_ids_result.fetchall()]
-        if required_dep_ids:
-            incomplete_dep_result = await db.execute(
-                select(ManufacturingOrder.code)
-                .filter(ManufacturingOrder.id.in_(required_dep_ids), ManufacturingOrder.status != "COMPLETED")
-            )
-            incomplete_dep_codes = [row[0] for row in incomplete_dep_result.fetchall()]
-            if incomplete_dep_codes:
-                raise HTTPException(status_code=400, detail=f"Required component MOs must be completed first: {', '.join(incomplete_dep_codes)}")
-
     if status == "IN_PROGRESS" and previous_status != "IN_PROGRESS":
         for comp in mo.planned_components:
             if not comp.percentage:
@@ -631,26 +610,6 @@ async def add_mo_completion(
             raise HTTPException(status_code=400, detail="Work order does not belong to this MO")
         if wo.status in ("COMPLETED", "CANCELLED"):
             raise HTTPException(status_code=400, detail=f"Cannot log on a {wo.status} work order")
-
-    # Check traditional child MOs
-    incomplete_children = [c for c in mo.child_mos if c.status != "COMPLETED"]
-    if incomplete_children:
-        codes = ", ".join(c.code for c in incomplete_children)
-        raise HTTPException(status_code=400, detail=f"Child MOs must be completed first: {codes}")
-
-    # Check shared component MOs linked via mo_dependencies
-    dep_ids_result = await db.execute(
-        select(MODependency.required_mo_id).filter(MODependency.dependent_mo_id == mo.id)
-    )
-    required_dep_ids = [row[0] for row in dep_ids_result.fetchall()]
-    if required_dep_ids:
-        incomplete_dep_result = await db.execute(
-            select(ManufacturingOrder.code)
-            .filter(ManufacturingOrder.id.in_(required_dep_ids), ManufacturingOrder.status != "COMPLETED")
-        )
-        incomplete_dep_codes = [row[0] for row in incomplete_dep_result.fetchall()]
-        if incomplete_dep_codes:
-            raise HTTPException(status_code=400, detail=f"Required component MOs must be completed first: {', '.join(incomplete_dep_codes)}")
 
     # Auto-start if PENDING — pre-check stock before committing
     if mo.status == "PENDING":
