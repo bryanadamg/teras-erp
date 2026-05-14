@@ -534,9 +534,15 @@ class UOMResponse(UOMCreate):
 
 class CategoryCreate(BaseModel):
     name: str
+    parent_id: UUID | None = None
 
-class CategoryResponse(CategoryCreate):
+
+class CategoryResponse(BaseModel):
     id: UUID
+    name: str
+    parent_id: UUID | None
+    level: int
+    path_names: list[str]
 
     class Config:
         from_attributes = True

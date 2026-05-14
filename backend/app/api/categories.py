@@ -1,34 +1,96 @@
+import uuid
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from app.db.session import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+from app.db.session import get_async_db
 from app.models.category import Category
-from app.models.auth import User
 from app.schemas import CategoryCreate, CategoryResponse
 from app.api.auth import get_current_user
 
 router = APIRouter()
 
-@router.post("/categories", response_model=CategoryResponse)
-def create_category(payload: CategoryCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if db.query(Category).filter(Category.name == payload.name).first():
-        raise HTTPException(status_code=400, detail="Category already exists")
+# Reusable eager-load options: parent (2 levels) + children (1 level).
+# The Category model has join_depth=2 on parent and selectin on children.
+# In async we must explicitly request these with selectinload/joinedload.
+_LOAD_OPTS = [
+    selectinload(Category.children),
+    selectinload(Category.parent).selectinload(Category.parent),
+]
 
-    category = Category(name=payload.name)
-    db.add(category)
-    db.commit()
-    db.refresh(category)
-    return category
+
+async def _get_or_404(db: AsyncSession, category_id: uuid.UUID) -> Category:
+    result = await db.execute(
+        select(Category).where(Category.id == category_id).options(*_LOAD_OPTS)
+    )
+    cat = result.scalars().first()
+    if not cat:
+        raise HTTPException(status_code=404, detail="Category not found")
+    return cat
+
 
 @router.get("/categories", response_model=list[CategoryResponse])
-def get_categories(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return db.query(Category).all()
+async def list_categories(
+    db: AsyncSession = Depends(get_async_db),
+    _=Depends(get_current_user),
+):
+    # Fetch all categories with full parent chain and children loaded.
+    result = await db.execute(
+        select(Category).options(*_LOAD_OPTS).order_by(Category.name)
+    )
+    all_cats = result.scalars().unique().all()
 
-@router.delete("/categories/{category_id}")
-def delete_category(category_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    category = db.query(Category).filter(Category.id == category_id).first()
-    if not category:
-        raise HTTPException(status_code=404, detail="Category not found")
-    
-    db.delete(category)
-    db.commit()
-    return {"status": "success", "message": "Category deleted"}
+    # Build flat depth-first list starting from roots.
+    roots = [c for c in all_cats if c.parent_id is None]
+    flat: list[Category] = []
+
+    def collect(cats: list) -> None:
+        for c in sorted(cats, key=lambda x: x.name):
+            flat.append(c)
+            collect(c.children)
+
+    collect(roots)
+    return flat
+
+
+@router.post("/categories", response_model=CategoryResponse, status_code=201)
+async def create_category(
+    data: CategoryCreate,
+    db: AsyncSession = Depends(get_async_db),
+    _=Depends(get_current_user),
+):
+    if data.parent_id:
+        parent = await _get_or_404(db, data.parent_id)
+        if parent.level >= 3:
+            raise HTTPException(status_code=400, detail="Maximum category depth of 3 exceeded")
+    cat = Category(name=data.name, parent_id=data.parent_id)
+    db.add(cat)
+    await db.commit()
+    # Re-fetch with relationships loaded so level/path_names work.
+    return await _get_or_404(db, cat.id)
+
+
+@router.patch("/categories/{category_id}", response_model=CategoryResponse)
+async def rename_category(
+    category_id: uuid.UUID,
+    data: CategoryCreate,
+    db: AsyncSession = Depends(get_async_db),
+    _=Depends(get_current_user),
+):
+    cat = await _get_or_404(db, category_id)
+    cat.name = data.name
+    await db.commit()
+    return await _get_or_404(db, cat.id)
+
+
+@router.delete("/categories/{category_id}", status_code=204)
+async def delete_category(
+    category_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_db),
+    _=Depends(get_current_user),
+):
+    cat = await _get_or_404(db, category_id)
+    if cat.children:
+        raise HTTPException(status_code=400, detail="Cannot delete a category that has subcategories")
+    await db.delete(cat)
+    await db.commit()

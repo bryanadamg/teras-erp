@@ -4,6 +4,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 import uuid
 from datetime import datetime
+from app.models.category import Category
 
 # Association table for Item <-> Attribute
 item_attributes = Table(
@@ -22,7 +23,12 @@ class Item(Base):
     code: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(255))
     uom: Mapped[str] = mapped_column(String(32))
-    category: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    category_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("categories.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    category: Mapped["Category | None"] = relationship(
+        "Category", foreign_keys="[Item.category_id]", lazy="joined"
+    )
 
     # Lineage: which SampleRequest + SampleColor this item was derived from
     source_sample_id: Mapped[uuid.UUID | None] = mapped_column(
