@@ -14,7 +14,11 @@ def _source_opts():
 
 
 async def get_descendant_category_ids(db: AsyncSession, category_id: uuid.UUID) -> list[uuid.UUID]:
-    result = await db.execute(select(Category).where(Category.id == category_id))
+    result = await db.execute(
+        select(Category)
+        .where(Category.id == category_id)
+        .options(selectinload(Category.children).selectinload(Category.children))
+    )
     root = result.scalar_one_or_none()
     if not root:
         return [category_id]
