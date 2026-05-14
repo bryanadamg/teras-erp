@@ -9,6 +9,7 @@ type Category = {
     parent_id: string | null;
     level: number;
     path_names: string[];
+    is_system: boolean;
     children?: Category[];
 };
 
@@ -57,6 +58,7 @@ export default function CategoriesView({
     const [editingState, setEditingState] = useState<EditingState>(null);
     const [addingState, setAddingState] = useState<AddingState>(null);
     const [hoveredId, setHoveredId] = useState<string | null>(null);
+    const renderCounter = { n: 0 };
 
     const selectedNode = selectedId ? categories.find(c => c.id === selectedId) ?? null : null;
     const tree = buildTree(
@@ -170,6 +172,8 @@ export default function CategoriesView({
 
     // ── Classic tree node renderer ────────────────────────────────────────────
     const renderNodeClassic = (node: Category): React.ReactNode => {
+        const rowIdx = renderCounter.n++;
+        const isEven = rowIdx % 2 === 0;
         const indent = (node.level - 1) * 16;
         const isSelected = node.id === selectedId;
         const isHovered = node.id === hoveredId;
@@ -178,6 +182,7 @@ export default function CategoriesView({
         const chevron = hasChildren ? '▼' : '—';
         const chevronColor = isSelected ? '#fff' : (hasChildren ? '#444' : '#bbb');
         const actionsOpacity = isHovered || isEditing ? 1 : 0;
+        const rowBg = isSelected ? '#316ac5' : (isHovered ? '#dde8fb' : (isEven ? '#fff' : '#f5f4ef'));
 
         if (isEditing) {
             return (
@@ -223,7 +228,7 @@ export default function CategoriesView({
                         fontFamily: 'Tahoma, Arial, sans-serif',
                         fontSize: 11,
                         fontWeight: node.level === 1 ? 'bold' : 'normal',
-                        background: isSelected ? '#316ac5' : (isHovered ? '#dde8fb' : 'transparent'),
+                        background: rowBg,
                         color: isSelected ? '#fff' : '#000',
                         userSelect: 'none' as const,
                         position: 'relative',
@@ -234,6 +239,9 @@ export default function CategoriesView({
                 >
                     <span style={{ marginRight: 4, fontSize: 10, fontFamily: 'monospace', color: chevronColor }}>{chevron}</span>
                     <span style={{ flex: 1 }}>{node.name}</span>
+                    {node.is_system && (
+                        <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 9, color: '#003080', background: '#dce8ff', border: '1px solid #7fa8e0', padding: '0 4px', marginRight: 4 }}>SYSTEM</span>
+                    )}
                     <span style={{ display: 'flex', gap: 2, opacity: actionsOpacity, transition: 'opacity 0.1s' }}>
                         {node.level < 3 && (
                             <button
@@ -247,11 +255,13 @@ export default function CategoriesView({
                             title="Rename"
                             onClick={e => { e.stopPropagation(); startRename(node); }}
                         >✎</button>
-                        <button
-                            style={xpIconBtn({ color: isSelected ? '#ffc0c0' : '#c00' })}
-                            title="Delete"
-                            onClick={e => { e.stopPropagation(); handleDelete(node.id); }}
-                        >✕</button>
+                        {!node.is_system && (
+                            <button
+                                style={xpIconBtn({ color: isSelected ? '#ffc0c0' : '#c00' })}
+                                title="Delete"
+                                onClick={e => { e.stopPropagation(); handleDelete(node.id); }}
+                            >✕</button>
+                        )}
                     </span>
                 </div>
                 {node.children?.map(child => renderNodeClassic(child))}
@@ -294,6 +304,8 @@ export default function CategoriesView({
 
     // ── Modern tree node renderer ─────────────────────────────────────────────
     const renderNodeModern = (node: Category): React.ReactNode => {
+        const rowIdx = renderCounter.n++;
+        const isEven = rowIdx % 2 === 0;
         const indent = (node.level - 1) * 16;
         const isSelected = node.id === selectedId;
         const isHovered = node.id === hoveredId;
@@ -302,6 +314,7 @@ export default function CategoriesView({
         const chevron = hasChildren ? '▼' : '—';
         const chevronColor = isSelected ? 'rgba(255,255,255,0.8)' : (hasChildren ? '#495057' : '#ced4da');
         const actionsOpacity = isHovered || isEditing ? 1 : 0;
+        const rowBg = isSelected ? '#0d6efd' : (isHovered ? '#e8f0fe' : (isEven ? '#fff' : '#f8f9fa'));
 
         if (isEditing) {
             return (
@@ -347,7 +360,7 @@ export default function CategoriesView({
                         paddingLeft: indent + 8,
                         cursor: 'pointer',
                         fontWeight: node.level === 1 ? 600 : 'normal',
-                        background: isSelected ? '#0d6efd' : (isHovered ? '#e8f0fe' : 'transparent'),
+                        background: rowBg,
                         color: isSelected ? '#fff' : '#212529',
                         borderRadius: 4,
                         userSelect: 'none' as const,
@@ -360,48 +373,32 @@ export default function CategoriesView({
                 >
                     <span style={{ marginRight: 6, fontFamily: 'monospace', fontSize: 11, color: chevronColor }}>{chevron}</span>
                     <span style={{ flex: 1 }}>{node.name}</span>
+                    {node.is_system && (
+                        <span className="badge bg-primary" style={{ fontSize: 10, marginRight: 6 }}>SYSTEM</span>
+                    )}
                     <span style={{ display: 'flex', gap: 2, opacity: actionsOpacity, transition: 'opacity 0.1s' }}>
                         {node.level < 3 && (
                             <button
                                 className="btn btn-sm"
-                                style={{
-                                    padding: '0 4px',
-                                    lineHeight: 1.2,
-                                    fontSize: 13,
-                                    color: isSelected ? '#fff' : '#0d6efd',
-                                    background: 'none',
-                                    border: 'none',
-                                }}
+                                style={{ padding: '0 4px', lineHeight: 1.2, fontSize: 13, color: isSelected ? '#fff' : '#0d6efd', background: 'none', border: 'none' }}
                                 title="Add child"
                                 onClick={e => { e.stopPropagation(); startAdd(node.id); }}
                             >＋</button>
                         )}
                         <button
                             className="btn btn-sm"
-                            style={{
-                                padding: '0 4px',
-                                lineHeight: 1.2,
-                                fontSize: 13,
-                                color: isSelected ? '#fff' : '#6c757d',
-                                background: 'none',
-                                border: 'none',
-                            }}
+                            style={{ padding: '0 4px', lineHeight: 1.2, fontSize: 13, color: isSelected ? '#fff' : '#6c757d', background: 'none', border: 'none' }}
                             title="Rename"
                             onClick={e => { e.stopPropagation(); startRename(node); }}
                         >✎</button>
-                        <button
-                            className="btn btn-sm"
-                            style={{
-                                padding: '0 4px',
-                                lineHeight: 1.2,
-                                fontSize: 13,
-                                color: isSelected ? '#ffc0c0' : '#dc3545',
-                                background: 'none',
-                                border: 'none',
-                            }}
-                            title="Delete"
-                            onClick={e => { e.stopPropagation(); handleDelete(node.id); }}
-                        >✕</button>
+                        {!node.is_system && (
+                            <button
+                                className="btn btn-sm"
+                                style={{ padding: '0 4px', lineHeight: 1.2, fontSize: 13, color: isSelected ? '#ffc0c0' : '#dc3545', background: 'none', border: 'none' }}
+                                title="Delete"
+                                onClick={e => { e.stopPropagation(); handleDelete(node.id); }}
+                            >✕</button>
+                        )}
                     </span>
                 </div>
                 {node.children?.map(child => renderNodeModern(child))}
@@ -446,7 +443,7 @@ export default function CategoriesView({
                             No categories found.
                         </div>
                     )}
-                    {tree.map(node => renderNodeClassic(node))}
+                    {(renderCounter.n = 0, tree.map(node => renderNodeClassic(node)))}
                     {addingState?.parentId === undefined && renderAddRowClassic(1)}
                 </div>
 
@@ -510,7 +507,7 @@ export default function CategoriesView({
                         No categories found.
                     </div>
                 )}
-                {tree.map(node => renderNodeModern(node))}
+                {(renderCounter.n = 0, tree.map(node => renderNodeModern(node)))}
                 {addingState?.parentId === undefined && renderAddRowModern(1)}
             </div>
 

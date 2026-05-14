@@ -64,14 +64,27 @@ def seed_system_attributes(db):
         logger.warning(f"System attribute seeding skipped: {e}")
 
 
+SYSTEM_CATEGORIES = {"Raw Material", "Finished Goods", "WIP", "Sample"}
+
 def seed_categories(db):
     try:
         if db.query(Category).count() == 0:
             defaults = ["Raw Material", "WIP", "Finished Goods", "Sample", "Consumable"]
             for name in defaults:
-                db.add(Category(name=name))
+                db.add(Category(name=name, is_system=(name in SYSTEM_CATEGORIES)))
             db.commit()
             logger.info("Seeded default categories")
+        else:
+            # Backfill is_system for existing rows
+            updated = 0
+            for name in SYSTEM_CATEGORIES:
+                cat = db.query(Category).filter_by(name=name, parent_id=None).first()
+                if cat and not cat.is_system:
+                    cat.is_system = True
+                    updated += 1
+            if updated:
+                db.commit()
+                logger.info(f"Backfilled is_system=True for {updated} system categories")
     except Exception as e:
         logger.warning(f"Category seeding skipped: {e}")
 

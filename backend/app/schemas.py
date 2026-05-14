@@ -554,6 +554,7 @@ class CategoryResponse(BaseModel):
     parent_id: UUID | None
     level: int
     path_names: list[str]
+    is_system: bool = False
 
     class Config:
         from_attributes = True

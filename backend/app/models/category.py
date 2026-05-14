@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import String, ForeignKey
+from sqlalchemy import String, ForeignKey, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
@@ -13,6 +13,7 @@ class Category(Base):
     parent_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("categories.id", ondelete="RESTRICT"), nullable=True, index=True
     )
+    is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     parent: Mapped["Category | None"] = relationship(
         "Category", remote_side="Category.id", back_populates="children",

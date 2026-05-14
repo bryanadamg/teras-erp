@@ -90,6 +90,8 @@ async def delete_category(
     _=Depends(get_current_user),
 ):
     cat = await _get_or_404(db, category_id)
+    if cat.is_system:
+        raise HTTPException(status_code=403, detail="Cannot delete a system category")
     if cat.children:
         raise HTTPException(status_code=400, detail="Cannot delete a category that has subcategories")
     await db.delete(cat)
