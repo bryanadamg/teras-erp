@@ -10,11 +10,11 @@ from app.api.auth import get_current_user
 
 router = APIRouter()
 
-# Reusable eager-load options: parent (2 levels) + children (1 level).
+# Reusable eager-load options: parent (2 levels) + children (2 levels).
 # The Category model has join_depth=2 on parent and selectin on children.
 # In async we must explicitly request these with selectinload/joinedload.
 _LOAD_OPTS = [
-    selectinload(Category.children),
+    selectinload(Category.children).selectinload(Category.children),
     selectinload(Category.parent).selectinload(Category.parent),
 ]
 
