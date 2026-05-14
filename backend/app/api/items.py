@@ -1,3 +1,4 @@
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +19,7 @@ def _populate_source_info(item) -> None:
     item.attribute_ids = [a.id for a in item.attributes]
     item.source_sample_code = item.source_sample.code if item.source_sample else None
     item.source_color_name = item.source_color.name if item.source_color else None
+    item.category_path = item.category.path_names if item.category else []
 
 
 @router.post("/items", response_model=ItemResponse)
@@ -31,7 +33,7 @@ async def create_item_api(payload: ItemCreate, db: AsyncSession = Depends(get_as
         code=payload.code,
         name=payload.name,
         uom=payload.uom,
-        category=payload.category,
+        category_id=payload.category_id,
         source_sample_id=payload.source_sample_id,
         source_color_id=payload.source_color_id,
         attribute_ids=payload.attribute_ids,
@@ -54,14 +56,14 @@ async def create_item_api(payload: ItemCreate, db: AsyncSession = Depends(get_as
 
 @router.get("/items", response_model=PaginatedItemResponse)
 async def get_items_api(
-    skip: int = 0, 
-    limit: int = 100, 
+    skip: int = 0,
+    limit: int = 100,
     search: str | None = None,
-    category: str | None = None,
-    db: AsyncSession = Depends(get_async_db), 
+    category_id: uuid.UUID | None = None,
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
-    items, total = await item_service.get_items(db, skip=skip, limit=limit, user=current_user, search=search, category=category)
+    items, total = await item_service.get_items(db, skip=skip, limit=limit, user=current_user, search=search, category_id=category_id)
     for item in items:
         _populate_source_info(item)
 

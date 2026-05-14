@@ -444,9 +444,6 @@ async def get_manufacturing_orders(
     if end_date:
         id_query = id_query.filter(ManufacturingOrder.created_at <= end_date)
 
-    if current_user.allowed_categories:
-        id_query = id_query.join(Item, ManufacturingOrder.item_id == Item.id).filter(Item.category.in_(current_user.allowed_categories))
-
     count_result = await db.execute(select(func.count()).select_from(id_query.subquery()))
     total = count_result.scalar()
 

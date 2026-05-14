@@ -180,9 +180,6 @@ async def get_boms(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(g
         selectinload(BOM.sizes).joinedload(BOMSize.size),
     )
     
-    if current_user.allowed_categories:
-        query = query.join(Item, BOM.item_id == Item.id).filter(Item.category.in_(current_user.allowed_categories))
-        
     result = await db.execute(query.order_by(BOM.created_at.desc()).offset(skip).limit(limit))
     items_list = result.unique().scalars().all()
     

@@ -1,3 +1,4 @@
+import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
 from sqlalchemy.orm import joinedload, selectinload
@@ -5,10 +6,24 @@ from app.models.item import Item
 from app.models.variant import Variant
 from app.schemas import VariantCreate
 from app.models.attribute import Attribute
+from app.models.category import Category
 
 
 def _source_opts():
     return [joinedload(Item.source_sample), joinedload(Item.source_color)]
+
+
+async def get_descendant_category_ids(db: AsyncSession, category_id: uuid.UUID) -> list[uuid.UUID]:
+    result = await db.execute(select(Category).where(Category.id == category_id))
+    root = result.scalar_one_or_none()
+    if not root:
+        return [category_id]
+    ids = [root.id]
+    for child in root.children:
+        ids.append(child.id)
+        for grandchild in child.children:
+            ids.append(grandchild.id)
+    return ids
 
 
 async def create_item(
@@ -16,7 +31,7 @@ async def create_item(
     code: str,
     name: str,
     uom: str,
-    category: str | None = None,
+    category_id: uuid.UUID | None = None,
     source_sample_id: str | None = None,
     source_color_id: str | None = None,
     attribute_ids: list[str] = [],
@@ -27,7 +42,7 @@ async def create_item(
         code=code,
         name=name,
         uom=uom,
-        category=category,
+        category_id=category_id,
         source_sample_id=source_sample_id,
         source_color_id=source_color_id,
         weight_per_unit=weight_per_unit,
@@ -94,30 +109,36 @@ async def get_item_by_code(db: AsyncSession, code: str) -> Item | None:
     return result.scalars().first()
 
 
-async def get_items(db: AsyncSession, skip: int = 0, limit: int = 100, user=None, search: str = None, category: str = None) -> tuple[list[Item], int]:
+async def get_items(
+    db: AsyncSession,
+    skip: int = 0,
+    limit: int = 100,
+    user=None,
+    search: str = None,
+    category_id: uuid.UUID | None = None,
+) -> tuple[list[Item], int]:
     query = select(Item)
 
     if search:
         search_filter = f"%{search}%"
         query = query.filter(
-            or_(
-                Item.code.ilike(search_filter),
-                Item.name.ilike(search_filter)
-            )
+            or_(Item.code.ilike(search_filter), Item.name.ilike(search_filter))
         )
 
-    if category:
-        query = query.filter(Item.category == category)
-
-    if user and user.allowed_categories:
-        query = query.filter(Item.category.in_(user.allowed_categories))
+    if category_id:
+        ids = await get_descendant_category_ids(db, category_id)
+        query = query.filter(Item.category_id.in_(ids))
 
     count_query = select(func.count()).select_from(query.subquery())
     total_result = await db.execute(count_query)
     total = total_result.scalar()
 
-    query = query.options(selectinload(Item.attributes), *_source_opts()).order_by(Item.created_at.desc()).offset(skip).limit(limit)
+    query = (
+        query.options(selectinload(Item.attributes), *_source_opts())
+        .order_by(Item.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
     result = await db.execute(query)
     items = result.unique().scalars().all()
-
     return items, total

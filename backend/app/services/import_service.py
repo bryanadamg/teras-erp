@@ -46,19 +46,21 @@ def import_items_csv(db: Session, file_content: bytes):
                 db.refresh(uom)
 
             # Check/Create Category
+            category = None
             if cat_name:
                 category = db.query(Category).filter(Category.name == cat_name).first()
                 if not category:
                     category = Category(name=cat_name)
                     db.add(category)
                     db.commit()
-            
+                    db.refresh(category)
+
             # Create Item
             item = Item(
                 code=code,
                 name=name,
                 uom=uom_name,
-                category=cat_name
+                category_id=category.id if category else None,
             )
             db.add(item)
             db.commit()

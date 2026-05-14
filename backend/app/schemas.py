@@ -431,18 +431,19 @@ class ItemCreate(BaseModel):
     code: str
     name: str
     uom: str
-    category: str | None = None
+    category_id: UUID | None = None
     attribute_ids: list[UUID] = []
     source_sample_id: UUID | None = None
     source_color_id: UUID | None = None
     weight_per_unit: float | None = None
     weight_unit: str | None = None
 
+
 class ItemUpdate(BaseModel):
     code: str | None = None
     name: str | None = None
     uom: str | None = None
-    category: str | None = None
+    category_id: UUID | None = None
     attribute_ids: list[UUID] | None = None
     source_sample_id: UUID | None = None
     source_color_id: UUID | None = None
@@ -450,12 +451,22 @@ class ItemUpdate(BaseModel):
     weight_per_unit: float | None = None
     weight_unit: str | None = None
 
-class ItemResponse(ItemCreate):
+
+class ItemResponse(BaseModel):
     id: UUID
+    code: str
+    name: str
+    uom: str
     active: bool
-    # Populated by the API layer from eager-loaded relationships
+    category_id: UUID | None = None
+    category_path: list[str] = []
+    attribute_ids: list[UUID] = []
+    source_sample_id: UUID | None = None
+    source_color_id: UUID | None = None
     source_sample_code: str | None = None
     source_color_name: str | None = None
+    weight_per_unit: float | None = None
+    weight_unit: str | None = None
 
     class Config:
         from_attributes = True

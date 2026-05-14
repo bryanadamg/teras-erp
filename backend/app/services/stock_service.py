@@ -125,11 +125,7 @@ async def get_stock_entries(db: AsyncSession, skip: int = 0, limit: int = 100) -
     return items, total
 
 async def get_all_stock_balances(db: AsyncSession, user=None):
-    from app.models.item import Item
-
     query = select(StockBalance)
-    if user and user.allowed_categories:
-        query = query.join(Item, StockBalance.item_id == Item.id).filter(Item.category.in_(user.allowed_categories))
 
     result = await db.execute(query.options(joinedload(StockBalance.attribute_values)))
     results = result.unique().scalars().all()

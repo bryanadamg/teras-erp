@@ -30,9 +30,6 @@ async def get_stock_ledger(
     if end_date:
         query = query.filter(StockLedger.created_at <= end_date)
         
-    if current_user.allowed_categories:
-        query = query.join(Item, StockLedger.item_id == Item.id).filter(Item.category.in_(current_user.allowed_categories))
-        
     # Count total
     count_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar()
