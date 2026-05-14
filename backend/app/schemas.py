@@ -506,8 +506,11 @@ class PaginatedStockLedgerResponse(BaseModel):
 
 class StockBalanceResponse(BaseModel):
     item_id: UUID
+    item_name: str = ""
+    item_code: str = ""
     attribute_value_ids: list[UUID] = []
     location_id: UUID
+    location_name: str = ""
     qty: float
     batch_key: str = ""
 

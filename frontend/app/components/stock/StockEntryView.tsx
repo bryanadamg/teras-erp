@@ -25,9 +25,9 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
       setStockEntry({ item_code: '', location_code: '', attribute_value_ids: [], qty: 0 });
   };
 
-  const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
-  const getItemCode = (id: string) => items.find((i: any) => i.id === id)?.code || id;
-  const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
+  const getItemName = (bal: any) => bal.item_name || items.find((i: any) => i.id === bal.item_id)?.name || bal.item_id;
+  const getItemCode = (bal: any) => bal.item_code || items.find((i: any) => i.id === bal.item_id)?.code || bal.item_id;
+  const getLocationName = (bal: any) => bal.location_name || locations.find((l: any) => l.id === bal.location_id)?.name || bal.location_id;
   const getAttributeValueName = (valId: string) => {
       for (const attr of attributes) {
           const val = attr.values.find((v: any) => v.id === valId);
@@ -44,9 +44,9 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
   const boundAttrs = getBoundAttributes(stockEntry.item_code);
 
   const filteredBalance = (stockBalance || []).filter((bal: any) => {
-      const name = getItemName(bal.item_id).toLowerCase();
-      const code = getItemCode(bal.item_id).toLowerCase();
-      const loc = getLocationName(bal.location_id).toLowerCase();
+      const name = getItemName(bal).toLowerCase();
+      const code = getItemCode(bal).toLowerCase();
+      const loc = getLocationName(bal).toLowerCase();
       const s = balanceSearch.toLowerCase();
       return name.includes(s) || code.includes(s) || loc.includes(s);
   });
@@ -203,8 +203,8 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                                   {filteredBalance.map((bal: any, i: number) => (
                                       <tr key={i} style={{ background: i % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' }}>
                                           <td style={{ padding: '4px 8px' }}>
-                                              <div style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', fontWeight: 'bold', color: '#000' }}>{getItemName(bal.item_id)}</div>
-                                              <div style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#666', fontVariant: 'all-small-caps' }}>{getItemCode(bal.item_id)}</div>
+                                              <div style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', fontWeight: 'bold', color: '#000' }}>{getItemName(bal)}</div>
+                                              <div style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#666', fontVariant: 'all-small-caps' }}>{getItemCode(bal)}</div>
                                           </td>
                                           <td style={{ padding: '4px 8px' }}>
                                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
@@ -217,7 +217,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                                                   )}
                                               </div>
                                           </td>
-                                          <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#000' }}>{getLocationName(bal.location_id)}</td>
+                                          <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#000' }}>{getLocationName(bal)}</td>
                                           <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', fontWeight: 'bold', color: bal.qty < 0 ? '#c00000' : '#00008b' }}>
                                               {bal.qty}
                                           </td>
@@ -325,8 +325,8 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                                   {filteredBalance.map((bal: any, idx: number) => (
                                       <tr key={idx}>
                                           <td className="ps-4">
-                                              <div className="fw-bold text-dark">{getItemName(bal.item_id)}</div>
-                                              <div className="small text-muted font-monospace">{getItemCode(bal.item_id)}</div>
+                                              <div className="fw-bold text-dark">{getItemName(bal)}</div>
+                                              <div className="small text-muted font-monospace">{getItemCode(bal)}</div>
                                           </td>
                                           <td>
                                               <div className="d-flex flex-wrap gap-1">
@@ -339,7 +339,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                                                   )}
                                               </div>
                                           </td>
-                                          <td><span className="small">{getLocationName(bal.location_id)}</span></td>
+                                          <td><span className="small">{getLocationName(bal)}</span></td>
                                           <td className="text-end pe-4">
                                               <span className={`fw-bold font-monospace ${bal.qty < 0 ? 'text-danger' : 'text-primary'}`}>{bal.qty}</span>
                                           </td>

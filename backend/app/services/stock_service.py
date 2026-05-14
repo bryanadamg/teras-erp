@@ -127,13 +127,20 @@ async def get_stock_entries(db: AsyncSession, skip: int = 0, limit: int = 100) -
 async def get_all_stock_balances(db: AsyncSession, user=None):
     query = select(StockBalance)
 
-    result = await db.execute(query.options(joinedload(StockBalance.attribute_values)))
+    result = await db.execute(query.options(
+        joinedload(StockBalance.attribute_values),
+        joinedload(StockBalance.item),
+        joinedload(StockBalance.location),
+    ))
     results = result.unique().scalars().all()
 
     return [
         {
             "item_id": r.item_id,
+            "item_name": r.item.name if r.item else str(r.item_id),
+            "item_code": r.item.code if r.item else str(r.item_id),
             "location_id": r.location_id,
+            "location_name": r.location.name if r.location else str(r.location_id),
             "attribute_value_ids": [v.id for v in r.attribute_values],
             "qty": float(r.qty),
             "batch_key": r.batch_key,
