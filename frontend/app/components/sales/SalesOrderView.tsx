@@ -132,6 +132,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       uom2_factor: null as number | null,
       bom_size_id: '',
   });
+  const [lastDeliveryDates, setLastDeliveryDates] = useState({ due_date: '', internal_confirmation_date: '' });
   const [qtyMeter, setQtyMeter] = useState('');
   const [qtyGrossYd, setQtyGrossYd] = useState('');
   const [qtyRoll, setQtyRoll] = useState('');
@@ -184,7 +185,9 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const handleAddLine = () => {
       if (!newLine.item_id || newLine.qty <= 0) return;
       setNewSO({ ...newSO, lines: [...newSO.lines, { ...newLine, bom_size_id: newLine.bom_size_id || null }] });
-      setNewLine({ item_id: '', qty: 0, due_date: '', attribute_value_ids: [], ket_stock: '', internal_confirmation_date: '', qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_size_id: '' });
+      const nextDates = { due_date: newLine.due_date, internal_confirmation_date: newLine.internal_confirmation_date };
+      setLastDeliveryDates(nextDates);
+      setNewLine({ item_id: '', qty: 0, due_date: nextDates.due_date, attribute_value_ids: [], ket_stock: '', internal_confirmation_date: nextDates.internal_confirmation_date, qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_size_id: '' });
       setQtyMeter('');
       setQtyGrossYd('');
       setQtyRoll('');
@@ -433,6 +436,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
           setNewSO({ ...newSO, po_number: suggestedPO });
       } else if (res && res.ok) {
           setNewSO({ po_number: '', customer_po_ref: '', customer_name: '', order_date: new Date().toISOString().split('T')[0], lines: [] });
+          setLastDeliveryDates({ due_date: '', internal_confirmation_date: '' });
           setIsCreateOpen(false);
           showToast('Sales Order created successfully', 'success');
       }
@@ -581,7 +585,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
        {/* Create SO Modal */}
        <ModalWrapper
            isOpen={isCreateOpen}
-           onClose={() => { setIsCreateOpen(false); setNewSO({ po_number: '', customer_po_ref: '', customer_name: '', order_date: new Date().toISOString().split('T')[0], lines: [] }); }}
+           onClose={() => { setIsCreateOpen(false); setNewSO({ po_number: '', customer_po_ref: '', customer_name: '', order_date: new Date().toISOString().split('T')[0], lines: [] }); setLastDeliveryDates({ due_date: '', internal_confirmation_date: '' }); }}
            title={<><i className="bi bi-cart-plus" style={classic ? {marginRight:6} : {marginRight:8}}></i>Create Sales Order</>}
            variant="primary"
            size="lg"
