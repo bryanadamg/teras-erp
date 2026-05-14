@@ -2,12 +2,12 @@ import React, { useState, useEffect, useMemo, memo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import CodeConfigModal, { CodeConfig, buildCodeWithCounter } from '../shared/CodeConfigModal';
 import BulkImportModal from './BulkImportModal';
-import SearchableSelect from '../shared/SearchableSelect';
 import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useData } from '../../context/DataContext';
 
 // XP-style category badge colours derived from category name
 function getCategoryXPStyle(category: string): { bg: string; border: string; color: string } {
@@ -31,7 +31,8 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
         ? { padding: '4px 6px', borderRight: '1px solid #c0bdb5', borderBottom: '1px solid #d0cdc8', verticalAlign: 'middle', color: textColor }
         : {};
 
-    const catStyle = classic ? getCategoryXPStyle(item.category) : null;
+    const categoryDisplay = item.category_path?.length ? item.category_path.join(' / ') : (item.category || '');
+    const catStyle = classic ? getCategoryXPStyle(categoryDisplay) : null;
 
     return (
         <tr
@@ -65,7 +66,7 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
                 {item.name}
             </td>
             <td style={tdBase}>
-                {item.category ? (
+                {categoryDisplay ? (
                     classic ? (
                         <span style={{
                             background: isSelected ? 'rgba(255,255,255,0.2)' : catStyle!.bg,
@@ -77,10 +78,10 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
                             fontWeight: 'bold',
                             whiteSpace: 'nowrap',
                         }}>
-                            {item.category}
+                            {categoryDisplay}
                         </span>
                     ) : (
-                        <span className="badge bg-light text-dark border">{item.category}</span>
+                        <span className="badge bg-light text-dark border">{categoryDisplay}</span>
                     )
                 ) : null}
             </td>
@@ -203,7 +204,6 @@ const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
 export default function InventoryView({
     items,
     attributes,
-    categories,
     uoms,
     onCreateItem,
     onUpdateItem,
@@ -220,13 +220,13 @@ export default function InventoryView({
     onPageChange,
     searchTerm,
     onSearchChange,
-    categoryFilter,
-    onCategoryChange
 }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
   const searchParams = useSearchParams();
   const router = useRouter();
+
+  const { categories, filters: { categoryL1, setCategoryL1, categoryL2, setCategoryL2, categoryL3, setCategoryL3, itemSearch, setItemSearch } } = useData();
   // UI State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -251,7 +251,7 @@ export default function InventoryView({
   });
 
   // Creation State
-  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', category: forcedCategory || 'Finished Goods', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [] as string[], weight_per_unit: '' as string | number, weight_unit: 'g/y' });
+  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [] as string[], weight_per_unit: '' as string | number, weight_unit: 'g/y' });
   const [nameManuallyEdited, setNameManuallyEdited] = useState(false);
 
   // Editing State
@@ -261,6 +261,35 @@ export default function InventoryView({
 
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showCatInput, setShowCatInput] = useState(false);
+
+  // 3-level category filter derived options
+  const l1Options = categories.filter((c: any) => c.level === 1);
+  const l2Options = categoryL1 ? categories.filter((c: any) => c.parent_id === categoryL1) : [];
+  const l3Options = categoryL2 ? categories.filter((c: any) => c.parent_id === categoryL2) : [];
+
+  // Form-level category state (for create/edit modals)
+  const [formCatL1, setFormCatL1] = useState('');
+  const [formCatL2, setFormCatL2] = useState('');
+  const [formCatL3, setFormCatL3] = useState('');
+
+  const formL2Options = formCatL1 ? categories.filter((c: any) => c.parent_id === formCatL1) : [];
+  const formL3Options = formCatL2 ? categories.filter((c: any) => c.parent_id === formCatL2) : [];
+  const effectiveFormCategoryId: string | null = formCatL3 || formCatL2 || formCatL1 || null;
+
+  // Initialize form category state when editing an item
+  useEffect(() => {
+      if (!editingItem) return;
+      const cat = categories.find((c: any) => c.id === editingItem.category_id);
+      if (!cat) { setFormCatL1(''); setFormCatL2(''); setFormCatL3(''); return; }
+      if (cat.level === 1) {
+          setFormCatL1(cat.id); setFormCatL2(''); setFormCatL3('');
+      } else if (cat.level === 2) {
+          setFormCatL1(cat.parent_id || ''); setFormCatL2(cat.id); setFormCatL3('');
+      } else {
+          const level2 = categories.find((c: any) => c.id === cat.parent_id);
+          setFormCatL1(level2?.parent_id || ''); setFormCatL2(cat.parent_id || ''); setFormCatL3(cat.id);
+      }
+  }, [editingItem?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
       const savedConfig = localStorage.getItem('item_code_config');
@@ -273,12 +302,6 @@ export default function InventoryView({
       }
   }, []);
 
-  // Update newItem category if forcedCategory changes (e.g. switching tabs)
-  useEffect(() => {
-      if (forcedCategory) {
-          setNewItem(prev => ({ ...prev, category: forcedCategory }));
-      }
-  }, [forcedCategory]);
 
   // Pre-fill create modal when arriving from SampleRequestView's Create Item button
   useEffect(() => {
@@ -334,7 +357,8 @@ export default function InventoryView({
   const handleSubmitItem = async (e: React.FormEvent) => {
       e.preventDefault();
       const payload: any = { ...newItem };
-      if (forcedCategory) payload.category = forcedCategory;
+      delete payload.category;
+      payload.category_id = effectiveFormCategoryId;
       if (!payload.source_sample_id) delete payload.source_sample_id;
       if (!payload.source_color_id) delete payload.source_color_id;
       delete payload.source_sample_code;
@@ -359,7 +383,8 @@ export default function InventoryView({
           showToast(`Item Code "${newItem.code}" already exists. Suggesting: ${suggestedCode}`, 'warning');
           setNewItem({ ...newItem, code: suggestedCode });
       } else if (res && res.ok) {
-          setNewItem({ code: '', name: '', uom: '', category: forcedCategory || 'Finished Goods', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [], weight_per_unit: '', weight_unit: 'g/y' });
+          setNewItem({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [], weight_per_unit: '', weight_unit: 'g/y' });
+          setFormCatL1(''); setFormCatL2(''); setFormCatL3('');
           setNameManuallyEdited(false);
           setIsCreateOpen(false);
           showToast('Item created successfully', 'success');
@@ -377,7 +402,7 @@ export default function InventoryView({
           code: editingItem.code,
           name: editingItem.name,
           uom: editingItem.uom,
-          category: editingItem.category,
+          category_id: effectiveFormCategoryId,
           attribute_ids: editingItem.attribute_ids || [],
           source_sample_id: editingItem.source_sample_id || null,
           source_color_id: editingItem.source_color_id || null,
@@ -419,12 +444,13 @@ export default function InventoryView({
   const activeEditingItem = editingItem ? items.find((i: any) => i.id === editingItem.id) : null;
 
   const filteredItems = useMemo(() => {
+      if (!forcedCategory) return items;
+      // When forcedCategory is set, filter by category_path or fallback to category string
       return items.filter((i: any) => {
-          if (forcedCategory) return i.category === forcedCategory;
-          const matchesCategory = !categoryFilter || i.category === categoryFilter;
-          return matchesCategory;
+          if (i.category_path?.length) return i.category_path.includes(forcedCategory);
+          return i.category === forcedCategory;
       });
-  }, [items, forcedCategory, categoryFilter]);
+  }, [items, forcedCategory]);
 
   const allSelected = filteredItems.length > 0 && selectedIds.size === filteredItems.length;
   const someSelected = selectedIds.size > 0 && !allSelected;
@@ -512,8 +538,11 @@ export default function InventoryView({
   };
 
   const xpSelect: React.CSSProperties = {
-      ...xpInput,
-      padding: '0 2px',
+      fontFamily: 'Tahoma, Arial, sans-serif',
+      fontSize: 11,
+      border: '1px solid #7f9db9',
+      background: '#fff',
+      padding: '2px 4px',
   };
 
   const xpSep: React.CSSProperties = {
@@ -573,7 +602,7 @@ export default function InventoryView({
       {/* Create Modal */}
       <ModalWrapper
           isOpen={isCreateOpen}
-          onClose={() => { setIsCreateOpen(false); setNameManuallyEdited(false); }}
+          onClose={() => { setIsCreateOpen(false); setNameManuallyEdited(false); setFormCatL1(''); setFormCatL2(''); setFormCatL3(''); }}
           title={<span data-testid="modal-title"><i className="bi bi-box-seam me-2"></i>{t('create')} {forcedCategory ? t('sample_masters') : t('item_inventory')}</span>}
           variant="primary"
           size="md"
@@ -583,7 +612,7 @@ export default function InventoryView({
                       type="button"
                       style={classic ? xpBtn() : undefined}
                       className={classic ? '' : 'btn btn-secondary'}
-                      onClick={() => { setIsCreateOpen(false); setNameManuallyEdited(false); }}
+                      onClick={() => { setIsCreateOpen(false); setNameManuallyEdited(false); setFormCatL1(''); setFormCatL2(''); setFormCatL3(''); }}
                   >{t('cancel')}</button>
                   <button
                       data-testid="submit-create-item"
@@ -619,39 +648,52 @@ export default function InventoryView({
                       setNewItem(prev => ({ ...prev, name: e.target.value }));
                   }} required />
               </div>
-              <div className="row g-2 mb-3">
-                  <div className="col-7">
-                      <label
-                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 } : undefined}
-                          className={classic ? '' : 'form-label d-flex justify-content-between small text-muted'}
-                      >
-                          {t('categories')}
-                          {!forcedCategory && <span className={classic ? '' : 'text-primary'} style={{cursor:'pointer', color: classic ? '#0058e6' : undefined}} onClick={() => setShowCatInput(!showCatInput)}><i className="bi bi-plus-circle"></i></span>}
-                      </label>
-                      {forcedCategory ? (
-                          <input style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} value={newItem.category} disabled />
-                      ) : showCatInput ? (
-                          <div style={classic ? { display: 'flex', gap: 2 } : undefined} className={classic ? '' : 'input-group input-group-sm'}>
-                              <input style={classic ? { ...xpInput, flex: 1 } : undefined} className={classic ? '' : 'form-control'} placeholder="New..." value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} autoFocus />
-                              <button type="button" style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', color: '#fff', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a' }) : undefined} className={classic ? '' : 'btn btn-primary'} onClick={handleAddCategory}><i className="bi bi-check"></i></button>
-                          </div>
-                      ) : (
-                          <select data-testid="category-select" style={classic ? { ...xpInput, height: 'auto', padding: '2px 4px', width: '100%' } : undefined} className={classic ? '' : 'form-select'} value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})}>
-                              <option value="">Select...</option>
-                              {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
+              <div className="mb-3">
+                  <label
+                      style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
+                      className={classic ? '' : 'form-label small text-muted'}
+                  >{t('categories')}</label>
+                  {classic ? (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                          <select style={xpSelect} value={formCatL1} onChange={e => { setFormCatL1(e.target.value); setFormCatL2(''); setFormCatL3(''); }}>
+                              <option value="">-- Select --</option>
+                              {l1Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                           </select>
-                      )}
-                  </div>
-                  <div className="col-5">
-                      <label
-                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
-                          className={classic ? '' : 'form-label small text-muted'}
-                      >{t('uom')}</label>
-                      <select data-testid="uom-select" style={classic ? { ...xpInput, height: 'auto', padding: '2px 4px', width: '100%' } : undefined} className={classic ? '' : 'form-select'} value={newItem.uom} onChange={e => setNewItem({...newItem, uom: e.target.value})} required>
-                          <option value="">Unit...</option>
-                          {(uoms || []).map((u: any) => <option key={u.id} value={u.name}>{u.name}</option>)}
-                      </select>
-                  </div>
+                          <select style={xpSelect} value={formCatL2} onChange={e => { setFormCatL2(e.target.value); setFormCatL3(''); }} disabled={!formCatL1}>
+                              <option value="">-- Select --</option>
+                              {formL2Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          </select>
+                          <select style={xpSelect} value={formCatL3} onChange={e => setFormCatL3(e.target.value)} disabled={!formCatL2}>
+                              <option value="">-- Select --</option>
+                              {formL3Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          </select>
+                      </div>
+                  ) : (
+                      <div className="d-flex gap-2">
+                          <select data-testid="category-select" className="form-select form-select-sm" value={formCatL1} onChange={e => { setFormCatL1(e.target.value); setFormCatL2(''); setFormCatL3(''); }}>
+                              <option value="">-- L1 --</option>
+                              {l1Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          </select>
+                          <select className="form-select form-select-sm" value={formCatL2} onChange={e => { setFormCatL2(e.target.value); setFormCatL3(''); }} disabled={!formCatL1}>
+                              <option value="">-- L2 --</option>
+                              {formL2Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          </select>
+                          <select className="form-select form-select-sm" value={formCatL3} onChange={e => setFormCatL3(e.target.value)} disabled={!formCatL2}>
+                              <option value="">-- L3 --</option>
+                              {formL3Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          </select>
+                      </div>
+                  )}
+              </div>
+              <div className="mb-3">
+                  <label
+                      style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
+                      className={classic ? '' : 'form-label small text-muted'}
+                  >{t('uom')}</label>
+                  <select data-testid="uom-select" style={classic ? { ...xpInput, height: 'auto', padding: '2px 4px', width: '100%' } : undefined} className={classic ? '' : 'form-select'} value={newItem.uom} onChange={e => setNewItem({...newItem, uom: e.target.value})} required>
+                      <option value="">Unit...</option>
+                      {(uoms || []).map((u: any) => <option key={u.id} value={u.name}>{u.name}</option>)}
+                  </select>
               </div>
 
               <div className="row g-2 mb-3">
@@ -838,17 +880,30 @@ export default function InventoryView({
                           />
                       </div>
                   </div>
-                  <div className="col-md-2"></div>
                   {!forcedCategory && (
-                  <div className="col-md-3">
-                      <SearchableSelect
-                          options={[{ value: '', label: t('categories') + ' (All)' }, ...categories.map((c: any) => ({ value: c.name, label: c.name }))]}
-                          value={categoryFilter}
-                          onChange={onCategoryChange}
-                          placeholder={t('categories') + "..."}
-                          className="form-control-sm border-0 p-0"
-                      />
+                  <>
+                  <div className="col-md-2">
+                      <select className="form-select form-select-sm" value={categoryL1} onChange={e => setCategoryL1(e.target.value)}>
+                          <option value="">All L1</option>
+                          {l1Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
                   </div>
+                  <div className="col-md-2">
+                      <select className="form-select form-select-sm" value={categoryL2} onChange={e => setCategoryL2(e.target.value)} disabled={!categoryL1}>
+                          <option value="">All L2</option>
+                          {l2Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                  </div>
+                  <div className="col-md-2">
+                      <select className="form-select form-select-sm" value={categoryL3} onChange={e => setCategoryL3(e.target.value)} disabled={!categoryL2}>
+                          <option value="">All L3</option>
+                          {l3Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                  </div>
+                  <div className="col-md-1">
+                      <button className="btn btn-sm btn-outline-secondary w-100" onClick={() => { setCategoryL1(''); setCategoryL2(''); setCategoryL3(''); }}>Clear</button>
+                  </div>
+                  </>
                   )}
               </div>
             </div>
@@ -856,37 +911,44 @@ export default function InventoryView({
 
           {/* ── XP Toolbar (search + filter) ── */}
           {classic && (
-            <div style={xpToolbar}>
-              <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#333333', fontWeight: 'bold' }}>
-                <i className="bi bi-search" style={{ marginRight: '4px', fontSize: '10px' }}></i>
-              </span>
-              <input
-                type="text"
-                style={{ ...xpInput, width: '180px' }}
-                placeholder={`${t('search')} items…`}
-                value={searchTerm}
-                onChange={e => onSearchChange(e.target.value)}
-              />
-              {!forcedCategory && (
-                <>
-                  <div style={xpSep}></div>
-                  <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#333333' }}>Category:</span>
-                  <select
-                    style={{ ...xpSelect, width: '120px' }}
-                    value={categoryFilter}
-                    onChange={e => onCategoryChange(e.target.value)}
-                  >
-                    <option value="">All</option>
-                    {categories.map((c: any) => (
-                      <option key={c.id} value={c.name}>{c.name}</option>
-                    ))}
-                  </select>
-                </>
-              )}
-              <div style={{ marginLeft: 'auto', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#555555' }}>
-                {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''} on page
+            <>
+              <div style={xpToolbar}>
+                <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#333333', fontWeight: 'bold' }}>
+                  <i className="bi bi-search" style={{ marginRight: '4px', fontSize: '10px' }}></i>
+                </span>
+                <input
+                  type="text"
+                  style={{ ...xpInput, width: '180px' }}
+                  placeholder={`${t('search')} items…`}
+                  value={searchTerm}
+                  onChange={e => onSearchChange(e.target.value)}
+                />
+                <div style={{ marginLeft: 'auto', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#555555' }}>
+                  {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''} on page
+                </div>
               </div>
-            </div>
+              {/* Category filter row */}
+              {!forcedCategory && (
+                <div style={{ ...xpToolbar, gap: 8 }}>
+                  <span style={{ fontSize: 10, color: '#555', whiteSpace: 'nowrap' }}>Category:</span>
+                  <select style={xpSelect} value={categoryL1} onChange={e => setCategoryL1(e.target.value)}>
+                    <option value="">All</option>
+                    {l1Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <select style={xpSelect} value={categoryL2} onChange={e => setCategoryL2(e.target.value)} disabled={!categoryL1}>
+                    <option value="">All</option>
+                    {l2Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <select style={xpSelect} value={categoryL3} onChange={e => setCategoryL3(e.target.value)} disabled={!categoryL2}>
+                    <option value="">All</option>
+                    {l3Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <button style={xpBtn()} onClick={() => { setCategoryL1(''); setCategoryL2(''); setCategoryL3(''); }}>
+                    Clear
+                  </button>
+                </div>
+              )}
+            </>
           )}
 
           {/* ── Table ── */}
@@ -1079,51 +1141,62 @@ export default function InventoryView({
                           required
                         />
                     </div>
-                    <div className="row g-2 mb-3">
-                        <div className="col-6">
-                            <label
-                              className={classic ? '' : 'form-label small text-muted'}
-                              style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#333333', display: 'block', marginBottom: '2px' } : undefined}
-                            >
-                              {t('categories')}
-                            </label>
-                            {forcedCategory ? (
-                                <input
-                                  className={classic ? '' : 'form-control'}
-                                  style={classic ? { ...xpInput, width: '100%', boxSizing: 'border-box' } : undefined}
-                                  value={editingItem.category}
-                                  disabled
-                                />
-                            ) : (
-                                <select
-                                  className={classic ? '' : 'form-select'}
-                                  style={classic ? { ...xpSelect, width: '100%', boxSizing: 'border-box', height: '22px' } : undefined}
-                                  value={editingItem.category || ''}
-                                  onChange={e => setEditingItem({...editingItem, category: e.target.value})}
-                                >
-                                    <option value="">Select...</option>
-                                    {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                    <div className="mb-3">
+                        <label
+                          className={classic ? '' : 'form-label small text-muted'}
+                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#333333', display: 'block', marginBottom: '2px' } : undefined}
+                        >
+                          {t('categories')}
+                        </label>
+                        {classic ? (
+                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' as const }}>
+                                <select style={xpSelect} value={formCatL1} onChange={e => { setFormCatL1(e.target.value); setFormCatL2(''); setFormCatL3(''); }}>
+                                    <option value="">-- Select --</option>
+                                    {l1Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                                 </select>
-                            )}
-                        </div>
-                        <div className="col-6">
-                            <label
-                              className={classic ? '' : 'form-label small text-muted'}
-                              style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#333333', display: 'block', marginBottom: '2px' } : undefined}
-                            >
-                              {t('uom')}
-                            </label>
-                            <select
-                              className={classic ? '' : 'form-select'}
-                              style={classic ? { ...xpSelect, width: '100%', boxSizing: 'border-box', height: '22px' } : undefined}
-                              value={editingItem.uom}
-                              onChange={e => setEditingItem({...editingItem, uom: e.target.value})}
-                              required
-                            >
-                                <option value="">Unit...</option>
-                                {(uoms || []).map((u: any) => <option key={u.id} value={u.name}>{u.name}</option>)}
-                            </select>
-                        </div>
+                                <select style={xpSelect} value={formCatL2} onChange={e => { setFormCatL2(e.target.value); setFormCatL3(''); }} disabled={!formCatL1}>
+                                    <option value="">-- Select --</option>
+                                    {formL2Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                                <select style={xpSelect} value={formCatL3} onChange={e => setFormCatL3(e.target.value)} disabled={!formCatL2}>
+                                    <option value="">-- Select --</option>
+                                    {formL3Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                            </div>
+                        ) : (
+                            <div className="d-flex gap-2">
+                                <select className="form-select form-select-sm" value={formCatL1} onChange={e => { setFormCatL1(e.target.value); setFormCatL2(''); setFormCatL3(''); }}>
+                                    <option value="">-- L1 --</option>
+                                    {l1Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                                <select className="form-select form-select-sm" value={formCatL2} onChange={e => { setFormCatL2(e.target.value); setFormCatL3(''); }} disabled={!formCatL1}>
+                                    <option value="">-- L2 --</option>
+                                    {formL2Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                                <select className="form-select form-select-sm" value={formCatL3} onChange={e => setFormCatL3(e.target.value)} disabled={!formCatL2}>
+                                    <option value="">-- L3 --</option>
+                                    {formL3Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                            </div>
+                        )}
+                    </div>
+                    <div className="mb-3">
+                        <label
+                          className={classic ? '' : 'form-label small text-muted'}
+                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#333333', display: 'block', marginBottom: '2px' } : undefined}
+                        >
+                          {t('uom')}
+                        </label>
+                        <select
+                          className={classic ? '' : 'form-select'}
+                          style={classic ? { ...xpSelect, width: '100%', boxSizing: 'border-box', height: '22px' } : undefined}
+                          value={editingItem.uom}
+                          onChange={e => setEditingItem({...editingItem, uom: e.target.value})}
+                          required
+                        >
+                            <option value="">Unit...</option>
+                            {(uoms || []).map((u: any) => <option key={u.id} value={u.name}>{u.name}</option>)}
+                        </select>
                     </div>
 
                     <div className="row g-2 mb-3">

@@ -5,8 +5,8 @@ import { useData } from '../context/DataContext';
 import { useConfirm } from '../context/ConfirmContext';
 
 export default function InventoryPage() {
-    const { 
-        items, attributes, categories, uoms, fetchData, pagination, filters, authFetch
+    const {
+        items, attributes, uoms, fetchData, pagination, filters, authFetch
     } = useData();
     const { confirm } = useConfirm();
 
@@ -68,10 +68,9 @@ export default function InventoryPage() {
     };
 
     return (
-            <InventoryView 
-                items={items} 
-                attributes={attributes} 
-                categories={categories} 
+            <InventoryView
+                items={items}
+                attributes={attributes}
                 uoms={uoms}
                 onCreateItem={handleCreateItem}
                 onUpdateItem={handleUpdateItem}
@@ -86,8 +85,6 @@ export default function InventoryPage() {
                 onPageChange={pagination.setItemPage}
                 searchTerm={filters.itemSearch}
                 onSearchChange={filters.setItemSearch}
-                categoryFilter={filters.categoryL1}
-                onCategoryChange={filters.setCategoryL1}
             />
     );
 }
