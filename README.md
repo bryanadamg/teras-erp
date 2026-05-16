@@ -33,6 +33,15 @@
 - **Item Lifecycle History:** Every item has a chronological history pane showing JSON diffs of all field changes for total auditability.
 - **Bulk Import:** Upload items in bulk via Excel through the Inventory UI.
 
+### Dyeing & Setting
+
+- **Dye Recipes:** Reusable master formula library. Each recipe stores chemical lines (dyes and auxiliaries) normalized per litre of bath water (g/L), a Bak Cuci wash bath sequence, and finishing treatment steps. Recipes are referenced across multiple dyeing runs.
+- **Kartu Celup Printout:** Print a formatted dyeing recipe card (Kartu Celup) directly from the recipe detail view. The printed card matches the physical document used at the factory: company header, job metadata (customer, PO, LOT, artikel, warna, color matching, volume air, machine parameters), chemical table (dyes then auxiliaries with rate and total columns), Bak Cuci sequence, and finishing lines.
+- **Dyeing Runs:** Execution records for dyeing work orders. Each run captures job metadata (customer, PO, LOT), process parameters (liquor ratio, volume air, temperature, pressure, speed), and actual chemical consumption. Planned quantities are auto-scaled from the recipe (g/L × Volume Air) when the completion modal opens. Shade results (PASS / FAIL / REWORK) are recorded on completion.
+- **Setting Runs:** Execution records for heat-setting work orders. Captures machine speed (m/min), temperature, width, overfeed %, and records actual measurements on completion: actual width (cm), actual GSM (g/m²), and actual shrinkage (%).
+- **Chemical Variance Tracking:** Planned vs. actual chemical quantities are stored separately per run, enabling recipe costing and per-batch variance analysis.
+- **Batch Traceability:** Input and output batches are linked on each run. Output batches are auto-created on run completion (item derived from the parent Manufacturing Order), forming a traceable chain from raw fibre through dyeing and setting to finished fabric.
+
 ### Supply Chain & Partners
 
 - **Sales Orders:** Capture customer demand with line items that support variant/size selection and link to the producing BOM. Individual "Produce" buttons per SO line trigger MO creation.

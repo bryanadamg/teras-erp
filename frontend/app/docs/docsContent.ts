@@ -50,6 +50,7 @@ export const docsSidebar: DocSection[] = [
             { slug: 'sales-orders', label: 'Sales Orders', icon: '🛒' },
             { slug: 'purchase', label: 'Purchase Orders', icon: '🚚' },
             { slug: 'samples', label: 'Samples & PLM', icon: '🧪' },
+            { slug: 'dyeing-setting', label: 'Dyeing & Setting', icon: '🎨' },
             { slug: 'reports', label: 'Reports & Dashboard', icon: '📈' },
         ],
     },
@@ -74,6 +75,7 @@ import { manufacturingPage } from './content/manufacturing';
 import { salesOrdersPage } from './content/sales-orders';
 import { purchasePage } from './content/purchase';
 import { samplesPage } from './content/samples';
+import { dyeingSettingPage } from './content/dyeing-setting';
 import { reportsPage } from './content/reports';
 import { settingsPage } from './content/settings';
 import { usersPage } from './content/users';
@@ -89,6 +91,7 @@ export const docsPages: Record<string, DocPage> = {
     'sales-orders': salesOrdersPage,
     purchase: purchasePage,
     samples: samplesPage,
+    'dyeing-setting': dyeingSettingPage,
     reports: reportsPage,
     settings: settingsPage,
     users: usersPage,
