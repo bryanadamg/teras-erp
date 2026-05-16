@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import QRCode from 'qrcode';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
+import { useToast } from '../shared/Toast';
 import WOCompletionModal from './WOCompletionModal';
 import WOStepPrintModal from './WOStepPrintModal';
 
@@ -61,6 +62,7 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
     const { fetchData } = useData();
+    const { showToast } = useToast();
 
     const [editId, setEditId] = useState<string | null>(null);
     const [completionMO, setCompletionMO] = useState<any>(null);
@@ -473,7 +475,7 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                                                             onChange={e => {
                                                                 const s = e.target.value;
                                                                 if (s === 'COMPLETED' && !canComplete(wo)) {
-                                                                    alert(`Target not reached: ${(wo.qty_completed_total ?? 0).toFixed(2)} of ${wo.qty} produced. Log more output first.`);
+                                                                    showToast(`Target not reached: ${(wo.qty_completed_total ?? 0).toFixed(2)} of ${wo.qty} produced. Log more output first.`, 'warning');
                                                                     return;
                                                                 }
                                                                 onUpdateStatus(wo.id, s);

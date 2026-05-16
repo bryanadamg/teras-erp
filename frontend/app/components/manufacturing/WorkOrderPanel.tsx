@@ -1,6 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import WOStepPrintModal from './WOStepPrintModal';
+import { useToast } from '../shared/Toast';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -45,6 +46,7 @@ export default function WorkOrderPanel({
     manufacturingOrderId, workOrders, workCenters,
     onAdd, onUpdate, onUpdateStatus, onDelete, onLogWO, parentMO,
 }: Props) {
+    const { showToast } = useToast();
     const [addingRow, setAddingRow] = useState(false);
     const [editId, setEditId] = useState<string | null>(null);
     const [form, setForm] = useState({ sequence: '', name: '', work_center_id: '', planned_duration_hours: '', qty: '' });
@@ -171,7 +173,7 @@ export default function WorkOrderPanel({
                                         onChange={e => {
                                             const s = e.target.value;
                                             if (s === 'COMPLETED' && wo.qty && (wo.qty_completed_total ?? 0) < wo.qty) {
-                                                alert(`Target not reached: ${(wo.qty_completed_total ?? 0).toFixed(2)} of ${wo.qty} produced. Log more output first.`);
+                                                showToast(`Target not reached: ${(wo.qty_completed_total ?? 0).toFixed(2)} of ${wo.qty} produced. Log more output first.`, 'warning');
                                                 return;
                                             }
                                             onUpdateStatus(wo.id, s);

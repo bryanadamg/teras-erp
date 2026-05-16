@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import DyeRecipePrintView from './DyeRecipePrintView';
+import { useToast } from '../shared/Toast';
+import { useConfirm } from '../../context/ConfirmContext';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -73,6 +75,8 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
     const [washBaths, setWashBaths] = useState<Array<{bath_number: number; description: string}>>([]);
     const [finishingSteps, setFinishingSteps] = useState<Array<{description: string; sort_order: number}>>([]);
     const [showPrint, setShowPrint] = useState(false);
+    const { showToast } = useToast();
+    const { confirm } = useConfirm();
 
     const loadRecipes = useCallback(async () => {
         setLoading(true);
@@ -152,7 +156,7 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
 
     const handleSave = async () => {
         if (!form.code.trim() || !form.name.trim()) {
-            alert('Code and Name are required.');
+            showToast('Code and Name are required.', 'warning');
             return;
         }
         setSaving(true);
@@ -191,31 +195,39 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
                 setWashBaths([]);
                 setFinishingSteps([]);
                 setSelectedId(String(saved.id || (editingRecipe ? editingRecipe.id : '')));
+                showToast(editingRecipe ? 'Recipe updated.' : 'Recipe created.', 'success');
             } else {
                 const err = await res.json().catch(() => ({}));
-                alert('Save failed: ' + (err.detail || res.statusText));
+                showToast('Save failed: ' + (err.detail || res.statusText), 'danger');
             }
         } catch (e: any) {
-            alert('Save error: ' + e.message);
+            showToast('Save error: ' + e.message, 'danger');
         } finally {
             setSaving(false);
         }
     };
 
     const handleDelete = async (recipe: any) => {
-        if (!confirm(`Delete recipe "${recipe.code} - ${recipe.name}"?`)) return;
+        const confirmed = await confirm({
+            title: 'Delete Recipe',
+            message: `Delete recipe "${recipe.code} - ${recipe.name}"? This cannot be undone.`,
+            confirmText: 'Delete',
+            variant: 'danger',
+        });
+        if (!confirmed) return;
         try {
             const res = await authFetch(`/api/dye-recipes/${recipe.id}`, { method: 'DELETE' });
             if (res.ok) {
                 await loadRecipes();
                 setSelectedId(null);
                 setShowForm(false);
+                showToast('Recipe deleted.', 'success');
             } else {
                 const err = await res.json().catch(() => ({}));
-                alert('Delete failed: ' + (err.detail || res.statusText));
+                showToast('Delete failed: ' + (err.detail || res.statusText), 'danger');
             }
         } catch (e: any) {
-            alert('Delete error: ' + e.message);
+            showToast('Delete error: ' + e.message, 'danger');
         }
     };
 
