@@ -58,6 +58,7 @@ export default function ItemMetadataView({
     const [newValueForEdit, setNewValueForEdit] = useState('');
     const [attrSearch, setAttrSearch] = useState('');
     const [attrHovered, setAttrHovered] = useState<string | null>(null);
+    const [attrPanelMode, setAttrPanelMode] = useState<'create' | 'edit' | null>(null);
 
     // ── Derived ───────────────────────────────────────────────────────────────
     const activeAttribute = editingAttr ? (attributes || []).find((a: any) => a.id === editingAttr.id) : null;
@@ -97,8 +98,7 @@ export default function ItemMetadataView({
             setNewAttribute({ ...newAttribute, values: [...newAttribute.values, { value: String(nextValForNew) }] });
     };
 
-    const handleCreateAttrSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleCreateAttr = async () => {
         if (!newAttribute.name.trim() || isAttrSubmitting) return;
         setIsAttrSubmitting(true);
         try {
@@ -109,8 +109,14 @@ export default function ItemMetadataView({
         } finally { setIsAttrSubmitting(false); }
     };
 
-    const startEditing = (attr: any) => setEditingAttr({ ...attr });
-    const cancelEditing = () => { setEditingAttr(null); setNewValueForEdit(''); };
+    const handleCreateAttrSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        await handleCreateAttr();
+    };
+
+    const startEditing = (attr: any) => { setEditingAttr({ ...attr }); setAttrPanelMode('edit'); };
+    const cancelEditing = () => { setEditingAttr(null); setNewValueForEdit(''); setAttrPanelMode(null); };
+    const openCreatePanel = () => { setEditingAttr(null); setNewAttribute({ name: '', values: [] }); setAttrPanelMode('create'); };
 
     const handleUpdateAttrName = () => {
         if (editingAttr?.name) onUpdateAttribute(editingAttr.id, editingAttr.name);
@@ -273,157 +279,140 @@ export default function ItemMetadataView({
                     </div>
                 </div>
 
-                {/* ── Row 2: Attributes full-width ─────────────────────────── */}
-                <div className="row g-3">
-                    {/* Left: Create / Edit panel */}
-                    <div className="col-md-5">
-                        <div style={{ ...xpBevel, height: '100%' }}>
-                            <div style={activeAttribute ? xpTitleBarEdit : xpTitleBar()}>
-                                <span>
-                                    {activeAttribute
-                                        ? <><i className="bi bi-pencil-square" style={{ marginRight: 6 }}></i>Edit: {activeAttribute.name}</>
-                                        : <><i className="bi bi-plus-circle" style={{ marginRight: 6 }}></i>Create Attribute</>
-                                    }
-                                </span>
-                                {activeAttribute && (
-                                    <button style={xpBtn({ padding: '1px 8px', fontSize: '10px' })} onClick={cancelEditing}>Cancel</button>
-                                )}
-                            </div>
-                            <div style={{ padding: '8px', background: '#f5f4ef' }}>
-                                {activeAttribute ? (
-                                    // Edit mode
-                                    <div>
-                                        <label style={xpLabel}>Attribute Name</label>
-                                        <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
-                                            <input style={{ ...xpInput, flex: 1 }} value={editingAttr.name} onChange={e => setEditingAttr({ ...editingAttr, name: e.target.value })} />
-                                            <button style={xpBtnBlue} onClick={handleUpdateAttrName}>Save</button>
-                                        </div>
-                                        <label style={xpLabel}>Values ({activeAttribute.values.length})</label>
-                                        <div style={{ background: '#ffffff', border: '1px solid #7f9db9', maxHeight: 200, overflowY: 'auto', marginBottom: 6 }}>
-                                            {activeAttribute.values.map((val: any, i: number) => (
-                                                <div key={val.id} style={{ display: 'flex', alignItems: 'center', padding: '2px 4px', background: i % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #e0dfd8' }}>
-                                                    <input
-                                                        style={{ ...xpInput, flex: 1, border: 'none', boxShadow: 'none', height: '18px', background: 'transparent' }}
-                                                        defaultValue={val.value}
-                                                        onBlur={e => { if (e.target.value !== val.value) onUpdateValue(val.id, e.target.value); }}
-                                                    />
-                                                    <button
-                                                        style={{ ...xpBtn(), border: attrHovered === val.id ? '1px solid #808080' : '1px solid transparent', background: attrHovered === val.id ? 'linear-gradient(to bottom,#ffffff,#d4d0c8)' : 'transparent', padding: '0 4px' }}
-                                                        onMouseEnter={() => setAttrHovered(val.id)} onMouseLeave={() => setAttrHovered(null)}
-                                                        onClick={() => onDeleteValue(val.id)}
-                                                    >
-                                                        <i className="bi bi-x" style={{ color: '#c00000', fontSize: '11px' }}></i>
-                                                    </button>
-                                                </div>
-                                            ))}
-                                            {activeAttribute.values.length === 0 && (
-                                                <div style={{ padding: '8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#666', textAlign: 'center' }}>No values yet</div>
-                                            )}
-                                        </div>
-                                        <div style={{ display: 'flex', gap: 4 }}>
-                                            <input
-                                                style={{ ...xpInput, flex: 1 }}
-                                                placeholder="Add value..."
-                                                value={newValueForEdit}
-                                                onChange={e => setNewValueForEdit(e.target.value)}
-                                                onKeyDown={e => e.key === 'Enter' && handleAddValueToExisting()}
-                                            />
-                                            <button style={xpBtn()} onClick={handleAddValueToExisting}>{t('add')}</button>
-                                            {nextValForEdit !== null && (
-                                                <button style={xpBtn({ background: 'linear-gradient(to bottom,#d4ead4,#a0c8a0)', borderColor: '#2e7d32 #1a5e1a #1a5e1a #2e7d32' })} onClick={handleAddNextToExisting}>+{nextValForEdit}</button>
-                                            )}
-                                        </div>
-                                    </div>
-                                ) : (
-                                    // Create mode
-                                    <form onSubmit={handleCreateAttrSubmit}>
-                                        <label style={xpLabel}>Name</label>
-                                        <input style={{ ...xpInput, width: '100%', marginBottom: 8 }} placeholder="e.g. Size, Color" value={newAttribute.name} onChange={e => setNewAttribute({ ...newAttribute, name: e.target.value })} required />
-                                        <label style={xpLabel}>Initial Values</label>
-                                        <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
-                                            <input
-                                                style={{ ...xpInput, flex: 1 }}
-                                                placeholder="Value (e.g. S, M, L)"
-                                                value={newAttributeValue}
-                                                onChange={e => setNewAttributeValue(e.target.value)}
-                                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddValueToNewAttr(); } }}
-                                            />
-                                            <button type="button" style={xpBtn()} onClick={handleAddValueToNewAttr}>{t('add')}</button>
-                                            {nextValForNew !== null && (
-                                                <button type="button" style={xpBtn({ background: 'linear-gradient(to bottom,#d4ead4,#a0c8a0)', borderColor: '#2e7d32 #1a5e1a #1a5e1a #2e7d32' })} onClick={handleAddNextToNew}>+{nextValForNew}</button>
-                                            )}
-                                        </div>
-                                        <div style={{ background: '#ffffff', border: '1px solid #7f9db9', minHeight: 32, padding: '4px 6px', display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
-                                            {newAttribute.values.map((v, i) => (
-                                                <span key={i} style={{ background: '#dde8f5', border: '1px solid #7f9db9', padding: '1px 6px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px' }}>{v.value}</span>
-                                            ))}
-                                            {newAttribute.values.length === 0 && <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#888', fontStyle: 'italic' }}>No values added</span>}
-                                        </div>
-                                        <button type="submit" disabled={isAttrSubmitting} style={{ ...xpBtnGreen, width: '100%', padding: '4px 10px', opacity: isAttrSubmitting ? 0.6 : 1 }}>
-                                            <i className="bi bi-plus-circle" style={{ marginRight: 6 }}></i>{isAttrSubmitting ? '...' : 'Create Attribute'}
-                                        </button>
-                                    </form>
-                                )}
-                            </div>
-                        </div>
+                {/* ── Row 2: Attributes with side panel ───────────────────── */}
+                <div style={xpBevel}>
+                    <div style={xpTitleBar()}>
+                        <span><i className="bi bi-collection-fill" style={{ marginRight: 6 }}></i>Variants &amp; Attributes</span>
+                        <button style={xpBtnGreen} onClick={openCreatePanel}>
+                            <i className="bi bi-plus-lg" style={{ marginRight: 3 }}></i>New
+                        </button>
                     </div>
-
-                    {/* Right: Attribute list */}
-                    <div className="col-md-7">
-                        <div style={{ ...xpBevel, height: '100%' }}>
-                            <div style={xpTitleBar()}>
-                                <span><i className="bi bi-collection-fill" style={{ marginRight: 6 }}></i>Variants &amp; Attributes</span>
-                            </div>
-                            <div style={xpToolbar}>
-                                <i className="bi bi-search" style={{ fontSize: '11px', color: '#666' }}></i>
-                                <input style={{ ...xpInput, width: 200 }} placeholder="Search attributes..." value={attrSearch} onChange={e => setAttrSearch(e.target.value)} />
-                                <div style={xpSep} />
-                                <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#444' }}>{filteredAttrs.length} attribute{filteredAttrs.length === 1 ? '' : 's'}</span>
-                            </div>
-                            <div style={{ background: '#ffffff', maxHeight: 'calc(100vh - 420px)', overflowY: 'auto' }}>
-                                {filteredAttrs.map((attr: any, i: number) => {
-                                    const isActive = activeAttribute?.id === attr.id;
-                                    return (
-                                        <div
-                                            key={attr.id}
-                                            onClick={() => startEditing(attr)}
-                                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '5px 8px', cursor: 'pointer', background: isActive ? '#316ac5' : (i % 2 === 0 ? '#ffffff' : '#f5f3ee'), borderBottom: '1px solid #c0bdb5', borderLeft: isActive ? '3px solid #08a5ff' : '3px solid transparent' }}
-                                        >
-                                            <div style={{ flex: 1, minWidth: 0 }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                                                    <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', fontWeight: 'bold', color: isActive ? '#ffffff' : '#000' }}>{attr.name}</span>
-                                                    <span style={{ background: isActive ? 'rgba(255,255,255,0.2)' : '#e0dfd8', border: `1px solid ${isActive ? 'rgba(255,255,255,0.4)' : '#b0a898'}`, padding: '0 4px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: isActive ? '#ffffff' : '#555' }}>{attr.values.length}</span>
-                                                    {attr.system_role && (
-                                                        <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '9px', background: isActive ? 'rgba(180,220,255,0.3)' : '#dce8ff', border: `1px solid ${isActive ? 'rgba(180,220,255,0.5)' : '#7fa8e0'}`, color: isActive ? '#d0e8ff' : '#003080', padding: '0 4px' }}>
-                                                            {attr.system_role === 'color' ? 'Sample Colors' : 'Sample Combo'}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                                                    {attr.values.slice(0, 8).map((v: any) => (
-                                                        <span key={v.id} style={{ background: isActive ? 'rgba(255,255,255,0.15)' : '#dde8f5', border: `1px solid ${isActive ? 'rgba(255,255,255,0.35)' : '#7f9db9'}`, padding: '0 4px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: isActive ? '#ffffff' : '#333' }}>{v.value}</span>
-                                                    ))}
-                                                    {attr.values.length > 8 && <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: isActive ? 'rgba(255,255,255,0.7)' : '#888' }}>…</span>}
-                                                </div>
+                    {/* Search toolbar */}
+                    <div style={xpToolbar}>
+                        <i className="bi bi-search" style={{ fontSize: '11px', color: '#666' }}></i>
+                        <input style={{ ...xpInput, width: 200 }} placeholder="Search attributes..." value={attrSearch} onChange={e => setAttrSearch(e.target.value)} />
+                        <div style={xpSep} />
+                        <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#444' }}>{filteredAttrs.length} attribute{filteredAttrs.length === 1 ? '' : 's'}</span>
+                    </div>
+                    {/* List + side panel */}
+                    <div style={{ display: 'flex', background: '#ffffff' }}>
+                        {/* List */}
+                        <div style={{ flex: 1, minWidth: 0, maxHeight: 400, overflowY: 'auto', borderRight: attrPanelMode ? '1px solid #c0bdb5' : 'none' }}>
+                            {filteredAttrs.map((attr: any, i: number) => {
+                                const isActive = editingAttr?.id === attr.id;
+                                return (
+                                    <div
+                                        key={attr.id}
+                                        onClick={() => startEditing(attr)}
+                                        style={{ display: 'flex', alignItems: 'flex-start', padding: '4px 8px', cursor: 'pointer', background: isActive ? '#316ac5' : (i % 2 === 0 ? '#ffffff' : '#f5f3ee'), borderBottom: '1px solid #c0bdb5', borderLeft: isActive ? '3px solid #08a5ff' : '3px solid transparent' }}
+                                    >
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                                                <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', fontWeight: 'bold', color: isActive ? '#ffffff' : '#000' }}>{attr.name}</span>
+                                                <span style={{ background: isActive ? 'rgba(255,255,255,0.2)' : '#e0dfd8', border: `1px solid ${isActive ? 'rgba(255,255,255,0.4)' : '#b0a898'}`, padding: '0 4px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: isActive ? '#ffffff' : '#555' }}>{attr.values.length}</span>
+                                                {attr.system_role && (
+                                                    <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '9px', background: isActive ? 'rgba(180,220,255,0.3)' : '#dce8ff', border: `1px solid ${isActive ? 'rgba(180,220,255,0.5)' : '#7fa8e0'}`, color: isActive ? '#d0e8ff' : '#003080', padding: '0 4px' }}>
+                                                        {attr.system_role === 'color' ? 'Sample Colors' : 'Sample Combo'}
+                                                    </span>
+                                                )}
                                             </div>
-                                            <button
-                                                onClick={e => { e.stopPropagation(); onDeleteAttribute(attr.id); }}
-                                                style={{ ...xpBtn(), border: attrHovered === `del-${attr.id}` ? '1px solid #808080' : '1px solid transparent', background: attrHovered === `del-${attr.id}` ? 'linear-gradient(to bottom,#ffffff,#d4d0c8)' : 'transparent', padding: '1px 6px', marginLeft: 6, flexShrink: 0 }}
-                                                onMouseEnter={() => setAttrHovered(`del-${attr.id}`)} onMouseLeave={() => setAttrHovered(null)}
-                                                title="Delete"
-                                            >
-                                                <i className="bi bi-trash" style={{ color: isActive ? '#ffcccc' : '#c00000', fontSize: '11px' }}></i>
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                                                {attr.values.slice(0, 8).map((v: any) => (
+                                                    <span key={v.id} style={{ background: isActive ? 'rgba(255,255,255,0.15)' : '#dde8f5', border: `1px solid ${isActive ? 'rgba(255,255,255,0.35)' : '#7f9db9'}`, padding: '0 4px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: isActive ? '#ffffff' : '#333' }}>{v.value}</span>
+                                                ))}
+                                                {attr.values.length > 8 && <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: isActive ? 'rgba(255,255,255,0.7)' : '#888' }}>…</span>}
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={e => { e.stopPropagation(); onDeleteAttribute(attr.id); }}
+                                            style={{ ...xpBtn(), border: attrHovered === `del-${attr.id}` ? '1px solid #808080' : '1px solid transparent', background: attrHovered === `del-${attr.id}` ? 'linear-gradient(to bottom,#ffffff,#d4d0c8)' : 'transparent', padding: '1px 6px', marginLeft: 6, flexShrink: 0 }}
+                                            onMouseEnter={() => setAttrHovered(`del-${attr.id}`)} onMouseLeave={() => setAttrHovered(null)}
+                                            title="Delete"
+                                        >
+                                            <i className="bi bi-trash" style={{ color: isActive ? '#ffcccc' : '#c00000', fontSize: '11px' }}></i>
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                            {filteredAttrs.length === 0 && (
+                                <div style={{ textAlign: 'center', padding: '20px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#666' }}>No attributes defined</div>
+                            )}
+                        </div>
+                        {/* Side panel */}
+                        {attrPanelMode && (
+                            <div style={{ width: 380, flexShrink: 0, background: '#f5f4ef', maxHeight: 400, overflowY: 'auto' }}>
+                                {/* Panel title bar */}
+                                <div style={{ ...xpToolbar, borderBottom: '1px solid #b0a898', justifyContent: 'space-between' }}>
+                                    <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', fontWeight: 'bold', color: '#000' }}>
+                                        {attrPanelMode === 'create' ? 'New Attribute' : `Edit: ${activeAttribute?.name ?? ''}`}
+                                    </span>
+                                    <button style={xpBtn({ padding: '0 6px', fontSize: '10px' })} onClick={cancelEditing} title="Close">✕</button>
+                                </div>
+                                <div style={{ padding: '8px' }}>
+                                    {attrPanelMode === 'create' ? (
+                                        <div>
+                                            <label style={xpLabel}>Name</label>
+                                            <input
+                                                style={{ ...xpInput, width: '100%', marginBottom: 8 }}
+                                                placeholder="e.g. Size, Color"
+                                                value={newAttribute.name}
+                                                onChange={e => setNewAttribute({ ...newAttribute, name: e.target.value })}
+                                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreateAttr(); } }}
+                                                autoFocus
+                                            />
+                                            <button style={{ ...xpBtnGreen, width: '100%', padding: '4px', opacity: isAttrSubmitting ? 0.6 : 1 }} onClick={handleCreateAttr} disabled={isAttrSubmitting}>
+                                                <i className="bi bi-plus-circle" style={{ marginRight: 4 }}></i>{isAttrSubmitting ? '...' : 'Create Attribute'}
                                             </button>
                                         </div>
-                                    );
-                                })}
-                                {filteredAttrs.length === 0 && (
-                                    <div style={{ textAlign: 'center', padding: '20px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#666' }}>No attribute templates defined</div>
-                                )}
+                                    ) : attrPanelMode === 'edit' && activeAttribute ? (
+                                        <div>
+                                            <label style={xpLabel}>Attribute Name</label>
+                                            <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+                                                <input style={{ ...xpInput, flex: 1 }} value={editingAttr.name} onChange={e => setEditingAttr({ ...editingAttr, name: e.target.value })} />
+                                                <button style={xpBtnBlue} onClick={handleUpdateAttrName}>Save</button>
+                                            </div>
+                                            <label style={xpLabel}>Values ({activeAttribute.values.length})</label>
+                                            <div style={{ background: '#ffffff', border: '1px solid #7f9db9', maxHeight: 200, overflowY: 'auto', marginBottom: 6 }}>
+                                                {activeAttribute.values.map((val: any, vi: number) => (
+                                                    <div key={val.id} style={{ display: 'flex', alignItems: 'center', padding: '2px 4px', background: vi % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #e0dfd8' }}>
+                                                        <input
+                                                            style={{ ...xpInput, flex: 1, border: 'none', boxShadow: 'none', height: '18px', background: 'transparent' }}
+                                                            defaultValue={val.value}
+                                                            onBlur={e => { if (e.target.value !== val.value) onUpdateValue(val.id, e.target.value); }}
+                                                        />
+                                                        <button
+                                                            style={{ ...xpBtn(), border: attrHovered === val.id ? '1px solid #808080' : '1px solid transparent', background: attrHovered === val.id ? 'linear-gradient(to bottom,#ffffff,#d4d0c8)' : 'transparent', padding: '0 4px' }}
+                                                            onMouseEnter={() => setAttrHovered(val.id)} onMouseLeave={() => setAttrHovered(null)}
+                                                            onClick={() => onDeleteValue(val.id)}
+                                                        >
+                                                            <i className="bi bi-x" style={{ color: '#c00000', fontSize: '11px' }}></i>
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                {activeAttribute.values.length === 0 && (
+                                                    <div style={{ padding: '8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#666', textAlign: 'center' }}>No values yet</div>
+                                                )}
+                                            </div>
+                                            <div style={{ display: 'flex', gap: 4 }}>
+                                                <input
+                                                    style={{ ...xpInput, flex: 1 }}
+                                                    placeholder="Add value..."
+                                                    value={newValueForEdit}
+                                                    onChange={e => setNewValueForEdit(e.target.value)}
+                                                    onKeyDown={e => e.key === 'Enter' && handleAddValueToExisting()}
+                                                />
+                                                <button style={xpBtn()} onClick={handleAddValueToExisting}>{t('add')}</button>
+                                                {nextValForEdit !== null && (
+                                                    <button style={xpBtn({ background: 'linear-gradient(to bottom,#d4ead4,#a0c8a0)', borderColor: '#2e7d32 #1a5e1a #1a5e1a #2e7d32' })} onClick={handleAddNextToExisting}>+{nextValForEdit}</button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ) : null}
+                                </div>
                             </div>
-                            <div style={xpStatusBar}><b>{(attributes || []).length}</b> Total</div>
-                        </div>
+                        )}
                     </div>
+                    <div style={xpStatusBar}><b>{(attributes || []).length}</b> Total</div>
                 </div>
             </div>
         );
@@ -518,111 +507,49 @@ export default function ItemMetadataView({
                 </div>
             </div>
 
-            {/* Row 2: Attributes full-width */}
-            <div className="row g-4">
-                <div className="col-md-5">
-                    <div className={`card h-100 shadow-sm border-0 ${activeAttribute ? 'border-primary border-2' : ''}`}>
-                        <div className={`card-header ${activeAttribute ? 'bg-primary bg-opacity-10 text-primary-emphasis' : 'bg-success bg-opacity-10 text-success-emphasis'}`}>
-                            <h5 className="card-title mb-0">
-                                {activeAttribute
-                                    ? <span><i className="bi bi-pencil-square me-2"></i>{t('edit')} Template</span>
-                                    : <span><i className="bi bi-plus-circle me-2"></i>{t('create')} Template</span>
-                                }
-                            </h5>
+            {/* Row 2: Attributes with side panel */}
+            <div className="card shadow-sm border-0">
+                <div className="card-header bg-white d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 className="card-title mb-0"><i className="bi bi-collection-fill me-2 text-primary"></i>Variants &amp; Attributes</h5>
+                        <p className="text-muted small mb-0 mt-1">Define attribute templates and their possible values.</p>
+                    </div>
+                    <div className="d-flex gap-2 align-items-center">
+                        <div className="input-group" style={{ width: 200 }}>
+                            <span className="input-group-text"><i className="bi bi-search"></i></span>
+                            <input className="form-control form-control-sm" placeholder="Search..." value={attrSearch} onChange={e => setAttrSearch(e.target.value)} />
                         </div>
-                        <div className="card-body">
-                            {activeAttribute ? (
-                                <div>
-                                    <div className="d-flex justify-content-between align-items-center mb-3">
-                                        <span className="badge bg-primary text-white">{activeAttribute.name}</span>
-                                        <button className="btn btn-sm btn-outline-secondary" onClick={cancelEditing}>{t('cancel')}</button>
-                                    </div>
-                                    <div className="mb-3">
-                                        <label className="form-label small">Template Name</label>
-                                        <div className="input-group">
-                                            <input className="form-control" value={editingAttr.name} onChange={e => setEditingAttr({ ...editingAttr, name: e.target.value })} />
-                                            <button className="btn btn-outline-primary" onClick={handleUpdateAttrName}>{t('save')}</button>
-                                        </div>
-                                    </div>
-                                    <label className="form-label small">Values</label>
-                                    <div className="list-group mb-3" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                                        {activeAttribute.values.map((val: any) => (
-                                            <div key={val.id} className="list-group-item d-flex justify-content-between align-items-center p-2">
-                                                <input className="form-control form-control-sm border-0 bg-transparent" defaultValue={val.value} onBlur={e => { if (e.target.value !== val.value) onUpdateValue(val.id, e.target.value); }} />
-                                                <button className="btn btn-sm text-danger" onClick={() => onDeleteValue(val.id)}><i className="bi bi-trash"></i></button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div className="input-group input-group-sm">
-                                        <input className="form-control" placeholder="Add new value..." value={newValueForEdit} onChange={e => setNewValueForEdit(e.target.value)} />
-                                        <button className="btn btn-secondary" onClick={handleAddValueToExisting}>{t('add')}</button>
-                                        {nextValForEdit !== null && (
-                                            <button className="btn btn-outline-success" onClick={handleAddNextToExisting}>+ {nextValForEdit}</button>
-                                        )}
-                                    </div>
-                                </div>
-                            ) : (
-                                <form onSubmit={handleCreateAttrSubmit}>
-                                    <div className="mb-3">
-                                        <label className="form-label small text-muted">Name</label>
-                                        <input className="form-control" placeholder="e.g. Size, Color" value={newAttribute.name} onChange={e => setNewAttribute({ ...newAttribute, name: e.target.value })} required />
-                                    </div>
-                                    <div className="mb-3">
-                                        <label className="form-label small text-muted">Initial Values</label>
-                                        <div className="input-group mb-2">
-                                            <input className="form-control" placeholder="Value (e.g. S, M, L)" value={newAttributeValue} onChange={e => setNewAttributeValue(e.target.value)} />
-                                            <button type="button" className="btn btn-secondary" onClick={handleAddValueToNewAttr}>{t('add')}</button>
-                                            {nextValForNew !== null && (
-                                                <button type="button" className="btn btn-outline-success" onClick={handleAddNextToNew}>+ {nextValForNew}</button>
-                                            )}
-                                        </div>
-                                        <div className="d-flex flex-wrap gap-2 p-2 border rounded bg-light">
-                                            {newAttribute.values.map((v, i) => (
-                                                <span key={i} className="badge bg-white text-dark border shadow-sm">{v.value}</span>
-                                            ))}
-                                            {newAttribute.values.length === 0 && <small className="text-muted fst-italic">No values added</small>}
-                                        </div>
-                                    </div>
-                                    <button type="submit" className="btn btn-success w-100 fw-bold shadow-sm" disabled={isAttrSubmitting}>{isAttrSubmitting ? '...' : t('create')}</button>
-                                </form>
-                            )}
-                        </div>
+                        <button className="btn btn-success btn-sm px-3" onClick={openCreatePanel}>
+                            <i className="bi bi-plus-lg me-1"></i>New
+                        </button>
                     </div>
                 </div>
-
-                <div className="col-md-7">
-                    <div className="card h-100 shadow-sm border-0">
-                        <div className="card-header bg-white d-flex justify-content-between align-items-center">
-                            <h5 className="card-title mb-0">{t('attributes')}</h5>
-                            <div className="input-group" style={{ width: 220 }}>
-                                <span className="input-group-text"><i className="bi bi-search"></i></span>
-                                <input className="form-control form-control-sm" placeholder="Search..." value={attrSearch} onChange={e => setAttrSearch(e.target.value)} />
-                            </div>
-                        </div>
-                        <div className="card-body p-0" style={{ maxHeight: 'calc(100vh - 300px)', overflowY: 'auto' }}>
-                            <div className="list-group list-group-flush">
-                                {filteredAttrs.map((attr: any) => (
+                <div className="card-body p-0 d-flex" style={{ minHeight: 200 }}>
+                    {/* List */}
+                    <div className="flex-grow-1" style={{ overflowY: 'auto', maxHeight: 460 }}>
+                        <div className="list-group list-group-flush">
+                            {filteredAttrs.map((attr: any) => {
+                                const isActive = editingAttr?.id === attr.id;
+                                return (
                                     <div
                                         key={attr.id}
-                                        className={`list-group-item list-group-item-action d-flex justify-content-between align-items-start p-3 ${activeAttribute?.id === attr.id ? 'active' : ''}`}
+                                        className={`list-group-item list-group-item-action d-flex align-items-start p-3 ${isActive ? 'active' : ''}`}
                                         onClick={() => startEditing(attr)}
                                         style={{ cursor: 'pointer' }}
                                     >
                                         <div className="flex-grow-1 me-3">
-                                            <div className="d-flex justify-content-between mb-1">
-                                                <div className="d-flex align-items-center gap-2">
-                                                    <h6 className="mb-0 fw-bold">{attr.name}</h6>
-                                                    {attr.system_role && (
-                                                        <span className="badge bg-primary bg-opacity-10 text-primary border border-primary" style={{ fontSize: 9, fontWeight: 'normal' }}>
-                                                            {attr.system_role === 'color' ? 'Sample Colors' : 'Sample Combo'}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <span className={`badge ${activeAttribute?.id === attr.id ? 'bg-light text-primary' : 'bg-light text-dark border'}`}>{attr.values.length}</span>
+                                            <div className="d-flex align-items-center gap-2 mb-1">
+                                                <h6 className="mb-0 fw-bold">{attr.name}</h6>
+                                                <span className={`badge ${isActive ? 'bg-light text-primary' : 'bg-light text-dark border'}`}>{attr.values.length}</span>
+                                                {attr.system_role && (
+                                                    <span className="badge bg-primary bg-opacity-10 text-primary border border-primary" style={{ fontSize: 9, fontWeight: 'normal' }}>
+                                                        {attr.system_role === 'color' ? 'Sample Colors' : 'Sample Combo'}
+                                                    </span>
+                                                )}
                                             </div>
                                             <div className="d-flex flex-wrap gap-1">
                                                 {attr.values.slice(0, 8).map((v: any) => (
-                                                    <span key={v.id} className={`badge small ${activeAttribute?.id === attr.id ? 'bg-primary border border-white' : 'bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-10'}`}>{v.value}</span>
+                                                    <span key={v.id} className={`badge small ${isActive ? 'bg-primary border border-white' : 'bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-10'}`}>{v.value}</span>
                                                 ))}
                                                 {attr.values.length > 8 && <span className="badge text-muted">...</span>}
                                             </div>
@@ -631,11 +558,71 @@ export default function ItemMetadataView({
                                             <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDeleteAttribute(attr.id)}><i className="bi bi-trash fs-6"></i></button>
                                         </div>
                                     </div>
-                                ))}
-                                {filteredAttrs.length === 0 && <div className="text-center text-muted py-5">No templates defined yet.</div>}
-                            </div>
+                                );
+                            })}
+                            {filteredAttrs.length === 0 && <div className="text-center text-muted py-5">No attributes defined yet.</div>}
                         </div>
                     </div>
+                    {/* Side panel */}
+                    {attrPanelMode && (
+                        <div style={{ width: 380, flexShrink: 0, borderLeft: '1px solid #dee2e6', display: 'flex', flexDirection: 'column' }}>
+                            {/* Panel header */}
+                            <div className="d-flex justify-content-between align-items-center px-3 py-2 border-bottom bg-light">
+                                <span className="fw-semibold small">
+                                    {attrPanelMode === 'create' ? 'New Attribute' : `Edit: ${activeAttribute?.name ?? ''}`}
+                                </span>
+                                <button className="btn-close btn-sm" onClick={cancelEditing} aria-label="Close" />
+                            </div>
+                            {/* Panel body */}
+                            <div className="p-3 flex-grow-1 overflow-auto">
+                                {attrPanelMode === 'create' ? (
+                                    <div>
+                                        <div className="mb-3">
+                                            <label className="form-label small fw-semibold">Name</label>
+                                            <input
+                                                className="form-control"
+                                                placeholder="e.g. Size, Color"
+                                                value={newAttribute.name}
+                                                onChange={e => setNewAttribute({ ...newAttribute, name: e.target.value })}
+                                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreateAttr(); } }}
+                                                autoFocus
+                                            />
+                                        </div>
+                                        <button className="btn btn-success w-100" onClick={handleCreateAttr} disabled={isAttrSubmitting}>
+                                            <i className="bi bi-plus-circle me-1"></i>{isAttrSubmitting ? '...' : 'Create Attribute'}
+                                        </button>
+                                    </div>
+                                ) : attrPanelMode === 'edit' && activeAttribute ? (
+                                    <div>
+                                        <div className="mb-3">
+                                            <label className="form-label small fw-semibold">Attribute Name</label>
+                                            <div className="input-group input-group-sm">
+                                                <input className="form-control" value={editingAttr.name} onChange={e => setEditingAttr({ ...editingAttr, name: e.target.value })} />
+                                                <button className="btn btn-outline-primary" onClick={handleUpdateAttrName}>{t('save')}</button>
+                                            </div>
+                                        </div>
+                                        <label className="form-label small fw-semibold">Values ({activeAttribute.values.length})</label>
+                                        <div className="list-group list-group-flush border rounded mb-2" style={{ maxHeight: 260, overflowY: 'auto' }}>
+                                            {activeAttribute.values.map((val: any) => (
+                                                <div key={val.id} className="list-group-item d-flex align-items-center p-2">
+                                                    <input className="form-control form-control-sm border-0 bg-transparent flex-grow-1" defaultValue={val.value} onBlur={e => { if (e.target.value !== val.value) onUpdateValue(val.id, e.target.value); }} />
+                                                    <button className="btn btn-sm text-danger p-0 ms-1" onClick={() => onDeleteValue(val.id)}><i className="bi bi-x fs-5"></i></button>
+                                                </div>
+                                            ))}
+                                            {activeAttribute.values.length === 0 && <div className="list-group-item text-center text-muted fst-italic small">No values yet</div>}
+                                        </div>
+                                        <div className="input-group input-group-sm">
+                                            <input className="form-control" placeholder="Add value..." value={newValueForEdit} onChange={e => setNewValueForEdit(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddValueToExisting()} />
+                                            <button className="btn btn-secondary" onClick={handleAddValueToExisting}>{t('add')}</button>
+                                            {nextValForEdit !== null && (
+                                                <button className="btn btn-outline-success" onClick={handleAddNextToExisting}>+{nextValForEdit}</button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : null}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
