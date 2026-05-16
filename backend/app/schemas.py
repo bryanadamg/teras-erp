@@ -886,7 +886,8 @@ class PaginatedAuditLogResponse(BaseModel):
 
 class DyeRecipeLineCreate(BaseModel):
     item_id: UUID
-    qty_per_100kg: float
+    qty_per_100kg: float | None = None
+    qty_per_liter: float | None = None
     uom_id: UUID | None = None
     chemical_type: str = "OTHER"
     sort_order: int = 0
@@ -898,6 +899,24 @@ class DyeRecipeLineResponse(DyeRecipeLineCreate):
     uom_name: str | None = None
     model_config = ConfigDict(from_attributes=True)
 
+class DyeRecipeWashBathCreate(BaseModel):
+    bath_number: int
+    description: str
+
+class DyeRecipeWashBathResponse(DyeRecipeWashBathCreate):
+    id: UUID
+    recipe_id: UUID
+    model_config = ConfigDict(from_attributes=True)
+
+class DyeRecipeFinishingCreate(BaseModel):
+    description: str
+    sort_order: int = 0
+
+class DyeRecipeFinishingResponse(DyeRecipeFinishingCreate):
+    id: UUID
+    recipe_id: UUID
+    model_config = ConfigDict(from_attributes=True)
+
 class DyeRecipeCreate(BaseModel):
     code: str
     name: str
@@ -906,6 +925,8 @@ class DyeRecipeCreate(BaseModel):
     notes: str | None = None
     is_active: bool = True
     lines: list[DyeRecipeLineCreate] = []
+    wash_baths: list[DyeRecipeWashBathCreate] = []
+    finishing_steps: list[DyeRecipeFinishingCreate] = []
 
 class DyeRecipeUpdate(BaseModel):
     name: str | None = None
@@ -914,6 +935,8 @@ class DyeRecipeUpdate(BaseModel):
     notes: str | None = None
     is_active: bool | None = None
     lines: list[DyeRecipeLineCreate] | None = None
+    wash_baths: list[DyeRecipeWashBathCreate] | None = None
+    finishing_steps: list[DyeRecipeFinishingCreate] | None = None
 
 class DyeRecipeResponse(BaseModel):
     id: UUID
@@ -925,6 +948,8 @@ class DyeRecipeResponse(BaseModel):
     is_active: bool
     created_at: datetime
     lines: list[DyeRecipeLineResponse] = []
+    wash_baths: list[DyeRecipeWashBathResponse] = []
+    finishing_steps: list[DyeRecipeFinishingResponse] = []
     model_config = ConfigDict(from_attributes=True)
 
 class DyeingRunChemicalCreate(BaseModel):
@@ -947,10 +972,20 @@ class DyeingRunCreate(BaseModel):
     input_batch_id: UUID | None = None
     machine_name: str | None = None
     liquor_ratio: float | None = None
+    volume_air_liters: float | None = None
+    machine_speed: float | None = None
+    machine_pressure: str | None = None
     temperature_c: float | None = None
     duration_min: int | None = None
     operator_name: str | None = None
     notes: str | None = None
+    color_name: str | None = None
+    color_matching_ref: str | None = None
+    lot_number: str | None = None
+    customer_name: str | None = None
+    artikel: str | None = None
+    po_number: str | None = None
+    qty_order_kg: float | None = None
 
 class DyeingRunCompletePayload(BaseModel):
     shade_result: str | None = None
@@ -968,6 +1003,16 @@ class DyeingRunResponse(BaseModel):
     output_batch_id: UUID | None = None
     machine_name: str | None = None
     liquor_ratio: float | None = None
+    volume_air_liters: float | None = None
+    machine_speed: float | None = None
+    machine_pressure: str | None = None
+    color_name: str | None = None
+    color_matching_ref: str | None = None
+    lot_number: str | None = None
+    customer_name: str | None = None
+    artikel: str | None = None
+    po_number: str | None = None
+    qty_order_kg: float | None = None
     temperature_c: float | None = None
     duration_min: int | None = None
     status: str

@@ -20,6 +20,14 @@ class DyeRecipe(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     lines: Mapped[List["DyeRecipeLine"]] = relationship("DyeRecipeLine", back_populates="recipe", cascade="all, delete-orphan")
+    wash_baths: Mapped[List["DyeRecipeWashBath"]] = relationship(
+        "DyeRecipeWashBath", back_populates="recipe", cascade="all, delete-orphan",
+        order_by="DyeRecipeWashBath.bath_number"
+    )
+    finishing_steps: Mapped[List["DyeRecipeFinishing"]] = relationship(
+        "DyeRecipeFinishing", back_populates="recipe", cascade="all, delete-orphan",
+        order_by="DyeRecipeFinishing.sort_order"
+    )
 
 
 class DyeRecipeLine(Base):
@@ -28,7 +36,8 @@ class DyeRecipeLine(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     recipe_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("dye_recipes.id", ondelete="CASCADE"), index=True)
     item_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("items.id"), index=True)
-    qty_per_100kg: Mapped[float] = mapped_column(Numeric(14, 4))
+    qty_per_100kg: Mapped[Optional[float]] = mapped_column(Numeric(14, 4), nullable=True)
+    qty_per_liter: Mapped[Optional[float]] = mapped_column(Numeric(14, 6), nullable=True)
     uom_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("uoms.id"), nullable=True)
     chemical_type: Mapped[str] = mapped_column(String(16), default="OTHER")
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
@@ -36,6 +45,28 @@ class DyeRecipeLine(Base):
     recipe: Mapped["DyeRecipe"] = relationship("DyeRecipe", back_populates="lines")
     item = relationship("Item")
     uom = relationship("UOM")
+
+
+class DyeRecipeWashBath(Base):
+    __tablename__ = "dye_recipe_wash_baths"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    recipe_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("dye_recipes.id", ondelete="CASCADE"), index=True)
+    bath_number: Mapped[int] = mapped_column(Integer)
+    description: Mapped[str] = mapped_column(String(256))
+
+    recipe: Mapped["DyeRecipe"] = relationship("DyeRecipe", back_populates="wash_baths")
+
+
+class DyeRecipeFinishing(Base):
+    __tablename__ = "dye_recipe_finishing"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    recipe_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("dye_recipes.id", ondelete="CASCADE"), index=True)
+    description: Mapped[str] = mapped_column(String(512))
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+    recipe: Mapped["DyeRecipe"] = relationship("DyeRecipe", back_populates="finishing_steps")
 
 
 class DyeingRun(Base):
@@ -50,6 +81,16 @@ class DyeingRun(Base):
     output_batch_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("batches.id"), nullable=True)
     machine_name: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     liquor_ratio: Mapped[Optional[float]] = mapped_column(Numeric(6, 2), nullable=True)
+    volume_air_liters: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
+    machine_speed: Mapped[Optional[float]] = mapped_column(Numeric(6, 2), nullable=True)
+    machine_pressure: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    color_name: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    color_matching_ref: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    lot_number: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    customer_name: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    artikel: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    po_number: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    qty_order_kg: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
     temperature_c: Mapped[Optional[float]] = mapped_column(Numeric(6, 2), nullable=True)
     duration_min: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(16), default="PENDING")

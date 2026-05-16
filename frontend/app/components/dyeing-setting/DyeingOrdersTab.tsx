@@ -51,10 +51,20 @@ interface CreateForm {
     input_batch_id: string;
     machine_name: string;
     liquor_ratio: string;
+    volume_air_liters: string;
+    machine_speed: string;
+    machine_pressure: string;
     temperature_c: string;
     duration_min: string;
     operator_name: string;
     notes: string;
+    customer_name: string;
+    po_number: string;
+    artikel: string;
+    color_name: string;
+    color_matching_ref: string;
+    lot_number: string;
+    qty_order_kg: string;
 }
 
 interface CompleteForm {
@@ -76,10 +86,20 @@ const emptyCreateForm: CreateForm = {
     input_batch_id: '',
     machine_name: '',
     liquor_ratio: '',
+    volume_air_liters: '',
+    machine_speed: '',
+    machine_pressure: '',
     temperature_c: '',
     duration_min: '',
     operator_name: '',
     notes: '',
+    customer_name: '',
+    po_number: '',
+    artikel: '',
+    color_name: '',
+    color_matching_ref: '',
+    lot_number: '',
+    qty_order_kg: '',
 };
 
 const emptyCompleteForm: CompleteForm = {
@@ -164,11 +184,21 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                 substrate_qty: createForm.substrate_qty ? parseFloat(createForm.substrate_qty) : null,
                 machine_name: createForm.machine_name || null,
                 liquor_ratio: createForm.liquor_ratio ? parseFloat(createForm.liquor_ratio) : null,
+                volume_air_liters: createForm.volume_air_liters ? parseFloat(createForm.volume_air_liters) : null,
+                machine_speed: createForm.machine_speed ? parseFloat(createForm.machine_speed) : null,
+                machine_pressure: createForm.machine_pressure || null,
                 temperature_c: createForm.temperature_c ? parseFloat(createForm.temperature_c) : null,
                 duration_min: createForm.duration_min ? parseInt(createForm.duration_min, 10) : null,
                 operator_name: createForm.operator_name || null,
                 notes: createForm.notes || null,
                 input_batch_id: createForm.input_batch_id || null,
+                customer_name: createForm.customer_name || null,
+                po_number: createForm.po_number || null,
+                artikel: createForm.artikel || null,
+                color_name: createForm.color_name || null,
+                color_matching_ref: createForm.color_matching_ref || null,
+                lot_number: createForm.lot_number || null,
+                qty_order_kg: createForm.qty_order_kg ? parseFloat(createForm.qty_order_kg) : null,
             };
             const res = await authFetch(`${API_BASE}/dyeing-runs`, {
                 method: 'POST',
@@ -206,12 +236,32 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
     };
 
     const handleOpenComplete = (run: any) => {
-        const preChemicals: ChemicalRow[] = (run.chemicals ?? []).map((c: any) => ({
+        let preChemicals: ChemicalRow[] = (run.chemicals ?? []).map((c: any) => ({
             item_id: String(c.item_id ?? ''),
             planned_qty: String(c.planned_qty ?? ''),
             actual_qty: String(c.actual_qty ?? ''),
             uom_id: String(c.uom_id ?? ''),
         }));
+        // Auto-populate from recipe if no chemicals recorded yet and volume_air_liters is set
+        if (preChemicals.length === 0 && run.recipe_id && run.volume_air_liters) {
+            const recipe = recipes.find((r: any) => String(r.id) === String(run.recipe_id));
+            if (recipe?.lines?.length) {
+                preChemicals = recipe.lines.map((line: any) => {
+                    let planned = 0;
+                    if (line.qty_per_liter != null) {
+                        planned = parseFloat((line.qty_per_liter * run.volume_air_liters).toFixed(4));
+                    } else if (line.qty_per_100kg != null) {
+                        planned = parseFloat((line.qty_per_100kg * run.substrate_qty / 100).toFixed(4));
+                    }
+                    return {
+                        item_id: String(line.item_id ?? ''),
+                        planned_qty: String(planned),
+                        actual_qty: '',
+                        uom_id: String(line.uom_id ?? ''),
+                    };
+                });
+            }
+        }
         setCompleteForm({
             shade_result: run.shade_result ?? '',
             shade_notes: run.shade_notes ?? '',
@@ -391,6 +441,47 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                         {showCreateRun && (
                             <div style={{ borderBottom: '1px solid #7f9db9', padding: '6px 8px', background: '#f5f4ed' }}>
                                 <div style={{ fontWeight: 'bold', fontSize: 11, marginBottom: 4 }}>New Dyeing Run</div>
+                                {/* Job Info */}
+                                <div style={{ fontSize: 10, color: '#666', fontWeight: 600, marginBottom: 3, borderBottom: '1px solid #d0d8e8', paddingBottom: 2 }}>Job Info</div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px 12px', marginBottom: 8 }}>
+                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                        <span style={{ fontSize: 10, color: '#444' }}>Customer</span>
+                                        <input type="text" style={xpInput} value={createForm.customer_name}
+                                            onChange={e => handleCreateFormChange('customer_name', e.target.value)} placeholder="customer name" />
+                                    </label>
+                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                        <span style={{ fontSize: 10, color: '#444' }}>No. PO</span>
+                                        <input type="text" style={xpInput} value={createForm.po_number}
+                                            onChange={e => handleCreateFormChange('po_number', e.target.value)} placeholder="PO number" />
+                                    </label>
+                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                        <span style={{ fontSize: 10, color: '#444' }}>Artikel</span>
+                                        <input type="text" style={xpInput} value={createForm.artikel}
+                                            onChange={e => handleCreateFormChange('artikel', e.target.value)} placeholder="article code" />
+                                    </label>
+                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                        <span style={{ fontSize: 10, color: '#444' }}>Warna</span>
+                                        <input type="text" style={xpInput} value={createForm.color_name}
+                                            onChange={e => handleCreateFormChange('color_name', e.target.value)} placeholder="color name" />
+                                    </label>
+                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                        <span style={{ fontSize: 10, color: '#444' }}>Color Matching</span>
+                                        <input type="text" style={xpInput} value={createForm.color_matching_ref}
+                                            onChange={e => handleCreateFormChange('color_matching_ref', e.target.value)} placeholder="ref code" />
+                                    </label>
+                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                        <span style={{ fontSize: 10, color: '#444' }}>LOT</span>
+                                        <input type="text" style={xpInput} value={createForm.lot_number}
+                                            onChange={e => handleCreateFormChange('lot_number', e.target.value)} placeholder="lot number" />
+                                    </label>
+                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                        <span style={{ fontSize: 10, color: '#444' }}>Qty Order (kg)</span>
+                                        <input type="number" step="0.01" style={xpInput} value={createForm.qty_order_kg}
+                                            onChange={e => handleCreateFormChange('qty_order_kg', e.target.value)} placeholder="e.g. 65" />
+                                    </label>
+                                </div>
+                                {/* Process Params */}
+                                <div style={{ fontSize: 10, color: '#666', fontWeight: 600, marginBottom: 3, borderBottom: '1px solid #d0d8e8', paddingBottom: 2 }}>Process</div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px 12px' }}>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                                         <span style={{ fontSize: 10, color: '#444' }}>Recipe</span>
@@ -444,6 +535,21 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                             onChange={e => handleCreateFormChange('liquor_ratio', e.target.value)}
                                             placeholder="e.g. 10"
                                         />
+                                    </label>
+                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                        <span style={{ fontSize: 10, color: '#444' }}>Volume Air (L)</span>
+                                        <input type="number" step="0.1" style={xpInput} value={createForm.volume_air_liters}
+                                            onChange={e => handleCreateFormChange('volume_air_liters', e.target.value)} placeholder="e.g. 190" />
+                                    </label>
+                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                        <span style={{ fontSize: 10, color: '#444' }}>Speed</span>
+                                        <input type="number" step="0.1" style={xpInput} value={createForm.machine_speed}
+                                            onChange={e => handleCreateFormChange('machine_speed', e.target.value)} placeholder="e.g. 7" />
+                                    </label>
+                                    <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                        <span style={{ fontSize: 10, color: '#444' }}>Tekanan (Pressure)</span>
+                                        <input type="text" style={xpInput} value={createForm.machine_pressure}
+                                            onChange={e => handleCreateFormChange('machine_pressure', e.target.value)} placeholder="pressure" />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                                         <span style={{ fontSize: 10, color: '#444' }}>Temperature (C)</span>

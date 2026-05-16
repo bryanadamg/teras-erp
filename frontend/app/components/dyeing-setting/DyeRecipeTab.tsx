@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import DyeRecipePrintView from './DyeRecipePrintView';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -29,6 +30,7 @@ interface RecipeLine {
     chemical_type: string;
     item_id: string;
     qty_per_100kg: number | string;
+    qty_per_liter: number | null;
     uom_id?: string | null;
     sort_order: number | string;
 }
@@ -68,6 +70,9 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
     const [saving, setSaving] = useState(false);
     const [searchText, setSearchText] = useState('');
     const [hoveredId, setHoveredId] = useState<string | null>(null);
+    const [washBaths, setWashBaths] = useState<Array<{bath_number: number; description: string}>>([]);
+    const [finishingSteps, setFinishingSteps] = useState<Array<{description: string; sort_order: number}>>([]);
+    const [showPrint, setShowPrint] = useState(false);
 
     const loadRecipes = useCallback(async () => {
         setLoading(true);
@@ -101,6 +106,8 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
     const openCreate = () => {
         setEditingRecipe(null);
         setForm(emptyForm());
+        setWashBaths([]);
+        setFinishingSteps([]);
         setShowForm(true);
         setSelectedId(null);
     };
@@ -119,10 +126,19 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
                 chemical_type: l.chemical_type || 'OTHER',
                 item_id: String(l.item_id || ''),
                 qty_per_100kg: l.qty_per_100kg ?? '',
+                qty_per_liter: l.qty_per_liter ?? null,
                 uom_id: l.uom_id || null,
                 sort_order: l.sort_order ?? '',
             })),
         });
+        setWashBaths((recipe.wash_baths || []).map((wb: any) => ({
+            bath_number: wb.bath_number,
+            description: wb.description,
+        })));
+        setFinishingSteps((recipe.finishing_steps || []).map((fs: any) => ({
+            description: fs.description,
+            sort_order: fs.sort_order,
+        })));
         setShowForm(true);
     };
 
@@ -130,6 +146,8 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
         setShowForm(false);
         setEditingRecipe(null);
         setForm(emptyForm());
+        setWashBaths([]);
+        setFinishingSteps([]);
     };
 
     const handleSave = async () => {
@@ -144,8 +162,11 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
                 lines: form.lines.map((l, idx) => ({
                     ...l,
                     qty_per_100kg: parseFloat(String(l.qty_per_100kg)) || 0,
+                    qty_per_liter: l.qty_per_liter,
                     sort_order: parseInt(String(l.sort_order)) || idx + 1,
                 })),
+                wash_baths: washBaths,
+                finishing_steps: finishingSteps,
             };
             let res;
             if (editingRecipe) {
@@ -167,6 +188,8 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
                 setShowForm(false);
                 setEditingRecipe(null);
                 setForm(emptyForm());
+                setWashBaths([]);
+                setFinishingSteps([]);
                 setSelectedId(String(saved.id || (editingRecipe ? editingRecipe.id : '')));
             } else {
                 const err = await res.json().catch(() => ({}));
@@ -205,6 +228,7 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
                     chemical_type: 'DYE',
                     item_id: '',
                     qty_per_100kg: '',
+                    qty_per_liter: null,
                     uom_id: null,
                     sort_order: f.lines.length + 1,
                 },
@@ -224,6 +248,7 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
     };
 
     return (
+        <>
         <div style={{ display: 'flex', height: '100%', gap: 0, fontFamily: xpFont, fontSize: 11 }}>
             {/* Left Panel */}
             <div style={{ width: 280, minWidth: 280, display: 'flex', flexDirection: 'column', ...xpPanel, borderRight: '1px solid #7f9db9' }}>
@@ -399,6 +424,7 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
                                                 <th style={{ padding: '2px 4px', borderBottom: '1px solid #c0d4e8', textAlign: 'left', width: 80 }}>Type</th>
                                                 <th style={{ padding: '2px 4px', borderBottom: '1px solid #c0d4e8', textAlign: 'left' }}>Item</th>
                                                 <th style={{ padding: '2px 4px', borderBottom: '1px solid #c0d4e8', textAlign: 'left', width: 80 }}>Qty/100kg</th>
+                                                <th style={{ width: 80, fontSize: 11, padding: '2px 4px', borderBottom: '1px solid #c0d4e8', textAlign: 'left' }}>g/L</th>
                                                 <th style={{ padding: '2px 4px', borderBottom: '1px solid #c0d4e8', textAlign: 'left', width: 50 }}>Sort</th>
                                                 <th style={{ padding: '2px 4px', borderBottom: '1px solid #c0d4e8', textAlign: 'center', width: 28 }}></th>
                                             </tr>
@@ -406,7 +432,7 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
                                         <tbody>
                                             {form.lines.length === 0 && (
                                                 <tr>
-                                                    <td colSpan={6} style={{ padding: '6px', color: '#888', textAlign: 'center' }}>
+                                                    <td colSpan={7} style={{ padding: '6px', color: '#888', textAlign: 'center' }}>
                                                         No lines. Click "Add Line" to begin.
                                                     </td>
                                                 </tr>
@@ -452,6 +478,17 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
                                                         <input
                                                             type="number"
                                                             style={{ ...xpInput, width: '100%' }}
+                                                            value={line.qty_per_liter ?? ''}
+                                                            onChange={e => updateLine(idx, 'qty_per_liter', e.target.value ? parseFloat(e.target.value) : null)}
+                                                            placeholder="0"
+                                                            min={0}
+                                                            step="any"
+                                                        />
+                                                    </td>
+                                                    <td style={{ padding: '2px 4px' }}>
+                                                        <input
+                                                            type="number"
+                                                            style={{ ...xpInput, width: '100%' }}
                                                             value={line.sort_order}
                                                             onChange={e => updateLine(idx, 'sort_order', e.target.value)}
                                                             placeholder={String(idx + 1)}
@@ -474,6 +511,59 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+
+                        {/* BAK CUCI */}
+                        <div style={{ padding: '8px 12px', borderTop: '1px solid #c0d4e8' }}>
+                            <div style={{ fontWeight: 600, fontSize: 11, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Bak Cuci</div>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+                                <thead>
+                                    <tr style={{ background: '#eef2f8' }}>
+                                        <th style={{ padding: '2px 4px', borderBottom: '1px solid #c0d4e8', width: 50 }}>No.</th>
+                                        <th style={{ padding: '2px 4px', borderBottom: '1px solid #c0d4e8' }}>Description</th>
+                                        <th style={{ padding: '2px 4px', borderBottom: '1px solid #c0d4e8', width: 36 }}></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {washBaths.map((wb, i) => (
+                                        <tr key={i} style={{ background: i % 2 === 0 ? 'white' : '#f7f9fc' }}>
+                                            <td style={{ padding: '2px 4px' }}>
+                                                <input type="number" style={{ ...xpInput, width: '100%' }}
+                                                    value={wb.bath_number}
+                                                    onChange={e => { const u = [...washBaths]; u[i] = { ...u[i], bath_number: parseInt(e.target.value) || i + 1 }; setWashBaths(u); }} />
+                                            </td>
+                                            <td style={{ padding: '2px 4px' }}>
+                                                <input type="text" style={{ ...xpInput, width: '100%' }}
+                                                    value={wb.description}
+                                                    onChange={e => { const u = [...washBaths]; u[i] = { ...u[i], description: e.target.value }; setWashBaths(u); }} />
+                                            </td>
+                                            <td style={{ padding: '2px 4px', textAlign: 'center' }}>
+                                                <button style={{ ...xpBtn, padding: '0px 5px', fontSize: 10, color: '#aa0000' }}
+                                                    onClick={() => setWashBaths(washBaths.filter((_, j) => j !== i))}>×</button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            <button style={{ ...xpBtn, marginTop: 4, fontSize: 10 }}
+                                onClick={() => setWashBaths([...washBaths, { bath_number: washBaths.length + 1, description: '' }])}>+ Add Bath</button>
+                        </div>
+
+                        {/* FINISHING */}
+                        <div style={{ padding: '8px 12px', borderTop: '1px solid #c0d4e8' }}>
+                            <div style={{ fontWeight: 600, fontSize: 11, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Finishing</div>
+                            {finishingSteps.map((fs, i) => (
+                                <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 4, alignItems: 'center' }}>
+                                    <input type="text" style={{ ...xpInput, flex: 1 }}
+                                        value={fs.description}
+                                        onChange={e => { const u = [...finishingSteps]; u[i] = { ...u[i], description: e.target.value }; setFinishingSteps(u); }}
+                                        placeholder="e.g. TALASOFT NI 20cc/l CHROMAFIX FRD 10cc/l" />
+                                    <button style={{ ...xpBtn, padding: '0px 5px', fontSize: 10, color: '#aa0000', flexShrink: 0 }}
+                                        onClick={() => setFinishingSteps(finishingSteps.filter((_, j) => j !== i))}>×</button>
+                                </div>
+                            ))}
+                            <button style={{ ...xpBtn, fontSize: 10 }}
+                                onClick={() => setFinishingSteps([...finishingSteps, { description: '', sort_order: finishingSteps.length }])}>+ Add Finishing Step</button>
                         </div>
 
                         {/* Save / Cancel */}
@@ -516,6 +606,11 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
                                     }}
                                     onClick={() => openEdit(selectedRecipe)}
                                 >Edit</button>
+                                <button
+                                    style={{ ...xpBtn, fontSize: 10, padding: '1px 8px' }}
+                                    onClick={() => setShowPrint(true)}
+                                    title="Print Recipe Card"
+                                >Print</button>
                                 <button
                                     style={{
                                         ...xpBtn,
@@ -613,6 +708,14 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
                 )}
             </div>
         </div>
+
+        {showPrint && selectedRecipe && (
+            <DyeRecipePrintView
+                recipe={selectedRecipe}
+                onClose={() => setShowPrint(false)}
+            />
+        )}
+        </>
     );
 }
 

@@ -35,4 +35,4 @@ from app.models.purchase import PurchaseOrder, PurchaseOrderLine, purchase_order
 from app.models.stock_balance import StockBalance, stock_balance_values
 from app.models.settings import CompanyProfile
 from app.models.batch import Batch, BatchConsumption
-from app.models.dyeing_setting import DyeRecipe, DyeRecipeLine, DyeingRun, DyeingRunChemical, SettingRun
+from app.models.dyeing_setting import DyeRecipe, DyeRecipeLine, DyeRecipeWashBath, DyeRecipeFinishing, DyeingRun, DyeingRunChemical, SettingRun

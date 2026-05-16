@@ -7,7 +7,10 @@ from datetime import datetime, timezone
 import uuid
 
 from app.db.session import get_async_db
-from app.models.dyeing_setting import DyeRecipe, DyeRecipeLine, DyeingRun, DyeingRunChemical, SettingRun
+from app.models.dyeing_setting import (
+    DyeRecipe, DyeRecipeLine, DyeingRun, DyeingRunChemical, SettingRun,
+    DyeRecipeWashBath, DyeRecipeFinishing,
+)
 from app.models.batch import Batch
 from app.models.work_order import WorkOrder
 from app.models.routing import WorkCenter
@@ -16,6 +19,8 @@ from app.api.auth import get_current_user
 from app.services import audit_service
 from app.schemas import (
     DyeRecipeCreate, DyeRecipeUpdate, DyeRecipeResponse,
+    DyeRecipeWashBathCreate, DyeRecipeWashBathResponse,
+    DyeRecipeFinishingCreate, DyeRecipeFinishingResponse,
     DyeingRunCreate, DyeingRunCompletePayload, DyeingRunResponse,
     SettingRunCreate, SettingRunCompletePayload, SettingRunResponse,
 )
@@ -26,7 +31,11 @@ router = APIRouter()
 # ─── helpers ────────────────────────────────────────────────────────────────
 
 def _recipe_opts():
-    return [selectinload(DyeRecipe.lines)]
+    return [
+        selectinload(DyeRecipe.lines),
+        selectinload(DyeRecipe.wash_baths),
+        selectinload(DyeRecipe.finishing_steps),
+    ]
 
 
 def _dyeing_run_opts():
@@ -98,6 +107,14 @@ async def list_dye_recipes(
             lines.append(ld)
         rd = {col.name: getattr(r, col.name) for col in r.__table__.columns}
         rd["lines"] = lines
+        rd["wash_baths"] = [
+            {col.name: getattr(wb, col.name) for col in wb.__table__.columns}
+            for wb in r.wash_baths
+        ]
+        rd["finishing_steps"] = [
+            {col.name: getattr(fs, col.name) for col in fs.__table__.columns}
+            for fs in r.finishing_steps
+        ]
         out.append(rd)
     return out
 
@@ -128,11 +145,26 @@ async def create_dye_recipe(
             recipe_id=recipe.id,
             item_id=ln.item_id,
             qty_per_100kg=ln.qty_per_100kg,
+            qty_per_liter=ln.qty_per_liter,
             uom_id=ln.uom_id,
             chemical_type=ln.chemical_type,
             sort_order=ln.sort_order if ln.sort_order else i,
         )
         db.add(line)
+
+    for wb in payload.wash_baths:
+        db.add(DyeRecipeWashBath(
+            recipe_id=recipe.id,
+            bath_number=wb.bath_number,
+            description=wb.description,
+        ))
+
+    for i, fs in enumerate(payload.finishing_steps):
+        db.add(DyeRecipeFinishing(
+            recipe_id=recipe.id,
+            description=fs.description,
+            sort_order=fs.sort_order if fs.sort_order else i,
+        ))
 
     await db.commit()
     result = await db.execute(
@@ -147,6 +179,14 @@ async def create_dye_recipe(
         lines.append(ld)
     rd = {col.name: getattr(r, col.name) for col in r.__table__.columns}
     rd["lines"] = lines
+    rd["wash_baths"] = [
+        {col.name: getattr(wb, col.name) for col in wb.__table__.columns}
+        for wb in r.wash_baths
+    ]
+    rd["finishing_steps"] = [
+        {col.name: getattr(fs, col.name) for col in fs.__table__.columns}
+        for fs in r.finishing_steps
+    ]
 
     await audit_service.log_activity(
         db, str(current_user.id), "CREATE", "DyeRecipe", str(r.id),
@@ -175,6 +215,14 @@ async def get_dye_recipe(
         lines.append(ld)
     rd = {col.name: getattr(r, col.name) for col in r.__table__.columns}
     rd["lines"] = lines
+    rd["wash_baths"] = [
+        {col.name: getattr(wb, col.name) for col in wb.__table__.columns}
+        for wb in r.wash_baths
+    ]
+    rd["finishing_steps"] = [
+        {col.name: getattr(fs, col.name) for col in fs.__table__.columns}
+        for fs in r.finishing_steps
+    ]
     return rd
 
 
@@ -206,11 +254,34 @@ async def update_dye_recipe(
                 recipe_id=r.id,
                 item_id=ln.item_id,
                 qty_per_100kg=ln.qty_per_100kg,
+                qty_per_liter=ln.qty_per_liter,
                 uom_id=ln.uom_id,
                 chemical_type=ln.chemical_type,
                 sort_order=ln.sort_order if ln.sort_order else i,
             )
             db.add(line)
+
+    if payload.wash_baths is not None:
+        for wb in list(r.wash_baths):
+            await db.delete(wb)
+        await db.flush()
+        for wb in payload.wash_baths:
+            db.add(DyeRecipeWashBath(
+                recipe_id=r.id,
+                bath_number=wb.bath_number,
+                description=wb.description,
+            ))
+
+    if payload.finishing_steps is not None:
+        for fs in list(r.finishing_steps):
+            await db.delete(fs)
+        await db.flush()
+        for i, fs in enumerate(payload.finishing_steps):
+            db.add(DyeRecipeFinishing(
+                recipe_id=r.id,
+                description=fs.description,
+                sort_order=fs.sort_order if fs.sort_order else i,
+            ))
 
     await db.commit()
     result = await db.execute(
@@ -225,6 +296,14 @@ async def update_dye_recipe(
         lines.append(ld)
     rd = {col.name: getattr(r, col.name) for col in r.__table__.columns}
     rd["lines"] = lines
+    rd["wash_baths"] = [
+        {col.name: getattr(wb, col.name) for col in wb.__table__.columns}
+        for wb in r.wash_baths
+    ]
+    rd["finishing_steps"] = [
+        {col.name: getattr(fs, col.name) for col in fs.__table__.columns}
+        for fs in r.finishing_steps
+    ]
 
     await audit_service.log_activity(
         db, str(current_user.id), "UPDATE", "DyeRecipe", str(r.id),
@@ -286,6 +365,16 @@ async def create_dyeing_run(
         duration_min=payload.duration_min,
         operator_name=payload.operator_name,
         notes=payload.notes,
+        volume_air_liters=payload.volume_air_liters,
+        machine_speed=payload.machine_speed,
+        machine_pressure=payload.machine_pressure,
+        color_name=payload.color_name,
+        color_matching_ref=payload.color_matching_ref,
+        lot_number=payload.lot_number,
+        customer_name=payload.customer_name,
+        artikel=payload.artikel,
+        po_number=payload.po_number,
+        qty_order_kg=payload.qty_order_kg,
         status="PENDING",
     )
     db.add(run)
