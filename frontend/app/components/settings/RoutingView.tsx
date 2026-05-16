@@ -2,6 +2,73 @@ import { useState } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 
+// ── XP inline styles ─────────────────────────────────────────────────────
+const xpBevel: React.CSSProperties = {
+    border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
+    boxShadow: '2px 2px 4px rgba(0,0,0,0.3)', background: '#ece9d8', borderRadius: 0,
+};
+const xpTitleBar = (extra: any = {}): React.CSSProperties => ({
+    background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#ffffff',
+    fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '12px', fontWeight: 'bold',
+    padding: '4px 8px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)',
+    borderBottom: '1px solid #003080', display: 'flex', justifyContent: 'space-between',
+    alignItems: 'center', minHeight: '26px', ...extra,
+});
+const xpToolbar: React.CSSProperties = {
+    background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898',
+    padding: '3px 6px', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' as const,
+};
+const xpBtn = (extra: any = {}) => ({
+    fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '2px 10px', cursor: 'pointer',
+    background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)', border: '1px solid',
+    borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000000', borderRadius: 0, ...extra,
+});
+const xpInput: React.CSSProperties = {
+    fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', border: '1px solid #7f9db9',
+    boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px',
+    background: '#ffffff', color: '#000000', height: '20px', outline: 'none',
+};
+const xpSep: React.CSSProperties = {
+    width: '1px', height: '20px', background: '#a0988c', margin: '0 2px', flexShrink: 0,
+};
+const xpTableHeader: React.CSSProperties = {
+    background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080',
+    fontSize: '10px', fontWeight: 'bold', color: '#000000',
+};
+const xpLabel: React.CSSProperties = {
+    fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2,
+};
+const xpStatusBar: React.CSSProperties = {
+    background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)', borderTop: '1px solid #b0a898',
+    padding: '2px 8px', display: 'flex', gap: 16,
+    fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#333',
+};
+
+function XPPanel({ icon, title, accentColor, createForm, searchVal, onSearch, searchPlaceholder, countLabel, table }: any) {
+    return (
+        <div style={{ ...xpBevel, height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div style={xpTitleBar({ background: `linear-gradient(to right, ${accentColor[0]} 0%, ${accentColor[1]} 100%)`, borderBottom: `1px solid ${accentColor[2]}` })}>
+                <span><i className={`bi ${icon}`} style={{ marginRight: 6 }}></i>{title}</span>
+            </div>
+            {/* Create form */}
+            <div style={{ background: '#f5f4ef', borderBottom: '1px solid #b0a898', padding: '6px 8px' }}>
+                {createForm}
+            </div>
+            {/* Search toolbar */}
+            <div style={xpToolbar}>
+                <i className="bi bi-search" style={{ fontSize: '11px', color: '#666' }}></i>
+                <input style={{ ...xpInput, flex: 1, minWidth: 80 }} placeholder={searchPlaceholder} value={searchVal} onChange={(e: any) => onSearch(e.target.value)} />
+                <div style={xpSep} />
+                <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#444' }}>{countLabel}</span>
+            </div>
+            {/* Table */}
+            <div style={{ flex: 1, overflowY: 'auto', background: '#ffffff' }}>
+                {table}
+            </div>
+        </div>
+    );
+}
+
 export default function RoutingView({ workCenters, operations, onCreateWorkCenter, onDeleteWorkCenter, onCreateOperation, onDeleteOperation, onRefresh }: any) {
   const { t } = useLanguage();
   const [newWorkCenter, setNewWorkCenter] = useState({ code: '', name: '', cost_per_hour: 0, center_type: 'GENERAL' });
@@ -31,71 +98,6 @@ export default function RoutingView({ workCenters, operations, onCreateWorkCente
   const filteredOp = (operations || []).filter((op: any) =>
       op.code.toLowerCase().includes(opSearch.toLowerCase()) ||
       op.name.toLowerCase().includes(opSearch.toLowerCase())
-  );
-
-  // ── XP inline styles ─────────────────────────────────────────────────────
-  const xpBevel: React.CSSProperties = {
-      border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-      boxShadow: '2px 2px 4px rgba(0,0,0,0.3)', background: '#ece9d8', borderRadius: 0,
-  };
-  const xpTitleBar = (extra: any = {}): React.CSSProperties => ({
-      background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#ffffff',
-      fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '12px', fontWeight: 'bold',
-      padding: '4px 8px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)',
-      borderBottom: '1px solid #003080', display: 'flex', justifyContent: 'space-between',
-      alignItems: 'center', minHeight: '26px', ...extra,
-  });
-  const xpToolbar: React.CSSProperties = {
-      background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898',
-      padding: '3px 6px', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' as const,
-  };
-  const xpBtn = (extra: any = {}) => ({
-      fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '2px 10px', cursor: 'pointer',
-      background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)', border: '1px solid',
-      borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000000', borderRadius: 0, ...extra,
-  });
-  const xpInput: React.CSSProperties = {
-      fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', border: '1px solid #7f9db9',
-      boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px',
-      background: '#ffffff', color: '#000000', height: '20px', outline: 'none',
-  };
-  const xpSep: React.CSSProperties = {
-      width: '1px', height: '20px', background: '#a0988c', margin: '0 2px', flexShrink: 0,
-  };
-  const xpTableHeader: React.CSSProperties = {
-      background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080',
-      fontSize: '10px', fontWeight: 'bold', color: '#000000',
-  };
-  const xpLabel: React.CSSProperties = {
-      fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2,
-  };
-  const xpStatusBar: React.CSSProperties = {
-      background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)', borderTop: '1px solid #b0a898',
-      padding: '2px 8px', display: 'flex', gap: 16,
-      fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#333',
-  };
-
-  const XPPanel = ({ icon, title, accentColor, createForm, searchVal, onSearch, searchPlaceholder, countLabel, table }: any) => (
-      <div style={{ ...xpBevel, height: '100%', display: 'flex', flexDirection: 'column' }}>
-          <div style={xpTitleBar({ background: `linear-gradient(to right, ${accentColor[0]} 0%, ${accentColor[1]} 100%)`, borderBottom: `1px solid ${accentColor[2]}` })}>
-              <span><i className={`bi ${icon}`} style={{ marginRight: 6 }}></i>{title}</span>
-          </div>
-          {/* Create form */}
-          <div style={{ background: '#f5f4ef', borderBottom: '1px solid #b0a898', padding: '6px 8px' }}>
-              {createForm}
-          </div>
-          {/* Search toolbar */}
-          <div style={xpToolbar}>
-              <i className="bi bi-search" style={{ fontSize: '11px', color: '#666' }}></i>
-              <input style={{ ...xpInput, flex: 1, minWidth: 80 }} placeholder={searchPlaceholder} value={searchVal} onChange={(e: any) => onSearch(e.target.value)} />
-              <div style={xpSep} />
-              <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#444' }}>{countLabel}</span>
-          </div>
-          {/* Table */}
-          <div style={{ flex: 1, overflowY: 'auto', background: '#ffffff' }}>
-              {table}
-          </div>
-      </div>
   );
 
   if (classic) {
