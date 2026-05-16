@@ -78,6 +78,8 @@ async def rename_category(
     _=Depends(get_current_user),
 ):
     cat = await _get_or_404(db, category_id)
+    if cat.is_system:
+        raise HTTPException(status_code=403, detail="Cannot rename a system category")
     cat.name = data.name
     await db.commit()
     return await _get_or_404(db, cat.id)

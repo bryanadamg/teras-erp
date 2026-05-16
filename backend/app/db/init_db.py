@@ -64,12 +64,12 @@ def seed_system_attributes(db):
         logger.warning(f"System attribute seeding skipped: {e}")
 
 
-SYSTEM_CATEGORIES = {"Raw Material", "Finished Goods", "WIP", "Sample"}
+SYSTEM_CATEGORIES = {"Raw Material", "Finished Goods", "WIP", "Sample", "Chemical", "Dye"}
 
 def seed_categories(db):
     try:
         if db.query(Category).count() == 0:
-            defaults = ["Raw Material", "WIP", "Finished Goods", "Sample", "Consumable"]
+            defaults = ["Raw Material", "WIP", "Finished Goods", "Sample", "Consumable", "Chemical", "Dye"]
             for name in defaults:
                 db.add(Category(name=name, is_system=(name in SYSTEM_CATEGORIES)))
             db.commit()

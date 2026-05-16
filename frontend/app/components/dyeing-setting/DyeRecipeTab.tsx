@@ -78,6 +78,10 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
     const { showToast } = useToast();
     const { confirm } = useConfirm();
 
+    const chemicalItems = items.filter(it =>
+        it.category_path && it.category_path.some((p: string) => p === 'Chemical' || p === 'Dye')
+    );
+
     const loadRecipes = useCallback(async () => {
         setLoading(true);
         try {
@@ -470,7 +474,7 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
                                                             onChange={e => updateLine(idx, 'item_id', e.target.value)}
                                                         >
                                                             <option value="">-- select item --</option>
-                                                            {items.map(item => (
+                                                            {chemicalItems.map(item => (
                                                                 <option key={item.id} value={String(item.id)}>{item.name}</option>
                                                             ))}
                                                         </select>
