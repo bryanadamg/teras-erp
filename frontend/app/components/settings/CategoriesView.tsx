@@ -58,7 +58,25 @@ export default function CategoriesView({
     const [editingState, setEditingState] = useState<EditingState>(null);
     const [addingState, setAddingState] = useState<AddingState>(null);
     const [hoveredId, setHoveredId] = useState<string | null>(null);
+    const [newRootName, setNewRootName] = useState('');
+    const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
     const renderCounter = { n: 0 };
+
+    const toggleCollapse = (id: string) => {
+        setCollapsedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const handleAddRoot = async () => {
+        if (newRootName.trim()) {
+            await onCreateCategory(newRootName.trim(), undefined);
+            setNewRootName('');
+        }
+    };
 
     const selectedNode = selectedId ? categories.find(c => c.id === selectedId) ?? null : null;
     const tree = buildTree(
@@ -179,7 +197,8 @@ export default function CategoriesView({
         const isHovered = node.id === hoveredId;
         const isEditing = editingState?.id === node.id;
         const hasChildren = (node.children?.length ?? 0) > 0;
-        const chevron = hasChildren ? '▼' : '—';
+        const isCollapsed = collapsedIds.has(node.id);
+        const chevron = hasChildren ? (isCollapsed ? '▶' : '▼') : '—';
         const chevronColor = isSelected ? '#fff' : (hasChildren ? '#444' : '#bbb');
         const actionsOpacity = isHovered || isEditing ? 1 : 0;
         const rowBg = isSelected ? '#316ac5' : (isHovered ? '#dde8fb' : (isEven ? '#fff' : '#f5f4ef'));
@@ -237,7 +256,10 @@ export default function CategoriesView({
                     onMouseEnter={() => setHoveredId(node.id)}
                     onMouseLeave={() => setHoveredId(null)}
                 >
-                    <span style={{ marginRight: 4, fontSize: 10, fontFamily: 'monospace', color: chevronColor }}>{chevron}</span>
+                    <span
+                        style={{ marginRight: 4, fontSize: 10, fontFamily: 'monospace', color: chevronColor, cursor: hasChildren ? 'pointer' : 'default' }}
+                        onClick={hasChildren ? e => { e.stopPropagation(); toggleCollapse(node.id); } : undefined}
+                    >{chevron}</span>
                     <span style={{ flex: 1 }}>{node.name}</span>
                     {node.is_system && (
                         <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 9, color: '#003080', background: '#dce8ff', border: '1px solid #7fa8e0', padding: '0 4px', marginRight: 4 }}>SYSTEM</span>
@@ -264,8 +286,8 @@ export default function CategoriesView({
                         )}
                     </span>
                 </div>
-                {node.children?.map(child => renderNodeClassic(child))}
-                {addingState?.parentId === node.id && renderAddRowClassic(node.level + 1)}
+                {!isCollapsed && node.children?.map(child => renderNodeClassic(child))}
+                {!isCollapsed && addingState?.parentId === node.id && renderAddRowClassic(node.level + 1)}
             </div>
         );
     };
@@ -311,7 +333,8 @@ export default function CategoriesView({
         const isHovered = node.id === hoveredId;
         const isEditing = editingState?.id === node.id;
         const hasChildren = (node.children?.length ?? 0) > 0;
-        const chevron = hasChildren ? '▼' : '—';
+        const isCollapsed = collapsedIds.has(node.id);
+        const chevron = hasChildren ? (isCollapsed ? '▶' : '▼') : '—';
         const chevronColor = isSelected ? 'rgba(255,255,255,0.8)' : (hasChildren ? '#495057' : '#ced4da');
         const actionsOpacity = isHovered || isEditing ? 1 : 0;
         const rowBg = isSelected ? '#0d6efd' : (isHovered ? '#e8f0fe' : (isEven ? '#fff' : '#f8f9fa'));
@@ -371,7 +394,10 @@ export default function CategoriesView({
                     onMouseEnter={() => setHoveredId(node.id)}
                     onMouseLeave={() => setHoveredId(null)}
                 >
-                    <span style={{ marginRight: 6, fontFamily: 'monospace', fontSize: 11, color: chevronColor }}>{chevron}</span>
+                    <span
+                        style={{ marginRight: 6, fontFamily: 'monospace', fontSize: 11, color: chevronColor, cursor: hasChildren ? 'pointer' : 'default' }}
+                        onClick={hasChildren ? e => { e.stopPropagation(); toggleCollapse(node.id); } : undefined}
+                    >{chevron}</span>
                     <span style={{ flex: 1 }}>{node.name}</span>
                     {node.is_system && (
                         <span className="badge bg-primary" style={{ fontSize: 10, marginRight: 6 }}>SYSTEM</span>
@@ -401,8 +427,8 @@ export default function CategoriesView({
                         )}
                     </span>
                 </div>
-                {node.children?.map(child => renderNodeModern(child))}
-                {addingState?.parentId === node.id && renderAddRowModern(node.level + 1)}
+                {!isCollapsed && node.children?.map(child => renderNodeModern(child))}
+                {!isCollapsed && addingState?.parentId === node.id && renderAddRowModern(node.level + 1)}
             </div>
         );
     };
@@ -411,21 +437,19 @@ export default function CategoriesView({
     if (classic) {
         return (
             <div>
-                {/* Toolbar */}
+                {/* Search toolbar */}
                 <div style={xpToolbar}>
-                    <button
-                        style={xpBtn()}
-                        onClick={() => startAdd(undefined)}
-                    >
-                        + Level 1
-                    </button>
-                    <div style={{ flex: 1 }} />
+                    <i className="bi bi-search" style={{ fontSize: '11px', color: '#666' }}></i>
                     <input
-                        style={{ ...xpInput, width: 100 }}
-                        placeholder="Search..."
+                        style={{ ...xpInput, width: 200 }}
+                        placeholder="Search categories..."
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                     />
+                    <div style={{ width: 1, height: 20, background: '#a0988c', margin: '0 2px', flexShrink: 0 }} />
+                    <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#444' }}>
+                        {categories.length} categor{categories.length === 1 ? 'y' : 'ies'}
+                    </span>
                 </div>
 
                 {/* Tree */}
@@ -444,19 +468,35 @@ export default function CategoriesView({
                         </div>
                     )}
                     {(renderCounter.n = 0, tree.map(node => renderNodeClassic(node)))}
-                    {addingState?.parentId === undefined && renderAddRowClassic(1)}
+                </div>
+
+                {/* Add row */}
+                <div style={{ ...xpToolbar, borderTop: '1px solid #b0a898', borderBottom: 'none' }}>
+                    <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#000', whiteSpace: 'nowrap' }}>New category:</span>
+                    <input
+                        style={{ ...xpInput, flex: 1, minWidth: 120 }}
+                        placeholder="Category name..."
+                        value={newRootName}
+                        onChange={e => setNewRootName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddRoot(); } }}
+                    />
+                    <button
+                        style={xpBtn({ background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' })}
+                        onClick={handleAddRoot}
+                    >
+                        <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>Add
+                    </button>
                 </div>
 
                 {/* Status bar */}
                 <div style={{
-                    background: '#ece9d8',
+                    background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)',
                     borderTop: '1px solid #b0a898',
-                    padding: '2px 6px',
-                    fontSize: 10,
-                    color: '#555',
+                    padding: '2px 8px',
+                    fontSize: 11,
+                    color: '#333',
                     display: 'flex',
                     gap: 16,
-                    marginTop: 8,
                     fontFamily: 'Tahoma, Arial, sans-serif',
                 }}>
                     {selectedNode ? (
@@ -465,7 +505,7 @@ export default function CategoriesView({
                             <span>Path: {selectedNode.path_names.join(' / ')}</span>
                         </>
                     ) : (
-                        <span>{categories.length} categories total</span>
+                        <span><b>{categories.length}</b> Total</span>
                     )}
                 </div>
             </div>
@@ -475,19 +515,12 @@ export default function CategoriesView({
     // ── Modern (Bootstrap) mode ───────────────────────────────────────────────
     return (
         <div>
-            {/* Toolbar */}
-            <div style={{ display: 'flex', gap: 8, padding: '8px 0', alignItems: 'center' }}>
-                <button
-                    className="btn btn-sm btn-outline-secondary"
-                    onClick={() => startAdd(undefined)}
-                >
-                    + Level 1
-                </button>
-                <div style={{ flex: 1 }} />
+            {/* Search row */}
+            <div className="input-group mb-3">
+                <span className="input-group-text"><i className="bi bi-search"></i></span>
                 <input
-                    className="form-control form-control-sm"
-                    style={{ width: 140 }}
-                    placeholder="Search..."
+                    className="form-control"
+                    placeholder="Search categories..."
                     value={search}
                     onChange={e => setSearch(e.target.value)}
                 />
@@ -508,8 +541,20 @@ export default function CategoriesView({
                     </div>
                 )}
                 {(renderCounter.n = 0, tree.map(node => renderNodeModern(node)))}
-                {addingState?.parentId === undefined && renderAddRowModern(1)}
             </div>
+
+            {/* Add row */}
+            <form className="input-group mt-3" onSubmit={e => { e.preventDefault(); handleAddRoot(); }}>
+                <input
+                    className="form-control"
+                    placeholder="New category name..."
+                    value={newRootName}
+                    onChange={e => setNewRootName(e.target.value)}
+                />
+                <button type="submit" className="btn btn-success px-4">
+                    <i className="bi bi-plus-lg me-1"></i>Add
+                </button>
+            </form>
 
             {/* Status bar */}
             <div className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>
