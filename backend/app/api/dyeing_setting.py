@@ -32,7 +32,8 @@ router = APIRouter()
 
 def _recipe_opts():
     return [
-        selectinload(DyeRecipe.lines),
+        selectinload(DyeRecipe.lines).selectinload(DyeRecipeLine.item),
+        selectinload(DyeRecipe.lines).selectinload(DyeRecipeLine.uom),
         selectinload(DyeRecipe.wash_baths),
         selectinload(DyeRecipe.finishing_steps),
     ]
@@ -40,7 +41,8 @@ def _recipe_opts():
 
 def _dyeing_run_opts():
     return [
-        selectinload(DyeingRun.chemicals),
+        selectinload(DyeingRun.chemicals).selectinload(DyeingRunChemical.item),
+        selectinload(DyeingRun.chemicals).selectinload(DyeingRunChemical.uom),
         joinedload(DyeingRun.recipe),
         joinedload(DyeingRun.input_batch),
         joinedload(DyeingRun.output_batch),
