@@ -33,19 +33,17 @@ export default function SalesOrdersPage() {
         if (res.ok) fetchData();
     };
 
-    const handleGeneratePR = (so: any, line: any) => {
+    const handleGeneratePR = (so: any) => {
         const soLines: any[] = so.lines || [];
 
-        // Group all lines with same item_id by their attribute set (one group = one color/variant = one BOM)
-        const variantLines = soLines.filter((l: any) => l.item_id === line.item_id);
+        // Group all lines by (item_id + attribute set) — one group = one BOM
         const attrGroupMap = new Map<string, any[]>();
-        variantLines.forEach((l: any) => {
-            const key = [...(l.attribute_value_ids || [])].sort().join(',');
+        soLines.forEach((l: any) => {
+            const key = l.item_id + '::' + [...(l.attribute_value_ids || [])].sort().join(',');
             if (!attrGroupMap.has(key)) attrGroupMap.set(key, []);
             attrGroupMap.get(key)!.push(l);
         });
 
-        const clickedAttrKey = [...(line.attribute_value_ids || [])].sort().join(',');
         const coveredSizeIds = new Set<string>();
         (productionRuns || []).forEach((pr: any) => {
             if (String(pr.sales_order_id) !== String(so.id)) return;
@@ -55,9 +53,9 @@ export default function SalesOrdersPage() {
         });
 
         const entries: Array<{ bom_id: string; sizes?: { bom_size_id: string; qty: number }[]; total_qty?: number }> = [];
-        let clickedBomMissing = false;
+        let missingBomCount = 0;
 
-        for (const [attrKey, groupLines] of attrGroupMap) {
+        for (const [, groupLines] of attrGroupMap) {
             const firstLine = groupLines[0];
             const matchingBOM = boms.find((b: any) => {
                 if (b.item_id !== firstLine.item_id) return false;
@@ -68,7 +66,7 @@ export default function SalesOrdersPage() {
             });
 
             if (!matchingBOM) {
-                if (attrKey === clickedAttrKey) clickedBomMissing = true;
+                missingBomCount++;
                 continue;
             }
 
@@ -95,16 +93,10 @@ export default function SalesOrdersPage() {
         }
 
         if (entries.length === 0) {
-            if (clickedBomMissing) {
-                showToast('No matching BOM found. Please create a recipe first.', 'warning');
-                const params = new URLSearchParams({
-                    action: 'create_bom',
-                    item_id: line.item_id,
-                    attribute_value_ids: (line.attribute_value_ids || []).join(',')
-                });
-                router.push(`/bom?${params.toString()}`);
+            if (missingBomCount > 0) {
+                showToast(`${missingBomCount} item(s) have no matching BOM. Please create recipes first.`, 'warning');
             } else {
-                showToast('All variants already have a Production Run.', 'info');
+                showToast('All items already have a Production Run.', 'info');
             }
             return;
         }

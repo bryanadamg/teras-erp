@@ -178,7 +178,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             }
 
             // MES (Manufacturing Orders + Production Runs)
-            if (fetchTarget.includes('manufacturing') || fetchTarget.includes('work-orders') || fetchTarget.includes('production-runs') || fetchTarget === 'dashboard' || fetchTarget === '' || fetchTarget.includes('reports')) {
+            if (fetchTarget.includes('manufacturing') || fetchTarget.includes('work-orders') || fetchTarget.includes('production-runs') || fetchTarget.includes('sales-orders') || fetchTarget === 'dashboard' || fetchTarget === '' || fetchTarget.includes('reports')) {
                 const moSkip = (woPage - 1) * pageSize;
                 requests.push(fetch(`${API_BASE}/manufacturing-orders?skip=${moSkip}&limit=${pageSize}`, { headers }));
                 requestTypes.push('manufacturing-orders');

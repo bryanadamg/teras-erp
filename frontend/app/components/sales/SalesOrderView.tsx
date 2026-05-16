@@ -502,23 +502,6 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
 
   const currentBoundAttrs = getBoundAttributes(newLine.item_id);
 
-  const getCoveredPR = (soId: string, bomSizeId: string | null, bomId?: string): any | null => {
-      if (!productionRuns) return null;
-      if (bomSizeId) {
-          return (productionRuns as any[]).find((pr: any) =>
-              String(pr.sales_order_id) === String(soId) &&
-              (pr.manufacturing_orders || []).some((mo: any) => String(mo.bom_size_id) === String(bomSizeId))
-          ) || null;
-      }
-      if (bomId) {
-          return (productionRuns as any[]).find((pr: any) =>
-              String(pr.sales_order_id) === String(soId) &&
-              String(pr.bom_id) === String(bomId)
-          ) || null;
-      }
-      return null;
-  };
-
   const getAttributeValueName = (valId: string) => {
       for (const attr of attributes) {
           const val = attr.values.find((v: any) => v.id === valId);
@@ -1107,7 +1090,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                <th style={classic ? { ...xpThCell, width: '110px' } : undefined}>Stock Notes</th>
                                <th style={classic ? { ...xpThCell, width: '88px' } : undefined}>Req / Conf</th>
                                <th style={classic ? { ...xpThCell, width: '80px' } : undefined}>Status</th>
-                               <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '80px' } : undefined} className={classic ? '' : 'text-end pe-3'}>Actions</th>
+                               <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '110px' } : undefined} className={classic ? '' : 'text-end pe-3'}>Actions</th>
                            </tr>
                        </thead>
                        <tbody>
@@ -1148,8 +1131,34 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                    </>
                                );
 
+                               const soPRs = (productionRuns || []).filter((pr: any) => String(pr.sales_order_id) === String(so.id));
+
                                const actionsCellContent = (
-                                   <div style={classic ? { display:'flex', gap:2, justifyContent:'flex-end', alignItems:'center' } : undefined} className={classic ? '' : 'd-flex justify-content-end align-items-center gap-1'}>
+                                   <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:3 }}>
+                                       {(so.status === 'PENDING' || soPRs.length > 0) && (
+                                           <div style={{ display:'flex', flexWrap:'wrap' as const, gap:2, justifyContent:'flex-end' }}>
+                                               {so.status === 'PENDING' && (classic ? (
+                                                   <button title="Create Production Run" onClick={() => onGenerateWO(so)}
+                                                       style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', padding:'1px 5px', cursor:'pointer', whiteSpace:'nowrap' as const, background:'linear-gradient(to bottom,#5a9ae0,#0058e6)', border:'1px solid', borderColor:'#003080 #001840 #001840 #003080', color:'#fff', fontWeight:'bold' }}>
+                                                       <i className="bi bi-collection-play" style={{ marginRight:2 }}></i>PR
+                                                   </button>
+                                               ) : (
+                                                   <button className="btn btn-sm btn-primary py-0 px-2" style={{ fontSize:10, whiteSpace:'nowrap' as const }} title="Create Production Run" onClick={() => onGenerateWO(so)}>
+                                                       <i className="bi bi-collection-play me-1"></i>PR
+                                                   </button>
+                                               ))}
+                                               {soPRs.map((pr: any) => classic ? (
+                                                   <span key={pr.id} style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', padding:'1px 5px', whiteSpace:'nowrap' as const, background:'#e4f5e4', border:'1px solid #90c090', color:'#1a5e1a', fontWeight:'bold' }}>
+                                                       <i className="bi bi-check-circle" style={{ marginRight:2 }}></i>{pr.code}
+                                                   </span>
+                                               ) : (
+                                                   <span key={pr.id} style={{ fontSize:9, whiteSpace:'nowrap' as const, background:'#d1e7dd', border:'1px solid #a3cfbb', color:'#0a3622', padding:'1px 5px', borderRadius:3, fontWeight:'bold' }}>
+                                                       <i className="bi bi-check-circle me-1"></i>{pr.code}
+                                                   </span>
+                                               ))}
+                                           </div>
+                                       )}
+                                       <div style={classic ? { display:'flex', gap:2, justifyContent:'flex-end', alignItems:'center' } : undefined} className={classic ? '' : 'd-flex justify-content-end align-items-center gap-1'}>
                                        {so.status === 'READY' && (
                                            classic ? (
                                                <button style={xpBtn({ padding:'1px 5px' })} title="Mark as Sent" onClick={() => onUpdateSOStatus(so.id, 'SENT')}>
@@ -1197,6 +1206,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                                </button>
                                            </>
                                        )}
+                                       </div>
                                    </div>
                                );
 
@@ -1228,50 +1238,15 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
 
                                            {/* Item */}
                                            <td style={lineTd(isFirst, isLast)}>
-                                               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:6 }}>
-                                                   <div style={{ flex:1, minWidth:0 }}>
-                                                       <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'10px', fontWeight:'bold', lineHeight:1.3 }} className={classic ? '' : 'fw-semibold'}>
-                                                           {getItemName(line.item_id, line.item_name)}
-                                                           {isSample(line.item_id) && <i className="bi bi-star-fill text-warning ms-1" style={{fontSize:'0.6rem'}}></i>}
-                                                       </div>
-                                                       {(line.attribute_value_ids || []).length > 0 && (
-                                                           <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', color:'#666', fontStyle:'italic' }}>
-                                                               {getAttributeValues(line.attribute_value_ids)}
-                                                           </div>
-                                                       )}
-                                                   </div>
-                                                   {so.status === 'PENDING' && (() => {
-                                                       const matchingBomForLine = !line.bom_size_id ? boms.find((b: any) => {
-                                                           if (b.item_id !== line.item_id) return false;
-                                                           const bomAttrs = b.attribute_value_ids || [];
-                                                           const lineAttrs = line.attribute_value_ids || [];
-                                                           if (lineAttrs.length !== bomAttrs.length) return false;
-                                                           return lineAttrs.every((id: string) => bomAttrs.includes(id));
-                                                       }) : null;
-                                                       const coveredPR = getCoveredPR(so.id, line.bom_size_id, matchingBomForLine?.id);
-                                                       if (coveredPR) {
-                                                           return classic ? (
-                                                               <span style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', padding:'1px 5px', whiteSpace:'nowrap' as const, background:'#e4f5e4', border:'1px solid #90c090', color:'#1a5e1a', fontWeight:'bold', flexShrink:0 }}>
-                                                                   <i className="bi bi-check-circle" style={{ marginRight:2 }}></i>{coveredPR.code}
-                                                               </span>
-                                                           ) : (
-                                                               <span style={{ fontSize:9, whiteSpace:'nowrap', flexShrink:0, background:'#d1e7dd', border:'1px solid #a3cfbb', color:'#0a3622', padding:'1px 5px', borderRadius:3, fontWeight:'bold' }}>
-                                                                   <i className="bi bi-check-circle me-1"></i>{coveredPR.code}
-                                                               </span>
-                                                           );
-                                                       }
-                                                       return classic ? (
-                                                           <button title="Create Production Run" onClick={() => onGenerateWO(so, line)}
-                                                               style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', padding:'1px 5px', cursor:'pointer', whiteSpace:'nowrap' as const, background:'linear-gradient(to bottom,#5a9ae0,#0058e6)', border:'1px solid', borderColor:'#003080 #001840 #001840 #003080', color:'#fff', fontWeight:'bold', flexShrink:0 }}>
-                                                               <i className="bi bi-collection-play" style={{ marginRight:2 }}></i>PR
-                                                           </button>
-                                                       ) : (
-                                                           <button className="btn btn-sm btn-primary py-0 px-2" style={{ fontSize:10, whiteSpace:'nowrap', flexShrink:0 }} title="Create Production Run" onClick={() => onGenerateWO(so, line)}>
-                                                               <i className="bi bi-collection-play me-1"></i>PR
-                                                           </button>
-                                                       );
-                                                   })()}
+                                               <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'10px', fontWeight:'bold', lineHeight:1.3 }} className={classic ? '' : 'fw-semibold'}>
+                                                   {getItemName(line.item_id, line.item_name)}
+                                                   {isSample(line.item_id) && <i className="bi bi-star-fill text-warning ms-1" style={{fontSize:'0.6rem'}}></i>}
                                                </div>
+                                               {(line.attribute_value_ids || []).length > 0 && (
+                                                   <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', color:'#666', fontStyle:'italic' }}>
+                                                       {getAttributeValues(line.attribute_value_ids)}
+                                                   </div>
+                                               )}
                                            </td>
 
                                            {/* Size */}
