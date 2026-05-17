@@ -1863,6 +1863,7 @@ export default function ManufacturingView({
           {isPRModalOpen && (
               <ProductionRunModal
                   boms={boms}
+                  items={items}
                   attributes={attributes}
                   locations={locations}
                   onSave={onCreateProductionRun}

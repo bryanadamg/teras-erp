@@ -22,6 +22,7 @@ interface BomEntryState {
 
 interface Props {
     boms: any[];
+    items: any[];
     attributes: any[];
     locations: any[];
     onSave: (payload: any) => Promise<any>;
@@ -40,11 +41,12 @@ interface Props {
 }
 
 function BomEntryRow({
-    entry, index, boms, attributes, onChange, onRemove, canRemove,
+    entry, index, boms, items, attributes, onChange, onRemove, canRemove,
 }: {
     entry: BomEntryState;
     index: number;
     boms: any[];
+    items: any[];
     attributes: any[];
     onChange: (updated: BomEntryState) => void;
     onRemove: () => void;
@@ -53,22 +55,20 @@ function BomEntryRow({
     const selectedBom = boms.find((b: any) => b.id === entry.bomId) || null;
     const sizes = selectedBom?.sizes || [];
 
-    const colorAttr = attributes.find((a: any) => a.system_role === 'color');
-    const bomColorIds: string[] = selectedBom?.attribute_value_ids || [];
-    const bomHasColor = colorAttr
-        ? (colorAttr.values || []).some((v: any) => bomColorIds.includes(v.id))
-        : false;
-    const showColorSelector = !!selectedBom && !!colorAttr && !bomHasColor;
+    // Attributes assigned to this item that aren't already fixed by the BOM
+    const item = selectedBom ? items.find((it: any) => it.id === selectedBom.item_id) : null;
+    const itemAttrIds: string[] = item?.attribute_ids?.map(String) || [];
+    const bomAttrIds: string[] = selectedBom?.attribute_value_ids || [];
+    const freeAttributes = !selectedBom ? [] : attributes.filter((attr: any) => {
+        if (!attr.values?.length) return false;
+        if (!itemAttrIds.includes(String(attr.id))) return false;
+        return !(attr.values || []).some((v: any) => bomAttrIds.includes(v.id));
+    });
 
-    const selectedColorId = colorAttr
-        ? entry.attributeValueIds.find(id => (colorAttr.values || []).some((v: any) => v.id === id)) || ''
-        : '';
-
-    const handleColorChange = (valId: string) => {
-        const otherAttrs = entry.attributeValueIds.filter(
-            id => !(colorAttr?.values || []).some((v: any) => v.id === id)
-        );
-        onChange({ ...entry, attributeValueIds: valId ? [...otherAttrs, valId] : otherAttrs });
+    const handleAttrChange = (attr: any, valId: string) => {
+        const attrValueIds: string[] = (attr.values || []).map((v: any) => v.id);
+        const others = entry.attributeValueIds.filter((id: string) => !attrValueIds.includes(id));
+        onChange({ ...entry, attributeValueIds: valId ? [...others, valId] : others });
     };
 
     return (
@@ -99,21 +99,26 @@ function BomEntryRow({
                 </select>
             </div>
 
-            {showColorSelector && (
-                <div style={{ marginBottom: 6 }}>
-                    <label style={xpLabel}>Color</label>
-                    <select
-                        style={{ ...xpInput, height: 20 }}
-                        value={selectedColorId}
-                        onChange={e => handleColorChange(e.target.value)}
-                    >
-                        <option value="">-- No color --</option>
-                        {(colorAttr.values || []).map((v: any) => (
-                            <option key={v.id} value={v.id}>{v.value}</option>
-                        ))}
-                    </select>
-                </div>
-            )}
+            {freeAttributes.map((attr: any) => {
+                const selectedValId = entry.attributeValueIds.find(
+                    (id: string) => (attr.values || []).some((v: any) => v.id === id)
+                ) || '';
+                return (
+                    <div key={attr.id} style={{ marginBottom: 6 }}>
+                        <label style={xpLabel}>{attr.name}</label>
+                        <select
+                            style={{ ...xpInput, height: 20 }}
+                            value={selectedValId}
+                            onChange={e => handleAttrChange(attr, e.target.value)}
+                        >
+                            <option value="">-- None --</option>
+                            {(attr.values || []).map((v: any) => (
+                                <option key={v.id} value={v.id}>{v.value}</option>
+                            ))}
+                        </select>
+                    </div>
+                );
+            })}
 
             {selectedBom && sizes.length > 0 && (
                 <div>
@@ -150,7 +155,7 @@ function BomEntryRow({
 }
 
 export default function ProductionRunModal({
-    boms, attributes, locations, onSave, onClose,
+    boms, items, attributes, locations, onSave, onClose,
     initialBomId, initialSizes, initialTotalQty, initialBomEntries, salesOrderId,
 }: Props) {
     const [code, setCode] = useState('');
@@ -296,6 +301,7 @@ export default function ProductionRunModal({
                             entry={entry}
                             index={i}
                             boms={boms}
+                            items={items}
                             attributes={attributes}
                             onChange={updated => updateEntry(i, updated)}
                             onRemove={() => removeEntry(i)}

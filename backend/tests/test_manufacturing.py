@@ -183,91 +183,160 @@ def test_nested_wo_serialization(client, auth_headers):
 def test_production_run_attribute_value_propagation(client, auth_headers):
     """When attribute_value_ids is set on a PRBomEntry, root MO attribute_value_ids
     must match — not inherit the (empty) BOM attribute set."""
-    import uuid
-    suffix = str(uuid.uuid4())[:8]
+    import uuid as _uuid
+    from app.db.session import engine as _engine
+    from sqlalchemy.orm import Session as _SASession
+    from app.models.item import Item as _Item
+    from app.models.location import Location as _Location
+    from app.models.attribute import Attribute as _Attribute, AttributeValue as _AttributeValue
 
-    client.post("/api/uoms", json={"name": "m"}, headers=auth_headers)
-    client.post("/api/locations", json={"code": f"LOC-{suffix}", "name": "Test Loc"}, headers=auth_headers)
+    suffix = str(_uuid.uuid4())[:8]
+    loc_code = f"ATVP-LOC-{suffix}"
+    base_code = f"ATVP-BASE-{suffix}"
+    sub_code = f"ATVP-SUB-{suffix}"
+    attr_name = f"ATVP-Colors-{suffix}"
 
-    # Create Colors attribute and a color value
-    attr_res = client.post("/api/attributes", json={"name": f"Colors-{suffix}", "is_system": False}, headers=auth_headers)
-    assert attr_res.status_code == 200, attr_res.text
-    attr_id = attr_res.json()["id"]
+    _real_conn = _engine.connect()
+    _real_sess = _SASession(_real_conn)
+    color_val_id = None
+    try:
+        # Insert location, items, attribute, value directly into real DB
+        # (async routes use get_async_db and cannot see the test's rollback session)
+        if not _real_sess.query(_Location).filter_by(code=loc_code).first():
+            _real_sess.add(_Location(code=loc_code, name="ATVP Test Loc"))
+        if not _real_sess.query(_Item).filter_by(code=base_code).first():
+            _real_sess.add(_Item(code=base_code, name="ATVP Base", uom="m"))
+        if not _real_sess.query(_Item).filter_by(code=sub_code).first():
+            _real_sess.add(_Item(code=sub_code, name="ATVP Sub", uom="m"))
+        attr = _real_sess.query(_Attribute).filter_by(name=attr_name).first()
+        if not attr:
+            attr = _Attribute(name=attr_name, is_system=False)
+            _real_sess.add(attr)
+        _real_sess.flush()
+        color_val = _AttributeValue(attribute_id=attr.id, value="Black-218")
+        _real_sess.add(color_val)
+        _real_sess.commit()
+        _real_sess.refresh(color_val)
+        color_val_id = str(color_val.id)
+    finally:
+        _real_sess.close()
+        _real_conn.close()
 
-    val_res = client.post(f"/api/attributes/{attr_id}/values", json={"value": "Black-218"}, headers=auth_headers)
-    assert val_res.status_code == 200, val_res.text
-    color_val_id = val_res.json()["id"]
+    try:
+        bom_res = client.post("/api/boms", json={
+            "code": f"ATVP-BOM-{suffix}",
+            "item_code": base_code,
+            "qty": 1,
+            "lines": [{"item_code": sub_code, "qty": 1}],
+        }, headers=auth_headers)
+        assert bom_res.status_code == 200, bom_res.text
+        bom_id = bom_res.json()["id"]
 
-    # Base item and BOM — no color attrs on BOM
-    item_res = client.post("/api/items", json={"code": f"BASE-{suffix}", "name": "Base Fabric", "uom": "m"}, headers=auth_headers)
-    assert item_res.status_code == 200, item_res.text
+        pr_res = client.post("/api/production-runs", json={
+            "code": f"ATVP-PR-{suffix}",
+            "bom_entries": [{
+                "bom_id": bom_id,
+                "total_qty": 100.0,
+                "attribute_value_ids": [color_val_id],
+            }],
+            "location_code": loc_code,
+        }, headers=auth_headers)
+        assert pr_res.status_code == 200, pr_res.text
 
-    sub_res = client.post("/api/items", json={"code": f"SUB-{suffix}", "name": "Sub Material", "uom": "m"}, headers=auth_headers)
-    assert sub_res.status_code == 200, sub_res.text
+        pr = pr_res.json()
+        root_mos = [mo for mo in pr["manufacturing_orders"] if not mo.get("is_shared_component")]
+        assert len(root_mos) == 1
 
-    bom_res = client.post("/api/boms", json={
-        "code": f"BOM-{suffix}",
-        "item_code": f"BASE-{suffix}",
-        "qty": 1,
-        "lines": [{"item_code": f"SUB-{suffix}", "qty": 1}],
-    }, headers=auth_headers)
-    assert bom_res.status_code == 200, bom_res.text
-    bom_id = bom_res.json()["id"]
+        mo_attr_ids = [str(v) for v in root_mos[0].get("attribute_value_ids", [])]
+        assert color_val_id in mo_attr_ids, (
+            f"Expected color_val_id {color_val_id} in MO attribute_value_ids, got {mo_attr_ids}"
+        )
 
-    # Create PR with attribute_value_ids on the entry
-    pr_res = client.post("/api/production-runs", json={
-        "code": f"PR-{suffix}",
-        "bom_entries": [{
-            "bom_id": bom_id,
-            "total_qty": 100.0,
-            "attribute_value_ids": [color_val_id],
-        }],
-        "location_code": f"LOC-{suffix}",
-    }, headers=auth_headers)
-    assert pr_res.status_code == 200, pr_res.text
-
-    pr = pr_res.json()
-    root_mos = [mo for mo in pr["manufacturing_orders"] if not mo.get("is_shared_component")]
-    assert len(root_mos) == 1
-
-    mo_attr_ids = [str(v) for v in root_mos[0].get("attribute_value_ids", [])]
-    assert str(color_val_id) in mo_attr_ids, (
-        f"Expected color_val_id {color_val_id} in MO attribute_value_ids, got {mo_attr_ids}"
-    )
+        # Cleanup PR
+        client.delete(f"/api/production-runs/{pr['id']}", headers=auth_headers)
+        if bom_id:
+            client.delete(f"/api/boms/{bom_id}", headers=auth_headers)
+    finally:
+        # Cleanup real DB entities
+        _c2 = _engine.connect()
+        _s2 = _SASession(_c2)
+        try:
+            _s2.query(_AttributeValue).filter(_AttributeValue.id == color_val_id).delete(synchronize_session=False)
+            _s2.query(_Attribute).filter(_Attribute.name == attr_name).delete(synchronize_session=False)
+            _s2.query(_Item).filter(_Item.code.in_([base_code, sub_code])).delete(synchronize_session=False)
+            _s2.query(_Location).filter(_Location.code == loc_code).delete(synchronize_session=False)
+            _s2.commit()
+        except Exception:
+            _s2.rollback()
+        finally:
+            _s2.close()
+            _c2.close()
 
 
 def test_production_run_no_attrs_inherits_bom(client, auth_headers):
-    """When attribute_value_ids is empty on PRBomEntry, root MO inherits BOM attrs unchanged."""
-    import uuid
-    suffix = str(uuid.uuid4())[:8]
+    """When attribute_value_ids is empty on PRBomEntry, root MO has no attrs."""
+    import uuid as _uuid
+    from app.db.session import engine as _engine
+    from sqlalchemy.orm import Session as _SASession
+    from app.models.item import Item as _Item
+    from app.models.location import Location as _Location
 
-    client.post("/api/uoms", json={"name": "m"}, headers=auth_headers)
-    client.post("/api/locations", json={"code": f"LOC2-{suffix}", "name": "Test Loc 2"}, headers=auth_headers)
+    suffix = str(_uuid.uuid4())[:8]
+    loc_code = f"NAIB-LOC-{suffix}"
+    base_code = f"NAIB-BASE-{suffix}"
+    sub_code = f"NAIB-SUB-{suffix}"
 
-    item_res = client.post("/api/items", json={"code": f"BASE2-{suffix}", "name": "Base2", "uom": "m"}, headers=auth_headers)
-    assert item_res.status_code == 200, item_res.text
+    _real_conn = _engine.connect()
+    _real_sess = _SASession(_real_conn)
+    try:
+        if not _real_sess.query(_Location).filter_by(code=loc_code).first():
+            _real_sess.add(_Location(code=loc_code, name="NAIB Test Loc"))
+        if not _real_sess.query(_Item).filter_by(code=base_code).first():
+            _real_sess.add(_Item(code=base_code, name="NAIB Base", uom="m"))
+        if not _real_sess.query(_Item).filter_by(code=sub_code).first():
+            _real_sess.add(_Item(code=sub_code, name="NAIB Sub", uom="m"))
+        _real_sess.commit()
+    finally:
+        _real_sess.close()
+        _real_conn.close()
 
-    sub_res = client.post("/api/items", json={"code": f"SUB2-{suffix}", "name": "Sub2", "uom": "m"}, headers=auth_headers)
-    assert sub_res.status_code == 200, sub_res.text
+    bom_id = None
+    pr_id = None
+    try:
+        bom_res = client.post("/api/boms", json={
+            "code": f"NAIB-BOM-{suffix}",
+            "item_code": base_code,
+            "qty": 1,
+            "lines": [{"item_code": sub_code, "qty": 1}],
+        }, headers=auth_headers)
+        assert bom_res.status_code == 200, bom_res.text
+        bom_id = bom_res.json()["id"]
 
-    bom_res = client.post("/api/boms", json={
-        "code": f"BOM2-{suffix}",
-        "item_code": f"BASE2-{suffix}",
-        "qty": 1,
-        "lines": [{"item_code": f"SUB2-{suffix}", "qty": 1}],
-    }, headers=auth_headers)
-    assert bom_res.status_code == 200, bom_res.text
-    bom_id = bom_res.json()["id"]
+        pr_res = client.post("/api/production-runs", json={
+            "code": f"NAIB-PR-{suffix}",
+            "bom_entries": [{"bom_id": bom_id, "total_qty": 50.0}],
+            "location_code": loc_code,
+        }, headers=auth_headers)
+        assert pr_res.status_code == 200, pr_res.text
+        pr_id = pr_res.json()["id"]
 
-    pr_res = client.post("/api/production-runs", json={
-        "code": f"PR2-{suffix}",
-        "bom_entries": [{"bom_id": bom_id, "total_qty": 50.0}],
-        "location_code": f"LOC2-{suffix}",
-    }, headers=auth_headers)
-    assert pr_res.status_code == 200, pr_res.text
-
-    pr = pr_res.json()
-    root_mos = [mo for mo in pr["manufacturing_orders"] if not mo.get("is_shared_component")]
-    assert len(root_mos) == 1
-    # BOM has no attrs -> MO should have no attrs
-    assert root_mos[0].get("attribute_value_ids", []) == []
+        pr = pr_res.json()
+        root_mos = [mo for mo in pr["manufacturing_orders"] if not mo.get("is_shared_component")]
+        assert len(root_mos) == 1
+        assert root_mos[0].get("attribute_value_ids", []) == []
+    finally:
+        if pr_id:
+            client.delete(f"/api/production-runs/{pr_id}", headers=auth_headers)
+        if bom_id:
+            client.delete(f"/api/boms/{bom_id}", headers=auth_headers)
+        _c2 = _engine.connect()
+        _s2 = _SASession(_c2)
+        try:
+            _s2.query(_Item).filter(_Item.code.in_([base_code, sub_code])).delete(synchronize_session=False)
+            _s2.query(_Location).filter(_Location.code == loc_code).delete(synchronize_session=False)
+            _s2.commit()
+        except Exception:
+            _s2.rollback()
+        finally:
+            _s2.close()
+            _c2.close()
