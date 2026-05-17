@@ -11,8 +11,8 @@ from app.models.size import Size
 from app.models.item import Item
 from app.models.location import Location
 from app.models.routing import WorkCenter, Operation
-from app.schemas import BOMCreate, BOMUpdate, BOMResponse, BOMTreeResponse, SizeResponse
-from app.models.auth import User
+from app.schemas import BOMCreate, BOMUpdate, BOMResponse, BOMTreeResponse, SizeResponse, BOMAutomatorProfileCreate, BOMAutomatorProfileResponse
+from app.models.auth import User, BOMAutomatorProfile
 from app.api.auth import get_current_user
 from app.services import audit_service
 from app.models.attribute import AttributeValue
@@ -474,3 +474,48 @@ async def delete_bom(bom_id: str, db: AsyncSession = Depends(get_async_db), curr
     )
     
     return {"status": "success", "message": "BOM deleted"}
+
+
+# --- BOM Automator Profiles ---
+
+@router.get("/bom-automator-profiles", response_model=list[BOMAutomatorProfileResponse])
+async def list_bom_automator_profiles(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(BOMAutomatorProfile).where(BOMAutomatorProfile.user_id == current_user.id)
+    )
+    return result.scalars().all()
+
+
+@router.post("/bom-automator-profiles", response_model=BOMAutomatorProfileResponse, status_code=201)
+async def create_bom_automator_profile(
+    payload: BOMAutomatorProfileCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    profile = BOMAutomatorProfile(user_id=current_user.id, name=payload.name, levels=payload.levels)
+    db.add(profile)
+    await db.commit()
+    await db.refresh(profile)
+    return profile
+
+
+@router.delete("/bom-automator-profiles/{profile_id}", status_code=204)
+async def delete_bom_automator_profile(
+    profile_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(BOMAutomatorProfile).where(
+            BOMAutomatorProfile.id == profile_id,
+            BOMAutomatorProfile.user_id == current_user.id,
+        )
+    )
+    profile = result.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    await db.delete(profile)
+    await db.commit()

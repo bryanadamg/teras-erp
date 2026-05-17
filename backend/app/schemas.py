@@ -857,6 +857,17 @@ class UserResponse(UserBase):
     class Config:
         from_attributes = True
 
+class BOMAutomatorProfileCreate(BaseModel):
+    name: str
+    levels: list[list[str]]
+
+class BOMAutomatorProfileResponse(BaseModel):
+    id: UUID
+    name: str
+    levels: list[list[str]]
+    class Config:
+        from_attributes = True
+
 class DatabaseResponse(BaseModel):
     message: str
     status: bool

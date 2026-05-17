@@ -24,7 +24,7 @@ from app.models.work_order import WorkOrder
 from app.models.stock_ledger import StockLedger, stock_ledger_values
 from app.models.variant import Variant
 from app.models.routing import WorkCenter, Operation
-from app.models.auth import Permission, Role, User, role_permissions, user_permissions
+from app.models.auth import Permission, Role, User, role_permissions, user_permissions, BOMAutomatorProfile
 from app.models.uom import UOM, UOMFactor
 from app.models.sales import SalesOrder, SalesOrderLine
 from app.models.sample import SampleRequest, SampleColor, sample_attribute_values, SampleRequestRead

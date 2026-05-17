@@ -52,10 +52,22 @@ class User(Base):
     role_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("roles.id"), nullable=True
     )
-    
+
     # Category-based restriction (If Null, allow all. If set, allow only these categories)
     allowed_categories: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     avatar_id: Mapped[str | None] = mapped_column(String(4), nullable=True)
 
     role = relationship("Role")
     permissions = relationship("Permission", secondary=user_permissions)
+    bom_automator_profiles = relationship("BOMAutomatorProfile", back_populates="user", cascade="all, delete-orphan")
+
+
+class BOMAutomatorProfile(Base):
+    __tablename__ = "bom_automator_profiles"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    levels: Mapped[list] = mapped_column(JSON, nullable=False)
+
+    user = relationship("User", back_populates="bom_automator_profiles")

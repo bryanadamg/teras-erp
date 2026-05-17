@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback, memo } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useData } from '../../context/DataContext';
+
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
+    .replace(/\/api$/, '') + '/api';
 
 interface AutoBOMProfile {
     id: string;
@@ -147,7 +151,7 @@ const LevelCard = memo(({
                     Processing Level
                 </span>
                 <button style={xpBtnDanger} onClick={() => onRemoveLevel(lIdx)}>
-                    🗑 Remove
+                    X Remove
                 </button>
             </div>
 
@@ -196,19 +200,22 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
     const [levels, setLevels] = useState<string[][]>(DEFAULT_LEVELS);
     const [profiles, setProfiles] = useState<AutoBOMProfile[]>([]);
     const [profileName, setProfileName] = useState('');
+    const [saving, setSaving] = useState(false);
     const { uiStyle: currentStyle } = useTheme();
+    const { authFetch } = useData();
 
     useEffect(() => {
         if (!isOpen) return;
-        const savedProfiles = localStorage.getItem('bom_auto_profiles');
-        if (savedProfiles) {
-            try { setProfiles(JSON.parse(savedProfiles)); } catch (e) { console.error("Invalid profiles in localstorage"); }
-        }
+        authFetch(`${API_BASE}/bom-automator-profiles`)
+            .then(r => r.ok ? r.json() : [])
+            .then(setProfiles)
+            .catch(() => setProfiles([]));
+
         const lastLevels = localStorage.getItem('bom_auto_levels_active');
         if (lastLevels) {
             try { setLevels(JSON.parse(lastLevels)); } catch (e) {}
         }
-    }, [isOpen]);
+    }, [isOpen, authFetch]);
 
     const handlePatternChange = useCallback((lIdx: number, pIdx: number, value: string) => {
         setLevels(prev => prev.map((lvl, i) =>
@@ -232,33 +239,34 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
         ));
     }, []);
 
-    const handleSaveProfile = useCallback(() => {
-        if (!profileName.trim()) return;
-        const newProfile: AutoBOMProfile = {
-            id: Math.random().toString(36).substr(2, 9),
-            name: profileName,
-            levels: levels
-        };
-        setProfiles(prev => {
-            const updated = [...prev, newProfile];
-            localStorage.setItem('bom_auto_profiles', JSON.stringify(updated));
-            return updated;
-        });
-        setProfileName('');
-    }, [profileName, levels]);
+    const handleSaveProfile = useCallback(async () => {
+        if (!profileName.trim() || saving) return;
+        setSaving(true);
+        try {
+            const res = await authFetch(`${API_BASE}/bom-automator-profiles`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: profileName.trim(), levels }),
+            });
+            if (res.ok) {
+                const newProfile = await res.json();
+                setProfiles(prev => [...prev, newProfile]);
+                setProfileName('');
+            }
+        } finally {
+            setSaving(false);
+        }
+    }, [profileName, levels, saving, authFetch]);
 
     const handleLoadProfile = useCallback((profile: AutoBOMProfile) => {
         setLevels(profile.levels);
     }, []);
 
-    const handleDeleteProfile = useCallback((e: React.MouseEvent, id: string) => {
+    const handleDeleteProfile = useCallback(async (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
-        setProfiles(prev => {
-            const updated = prev.filter(p => p.id !== id);
-            localStorage.setItem('bom_auto_profiles', JSON.stringify(updated));
-            return updated;
-        });
-    }, []);
+        await authFetch(`${API_BASE}/bom-automator-profiles/${id}`, { method: 'DELETE' });
+        setProfiles(prev => prev.filter(p => p.id !== id));
+    }, [authFetch]);
 
     const handleSaveAndApply = useCallback(() => {
         localStorage.setItem('bom_auto_levels_active', JSON.stringify(levels));
@@ -270,7 +278,7 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
 
     const gb = xpGroupbox('Saved Profiles');
     const gbPreview = xpGroupbox('Structure Preview');
-    const gbTip = xpGroupbox('💡 Tip');
+    const gbTip = xpGroupbox('Tip');
 
     return (
         <div
@@ -302,7 +310,7 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
                     height: 22, flexShrink: 0,
                 }}>
                     <span style={{ color: 'white', fontSize: 11, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 5 }}>
-                        ⚡ BOM Automator — Configure Structure
+                        BOM Automator — Configure Structure
                     </span>
                     <div style={{ display: 'flex', gap: 2 }}>
                         <button onClick={onClose} style={{
@@ -328,7 +336,7 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
                             borderRight: '1px solid #600', borderBottom: '1px solid #600',
                             fontSize: 9, color: 'white', cursor: 'pointer',
                             display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold',
-                        }}>✕</button>
+                        }}>X</button>
                     </div>
                 </div>
 
@@ -363,7 +371,7 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
                                         <button
                                             style={{ ...xpBtnDanger, borderLeft: 'none', borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
                                             onClick={(e) => handleDeleteProfile(e, p.id)}
-                                        >✕</button>
+                                        >X</button>
                                     </div>
                                 ))}
                             </div>
@@ -377,11 +385,11 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
                                     onKeyDown={e => e.key === 'Enter' && handleSaveProfile()}
                                 />
                                 <button
-                                    style={profileName.trim() ? xpBtnPrimary : { ...xpBtn, opacity: 0.5 }}
+                                    style={profileName.trim() && !saving ? xpBtnPrimary : { ...xpBtn, opacity: 0.5 }}
                                     onClick={handleSaveProfile}
-                                    disabled={!profileName.trim()}
+                                    disabled={!profileName.trim() || saving}
                                 >
-                                    Save
+                                    {saving ? 'Saving...' : 'Save'}
                                 </button>
                             </div>
                         </div>
@@ -431,7 +439,7 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
                         </div>
 
                         <div style={{ ...gbTip.wrapper, background: '#fffbe6', borderColor: '#d4b000' }}>
-                            <span style={{ ...gbTip.labelStyle, background: '#fffbe6', color: '#806000' }}>💡 Tip</span>
+                            <span style={{ ...gbTip.labelStyle, background: '#fffbe6', color: '#806000' }}>Tip</span>
                             <div style={{ fontSize: 10, color: '#555', lineHeight: 1.6 }}>
                                 Each level becomes a child BOM node. Branching items at the same level are created as siblings under the parent.
                             </div>
@@ -455,7 +463,7 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
                         style={xpBtnPrimary}
                         onClick={handleSaveAndApply}
                     >
-                        ⚡ Generate Structure
+                        Generate Structure
                     </button>
                 </div>
             </div>
