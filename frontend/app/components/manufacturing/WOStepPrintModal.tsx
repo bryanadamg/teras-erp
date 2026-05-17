@@ -206,7 +206,7 @@ export default function WOStepPrintModal({
 
             {/* Footer */}
             <div style={{ marginTop: '8px', fontSize: '6px', color: '#999', borderTop: '1px solid #eee', paddingTop: '4px' }}>
-                {parentMO?.code} · Step {workOrder.sequence}: {workOrder.name} · ID: {workOrder.id}
+                {parentMO?.code} · {workOrder.code || `Step ${workOrder.sequence}`} · ID: {workOrder.id}
             </div>
         </div>
     );

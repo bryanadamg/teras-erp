@@ -45,13 +45,37 @@ async def create_work_order(
     mo_result = await db.execute(
         select(ManufacturingOrder).filter(ManufacturingOrder.id == payload.manufacturing_order_id)
     )
-    if not mo_result.scalars().first():
+    mo = mo_result.scalars().first()
+    if not mo:
         raise HTTPException(status_code=404, detail="Manufacturing Order not found")
+
+    # Count existing WOs for this MO to derive scoped sequence number
+    count_result = await db.execute(
+        select(func.count()).select_from(WorkOrder)
+        .where(WorkOrder.manufacturing_order_id == payload.manufacturing_order_id)
+    )
+    wo_seq_num = (count_result.scalar() or 0) + 1
+    wo_code = f"{mo.code}-WO-{wo_seq_num:02d}"
+
+    # Auto-generate name from work center; fall back to code
+    name = payload.name
+    if not name:
+        if payload.work_center_id:
+            wc_result = await db.execute(
+                select(WorkCenter).filter(WorkCenter.id == payload.work_center_id)
+            )
+            wc = wc_result.scalars().first()
+            name = wc.name if wc else wo_code
+        else:
+            name = wo_code
+
+    sequence = payload.sequence if payload.sequence and payload.sequence > 1 else wo_seq_num
 
     wo = WorkOrder(
         manufacturing_order_id=payload.manufacturing_order_id,
-        sequence=payload.sequence,
-        name=payload.name,
+        sequence=sequence,
+        code=wo_code,
+        name=name,
         work_center_id=payload.work_center_id,
         qty=payload.qty,
         planned_duration_hours=payload.planned_duration_hours,
@@ -71,7 +95,7 @@ async def create_work_order(
     await audit_service.log_activity(
         db, user_id=current_user.id, action="CREATE",
         entity_type="WORK_ORDER", entity_id=str(wo.id),
-        details=f"Created Work Order '{wo.name}'",
+        details=f"Created Work Order '{wo.code}'",
         changes=payload.model_dump()
     )
     await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": str(wo.id), "status": "PENDING"})
@@ -108,7 +132,8 @@ async def update_work_order(
         raise HTTPException(status_code=404, detail="Work Order not found")
 
     wo.sequence = payload.sequence
-    wo.name = payload.name
+    if payload.name is not None:
+        wo.name = payload.name
     wo.work_center_id = payload.work_center_id
     wo.qty = payload.qty
     wo.planned_duration_hours = payload.planned_duration_hours
@@ -177,12 +202,12 @@ async def delete_work_order(
     wo = result.scalars().first()
     if not wo:
         raise HTTPException(status_code=404, detail="Work Order not found")
-    name = wo.name
+    label = wo.code or wo.name
     await db.delete(wo)
     await db.commit()
     await audit_service.log_activity(
         db, user_id=current_user.id, action="DELETE",
         entity_type="WORK_ORDER", entity_id=wo_id,
-        details=f"Deleted Work Order '{name}'"
+        details=f"Deleted Work Order '{label}'"
     )
     return {"status": "success"}

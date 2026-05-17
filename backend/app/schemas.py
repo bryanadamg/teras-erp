@@ -411,7 +411,7 @@ class PRMaterialRequirementItem(BaseModel):
 class WorkOrderCreate(BaseModel):
     manufacturing_order_id: UUID
     sequence: int = 1
-    name: str
+    name: str | None = None
     work_center_id: UUID | None = None
     qty: float | None = None
     planned_duration_hours: float | None = None
@@ -424,9 +424,11 @@ class WorkOrderResponse(BaseModel):
     id: UUID
     manufacturing_order_id: UUID
     sequence: int
+    code: str | None = None
     name: str
     work_center_id: UUID | None = None
     work_center_name: str | None = None
+    work_center_type: str | None = None
     qty: float | None = None
     qty_completed_total: float = 0.0
     status: str

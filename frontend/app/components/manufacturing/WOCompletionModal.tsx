@@ -184,7 +184,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                 {/* Title bar */}
                 <div style={{ background: 'linear-gradient(to right, #0a246a, #a6caf0, #0a246a)', padding: '3px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none', flexShrink: 0 }}>
                     <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 12, textShadow: '1px 1px 2px rgba(0,0,0,0.6)' }}>
-                        {workOrder ? `Log WO: ${workOrder.name} — ${mo.code}` : `Log Completion — ${mo.code}`}
+                        {workOrder ? `Log WO: ${workOrder.code || workOrder.name} — ${mo.code}` : `Log Completion — ${mo.code}`}
                     </span>
                     <button onClick={onClose} style={{ width: 21, height: 21, background: 'linear-gradient(to bottom, #e06060, #b03030)', border: '1px solid #800', borderRadius: 2, cursor: 'pointer', color: '#fff', fontSize: 12, fontWeight: 'bold', lineHeight: 1 }}>x</button>
                 </div>
@@ -221,7 +221,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                             {/* WO reference */}
                             {workOrder && (
                                 <div style={{ background: '#e8f0fe', border: '1px solid #a8c0f0', padding: '4px 8px', fontSize: 10 }}>
-                                    <span style={{ color: '#000080', fontWeight: 'bold' }}>WO: {workOrder.name}</span>
+                                    <span style={{ color: '#000080', fontWeight: 'bold' }}>WO: {workOrder.code || workOrder.name}</span>
                                     {workOrder.qty != null && (
                                         <span style={{ color: '#555', marginLeft: 8 }}>
                                             Target: {workOrder.qty} | Done so far: {(workOrder.qty_completed_total ?? 0).toFixed(2)}

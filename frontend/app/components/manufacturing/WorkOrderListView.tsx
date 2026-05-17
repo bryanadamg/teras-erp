@@ -118,13 +118,12 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
     };
 
     const handleSave = async (wo: FlatWO) => {
-        if (!form.name.trim()) return;
         setIsSaving(true);
         try {
             await onUpdate(wo.id, {
                 manufacturing_order_id: wo.mo_id,
                 sequence: parseInt(form.sequence) || wo.sequence,
-                name: form.name.trim(),
+                name: wo.name,
                 work_center_id: form.work_center_id || undefined,
                 planned_duration_hours: form.planned_duration_hours ? parseFloat(form.planned_duration_hours) : undefined,
             });
@@ -400,10 +399,9 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                                                         onChange={e => setForm(f => ({ ...f, sequence: e.target.value }))} />
                                                 </td>
                                                 <td style={tdBase}>
-                                                    <input style={{ ...xpInput, width: '100%', minWidth: 140 }} value={form.name} autoFocus
-                                                        onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                                                        onKeyDown={e => { if (e.key === 'Enter') handleSave(wo); if (e.key === 'Escape') setEditId(null); }}
-                                                    />
+                                                    <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#555' }}>
+                                                        {(wo as any).code || wo.name}
+                                                    </span>
                                                 </td>
                                                 <td style={tdBase} colSpan={2}>
                                                     <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#555' }}>{wo.mo_code}</span>
@@ -451,7 +449,9 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                                                     </button>
                                                 </td>
                                                 <td style={{ ...tdBase, color: '#888', width: 36 }} className={classic ? '' : 'ps-3'}>{wo.sequence}</td>
-                                                <td style={{ ...tdBase, fontWeight: 500 }}>{wo.name}</td>
+                                                <td style={{ ...tdBase, fontFamily: 'monospace', fontWeight: 'bold', fontSize: classic ? 10 : 11, color: '#000080' }}>
+                                                    {(wo as any).code || wo.name}
+                                                </td>
                                                 <td style={{ ...tdBase, fontFamily: 'monospace', fontSize: classic ? 10 : 11, whiteSpace: 'nowrap' }}>{wo.mo_code}</td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11, color: '#444' }}>{wo.item_name || '—'}</td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11, color: '#555' }}>{wo.work_center_name || '—'}</td>

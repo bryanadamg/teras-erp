@@ -18,6 +18,7 @@ class WorkOrder(Base):
         UUID(as_uuid=True), ForeignKey("manufacturing_orders.id", ondelete="CASCADE"), index=True
     )
     sequence: Mapped[int] = mapped_column(Integer, default=1)
+    code: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(128))
     work_center_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("work_centers.id", ondelete="SET NULL"), nullable=True
@@ -46,6 +47,10 @@ class WorkOrder(Base):
     @property
     def work_center_name(self) -> Optional[str]:
         return self.work_center.name if self.work_center else None
+
+    @property
+    def work_center_type(self) -> Optional[str]:
+        return self.work_center.center_type if self.work_center else None
 
     @property
     def qty_completed_total(self) -> float:
