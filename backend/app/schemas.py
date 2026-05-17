@@ -333,6 +333,7 @@ class PRBomEntryCreate(BaseModel):
     bom_id: UUID
     sizes: list[PRBomSizeEntry] = []
     total_qty: float | None = None
+    attribute_value_ids: list[UUID] = []
 
 class PRBomEntrySizeResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -345,6 +346,7 @@ class PRBomEntryResponse(BaseModel):
     id: UUID
     bom_id: UUID
     total_qty: float | None = None
+    attribute_value_ids: list[UUID] = []
     bom: Optional['BOMResponse'] = None
     sizes: list[PRBomEntrySizeResponse] = []
 

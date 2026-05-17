@@ -178,3 +178,96 @@ def test_nested_wo_serialization(client, auth_headers):
                         client.delete(f"/api/boms/{bom['id']}", headers=auth_headers)
         except Exception:
             pass
+
+
+def test_production_run_attribute_value_propagation(client, auth_headers):
+    """When attribute_value_ids is set on a PRBomEntry, root MO attribute_value_ids
+    must match — not inherit the (empty) BOM attribute set."""
+    import uuid
+    suffix = str(uuid.uuid4())[:8]
+
+    client.post("/api/uoms", json={"name": "m"}, headers=auth_headers)
+    client.post("/api/locations", json={"code": f"LOC-{suffix}", "name": "Test Loc"}, headers=auth_headers)
+
+    # Create Colors attribute and a color value
+    attr_res = client.post("/api/attributes", json={"name": f"Colors-{suffix}", "is_system": False}, headers=auth_headers)
+    assert attr_res.status_code == 200, attr_res.text
+    attr_id = attr_res.json()["id"]
+
+    val_res = client.post(f"/api/attributes/{attr_id}/values", json={"value": "Black-218"}, headers=auth_headers)
+    assert val_res.status_code == 200, val_res.text
+    color_val_id = val_res.json()["id"]
+
+    # Base item and BOM — no color attrs on BOM
+    item_res = client.post("/api/items", json={"code": f"BASE-{suffix}", "name": "Base Fabric", "uom": "m"}, headers=auth_headers)
+    assert item_res.status_code == 200, item_res.text
+
+    sub_res = client.post("/api/items", json={"code": f"SUB-{suffix}", "name": "Sub Material", "uom": "m"}, headers=auth_headers)
+    assert sub_res.status_code == 200, sub_res.text
+
+    bom_res = client.post("/api/boms", json={
+        "code": f"BOM-{suffix}",
+        "item_code": f"BASE-{suffix}",
+        "qty": 1,
+        "lines": [{"item_code": f"SUB-{suffix}", "qty": 1}],
+    }, headers=auth_headers)
+    assert bom_res.status_code == 200, bom_res.text
+    bom_id = bom_res.json()["id"]
+
+    # Create PR with attribute_value_ids on the entry
+    pr_res = client.post("/api/production-runs", json={
+        "code": f"PR-{suffix}",
+        "bom_entries": [{
+            "bom_id": bom_id,
+            "total_qty": 100.0,
+            "attribute_value_ids": [color_val_id],
+        }],
+        "location_code": f"LOC-{suffix}",
+    }, headers=auth_headers)
+    assert pr_res.status_code == 200, pr_res.text
+
+    pr = pr_res.json()
+    root_mos = [mo for mo in pr["manufacturing_orders"] if not mo.get("is_shared_component")]
+    assert len(root_mos) == 1
+
+    mo_attr_ids = [str(v) for v in root_mos[0].get("attribute_value_ids", [])]
+    assert str(color_val_id) in mo_attr_ids, (
+        f"Expected color_val_id {color_val_id} in MO attribute_value_ids, got {mo_attr_ids}"
+    )
+
+
+def test_production_run_no_attrs_inherits_bom(client, auth_headers):
+    """When attribute_value_ids is empty on PRBomEntry, root MO inherits BOM attrs unchanged."""
+    import uuid
+    suffix = str(uuid.uuid4())[:8]
+
+    client.post("/api/uoms", json={"name": "m"}, headers=auth_headers)
+    client.post("/api/locations", json={"code": f"LOC2-{suffix}", "name": "Test Loc 2"}, headers=auth_headers)
+
+    item_res = client.post("/api/items", json={"code": f"BASE2-{suffix}", "name": "Base2", "uom": "m"}, headers=auth_headers)
+    assert item_res.status_code == 200, item_res.text
+
+    sub_res = client.post("/api/items", json={"code": f"SUB2-{suffix}", "name": "Sub2", "uom": "m"}, headers=auth_headers)
+    assert sub_res.status_code == 200, sub_res.text
+
+    bom_res = client.post("/api/boms", json={
+        "code": f"BOM2-{suffix}",
+        "item_code": f"BASE2-{suffix}",
+        "qty": 1,
+        "lines": [{"item_code": f"SUB2-{suffix}", "qty": 1}],
+    }, headers=auth_headers)
+    assert bom_res.status_code == 200, bom_res.text
+    bom_id = bom_res.json()["id"]
+
+    pr_res = client.post("/api/production-runs", json={
+        "code": f"PR2-{suffix}",
+        "bom_entries": [{"bom_id": bom_id, "total_qty": 50.0}],
+        "location_code": f"LOC2-{suffix}",
+    }, headers=auth_headers)
+    assert pr_res.status_code == 200, pr_res.text
+
+    pr = pr_res.json()
+    root_mos = [mo for mo in pr["manufacturing_orders"] if not mo.get("is_shared_component")]
+    assert len(root_mos) == 1
+    # BOM has no attrs -> MO should have no attrs
+    assert root_mos[0].get("attribute_value_ids", []) == []

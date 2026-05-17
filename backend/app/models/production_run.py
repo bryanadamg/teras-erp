@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import Optional, List, TYPE_CHECKING
-from sqlalchemy import String, Text, ForeignKey, DateTime, Numeric
+from sqlalchemy import String, Text, ForeignKey, DateTime, Numeric, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
@@ -34,6 +34,7 @@ class PRBomEntry(Base):
     )
     bom_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("boms.id"))
     total_qty: Mapped[Optional[float]] = mapped_column(Numeric(14, 4), nullable=True)
+    attribute_value_ids: Mapped[list] = mapped_column(JSON, default=list, server_default='[]')
 
     bom = relationship("BOM", foreign_keys=[bom_id])
     sizes: Mapped[List["PRBomEntrySize"]] = relationship(

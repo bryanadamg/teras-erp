@@ -17,6 +17,7 @@ from app.schemas import (
 )
 from app.models.production_run import PRBomEntry, PRBomEntrySize
 from app.models.item import Item
+from app.models.attribute import AttributeValue
 from app.services import stock_service
 from app.api.manufacturing import create_mo_recursive
 from collections import defaultdict
@@ -337,7 +338,12 @@ async def create_production_run(
         if not bom:
             raise HTTPException(status_code=404, detail=f"BOM {bom_entry.bom_id} not found")
 
-        pr_entry = PRBomEntry(pr_id=pr.id, bom_id=bom.id, total_qty=bom_entry.total_qty)
+        pr_entry = PRBomEntry(
+            pr_id=pr.id,
+            bom_id=bom.id,
+            total_qty=bom_entry.total_qty,
+            attribute_value_ids=[str(v) for v in (bom_entry.attribute_value_ids or [])],
+        )
         db.add(pr_entry)
         await db.flush()
 
@@ -388,6 +394,17 @@ async def create_production_run(
             root_mo.code = f"{payload.code}-{bom_label.upper()}" if len(payload.bom_entries) > 1 else f"{payload.code}-{suffix}"
             entry_root_mos.append(root_mo)
             total_root_mo_count += 1
+            await db.flush()
+
+        if bom_entry.attribute_value_ids:
+            attr_result = await db.execute(
+                select(AttributeValue).filter(
+                    AttributeValue.id.in_([str(v) for v in bom_entry.attribute_value_ids])
+                )
+            )
+            attr_objs = attr_result.scalars().all()
+            for mo in entry_root_mos:
+                mo.attribute_values = list(attr_objs)
             await db.flush()
 
         if entry_root_mos:
