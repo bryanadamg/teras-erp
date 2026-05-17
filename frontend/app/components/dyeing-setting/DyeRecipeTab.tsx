@@ -45,6 +45,7 @@ interface RecipeForm {
     notes: string;
     is_active: boolean;
     lines: RecipeLine[];
+    attribute_value_ids: string[];
 }
 
 const emptyForm = (): RecipeForm => ({
@@ -55,14 +56,16 @@ const emptyForm = (): RecipeForm => ({
     notes: '',
     is_active: true,
     lines: [],
+    attribute_value_ids: [],
 });
 
 interface Props {
     items: any[];
+    attributes: any[];
     authFetch: Function;
 }
 
-export default function DyeRecipeTab({ items, authFetch }: Props) {
+export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
     const [recipes, setRecipes] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -138,6 +141,7 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
                 uom_id: l.uom_id || null,
                 sort_order: l.sort_order ?? '',
             })),
+            attribute_value_ids: (recipe.attribute_value_ids || []).map(String),
         });
         setWashBaths((recipe.wash_baths || []).map((wb: any) => ({
             bath_number: wb.bath_number,
@@ -175,6 +179,7 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
                 })),
                 wash_baths: washBaths,
                 finishing_steps: finishingSteps,
+                attribute_value_ids: form.attribute_value_ids,
             };
             let res;
             if (editingRecipe) {
@@ -422,6 +427,56 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
                                 </label>
                             </div>
 
+                            {/* Attribute Matching */}
+                            {attributes.length > 0 && (
+                                <div style={{ marginBottom: 10 }}>
+                                    <div style={{
+                                        background: '#dde8f5', border: '1px solid #7f9db9',
+                                        padding: '2px 6px', fontWeight: 'bold', fontSize: 11,
+                                        color: '#1a1a1a', marginBottom: 4,
+                                    }}>
+                                        Attribute Match (for auto-suggest)
+                                    </div>
+                                    <div style={{ border: '1px solid #c0d4e8', padding: '6px 8px', background: '#f7f9fc' }}>
+                                        <div style={{ fontSize: 10, color: '#666', marginBottom: 6 }}>
+                                            Link this recipe to specific attribute values so the system can suggest it when a matching Work Order is opened.
+                                        </div>
+                                        {attributes.map((attr: any) => {
+                                            if (!attr.values?.length) return null;
+                                            return (
+                                                <div key={attr.id} style={{ marginBottom: 6 }}>
+                                                    <div style={{ fontSize: 10, fontWeight: 'bold', color: '#333', marginBottom: 3 }}>{attr.name}</div>
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 8px' }}>
+                                                        {attr.values.map((val: any) => {
+                                                            const checked = form.attribute_value_ids.includes(String(val.id));
+                                                            return (
+                                                                <label key={val.id} style={{ display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer', fontSize: 10, color: '#333' }}>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={checked}
+                                                                        onChange={e => {
+                                                                            const id = String(val.id);
+                                                                            setForm(f => ({
+                                                                                ...f,
+                                                                                attribute_value_ids: e.target.checked
+                                                                                    ? [...f.attribute_value_ids, id]
+                                                                                    : f.attribute_value_ids.filter(x => x !== id),
+                                                                            }));
+                                                                        }}
+                                                                        style={{ margin: 0 }}
+                                                                    />
+                                                                    {val.value}
+                                                                </label>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Chemical Lines */}
                             <div style={{ marginBottom: 8 }}>
                                 <div style={{
@@ -657,6 +712,26 @@ export default function DyeRecipeTab({ items, authFetch }: Props) {
                                         <span style={{ color: '#aa4400', fontWeight: 'bold', fontSize: 11 }}>Inactive</span>
                                     )}
                                 </div>
+                                {selectedRecipe.attribute_value_ids?.length > 0 && (
+                                    <div style={{ gridColumn: '1 / -1' }}>
+                                        <div style={{ fontSize: 10, color: '#555', marginBottom: 2 }}>Attribute Match</div>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 6px' }}>
+                                            {selectedRecipe.attribute_value_ids.map((vid: string) => {
+                                                let label = vid;
+                                                for (const attr of attributes) {
+                                                    const v = (attr.values || []).find((av: any) => String(av.id) === String(vid));
+                                                    if (v) { label = `${attr.name}: ${v.value}`; break; }
+                                                }
+                                                return (
+                                                    <span key={vid} style={{
+                                                        background: '#dde8f5', border: '1px solid #7fa8e8',
+                                                        padding: '1px 6px', borderRadius: 2, fontSize: 10, color: '#1a3d90',
+                                                    }}>{label}</span>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Lines read-only table */}

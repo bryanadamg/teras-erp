@@ -36,7 +36,7 @@ const TABS: { key: TabKey; label: string; icon: string }[] = [
 ];
 
 export default function DyeingSettingView() {
-    const { authFetch, items } = useData();
+    const { authFetch, items, attributes } = useData();
     const [activeTab, setActiveTab] = useState<TabKey>('recipes');
     const [recipes, setRecipes] = useState<any[]>([]);
 
@@ -152,6 +152,7 @@ export default function DyeingSettingView() {
                 {activeTab === 'recipes' && (
                     <DyeRecipeTab
                         items={items}
+                        attributes={attributes || []}
                         authFetch={authFetch}
                     />
                 )}

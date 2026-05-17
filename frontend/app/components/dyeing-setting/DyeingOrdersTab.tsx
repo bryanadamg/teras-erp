@@ -155,8 +155,6 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
     useEffect(() => {
         if (selectedWoId) {
             fetchRuns(selectedWoId);
-            setShowCreateRun(false);
-            setCreateForm(emptyCreateForm);
         } else {
             setRuns([]);
         }
@@ -166,7 +164,33 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
 
     const handleSelectWo = (wo: any) => {
         setSelectedWoId(String(wo.id));
+        setShowCreateRun(false);
+        setCreateForm(emptyCreateForm);
         setErrorMsg(null);
+    };
+
+    const handleOpenCreateRun = async () => {
+        if (showCreateRun) {
+            setShowCreateRun(false);
+            setCreateForm(emptyCreateForm);
+            setErrorMsg(null);
+            return;
+        }
+        setShowCreateRun(true);
+        setErrorMsg(null);
+        if (selectedWoId) {
+            try {
+                const res = await authFetch(`${API_BASE}/dye-recipes/match?work_order_id=${selectedWoId}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.match?.id) {
+                        setCreateForm(f => ({ ...f, recipe_id: String(data.match.id) }));
+                    }
+                }
+            } catch {
+                // silently fail — user can still select manually
+            }
+        }
     };
 
     const handleCreateFormChange = (field: keyof CreateForm, value: string) => {
@@ -425,7 +449,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                             </span>
                             <button
                                 style={{ ...xpBtn, fontSize: 10 }}
-                                onClick={() => { setShowCreateRun(v => !v); setErrorMsg(null); }}
+                                onClick={handleOpenCreateRun}
                             >
                                 {showCreateRun ? 'Cancel' : '+ Create Run'}
                             </button>

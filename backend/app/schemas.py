@@ -924,6 +924,7 @@ class DyeRecipeFinishingResponse(DyeRecipeFinishingCreate):
 class DyeRecipeCreate(BaseModel):
     code: str
     name: str
+    attribute_value_ids: list[UUID] = []
     color_standard: str | None = None
     substrate_type: str | None = None
     notes: str | None = None
@@ -938,6 +939,7 @@ class DyeRecipeUpdate(BaseModel):
     substrate_type: str | None = None
     notes: str | None = None
     is_active: bool | None = None
+    attribute_value_ids: list[UUID] | None = None
     lines: list[DyeRecipeLineCreate] | None = None
     wash_baths: list[DyeRecipeWashBathCreate] | None = None
     finishing_steps: list[DyeRecipeFinishingCreate] | None = None
@@ -951,6 +953,7 @@ class DyeRecipeResponse(BaseModel):
     notes: str | None = None
     is_active: bool
     created_at: datetime
+    attribute_value_ids: list[UUID] = []
     lines: list[DyeRecipeLineResponse] = []
     wash_baths: list[DyeRecipeWashBathResponse] = []
     finishing_steps: list[DyeRecipeFinishingResponse] = []

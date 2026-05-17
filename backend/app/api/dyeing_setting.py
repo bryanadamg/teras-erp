@@ -11,6 +11,9 @@ from app.models.dyeing_setting import (
     DyeRecipe, DyeRecipeLine, DyeingRun, DyeingRunChemical, SettingRun,
     DyeRecipeWashBath, DyeRecipeFinishing,
 )
+from app.models.attribute import AttributeValue
+from app.models.work_order import WorkOrder as _WorkOrder
+from app.models.manufacturing import ManufacturingOrder as _MO, manufacturing_order_values as _mo_values
 from app.models.batch import Batch
 from app.models.work_order import WorkOrder
 from app.models.routing import WorkCenter
@@ -36,7 +39,29 @@ def _recipe_opts():
         selectinload(DyeRecipe.lines).selectinload(DyeRecipeLine.uom),
         selectinload(DyeRecipe.wash_baths),
         selectinload(DyeRecipe.finishing_steps),
+        selectinload(DyeRecipe.attribute_values),
     ]
+
+
+def _serialize_recipe(r: DyeRecipe) -> dict:
+    lines = []
+    for ln in r.lines:
+        ld = {col.name: getattr(ln, col.name) for col in ln.__table__.columns}
+        ld["item_name"] = ln.item.name if ln.item else None
+        ld["uom_name"] = ln.uom.name if ln.uom else None
+        lines.append(ld)
+    rd = {col.name: getattr(r, col.name) for col in r.__table__.columns}
+    rd["lines"] = lines
+    rd["wash_baths"] = [
+        {col.name: getattr(wb, col.name) for col in wb.__table__.columns}
+        for wb in r.wash_baths
+    ]
+    rd["finishing_steps"] = [
+        {col.name: getattr(fs, col.name) for col in fs.__table__.columns}
+        for fs in r.finishing_steps
+    ]
+    rd["attribute_value_ids"] = [str(v.id) for v in r.attribute_values]
+    return rd
 
 
 def _dyeing_run_opts():
@@ -99,26 +124,7 @@ async def list_dye_recipes(
         q = q.filter(DyeRecipe.is_active == True)
     result = await db.execute(q)
     recipes = result.scalars().all()
-    out = []
-    for r in recipes:
-        lines = []
-        for ln in r.lines:
-            ld = {col.name: getattr(ln, col.name) for col in ln.__table__.columns}
-            ld["item_name"] = ln.item.name if ln.item else None
-            ld["uom_name"] = ln.uom.name if ln.uom else None
-            lines.append(ld)
-        rd = {col.name: getattr(r, col.name) for col in r.__table__.columns}
-        rd["lines"] = lines
-        rd["wash_baths"] = [
-            {col.name: getattr(wb, col.name) for col in wb.__table__.columns}
-            for wb in r.wash_baths
-        ]
-        rd["finishing_steps"] = [
-            {col.name: getattr(fs, col.name) for col in fs.__table__.columns}
-            for fs in r.finishing_steps
-        ]
-        out.append(rd)
-    return out
+    return [_serialize_recipe(r) for r in recipes]
 
 
 @router.post("/dye-recipes", response_model=DyeRecipeResponse)
@@ -168,33 +174,64 @@ async def create_dye_recipe(
             sort_order=fs.sort_order if fs.sort_order else i,
         ))
 
+    if payload.attribute_value_ids:
+        av_result = await db.execute(
+            select(AttributeValue).filter(AttributeValue.id.in_([str(v) for v in payload.attribute_value_ids]))
+        )
+        recipe.attribute_values = list(av_result.scalars().all())
+
     await db.commit()
     result = await db.execute(
         select(DyeRecipe).options(*_recipe_opts()).filter(DyeRecipe.id == recipe.id)
     )
     r = result.scalars().first()
-    lines = []
-    for ln in r.lines:
-        ld = {col.name: getattr(ln, col.name) for col in ln.__table__.columns}
-        ld["item_name"] = ln.item.name if ln.item else None
-        ld["uom_name"] = ln.uom.name if ln.uom else None
-        lines.append(ld)
-    rd = {col.name: getattr(r, col.name) for col in r.__table__.columns}
-    rd["lines"] = lines
-    rd["wash_baths"] = [
-        {col.name: getattr(wb, col.name) for col in wb.__table__.columns}
-        for wb in r.wash_baths
-    ]
-    rd["finishing_steps"] = [
-        {col.name: getattr(fs, col.name) for col in fs.__table__.columns}
-        for fs in r.finishing_steps
-    ]
-
     await audit_service.log_activity(
         db, str(current_user.id), "CREATE", "DyeRecipe", str(r.id),
         details=f"Created recipe {r.code}", changes={}
     )
-    return rd
+    return _serialize_recipe(r)
+
+
+@router.get("/dye-recipes/match")
+async def match_dye_recipe(
+    work_order_id: str = Query(...),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return the best-matching DyeRecipe for a given Work Order, based on the MO's attribute values."""
+    wo_result = await db.execute(
+        select(_WorkOrder).filter(_WorkOrder.id == work_order_id)
+    )
+    wo = wo_result.scalars().first()
+    if not wo:
+        raise HTTPException(status_code=404, detail="Work Order not found")
+
+    mo_result = await db.execute(
+        select(_MO)
+        .options(selectinload(_MO.attribute_values))
+        .filter(_MO.id == wo.manufacturing_order_id)
+    )
+    mo = mo_result.scalars().first()
+    mo_attr_ids = set(str(v.id) for v in mo.attribute_values) if mo else set()
+
+    recipes_result = await db.execute(
+        select(DyeRecipe).options(*_recipe_opts()).filter(DyeRecipe.is_active == True)
+    )
+    recipes = recipes_result.scalars().all()
+
+    best: DyeRecipe | None = None
+    best_count = -1
+    for r in recipes:
+        recipe_ids = set(str(v.id) for v in r.attribute_values)
+        if not recipe_ids:
+            continue
+        if recipe_ids.issubset(mo_attr_ids) and len(recipe_ids) > best_count:
+            best = r
+            best_count = len(recipe_ids)
+
+    if not best:
+        return {"match": None}
+    return {"match": _serialize_recipe(best)}
 
 
 @router.get("/dye-recipes/{recipe_id}", response_model=DyeRecipeResponse)
@@ -209,23 +246,7 @@ async def get_dye_recipe(
     r = result.scalars().first()
     if not r:
         raise HTTPException(status_code=404, detail="Recipe not found")
-    lines = []
-    for ln in r.lines:
-        ld = {col.name: getattr(ln, col.name) for col in ln.__table__.columns}
-        ld["item_name"] = ln.item.name if ln.item else None
-        ld["uom_name"] = ln.uom.name if ln.uom else None
-        lines.append(ld)
-    rd = {col.name: getattr(r, col.name) for col in r.__table__.columns}
-    rd["lines"] = lines
-    rd["wash_baths"] = [
-        {col.name: getattr(wb, col.name) for col in wb.__table__.columns}
-        for wb in r.wash_baths
-    ]
-    rd["finishing_steps"] = [
-        {col.name: getattr(fs, col.name) for col in fs.__table__.columns}
-        for fs in r.finishing_steps
-    ]
-    return rd
+    return _serialize_recipe(r)
 
 
 @router.put("/dye-recipes/{recipe_id}", response_model=DyeRecipeResponse)
@@ -285,33 +306,22 @@ async def update_dye_recipe(
                 sort_order=fs.sort_order if fs.sort_order else i,
             ))
 
+    if payload.attribute_value_ids is not None:
+        av_result = await db.execute(
+            select(AttributeValue).filter(AttributeValue.id.in_([str(v) for v in payload.attribute_value_ids]))
+        )
+        r.attribute_values = list(av_result.scalars().all())
+
     await db.commit()
     result = await db.execute(
         select(DyeRecipe).options(*_recipe_opts()).filter(DyeRecipe.id == recipe_id)
     )
     r = result.scalars().first()
-    lines = []
-    for ln in r.lines:
-        ld = {col.name: getattr(ln, col.name) for col in ln.__table__.columns}
-        ld["item_name"] = ln.item.name if ln.item else None
-        ld["uom_name"] = ln.uom.name if ln.uom else None
-        lines.append(ld)
-    rd = {col.name: getattr(r, col.name) for col in r.__table__.columns}
-    rd["lines"] = lines
-    rd["wash_baths"] = [
-        {col.name: getattr(wb, col.name) for col in wb.__table__.columns}
-        for wb in r.wash_baths
-    ]
-    rd["finishing_steps"] = [
-        {col.name: getattr(fs, col.name) for col in fs.__table__.columns}
-        for fs in r.finishing_steps
-    ]
-
     await audit_service.log_activity(
         db, str(current_user.id), "UPDATE", "DyeRecipe", str(r.id),
         details=f"Updated recipe {r.code}", changes={}
     )
-    return rd
+    return _serialize_recipe(r)
 
 
 @router.delete("/dye-recipes/{recipe_id}")

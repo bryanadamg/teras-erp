@@ -1,10 +1,19 @@
 import uuid
 from datetime import datetime
 from typing import Optional, List
-from sqlalchemy import String, Text, Numeric, Integer, Boolean, DateTime, ForeignKey, func
+from sqlalchemy import String, Text, Numeric, Integer, Boolean, DateTime, ForeignKey, func, Column, Table
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
+
+
+# Association table for DyeRecipe <-> AttributeValue (multi-attribute variant matching)
+dye_recipe_attribute_values = Table(
+    "dye_recipe_attribute_values",
+    Base.metadata,
+    Column("dye_recipe_id", UUID(as_uuid=True), ForeignKey("dye_recipes.id", ondelete="CASCADE"), primary_key=True),
+    Column("attribute_value_id", UUID(as_uuid=True), ForeignKey("attribute_values.id", ondelete="CASCADE"), primary_key=True),
+)
 
 
 class DyeRecipe(Base):
@@ -28,6 +37,7 @@ class DyeRecipe(Base):
         "DyeRecipeFinishing", back_populates="recipe", cascade="all, delete-orphan",
         order_by="DyeRecipeFinishing.sort_order"
     )
+    attribute_values = relationship("AttributeValue", secondary=dye_recipe_attribute_values)
 
 
 class DyeRecipeLine(Base):
