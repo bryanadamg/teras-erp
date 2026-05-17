@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useMemo, useEffect } from 'react';
 import QRCode from 'qrcode';
+import { useRouter } from 'next/navigation';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../shared/Toast';
@@ -59,6 +60,7 @@ interface FlatWO {
 }
 
 export default function WorkOrderListView({ manufacturingOrders, workCenters, onUpdate, onUpdateStatus, onDelete }: Props) {
+    const router = useRouter();
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
     const { fetchData } = useData();
@@ -177,103 +179,117 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
     const renderDetailPanel = (wo: FlatWO) => {
         const parentMO = manufacturingOrders.find(m => m.id === wo.mo_id);
         const bomItemIds = new Set<string>((parentMO?.bom?.lines || []).map((l: any) => l.item_id as string));
-        const completions: any[] = wo.completions ? [...wo.completions].reverse() : [];
+        const completions: any[] = (parentMO?.completions || [])
+            .filter((c: any) => c.work_order_id === wo.id)
+            .reverse();
 
         const panelStyle: React.CSSProperties = {
-            display: 'grid', gridTemplateColumns: '140px 1fr 1fr',
+            display: 'grid', gridTemplateColumns: '110px 192px 1fr',
             border: classic ? '1px solid #7f9db9' : '1px solid #dee2e6',
             fontFamily: xpFont, fontSize: 10,
         };
         const colHeaderStyle: React.CSSProperties = {
             fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', color: '#555',
-            letterSpacing: 0.5, borderBottom: '1px solid #c0bdb5', paddingBottom: 3, marginBottom: 6, width: '100%',
+            letterSpacing: 0.5, borderBottom: '1px solid #c0bdb5', paddingBottom: 2, marginBottom: 4, width: '100%',
         };
+        const infoRow = (label: string, val: string) => (
+            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 1, fontSize: 9 }}>
+                <span style={{ color: '#888' }}>{label}</span>
+                <span style={{ fontWeight: 'bold', color: '#222', textAlign: 'right', maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{val}</span>
+            </div>
+        );
 
         return (
             <tr key={`${wo.id}-detail`}>
-                <td colSpan={COLS} style={{ padding: '0 4px 8px', background: '#eef2ff' }}>
+                <td colSpan={COLS} style={{ padding: '0 4px 6px', background: '#eef2ff' }}>
                     <div style={panelStyle}>
                         {/* QR Code */}
-                        <div style={{ borderRight: '1px solid #c0bdb5', padding: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, background: '#f5f4ef' }}>
-                            <div style={{ ...colHeaderStyle, alignSelf: 'flex-start' }}>QR Code</div>
+                        <div style={{ borderRight: '1px solid #c0bdb5', padding: '6px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, background: '#f5f4ef' }}>
+                            <div style={{ ...colHeaderStyle, alignSelf: 'flex-start' }}>QR</div>
                             {woQrUrls[wo.id]
-                                ? <img src={woQrUrls[wo.id]} alt="QR" style={{ width: 90, height: 90, border: '1px solid #ccc' }} />
-                                : <div style={{ width: 90, height: 90, background: '#ddd', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#888' }}>Loading...</div>
+                                ? <img src={woQrUrls[wo.id]} alt="QR" style={{ width: 76, height: 76, border: '1px solid #ccc' }} />
+                                : <div style={{ width: 76, height: 76, background: '#ddd', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#888' }}>...</div>
                             }
-                            <div style={{ fontFamily: 'monospace', fontSize: 7, color: '#aaa', wordBreak: 'break-all', textAlign: 'center', maxWidth: 120 }}>{wo.id}</div>
+                            <div style={{ fontFamily: 'monospace', fontSize: 6, color: '#bbb', wordBreak: 'break-all', textAlign: 'center', maxWidth: 96 }}>{wo.id}</div>
                         </div>
 
-                        {/* Timeline & Info */}
-                        <div style={{ borderRight: '1px solid #c0bdb5', padding: 8, background: '#f5f4ef' }}>
-                            <div style={colHeaderStyle}>Timeline &amp; Info</div>
-                            {([
-                                { label: 'Target Start', val: fmtDate(wo.target_start_date) },
-                                { label: 'Target End',   val: fmtDate(wo.target_end_date) },
-                                { label: 'Actual Start', val: fmtDateTime(wo.actual_start_date) },
-                                { label: 'Actual End',   val: fmtDateTime(wo.actual_end_date) },
-                                { label: 'Planned hrs',  val: wo.planned_duration_hours != null ? `${wo.planned_duration_hours}h` : '—' },
-                                { label: 'Actual hrs',   val: wo.actual_duration_hours != null ? `${wo.actual_duration_hours}h` : '—' },
-                                { label: 'Work Center',  val: wo.work_center_name || '—' },
-                                { label: 'MO',           val: wo.mo_code },
-                                { label: 'Product',      val: wo.item_name || '—' },
-                            ] as {label: string; val: string}[]).map(({ label, val }) => (
-                                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                                    <span style={{ color: '#666' }}>{label}:</span>
-                                    <span style={{ fontWeight: 'bold', color: '#000' }}>{val}</span>
-                                </div>
-                            ))}
+                        {/* Timeline & Info — compact two-column key/value */}
+                        <div style={{ borderRight: '1px solid #c0bdb5', padding: '6px 8px', background: '#f5f4ef' }}>
+                            <div style={colHeaderStyle}>Info</div>
+                            {infoRow('MO', wo.mo_code)}
+                            {infoRow('Product', wo.item_name || '—')}
+                            {infoRow('Work Center', wo.work_center_name || '—')}
+                            <div style={{ borderTop: '1px solid #e0ddd8', margin: '3px 0' }} />
+                            {infoRow('Target Start', fmtDate(wo.target_start_date))}
+                            {infoRow('Target End',   fmtDate(wo.target_end_date))}
+                            {infoRow('Actual Start', fmtDateTime(wo.actual_start_date))}
+                            {infoRow('Actual End',   fmtDateTime(wo.actual_end_date))}
+                            <div style={{ borderTop: '1px solid #e0ddd8', margin: '3px 0' }} />
+                            {infoRow('Planned hrs', wo.planned_duration_hours != null ? `${wo.planned_duration_hours}h` : '—')}
+                            {infoRow('Actual hrs',  wo.actual_duration_hours != null  ? `${wo.actual_duration_hours}h`  : '—')}
                             {wo.notes && (
-                                <div style={{ marginTop: 6, padding: '4px 6px', background: '#fffbe6', border: '1px solid #e0d080', fontSize: 10, fontStyle: 'italic', color: '#555' }}>
+                                <div style={{ marginTop: 4, padding: '2px 5px', background: '#fffbe6', border: '1px solid #e0d080', fontSize: 9, fontStyle: 'italic', color: '#666' }}>
                                     {wo.notes}
                                 </div>
                             )}
                         </div>
 
-                        {/* Completion Log */}
-                        <div style={{ padding: 8, background: '#f5f4ef' }}>
+                        {/* Completion Log — compact table rows */}
+                        <div style={{ padding: '6px 8px', background: '#f5f4ef', overflow: 'hidden' }}>
                             <div style={colHeaderStyle}>Completion Log ({completions.length})</div>
                             {completions.length === 0 ? (
-                                <div style={{ color: '#999', fontStyle: 'italic', fontSize: 10 }}>No entries yet.</div>
+                                <div style={{ color: '#aaa', fontStyle: 'italic', fontSize: 9 }}>No entries yet.</div>
                             ) : (
-                                <div style={{ maxHeight: 220, overflowY: 'auto' }}>
-                                    {completions.map((c: any, ci: number) => {
-                                        const substitutes = (c.actual_items || []).filter((ai: any) => !bomItemIds.has(ai.item_id));
-                                        const bomItems    = (c.actual_items || []).filter((ai: any) =>  bomItemIds.has(ai.item_id));
-                                        return (
-                                            <div key={c.id || ci} style={{ borderBottom: ci < completions.length - 1 ? '1px solid #dddbd0' : 'none', paddingBottom: 6, marginBottom: 6 }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 2 }}>
-                                                    <span style={{ fontWeight: 'bold', fontSize: 11, color: '#000080' }}>+{parseFloat(c.qty_completed).toFixed(2)}</span>
-                                                    <span style={{ fontSize: 9, color: '#888' }}>{fmtDateTime(c.created_at)}</span>
-                                                </div>
-                                                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 10, color: '#444' }}>
-                                                    {c.operator_name && <span>Op: <strong>{c.operator_name}</strong></span>}
-                                                    {c.work_center_name && <span>Machine: <strong>{c.work_center_name}</strong></span>}
-                                                </div>
-                                                {bomItems.length > 0 && (
-                                                    <div style={{ marginTop: 2, fontSize: 9, color: '#555' }}>
-                                                        {bomItems.map((ai: any) => (
-                                                            <span key={ai.item_id} style={{ marginRight: 6 }}>
-                                                                {ai.item_code || ai.item_id} &times;{parseFloat(ai.qty_used).toFixed(2)}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                                {substitutes.length > 0 && (
-                                                    <div style={{ marginTop: 2 }}>
-                                                        {substitutes.map((ai: any) => (
-                                                            <span key={ai.item_id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginRight: 6, fontSize: 9 }}>
-                                                                <span style={{ background: '#fff3cd', border: '1px solid #b8860b', color: '#7a5000', padding: '0 3px', fontWeight: 'bold' }}>SUB</span>
-                                                                <span>{ai.item_code || ai.item_id} &times;{parseFloat(ai.qty_used).toFixed(2)}</span>
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                                {c.notes && (
-                                                    <div style={{ marginTop: 2, fontSize: 9, color: '#777', fontStyle: 'italic' }}>{c.notes}</div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
+                                <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9 }}>
+                                        <thead>
+                                            <tr style={{ background: 'linear-gradient(to bottom,#ece9d8,#d4d0c8)', borderBottom: '1px solid #aca899' }}>
+                                                <th style={{ padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444', width: 110 }}>Date / Time</th>
+                                                <th style={{ padding: '1px 5px', textAlign: 'right', fontWeight: 'bold', color: '#444', width: 44 }}>Qty</th>
+                                                <th style={{ padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444' }}>Operator</th>
+                                                <th style={{ padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444' }}>Machine</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {completions.map((c: any, ci: number) => {
+                                                const substitutes = (c.actual_items || []).filter((ai: any) => !bomItemIds.has(ai.item_id));
+                                                const bomItems    = (c.actual_items || []).filter((ai: any) =>  bomItemIds.has(ai.item_id));
+                                                const hasMeta = substitutes.length > 0 || bomItems.length > 0 || c.notes;
+                                                return (
+                                                    <React.Fragment key={c.id || ci}>
+                                                        <tr style={{ background: ci % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #e8e6e0' }}>
+                                                            <td style={{ padding: '2px 5px', color: '#666', whiteSpace: 'nowrap' }}>{fmtDateTime(c.created_at)}</td>
+                                                            <td style={{ padding: '2px 5px', fontWeight: 'bold', color: '#000080', textAlign: 'right' }}>+{parseFloat(c.qty_completed).toFixed(2)}</td>
+                                                            <td style={{ padding: '2px 5px', color: '#333' }}>{c.operator_name || '—'}</td>
+                                                            <td style={{ padding: '2px 5px', color: '#555' }}>{c.work_center_name || '—'}</td>
+                                                        </tr>
+                                                        {hasMeta && (
+                                                            <tr style={{ background: ci % 2 === 0 ? '#fafaf7' : '#f0efe8', borderBottom: '1px solid #e8e6e0' }}>
+                                                                <td colSpan={4} style={{ padding: '1px 5px 3px 12px' }}>
+                                                                    {bomItems.length > 0 && (
+                                                                        <span style={{ color: '#555', marginRight: 8 }}>
+                                                                            {bomItems.map((ai: any) => (
+                                                                                <span key={ai.item_id} style={{ marginRight: 6 }}>
+                                                                                    {ai.item_code || ai.item_id} &times;{parseFloat(ai.qty_used).toFixed(2)}
+                                                                                </span>
+                                                                            ))}
+                                                                        </span>
+                                                                    )}
+                                                                    {substitutes.map((ai: any) => (
+                                                                        <span key={ai.item_id} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, marginRight: 6 }}>
+                                                                            <span style={{ background: '#fff3cd', border: '1px solid #b8860b', color: '#7a5000', padding: '0 3px', fontWeight: 'bold', fontSize: 8 }}>SUB</span>
+                                                                            <span style={{ color: '#555' }}>{ai.item_code || ai.item_id} &times;{parseFloat(ai.qty_used).toFixed(2)}</span>
+                                                                        </span>
+                                                                    ))}
+                                                                    {c.notes && <span style={{ color: '#888', fontStyle: 'italic', marginLeft: 4 }}>{c.notes}</span>}
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                    </React.Fragment>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
                                 </div>
                             )}
                         </div>
@@ -438,38 +454,56 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
 
                                     return (
                                         <React.Fragment key={wo.id}>
-                                            <tr style={{ background: isExpanded ? '#eef2ff' : rowBg }}>
+                                            <tr
+                                                style={{ background: isExpanded ? '#eef2ff' : rowBg, cursor: 'pointer' }}
+                                                onClick={() => setExpandedWOId(prev => prev === wo.id ? null : wo.id)}
+                                            >
                                                 <td style={{ ...tdBase, padding: '3px 4px', textAlign: 'center', width: 20 }} className={classic ? '' : 'ps-2'}>
-                                                    <button
-                                                        onClick={() => setExpandedWOId(prev => prev === wo.id ? null : wo.id)}
-                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: '#555', padding: 0, lineHeight: 1 }}
-                                                        title={isExpanded ? 'Collapse' : 'Show details'}
-                                                    >
+                                                    <span style={{ fontSize: 10, color: '#555', lineHeight: 1 }}>
                                                         {isExpanded ? '▼' : '►'}
-                                                    </button>
+                                                    </span>
                                                 </td>
                                                 <td style={{ ...tdBase, color: '#888', width: 36 }} className={classic ? '' : 'ps-3'}>{wo.sequence}</td>
                                                 <td style={{ ...tdBase, fontFamily: 'monospace', fontWeight: 'bold', fontSize: classic ? 10 : 11, color: '#000080' }}>
                                                     {(wo as any).code || wo.name}
                                                 </td>
-                                                <td style={{ ...tdBase, fontFamily: 'monospace', fontSize: classic ? 10 : 11, whiteSpace: 'nowrap' }}>{wo.mo_code}</td>
+                                                <td
+                                                    style={{ ...tdBase, fontFamily: 'monospace', fontSize: classic ? 10 : 11, whiteSpace: 'nowrap', color: '#0058e6', textDecoration: 'underline', cursor: 'pointer' }}
+                                                    onClick={e => { e.stopPropagation(); router.push(`/manufacturing-orders?mo=${encodeURIComponent(wo.mo_code)}`); }}
+                                                    title="Go to Manufacturing Order"
+                                                >
+                                                    {wo.mo_code}
+                                                </td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11, color: '#444' }}>{wo.item_name || '—'}</td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11, color: '#555' }}>{wo.work_center_name || '—'}</td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>{wo.planned_duration_hours != null ? `${wo.planned_duration_hours}h` : '—'}</td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>{wo.actual_duration_hours != null ? `${wo.actual_duration_hours}h` : '—'}</td>
-                                                <td style={{ ...tdBase, fontSize: classic ? 10 : 11, textAlign: 'right' }}>
-                                                    {wo.qty != null ? (
-                                                        <span>
-                                                            <span style={{ color: (wo.qty_completed_total ?? 0) >= wo.qty ? '#007000' : '#555' }}>
-                                                                {(wo.qty_completed_total ?? 0).toFixed(2)}
-                                                            </span>
-                                                            <span style={{ color: '#999' }}> / {wo.qty}</span>
-                                                        </span>
-                                                    ) : '—'}
+                                                <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>
+                                                    {wo.qty != null ? (() => {
+                                                        const done = (wo.qty_completed_total ?? 0) >= wo.qty;
+                                                        const pct = Math.min(100, ((wo.qty_completed_total ?? 0) / wo.qty) * 100);
+                                                        return (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'flex-end' }}>
+                                                                <div style={{ width: 72, height: 8, border: '1px solid #7f9db9', background: '#fff', overflow: 'hidden' }}>
+                                                                    {pct > 0 && (
+                                                                        <div style={{
+                                                                            height: '100%', width: `${pct}%`,
+                                                                            background: done
+                                                                                ? 'repeating-linear-gradient(45deg,#2e7d32,#2e7d32 2px,#4caf50 2px,#4caf50 5px)'
+                                                                                : 'repeating-linear-gradient(45deg,#000080,#000080 2px,#1565c0 2px,#1565c0 5px)',
+                                                                        }} />
+                                                                    )}
+                                                                </div>
+                                                                <span style={{ fontSize: 9, color: done ? '#007000' : '#555', whiteSpace: 'nowrap' }}>
+                                                                    {(wo.qty_completed_total ?? 0).toFixed(1)}/{wo.qty}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    })() : <span style={{ color: '#bbb' }}>—</span>}
                                                 </td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>{fmtDateTime(wo.actual_start_date)}</td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>{fmtDateTime(wo.actual_end_date)}</td>
-                                                <td style={tdBase}>
+                                                <td style={tdBase} onClick={e => e.stopPropagation()}>
                                                     {classic ? (
                                                         <select value={wo.status}
                                                             onChange={e => {
@@ -485,7 +519,7 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                                                         </select>
                                                     ) : statusChip(wo.status)}
                                                 </td>
-                                                <td style={{ ...tdBase, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                <td style={{ ...tdBase, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
                                                     {classic ? (
                                                         <>
                                                             {(wo.status === 'PENDING' || wo.status === 'IN_PROGRESS') && (
