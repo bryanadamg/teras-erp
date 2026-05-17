@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import DyeRecipePrintView from './DyeRecipePrintView';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
+import CodeConfigModal, { CodeConfig, buildCodeParts, buildCodeWithCounter } from '../shared/CodeConfigModal';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -78,6 +79,8 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
     const [washBaths, setWashBaths] = useState<Array<{bath_number: number; description: string}>>([]);
     const [finishingSteps, setFinishingSteps] = useState<Array<{description: string; sort_order: number}>>([]);
     const [showPrint, setShowPrint] = useState(false);
+    const [showCodeConfig, setShowCodeConfig] = useState(false);
+    const [codeConfig, setCodeConfig] = useState<CodeConfig | null>(null);
     const { showToast } = useToast();
     const { confirm } = useConfirm();
 
@@ -103,6 +106,32 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
     useEffect(() => {
         loadRecipes();
     }, [loadRecipes]);
+
+    // Auto-generate code from config + selected attribute values
+    useEffect(() => {
+        if (!codeConfig) return;
+        const variantNames: string[] = (codeConfig.variantAttributeNames || []).map((attrName: string) => {
+            const attr = attributes.find((a: any) => a.name === attrName);
+            if (!attr) return '';
+            const sel = (attr.values || []).find((v: any) => form.attribute_value_ids.includes(String(v.id)));
+            return sel?.value || '';
+        }).filter(Boolean);
+        const parts = buildCodeParts(codeConfig, '', variantNames);
+        const base = parts.join(codeConfig.separator);
+        const matchingCounters = recipes
+            .filter(r => {
+                if (!r.code) return false;
+                const m = r.code.match(/^(.+)-(\d{5})$/);
+                return m && m[1] === base;
+            })
+            .map(r => {
+                const m = (r.code || '').match(/(\d{5})$/);
+                return m ? parseInt(m[1], 10) : 0;
+            });
+        const counter = matchingCounters.length > 0 ? Math.max(...matchingCounters) + 1 : 1;
+        setForm(f => ({ ...f, code: buildCodeWithCounter(codeConfig, counter, '', variantNames) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [form.attribute_value_ids, codeConfig]);
 
     const selectedRecipe = recipes.find(r => String(r.id) === String(selectedId)) || null;
 
@@ -365,12 +394,20 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                                     <label style={{ display: 'block', marginBottom: 2, color: '#333' }}>
                                         Code <span style={{ color: 'red' }}>*</span>
                                     </label>
-                                    <input
-                                        style={{ ...xpInput, width: '100%', boxSizing: 'border-box' }}
-                                        value={form.code}
-                                        onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
-                                        placeholder="e.g. DR-001"
-                                    />
+                                    <div style={{ display: 'flex', gap: 4 }}>
+                                        <input
+                                            style={{ ...xpInput, flex: 1 }}
+                                            value={form.code}
+                                            onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
+                                            placeholder="e.g. DR-001"
+                                        />
+                                        <button
+                                            type="button"
+                                            style={{ ...xpBtn, fontSize: 10, padding: '1px 6px', flexShrink: 0, whiteSpace: 'nowrap' }}
+                                            onClick={() => setShowCodeConfig(true)}
+                                            title="Configure code format"
+                                        >Configure</button>
+                                    </div>
                                 </div>
                                 <div>
                                     <label style={{ display: 'block', marginBottom: 2, color: '#333' }}>
@@ -439,40 +476,41 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                                     </div>
                                     <div style={{ border: '1px solid #c0d4e8', padding: '6px 8px', background: '#f7f9fc' }}>
                                         <div style={{ fontSize: 10, color: '#666', marginBottom: 6 }}>
-                                            Link this recipe to specific attribute values so the system can suggest it when a matching Work Order is opened.
+                                            Link this recipe to attribute values. The system will suggest it when a Work Order matches all selected values.
                                         </div>
-                                        {attributes.map((attr: any) => {
-                                            if (!attr.values?.length) return null;
-                                            return (
-                                                <div key={attr.id} style={{ marginBottom: 6 }}>
-                                                    <div style={{ fontSize: 10, fontWeight: 'bold', color: '#333', marginBottom: 3 }}>{attr.name}</div>
-                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 8px' }}>
-                                                        {attr.values.map((val: any) => {
-                                                            const checked = form.attribute_value_ids.includes(String(val.id));
-                                                            return (
-                                                                <label key={val.id} style={{ display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer', fontSize: 10, color: '#333' }}>
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={checked}
-                                                                        onChange={e => {
-                                                                            const id = String(val.id);
-                                                                            setForm(f => ({
-                                                                                ...f,
-                                                                                attribute_value_ids: e.target.checked
-                                                                                    ? [...f.attribute_value_ids, id]
-                                                                                    : f.attribute_value_ids.filter(x => x !== id),
-                                                                            }));
-                                                                        }}
-                                                                        style={{ margin: 0 }}
-                                                                    />
-                                                                    {val.value}
-                                                                </label>
-                                                            );
-                                                        })}
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '4px 12px' }}>
+                                            {attributes.map((attr: any) => {
+                                                if (!attr.values?.length) return null;
+                                                const selectedId = (attr.values as any[]).find(
+                                                    (v: any) => form.attribute_value_ids.includes(String(v.id))
+                                                )?.id?.toString() || '';
+                                                return (
+                                                    <div key={attr.id}>
+                                                        <div style={{ fontSize: 10, color: '#555', marginBottom: 2 }}>{attr.name}</div>
+                                                        <select
+                                                            style={{ ...xpInput, height: 22, width: '100%' }}
+                                                            value={selectedId}
+                                                            onChange={e => {
+                                                                const newValId = e.target.value;
+                                                                const attrValIds = (attr.values as any[]).map((v: any) => String(v.id));
+                                                                setForm(f => ({
+                                                                    ...f,
+                                                                    attribute_value_ids: [
+                                                                        ...f.attribute_value_ids.filter(x => !attrValIds.includes(x)),
+                                                                        ...(newValId ? [newValId] : []),
+                                                                    ],
+                                                                }));
+                                                            }}
+                                                        >
+                                                            <option value="">-- none --</option>
+                                                            {(attr.values as any[]).map((val: any) => (
+                                                                <option key={val.id} value={String(val.id)}>{val.value}</option>
+                                                            ))}
+                                                        </select>
                                                     </div>
-                                                </div>
-                                            );
-                                        })}
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -804,6 +842,20 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
             <DyeRecipePrintView
                 recipe={selectedRecipe}
                 onClose={() => setShowPrint(false)}
+            />
+        )}
+
+        {showCodeConfig && (
+            <CodeConfigModal
+                isOpen={showCodeConfig}
+                onClose={() => setShowCodeConfig(false)}
+                type="DYE"
+                attributes={attributes}
+                initialConfig={codeConfig || undefined}
+                onSave={cfg => {
+                    setCodeConfig(cfg);
+                    setShowCodeConfig(false);
+                }}
             />
         )}
         </>
