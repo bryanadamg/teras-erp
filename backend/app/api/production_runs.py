@@ -31,6 +31,24 @@ from datetime import datetime
 router = APIRouter()
 
 
+async def _find_unique_mo_code(db: AsyncSession, candidate: str) -> str:
+    """Return candidate if unused, otherwise append -02, -03, ... until unique."""
+    existing = await db.execute(
+        select(ManufacturingOrder.id).filter(ManufacturingOrder.code == candidate).limit(1)
+    )
+    if existing.scalars().first() is None:
+        return candidate
+    n = 2
+    while True:
+        new_candidate = f"{candidate}-{n:02d}"
+        existing = await db.execute(
+            select(ManufacturingOrder.id).filter(ManufacturingOrder.code == new_candidate).limit(1)
+        )
+        if existing.scalars().first() is None:
+            return new_candidate
+        n += 1
+
+
 async def _create_consolidated_component_mos(
     db: AsyncSession,
     bom_ro_pairs: list[tuple],
@@ -375,7 +393,12 @@ async def create_production_run(
                     bom_size_id=size_entry.bom_size_id,
                     create_children=False,
                 )
-                root_mo.code = f"{payload.code}-{bom_label.upper()}-{size_label.upper()}" if len(payload.bom_entries) > 1 else f"{payload.code}-{size_label.upper()}"
+                base_code = (
+                    f"{payload.code}-{bom_label.upper()}-{entry_idx+1:03d}-{size_label.upper()}"
+                    if len(payload.bom_entries) > 1
+                    else f"{payload.code}-{size_label.upper()}"
+                )
+                root_mo.code = await _find_unique_mo_code(db, base_code)
                 entry_root_mos.append(root_mo)
                 total_root_mo_count += 1
                 await db.flush()
@@ -391,7 +414,12 @@ async def create_production_run(
                 create_children=False,
             )
             suffix = f"{entry_idx+1:03d}"
-            root_mo.code = f"{payload.code}-{bom_label.upper()}" if len(payload.bom_entries) > 1 else f"{payload.code}-{suffix}"
+            base_code = (
+                f"{payload.code}-{bom_label.upper()}-{suffix}"
+                if len(payload.bom_entries) > 1
+                else f"{payload.code}-{suffix}"
+            )
+            root_mo.code = await _find_unique_mo_code(db, base_code)
             entry_root_mos.append(root_mo)
             total_root_mo_count += 1
             await db.flush()
