@@ -1873,6 +1873,7 @@ export default function ManufacturingView({
                   initialTotalQty={prModalTotalQty}
                   initialBomEntries={prModalInitialEntries}
                   salesOrderId={prModalSalesOrderId}
+                  productionRuns={productionRuns}
               />
           )}
 

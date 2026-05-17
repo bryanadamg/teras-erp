@@ -53,7 +53,7 @@ export default function BOMView({
     onUploadBOMPhoto, onUploadBOMDesign, onFetchBOMTree,
     companyProfile,
     initialCreateState, onClearInitialState,
-    onCreateProductionRun
+    onCreateProductionRun, productionRuns,
 }: any) {
     const { showToast } = useToast();
     const { t } = useLanguage();
@@ -947,6 +947,7 @@ export default function BOMView({
                 onSave={onCreateProductionRun}
                 onClose={() => setStartPRBom(null)}
                 initialBomId={startPRBom?.id}
+                productionRuns={productionRuns || []}
             />
         )}
         </>

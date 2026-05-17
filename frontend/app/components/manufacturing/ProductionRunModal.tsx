@@ -38,6 +38,7 @@ interface Props {
         locked?: boolean;
     }>;
     salesOrderId?: string;
+    productionRuns?: any[];
 }
 
 function BomEntryRow({
@@ -156,7 +157,7 @@ function BomEntryRow({
 
 export default function ProductionRunModal({
     boms, items, attributes, locations, onSave, onClose,
-    initialBomId, initialSizes, initialTotalQty, initialBomEntries, salesOrderId,
+    initialBomId, initialSizes, initialTotalQty, initialBomEntries, salesOrderId, productionRuns,
 }: Props) {
     const [code, setCode] = useState('');
     const [locationCode, setLocationCode] = useState('');
@@ -188,7 +189,15 @@ export default function ProductionRunModal({
         const firstBom = boms.find((b: any) => b.id === bomEntries[0]?.bomId);
         if (firstBom) {
             const item = firstBom.item_name || firstBom.item_code || 'ITEM';
-            setCode(`PR-${item.toUpperCase().replace(/\s+/g, '-').slice(0, 12)}-001`);
+            const base = `PR-${item.toUpperCase().replace(/\s+/g, '-').slice(0, 12)}`;
+            const existingCodes = new Set((productionRuns || []).map((pr: any) => String(pr.code)));
+            let n = 1;
+            let candidate = `${base}-${String(n).padStart(3, '0')}`;
+            while (existingCodes.has(candidate)) {
+                n++;
+                candidate = `${base}-${String(n).padStart(3, '0')}`;
+            }
+            setCode(candidate);
         }
     }, [bomEntries[0]?.bomId]);
 
