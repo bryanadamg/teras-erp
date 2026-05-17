@@ -210,11 +210,7 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
             .then(r => r.ok ? r.json() : [])
             .then(setProfiles)
             .catch(() => setProfiles([]));
-
-        const lastLevels = localStorage.getItem('bom_auto_levels_active');
-        if (lastLevels) {
-            try { setLevels(JSON.parse(lastLevels)); } catch (e) {}
-        }
+        setLevels(DEFAULT_LEVELS);
     }, [isOpen, authFetch]);
 
     const handlePatternChange = useCallback((lIdx: number, pIdx: number, value: string) => {
@@ -269,7 +265,6 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
     }, [authFetch]);
 
     const handleSaveAndApply = useCallback(() => {
-        localStorage.setItem('bom_auto_levels_active', JSON.stringify(levels));
         onApply(levels);
         onClose();
     }, [levels, onApply, onClose]);
@@ -315,22 +310,6 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
                     <div style={{ display: 'flex', gap: 2 }}>
                         <button onClick={onClose} style={{
                             width: 16, height: 14,
-                            background: 'linear-gradient(to bottom, #f0f0e0, #d0cfc0)',
-                            borderTop: '1px solid #fff', borderLeft: '1px solid #fff',
-                            borderRight: '1px solid #555', borderBottom: '1px solid #555',
-                            fontSize: 9, cursor: 'pointer', display: 'flex',
-                            alignItems: 'center', justifyContent: 'center', fontWeight: 'bold',
-                        }}>_</button>
-                        <button style={{
-                            width: 16, height: 14,
-                            background: 'linear-gradient(to bottom, #f0f0e0, #d0cfc0)',
-                            borderTop: '1px solid #fff', borderLeft: '1px solid #fff',
-                            borderRight: '1px solid #555', borderBottom: '1px solid #555',
-                            fontSize: 9, cursor: 'pointer', display: 'flex',
-                            alignItems: 'center', justifyContent: 'center',
-                        }}>□</button>
-                        <button onClick={onClose} style={{
-                            width: 16, height: 14,
                             background: 'linear-gradient(to bottom, #d06060, #a03030)',
                             borderTop: '1px solid #e08080', borderLeft: '1px solid #e08080',
                             borderRight: '1px solid #600', borderBottom: '1px solid #600',
@@ -351,7 +330,7 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
                     minHeight: 0,
                 }}>
                     {/* Left: config + levels (scrollable) */}
-                    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, minHeight: 0, paddingRight: 4 }}>
+                    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, minHeight: 0, paddingRight: 4, paddingTop: 10 }}>
 
                         {/* Saved Profiles */}
                         <div style={gb.wrapper}>
