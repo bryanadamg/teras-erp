@@ -52,18 +52,33 @@ export default function SalesOrdersPage() {
             });
         });
 
-        const entries: Array<{ bom_id: string; sizes?: { bom_size_id: string; qty: number }[]; total_qty?: number }> = [];
+        const entries: Array<{
+            bom_id: string;
+            sizes?: { bom_size_id: string; qty: number }[];
+            total_qty?: number;
+            attribute_value_ids?: string[];
+        }> = [];
         let missingBomCount = 0;
 
         for (const [, groupLines] of attrGroupMap) {
             const firstLine = groupLines[0];
-            const matchingBOM = boms.find((b: any) => {
+            const lineAttrIds: string[] = firstLine.attribute_value_ids || [];
+
+            // Try exact attribute match first (existing behavior)
+            let matchingBOM = boms.find((b: any) => {
                 if (b.item_id !== firstLine.item_id) return false;
-                const bomAttrIds = b.attribute_value_ids || [];
-                const lineAttrIds = firstLine.attribute_value_ids || [];
+                const bomAttrIds: string[] = b.attribute_value_ids || [];
                 if (lineAttrIds.length !== bomAttrIds.length) return false;
                 return lineAttrIds.every((id: string) => bomAttrIds.includes(id));
             });
+
+            // Fallback: base BOM with no attributes (color applied via dyeing)
+            if (!matchingBOM) {
+                matchingBOM = boms.find((b: any) =>
+                    b.item_id === firstLine.item_id &&
+                    (b.attribute_value_ids || []).length === 0
+                );
+            }
 
             if (!matchingBOM) {
                 missingBomCount++;
@@ -77,17 +92,29 @@ export default function SalesOrdersPage() {
                     .filter((l: any) => !coveredSizeIds.has(String(l.bom_size_id)))
                     .map((l: any) => ({ bom_size_id: l.bom_size_id, qty: parseFloat(l.qty) || 0 }));
                 if (uncoveredSizes.length > 0) {
-                    entries.push({ bom_id: matchingBOM.id, sizes: uncoveredSizes });
+                    entries.push({
+                        bom_id: matchingBOM.id,
+                        sizes: uncoveredSizes,
+                        attribute_value_ids: lineAttrIds.length > 0 ? lineAttrIds : undefined,
+                    });
                 }
             } else {
+                const sortedLineAttrs = [...lineAttrIds].sort().join(',');
                 const covered = (productionRuns || []).some((pr: any) => {
                     if (String(pr.sales_order_id) !== String(so.id)) return false;
-                    if (String(pr.bom_id) === String(matchingBOM.id)) return true;
-                    return (pr.bom_entries || []).some((e: any) => String(e.bom_id) === String(matchingBOM.id));
+                    return (pr.bom_entries || []).some((e: any) => {
+                        if (String(e.bom_id) !== String(matchingBOM!.id)) return false;
+                        const entryAttrs = [...(e.attribute_value_ids || [])].sort().join(',');
+                        return entryAttrs === sortedLineAttrs;
+                    });
                 });
                 if (!covered) {
                     const totalQty = groupLines.reduce((acc: number, l: any) => acc + (parseFloat(l.qty) || 0), 0);
-                    entries.push({ bom_id: matchingBOM.id, total_qty: totalQty });
+                    entries.push({
+                        bom_id: matchingBOM.id,
+                        total_qty: totalQty,
+                        attribute_value_ids: lineAttrIds.length > 0 ? lineAttrIds : undefined,
+                    });
                 }
             }
         }

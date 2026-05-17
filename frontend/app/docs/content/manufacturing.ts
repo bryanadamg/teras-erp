@@ -54,23 +54,19 @@ export const manufacturingPage: DocPage = {
             body: 'Result: one consolidated MO for Item-B (qty 36) instead of two separate orders. Operators prepare Item-B once. The XL and L finishing orders can only start after the shared Item-B MO is complete.',
         },
         {
-            heading: 'Case 2 — Colour Variants with Shared Greige',
-            body: 'Item-A has two colour variants: Black-218 and Red-X. Each variant has its own BOM tagged with its colour attribute value. Both BOMs share the same greige Item-B at 80% of output. The only difference is the colorant — a fixed raw material specific to each variant.',
-            code:
-`BOM-A-Black-218  [Colour = Black-218]       BOM-A-Red-X  [Colour = Red-X]
-  ├─ Item-B  80%  → BOM-B (shared)             ├─ Item-B  80%  → BOM-B (shared)
-  └─ Black-218 Dye  5 m  (raw material)        └─ Red-X Dye    5 m  (raw material)`,
-            table: {
-                headers: ['Root MO', 'Qty', 'Item-B demand (80%)', 'Colorant consumed at completion'],
-                rows: [
-                    ['MO-A-Black-218', '100', '80',  'Black-218 Dye — 5 m'],
-                    ['MO-A-Red-X',     '80',  '64',  'Red-X Dye — 5 m'],
-                    ['**Consolidated**', '—', '**144**', '— (independent per MO)'],
-                ],
-            },
+            heading: 'Case 2 — Colour Variants via Dyeing',
+            body: 'Item-A is a base fabric with one BOM and no colour attribute. Colour variants (e.g. Black-218, Red-X) are produced by running Item-A through the Dyeing & Setting process with the matching dye recipe. They are not separate BOMs — they are the same item with a colour attribute value applied.',
             callout: {
-                type: 'tip',
-                text: 'Colorant lines are raw material inputs (fixed qty, percentage = 0). They are consumed independently by each root MO at completion — Black-218 Dye is only deducted when MO-A-Black-218 completes. The greige preparation is fully shared.',
+                type: 'info',
+                text: 'When creating a Production Run for multiple colours, add one BOM entry per colour. Each entry uses the same base BOM. Set the Colour selector on each entry to the target colour (e.g. Black-218). The system creates one root MO per colour entry, all using the same base BOM. Sub-assembly demand is consolidated in Pass 2 — base material is prepared once for the whole batch. Each root MO carries the colour attribute so stock credits correctly to Item-A [Black-218] and Item-A [Red-X] separately.',
+            },
+            table: {
+                headers: ['PR Entry', 'BOM', 'Colour attr', 'Root MO produced'],
+                rows: [
+                    ['Entry 1', 'BOM-Item-A', 'Black-218', 'Item-A [Black-218]'],
+                    ['Entry 2', 'BOM-Item-A', 'Red-X',     'Item-A [Red-X]'],
+                    ['Consolidated', 'BOM-Item-A sub-components', '—', 'Shared component MO'],
+                ],
             },
         },
         {

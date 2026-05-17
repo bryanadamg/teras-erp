@@ -16,33 +16,60 @@ interface BomEntryState {
     bomId: string;
     sizeQtys: Record<string, string>;
     totalQty: string;
+    attributeValueIds: string[];
     locked?: boolean;
 }
 
 interface Props {
     boms: any[];
+    attributes: any[];
     locations: any[];
     onSave: (payload: any) => Promise<any>;
     onClose: () => void;
     initialBomId?: string;
     initialSizes?: Record<string, string>;
     initialTotalQty?: string;
-    initialBomEntries?: Array<{ bomId: string; sizeQtys: Record<string, string>; totalQty: string; locked?: boolean }>;
+    initialBomEntries?: Array<{
+        bomId: string;
+        sizeQtys: Record<string, string>;
+        totalQty: string;
+        attributeValueIds?: string[];
+        locked?: boolean;
+    }>;
     salesOrderId?: string;
 }
 
 function BomEntryRow({
-    entry, index, boms, onChange, onRemove, canRemove,
+    entry, index, boms, attributes, onChange, onRemove, canRemove,
 }: {
     entry: BomEntryState;
     index: number;
     boms: any[];
+    attributes: any[];
     onChange: (updated: BomEntryState) => void;
     onRemove: () => void;
     canRemove: boolean;
 }) {
     const selectedBom = boms.find((b: any) => b.id === entry.bomId) || null;
     const sizes = selectedBom?.sizes || [];
+
+    const colorAttr = attributes.find((a: any) => a.system_role === 'color');
+    const bomColorIds: string[] = selectedBom?.attribute_value_ids || [];
+    const bomHasColor = colorAttr
+        ? (colorAttr.values || []).some((v: any) => bomColorIds.includes(v.id))
+        : false;
+    const showColorSelector = !!selectedBom && !!colorAttr && !bomHasColor;
+
+    const selectedColorId = colorAttr
+        ? entry.attributeValueIds.find(id => (colorAttr.values || []).some((v: any) => v.id === id)) || ''
+        : '';
+
+    const handleColorChange = (valId: string) => {
+        const otherAttrs = entry.attributeValueIds.filter(
+            id => !(colorAttr?.values || []).some((v: any) => v.id === id)
+        );
+        onChange({ ...entry, attributeValueIds: valId ? [...otherAttrs, valId] : otherAttrs });
+    };
 
     return (
         <div style={{ border: '1px solid #aca899', borderRadius: 3, padding: '10px 8px 8px', background: '#f5f4ee', position: 'relative' }}>
@@ -62,7 +89,7 @@ function BomEntryRow({
                 <select
                     style={{ ...xpInput, height: 20 }}
                     value={entry.bomId}
-                    onChange={e => onChange({ ...entry, bomId: e.target.value, sizeQtys: {}, totalQty: '' })}
+                    onChange={e => onChange({ ...entry, bomId: e.target.value, sizeQtys: {}, totalQty: '', attributeValueIds: [] })}
                     disabled={entry.locked}
                 >
                     <option value="">-- Select a BOM --</option>
@@ -71,6 +98,22 @@ function BomEntryRow({
                     ))}
                 </select>
             </div>
+
+            {showColorSelector && (
+                <div style={{ marginBottom: 6 }}>
+                    <label style={xpLabel}>Color</label>
+                    <select
+                        style={{ ...xpInput, height: 20 }}
+                        value={selectedColorId}
+                        onChange={e => handleColorChange(e.target.value)}
+                    >
+                        <option value="">-- No color --</option>
+                        {(colorAttr.values || []).map((v: any) => (
+                            <option key={v.id} value={v.id}>{v.value}</option>
+                        ))}
+                    </select>
+                </div>
+            )}
 
             {selectedBom && sizes.length > 0 && (
                 <div>
@@ -107,7 +150,7 @@ function BomEntryRow({
 }
 
 export default function ProductionRunModal({
-    boms, locations, onSave, onClose,
+    boms, attributes, locations, onSave, onClose,
     initialBomId, initialSizes, initialTotalQty, initialBomEntries, salesOrderId,
 }: Props) {
     const [code, setCode] = useState('');
@@ -120,19 +163,19 @@ export default function ProductionRunModal({
 
     const [bomEntries, setBomEntries] = useState<BomEntryState[]>(() => {
         if (initialBomEntries && initialBomEntries.length > 0) {
-            return initialBomEntries.map(e => ({ ...e, locked: true }));
+            return initialBomEntries.map(e => ({ ...e, attributeValueIds: e.attributeValueIds || [], locked: true }));
         }
         if (initialBomId) {
-            return [{ bomId: initialBomId, sizeQtys: initialSizes || {}, totalQty: initialTotalQty || '', locked: true }];
+            return [{ bomId: initialBomId, sizeQtys: initialSizes || {}, totalQty: initialTotalQty || '', attributeValueIds: [], locked: true }];
         }
-        return [{ bomId: '', sizeQtys: {}, totalQty: '' }];
+        return [{ bomId: '', sizeQtys: {}, totalQty: '', attributeValueIds: [] }];
     });
 
     useEffect(() => {
         if (initialBomEntries && initialBomEntries.length > 0) {
-            setBomEntries(initialBomEntries.map(e => ({ ...e, locked: true })));
+            setBomEntries(initialBomEntries.map(e => ({ ...e, attributeValueIds: e.attributeValueIds || [], locked: true })));
         } else if (initialBomId) {
-            setBomEntries([{ bomId: initialBomId, sizeQtys: initialSizes || {}, totalQty: initialTotalQty || '', locked: true }]);
+            setBomEntries([{ bomId: initialBomId, sizeQtys: initialSizes || {}, totalQty: initialTotalQty || '', attributeValueIds: [], locked: true }]);
         }
     }, [initialBomEntries, initialBomId, initialSizes, initialTotalQty]);
 
@@ -144,7 +187,7 @@ export default function ProductionRunModal({
         }
     }, [bomEntries[0]?.bomId]);
 
-    const addEntry = () => setBomEntries(prev => [...prev, { bomId: '', sizeQtys: {}, totalQty: '' }]);
+    const addEntry = () => setBomEntries(prev => [...prev, { bomId: '', sizeQtys: {}, totalQty: '', attributeValueIds: [] }]);
     const removeEntry = (i: number) => setBomEntries(prev => prev.filter((_, idx) => idx !== i));
     const updateEntry = (i: number, updated: BomEntryState) =>
         setBomEntries(prev => prev.map((e, idx) => idx === i ? updated : e));
@@ -166,14 +209,17 @@ export default function ProductionRunModal({
             const bom_entries = validEntries.map(entry => {
                 const selectedBom = boms.find((b: any) => b.id === entry.bomId);
                 const sizes = selectedBom?.sizes || [];
+                const attribute_value_ids = entry.attributeValueIds.length > 0
+                    ? entry.attributeValueIds
+                    : undefined;
                 if (sizes.length > 0) {
                     const sizeEntries = sizes
                         .filter((s: any) => parseFloat(entry.sizeQtys[s.id] || '0') > 0)
                         .map((s: any) => ({ bom_size_id: s.id, qty: parseFloat(entry.sizeQtys[s.id]) }));
-                    return { bom_id: entry.bomId, sizes: sizeEntries };
+                    return { bom_id: entry.bomId, sizes: sizeEntries, attribute_value_ids };
                 }
                 const qty = parseFloat(entry.totalQty || '0');
-                return { bom_id: entry.bomId, total_qty: qty > 0 ? qty : undefined };
+                return { bom_id: entry.bomId, total_qty: qty > 0 ? qty : undefined, attribute_value_ids };
             });
 
             const res = await onSave({
@@ -250,6 +296,7 @@ export default function ProductionRunModal({
                             entry={entry}
                             index={i}
                             boms={boms}
+                            attributes={attributes}
                             onChange={updated => updateEntry(i, updated)}
                             onRemove={() => removeEntry(i)}
                             canRemove={bomEntries.length > 1 && !entry.locked}

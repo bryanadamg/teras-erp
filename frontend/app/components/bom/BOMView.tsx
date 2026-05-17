@@ -941,6 +941,7 @@ export default function BOMView({
         {startPRBom && locations && (
             <ProductionRunModal
                 boms={boms || []}
+                attributes={attributes || []}
                 locations={locations}
                 onSave={onCreateProductionRun}
                 onClose={() => setStartPRBom(null)}
