@@ -18,6 +18,7 @@ interface BomEntryState {
     totalQty: string;
     attributeValueIds: string[];
     locked?: boolean;
+    rawSoQtys?: Record<string, number>;
 }
 
 interface Props {
@@ -41,6 +42,44 @@ interface Props {
     productionRuns?: any[];
 }
 
+function hasStandardSizes(bom: any): boolean {
+    return (bom?.sizes || []).some((s: any) => s.size_id && !s.label);
+}
+
+function applyFormula(
+    sizes: any[],
+    rawQtys: Record<string, number>,
+    tolerancePct: number
+): Record<string, string> {
+    const factor = 1 + tolerancePct / 100;
+    const byName = (name: string) => {
+        const s = sizes.find((s: any) => !s.label && s.size_name === name);
+        return s ? (rawQtys[s.id] ?? 0) : 0;
+    };
+    const sRaw = byName('S');
+    const mRaw = byName('M');
+    const lRaw = byName('L');
+
+    const result: Record<string, string> = {};
+    for (const s of sizes) {
+        const isStandard = s.size_id && !s.label;
+        if (!isStandard) {
+            const raw = rawQtys[s.id];
+            result[s.id] = raw != null ? String(raw) : '';
+            continue;
+        }
+        let qty: number;
+        switch (s.size_name) {
+            case 'S':  qty = 0; break;
+            case 'M':  qty = (sRaw + mRaw) * 0.5 * factor; break;
+            case 'L':  qty = ((sRaw + mRaw) * 0.5 + lRaw) * factor; break;
+            default:   qty = (rawQtys[s.id] ?? 0) * factor; break;
+        }
+        result[s.id] = qty > 0 ? String(Math.ceil(qty)) : '';
+    }
+    return result;
+}
+
 function BomEntryRow({
     entry, index, boms, items, attributes, onChange, onRemove, canRemove,
 }: {
@@ -56,7 +95,6 @@ function BomEntryRow({
     const selectedBom = boms.find((b: any) => b.id === entry.bomId) || null;
     const sizes = selectedBom?.sizes || [];
 
-    // Attributes assigned to this item that aren't already fixed by the BOM
     const item = selectedBom ? items.find((it: any) => it.id === selectedBom.item_id) : null;
     const itemAttrIds: string[] = item?.attribute_ids?.map(String) || [];
     const bomAttrIds: string[] = selectedBom?.attribute_value_ids || [];
@@ -166,22 +204,55 @@ export default function ProductionRunModal({
     const [targetEnd, setTargetEnd] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState('');
+    const [tolerance, setTolerance] = useState<number>(0);
 
     const [bomEntries, setBomEntries] = useState<BomEntryState[]>(() => {
         if (initialBomEntries && initialBomEntries.length > 0) {
-            return initialBomEntries.map(e => ({ ...e, attributeValueIds: e.attributeValueIds || [], locked: true }));
+            return initialBomEntries.map(e => ({
+                ...e,
+                attributeValueIds: e.attributeValueIds || [],
+                locked: true,
+                rawSoQtys: Object.fromEntries(
+                    Object.entries(e.sizeQtys).map(([k, v]) => [k, parseFloat(v) || 0])
+                ),
+            }));
         }
         if (initialBomId) {
-            return [{ bomId: initialBomId, sizeQtys: initialSizes || {}, totalQty: initialTotalQty || '', attributeValueIds: [], locked: true }];
+            return [{
+                bomId: initialBomId,
+                sizeQtys: initialSizes || {},
+                totalQty: initialTotalQty || '',
+                attributeValueIds: [],
+                locked: true,
+                rawSoQtys: initialSizes
+                    ? Object.fromEntries(Object.entries(initialSizes).map(([k, v]) => [k, parseFloat(v) || 0]))
+                    : undefined,
+            }];
         }
         return [{ bomId: '', sizeQtys: {}, totalQty: '', attributeValueIds: [] }];
     });
 
     useEffect(() => {
         if (initialBomEntries && initialBomEntries.length > 0) {
-            setBomEntries(initialBomEntries.map(e => ({ ...e, attributeValueIds: e.attributeValueIds || [], locked: true })));
+            setBomEntries(initialBomEntries.map(e => ({
+                ...e,
+                attributeValueIds: e.attributeValueIds || [],
+                locked: true,
+                rawSoQtys: Object.fromEntries(
+                    Object.entries(e.sizeQtys).map(([k, v]) => [k, parseFloat(v) || 0])
+                ),
+            })));
         } else if (initialBomId) {
-            setBomEntries([{ bomId: initialBomId, sizeQtys: initialSizes || {}, totalQty: initialTotalQty || '', attributeValueIds: [], locked: true }]);
+            setBomEntries([{
+                bomId: initialBomId,
+                sizeQtys: initialSizes || {},
+                totalQty: initialTotalQty || '',
+                attributeValueIds: [],
+                locked: true,
+                rawSoQtys: initialSizes
+                    ? Object.fromEntries(Object.entries(initialSizes).map(([k, v]) => [k, parseFloat(v) || 0]))
+                    : undefined,
+            }]);
         }
     }, [initialBomEntries, initialBomId, initialSizes, initialTotalQty]);
 
@@ -200,6 +271,19 @@ export default function ProductionRunModal({
             setCode(candidate);
         }
     }, [bomEntries[0]?.bomId]);
+
+    const showFormulaSection = bomEntries.some(e =>
+        e.rawSoQtys && e.locked && e.bomId && hasStandardSizes(boms.find((b: any) => b.id === e.bomId))
+    );
+
+    const handleApplyFormula = () => {
+        setBomEntries(prev => prev.map(entry => {
+            if (!entry.rawSoQtys || !entry.locked || !entry.bomId) return entry;
+            const bom = boms.find((b: any) => b.id === entry.bomId);
+            if (!bom || !hasStandardSizes(bom)) return entry;
+            return { ...entry, sizeQtys: applyFormula(bom.sizes, entry.rawSoQtys, tolerance) };
+        }));
+    };
 
     const addEntry = () => setBomEntries(prev => [...prev, { bomId: '', sizeQtys: {}, totalQty: '', attributeValueIds: [] }]);
     const removeEntry = (i: number) => setBomEntries(prev => prev.filter((_, idx) => idx !== i));
@@ -317,6 +401,38 @@ export default function ProductionRunModal({
                             canRemove={bomEntries.length > 1 && !entry.locked}
                         />
                     ))}
+
+                    {showFormulaSection && (
+                        <div style={{ border: '1px solid #b0a890', borderRadius: 3, padding: '6px 8px', background: '#faf9f0' }}>
+                            <div style={{ fontSize: 10, fontWeight: 'bold', color: '#5a4a00', marginBottom: 4 }}>
+                                Size Absorption Formula (S absorbed into M/L)
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <label style={{ ...xpLabel, marginBottom: 0, whiteSpace: 'nowrap' }}>Tolerance %</label>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    max={10}
+                                    step={0.5}
+                                    style={{ ...xpInput, width: 60 }}
+                                    value={tolerance}
+                                    onChange={e => {
+                                        const v = parseFloat(e.target.value);
+                                        setTolerance(isNaN(v) ? 0 : Math.min(10, Math.max(0, v)));
+                                    }}
+                                />
+                                <button
+                                    onClick={handleApplyFormula}
+                                    style={{ fontFamily: xpFont, fontSize: 11, padding: '2px 10px', background: 'linear-gradient(to bottom, #e8f0ff, #c0d0f0)', border: '1px solid', borderColor: '#d0d8f0 #4060a0 #4060a0 #d0d8f0', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                >
+                                    Apply Formula
+                                </button>
+                                <span style={{ fontSize: 9, color: '#666', lineHeight: 1.2 }}>
+                                    S=0 | M=(S+M)/2 | L=(S+M)/2+L | XL+=ordered
+                                </span>
+                            </div>
+                        </div>
+                    )}
 
                     <button
                         onClick={addEntry}
