@@ -206,6 +206,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         {salesExpanded && (
           <>
             <NavItem tab="sales-orders" label={t('sales_orders') || 'Sales Orders'} icon="bi-file-text" isSub />
+            <NavItem tab="packaging"    label="Packaging"                             icon="bi-box2"    isSub />
             <NavItem tab="customers"    label={t('customers') || 'Customers'}        icon="bi-people" isSub />
             <NavItem tab="samples"      label={t('sample_requests') || 'Sample Requests'} icon="bi-flask" isSub />
           </>
