@@ -5,8 +5,8 @@ from sqlalchemy.orm import selectinload, joinedload, attributes as sa_attributes
 from collections import defaultdict
 from app.db.session import get_async_db
 from app.models.manufacturing import ManufacturingOrder, MOCompletion, MODependency, MOCompletionItem, MOPlannedComponent
-from app.models.work_order import WorkOrder as WorkOrderModel  # noqa: F401 — eager load
-from app.models.bom import BOM, BOMLine, BOMSize
+from app.models.work_order import WorkOrder as WorkOrderModel
+from app.models.bom import BOM, BOMLine, BOMSize, BOMOperation
 from app.models.location import Location
 from app.models.sales import SalesOrder
 from app.services import stock_service, audit_service
@@ -221,6 +221,26 @@ async def load_mo_tree(db: AsyncSession, root_ids: list) -> dict:
     return mo_map
 
 
+async def _create_wos_from_operations(db: AsyncSession, mo: ManufacturingOrder, operations: list) -> None:
+    """Auto-generate WorkOrders from BOMOperation routing steps at MO creation time."""
+    if not operations:
+        return
+    sorted_ops = sorted(operations, key=lambda o: int(o.sequence))
+    for i, op in enumerate(sorted_ops, start=1):
+        code = f"{mo.code}-WO-{i:02d}"
+        name = op.work_center.name if (hasattr(op, 'work_center') and op.work_center) else code
+        db.add(WorkOrderModel(
+            manufacturing_order_id=mo.id,
+            sequence=int(op.sequence),
+            code=code,
+            name=name,
+            work_center_id=op.work_center_id,
+            qty=mo.qty,
+            planned_duration_hours=float(op.time_minutes) / 60 if op.time_minutes else None,
+            status="PENDING",
+        ))
+
+
 async def create_mo_recursive(
     db: AsyncSession,
     bom_id: uuid.UUID,
@@ -238,12 +258,13 @@ async def create_mo_recursive(
 ) -> ManufacturingOrder:
     """Recursively creates manufacturing orders for sub-assemblies.
     Pass create_children=False to create only the root MO (used in two-pass PR creation)."""
-    # 1. Fetch BOM with lines (including attribute_values per line for snapshotting)
+    # 1. Fetch BOM with lines and operations
     result = await db.execute(
         select(BOM)
         .options(
             selectinload(BOM.lines).selectinload(BOMLine.attribute_values),
             selectinload(BOM.attribute_values),
+            selectinload(BOM.operations).joinedload(BOMOperation.work_center),
         )
         .filter(BOM.id == bom_id)
     )
@@ -288,6 +309,9 @@ async def create_mo_recursive(
 
     # Snapshot BOM lines at creation time so future BOM edits don't affect this MO
     await _snapshot_bom_lines(db, mo, bom)
+
+    # Auto-generate Work Orders from BOM routing steps if defined
+    await _create_wos_from_operations(db, mo, bom.operations)
 
     # 4. Look for sub-BOMs in lines — only active BOMs, percentage-based qty
     if create_children:
@@ -385,15 +409,19 @@ async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: Asyn
         db.add(mo)
         await db.flush()
 
-        # Snapshot BOM lines
+        # Snapshot BOM lines and auto-create WOs from routing
         bom_lines_result = await db.execute(
             select(BOM)
-            .options(selectinload(BOM.lines).selectinload(BOMLine.attribute_values))
+            .options(
+                selectinload(BOM.lines).selectinload(BOMLine.attribute_values),
+                selectinload(BOM.operations).joinedload(BOMOperation.work_center),
+            )
             .filter(BOM.id == payload.bom_id)
         )
         bom_for_snapshot = bom_lines_result.scalars().first()
         if bom_for_snapshot:
             await _snapshot_bom_lines(db, mo, bom_for_snapshot)
+            await _create_wos_from_operations(db, mo, bom_for_snapshot.operations)
 
         await db.commit()
 

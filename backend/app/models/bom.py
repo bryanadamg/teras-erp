@@ -161,9 +161,11 @@ class BOMOperation(Base):
     work_center_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("work_centers.id"), nullable=True
     )
-    
+
     sequence: Mapped[int] = mapped_column(Numeric(4, 0), default=10) # e.g. 10, 20, 30
     time_minutes: Mapped[float] = mapped_column(Numeric(10, 2), default=0.0) # Estimated time
+
+    work_center = relationship("WorkCenter", foreign_keys=[work_center_id])
 
 
 class BOMSize(Base):

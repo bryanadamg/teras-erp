@@ -178,6 +178,21 @@ async def update_work_order_status(
                 detail=f"Target not reached: {total:.2f} of {float(wo.qty):.2f} produced. Log more output before marking complete."
             )
 
+    if status == "IN_PROGRESS":
+        blocked_result = await db.execute(
+            select(func.count()).select_from(WorkOrder).where(
+                WorkOrder.manufacturing_order_id == wo.manufacturing_order_id,
+                WorkOrder.sequence < wo.sequence,
+                WorkOrder.status != "COMPLETED",
+                WorkOrder.id != wo.id,
+            )
+        )
+        if (blocked_result.scalar() or 0) > 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot start this step: earlier routing steps on this MO are not yet completed."
+            )
+
     wo.status = status
     if status == "IN_PROGRESS" and not wo.actual_start_date:
         wo.actual_start_date = datetime.utcnow()
