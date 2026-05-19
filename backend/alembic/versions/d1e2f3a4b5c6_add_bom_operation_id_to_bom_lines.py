@@ -15,27 +15,19 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    op.execute("ALTER TABLE bom_lines ADD COLUMN IF NOT EXISTS bom_operation_id UUID")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_bom_lines_bom_operation_id ON bom_lines (bom_operation_id)")
+    op.execute("ALTER TABLE bom_lines DROP CONSTRAINT IF EXISTS fk_bom_lines_bom_operation_id")
     op.execute(
-        "ALTER TABLE bom_lines ADD COLUMN IF NOT EXISTS bom_operation_id UUID"
+        "ALTER TABLE bom_lines ADD CONSTRAINT fk_bom_lines_bom_operation_id "
+        "FOREIGN KEY (bom_operation_id) REFERENCES bom_operations(id) ON DELETE SET NULL"
     )
+    op.execute("ALTER TABLE mo_planned_components ADD COLUMN IF NOT EXISTS bom_operation_id UUID")
+    op.execute("ALTER TABLE mo_planned_components DROP CONSTRAINT IF EXISTS fk_mo_planned_components_bom_operation_id")
     op.execute(
-        "CREATE INDEX IF NOT EXISTS ix_bom_lines_bom_operation_id ON bom_lines (bom_operation_id)"
+        "ALTER TABLE mo_planned_components ADD CONSTRAINT fk_mo_planned_components_bom_operation_id "
+        "FOREIGN KEY (bom_operation_id) REFERENCES bom_operations(id) ON DELETE SET NULL"
     )
-    op.execute("""
-        ALTER TABLE bom_lines DROP CONSTRAINT IF EXISTS fk_bom_lines_bom_operation_id;
-        ALTER TABLE bom_lines
-        ADD CONSTRAINT fk_bom_lines_bom_operation_id
-        FOREIGN KEY (bom_operation_id) REFERENCES bom_operations(id) ON DELETE SET NULL
-    """)
-    op.execute(
-        "ALTER TABLE mo_planned_components ADD COLUMN IF NOT EXISTS bom_operation_id UUID"
-    )
-    op.execute("""
-        ALTER TABLE mo_planned_components DROP CONSTRAINT IF EXISTS fk_mo_planned_components_bom_operation_id;
-        ALTER TABLE mo_planned_components
-        ADD CONSTRAINT fk_mo_planned_components_bom_operation_id
-        FOREIGN KEY (bom_operation_id) REFERENCES bom_operations(id) ON DELETE SET NULL
-    """)
 
 
 def downgrade() -> None:

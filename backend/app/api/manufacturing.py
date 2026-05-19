@@ -221,15 +221,22 @@ async def load_mo_tree(db: AsyncSession, root_ids: list) -> dict:
     return mo_map
 
 
-async def _create_wos_from_operations(db: AsyncSession, mo: ManufacturingOrder, operations: list) -> None:
-    """Auto-generate WorkOrders from BOMOperation routing steps at MO creation time."""
+async def _create_wos_from_operations(db: AsyncSession, mo: ManufacturingOrder, operations: list) -> list:
+    """Auto-generate WorkOrders from BOMOperation routing steps at MO creation time.
+    Returns list of created WorkOrder objects (after flush so IDs are populated)."""
     if not operations:
-        return
+        return []
+    count_result = await db.execute(
+        select(func.count()).select_from(WorkOrderModel)
+        .where(WorkOrderModel.manufacturing_order_id == mo.id)
+    )
+    offset = count_result.scalar() or 0
     sorted_ops = sorted(operations, key=lambda o: int(o.sequence))
+    created = []
     for i, op in enumerate(sorted_ops, start=1):
-        code = f"{mo.code}-WO-{i:02d}"
-        name = op.work_center.name if (hasattr(op, 'work_center') and op.work_center) else code
-        db.add(WorkOrderModel(
+        code = f"{mo.code}-WO-{offset + i:02d}"
+        name = op.work_center.name if (op.work_center is not None) else code
+        wo = WorkOrderModel(
             manufacturing_order_id=mo.id,
             sequence=int(op.sequence),
             code=code,
@@ -238,7 +245,10 @@ async def _create_wos_from_operations(db: AsyncSession, mo: ManufacturingOrder, 
             qty=mo.qty,
             planned_duration_hours=float(op.time_minutes) / 60 if op.time_minutes else None,
             status="PENDING",
-        ))
+        )
+        db.add(wo)
+        created.append(wo)
+    return created
 
 
 async def create_mo_recursive(
@@ -430,6 +440,15 @@ async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: Asyn
     mo = mo_map.get(mo.id)
 
     await audit_service.log_activity(db, current_user.id, "CREATE", "ManufacturingOrder", str(mo.id), f"Created {'Nested' if payload.create_nested else 'Single'} MO {mo.code}")
+
+    # Audit + broadcast for any auto-created WOs from BOM routing
+    if mo.work_orders:
+        for wo in mo.work_orders:
+            await audit_service.log_activity(
+                db, current_user.id, "CREATE", "WORK_ORDER", str(wo.id),
+                f"Auto-created Work Order '{wo.code}' from BOM routing"
+            )
+            await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": str(wo.id), "status": wo.status})
 
     populate_mo_ids(mo)
     return mo
