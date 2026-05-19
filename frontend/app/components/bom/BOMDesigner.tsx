@@ -20,6 +20,7 @@ interface BOMLineNode {
     percentage: number;
     qty: number;
     source_location_code: string;
+    bom_operation_id: string | null;
     subBOM?: BOMNodeData;
     isNewItem?: boolean;
 }
@@ -276,6 +277,7 @@ function buildNodeFromTree(data: any, locations: any[]): BOMNodeData {
             percentage: l.percentage ?? 0,
             qty: l.qty ?? 0,
             source_location_code: locations?.find((loc: any) => loc.id === l.source_location_id)?.code || '',
+            bom_operation_id: l.bom_operation_id || null,
             subBOM: l.sub_bom ? buildNodeFromTree(l.sub_bom, locations) : undefined,
             isNewItem: false,
         })),
@@ -508,7 +510,7 @@ export default function BOMDesigner({
                     id: Math.random().toString(36).substr(2, 9),
                     item_code: expectedChildCode,
                     attribute_value_ids: matchingAttrs,
-                    percentage: 0, qty: 0, source_location_code: '',
+                    percentage: 0, qty: 0, source_location_code: '', bom_operation_id: null,
                     subBOM, isExpanded: true, isNewItem,
                 });
             }
@@ -1363,6 +1365,7 @@ export default function BOMDesigner({
                                                                 percentage: parseFloat(pendingPercentage) || 0,
                                                                 qty: parseFloat(pendingQty) || 0,
                                                                 source_location_code: '',
+                                                                bom_operation_id: null,
                                                                 isNewItem: !exists
                                                             };
                                                             const newLines = [...selectedNode.lines, newLine];
@@ -1386,6 +1389,7 @@ export default function BOMDesigner({
                                                         <span style={{ flex: 1 }}>Component</span>
                                                         <span style={{ width: 57, textAlign: 'right' }}>%</span>
                                                         <span style={{ width: 48, textAlign: 'right' }}>Qty</span>
+                                                        {selectedNode.operations.length > 0 && <span style={{ width: 80 }}>Step</span>}
                                                         <span style={{ minWidth: 60 }}></span>
                                                     </div>
                                                 )}
@@ -1434,6 +1438,28 @@ export default function BOMDesigner({
                                                                 updateSelectedNode({ lines: newLines });
                                                             }}
                                                         />
+                                                        {selectedNode.operations.length > 0 && (
+                                                            <select
+                                                                title="Routing step that consumes this material"
+                                                                style={{ ...xpInput, width: 80, fontSize: 9, padding: '1px 2px' }}
+                                                                value={line.bom_operation_id || ''}
+                                                                onChange={e => {
+                                                                    const newLines = [...selectedNode.lines];
+                                                                    newLines[i] = { ...line, bom_operation_id: e.target.value || null };
+                                                                    updateSelectedNode({ lines: newLines });
+                                                                }}
+                                                            >
+                                                                <option value="">Any step</option>
+                                                                {[...selectedNode.operations].sort((a: any, b: any) => a.sequence - b.sequence).map((op: any) => {
+                                                                    const wc = workCenters?.find((w: any) => w.id === op.work_center_id);
+                                                                    return (
+                                                                        <option key={op.id} value={op.id}>
+                                                                            {op.sequence} - {wc?.name || 'Op'}
+                                                                        </option>
+                                                                    );
+                                                                })}
+                                                            </select>
+                                                        )}
                                                         {!hasExistingBOM(line.item_code, line.attribute_value_ids) && !line.subBOM && (
                                                             <button style={xpBtnInfo} onClick={() => {
                                                                 const subNode: BOMNodeData = {

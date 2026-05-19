@@ -1691,9 +1691,17 @@ export default function ManufacturingView({
                                               verticalAlign: 'middle',
                                           } : {};
 
+                                          const isBlocked = wo.status === 'PENDING' && manufacturingOrders.some(
+                                              (other: any) => other.manufacturing_order_id === wo.manufacturing_order_id
+                                                           && other.sequence < wo.sequence
+                                                           && other.status !== 'COMPLETED'
+                                                           && other.id !== wo.id
+                                          );
+
                                           // XP-style status chip
                                           const statusChip = (status: string) => {
                                               if (currentStyle !== 'classic') {
+                                                  if (isBlocked) return <span className="badge bg-secondary extra-small" title="Earlier routing steps must complete first">BLOCKED</span>;
                                                   return <span className={`badge ${getStatusBadge(status)} extra-small`}>{status}</span>;
                                               }
                                               const chipStyle: React.CSSProperties = {
@@ -1701,6 +1709,7 @@ export default function ManufacturingView({
                                                   padding: '1px 6px', borderRadius: 0, border: '1px solid',
                                                   fontFamily: 'Tahoma, Arial, sans-serif',
                                               };
+                                              if (isBlocked) return <span style={{ ...chipStyle, background: '#888', borderColor: '#555', color: '#fff' }} title="Earlier routing steps must complete first">BLOCKED</span>;
                                               switch (status) {
                                                   case 'COMPLETED':  return <span style={{ ...chipStyle, background: '#2d7a2d', borderColor: '#1a5e1a', color: '#fff' }}>COMPLETED</span>;
                                                   case 'IN_PROGRESS': return <span style={{ ...chipStyle, background: '#0058e6', borderColor: '#003080', color: '#fff' }}>IN PROGRESS</span>;
@@ -1829,13 +1838,13 @@ export default function ManufacturingView({
                                                           {currentStyle === 'classic' ? (
                                                               <>
                                                                   {xpBtn('Print', 'default', () => handlePrintWO(wo), 'Print Manufacturing Order', 'bi bi-printer')}
-                                                                  {wo.status === 'PENDING'     && xpBtn('Start',  'primary', () => onUpdateStatus(wo.id, 'IN_PROGRESS'))}
+                                                                  {wo.status === 'PENDING' && !isBlocked && xpBtn('Start',  'primary', () => onUpdateStatus(wo.id, 'IN_PROGRESS'))}
                                                                   {xpBtn('Del', 'danger', () => onDeleteMO(wo.id), 'Delete', 'bi bi-trash')}
                                                               </>
                                                           ) : (
                                                               <>
                                                                   <button className="btn btn-sm btn-link text-primary p-0" onClick={() => handlePrintWO(wo)} title="Print Manufacturing Order"><i className="bi bi-printer fs-5"></i></button>
-                                                                  {wo.status === 'PENDING'     && <button className="btn btn-sm btn-primary py-0 px-2" style={{fontSize: '0.75rem'}} onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>START</button>}
+                                                                  {wo.status === 'PENDING' && !isBlocked && <button className="btn btn-sm btn-primary py-0 px-2" style={{fontSize: '0.75rem'}} onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>START</button>}
                                                                   <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDeleteMO(wo.id)} title="Delete"><i className="bi bi-trash fs-5"></i></button>
                                                               </>
                                                           )}
