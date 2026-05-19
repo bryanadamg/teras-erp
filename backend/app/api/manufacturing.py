@@ -151,6 +151,7 @@ async def _snapshot_bom_lines(db: AsyncSession, mo: ManufacturingOrder, bom: BOM
             qty=line.qty,
             source_location_id=line.source_location_id,
             bom_line_id=line.id,
+            bom_operation_id=line.bom_operation_id,
             attribute_value_ids=attr_ids,
         ))
 

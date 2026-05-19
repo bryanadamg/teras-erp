@@ -100,8 +100,9 @@ async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db
             item_id=material.id,
             qty=line.qty,
             percentage=line.percentage,
+            bom_operation_id=line.bom_operation_id,
         )
-        
+
         # Resolve source location if provided
         if line.source_location_code:
             result = await db.execute(select(Location).filter(Location.code == line.source_location_code))
@@ -109,7 +110,7 @@ async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db
             if not loc:
                 raise HTTPException(status_code=404, detail=f"Source Location '{line.source_location_code}' not found")
             bom_line.source_location_id = loc.id
-        
+
         if line.attribute_value_ids:
             result = await db.execute(select(AttributeValue).filter(AttributeValue.id.in_(line.attribute_value_ids)))
             vals = result.scalars().all()
@@ -370,7 +371,7 @@ async def update_bom(
             material = item_result.scalars().first()
             if not material:
                 raise HTTPException(status_code=404, detail=f"Material item '{lc.item_code}' not found")
-            bom_line = BOMLine(bom_id=bom.id, item_id=material.id, qty=lc.qty, percentage=lc.percentage)
+            bom_line = BOMLine(bom_id=bom.id, item_id=material.id, qty=lc.qty, percentage=lc.percentage, bom_operation_id=lc.bom_operation_id)
             if lc.source_location_code:
                 loc_result = await db.execute(select(Location).filter(Location.code == lc.source_location_code))
                 loc = loc_result.scalars().first()

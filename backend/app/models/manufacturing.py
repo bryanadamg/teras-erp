@@ -222,6 +222,9 @@ class MOPlannedComponent(Base):
     bom_line_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("bom_lines.id", ondelete="SET NULL"), nullable=True
     )
+    bom_operation_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("bom_operations.id", ondelete="SET NULL"), nullable=True
+    )
     attribute_value_ids: Mapped[list] = mapped_column(JSON, default=list)
 
     mo = relationship("ManufacturingOrder", back_populates="planned_components")

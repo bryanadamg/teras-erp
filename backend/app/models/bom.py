@@ -123,10 +123,15 @@ class BOMLine(Base):
     qty: Mapped[float] = mapped_column(Numeric(14, 4), default=0.0)
     percentage: Mapped[float] = mapped_column(Numeric(6, 2), default=0.0)
 
+    bom_operation_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("bom_operations.id", ondelete="SET NULL"), nullable=True
+    )
+
     # Relationships
     bom = relationship("BOM", back_populates="lines")
     item = relationship("Item")
     attribute_values = relationship("AttributeValue", secondary=bom_line_values)
+    bom_operation = relationship("BOMOperation", foreign_keys=[bom_operation_id])
 
     @property
     def item_code(self) -> str | None:
