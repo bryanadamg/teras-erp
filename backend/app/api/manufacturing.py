@@ -668,8 +668,21 @@ async def add_mo_completion(
     db.add(completion)
     await db.flush()
 
-    # Auto-advance WO to IN_PROGRESS on first log
+    # Auto-advance WO to IN_PROGRESS on first log (respects routing gate)
     if wo and wo.status == "PENDING":
+        blocked_result = await db.execute(
+            select(func.count()).select_from(WorkOrderModel).where(
+                WorkOrderModel.manufacturing_order_id == mo.id,
+                WorkOrderModel.sequence < wo.sequence,
+                WorkOrderModel.status != "COMPLETED",
+                WorkOrderModel.id != wo.id,
+            )
+        )
+        if (blocked_result.scalar() or 0) > 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot start this step: earlier routing steps on this MO are not yet completed."
+            )
         wo.status = "IN_PROGRESS"
         wo.actual_start_date = datetime.utcnow()
 
