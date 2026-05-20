@@ -254,6 +254,11 @@ export default function InventoryView({
   const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [] as string[], weight_per_unit: '' as string | number, weight_unit: 'g/y' });
   const [nameManuallyEdited, setNameManuallyEdited] = useState(false);
 
+  // Beam item creation state
+  const [createBeam, setCreateBeam] = useState(false);
+  const [beamName, setBeamName] = useState('');
+  const [beamUom, setBeamUom] = useState('');
+
   // Editing State
   const [editingItem, setEditingItem] = useState<any>(null);
   const [historyEntityId, setHistoryEntityId] = useState<string | null>(null);
@@ -275,6 +280,8 @@ export default function InventoryView({
   const formL2Options = formCatL1 ? categories.filter((c: any) => c.parent_id === formCatL1) : [];
   const formL3Options = formCatL2 ? categories.filter((c: any) => c.parent_id === formCatL2) : [];
   const effectiveFormCategoryId: string | null = formCatL3 || formCatL2 || formCatL1 || null;
+
+  const isRawMaterialCategory = !!formCatL1 && (categories.find((c: any) => c.id === formCatL1)?.name || '').toLowerCase().includes('raw');
 
   // Initialize form category state when editing an item
   useEffect(() => {
@@ -302,6 +309,16 @@ export default function InventoryView({
       }
   }, []);
 
+
+  // Sync beam name when item name changes and beam name hasn't been manually edited
+  const [beamNameManuallyEdited, setBeamNameManuallyEdited] = useState(false);
+  useEffect(() => {
+      if (!beamNameManuallyEdited) setBeamName(newItem.name ? `Beam - ${newItem.name}` : '');
+  }, [newItem.name]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+      if (!beamUom) setBeamUom(newItem.uom);
+  }, [newItem.uom]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pre-fill create modal when arriving from SampleRequestView's Create Item button
   useEffect(() => {
@@ -383,11 +400,29 @@ export default function InventoryView({
           showToast(`Item Code "${newItem.code}" already exists. Suggesting: ${suggestedCode}`, 'warning');
           setNewItem({ ...newItem, code: suggestedCode });
       } else if (res && res.ok) {
+          if (createBeam && isRawMaterialCategory) {
+              const wipCategory = categories.find((c: any) => (c.name || '').toLowerCase().includes('wip') || (c.name || '').toLowerCase().includes('work in progress'));
+              const beamPayload: any = {
+                  code: `BEAM-${newItem.code}`,
+                  name: beamName || `Beam - ${newItem.name}`,
+                  uom: beamUom || newItem.uom,
+                  category_id: wipCategory?.id || effectiveFormCategoryId,
+                  attribute_ids: [],
+              };
+              const beamRes = await onCreateItem(beamPayload);
+              if (beamRes && beamRes.ok) {
+                  showToast(`Created "${newItem.code}" and "BEAM-${newItem.code}"`, 'success');
+              } else {
+                  showToast(`Item created but beam item failed — create BEAM-${newItem.code} manually`, 'warning');
+              }
+          } else {
+              showToast('Item created successfully', 'success');
+          }
           setNewItem({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [], weight_per_unit: '', weight_unit: 'g/y' });
           setFormCatL1(''); setFormCatL2(''); setFormCatL3('');
           setNameManuallyEdited(false);
+          setCreateBeam(false); setBeamName(''); setBeamUom('');
           setIsCreateOpen(false);
-          showToast('Item created successfully', 'success');
       } else {
           showToast('Failed to create item. See console.', 'danger');
           console.error("Create Item Failed", res);
@@ -602,7 +637,7 @@ export default function InventoryView({
       {/* Create Modal */}
       <ModalWrapper
           isOpen={isCreateOpen}
-          onClose={() => { setIsCreateOpen(false); setNameManuallyEdited(false); setFormCatL1(''); setFormCatL2(''); setFormCatL3(''); }}
+          onClose={() => { setIsCreateOpen(false); setNameManuallyEdited(false); setFormCatL1(''); setFormCatL2(''); setFormCatL3(''); setCreateBeam(false); setBeamName(''); setBeamUom(''); setBeamNameManuallyEdited(false); }}
           title={<span data-testid="modal-title"><i className="bi bi-box-seam me-2"></i>{t('create')} {forcedCategory ? t('sample_masters') : t('item_inventory')}</span>}
           variant="primary"
           size="md"
@@ -612,7 +647,7 @@ export default function InventoryView({
                       type="button"
                       style={classic ? xpBtn() : undefined}
                       className={classic ? '' : 'btn btn-secondary'}
-                      onClick={() => { setIsCreateOpen(false); setNameManuallyEdited(false); setFormCatL1(''); setFormCatL2(''); setFormCatL3(''); }}
+                      onClick={() => { setIsCreateOpen(false); setNameManuallyEdited(false); setFormCatL1(''); setFormCatL2(''); setFormCatL3(''); setCreateBeam(false); setBeamName(''); setBeamUom(''); setBeamNameManuallyEdited(false); }}
                   >{t('cancel')}</button>
                   <button
                       data-testid="submit-create-item"
@@ -620,7 +655,7 @@ export default function InventoryView({
                       style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', color: '#ffffff', fontWeight: 'bold' }) : undefined}
                       className={classic ? '' : 'btn btn-primary fw-bold px-4'}
                       onClick={() => (document.getElementById('create-item-form') as HTMLFormElement)?.requestSubmit()}
-                  >{t('create')}</button>
+                  >{createBeam && isRawMaterialCategory ? 'Create 2 Items' : t('create')}</button>
               </>
           }
       >
@@ -774,6 +809,99 @@ export default function InventoryView({
                           <div className="alert alert-info py-2 px-3 mb-0 small">
                               <i className="bi bi-arrow-up-left me-1"></i>
                               Derived from sample: <strong>{newItem.source_sample_code}{newItem.source_color_name ? ` · ${newItem.source_color_name}` : ''}</strong>
+                          </div>
+                      )}
+                  </div>
+              )}
+
+              {isRawMaterialCategory && (
+                  <div className="mb-0">
+                      {classic ? (
+                          <div style={{ border: '1px solid #aca899', borderRadius: 3, padding: '10px 8px 8px', background: '#f5f4ee', position: 'relative', marginTop: 4 }}>
+                              <span style={{ position: 'absolute', top: -8, left: 8, background: '#f5f4ee', padding: '0 4px', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#444' }}>Also Create Beam Item</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: createBeam ? 8 : 0 }}>
+                                  <input
+                                      type="checkbox"
+                                      id="create-beam-check"
+                                      checked={createBeam}
+                                      onChange={e => { setCreateBeam(e.target.checked); setBeamNameManuallyEdited(false); }}
+                                      style={{ cursor: 'pointer' }}
+                                  />
+                                  <label htmlFor="create-beam-check" style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', cursor: 'pointer', margin: 0 }}>
+                                      Create beam item <strong>BEAM-{newItem.code || '...'}</strong>
+                                  </label>
+                              </div>
+                              {createBeam && (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                      <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
+                                          <div style={{ flex: 1 }}>
+                                              <label style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#555', display: 'block', marginBottom: 2 }}>Beam Name</label>
+                                              <input
+                                                  style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', border: '1px solid #7f9db9', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.15)', padding: '2px 4px', background: '#fff', color: '#000', width: '100%' }}
+                                                  value={beamName}
+                                                  onChange={e => { setBeamNameManuallyEdited(true); setBeamName(e.target.value); }}
+                                                  placeholder={`Beam - ${newItem.name}`}
+                                              />
+                                          </div>
+                                          <div style={{ width: 80 }}>
+                                              <label style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#555', display: 'block', marginBottom: 2 }}>UOM</label>
+                                              <select
+                                                  style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', border: '1px solid #7f9db9', padding: '2px 4px', background: '#fff', color: '#000', width: '100%' }}
+                                                  value={beamUom}
+                                                  onChange={e => setBeamUom(e.target.value)}
+                                              >
+                                                  <option value="">-- same --</option>
+                                                  {(uoms || []).map((u: any) => <option key={u.id} value={u.name}>{u.name}</option>)}
+                                              </select>
+                                          </div>
+                                      </div>
+                                      <div style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '9px', color: '#888' }}>
+                                          Code: BEAM-{newItem.code || '...'} · Category: WIP · BOM defined manually in BOM Designer
+                                      </div>
+                                  </div>
+                              )}
+                          </div>
+                      ) : (
+                          <div className="border rounded p-2 bg-light">
+                              <div className="form-check mb-0">
+                                  <input
+                                      className="form-check-input"
+                                      type="checkbox"
+                                      id="create-beam-check"
+                                      checked={createBeam}
+                                      onChange={e => { setCreateBeam(e.target.checked); setBeamNameManuallyEdited(false); }}
+                                  />
+                                  <label className="form-check-label small" htmlFor="create-beam-check">
+                                      Also create beam item <strong>BEAM-{newItem.code || '...'}</strong>
+                                  </label>
+                              </div>
+                              {createBeam && (
+                                  <div className="mt-2 d-flex gap-2 align-items-end">
+                                      <div className="flex-grow-1">
+                                          <label className="form-label small text-muted mb-1">Beam Name</label>
+                                          <input
+                                              className="form-control form-control-sm"
+                                              value={beamName}
+                                              onChange={e => { setBeamNameManuallyEdited(true); setBeamName(e.target.value); }}
+                                              placeholder={`Beam - ${newItem.name}`}
+                                          />
+                                      </div>
+                                      <div style={{ width: 90 }}>
+                                          <label className="form-label small text-muted mb-1">UOM</label>
+                                          <select
+                                              className="form-select form-select-sm"
+                                              value={beamUom}
+                                              onChange={e => setBeamUom(e.target.value)}
+                                          >
+                                              <option value="">-- same --</option>
+                                              {(uoms || []).map((u: any) => <option key={u.id} value={u.name}>{u.name}</option>)}
+                                          </select>
+                                      </div>
+                                  </div>
+                              )}
+                              {createBeam && (
+                                  <small className="text-muted d-block mt-1">Code: BEAM-{newItem.code || '...'} · Category: WIP · BOM defined manually</small>
+                              )}
                           </div>
                       )}
                   </div>
