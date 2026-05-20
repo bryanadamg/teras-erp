@@ -4,8 +4,11 @@ from fastapi.responses import HTMLResponse, ORJSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 import os
+import logging
 from contextlib import asynccontextmanager
 
 import mimetypes
@@ -25,10 +28,15 @@ async def lifespan(app: FastAPI):
     await manager.stop()
 
 app = FastAPI(
-    title="Terras ERP", 
+    title="Terras ERP",
     default_response_class=ORJSONResponse,
     lifespan=lifespan
 )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logging.error("422 Validation Error on %s %s: %s", request.method, request.url.path, exc.errors())
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
 # Ensure .jpeg is recognized on minimal Linux images that lack a full mime.types db
 mimetypes.add_type("image/jpeg", ".jpeg")

@@ -78,7 +78,7 @@ class BOMLineCreate(BaseModel):
     qty: float = 0.0
     percentage: float = 0.0
     source_location_code: str | None = None
-    bom_operation_id: Optional[UUID] = None
+    bom_operation_sequence: Optional[int] = None
 
 class BOMLineResponse(BaseModel):
     id: UUID

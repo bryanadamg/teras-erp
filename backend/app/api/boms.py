@@ -88,22 +88,39 @@ async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db
         db.add(bom_size)
     await db.commit()
 
-    # 5. Create BOM Lines
+    # 5. Create BOM Operations first so lines can reference them by sequence
+    seq_to_op_id: dict[int, any] = {}
+    for op in payload.operations:
+        if op.work_center_id is None and op.operation_id is None:
+            continue
+        bom_op = BOMOperation(
+            bom_id=bom.id,
+            operation_id=op.operation_id,
+            work_center_id=op.work_center_id,
+            sequence=op.sequence,
+            time_minutes=op.time_minutes,
+        )
+        db.add(bom_op)
+        seq_to_op_id[op.sequence] = bom_op
+
+    await db.flush()
+
+    # 6. Create BOM Lines
     for line in payload.lines:
         result = await db.execute(select(Item).filter(Item.code == line.item_code))
         material = result.scalars().first()
         if not material:
             raise HTTPException(status_code=404, detail=f"Material item '{line.item_code}' not found")
-        
+
+        resolved_op = seq_to_op_id.get(line.bom_operation_sequence) if line.bom_operation_sequence is not None else None
         bom_line = BOMLine(
             bom_id=bom.id,
             item_id=material.id,
             qty=line.qty,
             percentage=line.percentage,
-            bom_operation_id=line.bom_operation_id,
+            bom_operation_id=resolved_op.id if resolved_op else None,
         )
 
-        # Resolve source location if provided
         if line.source_location_code:
             result = await db.execute(select(Location).filter(Location.code == line.source_location_code))
             loc = result.scalars().first()
@@ -117,21 +134,6 @@ async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db
             bom_line.attribute_values = vals
 
         db.add(bom_line)
-
-    await db.commit()
-
-    # 6. Create BOM Operations (Work Stations)
-    for op in payload.operations:
-        if op.work_center_id is None and op.operation_id is None:
-            continue
-        bom_op = BOMOperation(
-            bom_id=bom.id,
-            operation_id=op.operation_id,
-            work_center_id=op.work_center_id,
-            sequence=op.sequence,
-            time_minutes=op.time_minutes,
-        )
-        db.add(bom_op)
 
     await db.commit()
 
@@ -361,6 +363,26 @@ async def update_bom(
         if val is not None:
             setattr(bom, field, val)
 
+    # Replace operations first so lines can reference them by sequence
+    seq_to_op_id: dict[int, any] = {}
+    if payload.operations is not None:
+        for op in list(bom.operations):
+            await db.delete(op)
+        await db.flush()
+        for oc in payload.operations:
+            if oc.work_center_id is None and oc.operation_id is None:
+                continue
+            new_op = BOMOperation(
+                bom_id=bom.id,
+                operation_id=oc.operation_id,
+                work_center_id=oc.work_center_id,
+                sequence=oc.sequence,
+                time_minutes=oc.time_minutes,
+            )
+            db.add(new_op)
+            seq_to_op_id[oc.sequence] = new_op
+        await db.flush()
+
     # Replace lines if provided
     if payload.lines is not None:
         for bl in list(bom.lines):
@@ -371,7 +393,8 @@ async def update_bom(
             material = item_result.scalars().first()
             if not material:
                 raise HTTPException(status_code=404, detail=f"Material item '{lc.item_code}' not found")
-            bom_line = BOMLine(bom_id=bom.id, item_id=material.id, qty=lc.qty, percentage=lc.percentage, bom_operation_id=lc.bom_operation_id)
+            resolved_op = seq_to_op_id.get(lc.bom_operation_sequence) if lc.bom_operation_sequence is not None else None
+            bom_line = BOMLine(bom_id=bom.id, item_id=material.id, qty=lc.qty, percentage=lc.percentage, bom_operation_id=resolved_op.id if resolved_op else None)
             if lc.source_location_code:
                 loc_result = await db.execute(select(Location).filter(Location.code == lc.source_location_code))
                 loc = loc_result.scalars().first()
@@ -384,22 +407,6 @@ async def update_bom(
                 )
                 bom_line.attribute_values = av_result.scalars().all()
             db.add(bom_line)
-
-    # Replace operations if provided
-    if payload.operations is not None:
-        for op in list(bom.operations):
-            await db.delete(op)
-        await db.flush()
-        for oc in payload.operations:
-            if oc.work_center_id is None and oc.operation_id is None:
-                continue
-            db.add(BOMOperation(
-                bom_id=bom.id,
-                operation_id=oc.operation_id,
-                work_center_id=oc.work_center_id,
-                sequence=oc.sequence,
-                time_minutes=oc.time_minutes,
-            ))
 
     # Replace sizes if provided
     if payload.sizes is not None:
