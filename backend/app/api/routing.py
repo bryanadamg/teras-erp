@@ -64,6 +64,8 @@ def delete_operation(op_id: str, db: Session = Depends(get_db), current_user: Us
     op = db.query(Operation).filter(Operation.id == op_id).first()
     if not op:
         raise HTTPException(status_code=404, detail="Operation not found")
+    if op.is_system:
+        raise HTTPException(status_code=400, detail="Cannot delete system operation")
     db.delete(op)
     db.commit()
     return {"status": "success", "message": "Operation deleted"}

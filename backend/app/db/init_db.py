@@ -103,6 +103,29 @@ def seed_uoms(db):
         logger.warning(f"UOM seeding skipped: {e}")
 
 
+def seed_operations(db):
+    try:
+        from app.models.routing import Operation
+        system_ops = [
+            {"code": "BEAMING",   "name": "Beaming",   "description": "Yarn beaming process"},
+            {"code": "WARPING",   "name": "Warping",   "description": "Yarn warping onto beam"},
+            {"code": "WEAVING",   "name": "Weaving",   "description": "Fabric weaving on loom"},
+            {"code": "DYEING",    "name": "Dyeing",    "description": "Fabric dyeing process"},
+            {"code": "SETTING",   "name": "Setting",   "description": "Heat setting after dyeing"},
+            {"code": "FINISHING", "name": "Finishing", "description": "Final finishing and quality check"},
+        ]
+        for op_data in system_ops:
+            existing = db.query(Operation).filter(Operation.code == op_data["code"]).first()
+            if existing:
+                existing.is_system = True
+            else:
+                db.add(Operation(**op_data, is_system=True))
+        db.commit()
+        logger.info("Seeded system operations")
+    except Exception as e:
+        logger.warning(f"Operation seeding skipped: {e}")
+
+
 def seed_rbac(db):
     try:
         perms_data = [
@@ -259,6 +282,7 @@ def init_db() -> None:
     try:
         seed_categories(db)
         seed_uoms(db)
+        seed_operations(db)
         seed_rbac(db)
         seed_system_attributes(db)
         seed_sizes(db)

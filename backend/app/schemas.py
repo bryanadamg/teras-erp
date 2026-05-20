@@ -603,6 +603,7 @@ class OperationCreate(BaseModel):
 
 class OperationResponse(OperationCreate):
     id: UUID
+    is_system: bool = False
 
     class Config:
         from_attributes = True
