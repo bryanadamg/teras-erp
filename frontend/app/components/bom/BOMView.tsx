@@ -208,6 +208,7 @@ export default function BOMView({
                 measurement_min: s.measurement_min,
                 measurement_max: s.measurement_max,
             })),
+            operations: (bomData.operations || []).map(({ _key, ...op }: any) => op),
         };
 
         const isEdit = !!bomData.bomId;

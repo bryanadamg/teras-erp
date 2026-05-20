@@ -265,6 +265,7 @@ function buildNodeFromTree(data: any, locations: any[]): BOMNodeData {
         qty: data.qty ?? 1.0,
         tolerance_percentage: data.tolerance_percentage ?? 0.0,
         operations: (data.operations || []).map((op: any) => ({
+            _key: op.id || Math.random().toString(36).substr(2, 9),
             operation_id: op.operation_id || null,
             work_center_id: op.work_center_id || null,
             sequence: op.sequence ?? 10,
@@ -369,6 +370,11 @@ export default function BOMDesigner({
     const [pendingPercentage, setPendingPercentage] = useState<string>('');
     const [pendingQty, setPendingQty] = useState<string>('');
     const [pctError, setPctError] = useState<string | null>(null);
+
+    const [pendingOpSeq, setPendingOpSeq] = useState<string>('');
+    const [pendingOpWc, setPendingOpWc] = useState<string>('');
+    const [pendingOpType, setPendingOpType] = useState<string>('');
+    const [pendingOpTime, setPendingOpTime] = useState<string>('');
 
     const [codeConfig, setCodeConfig] = useState<CodeConfig>({
         prefix: 'BOM', suffix: '', separator: '-',
@@ -1537,6 +1543,117 @@ export default function BOMDesigner({
                                             })()}
                                         </div>
                                     </div>
+
+                                    {/* Routing Steps */}
+                                    <div style={{ width: 240, flexShrink: 0 }}>
+                                        <div style={xpGroupWrapper}>
+                                            <span style={xpGroupLabel()}>Routing Steps</span>
+
+                                            {/* Existing steps list */}
+                                            <div style={{ ...xpInset, marginBottom: 6, padding: 0, minHeight: 40 }}>
+                                                {selectedNode.operations.length === 0 && (
+                                                    <div style={{ padding: '4px 6px', fontSize: 10, color: '#888', fontStyle: 'italic' }}>No routing steps.</div>
+                                                )}
+                                                {[...selectedNode.operations].sort((a: any, b: any) => a.sequence - b.sequence).map((op: any, i: number) => {
+                                                    const wc = workCenters?.find((w: any) => w.id === op.work_center_id);
+                                                    const opType = operations?.find((o: any) => o.id === op.operation_id);
+                                                    return (
+                                                        <div key={op._key || i} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 4px', borderBottom: '1px solid #d4d0c8', fontSize: 10 }}>
+                                                            <span style={{ width: 22, textAlign: 'center', color: '#555', fontWeight: 'bold' }}>{op.sequence}</span>
+                                                            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wc?.name || '—'}</span>
+                                                            {opType && <span style={{ fontSize: 9, color: '#555', maxWidth: 60, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opType.name}</span>}
+                                                            <span style={{ width: 36, textAlign: 'right', color: '#666' }}>{op.time_minutes || 0}m</span>
+                                                            <button
+                                                                style={{ ...xpBtnDanger, padding: '0 4px', fontSize: 10, minWidth: 'auto' }}
+                                                                onClick={() => {
+                                                                    const newOps = selectedNode.operations.filter((o: any) => o._key !== op._key);
+                                                                    updateSelectedNode({ operations: newOps });
+                                                                }}
+                                                            >X</button>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            {/* Add step form */}
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                                <div style={{ display: 'flex', gap: 3, alignItems: 'flex-end' }}>
+                                                    <div style={{ width: 36 }}>
+                                                        <label style={{ ...xpLabel, fontSize: 9 }}>Seq</label>
+                                                        <input
+                                                            type="number"
+                                                            style={{ ...xpInput, width: '100%' }}
+                                                            placeholder="10"
+                                                            value={pendingOpSeq}
+                                                            onChange={e => setPendingOpSeq(e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div style={{ flex: 1 }}>
+                                                        <label style={{ ...xpLabel, fontSize: 9 }}>Work Center</label>
+                                                        <select
+                                                            style={{ ...xpInput, width: '100%' }}
+                                                            value={pendingOpWc}
+                                                            onChange={e => setPendingOpWc(e.target.value)}
+                                                        >
+                                                            <option value="">— Select —</option>
+                                                            {(workCenters || []).map((wc: any) => (
+                                                                <option key={wc.id} value={wc.id}>{wc.name}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'flex', gap: 3, alignItems: 'flex-end' }}>
+                                                    <div style={{ flex: 1 }}>
+                                                        <label style={{ ...xpLabel, fontSize: 9 }}>Operation Type</label>
+                                                        <select
+                                                            style={{ ...xpInput, width: '100%' }}
+                                                            value={pendingOpType}
+                                                            onChange={e => setPendingOpType(e.target.value)}
+                                                        >
+                                                            <option value="">— None —</option>
+                                                            {(operations || []).map((o: any) => (
+                                                                <option key={o.id} value={o.id}>{o.name}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                    <div style={{ width: 44 }}>
+                                                        <label style={{ ...xpLabel, fontSize: 9 }}>Min</label>
+                                                        <input
+                                                            type="number"
+                                                            style={{ ...xpInput, width: '100%' }}
+                                                            placeholder="0"
+                                                            value={pendingOpTime}
+                                                            onChange={e => setPendingOpTime(e.target.value)}
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    style={{ ...xpBtnPrimary, minWidth: 'auto', alignSelf: 'flex-end' }}
+                                                    onClick={() => {
+                                                        if (!pendingOpWc) return;
+                                                        const nextSeq = pendingOpSeq
+                                                            ? parseInt(pendingOpSeq)
+                                                            : (selectedNode.operations.length > 0
+                                                                ? Math.max(...selectedNode.operations.map((o: any) => o.sequence)) + 10
+                                                                : 10);
+                                                        const newOp = {
+                                                            _key: Math.random().toString(36).substr(2, 9),
+                                                            operation_id: pendingOpType || null,
+                                                            work_center_id: pendingOpWc,
+                                                            sequence: nextSeq,
+                                                            time_minutes: parseFloat(pendingOpTime) || 0,
+                                                        };
+                                                        updateSelectedNode({ operations: [...selectedNode.operations, newOp] });
+                                                        setPendingOpSeq('');
+                                                        setPendingOpWc('');
+                                                        setPendingOpType('');
+                                                        setPendingOpTime('');
+                                                    }}
+                                                >+ Add Step</button>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                 </div>
                             </div>
                         </>
