@@ -320,9 +320,6 @@ async def create_mo_recursive(
     # Snapshot BOM lines at creation time so future BOM edits don't affect this MO
     await _snapshot_bom_lines(db, mo, bom)
 
-    # Auto-generate Work Orders from BOM routing steps if defined
-    await _create_wos_from_operations(db, mo, bom.operations)
-
     # 4. Look for sub-BOMs in lines — only active BOMs, percentage-based qty
     if create_children:
         for line in bom.lines:
@@ -419,7 +416,7 @@ async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: Asyn
         db.add(mo)
         await db.flush()
 
-        # Snapshot BOM lines and auto-create WOs from routing
+        # Snapshot BOM lines at creation time
         bom_lines_result = await db.execute(
             select(BOM)
             .options(
@@ -431,7 +428,6 @@ async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: Asyn
         bom_for_snapshot = bom_lines_result.scalars().first()
         if bom_for_snapshot:
             await _snapshot_bom_lines(db, mo, bom_for_snapshot)
-            await _create_wos_from_operations(db, mo, bom_for_snapshot.operations)
 
         await db.commit()
 
@@ -440,15 +436,6 @@ async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: Asyn
     mo = mo_map.get(mo.id)
 
     await audit_service.log_activity(db, current_user.id, "CREATE", "ManufacturingOrder", str(mo.id), f"Created {'Nested' if payload.create_nested else 'Single'} MO {mo.code}")
-
-    # Audit + broadcast for any auto-created WOs from BOM routing
-    if mo.work_orders:
-        for wo in mo.work_orders:
-            await audit_service.log_activity(
-                db, current_user.id, "CREATE", "WORK_ORDER", str(wo.id),
-                f"Auto-created Work Order '{wo.code}' from BOM routing"
-            )
-            await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": str(wo.id), "status": wo.status})
 
     populate_mo_ids(mo)
     return mo
