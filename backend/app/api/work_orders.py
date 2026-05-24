@@ -5,7 +5,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from typing import Optional
 from app.db.session import get_async_db
 from app.models.work_order import WorkOrder
-from app.models.manufacturing import ManufacturingOrder, MOCompletion
+from app.models.manufacturing import ManufacturingOrder
 from app.models.routing import WorkCenter
 from app.schemas import WorkOrderCreate, WorkOrderResponse
 from app.models.auth import User
@@ -165,33 +165,6 @@ async def update_work_order_status(
     wo = result.scalars().first()
     if not wo:
         raise HTTPException(status_code=404, detail="Work Order not found")
-
-    if status == "COMPLETED" and wo.qty:
-        total_result = await db.execute(
-            select(func.sum(MOCompletion.qty_completed))
-            .filter(MOCompletion.mo_id == wo.manufacturing_order_id, MOCompletion.work_order_id == wo.id)
-        )
-        total = float(total_result.scalar() or 0)
-        if total < float(wo.qty):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Target not reached: {total:.2f} of {float(wo.qty):.2f} produced. Log more output before marking complete."
-            )
-
-    if status == "IN_PROGRESS":
-        blocked_result = await db.execute(
-            select(func.count()).select_from(WorkOrder).where(
-                WorkOrder.manufacturing_order_id == wo.manufacturing_order_id,
-                WorkOrder.sequence < wo.sequence,
-                WorkOrder.status != "COMPLETED",
-                WorkOrder.id != wo.id,
-            )
-        )
-        if (blocked_result.scalar() or 0) > 0:
-            raise HTTPException(
-                status_code=400,
-                detail="Cannot start this step: earlier routing steps on this MO are not yet completed."
-            )
 
     wo.status = status
     if status == "IN_PROGRESS" and not wo.actual_start_date:
