@@ -693,7 +693,7 @@ export default function ManufacturingView({
 
               {/* ── LEFT: MO Tree ── */}
               <div style={{
-                  width: '210px', minWidth: '210px',
+                  width: '270px', minWidth: '270px',
                   borderRight: classic ? '2px solid #808080' : '1px solid #dee2e6',
                   background: '#fff',
                   display: 'flex', flexDirection: 'column'
@@ -728,10 +728,10 @@ export default function ManufacturingView({
                                       {level === 0 ? '●' : (isShared ? '⇒' : '└')}
                                   </span>
                                   <div style={{ flex: 1, overflow: 'hidden' }}>
-                                      <div style={{ fontFamily: 'monospace', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      <div title={node.code} style={{ fontFamily: 'monospace', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                           {node.code}
                                       </div>
-                                      <div style={{ fontSize: '10px', color: isActive ? '#e0ecff' : '#444', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      <div title={node.item_name} style={{ fontSize: '10px', color: isActive ? '#e0ecff' : '#444', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                           {node.item_name}
                                       </div>
                                       {((node.attribute_value_ids || []).length > 0 || node.bom_size_id) && (
