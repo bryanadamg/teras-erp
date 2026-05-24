@@ -81,12 +81,22 @@ export default function WorkOrderPanel({
     const handleAdd = async () => {
         setIsSaving(true);
         try {
-            const result = await onAdd({
+            const res = await onAdd({
                 manufacturing_order_id: manufacturingOrderId,
                 work_center_id: form.work_center_id || undefined,
                 planned_duration_hours: form.planned_duration_hours ? parseFloat(form.planned_duration_hours) : undefined,
                 qty: form.qty ? parseFloat(form.qty) : undefined,
             });
+            if (res && !res.ok) {
+                try {
+                    const err = await res.json();
+                    showToast(err.detail || 'Failed to create work order', 'danger');
+                } catch {
+                    showToast('Failed to create work order', 'danger');
+                }
+                return;
+            }
+            const result = res && res.ok ? await res.json().catch(() => null) : res;
             if (result?.warning === 'total_assigned_exceeds_mo_qty') {
                 setOverAssignWarning({ totalAssigned: result.total_assigned, moQty: result.mo_qty });
             } else {

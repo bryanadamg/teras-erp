@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { useToast } from '../shared/Toast';
 
 const XP_FONT  = 'Tahoma, "Segoe UI", Arial, sans-serif';
 const XP_BEIGE = '#ece9d8';
@@ -65,6 +66,7 @@ export default function MobileManufacturingView({
     manufacturingOrders, items, workCenters, boms, authFetch, onRefresh,
 }: MobileManufacturingViewProps) {
     const router = useRouter();
+    const { showToast } = useToast();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
@@ -150,7 +152,14 @@ export default function MobileManufacturingView({
                     qty,
                 }),
             });
-            if (res.ok) {
+            if (!res.ok) {
+                try {
+                    const err = await res.json();
+                    showToast(err.detail || 'Failed to create work order', 'danger');
+                } catch {
+                    showToast('Failed to create work order', 'danger');
+                }
+            } else {
                 onRefresh();
                 setAddRunMOId(null);
                 setRunWcId('');
