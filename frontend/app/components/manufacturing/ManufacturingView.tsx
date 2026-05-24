@@ -684,7 +684,7 @@ export default function ManufacturingView({
                       position: 'relative' as const,
                   }}
               >
-                  <i className="bi bi-list-ol me-1" />Operation Steps ({(selectedNode.work_orders || []).length})
+                  <i className="bi bi-list-ol me-1" />Work Order ({(selectedNode.work_orders || []).length})
               </button>
           </div>
 

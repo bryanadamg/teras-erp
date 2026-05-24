@@ -9,13 +9,6 @@ const xpInput: React.CSSProperties = {
     background: 'white', height: 20, padding: '0 4px', outline: 'none',
 };
 
-const STATUS_LED: Record<string, string> = {
-    PENDING: '#aaaaaa',
-    IN_PROGRESS: '#0058e6',
-    COMPLETED: '#008000',
-    CANCELLED: '#bb0000',
-};
-
 const STATUS_BORDER: Record<string, string> = {
     PENDING: '#c8c6be',
     IN_PROGRESS: '#6699dd',
@@ -77,6 +70,7 @@ export default function WorkOrderPanel({
     const [form, setForm] = useState({ work_center_id: '', planned_duration_hours: '', qty: '' });
     const [isSaving, setIsSaving] = useState(false);
     const [printWO, setPrintWO] = useState<WO | null>(null);
+    const [overAssignWarning, setOverAssignWarning] = useState<{ totalAssigned: number; moQty: number } | null>(null);
 
     const resetForm = () => {
         setForm({ work_center_id: '', planned_duration_hours: '', qty: '' });
@@ -87,12 +81,17 @@ export default function WorkOrderPanel({
     const handleAdd = async () => {
         setIsSaving(true);
         try {
-            await onAdd({
+            const result = await onAdd({
                 manufacturing_order_id: manufacturingOrderId,
                 work_center_id: form.work_center_id || undefined,
                 planned_duration_hours: form.planned_duration_hours ? parseFloat(form.planned_duration_hours) : undefined,
                 qty: form.qty ? parseFloat(form.qty) : undefined,
             });
+            if (result?.warning === 'total_assigned_exceeds_mo_qty') {
+                setOverAssignWarning({ totalAssigned: result.total_assigned, moQty: result.mo_qty });
+            } else {
+                setOverAssignWarning(null);
+            }
             resetForm();
         } finally {
             setIsSaving(false);
@@ -102,7 +101,7 @@ export default function WorkOrderPanel({
     const handleUpdate = async (wo: WO) => {
         setIsSaving(true);
         try {
-            await onUpdate(wo.id, {
+            const result = await onUpdate(wo.id, {
                 manufacturing_order_id: manufacturingOrderId,
                 sequence: wo.sequence,
                 name: wo.name,
@@ -110,6 +109,11 @@ export default function WorkOrderPanel({
                 planned_duration_hours: form.planned_duration_hours ? parseFloat(form.planned_duration_hours) : undefined,
                 qty: form.qty ? parseFloat(form.qty) : undefined,
             });
+            if (result?.warning === 'total_assigned_exceeds_mo_qty') {
+                setOverAssignWarning({ totalAssigned: result.total_assigned, moQty: result.mo_qty });
+            } else {
+                setOverAssignWarning(null);
+            }
             resetForm();
         } finally {
             setIsSaving(false);
@@ -128,8 +132,7 @@ export default function WorkOrderPanel({
 
     const handleStatusChange = (wo: WO, s: string) => {
         if (s === 'COMPLETED' && wo.qty && (wo.qty_completed_total ?? 0) < wo.qty) {
-            showToast(`Target not reached: ${(wo.qty_completed_total ?? 0).toFixed(2)} of ${wo.qty} produced. Log more output first.`, 'warning');
-            return;
+            showToast(`Note: ${(wo.qty_completed_total ?? 0).toFixed(2)} of ${wo.qty} logged — marking complete anyway.`, 'warning');
         }
         onUpdateStatus(wo.id, s);
     };
@@ -139,9 +142,9 @@ export default function WorkOrderPanel({
     return (
         <div style={{ fontFamily: xpFont, fontSize: 11 }}>
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: parentMO ? 4 : 8 }}>
                 <span style={{ fontWeight: 'bold', fontSize: 11, color: '#000080' }}>
-                    Operation Steps
+                    Work Orders
                 </span>
                 {!addingRow && !editId && (
                     <button
@@ -153,26 +156,51 @@ export default function WorkOrderPanel({
                             cursor: 'pointer',
                         }}
                     >
-                        + Add Step
+                        + Add Work Order
                     </button>
                 )}
             </div>
 
-            {/* Pipeline */}
-            <div style={{ position: 'relative', paddingLeft: 22 }}>
-                {/* Vertical connector line */}
-                {sorted.length > 0 && (
-                    <div style={{
-                        position: 'absolute', left: 8, top: 10,
-                        bottom: addingRow ? 0 : 10,
-                        borderLeft: '2px solid #aca899',
-                        zIndex: 0,
-                    }} />
-                )}
+            {/* MO context badge */}
+            {parentMO && (
+                <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    background: '#e8eaf6', border: '1px solid #9fa8da',
+                    padding: '1px 7px', marginBottom: 8, fontSize: 10, color: '#1a237e',
+                }}>
+                    <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{parentMO.code}</span>
+                    {parentMO.item_name && (
+                        <span style={{ color: '#3949ab' }}>{parentMO.item_name}</span>
+                    )}
+                    {parentMO.qty != null && (
+                        <span style={{ color: '#5c6bc0' }}>· {parentMO.qty}</span>
+                    )}
+                </div>
+            )}
 
+            {overAssignWarning && (
+                <div style={{
+                    background: '#fff8e1', border: '1px solid #f0c040',
+                    padding: '3px 8px', marginBottom: 6, fontSize: 10, color: '#7a5500',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                }}>
+                    <span>
+                        Total assigned ({overAssignWarning.totalAssigned.toFixed(1)}) exceeds MO qty ({overAssignWarning.moQty.toFixed(1)})
+                    </span>
+                    <button
+                        onClick={() => setOverAssignWarning(null)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#7a5500', padding: '0 2px' }}
+                    >
+                        x
+                    </button>
+                </div>
+            )}
+
+            {/* Pipeline */}
+            <div>
                 {sorted.length === 0 && !addingRow && (
                     <div style={{ color: '#888', fontStyle: 'italic', fontSize: 11, padding: '4px 0' }}>
-                        No steps yet. Click + Add Step.
+                        No work orders yet. Click + Add Work Order.
                     </div>
                 )}
 
@@ -183,16 +211,7 @@ export default function WorkOrderPanel({
                     const isEditing = editId === wo.id;
 
                     return (
-                        <div key={wo.id} style={{ position: 'relative', marginBottom: 5 }}>
-                            {/* Status LED circle */}
-                            <div style={{
-                                position: 'absolute', left: -14, top: 7,
-                                width: 12, height: 12, borderRadius: '50%',
-                                background: STATUS_LED[wo.status] || '#aaa',
-                                border: '1px solid rgba(0,0,0,0.25)',
-                                boxShadow: wo.status === 'IN_PROGRESS' ? '0 0 4px #0058e6' : undefined,
-                                zIndex: 1,
-                            }} />
+                        <div key={wo.id} style={{ marginBottom: 5 }}>
 
                             {isEditing ? (
                                 /* ── Edit row ── */
@@ -298,14 +317,14 @@ export default function WorkOrderPanel({
                                             }}>
                                                 {pct > 0 && (
                                                     <div style={{
-                                                        height: '100%', width: `${pct}%`,
+                                                        height: '100%', width: `${Math.min(100, pct)}%`,
                                                         background: done
-                                                            ? 'repeating-linear-gradient(45deg,#2e7d32,#2e7d32 3px,#4caf50 3px,#4caf50 6px)'
+                                                            ? 'repeating-linear-gradient(45deg,#b87000,#b87000 3px,#e8a020 3px,#e8a020 6px)'
                                                             : 'repeating-linear-gradient(45deg,#000080,#000080 3px,#1565c0 3px,#1565c0 6px)',
                                                     }} />
                                                 )}
                                             </div>
-                                            <span style={{ fontSize: 9, color: done ? '#007000' : '#555', whiteSpace: 'nowrap' }}>
+                                            <span style={{ fontSize: 9, color: done ? '#b87000' : '#555', whiteSpace: 'nowrap' }}>
                                                 {(wo.qty_completed_total ?? 0).toFixed(1)}/{wo.qty}
                                             </span>
                                         </div>
@@ -325,7 +344,7 @@ export default function WorkOrderPanel({
                                         style={{
                                             fontFamily: xpFont, fontSize: 9, height: 16,
                                             border: '1px solid #aca899', background: '#ece9d8',
-                                            color: STATUS_LED[wo.status] || '#000',
+                                            color: STATUS_BORDER[wo.status] || '#000',
                                             padding: '0 2px', flexShrink: 0, minWidth: 82,
                                         }}
                                     >
@@ -378,20 +397,13 @@ export default function WorkOrderPanel({
 
                 {/* Add step form */}
                 {addingRow && (
-                    <div style={{ position: 'relative', marginBottom: 4 }}>
-                        {/* Dashed circle for new step */}
-                        <div style={{
-                            position: 'absolute', left: -14, top: 7,
-                            width: 12, height: 12, borderRadius: '50%',
-                            border: '2px dashed #7f9db9', background: '#f0efe6',
-                            zIndex: 1,
-                        }} />
+                    <div style={{ marginBottom: 4 }}>
                         <div style={{
                             border: '1px dashed #7f9db9', background: '#fffbe6',
                             padding: '6px 8px',
                         }}>
                             <div style={{ fontSize: 9, color: '#888', marginBottom: 4 }}>
-                                New step — code assigned on save
+                                New work order — code assigned on save
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                                 <select
