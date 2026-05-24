@@ -99,7 +99,24 @@ async def create_work_order(
         changes=payload.model_dump()
     )
     await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": str(wo.id), "status": "PENDING"})
-    return wo
+
+    response = WorkOrderResponse.model_validate(wo)
+
+    # Soft over-assignment check
+    total_assigned_result = await db.execute(
+        select(func.sum(WorkOrder.qty)).where(
+            WorkOrder.manufacturing_order_id == wo.manufacturing_order_id,
+            WorkOrder.qty.isnot(None),
+        )
+    )
+    total_assigned = float(total_assigned_result.scalar() or 0)
+    mo_qty = float(mo.qty) if mo.qty else 0.0
+    if mo_qty > 0 and total_assigned > mo_qty:
+        response.warning = "total_assigned_exceeds_mo_qty"
+        response.total_assigned = total_assigned
+        response.mo_qty = mo_qty
+
+    return response
 
 @router.get("/work-orders/{wo_id}", response_model=WorkOrderResponse)
 async def get_work_order(
@@ -146,7 +163,39 @@ async def update_work_order(
     result = await db.execute(
         select(WorkOrder).options(*_wo_options()).filter(WorkOrder.id == wo_id)
     )
-    return result.scalars().first()
+    wo = result.scalars().first()
+
+    await audit_service.log_activity(
+        db, user_id=current_user.id, action="UPDATE",
+        entity_type="WORK_ORDER", entity_id=wo_id,
+        details=f"Updated Work Order",
+        changes=payload.model_dump()
+    )
+    await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": wo_id, "status": wo.status})
+
+    response = WorkOrderResponse.model_validate(wo)
+
+    # Soft over-assignment check
+    total_assigned_result = await db.execute(
+        select(func.sum(WorkOrder.qty)).where(
+            WorkOrder.manufacturing_order_id == wo.manufacturing_order_id,
+            WorkOrder.qty.isnot(None),
+        )
+    )
+    total_assigned = float(total_assigned_result.scalar() or 0)
+
+    mo_result = await db.execute(
+        select(ManufacturingOrder).filter(ManufacturingOrder.id == wo.manufacturing_order_id)
+    )
+    mo = mo_result.scalars().first()
+    mo_qty = float(mo.qty) if mo and mo.qty else 0.0
+
+    if mo_qty > 0 and total_assigned > mo_qty:
+        response.warning = "total_assigned_exceeds_mo_qty"
+        response.total_assigned = total_assigned
+        response.mo_qty = mo_qty
+
+    return response
 
 @router.put("/work-orders/{wo_id}/status", response_model=WorkOrderResponse)
 async def update_work_order_status(

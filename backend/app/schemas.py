@@ -439,6 +439,10 @@ class WorkOrderResponse(BaseModel):
     planned_duration_hours: float | None = None
     actual_duration_hours: float | None = None
     notes: str | None = None
+    # Over-assignment warning fields — set at endpoint level, not from ORM
+    warning: str | None = None
+    total_assigned: float | None = None
+    mo_qty: float | None = None
     target_start_date: datetime | None = None
     target_end_date: datetime | None = None
     actual_start_date: datetime | None = None
