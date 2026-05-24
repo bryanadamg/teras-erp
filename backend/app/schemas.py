@@ -433,6 +433,7 @@ class WorkOrderResponse(BaseModel):
     work_center_id: UUID | None = None
     work_center_name: str | None = None
     work_center_type: str | None = None
+    planned_recipe_id: UUID | None = None
     qty: float | None = None
     qty_completed_total: float = 0.0
     status: str

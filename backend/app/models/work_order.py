@@ -9,6 +9,7 @@ from app.db.base import Base
 if TYPE_CHECKING:
     from app.models.manufacturing import ManufacturingOrder, MOCompletion
     from app.models.routing import WorkCenter
+    from app.models.dyeing_setting import DyeRecipe
 
 class WorkOrder(Base):
     __tablename__ = "work_orders"
@@ -22,6 +23,9 @@ class WorkOrder(Base):
     name: Mapped[str] = mapped_column(String(128))
     work_center_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("work_centers.id", ondelete="SET NULL"), nullable=True
+    )
+    planned_recipe_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("dye_recipes.id", ondelete="SET NULL"), nullable=True
     )
     qty: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="PENDING", index=True)
@@ -39,6 +43,9 @@ class WorkOrder(Base):
     )
     work_center: Mapped[Optional["WorkCenter"]] = relationship(
         "WorkCenter", foreign_keys=[work_center_id]
+    )
+    planned_recipe: Mapped[Optional["DyeRecipe"]] = relationship(
+        "DyeRecipe", foreign_keys=[planned_recipe_id]
     )
     completions: Mapped[List["MOCompletion"]] = relationship(
         "MOCompletion", back_populates="work_order", lazy="select"

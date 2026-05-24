@@ -7,12 +7,35 @@ from app.db.session import get_async_db
 from app.models.work_order import WorkOrder
 from app.models.manufacturing import ManufacturingOrder
 from app.models.routing import WorkCenter
+from app.models.dyeing_setting import DyeRecipe, DyeingRun, dye_recipe_attribute_values
 from app.schemas import WorkOrderCreate, WorkOrderResponse
 from app.models.auth import User
 from app.api.auth import get_current_user
 from app.services import audit_service
 from app.core.ws_manager import manager
 from datetime import datetime
+
+
+async def _find_matching_dye_recipe(db: AsyncSession, mo_attr_ids: set) -> Optional[DyeRecipe]:
+    """Find active DyeRecipe whose attribute_values exactly match the given set."""
+    count = len(mo_attr_ids)
+    # Recipes containing ALL required attribute values
+    has_all = (
+        select(dye_recipe_attribute_values.c.dye_recipe_id)
+        .where(dye_recipe_attribute_values.c.attribute_value_id.in_(mo_attr_ids))
+        .group_by(dye_recipe_attribute_values.c.dye_recipe_id)
+        .having(func.count() == count)
+    )
+    # Among those, only ones with no extra attribute values
+    result = await db.execute(
+        select(DyeRecipe)
+        .where(DyeRecipe.id.in_(has_all))
+        .where(DyeRecipe.is_active == True)
+        .join(dye_recipe_attribute_values, DyeRecipe.id == dye_recipe_attribute_values.c.dye_recipe_id)
+        .group_by(DyeRecipe.id)
+        .having(func.count() == count)
+    )
+    return result.scalars().first()
 
 router = APIRouter()
 
@@ -43,7 +66,9 @@ async def create_work_order(
     current_user: User = Depends(get_current_user),
 ):
     mo_result = await db.execute(
-        select(ManufacturingOrder).filter(ManufacturingOrder.id == payload.manufacturing_order_id)
+        select(ManufacturingOrder)
+        .options(selectinload(ManufacturingOrder.attribute_values))
+        .filter(ManufacturingOrder.id == payload.manufacturing_order_id)
     )
     mo = mo_result.scalars().first()
     if not mo:
@@ -57,17 +82,34 @@ async def create_work_order(
     wo_seq_num = (count_result.scalar() or 0) + 1
     wo_code = f"{mo.code}-WO-{wo_seq_num:02d}"
 
+    # Load work center and check for DYEING gate
+    wc = None
+    planned_recipe_id = None
+    if payload.work_center_id:
+        wc_result = await db.execute(
+            select(WorkCenter).filter(WorkCenter.id == payload.work_center_id)
+        )
+        wc = wc_result.scalars().first()
+
+        if wc and wc.center_type == "DYEING":
+            mo_attr_ids = {av.id for av in mo.attribute_values}
+            if not mo_attr_ids:
+                raise HTTPException(
+                    status_code=422,
+                    detail="MO has no attributes — cannot match a dyeing recipe"
+                )
+            matched_recipe = await _find_matching_dye_recipe(db, mo_attr_ids)
+            if not matched_recipe:
+                raise HTTPException(
+                    status_code=422,
+                    detail="No active dyeing recipe found matching this MO's attribute combination"
+                )
+            planned_recipe_id = matched_recipe.id
+
     # Auto-generate name from work center; fall back to code
     name = payload.name
     if not name:
-        if payload.work_center_id:
-            wc_result = await db.execute(
-                select(WorkCenter).filter(WorkCenter.id == payload.work_center_id)
-            )
-            wc = wc_result.scalars().first()
-            name = wc.name if wc else wo_code
-        else:
-            name = wo_code
+        name = wc.name if wc else wo_code
 
     sequence = payload.sequence if payload.sequence and payload.sequence > 1 else wo_seq_num
 
@@ -77,6 +119,7 @@ async def create_work_order(
         code=wo_code,
         name=name,
         work_center_id=payload.work_center_id,
+        planned_recipe_id=planned_recipe_id,
         qty=payload.qty,
         planned_duration_hours=payload.planned_duration_hours,
         notes=payload.notes,
@@ -85,6 +128,18 @@ async def create_work_order(
         status="PENDING",
     )
     db.add(wo)
+    await db.flush()  # get wo.id before creating DyeingRun
+
+    # Auto-seed pending DyeingRun so operator sees pre-filled recipe
+    if planned_recipe_id:
+        db.add(DyeingRun(
+            work_order_id=wo.id,
+            recipe_id=planned_recipe_id,
+            run_number=1,
+            substrate_qty=wo.qty or 0,
+            status="PENDING",
+        ))
+
     await db.commit()
 
     result = await db.execute(
