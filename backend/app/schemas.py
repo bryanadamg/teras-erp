@@ -953,6 +953,7 @@ class DyeRecipeCreate(BaseModel):
     finishing_steps: list[DyeRecipeFinishingCreate] = []
 
 class DyeRecipeUpdate(BaseModel):
+    code: str | None = None
     name: str | None = None
     color_standard: str | None = None
     substrate_type: str | None = None

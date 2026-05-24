@@ -147,7 +147,9 @@ export default function WorkOrderPanel({
         onUpdateStatus(wo.id, s);
     };
 
-    const sorted = [...workOrders].sort((a, b) => a.sequence - b.sequence);
+    const sorted = [...workOrders].sort((a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
 
     return (
         <div style={{ fontFamily: xpFont, fontSize: 11 }}>

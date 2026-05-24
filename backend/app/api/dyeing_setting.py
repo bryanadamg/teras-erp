@@ -263,7 +263,7 @@ async def update_dye_recipe(
     if not r:
         raise HTTPException(status_code=404, detail="Recipe not found")
 
-    for field in ("name", "color_standard", "substrate_type", "notes", "is_active"):
+    for field in ("code", "name", "color_standard", "substrate_type", "notes", "is_active"):
         val = getattr(payload, field)
         if val is not None:
             setattr(r, field, val)

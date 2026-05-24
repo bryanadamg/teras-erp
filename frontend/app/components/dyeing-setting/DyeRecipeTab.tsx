@@ -5,6 +5,7 @@ import DyeRecipePrintView from './DyeRecipePrintView';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import CodeConfigModal, { CodeConfig, buildCodeParts, buildCodeWithCounter } from '../shared/CodeConfigModal';
+import SearchableSelect from '../shared/SearchableSelect';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -81,12 +82,22 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
     const [showPrint, setShowPrint] = useState(false);
     const [showCodeConfig, setShowCodeConfig] = useState(false);
     const [codeConfig, setCodeConfig] = useState<CodeConfig | null>(null);
+    const [allChemicalItems, setAllChemicalItems] = useState<any[]>([]);
     const { showToast } = useToast();
     const { confirm } = useConfirm();
 
-    const chemicalItems = items.filter(it =>
-        it.category_path && it.category_path.some((p: string) => p === 'Chemical' || p === 'Dye')
-    );
+    useEffect(() => {
+        authFetch('/api/items?skip=0&limit=2000&search=')
+            .then((res: Response) => res.ok ? res.json() : null)
+            .then((data: any) => {
+                if (!data) return;
+                const all: any[] = Array.isArray(data) ? data : (data.items || []);
+                setAllChemicalItems(all.filter((it: any) =>
+                    it.category_path && it.category_path.some((p: string) => p === 'Chemical' || p === 'Dye')
+                ));
+            })
+            .catch(() => {});
+    }, [authFetch]);
 
     const loadRecipes = useCallback(async () => {
         setLoading(true);
@@ -107,9 +118,10 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
         loadRecipes();
     }, [loadRecipes]);
 
-    // Auto-generate code from config + selected attribute values
+    // Auto-generate code from config + selected attribute values (new recipes only)
     useEffect(() => {
         if (!codeConfig) return;
+        if (editingRecipe) return;
         const variantNames: string[] = (codeConfig.variantAttributeNames || []).map((attrName: string) => {
             const attr = attributes.find((a: any) => a.name === attrName);
             if (!attr) return '';
@@ -131,7 +143,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
         const counter = matchingCounters.length > 0 ? Math.max(...matchingCounters) + 1 : 1;
         setForm(f => ({ ...f, code: buildCodeWithCounter(codeConfig, counter, '', variantNames) }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [form.attribute_value_ids, codeConfig]);
+    }, [form.attribute_value_ids, codeConfig, editingRecipe]);
 
     const selectedRecipe = recipes.find(r => String(r.id) === String(selectedId)) || null;
 
@@ -561,16 +573,17 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                                                         </select>
                                                     </td>
                                                     <td style={{ padding: '2px 4px' }}>
-                                                        <select
-                                                            style={{ ...xpInput, height: 20, width: '100%' }}
+                                                        <SearchableSelect
+                                                            options={allChemicalItems.map((item: any) => ({
+                                                                value: String(item.id),
+                                                                label: item.name,
+                                                                subLabel: item.code,
+                                                            }))}
                                                             value={line.item_id}
-                                                            onChange={e => updateLine(idx, 'item_id', e.target.value)}
-                                                        >
-                                                            <option value="">-- select item --</option>
-                                                            {chemicalItems.map(item => (
-                                                                <option key={item.id} value={String(item.id)}>{item.name}</option>
-                                                            ))}
-                                                        </select>
+                                                            onChange={val => updateLine(idx, 'item_id', val)}
+                                                            placeholder="-- select item --"
+                                                            size="sm"
+                                                        />
                                                     </td>
                                                     <td style={{ padding: '2px 4px' }}>
                                                         <input
@@ -818,7 +831,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                                                             </span>
                                                         </td>
                                                         <td style={{ padding: '3px 6px' }}>
-                                                            {linkedItem ? linkedItem.name : (line.item_id || '-')}
+                                                            {line.item_name || linkedItem?.name || (line.item_id || '-')}
                                                         </td>
                                                         <td style={{ padding: '3px 6px', textAlign: 'right' }}>
                                                             {line.qty_per_100kg != null ? Number(line.qty_per_100kg).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '-'}
