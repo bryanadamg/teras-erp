@@ -7,6 +7,7 @@ import { useData } from '../../context/DataContext';
 import { useToast } from '../shared/Toast';
 import WOCompletionModal from './WOCompletionModal';
 import WOStepPrintModal from './WOStepPrintModal';
+import { getChipStyle } from './WorkOrderPanel';
 
 const STATUS_COLORS: Record<string, string> = {
     PENDING: '#888',
@@ -43,6 +44,7 @@ interface FlatWO {
     name: string;
     work_center_id?: string;
     work_center_name?: string;
+    work_center_type?: string;
     status: string;
     planned_duration_hours?: number;
     actual_duration_hours?: number;
@@ -475,7 +477,26 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                                                     {wo.mo_code}
                                                 </td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11, color: '#444' }}>{wo.item_name || '—'}</td>
-                                                <td style={{ ...tdBase, fontSize: classic ? 10 : 11, color: '#555' }}>{wo.work_center_name || '—'}</td>
+                                                <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>
+                                                    {wo.work_center_name
+                                                        ? (() => {
+                                                            const cs = getChipStyle(wo.work_center_type);
+                                                            return (
+                                                                <span style={{
+                                                                    padding: '1px 5px',
+                                                                    borderRadius: classic ? 2 : 4,
+                                                                    border: `1px solid ${cs.borderColor as string}`,
+                                                                    background: cs.background as string,
+                                                                    color: cs.color as string,
+                                                                    whiteSpace: 'nowrap',
+                                                                    fontSize: 'inherit',
+                                                                }}>
+                                                                    {wo.work_center_name}
+                                                                </span>
+                                                            );
+                                                        })()
+                                                        : '—'}
+                                                </td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>{wo.planned_duration_hours != null ? `${wo.planned_duration_hours}h` : '—'}</td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>{wo.actual_duration_hours != null ? `${wo.actual_duration_hours}h` : '—'}</td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>

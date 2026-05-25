@@ -17,7 +17,7 @@ const STATUS_BORDER: Record<string, string> = {
 };
 
 // Work center type chip colors keyed on center_type string (case-insensitive match)
-function getChipStyle(centerType?: string | null): React.CSSProperties {
+export function getChipStyle(centerType?: string | null): React.CSSProperties {
     const t = (centerType || '').toUpperCase();
     if (t === 'DYEING' || t === 'CELUP')
         return { background: '#cce4ff', color: '#004b99', borderColor: '#99c4ee' };
