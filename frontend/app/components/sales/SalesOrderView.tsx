@@ -9,10 +9,11 @@ import SOTablePrintModal from './SOTablePrintModal';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 
-export default function SalesOrderView({ items, attributes, boms, salesOrders, partners, onCreateSO, onDeleteSO, onUpdateSOStatus, onGenerateWO, productionRuns }: any) {
+export default function SalesOrderView({ items, attributes, boms, salesOrders, partners, onCreateSO, onDeleteSO, onEditSO, onUpdateSOStatus, onGenerateWO, productionRuns }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingSOId, setEditingSOId] = useState<string | null>(null);
   const [printingSO, setPrintingSO] = useState<any>(null);
   const [isTablePrintOpen, setIsTablePrintOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -410,6 +411,42 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       applyFactor(newLine.qty2, factorVal);
   };
 
+  const resetForm = () => {
+      setNewSO({ po_number: '', customer_po_ref: '', customer_name: '', order_date: new Date().toISOString().split('T')[0], lines: [] });
+      setLastDeliveryDates({ due_date: '', internal_confirmation_date: '' });
+      setNewLine({ item_id: '', qty: 0, due_date: '', attribute_value_ids: [], ket_stock: '', internal_confirmation_date: '', qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_size_id: '' });
+      setQtyMeter('');
+      setQtyGrossYd('');
+      setQtyRoll('');
+      setQtyPic('');
+      setKgAuto(true);
+  };
+
+  const handleEditOpen = (so: any) => {
+      setEditingSOId(so.id);
+      setNewSO({
+          po_number: so.po_number,
+          customer_po_ref: so.customer_po_ref || '',
+          customer_name: so.customer_name,
+          order_date: so.order_date ? so.order_date.split('T')[0] : new Date().toISOString().split('T')[0],
+          lines: (so.lines || []).map((l: any) => ({
+              item_id: l.item_id,
+              qty: l.qty,
+              due_date: l.due_date ? l.due_date.split('T')[0] : '',
+              internal_confirmation_date: l.internal_confirmation_date ? l.internal_confirmation_date.split('T')[0] : '',
+              ket_stock: l.ket_stock || '',
+              qty_kg: l.qty_kg != null ? String(l.qty_kg) : '',
+              qty2: l.qty2 != null ? String(l.qty2) : '',
+              uom2: l.uom2 || '',
+              uom2_factor: l.uom2_factor ?? null,
+              bom_size_id: l.bom_size_id || '',
+              attribute_value_ids: l.attribute_value_ids || [],
+          })),
+      });
+      setLastDeliveryDates({ due_date: '', internal_confirmation_date: '' });
+      setIsCreateOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       const payload = {
@@ -424,6 +461,21 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
               qty2: line.qty2 !== '' ? parseFloat(line.qty2) || null : null,
           }))
       };
+
+      if (editingSOId) {
+          const res = await onEditSO(editingSOId, payload);
+          if (res && res.ok) {
+              setEditingSOId(null);
+              resetForm();
+              setIsCreateOpen(false);
+              showToast('Sales Order updated successfully', 'success');
+          } else if (res) {
+              const err = await res.json();
+              showToast(`Error: ${err.detail}`, 'danger');
+          }
+          return;
+      }
+
       const res = await onCreateSO(payload);
       if (res && res.status === 400) {
           let basePO = newSO.po_number;
@@ -565,22 +617,22 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
        />
 
 
-       {/* Create SO Modal */}
+       {/* Create / Edit SO Modal */}
        <ModalWrapper
            isOpen={isCreateOpen}
-           onClose={() => { setIsCreateOpen(false); setNewSO({ po_number: '', customer_po_ref: '', customer_name: '', order_date: new Date().toISOString().split('T')[0], lines: [] }); setLastDeliveryDates({ due_date: '', internal_confirmation_date: '' }); }}
-           title={<><i className="bi bi-cart-plus" style={classic ? {marginRight:6} : {marginRight:8}}></i>Create Sales Order</>}
+           onClose={() => { setIsCreateOpen(false); setEditingSOId(null); resetForm(); }}
+           title={<><i className={`bi ${editingSOId ? 'bi-pencil' : 'bi-cart-plus'}`} style={classic ? {marginRight:6} : {marginRight:8}}></i>{editingSOId ? 'Edit Sales Order' : 'Create Sales Order'}</>}
            variant="primary"
            size="lg"
            footer={classic ? (
                <>
-                   <button type="button" style={xpBtn()} onClick={() => setIsCreateOpen(false)}>{t('cancel')}</button>
-                   <button type="button" style={newSO.lines.length === 0 ? {...xpBtn(), opacity: 0.5} : xpBtn({background:'linear-gradient(to bottom,#316ac5,#1a4a8a)',borderColor:'#1a3a7a #0a2a5a #0a2a5a #1a3a7a',color:'#ffffff',fontWeight:'bold',padding:'2px 16px'})} onClick={handleSubmit as any} disabled={newSO.lines.length === 0} title={newSO.lines.length === 0 ? 'Add at least one item first' : undefined}><i className="bi bi-floppy" style={{marginRight:4}}></i>{t('save')} Order</button>
+                   <button type="button" style={xpBtn()} onClick={() => { setIsCreateOpen(false); setEditingSOId(null); resetForm(); }}>{t('cancel')}</button>
+                   <button type="button" style={newSO.lines.length === 0 ? {...xpBtn(), opacity: 0.5} : xpBtn({background:'linear-gradient(to bottom,#316ac5,#1a4a8a)',borderColor:'#1a3a7a #0a2a5a #0a2a5a #1a3a7a',color:'#ffffff',fontWeight:'bold',padding:'2px 16px'})} onClick={handleSubmit as any} disabled={newSO.lines.length === 0} title={newSO.lines.length === 0 ? 'Add at least one item first' : undefined}><i className="bi bi-floppy" style={{marginRight:4}}></i>{editingSOId ? 'Update' : t('save')} Order</button>
                </>
            ) : (
                <>
-                   <button type="button" className="btn btn-sm btn-link text-muted" onClick={() => setIsCreateOpen(false)}>{t('cancel')}</button>
-                   <button type="button" className="btn btn-sm btn-primary px-4 fw-bold" onClick={handleSubmit as any} disabled={newSO.lines.length === 0} title={newSO.lines.length === 0 ? 'Add at least one item first' : undefined}>{t('save')} Order</button>
+                   <button type="button" className="btn btn-sm btn-link text-muted" onClick={() => { setIsCreateOpen(false); setEditingSOId(null); resetForm(); }}>{t('cancel')}</button>
+                   <button type="button" className="btn btn-sm btn-primary px-4 fw-bold" onClick={handleSubmit as any} disabled={newSO.lines.length === 0} title={newSO.lines.length === 0 ? 'Add at least one item first' : undefined}>{editingSOId ? 'Update' : t('save')} Order</button>
                </>
            )}
        >
@@ -1183,6 +1235,14 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                        )}
                                        {classic ? (
                                            <>
+                                               {(so.status === 'PENDING' || so.status === 'READY') && (
+                                                   <button title="Edit" onClick={() => handleEditOpen(so)}
+                                                       style={{ background:'none', border:'1px solid transparent', borderRadius:2, cursor:'pointer', padding:'1px 4px', color:'#005080', fontSize:'13px' }}
+                                                       onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor='#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background='#e8f0f8'; }}
+                                                       onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor='transparent'; (e.currentTarget as HTMLButtonElement).style.background='none'; }}>
+                                                       <i className="bi bi-pencil"></i>
+                                                   </button>
+                                               )}
                                                <button title="Print" onClick={() => handlePrintSO(so)}
                                                    style={{ background:'none', border:'1px solid transparent', borderRadius:2, cursor:'pointer', padding:'1px 4px', color:'#555', fontSize:'13px' }}
                                                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor='#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background='#e8f0f8'; }}
@@ -1198,6 +1258,11 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                            </>
                                        ) : (
                                            <>
+                                               {(so.status === 'PENDING' || so.status === 'READY') && (
+                                                   <button className="btn btn-sm btn-link text-primary p-0" title="Edit" onClick={() => handleEditOpen(so)}>
+                                                       <i className="bi bi-pencil fs-6"></i>
+                                                   </button>
+                                               )}
                                                <button className="btn btn-sm btn-link text-muted p-0" title="Print" onClick={() => handlePrintSO(so)}>
                                                    <i className="bi bi-printer fs-6"></i>
                                                </button>

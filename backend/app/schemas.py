@@ -693,6 +693,14 @@ class SalesOrderCreate(BaseModel):
     order_date: datetime | None = None
     lines: list[SalesOrderLineCreate]
 
+class SalesOrderUpdate(BaseModel):
+    po_number: str
+    customer_po_ref: str | None = None
+    customer_name: str
+    order_date: datetime | None = None
+    notes: str | None = None
+    lines: list[SalesOrderLineCreate]
+
 class SalesOrderResponse(BaseModel):
     id: UUID
     po_number: str

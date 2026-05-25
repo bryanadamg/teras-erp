@@ -136,6 +136,12 @@ export default function SalesOrdersPage() {
         router.push(`/production-runs?${new URLSearchParams(params).toString()}`);
     };
 
+    const handleUpdateSO = async (id: string, payload: any) => {
+        const res = await authFetch(`${API_BASE}/sales-orders/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (res.ok) fetchData();
+        return res;
+    };
+
     const handleUpdateSOStatus = async (soId: string, status: string) => {
         const res = await authFetch(`${API_BASE}/sales-orders/${soId}/status?status=${status}`, { method: 'PUT' });
         if (res.ok) {
@@ -156,6 +162,7 @@ export default function SalesOrdersPage() {
                 partners={partners}
                 onCreateSO={handleCreateSO}
                 onDeleteSO={handleDeleteSO}
+                onEditSO={handleUpdateSO}
                 onUpdateSOStatus={handleUpdateSOStatus}
                 onGenerateWO={handleGeneratePR}
                 productionRuns={productionRuns}
