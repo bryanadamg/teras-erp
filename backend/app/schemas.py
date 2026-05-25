@@ -276,6 +276,9 @@ class ManufacturingOrderCreate(BaseModel):
     target_end_date: datetime | None = None
     create_nested: bool = False # Prompt user to create child MOs
 
+class MOAttributeUpdate(BaseModel):
+    attribute_value_ids: list[UUID]
+
 class BatchConsumptionInMO(BaseModel):
     input_batch_id: UUID
     input_batch_number: str

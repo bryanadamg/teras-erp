@@ -16,7 +16,9 @@ from app.schemas import (
     MOCompleteWithBatchesPayload,
     BatchConsumptionInMO,
     MOCompletionCreate, MOCompletionResponse, MOCompletionItemCreate,
+    MOAttributeUpdate,
 )
+from app.models.attribute import AttributeValue
 from app.models.auth import User
 from app.api.auth import get_current_user
 from app.models.item import Item
@@ -614,6 +616,50 @@ async def update_manufacturing_order_status(mo_id: str, status: str, db: AsyncSe
     await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": mo_id, "status": status, "code": mo.code})
 
     return {"status": "success", "message": f"Updated to {status}"}
+
+@router.patch("/manufacturing-orders/{mo_id}/attributes", response_model=ManufacturingOrderResponse)
+async def update_mo_attributes(
+    mo_id: str,
+    payload: MOAttributeUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(ManufacturingOrder)
+        .filter(ManufacturingOrder.id == mo_id)
+        .options(selectinload(ManufacturingOrder.attribute_values))
+    )
+    mo = result.unique().scalars().first()
+    if not mo:
+        raise HTTPException(status_code=404, detail="Manufacturing Order not found")
+
+    if mo.status != "PENDING":
+        raise HTTPException(status_code=400, detail="Attributes can only be edited on a PENDING Manufacturing Order")
+
+    old_ids = [str(v.id) for v in mo.attribute_values]
+
+    if payload.attribute_value_ids:
+        attr_result = await db.execute(
+            select(AttributeValue).filter(AttributeValue.id.in_([str(v) for v in payload.attribute_value_ids]))
+        )
+        new_values = attr_result.scalars().all()
+    else:
+        new_values = []
+
+    mo.attribute_values = new_values
+    await db.commit()
+
+    mo_map = await load_mo_tree(db, [mo.id])
+    mo = mo_map.get(mo.id)
+
+    await audit_service.log_activity(
+        db, current_user.id, "UPDATE", "ManufacturingOrder", str(mo.id),
+        f"Updated attributes on MO {mo.code}: {old_ids} -> {[str(v) for v in payload.attribute_value_ids]}"
+    )
+    await manager.broadcast({"type": "mo_updated", "id": str(mo.id)})
+
+    populate_mo_ids(mo)
+    return mo
 
 @router.post("/manufacturing-orders/{mo_id}/completions", response_model=ManufacturingOrderResponse)
 async def add_mo_completion(

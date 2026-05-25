@@ -118,6 +118,7 @@ export default function ManufacturingView({
       includeMonth: false
   });
   const [moCodeFilter, setMoCodeFilter] = useState<string>(initialMOFilter || '');
+  const [editAttrsModal, setEditAttrsModal] = useState<{ mo: any; selected: string[] } | null>(null);
 
   useEffect(() => {
       if (initialMOFilter) setMoCodeFilter(initialMOFilter);
@@ -452,6 +453,26 @@ export default function ManufacturingView({
       return valId;
   };
 
+  const handleUpdateMOAttributes = async (moId: string, attributeValueIds: string[]) => {
+      try {
+          const res = await authFetch(`${API_BASE}/manufacturing-orders/${moId}/attributes`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ attribute_value_ids: attributeValueIds }),
+          });
+          if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              showToast(err.detail || 'Failed to update attributes', 'error');
+              return;
+          }
+          setEditAttrsModal(null);
+          showToast('Attributes updated', 'success');
+          fetchData();
+      } catch {
+          showToast('Failed to update attributes', 'error');
+      }
+  };
+
   const getBomSizeLabel = (bomId: string, bomSizeId: string): string => {
       const bom = boms.find((b: any) => b.id === bomId);
       if (!bom) return '';
@@ -776,6 +797,15 @@ export default function ManufacturingView({
                               {getAttributeValueName(id)}
                           </span>
                       ))}
+                      {selectedNode.status === 'PENDING' && (
+                          <button
+                              title="Edit attributes"
+                              onClick={() => setEditAttrsModal({ mo: selectedNode, selected: [...(selectedNode.attribute_value_ids || [])] })}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', color: '#6b7280', fontSize: '11px' }}
+                          >
+                              <i className="bi bi-pencil"></i>
+                          </button>
+                      )}
                       {selectedNode.bom_size_id && (() => {
                           const label = getBomSizeLabel(selectedNode.bom_id, selectedNode.bom_size_id);
                           return label ? (
@@ -1898,6 +1928,97 @@ export default function ManufacturingView({
                   }}
               />
           )}
+
+          {editAttrsModal && (() => {
+              const xpBtn = (onClick: () => void, label: string, primary: boolean) => (
+                  <button
+                      onClick={onClick}
+                      style={{
+                          fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
+                          padding: '2px 14px', cursor: 'pointer', borderRadius: 0,
+                          background: primary
+                              ? 'linear-gradient(to bottom, #b0e8b0, #70c870)'
+                              : 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
+                          border: '1px solid',
+                          borderColor: primary
+                              ? '#d0f0d0 #0a3e0a #0a3e0a #1a5e1a'
+                              : '#dfdfdf #808080 #808080 #dfdfdf',
+                          fontWeight: primary ? 'bold' : 'normal',
+                          color: primary ? '#004000' : '#000',
+                          minWidth: 70,
+                      }}
+                  >{label}</button>
+              );
+              const isClassic = currentStyle === 'classic';
+              return (
+                  <ModalWrapper
+                      isOpen
+                      onClose={() => setEditAttrsModal(null)}
+                      title={<><i className="bi bi-tags me-1"></i>Edit Attributes — <span style={{ fontFamily: 'monospace' }}>{editAttrsModal.mo.code}</span></>}
+                      size="md"
+                      level={2}
+                      footer={isClassic ? (
+                          <div style={{ display: 'flex', gap: 4 }}>
+                              {xpBtn(() => setEditAttrsModal(null), 'Cancel', false)}
+                              {xpBtn(() => handleUpdateMOAttributes(editAttrsModal.mo.id, editAttrsModal.selected), 'Save', true)}
+                          </div>
+                      ) : (
+                          <div style={{ display: 'flex', gap: 8 }}>
+                              <button className="btn btn-sm btn-secondary" onClick={() => setEditAttrsModal(null)}>Cancel</button>
+                              <button className="btn btn-sm btn-primary" onClick={() => handleUpdateMOAttributes(editAttrsModal.mo.id, editAttrsModal.selected)}>Save</button>
+                          </div>
+                      )}
+                  >
+                      {/* Attribute rows: label + dropdown */}
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                          <tbody>
+                              {(attributes || []).map((attr: any) => {
+                                  const currentVal = (attr.values || []).find((v: any) => editAttrsModal.selected.includes(v.id));
+                                  return (
+                                      <tr key={attr.id}>
+                                          <td style={{
+                                              padding: isClassic ? '3px 8px 3px 0' : '4px 10px 4px 0',
+                                              fontFamily: isClassic ? 'Tahoma, sans-serif' : undefined,
+                                              fontSize: isClassic ? 11 : 12,
+                                              fontWeight: isClassic ? 'normal' : 500,
+                                              color: '#333',
+                                              whiteSpace: 'nowrap',
+                                              width: 1,
+                                          }}>{attr.name}</td>
+                                          <td style={{ padding: isClassic ? '3px 0' : '4px 0' }}>
+                                              <select
+                                                  value={currentVal?.id ?? ''}
+                                                  onChange={e => {
+                                                      const newValId = e.target.value;
+                                                      setEditAttrsModal(prev => {
+                                                          if (!prev) return prev;
+                                                          const attrValueIds = (attr.values || []).map((v: any) => v.id);
+                                                          const without = prev.selected.filter((id: string) => !attrValueIds.includes(id));
+                                                          return { ...prev, selected: newValId ? [...without, newValId] : without };
+                                                      });
+                                                  }}
+                                                  style={isClassic ? {
+                                                      fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
+                                                      border: '1px solid', borderColor: '#808080 #dfdfdf #dfdfdf #808080',
+                                                      background: '#fff', height: 20, padding: '0 2px',
+                                                      outline: 'none', width: '100%', borderRadius: 0,
+                                                  } : { fontSize: 12, width: '100%' }}
+                                                  className={isClassic ? undefined : 'form-select form-select-sm'}
+                                              >
+                                                  <option value="">— none —</option>
+                                                  {(attr.values || []).map((val: any) => (
+                                                      <option key={val.id} value={val.id}>{val.value}</option>
+                                                  ))}
+                                              </select>
+                                          </td>
+                                      </tr>
+                                  );
+                              })}
+                          </tbody>
+                      </table>
+                  </ModalWrapper>
+              );
+          })()}
       </div>
   );
 }
