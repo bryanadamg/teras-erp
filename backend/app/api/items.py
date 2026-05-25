@@ -166,8 +166,10 @@ async def delete_item(item_id: str, db: AsyncSession = Depends(get_async_db), cu
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     
-    details = f"Deleted item {item.code} ({item.name})"
-    
+    item_code = item.code
+    item_name = item.name
+    details = f"Deleted item {item_code} ({item_name})"
+
     try:
         await db.delete(item)
         await db.commit()
@@ -175,7 +177,7 @@ async def delete_item(item_id: str, db: AsyncSession = Depends(get_async_db), cu
         await db.rollback()
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot delete item {item.code} because it is still referenced by a BOM or other record."
+            detail=f"Cannot delete item {item_code} because it is still referenced by a BOM or other record."
         )
     
     await audit_service.log_activity(

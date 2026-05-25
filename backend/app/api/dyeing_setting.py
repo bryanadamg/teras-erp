@@ -9,7 +9,7 @@ import uuid
 from app.db.session import get_async_db
 from app.models.dyeing_setting import (
     DyeRecipe, DyeRecipeLine, DyeingRun, DyeingRunChemical, SettingRun,
-    DyeRecipeWashBath, DyeRecipeFinishing,
+    DyeRecipeWashBath, DyeRecipeFinishing, dye_recipe_attribute_values,
 )
 from app.models.attribute import AttributeValue
 from app.models.work_order import WorkOrder as _WorkOrder
@@ -175,10 +175,10 @@ async def create_dye_recipe(
         ))
 
     if payload.attribute_value_ids:
-        av_result = await db.execute(
-            select(AttributeValue).filter(AttributeValue.id.in_([str(v) for v in payload.attribute_value_ids]))
+        await db.execute(
+            dye_recipe_attribute_values.insert(),
+            [{"dye_recipe_id": recipe.id, "attribute_value_id": str(v)} for v in payload.attribute_value_ids]
         )
-        recipe.attribute_values = list(av_result.scalars().all())
 
     await db.commit()
     result = await db.execute(
