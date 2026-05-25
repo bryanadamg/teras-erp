@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import InventoryView from '../components/inventory/InventoryView';
 import { useData } from '../context/DataContext';
 import { useConfirm } from '../context/ConfirmContext';
@@ -8,6 +9,15 @@ export default function InventoryPage() {
     const {
         items, attributes, uoms, fetchData, pagination, filters, authFetch
     } = useData();
+
+    useEffect(() => {
+        return () => {
+            filters.setItemSearch('');
+            filters.setCategoryL1('');
+            filters.setCategoryL2('');
+            filters.setCategoryL3('');
+        };
+    }, []);
     const { confirm } = useConfirm();
 
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
