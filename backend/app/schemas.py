@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from pydantic import ConfigDict
 from uuid import UUID
 from datetime import datetime, date
-from typing import Optional
+from typing import Optional, Any
 
 class VariantCreate(BaseModel):
     name: str
@@ -873,6 +873,15 @@ class BOMAutomatorProfileResponse(BaseModel):
     id: UUID
     name: str
     levels: list[list[str]]
+    class Config:
+        from_attributes = True
+
+class UserPreferenceUpsert(BaseModel):
+    value: Any
+
+class UserPreferenceResponse(BaseModel):
+    key: str
+    value: Any
     class Config:
         from_attributes = True
 

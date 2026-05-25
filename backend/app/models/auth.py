@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import String, ForeignKey, Table, Column
+from sqlalchemy import String, ForeignKey, Table, Column, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
@@ -60,6 +60,7 @@ class User(Base):
     role = relationship("Role")
     permissions = relationship("Permission", secondary=user_permissions)
     bom_automator_profiles = relationship("BOMAutomatorProfile", back_populates="user", cascade="all, delete-orphan")
+    preferences = relationship("UserPreference", back_populates="user", cascade="all, delete-orphan")
 
 
 class BOMAutomatorProfile(Base):
@@ -71,3 +72,15 @@ class BOMAutomatorProfile(Base):
     levels: Mapped[list] = mapped_column(JSON, nullable=False)
 
     user = relationship("User", back_populates="bom_automator_profiles")
+
+
+class UserPreference(Base):
+    __tablename__ = "user_preferences"
+    __table_args__ = (UniqueConstraint("user_id", "key", name="uq_user_preferences_user_id_key"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    key: Mapped[str] = mapped_column(String(128), nullable=False)
+    value: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+    user = relationship("User", back_populates="preferences")

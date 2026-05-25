@@ -87,6 +87,13 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
     const { confirm } = useConfirm();
 
     useEffect(() => {
+        authFetch('/api/preferences/code_config_DYE')
+            .then((res: Response) => res.ok ? res.json() : null)
+            .then((data: any) => { if (data?.value) setCodeConfig(data.value); })
+            .catch(() => {});
+    }, [authFetch]);
+
+    useEffect(() => {
         authFetch('/api/items?skip=0&limit=2000&search=')
             .then((res: Response) => res.ok ? res.json() : null)
             .then((data: any) => {
@@ -867,6 +874,11 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                 initialConfig={codeConfig || undefined}
                 onSave={cfg => {
                     setCodeConfig(cfg);
+                    authFetch('/api/preferences/code_config_DYE', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ value: cfg }),
+                    }).catch(() => {});
                     setShowCodeConfig(false);
                 }}
             />
