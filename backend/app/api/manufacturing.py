@@ -692,21 +692,8 @@ async def add_mo_completion(
         if wo.status in ("COMPLETED", "CANCELLED"):
             raise HTTPException(status_code=400, detail=f"Cannot log on a {wo.status} work order")
 
-    # Auto-start if PENDING — pre-check stock before committing
     if mo.status == "PENDING":
-        for comp in mo.planned_components:
-            if not comp.percentage:
-                continue
-            req = (float(mo.qty) * float(comp.percentage)) / 100
-            tol = float(mo.bom.tolerance_percentage or 0) if mo.bom else 0
-            if tol > 0:
-                req *= (1 + (tol / 100))
-            check_loc_id = comp.source_location_id or mo.source_location_id or mo.location_id
-            stock = await stock_service.get_stock_balance(db, comp.item_id, check_loc_id, [uuid.UUID(s) for s in comp.attribute_value_ids])
-            if stock < req:
-                raise HTTPException(status_code=400, detail=f"Insufficient stock for component {comp.item_id}")
-        mo.status = "IN_PROGRESS"
-        mo.actual_start_date = datetime.utcnow()
+        raise HTTPException(status_code=400, detail="MO must be started before logging completions")
 
     # Create completion record
     completion = MOCompletion(

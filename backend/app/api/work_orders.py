@@ -5,15 +5,17 @@ from sqlalchemy.orm import joinedload, selectinload
 from typing import Optional
 from app.db.session import get_async_db
 from app.models.work_order import WorkOrder
-from app.models.manufacturing import ManufacturingOrder
+from app.models.manufacturing import ManufacturingOrder, MOPlannedComponent
+from app.models.bom import BOMOperation
 from app.models.routing import WorkCenter
 from app.models.dyeing_setting import DyeRecipe, DyeingRun, dye_recipe_attribute_values
 from app.schemas import WorkOrderCreate, WorkOrderResponse
 from app.models.auth import User
 from app.api.auth import get_current_user
-from app.services import audit_service
+from app.services import audit_service, stock_service
 from app.core.ws_manager import manager
 from datetime import datetime
+import uuid
 
 
 async def _find_matching_dye_recipe(db: AsyncSession, mo_attr_ids: set) -> Optional[DyeRecipe]:
@@ -67,7 +69,10 @@ async def create_work_order(
 ):
     mo_result = await db.execute(
         select(ManufacturingOrder)
-        .options(selectinload(ManufacturingOrder.attribute_values))
+        .options(
+            selectinload(ManufacturingOrder.attribute_values),
+            selectinload(ManufacturingOrder.planned_components),
+        )
         .filter(ManufacturingOrder.id == payload.manufacturing_order_id)
     )
     mo = mo_result.scalars().first()
@@ -140,7 +145,41 @@ async def create_work_order(
             status="PENDING",
         ))
 
-    await db.commit()
+    # Auto-start MO on first WO creation if MO is still PENDING
+    if mo.status == "PENDING" and payload.work_center_id:
+        # Find BOMOperation IDs linked to this work center
+        ops_result = await db.execute(
+            select(BOMOperation.id).where(BOMOperation.work_center_id == payload.work_center_id)
+        )
+        op_ids = {row[0] for row in ops_result.fetchall()}
+
+        # Filter planned components assigned to those operations
+        relevant_comps = [
+            c for c in mo.planned_components
+            if c.bom_operation_id and c.bom_operation_id in op_ids
+        ]
+
+        for comp in relevant_comps:
+            if not comp.percentage:
+                continue
+            req = (float(mo.qty) * float(comp.percentage)) / 100
+            check_loc_id = comp.source_location_id or mo.source_location_id or mo.location_id
+            stock = await stock_service.get_stock_balance(
+                db, comp.item_id, check_loc_id,
+                [uuid.UUID(s) for s in comp.attribute_value_ids]
+            )
+            if stock < req:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Insufficient stock for component {comp.item_id} — cannot start MO"
+                )
+
+        mo.status = "IN_PROGRESS"
+        mo.actual_start_date = datetime.utcnow()
+        await db.commit()
+        await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": str(mo.id), "status": "IN_PROGRESS", "code": mo.code})
+    else:
+        await db.commit()
 
     result = await db.execute(
         select(WorkOrder).options(*_wo_options()).filter(WorkOrder.id == wo.id)
