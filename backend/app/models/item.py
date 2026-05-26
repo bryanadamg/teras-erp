@@ -14,6 +14,14 @@ item_attributes = Table(
     Column("attribute_id", UUID(as_uuid=True), ForeignKey("attributes.id"), primary_key=True),
 )
 
+# Association table for Item <-> UOMFactor (packaging units)
+item_uom_factors = Table(
+    "item_uom_factors",
+    Base.metadata,
+    Column("item_id", UUID(as_uuid=True), ForeignKey("items.id", ondelete="CASCADE"), primary_key=True),
+    Column("uom_factor_id", UUID(as_uuid=True), ForeignKey("uom_factors.id", ondelete="CASCADE"), primary_key=True),
+)
+
 class Item(Base):
     __tablename__ = "items"
 
@@ -46,5 +54,6 @@ class Item(Base):
 
     # Relationships
     attributes = relationship("Attribute", secondary=item_attributes, backref="items")
+    packaging_factors = relationship("UOMFactor", secondary=item_uom_factors, lazy="selectin")
     source_sample = relationship("SampleRequest", foreign_keys=[source_sample_id])
     source_color = relationship("SampleColor", foreign_keys=[source_color_id])

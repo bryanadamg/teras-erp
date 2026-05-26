@@ -251,7 +251,7 @@ export default function InventoryView({
   });
 
   // Creation State
-  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [] as string[], weight_per_unit: '' as string | number, weight_unit: 'g/y' });
+  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [] as string[], weight_per_unit: '' as string | number, weight_unit: 'g/y', packaging_factor_ids: [] as string[] });
   const [nameManuallyEdited, setNameManuallyEdited] = useState(false);
 
   // Beam item creation state
@@ -418,7 +418,7 @@ export default function InventoryView({
           } else {
               showToast('Item created successfully', 'success');
           }
-          setNewItem({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [], weight_per_unit: '', weight_unit: 'g/y' });
+          setNewItem({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [], weight_per_unit: '', weight_unit: 'g/y', packaging_factor_ids: [] });
           setFormCatL1(''); setFormCatL2(''); setFormCatL3('');
           setNameManuallyEdited(false);
           setCreateBeam(false); setBeamName(''); setBeamUom('');
@@ -439,6 +439,7 @@ export default function InventoryView({
           uom: editingItem.uom,
           category_id: effectiveFormCategoryId,
           attribute_ids: editingItem.attribute_ids || [],
+          packaging_factor_ids: editingItem.packaging_factor_ids || [],
           source_sample_id: editingItem.source_sample_id || null,
           source_color_id: editingItem.source_color_id || null,
           weight_per_unit: editingItem.weight_per_unit || null,
@@ -521,7 +522,7 @@ export default function InventoryView({
   };
 
   const handleEdit = (item: any) => {
-      setEditingItem({...item, attribute_ids: item.attribute_ids || []});
+      setEditingItem({...item, attribute_ids: item.attribute_ids || [], packaging_factor_ids: (item.packaging_factor_ids || []).map(String)});
   };
 
   const classic = currentStyle === 'classic';
@@ -725,10 +726,93 @@ export default function InventoryView({
                       style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
                       className={classic ? '' : 'form-label small text-muted'}
                   >{t('uom')}</label>
-                  <select data-testid="uom-select" style={classic ? { ...xpInput, height: 'auto', padding: '2px 4px', width: '100%' } : undefined} className={classic ? '' : 'form-select'} value={newItem.uom} onChange={e => setNewItem({...newItem, uom: e.target.value})} required>
+                  <select data-testid="uom-select" style={classic ? { ...xpInput, height: 'auto', padding: '2px 4px', width: '100%' } : undefined} className={classic ? '' : 'form-select'} value={newItem.uom} onChange={e => setNewItem({...newItem, uom: e.target.value, packaging_factor_ids: []})} required>
                       <option value="">Unit...</option>
                       {(uoms || []).map((u: any) => <option key={u.id} value={u.name}>{u.name}</option>)}
                   </select>
+              </div>
+
+              {/* Packaging Units */}
+              <div className="mb-3">
+                {classic ? (
+                  <div style={{ border: '1px solid #a0988c', padding: '6px 8px 8px', position: 'relative', marginTop: 2 }}>
+                    <span style={{ position: 'absolute', top: -7, left: 8, background: '#ece9d8', padding: '0 4px', fontSize: '10px', fontWeight: 'bold', color: '#444', textTransform: 'uppercase' as const, letterSpacing: '0.4px', fontFamily: 'Tahoma, Arial, sans-serif' }}>
+                      Packaging Units
+                    </span>
+                    <div style={{ paddingTop: 4, display: 'flex', flexDirection: 'column' as const, gap: 4 }}>
+                      {(() => {
+                        const uomObj = (uoms || []).find((u: any) => u.name === newItem.uom);
+                        const factors = uomObj?.factors || [];
+                        if (!newItem.uom) return <span style={{ fontSize: '10px', color: '#aaa', fontStyle: 'italic' }}>Select a UoM first</span>;
+                        if (factors.length === 0) return <span style={{ fontSize: '10px', color: '#aaa', fontStyle: 'italic' }}>No packaging units defined for this UoM</span>;
+                        return factors.map((f: any) => {
+                          const active = newItem.packaging_factor_ids.includes(String(f.id));
+                          return (
+                            <div key={f.id} style={{ display: 'grid', gridTemplateColumns: '56px 1fr', alignItems: 'center' }}>
+                              <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000' }}>{f.label || String(f.value)}</span>
+                              <div>
+                                <button type="button"
+                                  style={{
+                                    fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px',
+                                    padding: '0 5px', height: '18px', cursor: 'pointer',
+                                    borderRadius: 0, border: '1px solid',
+                                    borderColor: active ? '#1a3a7a #0a2a5a #0a2a5a #1a3a7a' : '#dfdfdf #808080 #808080 #dfdfdf',
+                                    background: active ? 'linear-gradient(to bottom, #316ac5, #1a4a8a)' : 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
+                                    color: active ? '#fff' : '#000',
+                                  }}
+                                  onClick={() => setNewItem(prev => ({
+                                    ...prev,
+                                    packaging_factor_ids: active
+                                      ? prev.packaging_factor_ids.filter((id: string) => id !== String(f.id))
+                                      : [...prev.packaging_factor_ids, String(f.id)],
+                                  }))}
+                                >
+                                  &times;{parseFloat(f.value)} {newItem.uom}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="form-label small text-muted">Packaging Units</label>
+                    <div className="border rounded p-2" style={{ background: '#f8f9fa' }}>
+                      {(() => {
+                        const uomObj = (uoms || []).find((u: any) => u.name === newItem.uom);
+                        const factors = uomObj?.factors || [];
+                        if (!newItem.uom) return <small className="text-muted fst-italic">Select a UoM first</small>;
+                        if (factors.length === 0) return <small className="text-muted fst-italic">No packaging units defined for this UoM</small>;
+                        return (
+                          <div className="d-flex flex-column gap-1">
+                            {factors.map((f: any) => {
+                              const active = newItem.packaging_factor_ids.includes(String(f.id));
+                              return (
+                                <div key={f.id} style={{ display: 'grid', gridTemplateColumns: '56px 1fr', alignItems: 'center' }}>
+                                  <small className="text-muted">{f.label || String(f.value)}</small>
+                                  <button type="button"
+                                    className={`btn btn-sm ${active ? 'btn-primary' : 'btn-outline-secondary'}`}
+                                    style={{ fontSize: 10, padding: '1px 6px', width: 'fit-content' }}
+                                    onClick={() => setNewItem(prev => ({
+                                      ...prev,
+                                      packaging_factor_ids: active
+                                        ? prev.packaging_factor_ids.filter((id: string) => id !== String(f.id))
+                                        : [...prev.packaging_factor_ids, String(f.id)],
+                                    }))}
+                                  >
+                                    &times;{parseFloat(f.value)} {newItem.uom}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="row g-2 mb-3">
@@ -1319,12 +1403,95 @@ export default function InventoryView({
                           className={classic ? '' : 'form-select'}
                           style={classic ? { ...xpSelect, width: '100%', boxSizing: 'border-box', height: '22px' } : undefined}
                           value={editingItem.uom}
-                          onChange={e => setEditingItem({...editingItem, uom: e.target.value})}
+                          onChange={e => setEditingItem({...editingItem, uom: e.target.value, packaging_factor_ids: []})}
                           required
                         >
                             <option value="">Unit...</option>
                             {(uoms || []).map((u: any) => <option key={u.id} value={u.name}>{u.name}</option>)}
                         </select>
+                    </div>
+
+                    {/* Packaging Units */}
+                    <div className="mb-3">
+                      {classic ? (
+                        <div style={{ border: '1px solid #a0988c', padding: '6px 8px 8px', position: 'relative', marginTop: 2 }}>
+                          <span style={{ position: 'absolute', top: -7, left: 8, background: '#ece9d8', padding: '0 4px', fontSize: '10px', fontWeight: 'bold', color: '#444', textTransform: 'uppercase' as const, letterSpacing: '0.4px', fontFamily: 'Tahoma, Arial, sans-serif' }}>
+                            Packaging Units
+                          </span>
+                          <div style={{ paddingTop: 4, display: 'flex', flexDirection: 'column' as const, gap: 4 }}>
+                            {(() => {
+                              const uomObj = (uoms || []).find((u: any) => u.name === editingItem.uom);
+                              const factors = uomObj?.factors || [];
+                              if (!editingItem.uom) return <span style={{ fontSize: '10px', color: '#aaa', fontStyle: 'italic' }}>Select a UoM first</span>;
+                              if (factors.length === 0) return <span style={{ fontSize: '10px', color: '#aaa', fontStyle: 'italic' }}>No packaging units defined for this UoM</span>;
+                              return factors.map((f: any) => {
+                                const active = (editingItem.packaging_factor_ids || []).includes(String(f.id));
+                                return (
+                                  <div key={f.id} style={{ display: 'grid', gridTemplateColumns: '56px 1fr', alignItems: 'center' }}>
+                                    <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000' }}>{f.label || String(f.value)}</span>
+                                    <div>
+                                      <button type="button"
+                                        style={{
+                                          fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px',
+                                          padding: '0 5px', height: '18px', cursor: 'pointer',
+                                          borderRadius: 0, border: '1px solid',
+                                          borderColor: active ? '#1a3a7a #0a2a5a #0a2a5a #1a3a7a' : '#dfdfdf #808080 #808080 #dfdfdf',
+                                          background: active ? 'linear-gradient(to bottom, #316ac5, #1a4a8a)' : 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
+                                          color: active ? '#fff' : '#000',
+                                        }}
+                                        onClick={() => setEditingItem((prev: any) => ({
+                                          ...prev,
+                                          packaging_factor_ids: active
+                                            ? (prev.packaging_factor_ids || []).filter((id: string) => id !== String(f.id))
+                                            : [...(prev.packaging_factor_ids || []), String(f.id)],
+                                        }))}
+                                      >
+                                        &times;{parseFloat(f.value)} {editingItem.uom}
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              });
+                            })()}
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="form-label small text-muted">Packaging Units</label>
+                          <div className="border rounded p-2" style={{ background: '#f8f9fa' }}>
+                            {(() => {
+                              const uomObj = (uoms || []).find((u: any) => u.name === editingItem.uom);
+                              const factors = uomObj?.factors || [];
+                              if (!editingItem.uom) return <small className="text-muted fst-italic">Select a UoM first</small>;
+                              if (factors.length === 0) return <small className="text-muted fst-italic">No packaging units defined for this UoM</small>;
+                              return (
+                                <div className="d-flex flex-column gap-1">
+                                  {factors.map((f: any) => {
+                                    const active = (editingItem.packaging_factor_ids || []).includes(String(f.id));
+                                    return (
+                                      <div key={f.id} style={{ display: 'grid', gridTemplateColumns: '56px 1fr', alignItems: 'center' }}>
+                                        <small className="text-muted">{f.label || String(f.value)}</small>
+                                        <button type="button"
+                                          className={`btn btn-sm ${active ? 'btn-primary' : 'btn-outline-secondary'}`}
+                                          style={{ fontSize: 10, padding: '1px 6px', width: 'fit-content' }}
+                                          onClick={() => setEditingItem((prev: any) => ({
+                                            ...prev,
+                                            packaging_factor_ids: active
+                                              ? (prev.packaging_factor_ids || []).filter((id: string) => id !== String(f.id))
+                                              : [...(prev.packaging_factor_ids || []), String(f.id)],
+                                          }))}
+                                        >
+                                          &times;{parseFloat(f.value)} {editingItem.uom}
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="row g-2 mb-3">

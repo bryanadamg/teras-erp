@@ -466,6 +466,7 @@ class ItemCreate(BaseModel):
     source_color_id: UUID | None = None
     weight_per_unit: float | None = None
     weight_unit: str | None = None
+    packaging_factor_ids: list[UUID] = []
 
 
 class ItemUpdate(BaseModel):
@@ -479,6 +480,7 @@ class ItemUpdate(BaseModel):
     active: bool | None = None
     weight_per_unit: float | None = None
     weight_unit: str | None = None
+    packaging_factor_ids: list[UUID] | None = None
 
 
 class ItemResponse(BaseModel):
@@ -496,6 +498,7 @@ class ItemResponse(BaseModel):
     source_color_name: str | None = None
     weight_per_unit: float | None = None
     weight_unit: str | None = None
+    packaging_factor_ids: list[UUID] = []
 
     class Config:
         from_attributes = True

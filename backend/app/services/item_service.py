@@ -7,6 +7,7 @@ from app.models.variant import Variant
 from app.schemas import VariantCreate
 from app.models.attribute import Attribute
 from app.models.category import Category
+from app.models.uom import UOMFactor
 
 
 def _source_opts():
@@ -41,6 +42,7 @@ async def create_item(
     attribute_ids: list[str] = [],
     weight_per_unit: float | None = None,
     weight_unit: str | None = None,
+    packaging_factor_ids: list[str] = [],
 ) -> Item:
     item = Item(
         code=code,
@@ -58,12 +60,16 @@ async def create_item(
         attrs = result.scalars().all()
         item.attributes = attrs
 
+    if packaging_factor_ids:
+        result = await db.execute(select(UOMFactor).filter(UOMFactor.id.in_(packaging_factor_ids)))
+        item.packaging_factors = result.scalars().all()
+
     db.add(item)
     await db.commit()
 
     result = await db.execute(
         select(Item)
-        .options(selectinload(Item.attributes), *_source_opts())
+        .options(selectinload(Item.attributes), selectinload(Item.packaging_factors), *_source_opts())
         .filter(Item.id == item.id)
     )
     return result.scalars().first()
@@ -76,7 +82,7 @@ async def update_item(
 ) -> Item | None:
     result = await db.execute(
         select(Item)
-        .options(selectinload(Item.attributes), *_source_opts())
+        .options(selectinload(Item.attributes), selectinload(Item.packaging_factors), *_source_opts())
         .filter(Item.id == item_id)
     )
     item = result.scalars().first()
@@ -84,6 +90,7 @@ async def update_item(
         return None
 
     attribute_ids = data.pop("attribute_ids", None)
+    packaging_factor_ids = data.pop("packaging_factor_ids", None)
 
     for key, value in data.items():
         if value is not None:
@@ -94,11 +101,15 @@ async def update_item(
         attrs = result.scalars().all()
         item.attributes = attrs
 
+    if packaging_factor_ids is not None:
+        result = await db.execute(select(UOMFactor).filter(UOMFactor.id.in_(packaging_factor_ids)))
+        item.packaging_factors = result.scalars().all()
+
     await db.commit()
 
     result = await db.execute(
         select(Item)
-        .options(selectinload(Item.attributes), *_source_opts())
+        .options(selectinload(Item.attributes), selectinload(Item.packaging_factors), *_source_opts())
         .filter(Item.id == item.id)
     )
     return result.scalars().first()
@@ -107,7 +118,7 @@ async def update_item(
 async def get_item_by_code(db: AsyncSession, code: str) -> Item | None:
     result = await db.execute(
         select(Item)
-        .options(selectinload(Item.attributes), *_source_opts())
+        .options(selectinload(Item.attributes), selectinload(Item.packaging_factors), *_source_opts())
         .filter(Item.code == code)
     )
     return result.scalars().first()
@@ -138,7 +149,7 @@ async def get_items(
     total = total_result.scalar()
 
     query = (
-        query.options(selectinload(Item.attributes), *_source_opts())
+        query.options(selectinload(Item.attributes), selectinload(Item.packaging_factors), *_source_opts())
         .order_by(Item.created_at.desc())
         .offset(skip)
         .limit(limit)

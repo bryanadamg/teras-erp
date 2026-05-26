@@ -20,6 +20,7 @@ def _populate_source_info(item) -> None:
     item.source_sample_code = item.source_sample.code if item.source_sample else None
     item.source_color_name = item.source_color.name if item.source_color else None
     item.category_path = item.category.path_names if item.category else []
+    item.packaging_factor_ids = [f.id for f in item.packaging_factors]
 
 
 @router.post("/items", response_model=ItemResponse)
@@ -39,6 +40,7 @@ async def create_item_api(payload: ItemCreate, db: AsyncSession = Depends(get_as
         attribute_ids=payload.attribute_ids,
         weight_per_unit=payload.weight_per_unit,
         weight_unit=payload.weight_unit,
+        packaging_factor_ids=[str(fid) for fid in payload.packaging_factor_ids],
     )
     
     await audit_service.log_activity(

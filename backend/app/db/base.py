@@ -12,7 +12,7 @@ class Base(DeclarativeBase):
     )
 
 # Import all models here so they are registered with Base.metadata
-from app.models.item import Item, item_attributes
+from app.models.item import Item, item_attributes, item_uom_factors
 from app.models.location import Location
 from app.models.attribute import Attribute, AttributeValue
 from app.models.category import Category
