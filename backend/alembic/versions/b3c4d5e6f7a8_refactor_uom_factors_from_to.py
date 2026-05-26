@@ -32,7 +32,7 @@ def upgrade():
     op.alter_column('uom_factors', 'from_uom_id', nullable=False)
     op.alter_column('uom_factors', 'to_uom_id', nullable=False)
 
-    op.drop_constraint('uom_factors_uom_id_fkey', 'uom_factors', type_='foreignkey')
+    op.drop_constraint('fk_uom_factors_uom_id_uoms', 'uom_factors', type_='foreignkey')
     op.drop_index('ix_uom_factors_uom_id', table_name='uom_factors')
     op.drop_column('uom_factors', 'uom_id')
     op.drop_column('uom_factors', 'label')
@@ -41,7 +41,7 @@ def upgrade():
 def downgrade():
     op.add_column('uom_factors', sa.Column('uom_id', postgresql.UUID(as_uuid=True), nullable=True))
     op.add_column('uom_factors', sa.Column('label', sa.String(64), nullable=True))
-    op.create_foreign_key('uom_factors_uom_id_fkey', 'uom_factors', 'uoms', ['uom_id'], ['id'], ondelete='CASCADE')
+    op.create_foreign_key('fk_uom_factors_uom_id_uoms', 'uom_factors', 'uoms', ['uom_id'], ['id'], ondelete='CASCADE')
     op.create_index('ix_uom_factors_uom_id', 'uom_factors', ['uom_id'])
 
     op.drop_constraint('fk_uom_factors_from_uom', 'uom_factors', type_='foreignkey')
