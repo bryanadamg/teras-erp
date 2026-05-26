@@ -246,27 +246,21 @@ export default function ItemMetadataView({
                                     <div key={uom.id} style={{ borderBottom: '1px solid #c0bdb5', background: isExpanded ? '#fff8f0' : rowBg }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 8px' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                                {uom.is_system ? (
-                                                    <span style={{ width: 14, color: '#aaa', fontSize: 10, textAlign: 'center' as const }}>—</span>
-                                                ) : (
-                                                    <span style={{ width: 14, textAlign: 'center' as const, cursor: 'pointer', fontSize: 10 }} onClick={() => handleToggleUom(uom)}>
-                                                        {isExpanded ? '▼' : '►'}
-                                                    </span>
-                                                )}
+                                                <span style={{ width: 14, textAlign: 'center' as const, cursor: 'pointer', fontSize: 10 }} onClick={() => handleToggleUom(uom)}>
+                                                    {isExpanded ? '▼' : '►'}
+                                                </span>
                                                 <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', fontVariant: 'all-small-caps' }}>{uom.name}</span>
-                                                {uom.is_system ? (
-                                                    <>
-                                                        <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '9px', color: '#003080', background: '#dce8ff', border: '1px solid #7fa8e0', padding: '0 4px' }}>SYSTEM</span>
-                                                        <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '9px', color: '#888', fontStyle: 'italic' }}>(base unit)</span>
-                                                    </>
-                                                ) : factors.length > 0 ? (
+                                                {uom.is_system && (
+                                                    <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '9px', color: '#003080', background: '#dce8ff', border: '1px solid #7fa8e0', padding: '0 4px' }}>SYSTEM</span>
+                                                )}
+                                                {factors.length > 0 ? (
                                                     factors.map((f: any) => (
                                                         <span key={f.id} style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '9px', background: '#fff3e0', border: '1px solid #f0a040', color: '#804800', padding: '0 4px' }}>
                                                             1 {uom.name} = {parseFloat(f.value)} {f.to_uom_name}
                                                         </span>
                                                     ))
                                                 ) : (
-                                                    <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '9px', color: '#aaa', fontStyle: 'italic' }}>no conversion set</span>
+                                                    <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '9px', color: '#aaa', fontStyle: 'italic' }}>{uom.is_system ? '(base unit)' : 'no conversion set'}</span>
                                                 )}
                                             </div>
                                             {!uom.is_system && (

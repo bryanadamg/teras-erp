@@ -193,6 +193,8 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       setQtyGrossYd('');
       setQtyRoll('');
       setQtyPic('');
+      setRollFactor(null);
+      setPicFactor(null);
       setKgAuto(true);
   };
 
@@ -248,6 +250,14 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       const m = parseFloat(qtyMeter) || 0;
       const kg = kgAuto ? calcKgAuto(val, newLine.qty, m) : null;
       setNewLine({ ...newLine, item_id: val, attribute_value_ids: [], bom_size_id: '', qty_kg: kg !== null ? kg : newLine.qty_kg });
+      const selectedItem = items.find((i: any) => i.id === val);
+      const factorIds = (selectedItem?.packaging_factor_ids || []).map(String);
+      const allFactors = uoms.flatMap((u: any) => u.factors || []);
+      const itemFactors = allFactors.filter((f: any) => factorIds.includes(String(f.id)));
+      const rollF = itemFactors.find((f: any) => f.from_uom_name === 'Roll');
+      const picF = itemFactors.find((f: any) => f.from_uom_name === 'Pic');
+      setRollFactor(rollF ? parseFloat(rollF.value) : null);
+      setPicFactor(picF ? parseFloat(picF.value) : null);
   };
 
   const getBOMSizesForLine = (itemId: string, attrValueIds: string[]) => {
@@ -419,6 +429,8 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       setQtyGrossYd('');
       setQtyRoll('');
       setQtyPic('');
+      setRollFactor(null);
+      setPicFactor(null);
       setKgAuto(true);
   };
 
@@ -720,7 +732,12 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                        <div style={{ paddingTop: classic ? 4 : 0, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: classic ? 5 : 8 }}>
                                            {(['Roll', 'Pic'] as const).map(uomName => {
                                                const uomObj = uoms.find((u: any) => u.name === uomName);
-                                               const factors = uomObj?.factors || [];
+                                               const allUomFactors = uomObj?.factors || [];
+                                               const selItem = items.find((i: any) => i.id === newLine.item_id);
+                                               const itemFactorIds = (selItem?.packaging_factor_ids || []).map(String);
+                                               const factors = newLine.item_id && itemFactorIds.length > 0
+                                                   ? allUomFactors.filter((f: any) => itemFactorIds.includes(String(f.id)))
+                                                   : allUomFactors;
                                                const factor = uomName === 'Roll' ? rollFactor : picFactor;
                                                const qty = uomName === 'Roll' ? qtyRoll : qtyPic;
                                                const onFactorChange = uomName === 'Roll' ? handleRollFactorChange : handlePicFactorChange;
