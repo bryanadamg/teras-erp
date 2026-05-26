@@ -59,7 +59,7 @@ export default function ItemMetadataPage() {
         if (res.ok) fetchData();
     };
 
-    const handleCreateUOMFactor = async (fromUomId: string, toUomId: string, value: number) => {
+    const handleSaveUOMFactor = async (fromUomId: string, toUomId: string, value: number) => {
         const res = await authFetch(`${API_BASE}/uoms/${fromUomId}/factors`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ to_uom_id: toUomId, value }),
@@ -127,7 +127,7 @@ export default function ItemMetadataPage() {
                 onRenameCategory={handleRenameCategory}
                 onCreateUOM={handleCreateUOM}
                 onDeleteUOM={handleDeleteUOM}
-                onCreateUOMFactor={handleCreateUOMFactor}
+                onSaveUOMFactor={handleSaveUOMFactor}
                 onDeleteUOMFactor={handleDeleteUOMFactor}
                 onCreateAttribute={handleCreateAttribute}
                 onUpdateAttribute={handleUpdateAttribute}

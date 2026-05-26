@@ -92,13 +92,23 @@ def seed_categories(db):
 
 def seed_uoms(db):
     try:
+        system_uoms = {"kg", "yard"}
         if db.query(UOM).count() == 0:
-            system_uoms = {"Roll", "Pic"}
-            defaults = ["Pcs", "Roll", "Pic", "Cone", "Bal", "Box", "Set", "kg", "m", "l"]
+            defaults = ["Pcs", "Cone", "Bal", "Box", "Set", "m", "l", "kg", "yard"]
             for name in defaults:
                 db.add(UOM(name=name, is_system=(name in system_uoms)))
             db.commit()
             logger.info("Seeded default UOMs")
+        else:
+            # Ensure kg and yard exist and are marked system
+            for name in system_uoms:
+                existing = db.query(UOM).filter(UOM.name == name).first()
+                if existing:
+                    if not existing.is_system:
+                        existing.is_system = True
+                else:
+                    db.add(UOM(name=name, is_system=True))
+            db.commit()
     except Exception as e:
         logger.warning(f"UOM seeding skipped: {e}")
 
