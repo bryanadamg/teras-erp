@@ -59,10 +59,10 @@ export default function ItemMetadataPage() {
         if (res.ok) fetchData();
     };
 
-    const handleCreateUOMFactor = async (uomId: string, value: number, label: string) => {
-        const res = await authFetch(`${API_BASE}/uoms/${uomId}/factors`, {
+    const handleCreateUOMFactor = async (fromUomId: string, toUomId: string, value: number) => {
+        const res = await authFetch(`${API_BASE}/uoms/${fromUomId}/factors`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ value, label: label || null }),
+            body: JSON.stringify({ to_uom_id: toUomId, value }),
         });
         if (res.ok) fetchData();
     };

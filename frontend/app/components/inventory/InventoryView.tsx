@@ -741,15 +741,14 @@ export default function InventoryView({
                     </span>
                     <div style={{ paddingTop: 4, display: 'flex', flexDirection: 'column' as const, gap: 4 }}>
                       {(() => {
-                        const uomObj = (uoms || []).find((u: any) => u.name === newItem.uom);
-                        const factors = uomObj?.factors || [];
+                        const factors = (uoms || []).flatMap((u: any) => (u.factors || []).filter((f: any) => f.to_uom_name === newItem.uom));
                         if (!newItem.uom) return <span style={{ fontSize: '10px', color: '#aaa', fontStyle: 'italic' }}>Select a UoM first</span>;
                         if (factors.length === 0) return <span style={{ fontSize: '10px', color: '#aaa', fontStyle: 'italic' }}>No packaging units defined for this UoM</span>;
                         return factors.map((f: any) => {
                           const active = newItem.packaging_factor_ids.includes(String(f.id));
                           return (
                             <div key={f.id} style={{ display: 'grid', gridTemplateColumns: '56px 1fr', alignItems: 'center' }}>
-                              <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000' }}>{f.label || String(f.value)}</span>
+                              <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000' }}>{f.from_uom_name}</span>
                               <div>
                                 <button type="button"
                                   style={{
@@ -781,8 +780,7 @@ export default function InventoryView({
                     <label className="form-label small text-muted">Packaging Units</label>
                     <div className="border rounded p-2" style={{ background: '#f8f9fa' }}>
                       {(() => {
-                        const uomObj = (uoms || []).find((u: any) => u.name === newItem.uom);
-                        const factors = uomObj?.factors || [];
+                        const factors = (uoms || []).flatMap((u: any) => (u.factors || []).filter((f: any) => f.to_uom_name === newItem.uom));
                         if (!newItem.uom) return <small className="text-muted fst-italic">Select a UoM first</small>;
                         if (factors.length === 0) return <small className="text-muted fst-italic">No packaging units defined for this UoM</small>;
                         return (
@@ -791,7 +789,7 @@ export default function InventoryView({
                               const active = newItem.packaging_factor_ids.includes(String(f.id));
                               return (
                                 <div key={f.id} style={{ display: 'grid', gridTemplateColumns: '56px 1fr', alignItems: 'center' }}>
-                                  <small className="text-muted">{f.label || String(f.value)}</small>
+                                  <small className="text-muted">{f.from_uom_name}</small>
                                   <button type="button"
                                     className={`btn btn-sm ${active ? 'btn-primary' : 'btn-outline-secondary'}`}
                                     style={{ fontSize: 10, padding: '1px 6px', width: 'fit-content' }}
@@ -1420,15 +1418,14 @@ export default function InventoryView({
                           </span>
                           <div style={{ paddingTop: 4, display: 'flex', flexDirection: 'column' as const, gap: 4 }}>
                             {(() => {
-                              const uomObj = (uoms || []).find((u: any) => u.name === editingItem.uom);
-                              const factors = uomObj?.factors || [];
+                              const factors = (uoms || []).flatMap((u: any) => (u.factors || []).filter((f: any) => f.to_uom_name === editingItem.uom));
                               if (!editingItem.uom) return <span style={{ fontSize: '10px', color: '#aaa', fontStyle: 'italic' }}>Select a UoM first</span>;
                               if (factors.length === 0) return <span style={{ fontSize: '10px', color: '#aaa', fontStyle: 'italic' }}>No packaging units defined for this UoM</span>;
                               return factors.map((f: any) => {
                                 const active = (editingItem.packaging_factor_ids || []).includes(String(f.id));
                                 return (
                                   <div key={f.id} style={{ display: 'grid', gridTemplateColumns: '56px 1fr', alignItems: 'center' }}>
-                                    <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000' }}>{f.label || String(f.value)}</span>
+                                    <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000' }}>{f.from_uom_name}</span>
                                     <div>
                                       <button type="button"
                                         style={{
@@ -1460,8 +1457,7 @@ export default function InventoryView({
                           <label className="form-label small text-muted">Packaging Units</label>
                           <div className="border rounded p-2" style={{ background: '#f8f9fa' }}>
                             {(() => {
-                              const uomObj = (uoms || []).find((u: any) => u.name === editingItem.uom);
-                              const factors = uomObj?.factors || [];
+                              const factors = (uoms || []).flatMap((u: any) => (u.factors || []).filter((f: any) => f.to_uom_name === editingItem.uom));
                               if (!editingItem.uom) return <small className="text-muted fst-italic">Select a UoM first</small>;
                               if (factors.length === 0) return <small className="text-muted fst-italic">No packaging units defined for this UoM</small>;
                               return (
@@ -1470,7 +1466,7 @@ export default function InventoryView({
                                     const active = (editingItem.packaging_factor_ids || []).includes(String(f.id));
                                     return (
                                       <div key={f.id} style={{ display: 'grid', gridTemplateColumns: '56px 1fr', alignItems: 'center' }}>
-                                        <small className="text-muted">{f.label || String(f.value)}</small>
+                                        <small className="text-muted">{f.from_uom_name}</small>
                                         <button type="button"
                                           className={`btn btn-sm ${active ? 'btn-primary' : 'btn-outline-secondary'}`}
                                           style={{ fontSize: 10, padding: '1px 6px', width: 'fit-content' }}

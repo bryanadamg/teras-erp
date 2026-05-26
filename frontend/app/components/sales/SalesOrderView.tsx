@@ -737,13 +737,13 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                                                        <button key={f.id} type="button"
                                                                            style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'10px', padding:'0 5px', height:'18px', lineHeight:'16px', cursor:'pointer', borderRadius:0, border:'1px solid', borderColor: active ? '#1a3a7a #0a2a5a #0a2a5a #1a3a7a' : '#dfdfdf #808080 #808080 #dfdfdf', background: active ? 'linear-gradient(to bottom,#316ac5,#1a4a8a)' : 'linear-gradient(to bottom,#ffffff,#d4d0c8)', color: active ? '#fff' : '#000' }}
                                                                            onClick={() => onFactorChange(active ? '' : String(fVal))}
-                                                                       >×{fVal}{f.label ? ` ${f.label}` : ' yd'}</button>
+                                                                       >×{fVal}{f.to_uom_name ? ` ${f.to_uom_name}` : ''}</button>
                                                                    ) : (
                                                                        <button key={f.id} type="button"
                                                                            className={`btn btn-sm ${active ? 'btn-primary' : 'btn-outline-secondary'}`}
                                                                            style={{ fontSize: 10, padding: '1px 6px' }}
                                                                            onClick={() => onFactorChange(active ? '' : String(fVal))}
-                                                                       >×{fVal}{f.label ? ` ${f.label}` : ' yd'}</button>
+                                                                       >×{fVal}{f.to_uom_name ? ` ${f.to_uom_name}` : ''}</button>
                                                                    );
                                                                })}
                                                            </div>

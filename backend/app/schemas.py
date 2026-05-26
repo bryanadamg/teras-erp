@@ -560,12 +560,16 @@ class UOMCreate(BaseModel):
     name: str
 
 class UOMFactorCreate(BaseModel):
+    to_uom_id: UUID
     value: float
-    label: str | None = None
 
-class UOMFactorResponse(UOMFactorCreate):
+class UOMFactorResponse(BaseModel):
     id: UUID
-    uom_id: UUID
+    from_uom_id: UUID
+    to_uom_id: UUID
+    from_uom_name: str = ''
+    to_uom_name: str = ''
+    value: float
 
     class Config:
         from_attributes = True

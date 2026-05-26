@@ -12,7 +12,14 @@ class UOM(Base):
     )
     name: Mapped[str] = mapped_column(String(32), unique=True, index=True)
     is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    factors: Mapped[list["UOMFactor"]] = relationship("UOMFactor", back_populates="uom", cascade="all, delete-orphan", order_by="UOMFactor.value")
+    # factors where this UOM is the FROM unit (e.g. Roll.factors = [Roll→yard=50])
+    factors: Mapped[list["UOMFactor"]] = relationship(
+        "UOMFactor",
+        foreign_keys="UOMFactor.from_uom_id",
+        back_populates="from_uom",
+        cascade="all, delete-orphan",
+        order_by="UOMFactor.value",
+    )
 
 
 class UOMFactor(Base):
@@ -21,10 +28,13 @@ class UOMFactor(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    uom_id: Mapped[uuid.UUID] = mapped_column(
+    from_uom_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("uoms.id", ondelete="CASCADE"), index=True
     )
-    value: Mapped[float] = mapped_column(Numeric(14, 4))  # yards per unit
-    label: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    to_uom_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("uoms.id", ondelete="CASCADE"), index=True
+    )
+    value: Mapped[float] = mapped_column(Numeric(14, 4))
 
-    uom: Mapped["UOM"] = relationship("UOM", back_populates="factors")
+    from_uom: Mapped["UOM"] = relationship("UOM", foreign_keys=[from_uom_id], back_populates="factors")
+    to_uom: Mapped["UOM"] = relationship("UOM", foreign_keys=[to_uom_id])
