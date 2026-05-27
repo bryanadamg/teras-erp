@@ -575,21 +575,16 @@ export default function BOMDesigner({
     };
 
     const validatePercentages = (node: BOMNodeData): string | null => {
-        const childSubBOMs = node.lines
-            .map(l => l.subBOM)
-            .filter((s): s is BOMNodeData => !!s);
-
-        if (childSubBOMs.length > 0) {
-            const allChildLines = childSubBOMs.flatMap(s => s.lines);
-            if (allChildLines.length > 0) {
-                const hasZero = allChildLines.some(l => (l.percentage || 0) === 0);
-                const total = allChildLines.reduce((sum, l) => sum + (l.percentage || 0), 0);
-                if (hasZero || Math.abs(total - 100) > 0.01) {
-                    return node.item_code || 'root';
-                }
+        if (node.lines.length > 0) {
+            const hasZero = node.lines.some(l => (l.percentage || 0) === 0);
+            const total = node.lines.reduce((sum, l) => sum + (l.percentage || 0), 0);
+            if (hasZero || Math.abs(total - 100) > 0.01) {
+                return node.item_code || node.code || 'root';
             }
-            for (const child of childSubBOMs) {
-                const err = validatePercentages(child);
+        }
+        for (const line of node.lines) {
+            if (line.subBOM) {
+                const err = validatePercentages(line.subBOM);
                 if (err) return err;
             }
         }
@@ -597,18 +592,9 @@ export default function BOMDesigner({
     };
 
     const handleGlobalSave = async () => {
-        const rootLeafLines = rootBOM.lines.filter(l => !l.subBOM);
-        if (rootLeafLines.length > 0) {
-            const hasZero = rootLeafLines.some(l => (l.percentage || 0) === 0);
-            const total = rootLeafLines.reduce((sum, l) => sum + (l.percentage || 0), 0);
-            if (hasZero || Math.abs(total - 100) > 0.01) {
-                setPctError(`All components must have a percentage set and sum to 100%.`);
-                return;
-            }
-        }
         const pctErr = validatePercentages(rootBOM);
         if (pctErr) {
-            setPctError(`All components under "${pctErr}" must have a percentage set and sum to 100%.`);
+            setPctError(`Components under "${pctErr}" must all have percentages set and sum to 100%.`);
             return;
         }
         setPctError(null);
@@ -1511,29 +1497,6 @@ export default function BOMDesigner({
                                                 if (selectedNode.lines.length === 0) return null;
                                                 const nodePct = selectedNode.lines.reduce((sum, l) => sum + (l.percentage || 0), 0);
                                                 const hasZero = selectedNode.lines.some(l => (l.percentage || 0) === 0);
-
-                                                const parent = findParentById(rootBOM, selectedNode.id);
-                                                const siblingSubBOMs = parent
-                                                    ? parent.lines.map(l => l.subBOM).filter((s): s is BOMNodeData => !!s)
-                                                    : [];
-                                                const hasSiblings = siblingSubBOMs.length > 1;
-
-                                                if (hasSiblings) {
-                                                    const allSiblingLines = siblingSubBOMs.flatMap(s => s.lines);
-                                                    const groupHasZero = allSiblingLines.some(l => (l.percentage || 0) === 0);
-                                                    const groupTotal = allSiblingLines.reduce((sum, l) => sum + (l.percentage || 0), 0);
-                                                    const isValid = !groupHasZero && Math.abs(groupTotal - 100) < 0.01;
-                                                    return (
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 6px', borderTop: '1px solid #aca899', background: '#ece9d8' }}>
-                                                            <span style={{ fontSize: 10, color: '#555', flex: 1 }}>Subtotal %:</span>
-                                                            <span style={xpBadge(hasZero ? '#a02020' : '#555')}>{nodePct.toFixed(1)}%</span>
-                                                            <span style={{ fontSize: 10, color: '#555' }}>| Group:</span>
-                                                            <span style={xpBadge(isValid ? '#2a7a2a' : '#a02020')}>{groupTotal.toFixed(1)}%</span>
-                                                            {!isValid && <span style={{ fontSize: 10, color: '#a02020' }}>must = 100%, no zeros</span>}
-                                                        </div>
-                                                    );
-                                                }
-
                                                 const isValid = !hasZero && Math.abs(nodePct - 100) < 0.01;
                                                 return (
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 6px', borderTop: '1px solid #aca899', background: '#ece9d8' }}>

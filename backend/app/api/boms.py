@@ -19,6 +19,17 @@ from app.models.attribute import AttributeValue
 
 router = APIRouter()
 
+
+def _validate_line_percentages(lines: list) -> None:
+    if not lines:
+        return
+    if any((l.percentage or 0) == 0 for l in lines):
+        raise HTTPException(status_code=422, detail="All BOM lines must have a non-zero percentage.")
+    total = sum(float(l.percentage or 0) for l in lines)
+    if abs(total - 100.0) > 0.01:
+        raise HTTPException(status_code=422, detail=f"BOM line percentages must sum to 100% (got {total:.2f}%).")
+
+
 @router.get("/sizes", response_model=list[SizeResponse])
 async def get_sizes(db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(select(Size).order_by(Size.sort_order))
@@ -26,6 +37,8 @@ async def get_sizes(db: AsyncSession = Depends(get_async_db), current_user: User
 
 @router.post("/boms", response_model=BOMResponse)
 async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+    _validate_line_percentages(payload.lines)
+
     # 1. Resolve Produced Item
     result = await db.execute(select(Item).filter(Item.code == payload.item_code))
     item = result.scalars().first()
@@ -385,6 +398,7 @@ async def update_bom(
 
     # Replace lines if provided
     if payload.lines is not None:
+        _validate_line_percentages(payload.lines)
         for bl in list(bom.lines):
             await db.delete(bl)
         await db.flush()
