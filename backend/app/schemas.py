@@ -606,6 +606,7 @@ class WorkCenterCreate(BaseModel):
     center_type: str = "GENERAL"
     input_location_id: UUID | None = None
     output_location_id: UUID | None = None
+    parent_id: UUID | None = None
 
 class WorkCenterResponse(BaseModel):
     id: UUID
@@ -616,6 +617,7 @@ class WorkCenterResponse(BaseModel):
     center_type: str = "GENERAL"
     input_location_id: UUID | None = None
     output_location_id: UUID | None = None
+    parent_id: UUID | None = None
     input_location: LocationResponse | None = None
     output_location: LocationResponse | None = None
 

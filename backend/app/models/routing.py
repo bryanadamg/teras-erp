@@ -20,8 +20,12 @@ class WorkCenter(Base):
     input_location_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True)
     output_location_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True)
 
+    parent_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("work_centers.id"), nullable=True, index=True)
+
     input_location: Mapped[Optional["Location"]] = relationship("Location", foreign_keys=[input_location_id], lazy="joined")
     output_location: Mapped[Optional["Location"]] = relationship("Location", foreign_keys=[output_location_id], lazy="joined")
+    parent: Mapped[Optional["WorkCenter"]] = relationship("WorkCenter", back_populates="children", remote_side="WorkCenter.id", foreign_keys=[parent_id])
+    children: Mapped[list["WorkCenter"]] = relationship("WorkCenter", back_populates="parent", foreign_keys=[parent_id])
 
 class Operation(Base):
     __tablename__ = "operations"

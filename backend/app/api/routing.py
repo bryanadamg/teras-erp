@@ -22,6 +22,7 @@ def create_work_center(payload: WorkCenterCreate, db: Session = Depends(get_db),
         center_type=payload.center_type,
         input_location_id=payload.input_location_id,
         output_location_id=payload.output_location_id,
+        parent_id=payload.parent_id,
     )
     db.add(wc)
     db.commit()
@@ -47,6 +48,7 @@ def update_work_center(wc_id: str, payload: WorkCenterCreate, db: Session = Depe
     wc.center_type = payload.center_type
     wc.input_location_id = payload.input_location_id
     wc.output_location_id = payload.output_location_id
+    wc.parent_id = payload.parent_id
     db.commit()
     db.refresh(wc)
     return wc
