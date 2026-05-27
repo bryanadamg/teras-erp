@@ -413,6 +413,16 @@ class PRMaterialRequirementItem(BaseModel):
     shortfall: float
     mo_contributions: list[PRMOContribution]
 
+class LocationCreate(BaseModel):
+    code: str
+    name: str
+
+class LocationResponse(LocationCreate):
+    id: UUID
+
+    class Config:
+        from_attributes = True
+
 # --- Work Order (operation step) Schemas ---
 
 class WorkOrderCreate(BaseModel):
@@ -420,6 +430,8 @@ class WorkOrderCreate(BaseModel):
     sequence: int = 1
     name: str | None = None
     work_center_id: UUID | None = None
+    input_location_id: UUID | None = None
+    output_location_id: UUID | None = None
     qty: float | None = None
     planned_duration_hours: float | None = None
     notes: str | None = None
@@ -437,6 +449,10 @@ class WorkOrderResponse(BaseModel):
     work_center_name: str | None = None
     work_center_type: str | None = None
     planned_recipe_id: UUID | None = None
+    input_location_id: UUID | None = None
+    output_location_id: UUID | None = None
+    input_location: LocationResponse | None = None
+    output_location: LocationResponse | None = None
     qty: float | None = None
     qty_completed_total: float = 0.0
     status: str
@@ -545,16 +561,6 @@ class StockBalanceResponse(BaseModel):
     location_name: str = ""
     qty: float
     batch_key: str = ""
-
-class LocationCreate(BaseModel):
-    code: str
-    name: str
-
-class LocationResponse(LocationCreate):
-    id: UUID
-
-    class Config:
-        from_attributes = True
 
 class UOMCreate(BaseModel):
     name: str

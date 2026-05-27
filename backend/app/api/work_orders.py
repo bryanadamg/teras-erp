@@ -118,6 +118,15 @@ async def create_work_order(
 
     sequence = payload.sequence if payload.sequence and payload.sequence > 1 else wo_seq_num
 
+    # Inherit locations from work center unless caller explicitly provided them
+    input_location_id = payload.input_location_id
+    output_location_id = payload.output_location_id
+    if wc:
+        if input_location_id is None:
+            input_location_id = wc.input_location_id
+        if output_location_id is None:
+            output_location_id = wc.output_location_id
+
     wo = WorkOrder(
         manufacturing_order_id=payload.manufacturing_order_id,
         sequence=sequence,
@@ -125,6 +134,8 @@ async def create_work_order(
         name=name,
         work_center_id=payload.work_center_id,
         planned_recipe_id=planned_recipe_id,
+        input_location_id=input_location_id,
+        output_location_id=output_location_id,
         qty=payload.qty,
         planned_duration_hours=payload.planned_duration_hours,
         notes=payload.notes,
@@ -251,6 +262,20 @@ async def update_work_order(
     wo.notes = payload.notes
     wo.target_start_date = payload.target_start_date
     wo.target_end_date = payload.target_end_date
+
+    # Re-populate locations: explicit payload values win; fall back to new WC's defaults
+    if payload.input_location_id is not None or payload.output_location_id is not None:
+        wo.input_location_id = payload.input_location_id
+        wo.output_location_id = payload.output_location_id
+    elif payload.work_center_id:
+        wc_result = await db.execute(select(WorkCenter).filter(WorkCenter.id == payload.work_center_id))
+        wc_upd = wc_result.scalars().first()
+        if wc_upd:
+            wo.input_location_id = wc_upd.input_location_id
+            wo.output_location_id = wc_upd.output_location_id
+    else:
+        wo.input_location_id = None
+        wo.output_location_id = None
 
     await db.commit()
 

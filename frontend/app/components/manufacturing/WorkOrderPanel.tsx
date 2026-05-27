@@ -40,6 +40,10 @@ interface WO {
     work_center_name?: string;
     work_center_id?: string;
     work_center_type?: string;
+    input_location_id?: string;
+    output_location_id?: string;
+    input_location?: { id: string; code: string; name: string } | null;
+    output_location?: { id: string; code: string; name: string } | null;
     status: string;
     planned_duration_hours?: number;
     actual_duration_hours?: number;
@@ -48,10 +52,13 @@ interface WO {
     notes?: string;
 }
 
+const emptyForm = { work_center_id: '', input_location_id: '', output_location_id: '', planned_duration_hours: '', qty: '' };
+
 interface Props {
     manufacturingOrderId: string;
     workOrders: WO[];
     workCenters: any[];
+    locations?: any[];
     onAdd: (payload: any) => Promise<any>;
     onUpdate: (id: string, payload: any) => Promise<any>;
     onUpdateStatus: (id: string, status: string) => Promise<any>;
@@ -61,21 +68,33 @@ interface Props {
 }
 
 export default function WorkOrderPanel({
-    manufacturingOrderId, workOrders, workCenters,
+    manufacturingOrderId, workOrders, workCenters, locations,
     onAdd, onUpdate, onUpdateStatus, onDelete, onLogWO, parentMO,
 }: Props) {
     const { showToast } = useToast();
     const [addingRow, setAddingRow] = useState(false);
     const [editId, setEditId] = useState<string | null>(null);
-    const [form, setForm] = useState({ work_center_id: '', planned_duration_hours: '', qty: '' });
+    const [form, setForm] = useState({ ...emptyForm });
     const [isSaving, setIsSaving] = useState(false);
     const [printWO, setPrintWO] = useState<WO | null>(null);
     const [overAssignWarning, setOverAssignWarning] = useState<{ totalAssigned: number; moQty: number } | null>(null);
 
+    const locationList = locations || [];
+
     const resetForm = () => {
-        setForm({ work_center_id: '', planned_duration_hours: '', qty: '' });
+        setForm({ ...emptyForm });
         setAddingRow(false);
         setEditId(null);
+    };
+
+    const handleWCChange = (wcId: string) => {
+        const wc = workCenters.find((w: any) => w.id === wcId);
+        setForm(f => ({
+            ...f,
+            work_center_id: wcId,
+            input_location_id: wc?.input_location_id || '',
+            output_location_id: wc?.output_location_id || '',
+        }));
     };
 
     const handleAdd = async () => {
@@ -84,6 +103,8 @@ export default function WorkOrderPanel({
             const res = await onAdd({
                 manufacturing_order_id: manufacturingOrderId,
                 work_center_id: form.work_center_id || undefined,
+                input_location_id: form.input_location_id || undefined,
+                output_location_id: form.output_location_id || undefined,
                 planned_duration_hours: form.planned_duration_hours ? parseFloat(form.planned_duration_hours) : undefined,
                 qty: form.qty ? parseFloat(form.qty) : undefined,
             });
@@ -116,6 +137,8 @@ export default function WorkOrderPanel({
                 sequence: wo.sequence,
                 name: wo.name,
                 work_center_id: form.work_center_id || undefined,
+                input_location_id: form.input_location_id || undefined,
+                output_location_id: form.output_location_id || undefined,
                 planned_duration_hours: form.planned_duration_hours ? parseFloat(form.planned_duration_hours) : undefined,
                 qty: form.qty ? parseFloat(form.qty) : undefined,
             });
@@ -135,6 +158,8 @@ export default function WorkOrderPanel({
         setAddingRow(false);
         setForm({
             work_center_id: wo.work_center_id || '',
+            input_location_id: wo.input_location_id || '',
+            output_location_id: wo.output_location_id || '',
             planned_duration_hours: wo.planned_duration_hours != null ? String(wo.planned_duration_hours) : '',
             qty: wo.qty != null ? String(wo.qty) : '',
         });
@@ -232,18 +257,18 @@ export default function WorkOrderPanel({
                                     padding: '5px 8px',
                                     borderLeft: `3px solid ${STATUS_BORDER[wo.status] || '#aaa'}`,
                                 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
                                         <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#666', minWidth: 90 }}>
                                             {wo.code || `Step ${wo.sequence}`}
                                         </span>
                                         <select
                                             style={{ ...xpInput, flex: 1, minWidth: 130 }}
                                             value={form.work_center_id}
-                                            onChange={e => setForm(f => ({ ...f, work_center_id: e.target.value }))}
+                                            onChange={e => handleWCChange(e.target.value)}
                                             autoFocus
                                         >
                                             <option value="">— No work center —</option>
-                                            {workCenters.map((wc: any) => (
+                                            {workCenters.filter((wc: any) => !!wc.parent_id).map((wc: any) => (
                                                 <option key={wc.id} value={wc.id}>{wc.name}</option>
                                             ))}
                                         </select>
@@ -283,6 +308,18 @@ export default function WorkOrderPanel({
                                             Cancel
                                         </button>
                                     </div>
+                                    {locationList.length > 0 && (
+                                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingLeft: 96 }}>
+                                            <select style={{ ...xpInput, minWidth: 120 }} value={form.input_location_id} onChange={e => setForm(f => ({ ...f, input_location_id: e.target.value }))}>
+                                                <option value="">In: —</option>
+                                                {locationList.map((l: any) => <option key={l.id} value={l.id}>In: {l.code}</option>)}
+                                            </select>
+                                            <select style={{ ...xpInput, minWidth: 120 }} value={form.output_location_id} onChange={e => setForm(f => ({ ...f, output_location_id: e.target.value }))}>
+                                                <option value="">Out: —</option>
+                                                {locationList.map((l: any) => <option key={l.id} value={l.id}>Out: {l.code}</option>)}
+                                            </select>
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 /* ── Display row ── */
@@ -315,9 +352,25 @@ export default function WorkOrderPanel({
                                     )}
 
                                     {/* Work center name */}
-                                    <span style={{ flex: 1, fontSize: 11, color: '#222', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    <span style={{ fontSize: 11, color: '#222', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                         {wo.work_center_name || <span style={{ color: '#aaa' }}>— no work center —</span>}
                                     </span>
+
+                                    {/* Location flow chips */}
+                                    {(wo.input_location || wo.output_location) && (
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0, fontSize: 9 }}>
+                                            <span style={{ background: '#e8f0fe', color: '#1a56c4', border: '1px solid #b0c8f8', padding: '0 4px' }}>
+                                                {wo.input_location?.code || '?'}
+                                            </span>
+                                            <span style={{ color: '#888' }}>&#8594;</span>
+                                            <span style={{ background: '#e6f4ea', color: '#1a6e2e', border: '1px solid #a8d8b0', padding: '0 4px' }}>
+                                                {wo.output_location?.code || '?'}
+                                            </span>
+                                        </span>
+                                    )}
+
+                                    {/* Flex spacer */}
+                                    <span style={{ flex: 1 }} />
 
                                     {/* Progress bar */}
                                     {wo.qty != null ? (
@@ -417,15 +470,15 @@ export default function WorkOrderPanel({
                             <div style={{ fontSize: 9, color: '#888', marginBottom: 4 }}>
                                 New work order — code assigned on save
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
                                 <select
                                     style={{ ...xpInput, flex: 1, minWidth: 140 }}
                                     value={form.work_center_id}
-                                    onChange={e => setForm(f => ({ ...f, work_center_id: e.target.value }))}
+                                    onChange={e => handleWCChange(e.target.value)}
                                     autoFocus
                                 >
                                     <option value="">— Select work center —</option>
-                                    {workCenters.map((wc: any) => (
+                                    {workCenters.filter((wc: any) => !!wc.parent_id).map((wc: any) => (
                                         <option key={wc.id} value={wc.id}>{wc.name}</option>
                                     ))}
                                 </select>
@@ -471,6 +524,18 @@ export default function WorkOrderPanel({
                                     Cancel
                                 </button>
                             </div>
+                            {(form.input_location_id || form.output_location_id) && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: '#555', paddingLeft: 4 }}>
+                                    <span style={{ background: '#e8f0fe', color: '#1a56c4', border: '1px solid #b0c8f8', padding: '0 4px' }}>
+                                        {locationList.find((l: any) => l.id === form.input_location_id)?.code || '?'}
+                                    </span>
+                                    <span>&#8594;</span>
+                                    <span style={{ background: '#e6f4ea', color: '#1a6e2e', border: '1px solid #a8d8b0', padding: '0 4px' }}>
+                                        {locationList.find((l: any) => l.id === form.output_location_id)?.code || '?'}
+                                    </span>
+                                    <span style={{ color: '#aaa' }}>(from work center)</span>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}

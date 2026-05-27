@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from app.models.manufacturing import ManufacturingOrder, MOCompletion
     from app.models.routing import WorkCenter
     from app.models.dyeing_setting import DyeRecipe
+    from app.models.location import Location
 
 class WorkOrder(Base):
     __tablename__ = "work_orders"
@@ -26,6 +27,12 @@ class WorkOrder(Base):
     )
     planned_recipe_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("dye_recipes.id", ondelete="SET NULL"), nullable=True
+    )
+    input_location_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True
+    )
+    output_location_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True
     )
     qty: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="PENDING", index=True)
@@ -46,6 +53,12 @@ class WorkOrder(Base):
     )
     planned_recipe: Mapped[Optional["DyeRecipe"]] = relationship(
         "DyeRecipe", foreign_keys=[planned_recipe_id]
+    )
+    input_location: Mapped[Optional["Location"]] = relationship(
+        "Location", foreign_keys=[input_location_id], lazy="joined"
+    )
+    output_location: Mapped[Optional["Location"]] = relationship(
+        "Location", foreign_keys=[output_location_id], lazy="joined"
     )
     completions: Mapped[List["MOCompletion"]] = relationship(
         "MOCompletion", back_populates="work_order", lazy="select"

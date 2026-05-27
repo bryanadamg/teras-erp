@@ -1024,6 +1024,7 @@ export default function ManufacturingView({
                       manufacturingOrderId={selectedNode.id}
                       workOrders={selectedNode.work_orders || []}
                       workCenters={workCenters || []}
+                      locations={locations || []}
                       onAdd={onCreateWO}
                       onUpdate={onUpdateWO}
                       onUpdateStatus={onUpdateWOStatus}
