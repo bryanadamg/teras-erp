@@ -44,6 +44,8 @@ const xpStatusBar: React.CSSProperties = {
     fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#333',
 };
 
+const emptyWC = { code: '', name: '', cost_per_hour: 0, center_type: 'GENERAL', input_location_id: '', output_location_id: '' };
+
 function XPPanel({ icon, title, accentColor, createForm, searchVal, onSearch, searchPlaceholder, countLabel, table }: any) {
     return (
         <div style={{ ...xpBevel, height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -69,20 +71,50 @@ function XPPanel({ icon, title, accentColor, createForm, searchVal, onSearch, se
     );
 }
 
-export default function RoutingView({ workCenters, operations, onCreateWorkCenter, onDeleteWorkCenter, onCreateOperation, onDeleteOperation, onRefresh }: any) {
+export default function RoutingView({ workCenters, operations, locations, onCreateWorkCenter, onUpdateWorkCenter, onDeleteWorkCenter, onCreateOperation, onDeleteOperation, onRefresh }: any) {
   const { t } = useLanguage();
-  const [newWorkCenter, setNewWorkCenter] = useState({ code: '', name: '', cost_per_hour: 0, center_type: 'GENERAL' });
+  const [newWorkCenter, setNewWorkCenter] = useState({ ...emptyWC });
   const [newOperation, setNewOperation] = useState({ code: '', name: '' });
   const [wcSearch, setWcSearch] = useState('');
   const [opSearch, setOpSearch] = useState('');
   const { uiStyle: currentStyle } = useTheme();
   const classic = currentStyle === 'classic';
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [editingWC, setEditingWC] = useState<any | null>(null);
+
+  const locationList = locations || [];
+
+  const getLocName = (id: string | null) => {
+      if (!id) return '—';
+      const loc = locationList.find((l: any) => l.id === id);
+      return loc ? loc.code : '—';
+  };
 
   const handleCreateWC = (e: React.FormEvent) => {
       e.preventDefault();
-      onCreateWorkCenter(newWorkCenter);
-      setNewWorkCenter({ code: '', name: '', cost_per_hour: 0, center_type: 'GENERAL' });
+      const payload = {
+          ...newWorkCenter,
+          input_location_id: newWorkCenter.input_location_id || null,
+          output_location_id: newWorkCenter.output_location_id || null,
+      };
+      onCreateWorkCenter(payload);
+      setNewWorkCenter({ ...emptyWC });
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!editingWC) return;
+      const payload = {
+          code: editingWC.code,
+          name: editingWC.name,
+          description: editingWC.description,
+          cost_per_hour: editingWC.cost_per_hour,
+          center_type: editingWC.center_type,
+          input_location_id: editingWC.input_location_id || null,
+          output_location_id: editingWC.output_location_id || null,
+      };
+      onUpdateWorkCenter(editingWC.id, payload);
+      setEditingWC(null);
   };
 
   const handleCreateOp = (e: React.FormEvent) => {
@@ -114,65 +146,139 @@ export default function RoutingView({ workCenters, operations, onCreateWorkCente
                       searchPlaceholder="Search work centers..."
                       countLabel={`${filteredWC.length} station${filteredWC.length === 1 ? '' : 's'}`}
                       createForm={
-                          <form onSubmit={handleCreateWC} style={{ display: 'flex', gap: 4, alignItems: 'flex-end', flexWrap: 'wrap' as const }}>
-                              <div>
-                                  <label style={xpLabel}>{t('item_code')}</label>
-                                  <input style={{ ...xpInput, width: 72 }} placeholder="WC-01" value={newWorkCenter.code} onChange={e => setNewWorkCenter({ ...newWorkCenter, code: e.target.value })} required />
+                          <form onSubmit={handleCreateWC} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', flexWrap: 'wrap' as const }}>
+                                  <div>
+                                      <label style={xpLabel}>{t('item_code')}</label>
+                                      <input style={{ ...xpInput, width: 72 }} placeholder="WC-01" value={newWorkCenter.code} onChange={e => setNewWorkCenter({ ...newWorkCenter, code: e.target.value })} required />
+                                  </div>
+                                  <div style={{ flex: 1 }}>
+                                      <label style={xpLabel}>{t('station_name')}</label>
+                                      <input style={{ ...xpInput, width: '100%' }} placeholder="Assembly Line 1" value={newWorkCenter.name} onChange={e => setNewWorkCenter({ ...newWorkCenter, name: e.target.value })} required />
+                                  </div>
+                                  <div>
+                                      <label style={xpLabel}>Type</label>
+                                      <select style={{ ...xpInput, width: 90 }} value={newWorkCenter.center_type} onChange={e => setNewWorkCenter({ ...newWorkCenter, center_type: e.target.value })}>
+                                          <option value="GENERAL">GENERAL</option>
+                                          <option value="DYEING">DYEING</option>
+                                          <option value="SETTING">SETTING</option>
+                                      </select>
+                                  </div>
                               </div>
-                              <div style={{ flex: 1 }}>
-                                  <label style={xpLabel}>{t('station_name')}</label>
-                                  <input style={{ ...xpInput, width: '100%' }} placeholder="Assembly Line 1" value={newWorkCenter.name} onChange={e => setNewWorkCenter({ ...newWorkCenter, name: e.target.value })} required />
+                              <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', flexWrap: 'wrap' as const }}>
+                                  <div style={{ flex: 1 }}>
+                                      <label style={xpLabel}>Input Location</label>
+                                      <select style={{ ...xpInput, width: '100%' }} value={newWorkCenter.input_location_id} onChange={e => setNewWorkCenter({ ...newWorkCenter, input_location_id: e.target.value })}>
+                                          <option value="">— none —</option>
+                                          {locationList.map((l: any) => <option key={l.id} value={l.id}>{l.code} — {l.name}</option>)}
+                                      </select>
+                                  </div>
+                                  <div style={{ flex: 1 }}>
+                                      <label style={xpLabel}>Output Location</label>
+                                      <select style={{ ...xpInput, width: '100%' }} value={newWorkCenter.output_location_id} onChange={e => setNewWorkCenter({ ...newWorkCenter, output_location_id: e.target.value })}>
+                                          <option value="">— none —</option>
+                                          {locationList.map((l: any) => <option key={l.id} value={l.id}>{l.code} — {l.name}</option>)}
+                                      </select>
+                                  </div>
+                                  <button type="submit" style={xpBtn({ background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold', padding: '2px 10px' })}>
+                                      <i className="bi bi-plus-lg" style={{ marginRight: 3 }}></i>{t('add')}
+                                  </button>
                               </div>
-                              <div>
-                                  <label style={xpLabel}>Type</label>
-                                  <select style={{ ...xpInput, width: 90 }} value={newWorkCenter.center_type} onChange={e => setNewWorkCenter({ ...newWorkCenter, center_type: e.target.value })}>
-                                      <option value="GENERAL">GENERAL</option>
-                                      <option value="DYEING">DYEING</option>
-                                      <option value="SETTING">SETTING</option>
-                                  </select>
-                              </div>
-                              <button type="submit" style={xpBtn({ background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold', padding: '2px 10px' })}>
-                                  <i className="bi bi-plus-lg" style={{ marginRight: 3 }}></i>{t('add')}
-                              </button>
                           </form>
                       }
                       table={
                           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                               <thead>
                                   <tr>
-                                      <th style={{ ...xpTableHeader, padding: '3px 8px', width: 80 }}>{t('item_code')}</th>
+                                      <th style={{ ...xpTableHeader, padding: '3px 8px', width: 70 }}>{t('item_code')}</th>
                                       <th style={{ ...xpTableHeader, padding: '3px 8px' }}>{t('station_name')}</th>
-                                      <th style={{ ...xpTableHeader, padding: '3px 8px', width: 70 }}>Type</th>
-                                      <th style={{ ...xpTableHeader, padding: '3px 8px', width: 36 }}></th>
+                                      <th style={{ ...xpTableHeader, padding: '3px 8px', width: 60 }}>Type</th>
+                                      <th style={{ ...xpTableHeader, padding: '3px 8px', width: 70 }}>In Loc</th>
+                                      <th style={{ ...xpTableHeader, padding: '3px 8px', width: 70 }}>Out Loc</th>
+                                      <th style={{ ...xpTableHeader, padding: '3px 8px', width: 50 }}></th>
                                   </tr>
                               </thead>
                               <tbody>
                                   {filteredWC.map((wc: any, i: number) => (
-                                      <tr key={wc.id} style={{ background: i % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' }}>
-                                          <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', fontWeight: 'bold', color: '#00008b', fontVariant: 'all-small-caps' }}>{wc.code}</td>
-                                          <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#000' }}>{wc.name}</td>
-                                          <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px' }}>
-                                              <span style={{
-                                                  padding: '1px 5px', borderRadius: 2,
-                                                  background: wc.center_type === 'DYEING' ? '#cce4ff' : wc.center_type === 'SETTING' ? '#ffeacc' : '#e8e8e8',
-                                                  color: wc.center_type === 'DYEING' ? '#003d80' : wc.center_type === 'SETTING' ? '#7a3d00' : '#444',
-                                              }}>{wc.center_type || 'GENERAL'}</span>
-                                          </td>
-                                          <td style={{ padding: '2px 4px', textAlign: 'center' }}>
-                                              <button
-                                                  style={{ ...xpBtn(), border: hoveredId === `wc-${wc.id}` ? '1px solid #808080' : '1px solid transparent', background: hoveredId === `wc-${wc.id}` ? 'linear-gradient(to bottom,#ffffff,#d4d0c8)' : 'transparent', padding: '1px 5px' }}
-                                                  onMouseEnter={() => setHoveredId(`wc-${wc.id}`)}
-                                                  onMouseLeave={() => setHoveredId(null)}
-                                                  onClick={() => onDeleteWorkCenter && onDeleteWorkCenter(wc.id)}
-                                                  title="Delete"
-                                              >
-                                                  <i className="bi bi-trash" style={{ color: '#c00000', fontSize: '11px' }}></i>
-                                              </button>
-                                          </td>
-                                      </tr>
+                                      editingWC?.id === wc.id ? (
+                                          <tr key={wc.id} style={{ background: '#fffde7', borderBottom: '2px solid #0058e6' }}>
+                                              <td colSpan={6} style={{ padding: '6px 8px' }}>
+                                                  <form onSubmit={handleSaveEdit} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                      <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', flexWrap: 'wrap' as const }}>
+                                                          <div>
+                                                              <label style={xpLabel}>Code</label>
+                                                              <input style={{ ...xpInput, width: 72 }} value={editingWC.code} onChange={e => setEditingWC({ ...editingWC, code: e.target.value })} required />
+                                                          </div>
+                                                          <div style={{ flex: 1 }}>
+                                                              <label style={xpLabel}>Name</label>
+                                                              <input style={{ ...xpInput, width: '100%' }} value={editingWC.name} onChange={e => setEditingWC({ ...editingWC, name: e.target.value })} required />
+                                                          </div>
+                                                          <div>
+                                                              <label style={xpLabel}>Type</label>
+                                                              <select style={{ ...xpInput, width: 90 }} value={editingWC.center_type} onChange={e => setEditingWC({ ...editingWC, center_type: e.target.value })}>
+                                                                  <option value="GENERAL">GENERAL</option>
+                                                                  <option value="DYEING">DYEING</option>
+                                                                  <option value="SETTING">SETTING</option>
+                                                              </select>
+                                                          </div>
+                                                      </div>
+                                                      <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', flexWrap: 'wrap' as const }}>
+                                                          <div style={{ flex: 1 }}>
+                                                              <label style={xpLabel}>Input Location</label>
+                                                              <select style={{ ...xpInput, width: '100%' }} value={editingWC.input_location_id || ''} onChange={e => setEditingWC({ ...editingWC, input_location_id: e.target.value })}>
+                                                                  <option value="">— none —</option>
+                                                                  {locationList.map((l: any) => <option key={l.id} value={l.id}>{l.code} — {l.name}</option>)}
+                                                              </select>
+                                                          </div>
+                                                          <div style={{ flex: 1 }}>
+                                                              <label style={xpLabel}>Output Location</label>
+                                                              <select style={{ ...xpInput, width: '100%' }} value={editingWC.output_location_id || ''} onChange={e => setEditingWC({ ...editingWC, output_location_id: e.target.value })}>
+                                                                  <option value="">— none —</option>
+                                                                  {locationList.map((l: any) => <option key={l.id} value={l.id}>{l.code} — {l.name}</option>)}
+                                                              </select>
+                                                          </div>
+                                                          <div style={{ display: 'flex', gap: 4 }}>
+                                                              <button type="submit" style={xpBtn({ background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontWeight: 'bold' })}>Save</button>
+                                                              <button type="button" style={xpBtn()} onClick={() => setEditingWC(null)}>Cancel</button>
+                                                          </div>
+                                                      </div>
+                                                  </form>
+                                              </td>
+                                          </tr>
+                                      ) : (
+                                          <tr key={wc.id} style={{ background: i % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' }}>
+                                              <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', fontWeight: 'bold', color: '#00008b', fontVariant: 'all-small-caps' }}>{wc.code}</td>
+                                              <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#000' }}>{wc.name}</td>
+                                              <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px' }}>
+                                                  <span style={{ padding: '1px 5px', borderRadius: 2, background: wc.center_type === 'DYEING' ? '#cce4ff' : wc.center_type === 'SETTING' ? '#ffeacc' : '#e8e8e8', color: wc.center_type === 'DYEING' ? '#003d80' : wc.center_type === 'SETTING' ? '#7a3d00' : '#444' }}>{wc.center_type || 'GENERAL'}</span>
+                                              </td>
+                                              <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#444' }}>{getLocName(wc.input_location_id)}</td>
+                                              <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#444' }}>{getLocName(wc.output_location_id)}</td>
+                                              <td style={{ padding: '2px 4px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                                  <button
+                                                      style={{ ...xpBtn(), border: hoveredId === `wc-edit-${wc.id}` ? '1px solid #808080' : '1px solid transparent', background: hoveredId === `wc-edit-${wc.id}` ? 'linear-gradient(to bottom,#ffffff,#d4d0c8)' : 'transparent', padding: '1px 5px' }}
+                                                      onMouseEnter={() => setHoveredId(`wc-edit-${wc.id}`)}
+                                                      onMouseLeave={() => setHoveredId(null)}
+                                                      onClick={() => setEditingWC({ ...wc })}
+                                                      title="Edit"
+                                                  >
+                                                      <i className="bi bi-pencil" style={{ fontSize: '11px' }}></i>
+                                                  </button>
+                                                  <button
+                                                      style={{ ...xpBtn(), border: hoveredId === `wc-${wc.id}` ? '1px solid #808080' : '1px solid transparent', background: hoveredId === `wc-${wc.id}` ? 'linear-gradient(to bottom,#ffffff,#d4d0c8)' : 'transparent', padding: '1px 5px' }}
+                                                      onMouseEnter={() => setHoveredId(`wc-${wc.id}`)}
+                                                      onMouseLeave={() => setHoveredId(null)}
+                                                      onClick={() => onDeleteWorkCenter && onDeleteWorkCenter(wc.id)}
+                                                      title="Delete"
+                                                  >
+                                                      <i className="bi bi-trash" style={{ color: '#c00000', fontSize: '11px' }}></i>
+                                                  </button>
+                                              </td>
+                                          </tr>
+                                      )
                                   ))}
                                   {filteredWC.length === 0 && (
-                                      <tr><td colSpan={3} style={{ textAlign: 'center', padding: '16px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#666' }}>No work centers defined</td></tr>
+                                      <tr><td colSpan={6} style={{ textAlign: 'center', padding: '16px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#666' }}>No work centers defined</td></tr>
                                   )}
                               </tbody>
                           </table>
@@ -261,16 +367,16 @@ export default function RoutingView({ workCenters, operations, onCreateWorkCente
                   </div>
                   <div className="card-body">
                       <form onSubmit={handleCreateWC} className="mb-3 p-3 bg-light rounded border">
-                          <div className="row g-2 align-items-end">
+                          <div className="row g-2 align-items-end mb-2">
                               <div className="col-3">
                                   <label className="form-label small">{t('item_code')}</label>
                                   <input className="form-control form-control-sm" placeholder="WC-01" value={newWorkCenter.code} onChange={e => setNewWorkCenter({ ...newWorkCenter, code: e.target.value })} required />
                               </div>
-                              <div className="col-4">
+                              <div className="col-5">
                                   <label className="form-label small">{t('station_name')}</label>
                                   <input className="form-control form-control-sm" placeholder="Assembly Line 1" value={newWorkCenter.name} onChange={e => setNewWorkCenter({ ...newWorkCenter, name: e.target.value })} required />
                               </div>
-                              <div className="col-2">
+                              <div className="col-4">
                                   <label className="form-label small">Type</label>
                                   <select className="form-select form-select-sm" value={newWorkCenter.center_type} onChange={e => setNewWorkCenter({ ...newWorkCenter, center_type: e.target.value })}>
                                       <option value="GENERAL">GENERAL</option>
@@ -278,7 +384,23 @@ export default function RoutingView({ workCenters, operations, onCreateWorkCente
                                       <option value="SETTING">SETTING</option>
                                   </select>
                               </div>
-                              <div className="col-3">
+                          </div>
+                          <div className="row g-2 align-items-end">
+                              <div className="col-5">
+                                  <label className="form-label small">Input Location</label>
+                                  <select className="form-select form-select-sm" value={newWorkCenter.input_location_id} onChange={e => setNewWorkCenter({ ...newWorkCenter, input_location_id: e.target.value })}>
+                                      <option value="">— none —</option>
+                                      {locationList.map((l: any) => <option key={l.id} value={l.id}>{l.code} — {l.name}</option>)}
+                                  </select>
+                              </div>
+                              <div className="col-5">
+                                  <label className="form-label small">Output Location</label>
+                                  <select className="form-select form-select-sm" value={newWorkCenter.output_location_id} onChange={e => setNewWorkCenter({ ...newWorkCenter, output_location_id: e.target.value })}>
+                                      <option value="">— none —</option>
+                                      {locationList.map((l: any) => <option key={l.id} value={l.id}>{l.code} — {l.name}</option>)}
+                                  </select>
+                              </div>
+                              <div className="col-2">
                                   <button type="submit" className="btn btn-sm btn-primary w-100">{t('add')}</button>
                               </div>
                           </div>
@@ -294,23 +416,72 @@ export default function RoutingView({ workCenters, operations, onCreateWorkCente
                                       <th>{t('item_code')}</th>
                                       <th>{t('station_name')}</th>
                                       <th>Type</th>
-                                      <th style={{ width: '50px' }}></th>
+                                      <th>In Loc</th>
+                                      <th>Out Loc</th>
+                                      <th style={{ width: '80px' }}></th>
                                   </tr>
                               </thead>
                               <tbody>
                                   {filteredWC.map((wc: any) => (
-                                      <tr key={wc.id}>
-                                          <td className="fw-bold font-monospace text-primary small">{wc.code}</td>
-                                          <td>{wc.name}</td>
-                                          <td><span className={`badge ${wc.center_type === 'DYEING' ? 'bg-primary' : wc.center_type === 'SETTING' ? 'bg-warning text-dark' : 'bg-secondary'}`} style={{ fontSize: 10 }}>{wc.center_type || 'GENERAL'}</span></td>
-                                          <td>
-                                              <button className="btn btn-sm text-danger" onClick={() => onDeleteWorkCenter && onDeleteWorkCenter(wc.id)}>
-                                                  <i className="bi bi-trash"></i>
-                                              </button>
-                                          </td>
-                                      </tr>
+                                      editingWC?.id === wc.id ? (
+                                          <tr key={wc.id} className="table-warning">
+                                              <td colSpan={6}>
+                                                  <form onSubmit={handleSaveEdit}>
+                                                      <div className="row g-2 align-items-end mb-2">
+                                                          <div className="col-3">
+                                                              <input className="form-control form-control-sm" value={editingWC.code} onChange={e => setEditingWC({ ...editingWC, code: e.target.value })} required />
+                                                          </div>
+                                                          <div className="col-5">
+                                                              <input className="form-control form-control-sm" value={editingWC.name} onChange={e => setEditingWC({ ...editingWC, name: e.target.value })} required />
+                                                          </div>
+                                                          <div className="col-4">
+                                                              <select className="form-select form-select-sm" value={editingWC.center_type} onChange={e => setEditingWC({ ...editingWC, center_type: e.target.value })}>
+                                                                  <option value="GENERAL">GENERAL</option>
+                                                                  <option value="DYEING">DYEING</option>
+                                                                  <option value="SETTING">SETTING</option>
+                                                              </select>
+                                                          </div>
+                                                      </div>
+                                                      <div className="row g-2 align-items-end">
+                                                          <div className="col-4">
+                                                              <select className="form-select form-select-sm" value={editingWC.input_location_id || ''} onChange={e => setEditingWC({ ...editingWC, input_location_id: e.target.value })}>
+                                                                  <option value="">— none —</option>
+                                                                  {locationList.map((l: any) => <option key={l.id} value={l.id}>{l.code} — {l.name}</option>)}
+                                                              </select>
+                                                          </div>
+                                                          <div className="col-4">
+                                                              <select className="form-select form-select-sm" value={editingWC.output_location_id || ''} onChange={e => setEditingWC({ ...editingWC, output_location_id: e.target.value })}>
+                                                                  <option value="">— none —</option>
+                                                                  {locationList.map((l: any) => <option key={l.id} value={l.id}>{l.code} — {l.name}</option>)}
+                                                              </select>
+                                                          </div>
+                                                          <div className="col-4 d-flex gap-2">
+                                                              <button type="submit" className="btn btn-sm btn-success">Save</button>
+                                                              <button type="button" className="btn btn-sm btn-secondary" onClick={() => setEditingWC(null)}>Cancel</button>
+                                                          </div>
+                                                      </div>
+                                                  </form>
+                                              </td>
+                                          </tr>
+                                      ) : (
+                                          <tr key={wc.id}>
+                                              <td className="fw-bold font-monospace text-primary small">{wc.code}</td>
+                                              <td>{wc.name}</td>
+                                              <td><span className={`badge ${wc.center_type === 'DYEING' ? 'bg-primary' : wc.center_type === 'SETTING' ? 'bg-warning text-dark' : 'bg-secondary'}`} style={{ fontSize: 10 }}>{wc.center_type || 'GENERAL'}</span></td>
+                                              <td className="small text-muted">{getLocName(wc.input_location_id)}</td>
+                                              <td className="small text-muted">{getLocName(wc.output_location_id)}</td>
+                                              <td>
+                                                  <button className="btn btn-sm text-primary me-1" onClick={() => setEditingWC({ ...wc })} title="Edit">
+                                                      <i className="bi bi-pencil"></i>
+                                                  </button>
+                                                  <button className="btn btn-sm text-danger" onClick={() => onDeleteWorkCenter && onDeleteWorkCenter(wc.id)}>
+                                                      <i className="bi bi-trash"></i>
+                                                  </button>
+                                              </td>
+                                          </tr>
+                                      )
                                   ))}
-                                  {filteredWC.length === 0 && <tr><td colSpan={4} className="text-center py-3 text-muted small">No work centers defined</td></tr>}
+                                  {filteredWC.length === 0 && <tr><td colSpan={6} className="text-center py-3 text-muted small">No work centers defined</td></tr>}
                               </tbody>
                           </table>
                       </div>

@@ -604,9 +604,20 @@ class WorkCenterCreate(BaseModel):
     description: str | None = None
     cost_per_hour: float = 0.0
     center_type: str = "GENERAL"
+    input_location_id: UUID | None = None
+    output_location_id: UUID | None = None
 
-class WorkCenterResponse(WorkCenterCreate):
+class WorkCenterResponse(BaseModel):
     id: UUID
+    code: str
+    name: str
+    description: str | None = None
+    cost_per_hour: float = 0.0
+    center_type: str = "GENERAL"
+    input_location_id: UUID | None = None
+    output_location_id: UUID | None = None
+    input_location: LocationResponse | None = None
+    output_location: LocationResponse | None = None
 
     class Config:
         from_attributes = True

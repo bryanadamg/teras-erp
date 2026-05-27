@@ -19,7 +19,9 @@ def create_work_center(payload: WorkCenterCreate, db: Session = Depends(get_db),
         name=payload.name,
         description=payload.description,
         cost_per_hour=payload.cost_per_hour,
-        center_type=payload.center_type
+        center_type=payload.center_type,
+        input_location_id=payload.input_location_id,
+        output_location_id=payload.output_location_id,
     )
     db.add(wc)
     db.commit()
@@ -29,6 +31,25 @@ def create_work_center(payload: WorkCenterCreate, db: Session = Depends(get_db),
 @router.get("/work-centers", response_model=list[WorkCenterResponse])
 def get_work_centers(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return db.query(WorkCenter).offset(skip).limit(limit).all()
+
+@router.put("/work-centers/{wc_id}", response_model=WorkCenterResponse)
+def update_work_center(wc_id: str, payload: WorkCenterCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    wc = db.query(WorkCenter).filter(WorkCenter.id == wc_id).first()
+    if not wc:
+        raise HTTPException(status_code=404, detail="Work Center not found")
+    existing = db.query(WorkCenter).filter(WorkCenter.code == payload.code, WorkCenter.id != wc_id).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Work Center Code already exists")
+    wc.code = payload.code
+    wc.name = payload.name
+    wc.description = payload.description
+    wc.cost_per_hour = payload.cost_per_hour
+    wc.center_type = payload.center_type
+    wc.input_location_id = payload.input_location_id
+    wc.output_location_id = payload.output_location_id
+    db.commit()
+    db.refresh(wc)
+    return wc
 
 @router.delete("/work-centers/{wc_id}")
 def delete_work_center(wc_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
