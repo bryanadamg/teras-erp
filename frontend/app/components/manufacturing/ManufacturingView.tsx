@@ -344,6 +344,10 @@ export default function ManufacturingView({
   const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       if (isSubmitting) return;
+      if (!newWO.bom_id) { showToast('Select a product recipe (BOM).', 'danger'); return; }
+      if (!newWO.location_code) { showToast('Select an output location.', 'danger'); return; }
+      if (!newWO.code) { showToast('Enter an MO code.', 'danger'); return; }
+      if (!newWO.qty || newWO.qty <= 0) { showToast('Quantity must be greater than 0.', 'danger'); return; }
       setIsSubmitting(true);
       try {
           // Clean dates: convert empty strings to null for Pydantic
@@ -372,7 +376,9 @@ export default function ManufacturingView({
               setNewWO({ code: '', bom_id: '', location_code: '', source_location_code: '', qty: 1.0, target_start_date: '', target_end_date: '', sales_order_id: '', bom_size_id: '', create_nested: true });
               setIsCreateOpen(false);
           } else {
-              showToast('Failed to create Manufacturing Order', 'danger');
+              let detail = 'Failed to create Manufacturing Order';
+              try { const body = await res.json(); if (body.detail) detail = body.detail; } catch {}
+              showToast(detail, 'danger');
           }
       } finally {
           setIsSubmitting(false);
