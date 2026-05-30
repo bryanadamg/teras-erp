@@ -45,6 +45,10 @@ interface FlatWO {
     work_center_id?: string;
     work_center_name?: string;
     work_center_type?: string;
+    input_location_id?: string;
+    output_location_id?: string;
+    input_location?: { id: string; code: string; name: string } | null;
+    output_location?: { id: string; code: string; name: string } | null;
     status: string;
     planned_duration_hours?: number;
     actual_duration_hours?: number;
@@ -221,6 +225,20 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                             {infoRow('MO', wo.mo_code)}
                             {infoRow('Product', wo.item_name || '—')}
                             {infoRow('Work Center', wo.work_center_name || '—')}
+                            {(wo.input_location || wo.output_location) && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginBottom: 2, marginTop: 1 }}>
+                                    <span style={{ color: '#888', fontSize: 9, minWidth: 60 }}>Location</span>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9 }}>
+                                        <span style={{ background: '#e8f0fe', color: '#1a56c4', border: '1px solid #b0c8f8', padding: '0 4px' }}>
+                                            {wo.input_location?.code || '?'}
+                                        </span>
+                                        <span style={{ color: '#888' }}>&#8594;</span>
+                                        <span style={{ background: '#e6f4ea', color: '#1a6e2e', border: '1px solid #a8d8b0', padding: '0 4px' }}>
+                                            {wo.output_location?.code || '?'}
+                                        </span>
+                                    </span>
+                                </div>
+                            )}
                             <div style={{ borderTop: '1px solid #e0ddd8', margin: '3px 0' }} />
                             {infoRow('Target Start', fmtDate(wo.target_start_date))}
                             {infoRow('Target End',   fmtDate(wo.target_end_date))}
