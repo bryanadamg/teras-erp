@@ -1,7 +1,7 @@
 'use client';
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../shared/Toast';
@@ -68,10 +68,12 @@ interface FlatWO {
 
 export default function WorkOrderListView({ manufacturingOrders, workCenters, onUpdate, onUpdateStatus, onDelete }: Props) {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
     const { fetchData } = useData();
     const { showToast } = useToast();
+    const highlightedRowRef = useRef<HTMLTableRowElement | null>(null);
 
     const [editId, setEditId] = useState<string | null>(null);
     const [completionMO, setCompletionMO] = useState<any>(null);
@@ -85,6 +87,17 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
     const [filterMO, setFilterMO] = useState('');
     const [expandedWOId, setExpandedWOId] = useState<string | null>(null);
     const [woQrUrls, setWoQrUrls] = useState<Record<string, string>>({});
+
+    useEffect(() => {
+        const woId = searchParams?.get('wo');
+        if (!woId || flatWOs.length === 0) return;
+        setExpandedWOId(woId);
+        setTimeout(() => {
+            if (highlightedRowRef.current) {
+                highlightedRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }, 100);
+    }, [searchParams, flatWOs]);
 
     useEffect(() => {
         if (!expandedWOId || woQrUrls[expandedWOId]) return;
@@ -477,10 +490,17 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                                         );
                                     }
 
+                                    const isHighlighted = searchParams?.get('wo') === wo.id;
                                     return (
                                         <React.Fragment key={wo.id}>
                                             <tr
-                                                style={{ background: isExpanded ? '#eef2ff' : rowBg, cursor: 'pointer' }}
+                                                ref={isHighlighted ? highlightedRowRef : null}
+                                                style={{
+                                                    background: isExpanded ? '#eef2ff' : rowBg,
+                                                    cursor: 'pointer',
+                                                    outline: isHighlighted ? '2px solid #0058e6' : undefined,
+                                                    outlineOffset: isHighlighted ? '-2px' : undefined,
+                                                }}
                                                 onClick={() => setExpandedWOId(prev => prev === wo.id ? null : wo.id)}
                                             >
                                                 <td style={{ ...tdBase, padding: '3px 4px', textAlign: 'center', width: 20 }} className={classic ? '' : 'ps-2'}>

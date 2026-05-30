@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, Suspense } from 'react';
 import WorkOrderListView from '../components/manufacturing/WorkOrderListView';
 import { useData } from '../context/DataContext';
 
@@ -48,12 +48,14 @@ export default function WorkOrdersPage() {
     };
 
     return (
-        <WorkOrderListView
-            manufacturingOrders={allMOs}
-            workCenters={workCenters}
-            onUpdate={handleUpdateWO}
-            onUpdateStatus={handleUpdateWOStatus}
-            onDelete={handleDeleteWO}
-        />
+        <Suspense>
+            <WorkOrderListView
+                manufacturingOrders={allMOs}
+                workCenters={workCenters}
+                onUpdate={handleUpdateWO}
+                onUpdateStatus={handleUpdateWOStatus}
+                onDelete={handleDeleteWO}
+            />
+        </Suspense>
     );
 }
