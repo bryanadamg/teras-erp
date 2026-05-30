@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import WOStepPrintModal from './WOStepPrintModal';
 import { useToast } from '../shared/Toast';
 
@@ -52,7 +52,7 @@ interface WO {
     notes?: string;
 }
 
-const emptyForm = { work_center_id: '', input_location_id: '', output_location_id: '', planned_duration_hours: '', qty: '' };
+const emptyForm = { group_id: '', work_center_id: '', input_location_id: '', output_location_id: '', planned_duration_hours: '', qty: '' };
 
 interface Props {
     manufacturingOrderId: string;
@@ -81,10 +81,31 @@ export default function WorkOrderPanel({
 
     const locationList = locations || [];
 
+    // Groups from BOM ops if available, otherwise all groups
+    const availableGroups = useMemo(() => {
+        const allGroups = workCenters.filter((wc: any) => !wc.parent_id);
+        const opGroupIds = new Set<string>(
+            (parentMO?.bom?.operations || [])
+                .map((op: any) => op.work_center_id)
+                .filter(Boolean)
+        );
+        if (!opGroupIds.size) return allGroups;
+        return allGroups.filter((wc: any) => opGroupIds.has(wc.id));
+    }, [workCenters, parentMO]);
+
+    const availableMachines = useMemo(() =>
+        form.group_id ? workCenters.filter((wc: any) => wc.parent_id === form.group_id) : [],
+        [workCenters, form.group_id]
+    );
+
     const resetForm = () => {
         setForm({ ...emptyForm });
         setAddingRow(false);
         setEditId(null);
+    };
+
+    const handleGroupChange = (groupId: string) => {
+        setForm(f => ({ ...f, group_id: groupId, work_center_id: '', input_location_id: '', output_location_id: '' }));
     };
 
     const handleWCChange = (wcId: string) => {
@@ -156,7 +177,9 @@ export default function WorkOrderPanel({
     const startEdit = (wo: WO) => {
         setEditId(wo.id);
         setAddingRow(false);
+        const machine = workCenters.find((w: any) => w.id === wo.work_center_id);
         setForm({
+            group_id: machine?.parent_id || '',
             work_center_id: wo.work_center_id || '',
             input_location_id: wo.input_location_id || '',
             output_location_id: wo.output_location_id || '',
@@ -262,13 +285,24 @@ export default function WorkOrderPanel({
                                             {wo.code || `Step ${wo.sequence}`}
                                         </span>
                                         <select
-                                            style={{ ...xpInput, flex: 1, minWidth: 130 }}
-                                            value={form.work_center_id}
-                                            onChange={e => handleWCChange(e.target.value)}
+                                            style={{ ...xpInput, minWidth: 120 }}
+                                            value={form.group_id}
+                                            onChange={e => handleGroupChange(e.target.value)}
                                             autoFocus
                                         >
-                                            <option value="">— No work center —</option>
-                                            {workCenters.filter((wc: any) => !!wc.parent_id).map((wc: any) => (
+                                            <option value="">— Group —</option>
+                                            {availableGroups.map((wc: any) => (
+                                                <option key={wc.id} value={wc.id}>{wc.name}</option>
+                                            ))}
+                                        </select>
+                                        <select
+                                            style={{ ...xpInput, minWidth: 120 }}
+                                            value={form.work_center_id}
+                                            onChange={e => handleWCChange(e.target.value)}
+                                            disabled={!form.group_id}
+                                        >
+                                            <option value="">— Machine —</option>
+                                            {availableMachines.map((wc: any) => (
                                                 <option key={wc.id} value={wc.id}>{wc.name}</option>
                                             ))}
                                         </select>
@@ -477,13 +511,24 @@ export default function WorkOrderPanel({
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
                                 <select
-                                    style={{ ...xpInput, flex: 1, minWidth: 140 }}
-                                    value={form.work_center_id}
-                                    onChange={e => handleWCChange(e.target.value)}
+                                    style={{ ...xpInput, minWidth: 120 }}
+                                    value={form.group_id}
+                                    onChange={e => handleGroupChange(e.target.value)}
                                     autoFocus
                                 >
-                                    <option value="">— Select work center —</option>
-                                    {workCenters.filter((wc: any) => !!wc.parent_id).map((wc: any) => (
+                                    <option value="">— Group —</option>
+                                    {availableGroups.map((wc: any) => (
+                                        <option key={wc.id} value={wc.id}>{wc.name}</option>
+                                    ))}
+                                </select>
+                                <select
+                                    style={{ ...xpInput, minWidth: 120 }}
+                                    value={form.work_center_id}
+                                    onChange={e => handleWCChange(e.target.value)}
+                                    disabled={!form.group_id}
+                                >
+                                    <option value="">— Machine —</option>
+                                    {availableMachines.map((wc: any) => (
                                         <option key={wc.id} value={wc.id}>{wc.name}</option>
                                     ))}
                                 </select>
