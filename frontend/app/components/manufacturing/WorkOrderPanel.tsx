@@ -50,9 +50,11 @@ interface WO {
     qty?: number;
     qty_completed_total?: number;
     notes?: string;
+    target_start_date?: string | null;
+    target_end_date?: string | null;
 }
 
-const emptyForm = { group_id: '', work_center_id: '', input_location_id: '', output_location_id: '', planned_duration_hours: '', qty: '' };
+const emptyForm = { group_id: '', work_center_id: '', input_location_id: '', output_location_id: '', planned_duration_hours: '', qty: '', target_start_date: '', target_end_date: '' };
 
 interface Props {
     manufacturingOrderId: string;
@@ -127,6 +129,8 @@ export default function WorkOrderPanel({
                 output_location_id: form.output_location_id || undefined,
                 planned_duration_hours: form.planned_duration_hours ? parseFloat(form.planned_duration_hours) : undefined,
                 qty: form.qty ? parseFloat(form.qty) : undefined,
+                target_start_date: form.target_start_date || null,
+                target_end_date: form.target_end_date || null,
             });
             if (res && !res.ok) {
                 try {
@@ -161,6 +165,8 @@ export default function WorkOrderPanel({
                 output_location_id: form.output_location_id || undefined,
                 planned_duration_hours: form.planned_duration_hours ? parseFloat(form.planned_duration_hours) : undefined,
                 qty: form.qty ? parseFloat(form.qty) : undefined,
+                target_start_date: form.target_start_date || null,
+                target_end_date: form.target_end_date || null,
             });
             if (result?.warning === 'total_assigned_exceeds_mo_qty') {
                 setOverAssignWarning({ totalAssigned: result.total_assigned, moQty: result.mo_qty });
@@ -184,6 +190,8 @@ export default function WorkOrderPanel({
             output_location_id: wo.output_location_id || '',
             planned_duration_hours: wo.planned_duration_hours != null ? String(wo.planned_duration_hours) : '',
             qty: wo.qty != null ? String(wo.qty) : '',
+            target_start_date: wo.target_start_date ? wo.target_start_date.slice(0, 10) : '',
+            target_end_date: wo.target_end_date ? wo.target_end_date.slice(0, 10) : '',
         });
     };
 
@@ -331,6 +339,20 @@ export default function WorkOrderPanel({
                                             value={form.qty}
                                             onChange={e => setForm(f => ({ ...f, qty: e.target.value }))}
                                             placeholder="Target qty"
+                                        />
+                                        <input
+                                            type="date"
+                                            style={{ ...xpInput, width: 110 }}
+                                            value={form.target_start_date}
+                                            onChange={e => setForm(f => ({ ...f, target_start_date: e.target.value }))}
+                                            title="Target start date"
+                                        />
+                                        <input
+                                            type="date"
+                                            style={{ ...xpInput, width: 110 }}
+                                            value={form.target_end_date}
+                                            onChange={e => setForm(f => ({ ...f, target_end_date: e.target.value }))}
+                                            title="Target end date"
                                         />
                                         <button
                                             onClick={() => handleUpdate(wo)}
@@ -581,6 +603,24 @@ export default function WorkOrderPanel({
                                         value={form.qty}
                                         onChange={e => setForm(f => ({ ...f, qty: e.target.value }))}
                                         placeholder="0"
+                                    />
+                                </label>
+                                <label style={{ fontSize: 10, color: '#555', whiteSpace: 'nowrap' }}>
+                                    Start:
+                                    <input
+                                        type="date"
+                                        style={{ ...xpInput, width: 110, marginLeft: 4 }}
+                                        value={form.target_start_date}
+                                        onChange={e => setForm(f => ({ ...f, target_start_date: e.target.value }))}
+                                    />
+                                </label>
+                                <label style={{ fontSize: 10, color: '#555', whiteSpace: 'nowrap' }}>
+                                    End:
+                                    <input
+                                        type="date"
+                                        style={{ ...xpInput, width: 110, marginLeft: 4 }}
+                                        value={form.target_end_date}
+                                        onChange={e => setForm(f => ({ ...f, target_end_date: e.target.value }))}
                                     />
                                 </label>
                                 <button
