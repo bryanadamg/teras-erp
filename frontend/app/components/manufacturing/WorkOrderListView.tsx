@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../shared/Toast';
@@ -68,12 +68,12 @@ interface FlatWO {
 
 export default function WorkOrderListView({ manufacturingOrders, workCenters, onUpdate, onUpdateStatus, onDelete }: Props) {
     const router = useRouter();
-    const searchParams = useSearchParams();
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
     const { fetchData } = useData();
     const { showToast } = useToast();
     const highlightedRowRef = useRef<HTMLTableRowElement | null>(null);
+    const [highlightWOId, setHighlightWOId] = useState<string | null>(null);
 
     const [editId, setEditId] = useState<string | null>(null);
     const [completionMO, setCompletionMO] = useState<any>(null);
@@ -89,15 +89,9 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
     const [woQrUrls, setWoQrUrls] = useState<Record<string, string>>({});
 
     useEffect(() => {
-        const woId = searchParams?.get('wo');
-        if (!woId || flatWOs.length === 0) return;
-        setExpandedWOId(woId);
-        setTimeout(() => {
-            if (highlightedRowRef.current) {
-                highlightedRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-        }, 100);
-    }, [searchParams, flatWOs]);
+        const woId = new URLSearchParams(window.location.search).get('wo');
+        if (woId) setHighlightWOId(woId);
+    }, []);
 
     useEffect(() => {
         if (!expandedWOId || woQrUrls[expandedWOId]) return;
@@ -132,6 +126,16 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
         if (filterMO && wo.mo_id !== filterMO) return false;
         return true;
     }), [flatWOs, filterStatus, filterWC, filterMO]);
+
+    useEffect(() => {
+        if (!highlightWOId || flatWOs.length === 0) return;
+        setExpandedWOId(highlightWOId);
+        setTimeout(() => {
+            if (highlightedRowRef.current) {
+                highlightedRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }, 100);
+    }, [highlightWOId, flatWOs]);
 
     const startEdit = (wo: FlatWO) => {
         setEditId(wo.id);
@@ -490,7 +494,7 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                                         );
                                     }
 
-                                    const isHighlighted = searchParams?.get('wo') === wo.id;
+                                    const isHighlighted = highlightWOId === wo.id;
                                     return (
                                         <React.Fragment key={wo.id}>
                                             <tr
