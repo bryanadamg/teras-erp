@@ -557,6 +557,27 @@ export default function ManufacturingView({
       return { available, isEnough: available >= required_qty };
   };
 
+  const getStockAcrossLocations = (item_id: string, attribute_value_ids: string[] = [], required_qty: number) => {
+      const targetKey = [...attribute_value_ids].map(String).sort().join(',');
+      const byLocation: Record<string, number> = {};
+      for (const s of (stockBalance as any[])) {
+          if (String(s.item_id) !== String(item_id)) continue;
+          if (parseFloat(s.qty) <= 0) continue;
+          if (attribute_value_ids.length > 0) {
+              const sKey = [...(s.attribute_value_ids || [])].map(String).sort().join(',');
+              if (sKey !== targetKey) continue;
+          }
+          byLocation[s.location_id] = (byLocation[s.location_id] || 0) + parseFloat(s.qty);
+      }
+      const total = Object.values(byLocation).reduce((a, b) => a + b, 0);
+      const locs = Object.entries(byLocation).map(([locId, qty]) => ({
+          locId,
+          code: (locations as any[]).find((l: any) => l.id === locId)?.code || locId,
+          qty,
+      })).sort((a, b) => b.qty - a.qty);
+      return { total, isEnough: total >= required_qty, locs };
+  };
+
   const fetchPRMaterialRequirements = async (prId: string) => {
       setPrMaterialReqsLoading(prev => ({ ...prev, [prId]: true }));
       try {
@@ -855,7 +876,7 @@ export default function ManufacturingView({
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
                               <thead>
                                   <tr style={{ background: classic ? 'linear-gradient(to bottom,#fff,#d4d0c8)' : '#f8f9fa', position: 'sticky', top: 0 }}>
-                                      {['Component', 'Variant', 'Required', ...(showBreakdown ? ['Breakdown'] : []), 'In Stock', 'Source'].map(h => (
+                                      {['Component', 'Variant', 'Required', ...(showBreakdown ? ['Breakdown'] : []), 'In Stock', 'Available At'].map(h => (
                                           <th key={h} style={{ border: classic ? '1px solid #808080' : '1px solid #dee2e6', padding: '3px 6px', textAlign: h === 'Required' || h === 'In Stock' ? 'right' : 'left', color: '#000', fontSize: '10px' }}>{h}</th>
                                       ))}
                                   </tr>
@@ -863,12 +884,11 @@ export default function ManufacturingView({
                               <tbody>
                                   {bom.lines.map((line: any, i: number) => {
                                       const req = calculateRequiredQty(selectedNode.qty, line, bom);
-                                      const locId = line.source_location_id || selectedNode.source_location_id || selectedNode.location_id;
-                                      const { available, isEnough } = checkStockAvailability(line.item_id, locId, line.attribute_value_ids || [], req);
+                                      const { total, isEnough, locs } = getStockAcrossLocations(line.item_id, line.attribute_value_ids || [], req);
                                       const hasSubBOM = boms.some((b: any) => b.item_id === line.item_id && b.active !== false);
                                       const attrLabel = (line.attribute_value_ids || []).map(getAttributeValueName).filter(Boolean).join(', ');
                                       const rowBg = i % 2 === 0 ? '#fff' : (classic ? '#f5f3ee' : '#f8f9fa');
-                                      const stockLevel = isEnough ? 'ok' : available > 0 ? 'low' : 'out';
+                                      const stockLevel = isEnough ? 'ok' : total > 0 ? 'low' : 'out';
                                       const dotStyle: Record<string, { dot: string; border: string }> = {
                                           ok:  { dot: '#00aa00', border: '#005500' },
                                           low: { dot: '#ccaa00', border: '#886600' },
@@ -900,13 +920,25 @@ export default function ManufacturingView({
                                               )}
                                               <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', textAlign: 'right' }}>
                                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
-                                                      <span style={{ fontFamily: 'monospace', color: isEnough ? '#004400' : available > 0 ? '#664400' : '#880000', fontWeight: 'bold' }}>{available.toFixed(2)}</span>
+                                                      <span style={{ fontFamily: 'monospace', color: isEnough ? '#004400' : total > 0 ? '#664400' : '#880000', fontWeight: 'bold' }}>{total.toFixed(2)}</span>
                                                       <span style={{ display: 'inline-block', width: 8, height: 8, background: dc.dot, border: `1px solid ${dc.border}`, flexShrink: 0 }} />
                                                       {stockLevel === 'low' && <span style={{ fontSize: 8, background: '#886600', color: '#fff', padding: '0 3px', fontWeight: 'bold' }}>Low</span>}
                                                       {stockLevel === 'out' && <span style={{ fontSize: 8, background: '#880000', color: '#fff', padding: '0 3px', fontWeight: 'bold' }}>Out</span>}
                                                   </div>
                                               </td>
-                                              <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', color: '#444', fontSize: '10px' }}>{getLocationName(locId)}</td>
+                                              <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px' }}>
+                                                  {locs.length === 0 ? (
+                                                      <span style={{ color: '#bbb', fontSize: 9 }}>—</span>
+                                                  ) : (
+                                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                                                          {locs.map(l => (
+                                                              <span key={l.locId} style={{ background: '#e8f0fe', color: '#1a56c4', border: '1px solid #b0c8f8', fontSize: 8, padding: '0 4px', whiteSpace: 'nowrap' }}>
+                                                                  {l.code} <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{l.qty.toFixed(1)}</span>
+                                                              </span>
+                                                          ))}
+                                                      </div>
+                                                  )}
+                                              </td>
                                           </tr>
                                       );
                                   })}
