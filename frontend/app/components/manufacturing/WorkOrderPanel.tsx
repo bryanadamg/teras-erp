@@ -1,6 +1,5 @@
 'use client';
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import WOStepPrintModal from './WOStepPrintModal';
 import { useToast } from '../shared/Toast';
 
@@ -73,7 +72,6 @@ export default function WorkOrderPanel({
     onAdd, onUpdate, onUpdateStatus, onDelete, onLogWO, parentMO,
 }: Props) {
     const { showToast } = useToast();
-    const router = useRouter();
     const [addingRow, setAddingRow] = useState(false);
     const [editId, setEditId] = useState<string | null>(null);
     const [form, setForm] = useState({ ...emptyForm });
@@ -333,10 +331,15 @@ export default function WorkOrderPanel({
                                     borderLeft: `3px solid ${STATUS_BORDER[wo.status] || '#c8c6be'}`,
                                 }}>
                                     {/* WO Code */}
-                                    <span style={{
-                                        fontFamily: 'monospace', fontWeight: 'bold', fontSize: 10,
-                                        color: '#000080', minWidth: 90, whiteSpace: 'nowrap',
-                                    }}>
+                                    <span
+                                        style={{
+                                            fontFamily: 'monospace', fontWeight: 'bold', fontSize: 10,
+                                            color: '#0058e6', minWidth: 90, whiteSpace: 'nowrap',
+                                            cursor: 'pointer', textDecoration: 'underline',
+                                        }}
+                                        title="View in Work Orders list"
+                                        onClick={() => { window.location.href = `/work-orders?wo=${wo.id}`; }}
+                                    >
                                         {wo.code || `Step ${wo.sequence}`}
                                     </span>
 
@@ -422,13 +425,6 @@ export default function WorkOrderPanel({
 
                                     {/* Actions */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                                        <button
-                                            onClick={() => router.push(`/work-orders?wo=${wo.id}`)}
-                                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#0058e6', padding: '0 2px' }}
-                                            title="View in Work Orders list"
-                                        >
-                                            <i className="bi bi-box-arrow-up-right" />
-                                        </button>
                                         {onLogWO && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
                                             <button
                                                 onClick={() => onLogWO(wo)}
