@@ -919,7 +919,7 @@ export default function BOMDesigner({
                                                     <SearchableSelect
                                                         options={[
                                                             { value: '', label: '— None —' },
-                                                            ...(workCenters || []).map((wc: any) => ({ value: wc.id, label: wc.name }))
+                                                            ...(workCenters || []).filter((wc: any) => !wc.parent_id).map((wc: any) => ({ value: wc.id, label: wc.name }))
                                                         ]}
                                                         value={selectedNode.work_center_id || ''}
                                                         onChange={(val: string) => updateSelectedNode({ work_center_id: val })}
@@ -1561,7 +1561,7 @@ export default function BOMDesigner({
                                                             onChange={e => setPendingOpWc(e.target.value)}
                                                         >
                                                             <option value="">— Select —</option>
-                                                            {(workCenters || []).map((wc: any) => (
+                                                            {(workCenters || []).filter((wc: any) => !wc.parent_id).map((wc: any) => (
                                                                 <option key={wc.id} value={wc.id}>{wc.name}</option>
                                                             ))}
                                                         </select>
