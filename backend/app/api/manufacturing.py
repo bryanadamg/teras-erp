@@ -552,11 +552,13 @@ async def update_manufacturing_order_status(mo_id: str, status: str, db: AsyncSe
         for comp in mo.planned_components:
             if not comp.percentage:
                 continue
+            check_loc_id = comp.source_location_id or mo.source_location_id
+            if not check_loc_id:
+                continue  # no explicit source location — skip; WO-level locations handle per-step tracking
             req = (float(mo.qty) * float(comp.percentage)) / 100
             tol = float(mo.bom.tolerance_percentage or 0) if mo.bom else 0
             if tol > 0: req *= (1 + (tol / 100))
 
-            check_loc_id = comp.source_location_id or mo.source_location_id or mo.location_id
             stock = await stock_service.get_stock_balance(db, comp.item_id, check_loc_id, [uuid.UUID(s) for s in comp.attribute_value_ids])
             if stock < req:
                 raise HTTPException(status_code=400, detail=f"Insufficient stock for component {comp.item_id}")
@@ -566,42 +568,8 @@ async def update_manufacturing_order_status(mo_id: str, status: str, db: AsyncSe
     if status == "COMPLETED" and previous_status != "COMPLETED":
         mo.actual_end_date = datetime.utcnow()
 
-        # How much was already covered by incremental completion entries?
-        completed_result = await db.execute(
-            select(func.sum(MOCompletion.qty_completed)).filter(MOCompletion.mo_id == mo.id)
-        )
-        already_completed = float(completed_result.scalar() or 0)
-        remaining_qty = max(0.0, float(mo.qty) - already_completed)
-
-        if remaining_qty > 0 and mo.planned_components:
-            # 1. DEDUCT Raw Materials for remaining (uncovered) qty
-            for comp in mo.planned_components:
-                if not comp.percentage:
-                    continue
-                req = (remaining_qty * float(comp.percentage)) / 100
-                deduct_loc_id = comp.source_location_id or mo.source_location_id or mo.location_id
-                await stock_service.add_stock_entry(
-                    db,
-                    item_id=comp.item_id,
-                    location_id=deduct_loc_id,
-                    qty_change=-req,
-                    reference_type="Manufacturing Order",
-                    reference_id=mo.code,
-                    attribute_value_ids=[uuid.UUID(s) for s in comp.attribute_value_ids]
-                )
-
-            # 2. ADD remaining Finished Goods
-            await stock_service.add_stock_entry(
-                db,
-                item_id=mo.item_id,
-                location_id=mo.location_id,
-                qty_change=remaining_qty,
-                reference_type="Manufacturing Order",
-                reference_id=mo.code,
-                attribute_value_ids=[v.id for v in mo.attribute_values]
-            )
-
-        # 3. UPDATE Sales Order status if root MO
+        # Stock movement is owned by WO completions — no bulk deduct/credit here.
+        # Update Sales Order status if root MO
         if mo.sales_order_id and mo.parent_mo_id is None:
             res = await db.execute(select(SalesOrder).filter(SalesOrder.id == mo.sales_order_id))
             so = res.scalars().first()
@@ -733,45 +701,48 @@ async def add_mo_completion(
             qty_used=ai.qty_used,
         ))
 
-    # Stock deduction: use actual items if provided, otherwise BOM proportional
-    if payload.actual_items:
-        source_loc = mo.source_location_id or mo.location_id
-        for ai in payload.actual_items:
-            await stock_service.add_stock_entry(
-                db,
-                item_id=ai.item_id,
-                location_id=source_loc,
-                qty_change=-float(ai.qty_used),
-                reference_type="Manufacturing Order",
-                reference_id=mo.code,
-                attribute_value_ids=[],
-            )
-    elif mo.planned_components:
-        for comp in mo.planned_components:
-            if not comp.percentage:
-                continue
-            req = (float(payload.qty_completed) * float(comp.percentage)) / 100
-            deduct_loc_id = comp.source_location_id or mo.source_location_id or mo.location_id
-            await stock_service.add_stock_entry(
-                db,
-                item_id=comp.item_id,
-                location_id=deduct_loc_id,
-                qty_change=-req,
-                reference_type="Manufacturing Order",
-                reference_id=mo.code,
-                attribute_value_ids=[uuid.UUID(s) for s in comp.attribute_value_ids],
-            )
+    # Stock movement driven by WO locations only — no MO-level fallback
+    wo_input_loc = wo.input_location_id if wo else None
+    wo_output_loc = wo.output_location_id if wo else None
 
-    # Credit proportional finished goods
-    await stock_service.add_stock_entry(
-        db,
-        item_id=mo.item_id,
-        location_id=mo.location_id,
-        qty_change=float(payload.qty_completed),
-        reference_type="Manufacturing Order",
-        reference_id=mo.code,
-        attribute_value_ids=[v.id for v in mo.attribute_values],
-    )
+    if wo_input_loc:
+        if payload.actual_items:
+            for ai in payload.actual_items:
+                await stock_service.add_stock_entry(
+                    db,
+                    item_id=ai.item_id,
+                    location_id=wo_input_loc,
+                    qty_change=-float(ai.qty_used),
+                    reference_type="Manufacturing Order",
+                    reference_id=mo.code,
+                    attribute_value_ids=[],
+                )
+        elif mo.planned_components:
+            for comp in mo.planned_components:
+                if not comp.percentage:
+                    continue
+                deduct_loc_id = comp.source_location_id or wo_input_loc
+                req = (float(payload.qty_completed) * float(comp.percentage)) / 100
+                await stock_service.add_stock_entry(
+                    db,
+                    item_id=comp.item_id,
+                    location_id=deduct_loc_id,
+                    qty_change=-req,
+                    reference_type="Manufacturing Order",
+                    reference_id=mo.code,
+                    attribute_value_ids=[uuid.UUID(s) for s in comp.attribute_value_ids],
+                )
+
+    if wo_output_loc:
+        await stock_service.add_stock_entry(
+            db,
+            item_id=mo.item_id,
+            location_id=wo_output_loc,
+            qty_change=float(payload.qty_completed),
+            reference_type="Manufacturing Order",
+            reference_id=mo.code,
+            attribute_value_ids=[v.id for v in mo.attribute_values],
+        )
 
     # Sum all completions to check for auto-complete
     total_result = await db.execute(
@@ -846,7 +817,9 @@ async def complete_manufacturing_order_with_batches(
             if tol > 0:
                 req *= (1 + (tol / 100))
 
-            deduct_loc_id = comp.source_location_id or mo.source_location_id or mo.location_id
+            deduct_loc_id = comp.source_location_id or mo.source_location_id
+            if not deduct_loc_id:
+                continue
             attr_ids = [uuid.UUID(s) for s in comp.attribute_value_ids]
             key = (str(comp.item_id), ",".join(sorted(str(v) for v in attr_ids)))
             batch_id, _ = batch_map.get(key, (None, req))
@@ -872,17 +845,8 @@ async def complete_manufacturing_order_with_batches(
                 )
                 db.add(consumption)
 
-    # Add finished goods with output batch
-    await stock_service.add_stock_entry(
-        db,
-        item_id=mo.item_id,
-        location_id=mo.location_id,
-        qty_change=mo.qty,
-        reference_type="Manufacturing Order",
-        reference_id=mo.code,
-        attribute_value_ids=[v.id for v in mo.attribute_values],
-        batch_id=payload.output_batch_id,
-    )
+    # FG credit requires a WO with output_location_id — this endpoint has no WO reference,
+    # so stock movement is handled by WO completions via the standard completion path.
 
     mo.status = "COMPLETED"
     mo.actual_end_date = datetime.utcnow()
