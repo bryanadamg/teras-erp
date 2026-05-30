@@ -56,6 +56,7 @@ interface FlatWO {
     actual_end_date?: string;
     target_start_date?: string;
     target_end_date?: string;
+    created_at?: string;
     qty?: number;
     qty_completed_total?: number;
     notes?: string;
@@ -104,7 +105,11 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                 });
             }
         }
-        result.sort((a, b) => a.mo_code.localeCompare(b.mo_code) || a.sequence - b.sequence);
+        result.sort((a, b) => {
+            const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return dateB - dateA || a.sequence - b.sequence;
+        });
         return result;
     }, [manufacturingOrders]);
 
