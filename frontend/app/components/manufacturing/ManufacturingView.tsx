@@ -973,6 +973,18 @@ export default function ManufacturingView({
                       ))}
                   </div>
 
+                  {/* Machine Group */}
+                  {(bom?.work_center_id || bom?.work_center_name) && (
+                  <div style={{ borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '6px 8px' }}>
+                      <div style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                          <i className="bi bi-gear me-1"></i>Machine Group
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#000', fontWeight: 'bold' }}>
+                          {bom.work_center_name || getWCName(bom.work_center_id)}
+                      </div>
+                  </div>
+                  )}
+
                   {/* Output */}
                   <div style={{ borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '6px 8px' }}>
                       <div style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', letterSpacing: '0.5px', marginBottom: '4px' }}>Output</div>

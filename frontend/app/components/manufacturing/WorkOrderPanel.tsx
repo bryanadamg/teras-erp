@@ -81,22 +81,21 @@ export default function WorkOrderPanel({
 
     const locationList = locations || [];
 
-    // Groups from BOM ops if available, otherwise all groups
-    const availableGroups = useMemo(() => {
-        const allGroups = workCenters.filter((wc: any) => !wc.parent_id);
-        const opGroupIds = new Set<string>(
-            (parentMO?.bom?.operations || [])
-                .map((op: any) => op.work_center_id)
-                .filter(Boolean)
-        );
-        if (!opGroupIds.size) return allGroups;
-        return allGroups.filter((wc: any) => opGroupIds.has(wc.id));
-    }, [workCenters, parentMO]);
+    // Group locked by BOM's work_center_id (null = not locked, show standard group+machine selects)
+    const lockedGroupId: string | null = parentMO?.bom?.work_center_id
+        ? String(parentMO.bom.work_center_id)
+        : null;
 
-    const availableMachines = useMemo(() =>
-        form.group_id ? workCenters.filter((wc: any) => wc.parent_id === form.group_id) : [],
-        [workCenters, form.group_id]
+    const availableGroups = useMemo(() =>
+        workCenters.filter((wc: any) => !wc.parent_id),
+        [workCenters]
     );
+
+    const availableMachines = useMemo(() => {
+        const gid = lockedGroupId || form.group_id;
+        if (!gid) return [];
+        return workCenters.filter((wc: any) => wc.parent_id && String(wc.parent_id) === gid);
+    }, [workCenters, lockedGroupId, form.group_id]);
 
     const resetForm = () => {
         setForm({ ...emptyForm });
@@ -177,9 +176,9 @@ export default function WorkOrderPanel({
     const startEdit = (wo: WO) => {
         setEditId(wo.id);
         setAddingRow(false);
-        const machine = workCenters.find((w: any) => w.id === wo.work_center_id);
+        const machine = workCenters.find((w: any) => String(w.id) === String(wo.work_center_id));
         setForm({
-            group_id: machine?.parent_id || '',
+            group_id: machine?.parent_id ? String(machine.parent_id) : '',
             work_center_id: wo.work_center_id || '',
             input_location_id: wo.input_location_id || '',
             output_location_id: wo.output_location_id || '',
@@ -284,22 +283,35 @@ export default function WorkOrderPanel({
                                         <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#666', minWidth: 90 }}>
                                             {wo.code || `Step ${wo.sequence}`}
                                         </span>
-                                        <select
-                                            style={{ ...xpInput, minWidth: 120 }}
-                                            value={form.group_id}
-                                            onChange={e => handleGroupChange(e.target.value)}
-                                            autoFocus
-                                        >
-                                            <option value="">— Group —</option>
-                                            {availableGroups.map((wc: any) => (
-                                                <option key={wc.id} value={wc.id}>{wc.name}</option>
-                                            ))}
-                                        </select>
+                                        {lockedGroupId && (
+                                            <span style={{
+                                                fontFamily: xpFont, fontSize: 10, padding: '0 7px', height: 20,
+                                                display: 'inline-flex', alignItems: 'center',
+                                                background: '#dce8ff', border: '1px solid #7f9db9', color: '#002080',
+                                                fontWeight: 'bold',
+                                            }}>
+                                                {workCenters.find((wc: any) => String(wc.id) === lockedGroupId)?.name || 'Group'}
+                                            </span>
+                                        )}
+                                        {!lockedGroupId && (
+                                            <select
+                                                style={{ ...xpInput, minWidth: 120 }}
+                                                value={form.group_id}
+                                                onChange={e => handleGroupChange(e.target.value)}
+                                                autoFocus
+                                            >
+                                                <option value="">— Group —</option>
+                                                {availableGroups.map((wc: any) => (
+                                                    <option key={wc.id} value={wc.id}>{wc.name}</option>
+                                                ))}
+                                            </select>
+                                        )}
                                         <select
                                             style={{ ...xpInput, minWidth: 120 }}
                                             value={form.work_center_id}
                                             onChange={e => handleWCChange(e.target.value)}
-                                            disabled={!form.group_id}
+                                            disabled={!lockedGroupId && !form.group_id}
+                                            autoFocus={!!lockedGroupId}
                                         >
                                             <option value="">— Machine —</option>
                                             {availableMachines.map((wc: any) => (
@@ -510,28 +522,47 @@ export default function WorkOrderPanel({
                                 New work order — code assigned on save
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
-                                <select
-                                    style={{ ...xpInput, minWidth: 120 }}
-                                    value={form.group_id}
-                                    onChange={e => handleGroupChange(e.target.value)}
-                                    autoFocus
-                                >
-                                    <option value="">— Group —</option>
-                                    {availableGroups.map((wc: any) => (
-                                        <option key={wc.id} value={wc.id}>{wc.name}</option>
-                                    ))}
-                                </select>
+                                {/* Group locked badge — BOM defines work_center_id */}
+                                {lockedGroupId && (
+                                    <span style={{
+                                        fontFamily: xpFont, fontSize: 10, padding: '0 7px', height: 20,
+                                        display: 'inline-flex', alignItems: 'center',
+                                        background: '#dce8ff', border: '1px solid #7f9db9', color: '#002080',
+                                        fontWeight: 'bold',
+                                    }}>
+                                        {workCenters.find((wc: any) => String(wc.id) === lockedGroupId)?.name || 'Group'}
+                                    </span>
+                                )}
+
+                                {/* Standard group select — only when BOM has no work_center_id */}
+                                {!lockedGroupId && (
+                                    <select
+                                        style={{ ...xpInput, minWidth: 120 }}
+                                        value={form.group_id}
+                                        onChange={e => handleGroupChange(e.target.value)}
+                                        autoFocus
+                                    >
+                                        <option value="">— Group —</option>
+                                        {availableGroups.map((wc: any) => (
+                                            <option key={wc.id} value={wc.id}>{wc.name}</option>
+                                        ))}
+                                    </select>
+                                )}
+
+                                {/* Machine select */}
                                 <select
                                     style={{ ...xpInput, minWidth: 120 }}
                                     value={form.work_center_id}
                                     onChange={e => handleWCChange(e.target.value)}
-                                    disabled={!form.group_id}
+                                    disabled={!lockedGroupId && !form.group_id}
+                                    autoFocus={!!lockedGroupId}
                                 >
                                     <option value="">— Machine —</option>
                                     {availableMachines.map((wc: any) => (
                                         <option key={wc.id} value={wc.id}>{wc.name}</option>
                                     ))}
                                 </select>
+
                                 <label style={{ fontSize: 10, color: '#555', whiteSpace: 'nowrap' }}>
                                     Planned hrs:
                                     <input
