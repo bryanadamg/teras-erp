@@ -471,6 +471,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
               internal_confirmation_date: line.internal_confirmation_date || null,
               qty_kg: line.qty_kg !== '' ? parseFloat(line.qty_kg) || null : null,
               qty2: line.qty2 !== '' ? parseFloat(line.qty2) || null : null,
+              bom_size_id: line.bom_size_id || null,
           }))
       };
 
