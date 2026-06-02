@@ -5,7 +5,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import IntegrityError
 from app.db.session import get_async_db
 from app.schemas import SalesOrderCreate, SalesOrderUpdate, SalesOrderResponse
-from app.models.sales import SalesOrder, SalesOrderLine
+from app.models.sales import SalesOrder, SalesOrderLine, sales_order_line_values
 from app.models.attribute import AttributeValue
 from app.api.auth import get_current_user
 from app.models.auth import User
@@ -122,6 +122,14 @@ async def update_sales_order(so_id: uuid.UUID, payload: SalesOrderUpdate, db: As
     so.order_date = payload.order_date or so.order_date
     so.notes = payload.notes
 
+    line_ids_result = await db.execute(
+        select(SalesOrderLine.id).where(SalesOrderLine.sales_order_id == so_id)
+    )
+    line_ids = line_ids_result.scalars().all()
+    if line_ids:
+        await db.execute(sa_delete(sales_order_line_values).where(
+            sales_order_line_values.c.sales_order_line_id.in_(line_ids)
+        ))
     await db.execute(sa_delete(SalesOrderLine).where(SalesOrderLine.sales_order_id == so_id))
     await db.flush()
 
