@@ -50,6 +50,7 @@ export default function SearchableSelect({
     useEffect(() => {
         if (!isOpen) {
             setSearchTerm('');
+            if (onSearch) onSearch('');
         } else {
             setTimeout(() => inputRef.current?.focus(), 0);
         }
