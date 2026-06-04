@@ -66,6 +66,11 @@ def seed_system_attributes(db):
 
 SYSTEM_CATEGORIES = {"Raw Material", "Finished Goods", "WIP", "Sample", "Chemical", "Dye"}
 
+# (parent_name, child_name) — both marked is_system=True
+SYSTEM_CHILD_CATEGORIES = [
+    ("WIP", "Beam"),
+]
+
 def seed_categories(db):
     try:
         defaults = ["Raw Material", "WIP", "Finished Goods", "Sample", "Consumable", "Chemical", "Dye"]
@@ -86,6 +91,22 @@ def seed_categories(db):
             logger.info(f"Seeded {created} missing default categories")
         if updated:
             logger.info(f"Backfilled is_system=True for {updated} system categories")
+
+        # Seed system child categories
+        for parent_name, child_name in SYSTEM_CHILD_CATEGORIES:
+            parent = db.query(Category).filter_by(name=parent_name, parent_id=None).first()
+            if not parent:
+                continue
+            child = db.query(Category).filter_by(name=child_name, parent_id=parent.id).first()
+            if child:
+                if not child.is_system:
+                    child.is_system = True
+                    db.commit()
+                    logger.info(f"Backfilled is_system=True for child category '{child_name}'")
+            else:
+                db.add(Category(name=child_name, parent_id=parent.id, is_system=True))
+                db.commit()
+                logger.info(f"Seeded system child category '{parent_name} > {child_name}'")
     except Exception as e:
         logger.warning(f"Category seeding skipped: {e}")
 
