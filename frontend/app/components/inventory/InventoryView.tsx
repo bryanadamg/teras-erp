@@ -260,8 +260,6 @@ export default function InventoryView({
   const [beamUom, setBeamUom] = useState('');
   const [beamEnds, setBeamEnds] = useState('');
 
-  const isBeamCategory = !!effectiveFormCategoryId && (categories.find((c: any) => c.id === effectiveFormCategoryId)?.name || '').toLowerCase() === 'beam';
-
   // Editing State
   const [editingItem, setEditingItem] = useState<any>(null);
   const [historyEntityId, setHistoryEntityId] = useState<string | null>(null);
@@ -283,6 +281,7 @@ export default function InventoryView({
   const formL2Options = formCatL1 ? categories.filter((c: any) => c.parent_id === formCatL1) : [];
   const formL3Options = formCatL2 ? categories.filter((c: any) => c.parent_id === formCatL2) : [];
   const effectiveFormCategoryId: string | null = formCatL3 || formCatL2 || formCatL1 || null;
+  const isBeamCategory = !!effectiveFormCategoryId && (categories.find((c: any) => c.id === effectiveFormCategoryId)?.name || '').toLowerCase() === 'beam';
 
   const isRawMaterialCategory = !!formCatL1 && (categories.find((c: any) => c.id === formCatL1)?.name || '').toLowerCase().includes('raw');
 
