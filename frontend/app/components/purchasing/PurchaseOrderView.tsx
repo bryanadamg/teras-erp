@@ -371,7 +371,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
            onClose={() => { setIsCreateOpen(false); setNewPO({ po_number: '', supplier_id: '', target_location_id: '', order_date: new Date().toISOString().split('T')[0], lines: [] }); }}
            title={<><i className="bi bi-cart-plus" style={classic?{marginRight:6}:{marginRight:8}}></i>Create Purchase Order</>}
            variant="success"
-           size="lg"
+           size="xl"
            footer={classic ? (
                <>
                    <button type="button" style={xpBtn()} onClick={() => setIsCreateOpen(false)}>{t('cancel')}</button>
@@ -426,8 +426,8 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                            <input type="date" className="form-control" style={classic?{...xpInput,width:'100%',height:'22px'}:undefined} value={newLine.due_date} onChange={e => setNewLine({...newLine, due_date: e.target.value})} />
                        </div>
                        <div className="col-2 d-flex align-items-end">
-                           <button type="button" style={classic?{...xpBtn(),width:'100%',padding:'2px 6px'}:undefined} className={classic?'':'btn btn-secondary w-100'} onClick={handleAddLine} disabled={!newLine.item_id || newLine.qty <= 0}>
-                               <i className="bi bi-plus-lg"></i>
+                           <button type="button" style={classic ? xpBtn({background:'linear-gradient(to bottom,#5ec85e,#2d7a2d)',borderColor:'#1a5e1a #0a3e0a #0a3e0a #1a5e1a',color:'#fff',width:'100%',padding:'2px 6px'}) : undefined} className={classic?'':'btn btn-success w-100'} onClick={handleAddLine} disabled={!newLine.item_id || newLine.qty <= 0}>
+                               <i className="bi bi-plus-lg" style={classic?{marginRight:3}:{marginRight:4}}></i>{classic?'Add':'Add Item'}
                            </button>
                        </div>
                        {currentBoundAttrs.length > 0 && (
@@ -477,7 +477,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
            onClose={() => setReceiptTarget(null)}
            title={<><i className="bi bi-box-arrow-in-down" style={classic?{marginRight:6}:{marginRight:8}}></i>Receive Goods — {receiptTarget?.po_number}</>}
            variant="success"
-           size="lg"
+           size="xl"
            footer={classic ? (
                <>
                    <button type="button" style={xpBtn()} onClick={() => setReceiptTarget(null)}>Cancel</button>
@@ -502,7 +502,8 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                            <input type="text" className="form-control" style={classic?xpInput:undefined} placeholder="e.g. Short delivery, weighed on arrival" value={receiptNotes} onChange={e => setReceiptNotes(e.target.value)} />
                        </div>
                    </div>
-                   <table className={classic?'':'table table-sm'} style={classic?{width:'100%',borderCollapse:'collapse',fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px'}:undefined}>
+                   <div style={{overflowX:'auto'}}>
+                   <table className={classic?'':'table table-sm'} style={classic?{width:'100%',borderCollapse:'collapse',fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px'}:{minWidth:480}}>
                        <thead>
                            <tr style={classic?{background:'linear-gradient(to bottom,#ffffff,#d4d0c8)',borderBottom:'2px solid #808080',fontSize:'10px',fontWeight:'bold'}:undefined} className={classic?'':'table-light'}>
                                <th style={classic?xpThCell:undefined}>Item</th>
@@ -525,8 +526,8 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                            type="number"
                                            min="0"
                                            step="0.001"
-                                           style={classic?{...xpInput,width:80,textAlign:'right'}:{width:80,textAlign:'right'}}
-                                           className={classic?'':'form-control form-control-sm d-inline-block'}
+                                           style={classic?{...xpInput,width:90,textAlign:'right'}:{width:100,textAlign:'right' as const}}
+                                           className={classic?'':'form-control form-control-sm'}
                                            value={receiptLineQtys[line.id] ?? 0}
                                            onChange={e => setReceiptLineQtys(prev => ({ ...prev, [line.id]: parseFloat(e.target.value) || 0 }))}
                                        />
@@ -535,6 +536,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                            ))}
                        </tbody>
                    </table>
+                   </div>
                </div>
            )}
        </ModalWrapper>

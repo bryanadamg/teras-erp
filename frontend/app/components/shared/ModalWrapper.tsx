@@ -149,16 +149,16 @@ export default function ModalWrapper({
             onClick={() => { if (backdropMouseDown.current) onClose(); }}
         >
             <div className={`modal-dialog modal-${size === 'xxl' ? 'xl' : size} modal-dialog-centered`} style={size === 'xxl' ? { maxWidth: 1100 } : undefined} onClick={e => e.stopPropagation()}>
-                <div className="modal-content shadow-lg border-0 overflow-hidden">
-                    <div className={`modal-header py-2 px-3 border-bottom ${headerClasses[variant]}`}>
+                <div className="modal-content shadow-lg border-0" style={{ overflow: 'visible' }}>
+                    <div className={`modal-header py-2 px-3 border-bottom ${headerClasses[variant]}`} style={{ borderRadius: '0.5rem 0.5rem 0 0' }}>
                         <h5 className="modal-title small fw-bold d-flex align-items-center gap-2">{title}</h5>
                         <button type="button" className={`btn-close ${variant === 'dark' ? 'btn-close-white' : ''}`} onClick={onClose}></button>
                     </div>
-                    <div className="modal-body p-4" style={{ maxHeight: '80vh', overflowY: 'auto' }}>
+                    <div className="modal-body p-4" style={{ maxHeight: '85vh', overflowY: 'auto', background: 'white' }}>
                         {children}
                     </div>
                     {footer && (
-                        <div className="modal-footer bg-light py-2 px-3 border-top">{footer}</div>
+                        <div className="modal-footer bg-light py-2 px-3 border-top" style={{ borderRadius: '0 0 0.5rem 0.5rem' }}>{footer}</div>
                     )}
                 </div>
             </div>
