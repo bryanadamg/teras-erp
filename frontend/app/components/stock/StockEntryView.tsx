@@ -198,6 +198,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                                       <th style={{ ...xpTableHeader, padding: '3px 8px' }}>{t('attributes')}</th>
                                       <th style={{ ...xpTableHeader, padding: '3px 8px' }}>{t('locations')}</th>
                                       <th style={{ ...xpTableHeader, padding: '3px 8px', textAlign: 'right' }}>{t('qty')}</th>
+                                      <th style={{ ...xpTableHeader, padding: '3px 8px' }}>UOM</th>
                                   </tr>
                               </thead>
                               <tbody>
@@ -219,13 +220,16 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                                               </div>
                                           </td>
                                           <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#000' }}>{getLocationName(bal)}</td>
-                                          <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', fontWeight: 'bold', color: bal.qty < 0 ? '#c00000' : '#00008b' }}>
-                                              {bal.qty}{getItemUom(bal) ? <span style={{ fontWeight: 'normal', color: '#666', marginLeft: 3 }}>{getItemUom(bal)}</span> : null}
+                                          <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', fontWeight: 'bold', color: bal.qty < 0 ? '#c00000' : '#00008b', whiteSpace: 'nowrap' }}>
+                                              {bal.qty}
+                                          </td>
+                                          <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#666', whiteSpace: 'nowrap' }}>
+                                              {getItemUom(bal) || ''}
                                           </td>
                                       </tr>
                                   ))}
                                   {filteredBalance.length === 0 && (
-                                      <tr><td colSpan={4} style={{ textAlign: 'center', padding: '24px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#666', fontStyle: 'italic' }}>Warehouse is empty</td></tr>
+                                      <tr><td colSpan={5} style={{ textAlign: 'center', padding: '24px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#666', fontStyle: 'italic' }}>Warehouse is empty</td></tr>
                                   )}
                               </tbody>
                           </table>
@@ -319,7 +323,8 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                                       <th className="ps-4">{t('item_code')}</th>
                                       <th>{t('attributes')}</th>
                                       <th>{t('locations')}</th>
-                                      <th className="text-end pe-4">{t('qty')}</th>
+                                      <th className="text-end">{t('qty')}</th>
+                                      <th>UOM</th>
                                   </tr>
                               </thead>
                               <tbody>
@@ -341,13 +346,13 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                                               </div>
                                           </td>
                                           <td><span className="small">{getLocationName(bal)}</span></td>
-                                          <td className="text-end pe-4">
+                                          <td className="text-end">
                                               <span className={`fw-bold font-monospace ${bal.qty < 0 ? 'text-danger' : 'text-primary'}`}>{bal.qty}</span>
-                                              {getItemUom(bal) && <span className="text-muted small ms-1">{getItemUom(bal)}</span>}
                                           </td>
+                                          <td className="text-muted small">{getItemUom(bal) || ''}</td>
                                       </tr>
                                   ))}
-                                  {filteredBalance.length === 0 && <tr><td colSpan={4} className="text-center py-5 text-muted fst-italic">Warehouse is empty</td></tr>}
+                                  {filteredBalance.length === 0 && <tr><td colSpan={5} className="text-center py-5 text-muted fst-italic">Warehouse is empty</td></tr>}
                               </tbody>
                           </table>
                       </div>

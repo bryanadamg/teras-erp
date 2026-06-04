@@ -136,8 +136,11 @@ export default function StockOnHandView({ items, locations, stockBalance, attrib
                             )}
                         </div>
                     </td>
-                    <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', fontWeight: 'bold', color: qtyColor }}>
-                        {bal.qty}{getItemUom(bal.item_id) ? <span style={{ fontWeight: 'normal', color: '#666', marginLeft: 3 }}>{getItemUom(bal.item_id)}</span> : null}
+                    <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', fontWeight: 'bold', color: qtyColor, whiteSpace: 'nowrap' }}>
+                        {bal.qty}
+                    </td>
+                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', color: '#666', whiteSpace: 'nowrap' }}>
+                        {getItemUom(bal.item_id) || ''}
                     </td>
                 </tr>
             );
@@ -166,9 +169,8 @@ export default function StockOnHandView({ items, locations, stockBalance, attrib
                         <span className="text-muted small">Standard</span>
                     )}
                 </td>
-                <td className="text-end fw-bold" style={{ color: qtyColor }}>
-                    {bal.qty}{getItemUom(bal.item_id) ? <span className="fw-normal text-muted ms-1 small">{getItemUom(bal.item_id)}</span> : null}
-                </td>
+                <td className="text-end fw-bold" style={{ color: qtyColor, whiteSpace: 'nowrap' }}>{bal.qty}</td>
+                <td className="text-muted small" style={{ whiteSpace: 'nowrap' }}>{getItemUom(bal.item_id) || ''}</td>
             </tr>
         );
     };
@@ -212,13 +214,14 @@ export default function StockOnHandView({ items, locations, stockBalance, attrib
                                     <th style={xpTableHeader}>Batch / Lot</th>
                                     <th style={xpTableHeader}>{t('attributes') || 'Attributes'}</th>
                                     <th style={{ ...xpTableHeader, textAlign: 'right' }}>{t('qty') || 'Qty'}</th>
+                                    <th style={xpTableHeader}>UOM</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {filtered.map((bal: any, i: number) => renderRow(bal, i))}
                                 {filtered.length === 0 && (
                                     <tr>
-                                        <td colSpan={5} style={{ textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
+                                        <td colSpan={6} style={{ textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
                                             No stock records found
                                         </td>
                                     </tr>
@@ -286,13 +289,14 @@ export default function StockOnHandView({ items, locations, stockBalance, attrib
                                 <th>Batch / Lot</th>
                                 <th>{t('attributes') || 'Attributes'}</th>
                                 <th className="text-end">{t('qty') || 'Qty'}</th>
+                                <th>UOM</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filtered.map((bal: any, i: number) => renderRow(bal, i))}
                             {filtered.length === 0 && (
                                 <tr>
-                                    <td colSpan={5} className="text-center text-muted py-4">No stock records found</td>
+                                    <td colSpan={6} className="text-center text-muted py-4">No stock records found</td>
                                 </tr>
                             )}
                         </tbody>
