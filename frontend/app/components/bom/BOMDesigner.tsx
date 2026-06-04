@@ -1311,7 +1311,14 @@ export default function BOMDesigner({
                                             {/* Add component row */}
                                             <div style={{ display: 'flex', gap: 4, marginBottom: 6, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                                                 <div style={{ flex: 3, minWidth: 120 }}>
-                                                    <label style={{ ...xpLabel, fontSize: 10 }}>Item</label>
+                                                    <label style={{ ...xpLabel, fontSize: 10 }}>
+                                                        Item
+                                                        {pendingItemCode && getItemUom(pendingItemCode) && (
+                                                            <span style={{ marginLeft: 5, fontSize: 9, fontWeight: 'normal', background: '#dde8f5', border: '1px solid #7f9db9', padding: '0 4px', color: '#336' }}>
+                                                                {getItemUom(pendingItemCode)}
+                                                            </span>
+                                                        )}
+                                                    </label>
                                                     <SearchableSelect
                                                         options={items.map((i: any) => ({ value: i.code, label: i.name, subLabel: i.code }))}
                                                         value={pendingItemCode}
@@ -1399,6 +1406,11 @@ export default function BOMDesigner({
                                                     }}>
                                                         <span style={{ flex: 1, fontWeight: 'bold', fontSize: 11 }}>
                                                             {getItemName(line.item_code)}
+                                                            {getItemUom(line.item_code) && (
+                                                                <span style={{ marginLeft: 5, fontSize: 9, fontWeight: 'normal', background: '#dde8f5', border: '1px solid #7f9db9', padding: '0 4px', color: '#336' }}>
+                                                                    {getItemUom(line.item_code)}
+                                                                </span>
+                                                            )}
                                                         </span>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                                             <input
