@@ -27,6 +27,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
 
   const getItemName = (bal: any) => bal.item_name || items.find((i: any) => i.id === bal.item_id)?.name || bal.item_id;
   const getItemCode = (bal: any) => bal.item_code || items.find((i: any) => i.id === bal.item_id)?.code || bal.item_id;
+  const getItemUom = (bal: any) => bal.item_uom || items.find((i: any) => i.id === bal.item_id)?.uom || '';
   const getLocationName = (bal: any) => bal.location_name || locations.find((l: any) => l.id === bal.location_id)?.name || bal.location_id;
   const getAttributeValueName = (valId: string) => {
       for (const attr of attributes) {
@@ -219,7 +220,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                                           </td>
                                           <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#000' }}>{getLocationName(bal)}</td>
                                           <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', fontWeight: 'bold', color: bal.qty < 0 ? '#c00000' : '#00008b' }}>
-                                              {bal.qty}
+                                              {bal.qty}{getItemUom(bal) ? <span style={{ fontWeight: 'normal', color: '#666', marginLeft: 3 }}>{getItemUom(bal)}</span> : null}
                                           </td>
                                       </tr>
                                   ))}
@@ -342,6 +343,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                                           <td><span className="small">{getLocationName(bal)}</span></td>
                                           <td className="text-end pe-4">
                                               <span className={`fw-bold font-monospace ${bal.qty < 0 ? 'text-danger' : 'text-primary'}`}>{bal.qty}</span>
+                                              {getItemUom(bal) && <span className="text-muted small ms-1">{getItemUom(bal)}</span>}
                                           </td>
                                       </tr>
                                   ))}

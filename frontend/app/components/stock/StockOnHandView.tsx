@@ -37,6 +37,7 @@ export default function StockOnHandView({ items, locations, stockBalance, attrib
 
     const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || '';
     const getItemCode = (id: string) => items.find((i: any) => i.id === id)?.code || '';
+    const getItemUom = (id: string) => items.find((i: any) => i.id === id)?.uom || '';
     const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
     const getAttrValueName = (valId: string) => {
         for (const attr of attributes) {
@@ -136,7 +137,7 @@ export default function StockOnHandView({ items, locations, stockBalance, attrib
                         </div>
                     </td>
                     <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', fontWeight: 'bold', color: qtyColor }}>
-                        {bal.qty}
+                        {bal.qty}{getItemUom(bal.item_id) ? <span style={{ fontWeight: 'normal', color: '#666', marginLeft: 3 }}>{getItemUom(bal.item_id)}</span> : null}
                     </td>
                 </tr>
             );
@@ -165,7 +166,9 @@ export default function StockOnHandView({ items, locations, stockBalance, attrib
                         <span className="text-muted small">Standard</span>
                     )}
                 </td>
-                <td className="text-end fw-bold" style={{ color: qtyColor }}>{bal.qty}</td>
+                <td className="text-end fw-bold" style={{ color: qtyColor }}>
+                    {bal.qty}{getItemUom(bal.item_id) ? <span className="fw-normal text-muted ms-1 small">{getItemUom(bal.item_id)}</span> : null}
+                </td>
             </tr>
         );
     };
