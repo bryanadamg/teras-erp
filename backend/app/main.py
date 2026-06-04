@@ -13,6 +13,13 @@ from contextlib import asynccontextmanager
 
 import mimetypes
 from fastapi.staticfiles import StaticFiles
+
+class _HealthCheckFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "/api/health" not in record.getMessage()
+
+logging.getLogger("uvicorn.access").addFilter(_HealthCheckFilter())
+
 from app.db.session import engine
 from app.core.db_manager import db_manager
 from app.db.base import Base
