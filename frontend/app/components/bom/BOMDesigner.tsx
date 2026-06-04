@@ -1391,7 +1391,7 @@ export default function BOMDesigner({
                                                         <span style={{ width: 57, textAlign: 'right' }}>%</span>
                                                         <span style={{ width: 48, textAlign: 'right' }}>Qty</span>
                                                         {selectedNode.operations.length > 0 && <span style={{ width: 80 }}>Step</span>}
-                                                        <span style={{ minWidth: 60 }}></span>
+                                                        <span style={{ width: 96, flexShrink: 0 }}></span>
                                                     </div>
                                                 )}
                                                 {selectedNode.lines.length === 0 && (
@@ -1466,41 +1466,43 @@ export default function BOMDesigner({
                                                                 })}
                                                             </select>
                                                         )}
-                                                        {!hasExistingBOM(line.item_code, line.attribute_value_ids) && !line.subBOM && (
-                                                            <button style={xpBtnInfo} onClick={() => {
-                                                                const subNode: BOMNodeData = {
-                                                                    id: Math.random().toString(36).substr(2, 9),
-                                                                    code: suggestBOMCode(line.item_code, line.attribute_value_ids),
-                                                                    item_code: line.item_code,
-                                                                    attribute_value_ids: line.attribute_value_ids,
-                                                                    qty: 1.0, tolerance_percentage: 0.0,
-                                                                    operations: [], lines: [],
-                                                                    ...getInheritedFields(selectedNode),
-                                                                    isNewItem: line.isNewItem
-                                                                };
-                                                                const newLines = [...selectedNode.lines];
-                                                                newLines[i] = { ...line, subBOM: subNode };
-                                                                updateSelectedNode({ lines: newLines });
-                                                                setSelectedNodeId(subNode.id);
-                                                            }}>
-                                                                Define BOM
-                                                            </button>
-                                                        )}
-                                                        {line.subBOM && (
-                                                            <button style={xpBtnInfo} onClick={() => setSelectedNodeId(line.subBOM!.id)}>
-                                                                Draft ▶
-                                                            </button>
-                                                        )}
-                                                        <button
-                                                            style={xpBtnDanger}
-                                                            onClick={() => {
-                                                                const newLines = selectedNode.lines.filter((_, idx) => idx !== i);
-                                                                if (newLines.length === 1 && newLines[0].percentage === 0) {
-                                                                    newLines[0] = { ...newLines[0], percentage: 100 };
-                                                                }
-                                                                updateSelectedNode({ lines: newLines });
-                                                            }}
-                                                        >X</button>
+                                                        <div style={{ width: 96, flexShrink: 0, display: 'flex', gap: 4, justifyContent: 'flex-end', alignItems: 'center' }}>
+                                                            {!hasExistingBOM(line.item_code, line.attribute_value_ids) && !line.subBOM && (
+                                                                <button style={xpBtnInfo} onClick={() => {
+                                                                    const subNode: BOMNodeData = {
+                                                                        id: Math.random().toString(36).substr(2, 9),
+                                                                        code: suggestBOMCode(line.item_code, line.attribute_value_ids),
+                                                                        item_code: line.item_code,
+                                                                        attribute_value_ids: line.attribute_value_ids,
+                                                                        qty: 1.0, tolerance_percentage: 0.0,
+                                                                        operations: [], lines: [],
+                                                                        ...getInheritedFields(selectedNode),
+                                                                        isNewItem: line.isNewItem
+                                                                    };
+                                                                    const newLines = [...selectedNode.lines];
+                                                                    newLines[i] = { ...line, subBOM: subNode };
+                                                                    updateSelectedNode({ lines: newLines });
+                                                                    setSelectedNodeId(subNode.id);
+                                                                }}>
+                                                                    Define BOM
+                                                                </button>
+                                                            )}
+                                                            {line.subBOM && (
+                                                                <button style={xpBtnInfo} onClick={() => setSelectedNodeId(line.subBOM!.id)}>
+                                                                    Draft ▶
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                style={xpBtnDanger}
+                                                                onClick={() => {
+                                                                    const newLines = selectedNode.lines.filter((_, idx) => idx !== i);
+                                                                    if (newLines.length === 1 && newLines[0].percentage === 0) {
+                                                                        newLines[0] = { ...newLines[0], percentage: 100 };
+                                                                    }
+                                                                    updateSelectedNode({ lines: newLines });
+                                                                }}
+                                                            >X</button>
+                                                        </div>
                                                     </div>
                                                 ))}
                                             </div>
