@@ -676,6 +676,7 @@ class PurchaseOrderLineCreate(BaseModel):
 
 class PurchaseOrderLineResponse(PurchaseOrderLineCreate):
     id: UUID
+    qty_received: float = 0
     attribute_value_ids: list[UUID] = []
     class Config:
         from_attributes = True
@@ -687,10 +688,44 @@ class PurchaseOrderCreate(BaseModel):
     order_date: datetime | None = None
     lines: list[PurchaseOrderLineCreate]
 
+# --- Goods Receipt Schemas ---
+
+class GoodsReceiptLineCreate(BaseModel):
+    po_line_id: UUID
+    qty_received: float
+    batch_id: UUID | None = None
+
+class GoodsReceiptCreate(BaseModel):
+    receipt_date: datetime | None = None
+    notes: str | None = None
+    lines: list[GoodsReceiptLineCreate]
+
+class GoodsReceiptLineResponse(BaseModel):
+    id: UUID
+    po_line_id: UUID
+    item_id: UUID
+    item_name: str | None = None
+    item_code: str | None = None
+    qty_received: float
+    batch_id: UUID | None = None
+    class Config:
+        from_attributes = True
+
+class GoodsReceiptResponse(BaseModel):
+    id: UUID
+    po_id: UUID
+    receipt_date: datetime
+    notes: str | None = None
+    created_at: datetime
+    lines: list[GoodsReceiptLineResponse] = []
+    class Config:
+        from_attributes = True
+
 class PurchaseOrderResponse(PurchaseOrderCreate):
     id: UUID
     status: str
     lines: list[PurchaseOrderLineResponse]
+    receipts: list[GoodsReceiptResponse] = []
     created_at: datetime
     class Config:
         from_attributes = True

@@ -17,9 +17,19 @@ export default function PurchaseOrdersPage() {
         if (res.ok) fetchData();
     };
 
-    const handleReceivePO = async (id: string) => {
-        const res = await authFetch(`${API_BASE}/purchase-orders/${id}/receive`, { method: 'PUT' });
-        if (res.ok) { showToast('PO Received into Stock', 'success'); fetchData(); }
+    const handleCreateReceipt = async (poId: string, receiptPayload: any) => {
+        const res = await authFetch(`${API_BASE}/purchase-orders/${poId}/receipts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(receiptPayload),
+        });
+        if (res.ok) {
+            showToast('Goods received into stock', 'success');
+            fetchData();
+        } else {
+            const err = await res.json().catch(() => ({}));
+            showToast(err.detail || 'Failed to record receipt', 'error');
+        }
     };
 
     const handleDeletePO = async (id: string) => {
@@ -35,15 +45,15 @@ export default function PurchaseOrdersPage() {
     };
 
     return (
-            <PurchaseOrderView 
-                items={items} 
-                attributes={attributes} 
-                purchaseOrders={purchaseOrders} 
-                partners={partners} 
-                locations={locations} 
-                onCreatePO={handleCreatePO} 
-                onReceivePO={handleReceivePO} 
-                onDeletePO={handleDeletePO} 
+            <PurchaseOrderView
+                items={items}
+                attributes={attributes}
+                purchaseOrders={purchaseOrders}
+                partners={partners}
+                locations={locations}
+                onCreatePO={handleCreatePO}
+                onCreateReceipt={handleCreateReceipt}
+                onDeletePO={handleDeletePO}
             />
     );
 }

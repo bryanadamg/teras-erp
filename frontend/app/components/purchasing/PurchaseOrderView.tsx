@@ -7,7 +7,7 @@ import PrintHeader from '../shared/PrintHeader';
 import ModalWrapper from '../shared/ModalWrapper';
 import { useTheme } from '../../context/ThemeContext';
 
-export default function PurchaseOrderView({ items, attributes, purchaseOrders, partners, locations, onCreatePO, onDeletePO, onReceivePO }: any) {
+export default function PurchaseOrderView({ items, attributes, purchaseOrders, partners, locations, onCreatePO, onDeletePO, onCreateReceipt }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -16,6 +16,37 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
   const [statusFilter, setStatusFilter] = useState('ALL');
   const { uiStyle: currentStyle } = useTheme();
   const classic = currentStyle === 'classic';
+
+  // Receipt modal state
+  const [receiptTarget, setReceiptTarget] = useState<any>(null);
+  const [receiptLineQtys, setReceiptLineQtys] = useState<Record<string, number>>({});
+  const [receiptDate, setReceiptDate] = useState('');
+  const [receiptNotes, setReceiptNotes] = useState('');
+
+  // Expanded rows for receipt history
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+
+  const openReceiptModal = (po: any) => {
+    const defaults: Record<string, number> = {};
+    for (const line of po.lines) {
+      const remaining = Math.max(0, line.qty - (line.qty_received || 0));
+      defaults[line.id] = remaining;
+    }
+    setReceiptLineQtys(defaults);
+    setReceiptDate(new Date().toISOString().split('T')[0]);
+    setReceiptNotes('');
+    setReceiptTarget(po);
+  };
+
+  const handleReceiptSubmit = () => {
+    if (!receiptTarget) return;
+    const lines = Object.entries(receiptLineQtys)
+      .filter(([, qty]) => qty > 0)
+      .map(([po_line_id, qty_received]) => ({ po_line_id, qty_received }));
+    if (lines.length === 0) { showToast('Enter qty for at least one line', 'error'); return; }
+    onCreateReceipt(receiptTarget.id, { receipt_date: receiptDate || null, notes: receiptNotes || null, lines });
+    setReceiptTarget(null);
+  };
 
   // ── XP shared inline styles ──────────────────────────────────────────────
   const xpBevel: React.CSSProperties = {
@@ -221,7 +252,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
   const getSupplierAddress = (id: string) => partners.find((p: any) => p.id === id)?.address || '-';
   const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
 
-  const STATUS_FILTERS = ['ALL', 'PENDING', 'RECEIVED'];
+  const STATUS_FILTERS = ['ALL', 'DRAFT', 'RECEIVING', 'RECEIVED'];
 
   const filteredOrders = purchaseOrders.filter((po: any) => {
       const matchSearch = !searchTerm ||
@@ -230,6 +261,21 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
       const matchStatus = statusFilter === 'ALL' || po.status === statusFilter;
       return matchSearch && matchStatus;
   });
+
+  const statusBadge = (status: string) => {
+    if (classic) {
+      const bg = status === 'RECEIVED' ? '#e8f5e9' : status === 'RECEIVING' ? '#fff8e1' : '#e8e8e8';
+      const border = status === 'RECEIVED' ? '#2e7d32' : status === 'RECEIVING' ? '#f57f17' : '#6a6a6a';
+      const color = status === 'RECEIVED' ? '#1b4620' : status === 'RECEIVING' ? '#5d3800' : '#222';
+      return (
+        <span style={{ background: bg, border: `1px solid ${border}`, color, padding: '1px 5px', fontSize: '9px', fontFamily: 'Tahoma, Arial, sans-serif', fontWeight: 'bold', whiteSpace: 'nowrap' as const }}>
+          {status}
+        </span>
+      );
+    }
+    const cls = status === 'RECEIVED' ? 'bg-success' : status === 'RECEIVING' ? 'bg-warning text-dark' : 'bg-secondary';
+    return <span className={`badge ${cls}`}>{status}</span>;
+  };
 
   // --- Print Template ---
   const PurchaseOrderPrintTemplate = ({ po }: { po: any }) => (
@@ -425,6 +471,74 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
            </form>
        </ModalWrapper>
 
+       {/* Receive Goods Modal */}
+       <ModalWrapper
+           isOpen={!!receiptTarget}
+           onClose={() => setReceiptTarget(null)}
+           title={<><i className="bi bi-box-arrow-in-down" style={classic?{marginRight:6}:{marginRight:8}}></i>Receive Goods — {receiptTarget?.po_number}</>}
+           variant="success"
+           size="lg"
+           footer={classic ? (
+               <>
+                   <button type="button" style={xpBtn()} onClick={() => setReceiptTarget(null)}>Cancel</button>
+                   <button type="button" style={xpBtn({background:'linear-gradient(to bottom,#5ec85e,#2d7a2d)',borderColor:'#1a5e1a #0a3e0a #0a3e0a #1a5e1a',color:'#ffffff',fontWeight:'bold',padding:'2px 16px'})} onClick={handleReceiptSubmit}><i className="bi bi-check-lg" style={{marginRight:4}}></i>Confirm Receipt</button>
+               </>
+           ) : (
+               <>
+                   <button type="button" className="btn btn-sm btn-link text-muted" onClick={() => setReceiptTarget(null)}>Cancel</button>
+                   <button type="button" className="btn btn-sm btn-success px-4 fw-bold" onClick={handleReceiptSubmit}>Confirm Receipt</button>
+               </>
+           )}
+       >
+           {receiptTarget && (
+               <div>
+                   <div className="row g-2 mb-3">
+                       <div className="col-md-4">
+                           <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Receipt Date</label>
+                           <input type="date" className="form-control" style={classic?{...xpInput,width:'100%',height:'22px'}:undefined} value={receiptDate} onChange={e => setReceiptDate(e.target.value)} />
+                       </div>
+                       <div className="col-md-8">
+                           <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Notes</label>
+                           <input type="text" className="form-control" style={classic?xpInput:undefined} placeholder="e.g. Short delivery, weighed on arrival" value={receiptNotes} onChange={e => setReceiptNotes(e.target.value)} />
+                       </div>
+                   </div>
+                   <table className={classic?'':'table table-sm'} style={classic?{width:'100%',borderCollapse:'collapse',fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px'}:undefined}>
+                       <thead>
+                           <tr style={classic?{background:'linear-gradient(to bottom,#ffffff,#d4d0c8)',borderBottom:'2px solid #808080',fontSize:'10px',fontWeight:'bold'}:undefined} className={classic?'':'table-light'}>
+                               <th style={classic?xpThCell:undefined}>Item</th>
+                               <th style={classic?{...xpThCell,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>Ordered</th>
+                               <th style={classic?{...xpThCell,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>Received So Far</th>
+                               <th style={classic?{...xpThCell,textAlign:'right' as const,borderRight:'none'}:undefined} className={classic?'':'text-end'}>This Receipt</th>
+                           </tr>
+                       </thead>
+                       <tbody>
+                           {receiptTarget.lines.map((line: any, idx: number) => (
+                               <tr key={line.id} style={classic?{background:idx%2===0?'#ffffff':'#f5f3ee',borderBottom:'1px solid #d0cdc8'}:undefined}>
+                                   <td style={classic?tdBase:undefined}>
+                                       <div style={classic?{fontWeight:'bold'}:undefined} className={classic?'':'fw-bold'}>{getItemName(line.item_id)}</div>
+                                       <div style={classic?{fontSize:'10px',color:'#666'}:undefined} className={classic?'':'small text-muted'}>{getItemCode(line.item_id)}</div>
+                                   </td>
+                                   <td style={classic?{...tdBase,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>{line.qty}</td>
+                                   <td style={classic?{...tdBase,textAlign:'right' as const}:undefined} className={classic?'':'text-end text-muted'}>{line.qty_received || 0}</td>
+                                   <td style={classic?{...tdBase,borderRight:'none',textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>
+                                       <input
+                                           type="number"
+                                           min="0"
+                                           step="0.001"
+                                           style={classic?{...xpInput,width:80,textAlign:'right'}:{width:80,textAlign:'right'}}
+                                           className={classic?'':'form-control form-control-sm d-inline-block'}
+                                           value={receiptLineQtys[line.id] ?? 0}
+                                           onChange={e => setReceiptLineQtys(prev => ({ ...prev, [line.id]: parseFloat(e.target.value) || 0 }))}
+                                       />
+                                   </td>
+                               </tr>
+                           ))}
+                       </tbody>
+                   </table>
+               </div>
+           )}
+       </ModalWrapper>
+
        {/* ── Outer shell ── */}
        <div
            style={classic ? xpBevel : undefined}
@@ -527,21 +641,33 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                    >
                        <thead style={classic ? xpTableHeader : undefined} className={classic ? '' : 'table-light'}>
                            <tr>
-                               <th style={classic ? { ...xpThCell, width: '130px' } : undefined} className={classic ? '' : 'ps-4'}>PO Number</th>
+                               <th style={classic ? { ...xpThCell, width: '20px' } : undefined}></th>
+                               <th style={classic ? { ...xpThCell, width: '130px' } : undefined} className={classic ? '' : 'ps-2'}>PO Number</th>
                                <th style={classic ? xpThCell : undefined}>Supplier</th>
                                <th style={classic ? { ...xpThCell, width: '90px' } : undefined}>Date</th>
                                <th style={classic ? xpThCell : undefined}>Items</th>
                                <th style={classic ? { ...xpThCell, width: '90px' } : undefined}>Status</th>
-                               <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '110px' } : undefined} className={classic ? '' : 'text-end pe-4'}>Actions</th>
+                               <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '130px' } : undefined} className={classic ? '' : 'text-end pe-4'}>Actions</th>
                            </tr>
                        </thead>
                        <tbody>
                            {filteredOrders.map((po: any, rowIndex: number) => (
+                               <>
                                <tr
                                    key={po.id}
-                                   style={classic ? { background: rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' } : undefined}
+                                   style={classic ? { background: rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: expandedRows[po.id] ? 'none' : '1px solid #c0bdb5' } : undefined}
                                >
-                                   <td style={classic ? { ...tdBase, fontFamily: "'Courier New', monospace", fontWeight: 'bold', color: '#0058e6' } : undefined} className={classic ? '' : 'ps-4 fw-bold font-monospace text-primary'}>
+                                   <td style={classic ? { ...tdBase, padding: '4px 4px', textAlign: 'center' as const } : undefined} className={classic ? '' : 'ps-3 text-center'}>
+                                       <button
+                                           onClick={() => setExpandedRows(prev => ({ ...prev, [po.id]: !prev[po.id] }))}
+                                           style={classic ? { background: 'none', border: 'none', cursor: 'pointer', fontSize: '10px', color: '#555', padding: '0 2px' } : undefined}
+                                           className={classic ? '' : 'btn btn-sm btn-link p-0 text-muted'}
+                                           title={expandedRows[po.id] ? 'Hide receipts' : 'Show receipts'}
+                                       >
+                                           <i className={`bi bi-chevron-${expandedRows[po.id] ? 'down' : 'right'}`}></i>
+                                       </button>
+                                   </td>
+                                   <td style={classic ? { ...tdBase, fontFamily: "'Courier New', monospace", fontWeight: 'bold', color: '#0058e6' } : undefined} className={classic ? '' : 'ps-2 fw-bold font-monospace text-primary'}>
                                        {po.po_number}
                                    </td>
                                    <td style={classic ? tdBase : undefined}>{getSupplierName(po.supplier_id)}</td>
@@ -561,28 +687,13 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                        <div style={{ marginTop: 2 }}>
                                            {po.lines.map((line: any) => (
                                                <div key={line.id} style={classic ? { fontSize: '10px', color: '#333', lineHeight: 1.4 } : undefined} className={classic ? '' : 'small text-muted'}>
-                                                   <span style={classic ? { fontWeight: 'bold' } : undefined} className={classic ? '' : 'fw-bold text-dark'}>{line.qty}×</span> {getItemName(line.item_id)}
+                                                   <span style={classic ? { fontWeight: 'bold' } : undefined} className={classic ? '' : 'fw-bold text-dark'}>{line.qty_received || 0}/{line.qty}</span> {getItemName(line.item_id)}
                                                </div>
                                            ))}
                                        </div>
                                    </td>
                                    <td style={classic ? tdBase : undefined}>
-                                       {classic ? (
-                                           <span style={{
-                                               background: po.status === 'RECEIVED' ? '#e8f5e9' : '#e8e8e8',
-                                               border: `1px solid ${po.status === 'RECEIVED' ? '#2e7d32' : '#6a6a6a'}`,
-                                               color: po.status === 'RECEIVED' ? '#1b4620' : '#222',
-                                               padding: '1px 5px', fontSize: '9px',
-                                               fontFamily: 'Tahoma, Arial, sans-serif',
-                                               fontWeight: 'bold', whiteSpace: 'nowrap' as const,
-                                           }}>
-                                               {po.status}
-                                           </span>
-                                       ) : (
-                                           <span className={`badge ${po.status === 'RECEIVED' ? 'bg-success' : 'bg-secondary'}`}>
-                                               {po.status}
-                                           </span>
-                                       )}
+                                       {statusBadge(po.status)}
                                    </td>
                                    <td style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'right' as const } : undefined} className={classic ? '' : 'pe-4 text-end'}>
                                        <div style={classic ? { display: 'flex', gap: 2, justifyContent: 'flex-end', alignItems: 'center' } : undefined} className={classic ? '' : 'd-flex justify-content-end align-items-center gap-2'}>
@@ -590,7 +701,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                classic ? (
                                                    <button
                                                        style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff' })}
-                                                       onClick={() => onReceivePO(po.id)}
+                                                       onClick={() => openReceiptModal(po)}
                                                    >
                                                        <i className="bi bi-box-arrow-in-down" style={{ marginRight: 3 }}></i>Receive
                                                    </button>
@@ -598,9 +709,9 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                    <button
                                                        className="btn btn-sm btn-success text-white py-0 px-2"
                                                        style={{fontSize: '0.75rem'}}
-                                                       onClick={() => onReceivePO(po.id)}
+                                                       onClick={() => openReceiptModal(po)}
                                                    >
-                                                       <i className="bi bi-box-arrow-in-down me-1"></i>Receive
+                                                       <i className="bi bi-box-arrow-in-down me-1"></i>Receive Goods
                                                    </button>
                                                )
                                            )}
@@ -638,11 +749,43 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                        </div>
                                    </td>
                                </tr>
+                               {/* Expanded: receipt history */}
+                               {expandedRows[po.id] && (
+                                   <tr key={`${po.id}-receipts`} style={classic ? { background: '#f0ede4', borderBottom: '1px solid #c0bdb5' } : undefined} className={classic ? '' : 'bg-light'}>
+                                       <td colSpan={7} style={classic ? { padding: '6px 16px 8px 32px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px' } : undefined} className={classic ? '' : 'px-4 py-3'}>
+                                           {(po.receipts || []).length === 0 ? (
+                                               <span style={classic ? { color: '#888', fontStyle: 'italic' } : undefined} className={classic ? '' : 'text-muted fst-italic small'}>No receipts recorded yet.</span>
+                                           ) : (
+                                               <div>
+                                                   <div style={classic ? { fontWeight: 'bold', fontSize: '10px', color: '#444', textTransform: 'uppercase', marginBottom: 4 } : undefined} className={classic ? '' : 'small fw-bold text-muted text-uppercase mb-2'}>Receipt History</div>
+                                                   {(po.receipts || []).map((receipt: any) => (
+                                                       <div key={receipt.id} style={classic ? { background: '#ffffff', border: '1px solid #c0bdb5', padding: '4px 8px', marginBottom: 4 } : undefined} className={classic ? '' : 'card card-body p-2 mb-2 small'}>
+                                                           <div style={classic ? { display: 'flex', justifyContent: 'space-between', marginBottom: 2 } : undefined} className={classic ? '' : 'd-flex justify-content-between mb-1'}>
+                                                               <span style={classic ? { fontWeight: 'bold' } : undefined} className={classic ? '' : 'fw-bold'}>
+                                                                   {new Date(receipt.receipt_date).toLocaleDateString()}
+                                                               </span>
+                                                               {receipt.notes && <span style={classic ? { color: '#666', fontStyle: 'italic' } : undefined} className={classic ? '' : 'text-muted fst-italic'}>{receipt.notes}</span>}
+                                                           </div>
+                                                           <div style={classic ? { display: 'flex', gap: 12, flexWrap: 'wrap' } : undefined} className={classic ? '' : 'd-flex gap-3 flex-wrap'}>
+                                                               {(receipt.lines || []).map((rl: any) => (
+                                                                   <span key={rl.id} style={classic ? { fontSize: '10px', color: '#333' } : undefined} className={classic ? '' : 'text-muted'}>
+                                                                       <span style={classic ? { fontWeight: 'bold' } : undefined} className={classic ? '' : 'fw-semibold text-dark'}>{rl.qty_received}</span> {rl.item_name || getItemName(rl.item_id)}
+                                                                   </span>
+                                                               ))}
+                                                           </div>
+                                                       </div>
+                                                   ))}
+                                               </div>
+                                           )}
+                                       </td>
+                                   </tr>
+                               )}
+                               </>
                            ))}
                            {filteredOrders.length === 0 && (
                                <tr>
                                    <td
-                                       colSpan={6}
+                                       colSpan={7}
                                        style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'center', padding: '24px 8px', color: '#888', fontStyle: 'italic' } : undefined}
                                        className={classic ? '' : 'text-center py-5 text-muted'}
                                    >
@@ -671,7 +814,9 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                }}>
                    <span>{purchaseOrders.length} total</span>
                    <span>|</span>
-                   <span>{purchaseOrders.filter((p: any) => p.status === 'PENDING').length} pending</span>
+                   <span>{purchaseOrders.filter((p: any) => p.status === 'DRAFT').length} draft</span>
+                   <span>|</span>
+                   <span>{purchaseOrders.filter((p: any) => p.status === 'RECEIVING').length} in progress</span>
                    <span>|</span>
                    <span>{purchaseOrders.filter((p: any) => p.status === 'RECEIVED').length} received</span>
                </div>

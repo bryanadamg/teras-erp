@@ -35,6 +35,7 @@ class PurchaseOrder(Base):
     # Relationships
     supplier = relationship("Partner")
     lines = relationship("PurchaseOrderLine", backref="order", cascade="all, delete-orphan")
+    receipts = relationship("GoodsReceipt", backref="po", cascade="all, delete-orphan", foreign_keys="GoodsReceipt.po_id")
 
 class PurchaseOrderLine(Base):
     __tablename__ = "purchase_order_lines"
@@ -49,8 +50,9 @@ class PurchaseOrderLine(Base):
         UUID(as_uuid=True), ForeignKey("items.id"), index=True
     )
     qty: Mapped[float] = mapped_column(Numeric(14, 4))
+    qty_received: Mapped[float] = mapped_column(Numeric(14, 4), default=0, server_default="0")
     unit_price: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
-    
+
     due_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     # Relationships
