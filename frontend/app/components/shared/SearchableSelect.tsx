@@ -30,11 +30,12 @@ export default function SearchableSelect({
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [activeCategory, setActiveCategory] = useState<string | null>(null);
+    const [cachedOption, setCachedOption] = useState<Option | null>(null);
 
     const containerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    const selectedOption = options.find(o => o.value === value);
+    const selectedOption = options.find(o => o.value === value) ?? cachedOption ?? undefined;
     const h = size === 'sm' ? 18 : 20;
 
     useEffect(() => {
@@ -46,6 +47,10 @@ export default function SearchableSelect({
         document.addEventListener('mousedown', onMouseDown);
         return () => document.removeEventListener('mousedown', onMouseDown);
     }, []);
+
+    useEffect(() => {
+        if (!value) setCachedOption(null);
+    }, [value]);
 
     useEffect(() => {
         if (!isOpen) {
@@ -66,6 +71,8 @@ export default function SearchableSelect({
     }, [options, searchTerm, activeCategory]);
 
     const handleSelect = (val: string) => {
+        const opt = options.find(o => o.value === val);
+        if (opt) setCachedOption(opt);
         onChange(val);
         setIsOpen(false);
         setSearchTerm('');
