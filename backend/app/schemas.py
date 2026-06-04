@@ -483,6 +483,7 @@ class ItemCreate(BaseModel):
     weight_per_unit: float | None = None
     weight_unit: str | None = None
     packaging_factor_ids: list[UUID] = []
+    ends: int | None = None
 
 
 class ItemUpdate(BaseModel):
@@ -497,6 +498,7 @@ class ItemUpdate(BaseModel):
     weight_per_unit: float | None = None
     weight_unit: str | None = None
     packaging_factor_ids: list[UUID] | None = None
+    ends: int | None = None
 
 
 class ItemResponse(BaseModel):
@@ -515,6 +517,7 @@ class ItemResponse(BaseModel):
     weight_per_unit: float | None = None
     weight_unit: str | None = None
     packaging_factor_ids: list[UUID] = []
+    ends: int | None = None
 
     class Config:
         from_attributes = True

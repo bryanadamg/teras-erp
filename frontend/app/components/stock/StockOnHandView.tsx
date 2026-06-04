@@ -38,6 +38,7 @@ export default function StockOnHandView({ items, locations, stockBalance, attrib
     const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || '';
     const getItemCode = (id: string) => items.find((i: any) => i.id === id)?.code || '';
     const getItemUom = (id: string) => items.find((i: any) => i.id === id)?.uom || '';
+    const getItemEnds = (id: string) => items.find((i: any) => i.id === id)?.ends ?? null;
     const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
     const getAttrValueName = (valId: string) => {
         for (const attr of attributes) {
@@ -142,6 +143,9 @@ export default function StockOnHandView({ items, locations, stockBalance, attrib
                     <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', color: '#666', whiteSpace: 'nowrap' }}>
                         {getItemUom(bal.item_id) || ''}
                     </td>
+                    <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', color: '#444', whiteSpace: 'nowrap' }}>
+                        {getItemEnds(bal.item_id) != null ? getItemEnds(bal.item_id) : ''}
+                    </td>
                 </tr>
             );
         }
@@ -171,6 +175,7 @@ export default function StockOnHandView({ items, locations, stockBalance, attrib
                 </td>
                 <td className="text-end fw-bold" style={{ color: qtyColor, whiteSpace: 'nowrap' }}>{bal.qty}</td>
                 <td className="text-muted small" style={{ whiteSpace: 'nowrap' }}>{getItemUom(bal.item_id) || ''}</td>
+                <td className="text-end small" style={{ whiteSpace: 'nowrap' }}>{getItemEnds(bal.item_id) != null ? getItemEnds(bal.item_id) : ''}</td>
             </tr>
         );
     };
@@ -215,13 +220,14 @@ export default function StockOnHandView({ items, locations, stockBalance, attrib
                                     <th style={xpTableHeader}>{t('attributes') || 'Attributes'}</th>
                                     <th style={{ ...xpTableHeader, textAlign: 'right' }}>{t('qty') || 'Qty'}</th>
                                     <th style={xpTableHeader}>UOM</th>
+                                    <th style={{ ...xpTableHeader, textAlign: 'right' }}>Ends</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {filtered.map((bal: any, i: number) => renderRow(bal, i))}
                                 {filtered.length === 0 && (
                                     <tr>
-                                        <td colSpan={6} style={{ textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
+                                        <td colSpan={7} style={{ textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
                                             No stock records found
                                         </td>
                                     </tr>
@@ -290,13 +296,14 @@ export default function StockOnHandView({ items, locations, stockBalance, attrib
                                 <th>{t('attributes') || 'Attributes'}</th>
                                 <th className="text-end">{t('qty') || 'Qty'}</th>
                                 <th>UOM</th>
+                                <th className="text-end">Ends</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filtered.map((bal: any, i: number) => renderRow(bal, i))}
                             {filtered.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="text-center text-muted py-4">No stock records found</td>
+                                    <td colSpan={7} className="text-center text-muted py-4">No stock records found</td>
                                 </tr>
                             )}
                         </tbody>

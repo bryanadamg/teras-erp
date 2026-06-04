@@ -20,6 +20,17 @@ from app.models.attribute import AttributeValue
 router = APIRouter()
 
 
+async def _sync_beam_ends(db: AsyncSession, item_id, qty: float) -> None:
+    """If item is in Beam category, write bom.qty → item.ends."""
+    result = await db.execute(
+        select(Item).options(joinedload(Item.category)).filter(Item.id == item_id)
+    )
+    item = result.scalars().first()
+    if item and item.category and item.category.name.lower() == 'beam':
+        item.ends = int(qty)
+        await db.commit()
+
+
 def _validate_line_percentages(lines: list) -> None:
     if not lines:
         return
@@ -176,6 +187,8 @@ async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db
         details=f"Created BOM {refresh_bom.code} for {item.code}",
         changes=payload.model_dump()
     )
+
+    await _sync_beam_ends(db, bom.item_id, bom.qty)
 
     refresh_bom.attribute_value_ids = [v.id for v in refresh_bom.attribute_values]
     for bl in refresh_bom.lines:
@@ -459,6 +472,8 @@ async def update_bom(
         details=f"Updated BOM {updated_bom.code}",
         changes={"lines_before": before_lines, "lines_after": after_lines},
     )
+
+    await _sync_beam_ends(db, updated_bom.item_id, updated_bom.qty)
 
     updated_bom.attribute_value_ids = [v.id for v in updated_bom.attribute_values]
     for bl in updated_bom.lines:

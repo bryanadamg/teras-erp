@@ -251,13 +251,16 @@ export default function InventoryView({
   });
 
   // Creation State
-  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [] as string[], weight_per_unit: '' as string | number, weight_unit: 'g/y', packaging_factor_ids: [] as string[] });
+  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [] as string[], weight_per_unit: '' as string | number, weight_unit: 'g/y', packaging_factor_ids: [] as string[], ends: '' as string | number });
   const [nameManuallyEdited, setNameManuallyEdited] = useState(false);
 
   // Beam item creation state
   const [createBeam, setCreateBeam] = useState(false);
   const [beamName, setBeamName] = useState('');
   const [beamUom, setBeamUom] = useState('');
+  const [beamEnds, setBeamEnds] = useState('');
+
+  const isBeamCategory = !!effectiveFormCategoryId && (categories.find((c: any) => c.id === effectiveFormCategoryId)?.name || '').toLowerCase() === 'beam';
 
   // Editing State
   const [editingItem, setEditingItem] = useState<any>(null);
@@ -381,6 +384,7 @@ export default function InventoryView({
       delete payload.source_sample_code;
       delete payload.source_color_name;
       if (payload.weight_per_unit === '' || payload.weight_per_unit === null) { delete payload.weight_per_unit; delete payload.weight_unit; }
+      if (payload.ends === '' || payload.ends === null) { delete payload.ends; } else { payload.ends = parseInt(payload.ends); }
 
       const res = await onCreateItem(payload);
 
@@ -402,12 +406,14 @@ export default function InventoryView({
       } else if (res && res.ok) {
           if (createBeam && isRawMaterialCategory) {
               const wipCategory = categories.find((c: any) => (c.name || '').toLowerCase().includes('wip') || (c.name || '').toLowerCase().includes('work in progress'));
+              const beamCategory = categories.find((c: any) => (c.name || '').toLowerCase() === 'beam');
               const beamPayload: any = {
                   code: `BEAM-${newItem.code}`,
                   name: beamName || `Beam - ${newItem.name}`,
                   uom: beamUom || newItem.uom,
-                  category_id: wipCategory?.id || effectiveFormCategoryId,
+                  category_id: beamCategory?.id || wipCategory?.id || effectiveFormCategoryId,
                   attribute_ids: [],
+                  ...(beamEnds ? { ends: parseInt(beamEnds) } : {}),
               };
               const beamRes = await onCreateItem(beamPayload);
               if (beamRes && beamRes.ok) {
@@ -418,10 +424,10 @@ export default function InventoryView({
           } else {
               showToast('Item created successfully', 'success');
           }
-          setNewItem({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [], weight_per_unit: '', weight_unit: 'g/y', packaging_factor_ids: [] });
+          setNewItem({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [], weight_per_unit: '', weight_unit: 'g/y', packaging_factor_ids: [], ends: '' });
           setFormCatL1(''); setFormCatL2(''); setFormCatL3('');
           setNameManuallyEdited(false);
-          setCreateBeam(false); setBeamName(''); setBeamUom('');
+          setCreateBeam(false); setBeamName(''); setBeamUom(''); setBeamEnds('');
           setIsCreateOpen(false);
       } else {
           showToast('Failed to create item. See console.', 'danger');
@@ -938,7 +944,7 @@ export default function InventoryView({
                                           </div>
                                       </div>
                                       <div style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '9px', color: '#888' }}>
-                                          Code: BEAM-{newItem.code || '...'} · Category: WIP · BOM defined manually in BOM Designer
+                                          Code: BEAM-{newItem.code || '...'} · Category: Beam (WIP) · BOM defined manually in BOM Designer
                                       </div>
                                   </div>
                               )}
@@ -982,7 +988,7 @@ export default function InventoryView({
                                   </div>
                               )}
                               {createBeam && (
-                                  <small className="text-muted d-block mt-1">Code: BEAM-{newItem.code || '...'} · Category: WIP · BOM defined manually</small>
+                                  <small className="text-muted d-block mt-1">Code: BEAM-{newItem.code || '...'} · Category: Beam (WIP) · BOM defined manually</small>
                               )}
                           </div>
                       )}

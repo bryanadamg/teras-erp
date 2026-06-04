@@ -43,6 +43,7 @@ async def create_item(
     weight_per_unit: float | None = None,
     weight_unit: str | None = None,
     packaging_factor_ids: list[str] = [],
+    ends: int | None = None,
 ) -> Item:
     item = Item(
         code=code,
@@ -53,6 +54,7 @@ async def create_item(
         source_color_id=source_color_id,
         weight_per_unit=weight_per_unit,
         weight_unit=weight_unit,
+        ends=ends,
     )
 
     if attribute_ids:

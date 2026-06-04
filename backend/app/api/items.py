@@ -41,6 +41,7 @@ async def create_item_api(payload: ItemCreate, db: AsyncSession = Depends(get_as
         weight_per_unit=payload.weight_per_unit,
         weight_unit=payload.weight_unit,
         packaging_factor_ids=[str(fid) for fid in payload.packaging_factor_ids],
+        ends=payload.ends,
     )
     
     await audit_service.log_activity(
