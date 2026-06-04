@@ -559,6 +559,8 @@ class StockBalanceResponse(BaseModel):
     item_id: UUID
     item_name: str = ""
     item_code: str = ""
+    item_uom: str = ""
+    item_ends: int | None = None
     attribute_value_ids: list[UUID] = []
     location_id: UUID
     location_name: str = ""

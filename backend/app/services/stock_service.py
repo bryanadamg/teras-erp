@@ -139,6 +139,8 @@ async def get_all_stock_balances(db: AsyncSession, user=None):
             "item_id": r.item_id,
             "item_name": r.item.name if r.item else str(r.item_id),
             "item_code": r.item.code if r.item else str(r.item_id),
+            "item_uom": r.item.uom if r.item else "",
+            "item_ends": r.item.ends if r.item else None,
             "location_id": r.location_id,
             "location_name": r.location.name if r.location else str(r.location_id),
             "attribute_value_ids": [v.id for v in r.attribute_values],

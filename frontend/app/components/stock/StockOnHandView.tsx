@@ -3,7 +3,6 @@ import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 
 interface StockOnHandViewProps {
-    items: any[];
     locations: any[];
     stockBalance: any[];
     attributes: any[];
@@ -12,7 +11,7 @@ interface StockOnHandViewProps {
     apiBase: string;
 }
 
-export default function StockOnHandView({ items, locations, stockBalance, attributes, onRefresh, authFetch, apiBase }: StockOnHandViewProps) {
+export default function StockOnHandView({ locations, stockBalance, attributes, onRefresh, authFetch, apiBase }: StockOnHandViewProps) {
     const { uiStyle } = useTheme();
     const { t } = useLanguage();
     const classic = uiStyle === 'classic';
@@ -35,10 +34,6 @@ export default function StockOnHandView({ items, locations, stockBalance, attrib
         return m;
     }, [batches]);
 
-    const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || '';
-    const getItemCode = (id: string) => items.find((i: any) => i.id === id)?.code || '';
-    const getItemUom = (id: string) => items.find((i: any) => i.id === id)?.uom || '';
-    const getItemEnds = (id: string) => items.find((i: any) => i.id === id)?.ends ?? null;
     const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
     const getAttrValueName = (valId: string) => {
         for (const attr of attributes) {
@@ -54,15 +49,27 @@ export default function StockOnHandView({ items, locations, stockBalance, attrib
             if (locationFilter && bal.location_id !== locationFilter) return false;
             if (itemFilter && bal.item_id !== itemFilter) return false;
             if (!s) return true;
-            const name = getItemName(bal.item_id).toLowerCase();
-            const code = getItemCode(bal.item_id).toLowerCase();
-            const loc = getLocationName(bal.location_id).toLowerCase();
+            const name = (bal.item_name || '').toLowerCase();
+            const code = (bal.item_code || '').toLowerCase();
+            const loc = (bal.location_name || getLocationName(bal.location_id)).toLowerCase();
             const batch = bal.batch_key ? (batchMap[bal.batch_key] || bal.batch_key).toLowerCase() : '';
             return name.includes(s) || code.includes(s) || loc.includes(s) || batch.includes(s);
         });
     }, [stockBalance, search, locationFilter, itemFilter, batchMap]);
 
     const negativeCount = filtered.filter((b: any) => b.qty < 0).length;
+
+    const balanceItems = useMemo(() => {
+        const seen = new Set<string>();
+        const result: { id: string; name: string }[] = [];
+        for (const bal of (stockBalance || [])) {
+            if (!seen.has(bal.item_id)) {
+                seen.add(bal.item_id);
+                result.push({ id: bal.item_id, name: bal.item_name || bal.item_id });
+            }
+        }
+        return result.sort((a, b) => a.name.localeCompare(b.name));
+    }, [stockBalance]);
 
     // ── XP style helpers ─────────────────────────────────────────────────────
     const xpFont = 'Tahoma, "Segoe UI", sans-serif';
@@ -109,11 +116,11 @@ export default function StockOnHandView({ items, locations, stockBalance, attrib
                 <tr key={`${bal.item_id}-${bal.location_id}-${bal.batch_key}-${i}`}
                     style={{ background: i % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' }}>
                     <td style={{ padding: '4px 8px', fontFamily: xpFont }}>
-                        <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#000' }}>{getItemName(bal.item_id)}</div>
-                        <div style={{ fontSize: '10px', color: '#666', fontVariant: 'all-small-caps' }}>{getItemCode(bal.item_id)}</div>
+                        <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#000' }}>{bal.item_name}</div>
+                        <div style={{ fontSize: '10px', color: '#666', fontVariant: 'all-small-caps' }}>{bal.item_code}</div>
                     </td>
                     <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', color: '#000' }}>
-                        {getLocationName(bal.location_id)}
+                        {bal.location_name || getLocationName(bal.location_id)}
                     </td>
                     <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px' }}>
                         {bal.batch_key ? (
@@ -141,10 +148,10 @@ export default function StockOnHandView({ items, locations, stockBalance, attrib
                         {bal.qty}
                     </td>
                     <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', color: '#666', whiteSpace: 'nowrap' }}>
-                        {getItemUom(bal.item_id) || ''}
+                        {bal.item_uom || ''}
                     </td>
                     <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', color: '#444', whiteSpace: 'nowrap' }}>
-                        {getItemEnds(bal.item_id) != null ? getItemEnds(bal.item_id) : ''}
+                        {bal.item_ends != null ? bal.item_ends : ''}
                     </td>
                 </tr>
             );
@@ -153,10 +160,10 @@ export default function StockOnHandView({ items, locations, stockBalance, attrib
         return (
             <tr key={`${bal.item_id}-${bal.location_id}-${bal.batch_key}-${i}`}>
                 <td>
-                    <div className="fw-medium">{getItemName(bal.item_id)}</div>
-                    <small className="text-muted font-monospace">{getItemCode(bal.item_id)}</small>
+                    <div className="fw-medium">{bal.item_name}</div>
+                    <small className="text-muted font-monospace">{bal.item_code}</small>
                 </td>
-                <td>{getLocationName(bal.location_id)}</td>
+                <td>{bal.location_name || getLocationName(bal.location_id)}</td>
                 <td>
                     {bal.batch_key ? (
                         <span className="badge bg-warning text-dark">{batchLabel}</span>
@@ -174,8 +181,8 @@ export default function StockOnHandView({ items, locations, stockBalance, attrib
                     )}
                 </td>
                 <td className="text-end fw-bold" style={{ color: qtyColor, whiteSpace: 'nowrap' }}>{bal.qty}</td>
-                <td className="text-muted small" style={{ whiteSpace: 'nowrap' }}>{getItemUom(bal.item_id) || ''}</td>
-                <td className="text-end small" style={{ whiteSpace: 'nowrap' }}>{getItemEnds(bal.item_id) != null ? getItemEnds(bal.item_id) : ''}</td>
+                <td className="text-muted small" style={{ whiteSpace: 'nowrap' }}>{bal.item_uom || ''}</td>
+                <td className="text-end small" style={{ whiteSpace: 'nowrap' }}>{bal.item_ends != null ? bal.item_ends : ''}</td>
             </tr>
         );
     };
@@ -203,7 +210,7 @@ export default function StockOnHandView({ items, locations, stockBalance, attrib
                         </select>
                         <select style={{ ...xpSelect, width: 180 }} value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
                             <option value="">All Items</option>
-                            {items.map((item: any) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                            {balanceItems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                         </select>
                         <div style={xpSep} />
                         <button style={xpBtn()} onClick={onRefresh} title="Refresh">
@@ -276,7 +283,7 @@ export default function StockOnHandView({ items, locations, stockBalance, attrib
                         <div className="col-md-3">
                             <select className="form-select form-select-sm" value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
                                 <option value="">All Items</option>
-                                {items.map((item: any) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                                {balanceItems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                             </select>
                         </div>
                         <div className="col-md-2">
