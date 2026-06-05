@@ -83,6 +83,7 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
     const [form, setForm] = useState({ sequence: '', name: '', work_center_id: '', planned_duration_hours: '' });
     const [isSaving, setIsSaving] = useState(false);
     const [filterStatus, setFilterStatus] = useState('');
+    const [filterGroup, setFilterGroup] = useState('');
     const [filterWC, setFilterWC] = useState('');
     const [filterMO, setFilterMO] = useState('');
     const [expandedWOId, setExpandedWOId] = useState<string | null>(null);
@@ -120,12 +121,23 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
         return result;
     }, [manufacturingOrders]);
 
+    const groups = useMemo(() => workCenters.filter((wc: any) => !wc.parent_id), [workCenters]);
+    const wcById = useMemo(() => new Map(workCenters.map((wc: any) => [wc.id, wc])), [workCenters]);
+    const filteredWCOptions = useMemo(() =>
+        filterGroup ? workCenters.filter((wc: any) => wc.parent_id === filterGroup) : workCenters,
+        [workCenters, filterGroup]
+    );
+
     const filtered = useMemo(() => flatWOs.filter(wo => {
         if (filterStatus && wo.status !== filterStatus) return false;
+        if (filterGroup) {
+            const wc = wo.work_center_id ? wcById.get(wo.work_center_id) : null;
+            if (!wc || wc.parent_id !== filterGroup) return false;
+        }
         if (filterWC && wo.work_center_id !== filterWC) return false;
         if (filterMO && wo.mo_id !== filterMO) return false;
         return true;
-    }), [flatWOs, filterStatus, filterWC, filterMO]);
+    }), [flatWOs, filterStatus, filterGroup, filterWC, filterMO, wcById]);
 
     useEffect(() => {
         if (!highlightWOId || flatWOs.length === 0) return;
@@ -398,11 +410,17 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                             <option value="">All Statuses</option>
                             {STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
                         </select>
+                        <select value={filterGroup} onChange={e => { setFilterGroup(e.target.value); setFilterWC(''); }}
+                            style={classic ? { ...xpInput, width: 120 } : { width: 140 }}
+                            className={classic ? '' : 'form-select form-select-sm'}>
+                            <option value="">All Groups</option>
+                            {groups.map((wc: any) => <option key={wc.id} value={wc.id}>{wc.name}</option>)}
+                        </select>
                         <select value={filterWC} onChange={e => setFilterWC(e.target.value)}
                             style={classic ? { ...xpInput, width: 130 } : { width: 150 }}
                             className={classic ? '' : 'form-select form-select-sm'}>
                             <option value="">All Work Centers</option>
-                            {workCenters.map((wc: any) => <option key={wc.id} value={wc.id}>{wc.name}</option>)}
+                            {filteredWCOptions.map((wc: any) => <option key={wc.id} value={wc.id}>{wc.name}</option>)}
                         </select>
                         <select value={filterMO} onChange={e => setFilterMO(e.target.value)}
                             style={classic ? { ...xpInput, width: 160 } : { width: 180 }}
@@ -410,8 +428,8 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                             <option value="">All MOs</option>
                             {moOptions.map(mo => <option key={mo.id} value={mo.id}>{mo.label}</option>)}
                         </select>
-                        {(filterStatus || filterWC || filterMO) && (
-                            <button onClick={() => { setFilterStatus(''); setFilterWC(''); setFilterMO(''); }}
+                        {(filterStatus || filterGroup || filterWC || filterMO) && (
+                            <button onClick={() => { setFilterStatus(''); setFilterGroup(''); setFilterWC(''); setFilterMO(''); }}
                                 style={classic ? { ...xpInput, width: 'auto', cursor: 'pointer', height: 20 } : undefined}
                                 className={classic ? '' : 'btn btn-sm btn-outline-secondary'}>
                                 Clear
