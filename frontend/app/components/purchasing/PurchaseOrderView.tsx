@@ -20,6 +20,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
   // Receipt modal state
   const [receiptTarget, setReceiptTarget] = useState<any>(null);
   const [receiptLineQtys, setReceiptLineQtys] = useState<Record<string, number>>({});
+  const [receiptLineBoxes, setReceiptLineBoxes] = useState<Record<string, number | ''>>({});
   const [receiptDate, setReceiptDate] = useState('');
   const [receiptNotes, setReceiptNotes] = useState('');
 
@@ -33,6 +34,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
       defaults[line.id] = remaining;
     }
     setReceiptLineQtys(defaults);
+    setReceiptLineBoxes({});
     setReceiptDate(new Date().toISOString().split('T')[0]);
     setReceiptNotes('');
     setReceiptTarget(po);
@@ -42,7 +44,13 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
     if (!receiptTarget) return;
     const lines = Object.entries(receiptLineQtys)
       .filter(([, qty]) => qty > 0)
-      .map(([po_line_id, qty_received]) => ({ po_line_id, qty_received }));
+      .map(([po_line_id, qty_received]) => ({
+        po_line_id,
+        qty_received,
+        qty_boxes: receiptLineBoxes[po_line_id] !== '' && receiptLineBoxes[po_line_id] !== undefined
+          ? Number(receiptLineBoxes[po_line_id])
+          : null,
+      }));
     if (lines.length === 0) { showToast('Enter qty for at least one line', 'error'); return; }
     onCreateReceipt(receiptTarget.id, { receipt_date: receiptDate || null, notes: receiptNotes || null, lines });
     setReceiptTarget(null);
@@ -508,8 +516,9 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                            <tr style={classic?{background:'linear-gradient(to bottom,#ffffff,#d4d0c8)',borderBottom:'2px solid #808080',fontSize:'10px',fontWeight:'bold'}:undefined} className={classic?'':'table-light'}>
                                <th style={classic?xpThCell:undefined}>Item</th>
                                <th style={classic?{...xpThCell,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>Ordered</th>
-                               <th style={classic?{...xpThCell,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>Received So Far</th>
-                               <th style={classic?{...xpThCell,textAlign:'right' as const,borderRight:'none'}:undefined} className={classic?'':'text-end'}>This Receipt</th>
+                               <th style={classic?{...xpThCell,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>Rcvd So Far</th>
+                               <th style={classic?{...xpThCell,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>This Receipt (kg)</th>
+                               <th style={classic?{...xpThCell,textAlign:'right' as const,borderRight:'none'}:undefined} className={classic?'':'text-end'}>Boxes</th>
                            </tr>
                        </thead>
                        <tbody>
@@ -521,7 +530,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                    </td>
                                    <td style={classic?{...tdBase,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>{line.qty}</td>
                                    <td style={classic?{...tdBase,textAlign:'right' as const}:undefined} className={classic?'':'text-end text-muted'}>{line.qty_received || 0}</td>
-                                   <td style={classic?{...tdBase,borderRight:'none',textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>
+                                   <td style={classic?{...tdBase,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>
                                        <input
                                            type="number"
                                            min="0"
@@ -530,6 +539,18 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                            className={classic?'':'form-control form-control-sm'}
                                            value={receiptLineQtys[line.id] ?? 0}
                                            onChange={e => setReceiptLineQtys(prev => ({ ...prev, [line.id]: parseFloat(e.target.value) || 0 }))}
+                                       />
+                                   </td>
+                                   <td style={classic?{...tdBase,borderRight:'none',textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>
+                                       <input
+                                           type="number"
+                                           min="0"
+                                           step="1"
+                                           placeholder="—"
+                                           style={classic?{...xpInput,width:60,textAlign:'right'}:{width:80,textAlign:'right' as const}}
+                                           className={classic?'':'form-control form-control-sm'}
+                                           value={receiptLineBoxes[line.id] ?? ''}
+                                           onChange={e => setReceiptLineBoxes(prev => ({ ...prev, [line.id]: e.target.value === '' ? '' : parseInt(e.target.value) || 0 }))}
                                        />
                                    </td>
                                </tr>
@@ -771,7 +792,9 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                            <div style={classic ? { display: 'flex', gap: 12, flexWrap: 'wrap' } : undefined} className={classic ? '' : 'd-flex gap-3 flex-wrap'}>
                                                                {(receipt.lines || []).map((rl: any) => (
                                                                    <span key={rl.id} style={classic ? { fontSize: '10px', color: '#333' } : undefined} className={classic ? '' : 'text-muted'}>
-                                                                       <span style={classic ? { fontWeight: 'bold' } : undefined} className={classic ? '' : 'fw-semibold text-dark'}>{rl.qty_received}</span> {rl.item_name || getItemName(rl.item_id)}
+                                                                       <span style={classic ? { fontWeight: 'bold' } : undefined} className={classic ? '' : 'fw-semibold text-dark'}>{rl.qty_received} kg</span>
+                                                                       {rl.qty_boxes != null && <span style={classic?{color:'#555',marginLeft:3}:undefined} className={classic?'':'text-muted'}> / {rl.qty_boxes} box{rl.qty_boxes !== 1 ? 'es' : ''}</span>}
+                                                                       {' '}{rl.item_name || getItemName(rl.item_id)}
                                                                    </span>
                                                                ))}
                                                            </div>

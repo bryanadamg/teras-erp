@@ -109,6 +109,7 @@ async def create_goods_receipt(
             po_line_id=po_line.id,
             item_id=po_line.item_id,
             qty_received=rl.qty_received,
+            qty_boxes=rl.qty_boxes,
             batch_id=rl.batch_id,
         )
         db.add(gr_line)

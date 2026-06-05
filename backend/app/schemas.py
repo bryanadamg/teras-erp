@@ -693,6 +693,7 @@ class PurchaseOrderCreate(BaseModel):
 class GoodsReceiptLineCreate(BaseModel):
     po_line_id: UUID
     qty_received: float
+    qty_boxes: int | None = None
     batch_id: UUID | None = None
 
 class GoodsReceiptCreate(BaseModel):
@@ -707,6 +708,7 @@ class GoodsReceiptLineResponse(BaseModel):
     item_name: str | None = None
     item_code: str | None = None
     qty_received: float
+    qty_boxes: int | None = None
     batch_id: UUID | None = None
     class Config:
         from_attributes = True
