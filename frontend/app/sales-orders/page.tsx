@@ -85,12 +85,16 @@ export default function SalesOrdersPage() {
                 continue;
             }
 
+            const bomItem = items.find((it: any) => it.id === matchingBOM!.item_id);
+            const useKg = (bomItem?.uom || '').toLowerCase() === 'kg';
+            const pickQty = (l: any) => useKg ? (parseFloat(l.qty_kg) || 0) : (parseFloat(l.qty) || 0);
+
             const linesWithSize = groupLines.filter((l: any) => !!l.bom_size_id);
 
             if (linesWithSize.length > 0) {
                 const uncoveredSizes = linesWithSize
                     .filter((l: any) => !coveredSizeIds.has(String(l.bom_size_id)))
-                    .map((l: any) => ({ bom_size_id: l.bom_size_id, qty: parseFloat(l.qty) || 0 }));
+                    .map((l: any) => ({ bom_size_id: l.bom_size_id, qty: pickQty(l) }));
                 if (uncoveredSizes.length > 0) {
                     entries.push({
                         bom_id: matchingBOM.id,
@@ -109,7 +113,7 @@ export default function SalesOrdersPage() {
                     });
                 });
                 if (!covered) {
-                    const totalQty = groupLines.reduce((acc: number, l: any) => acc + (parseFloat(l.qty) || 0), 0);
+                    const totalQty = groupLines.reduce((acc: number, l: any) => acc + pickQty(l), 0);
                     entries.push({
                         bom_id: matchingBOM.id,
                         total_qty: totalQty,

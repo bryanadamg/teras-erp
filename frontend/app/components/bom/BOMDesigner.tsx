@@ -538,7 +538,7 @@ export default function BOMDesigner({
         if (!item && node.isNewItem) {
             const res = await onCreateItem({
                 code: node.item_code, name: node.item_code,
-                uom: rootItem?.uom || 'pcs', category: 'WIP',
+                uom: rootItem?.uom || 'kg', category: 'WIP',
                 attribute_ids: rootItem?.attribute_ids || []
             });
             if (res.status === 400) {
@@ -551,7 +551,7 @@ export default function BOMDesigner({
             if (line.isNewItem && !line.subBOM) {
                 await onCreateItem({
                     code: line.item_code, name: line.item_code,
-                    uom: rootItem?.uom || 'pcs', category: 'WIP',
+                    uom: rootItem?.uom || 'kg', category: 'WIP',
                     attribute_ids: rootItem?.attribute_ids || []
                 });
             }

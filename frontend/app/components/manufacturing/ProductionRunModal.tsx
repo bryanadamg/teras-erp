@@ -96,6 +96,7 @@ function BomEntryRow({
     const sizes = selectedBom?.sizes || [];
 
     const item = selectedBom ? items.find((it: any) => it.id === selectedBom.item_id) : null;
+    const itemUom: string = item?.uom || '';
     const itemAttrIds: string[] = item?.attribute_ids?.map(String) || [];
     const bomAttrIds: string[] = selectedBom?.attribute_value_ids || [];
     const freeAttributes = !selectedBom ? [] : attributes.filter((attr: any) => {
@@ -161,7 +162,9 @@ function BomEntryRow({
 
             {selectedBom && sizes.length > 0 && (
                 <div>
-                    <label style={{ ...xpLabel, fontWeight: 'bold', marginBottom: 4 }}>Qty per Size</label>
+                    <label style={{ ...xpLabel, fontWeight: 'bold', marginBottom: 4 }}>
+                        Qty per Size{itemUom ? <span style={{ fontWeight: 'normal', marginLeft: 4, fontSize: 10, background: '#dde8f5', border: '1px solid #7f9db9', padding: '0 4px', color: '#336' }}>{itemUom}</span> : null}
+                    </label>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 4 }}>
                         {sizes.map((s: any) => (
                             <div key={s.id}>
@@ -187,6 +190,9 @@ function BomEntryRow({
                         value={entry.totalQty}
                         onChange={e => onChange({ ...entry, totalQty: e.target.value })}
                     />
+                    {itemUom && (
+                        <span style={{ fontSize: 10, fontFamily: xpFont, background: '#dde8f5', border: '1px solid #7f9db9', padding: '1px 5px', color: '#336' }}>{itemUom}</span>
+                    )}
                 </div>
             )}
         </div>
