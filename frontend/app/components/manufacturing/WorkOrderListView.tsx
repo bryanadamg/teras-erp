@@ -7,6 +7,7 @@ import { useData } from '../../context/DataContext';
 import { useToast } from '../shared/Toast';
 import WOCompletionModal from './WOCompletionModal';
 import WOStepPrintModal from './WOStepPrintModal';
+import WOBulkPrintModal from './WOBulkPrintModal';
 import { getChipStyle } from './WorkOrderPanel';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -80,6 +81,8 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
     const [completionWO, setCompletionWO] = useState<any>(null);
     const [printWO, setPrintWO] = useState<FlatWO | null>(null);
     const [printMO, setPrintMO] = useState<any>(null);
+    const [selectedWOIds, setSelectedWOIds] = useState<Set<string>>(new Set());
+    const [bulkPrintOpen, setBulkPrintOpen] = useState(false);
     const [form, setForm] = useState({ sequence: '', name: '', work_center_id: '', planned_duration_hours: '' });
     const [isSaving, setIsSaving] = useState(false);
     const [filterStatus, setFilterStatus] = useState('');
@@ -214,7 +217,17 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
         [manufacturingOrders]
     );
 
-    const COLS = 13; // chevron + 11 data cols + actions
+    const allFilteredSelected = filtered.length > 0 && filtered.every(wo => selectedWOIds.has(wo.id));
+    const someSelected = filtered.some(wo => selectedWOIds.has(wo.id));
+    const toggleSelectAll = () => {
+        if (allFilteredSelected) {
+            setSelectedWOIds(prev => { const n = new Set(prev); filtered.forEach(wo => n.delete(wo.id)); return n; });
+        } else {
+            setSelectedWOIds(prev => { const n = new Set(prev); filtered.forEach(wo => n.add(wo.id)); return n; });
+        }
+    };
+
+    const COLS = 14; // checkbox + chevron + 11 data cols + actions
 
     const renderDetailPanel = (wo: FlatWO) => {
         const parentMO = manufacturingOrders.find(m => m.id === wo.mo_id);
@@ -399,6 +412,16 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                         <span style={{ fontSize: classic ? 10 : 11, color: classic ? '#cce0ff' : '#888', marginLeft: 4 }}>
                             {filtered.length} of {flatWOs.length} steps
                         </span>
+                        {selectedWOIds.size > 0 && (
+                            <button
+                                onClick={() => setBulkPrintOpen(true)}
+                                style={classic ? { fontFamily: 'Tahoma', fontSize: 10, padding: '1px 8px', background: 'linear-gradient(to bottom,#b0e8b0,#70c870)', border: '1px solid #0a3e0a', cursor: 'pointer', color: '#004000', marginLeft: 8 } : undefined}
+                                className={classic ? '' : 'btn btn-sm btn-success ms-2'}
+                            >
+                                {classic ? '' : <i className="bi bi-printer me-1" />}
+                                Print Selected ({selectedWOIds.size})
+                            </button>
+                        )}
                     </div>
 
                     {/* Filter bar */}
@@ -445,6 +468,16 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                         >
                             <thead>
                                 <tr className={classic ? '' : 'table-light'}>
+                                    <th style={{ ...thStyle, width: 24, padding: '3px 6px' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={allFilteredSelected}
+                                            ref={el => { if (el) el.indeterminate = someSelected && !allFilteredSelected; }}
+                                            onChange={toggleSelectAll}
+                                            title="Select all filtered"
+                                            style={{ cursor: 'pointer' }}
+                                        />
+                                    </th>
                                     <th style={{ ...thStyle, width: 20, padding: '3px 4px' }} className={classic ? '' : 'ps-3'} />
                                     {['#', 'Name', 'MO', 'Product', 'Work Center', 'Planned', 'Actual', 'Target / Done', 'Start', 'End', 'Status', ''].map(h => (
                                         <th key={h} style={{ ...thStyle, textAlign: h === '' ? 'right' : 'left' }}
@@ -469,6 +502,7 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                                         return (
                                             <tr key={wo.id} style={{ background: classic ? '#fffbe6' : undefined }}
                                                 className={classic ? '' : 'table-warning'}>
+                                                <td style={{ ...tdBase, padding: '3px 6px' }} />
                                                 <td style={tdBase} />
                                                 <td style={tdBase} className={classic ? '' : 'ps-3'}>
                                                     <input style={{ ...xpInput, width: 32 }} value={form.sequence}
@@ -525,6 +559,20 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                                                 }}
                                                 onClick={() => setExpandedWOId(prev => prev === wo.id ? null : wo.id)}
                                             >
+                                                <td style={{ ...tdBase, padding: '3px 6px', width: 24 }} onClick={e => e.stopPropagation()}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedWOIds.has(wo.id)}
+                                                        onChange={e => {
+                                                            setSelectedWOIds(prev => {
+                                                                const n = new Set(prev);
+                                                                e.target.checked ? n.add(wo.id) : n.delete(wo.id);
+                                                                return n;
+                                                            });
+                                                        }}
+                                                        style={{ cursor: 'pointer' }}
+                                                    />
+                                                </td>
                                                 <td style={{ ...tdBase, padding: '3px 4px', textAlign: 'center', width: 20 }} className={classic ? '' : 'ps-2'}>
                                                     <span style={{ fontSize: 10, color: '#555', lineHeight: 1 }}>
                                                         {isExpanded ? '▼' : '►'}
@@ -672,6 +720,13 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                 workOrder={printWO}
                 parentMO={printMO}
                 onClose={() => { setPrintWO(null); setPrintMO(null); }}
+            />
+        )}
+        {bulkPrintOpen && (
+            <WOBulkPrintModal
+                selectedWOs={flatWOs.filter(wo => selectedWOIds.has(wo.id))}
+                manufacturingOrders={manufacturingOrders}
+                onClose={() => setBulkPrintOpen(false)}
             />
         )}
         </>

@@ -842,6 +842,32 @@ body {
     width: 100% !important;
   }
 
+  /* WO bulk print — hide everything except the bulk portal */
+  body.wo-bulk-print-active > *:not(.wo-bulk-print-portal) {
+    display: none !important;
+  }
+  body.wo-bulk-print-active .wo-bulk-print-portal {
+    display: block !important;
+    width: 100% !important;
+  }
+  @page {
+    size: A4 portrait;
+    margin: 8mm;
+  }
+  .wo-bulk-page-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 4mm;
+    break-after: page;
+    page-break-after: always;
+    height: calc(297mm - 16mm);
+  }
+  .wo-bulk-page-group:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
   /* BOM print preview modal — hide everything except the paper portal */
   body.bom-print-preview-active > *:not(.bom-print-paper-portal) {
     display: none !important;
