@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import WorkOrderListView from '../components/manufacturing/WorkOrderListView';
 import { useData } from '../context/DataContext';
 
@@ -11,6 +11,8 @@ export default function WorkOrdersPage() {
         workCenters,
         fetchData, authFetch,
     } = useData();
+
+    useEffect(() => { fetchData('work-orders'); }, []);
 
     // Include shared component MOs (is_shared_component=true) that are filtered out of
     // the root manufacturingOrders list but appear under productionRuns.

@@ -78,7 +78,7 @@ export default function BeamPlanningModal({ mo, machines, centerLabel = 'Beaming
                 setError(body.detail || 'Failed to create work orders');
                 return;
             }
-            fetchData();
+            await fetchData('work-orders');
             onClose();
         } finally {
             setIsSaving(false);

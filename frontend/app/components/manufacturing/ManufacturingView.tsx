@@ -99,6 +99,7 @@ export default function ManufacturingView({
   
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [expandedPRs, setExpandedPRs] = useState<Record<string, boolean>>({});
+  const [expandedDetailTabs, setExpandedDetailTabs] = useState<Record<string, 'bom' | 'steps'>>({});
   const [prMaterialReqs, setPrMaterialReqs] = useState<Record<string, any[]>>({});
   const [prMaterialReqsLoading, setPrMaterialReqsLoading] = useState<Record<string, boolean>>({});
   const [selectedTreeNodes, setSelectedTreeNodes] = useState<Record<string, string>>({});
@@ -643,8 +644,7 @@ export default function ManufacturingView({
   };
 
   // --- Work Order Expanded Panel (Tree + Detail) ---
-  const WOExpandedPanel = ({ wo }: { wo: any }) => {
-      const [detailTab, setDetailTab] = useState<'bom' | 'steps'>('bom');
+  const WOExpandedPanel = ({ wo, detailTab, setDetailTab }: { wo: any; detailTab: 'bom' | 'steps'; setDetailTab: (t: 'bom' | 'steps') => void }) => {
       const selectedNodeId = selectedTreeNodes[wo.id] ?? wo.id;
 
       // Build a map of all MOs in the same PR so required component MOs appear in the tree
@@ -1935,7 +1935,11 @@ export default function ManufacturingView({
                                               {isExpanded && (
                                                   <tr key={`${wo.id}-detail`}>
                                                       <td colSpan={7} className="p-0 border-0">
-                                                          <WOExpandedPanel wo={wo} />
+                                                          <WOExpandedPanel
+                                                              wo={wo}
+                                                              detailTab={expandedDetailTabs[wo.id] || 'bom'}
+                                                              setDetailTab={(t) => setExpandedDetailTabs(prev => ({ ...prev, [wo.id]: t }))}
+                                                          />
                                                       </td>
                                                   </tr>
                                               )}
