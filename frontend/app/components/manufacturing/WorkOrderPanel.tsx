@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useMemo } from 'react';
 import WOStepPrintModal from './WOStepPrintModal';
+import BeamPlanningModal from './BeamPlanningModal';
 import { useToast } from '../shared/Toast';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
@@ -80,6 +81,12 @@ export default function WorkOrderPanel({
     const [isSaving, setIsSaving] = useState(false);
     const [printWO, setPrintWO] = useState<WO | null>(null);
     const [overAssignWarning, setOverAssignWarning] = useState<{ totalAssigned: number; moQty: number } | null>(null);
+    const [beamPlanOpen, setBeamPlanOpen] = useState(false);
+
+    const beamingMachines = useMemo(() =>
+        workCenters.filter((wc: any) => wc.parent_id && (wc.center_type || '').toUpperCase() === 'BEAMING'),
+        [workCenters]
+    );
 
     const locationList = locations || [];
 
@@ -214,17 +221,32 @@ export default function WorkOrderPanel({
                     Work Orders
                 </span>
                 {!addingRow && !editId && (
-                    <button
-                        onClick={() => { setAddingRow(true); setEditId(null); }}
-                        style={{
-                            fontFamily: xpFont, fontSize: 10, padding: '1px 10px',
-                            background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-                            border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-                            cursor: 'pointer',
-                        }}
-                    >
-                        + Add Work Order
-                    </button>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                        <button
+                            onClick={() => { setAddingRow(true); setEditId(null); }}
+                            style={{
+                                fontFamily: xpFont, fontSize: 10, padding: '1px 10px',
+                                background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
+                                border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
+                                cursor: 'pointer',
+                            }}
+                        >
+                            + Add Work Order
+                        </button>
+                        {beamingMachines.length > 0 && (
+                            <button
+                                onClick={() => setBeamPlanOpen(true)}
+                                style={{
+                                    fontFamily: xpFont, fontSize: 10, padding: '1px 10px',
+                                    background: 'linear-gradient(to bottom, #b0d0f8, #4a90d0)',
+                                    border: '1px solid', borderColor: '#dfdfdf #003080 #003080 #dfdfdf',
+                                    cursor: 'pointer', color: 'white', fontWeight: 'bold',
+                                }}
+                            >
+                                Plan Beaming
+                            </button>
+                        )}
+                    </div>
                 )}
             </div>
 
@@ -667,6 +689,20 @@ export default function WorkOrderPanel({
                     workOrder={printWO}
                     parentMO={parentMO}
                     onClose={() => setPrintWO(null)}
+                />
+            )}
+
+            {beamPlanOpen && parentMO && (
+                <BeamPlanningModal
+                    mo={{
+                        id: parentMO.id,
+                        code: parentMO.code,
+                        qty: parentMO.qty,
+                        item_name: parentMO.item_name,
+                        uom: parentMO.uom,
+                    }}
+                    machines={beamingMachines.map((wc: any) => ({ id: wc.id, name: wc.name }))}
+                    onClose={() => setBeamPlanOpen(false)}
                 />
             )}
         </div>

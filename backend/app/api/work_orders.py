@@ -348,6 +348,150 @@ async def update_work_order_status(
     )
     return result.scalars().first()
 
+@router.post("/work-orders/bulk", response_model=list[WorkOrderResponse])
+async def create_work_orders_bulk(
+    payloads: list[WorkOrderCreate],
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not payloads:
+        return []
+
+    mo_id = payloads[0].manufacturing_order_id
+    if any(p.manufacturing_order_id != mo_id for p in payloads):
+        raise HTTPException(status_code=400, detail="All items must share the same manufacturing_order_id")
+
+    mo_result = await db.execute(
+        select(ManufacturingOrder)
+        .options(
+            selectinload(ManufacturingOrder.attribute_values),
+            selectinload(ManufacturingOrder.planned_components),
+        )
+        .filter(ManufacturingOrder.id == mo_id)
+    )
+    mo = mo_result.scalars().first()
+    if not mo:
+        raise HTTPException(status_code=404, detail="Manufacturing Order not found")
+
+    count_result = await db.execute(
+        select(func.count()).select_from(WorkOrder)
+        .where(WorkOrder.manufacturing_order_id == mo_id)
+    )
+    existing_count = count_result.scalar() or 0
+
+    wc_ids = {p.work_center_id for p in payloads if p.work_center_id}
+    wc_cache: dict = {}
+    if wc_ids:
+        wc_result = await db.execute(select(WorkCenter).filter(WorkCenter.id.in_(wc_ids)))
+        for wc_row in wc_result.scalars().all():
+            wc_cache[wc_row.id] = wc_row
+
+    created_wos = []
+    for i, payload in enumerate(payloads):
+        seq_num = existing_count + i + 1
+        wo_code = f"{mo.code}-WO-{seq_num:02d}"
+        wc = wc_cache.get(payload.work_center_id) if payload.work_center_id else None
+
+        planned_recipe_id = None
+        if wc and wc.center_type == "DYEING":
+            mo_attr_ids = {av.id for av in mo.attribute_values}
+            if not mo_attr_ids:
+                raise HTTPException(status_code=422, detail="MO has no attributes — cannot match a dyeing recipe")
+            matched = await _find_matching_dye_recipe(db, mo_attr_ids)
+            if not matched:
+                raise HTTPException(status_code=422, detail="No active dyeing recipe found matching this MO's attribute combination")
+            planned_recipe_id = matched.id
+
+        name = payload.name or (wc.name if wc else wo_code)
+        sequence = payload.sequence if payload.sequence and payload.sequence > 1 else seq_num
+
+        input_location_id = payload.input_location_id
+        output_location_id = payload.output_location_id
+        if wc:
+            if input_location_id is None:
+                input_location_id = wc.input_location_id
+            if output_location_id is None:
+                output_location_id = wc.output_location_id
+
+        wo = WorkOrder(
+            manufacturing_order_id=mo_id,
+            sequence=sequence,
+            code=wo_code,
+            name=name,
+            work_center_id=payload.work_center_id,
+            planned_recipe_id=planned_recipe_id,
+            input_location_id=input_location_id,
+            output_location_id=output_location_id,
+            qty=payload.qty,
+            planned_duration_hours=payload.planned_duration_hours,
+            notes=payload.notes,
+            target_start_date=payload.target_start_date,
+            target_end_date=payload.target_end_date,
+            status="PENDING",
+        )
+        db.add(wo)
+        await db.flush()
+
+        if planned_recipe_id:
+            db.add(DyeingRun(
+                work_order_id=wo.id,
+                recipe_id=planned_recipe_id,
+                run_number=1,
+                substrate_qty=wo.qty or 0,
+                status="PENDING",
+            ))
+        created_wos.append(wo)
+
+    # Auto-start MO once if still PENDING (use first payload's work_center for stock check)
+    if mo.status == "PENDING" and payloads[0].work_center_id:
+        ops_result = await db.execute(
+            select(BOMOperation.id).where(BOMOperation.work_center_id == payloads[0].work_center_id)
+        )
+        op_ids = {row[0] for row in ops_result.fetchall()}
+        relevant_comps = [
+            c for c in mo.planned_components
+            if c.bom_operation_id and c.bom_operation_id in op_ids
+        ]
+        for comp in relevant_comps:
+            if not comp.percentage:
+                continue
+            req = (float(mo.qty) * float(comp.percentage)) / 100
+            check_loc_id = comp.source_location_id or mo.source_location_id or mo.location_id
+            stock = await stock_service.get_stock_balance(
+                db, comp.item_id, check_loc_id,
+                [uuid.UUID(s) for s in comp.attribute_value_ids]
+            )
+            if stock < req:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Insufficient stock for component {comp.item_id} — cannot start MO"
+                )
+        mo.status = "IN_PROGRESS"
+        mo.actual_start_date = datetime.utcnow()
+
+    await db.commit()
+
+    wo_ids = [wo.id for wo in created_wos]
+    result = await db.execute(
+        select(WorkOrder).options(*_wo_options())
+        .filter(WorkOrder.id.in_(wo_ids))
+        .order_by(WorkOrder.sequence)
+    )
+    wos = result.scalars().all()
+
+    await audit_service.log_activity(
+        db, user_id=current_user.id, action="CREATE",
+        entity_type="WORK_ORDER", entity_id=str(mo_id),
+        details=f"Bulk created {len(wos)} Work Orders for MO '{mo.code}'",
+        changes={"count": len(wos), "mo_id": str(mo_id)}
+    )
+    await manager.broadcast({"type": "WORK_ORDER_UPDATE", "mo_id": str(mo_id), "bulk": True})
+    if mo.status == "IN_PROGRESS":
+        await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": str(mo.id), "status": "IN_PROGRESS", "code": mo.code})
+
+    return list(wos)
+
+
 @router.delete("/work-orders/{wo_id}")
 async def delete_work_order(
     wo_id: str,
