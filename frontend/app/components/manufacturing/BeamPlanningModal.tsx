@@ -13,6 +13,7 @@ interface BeamRow {
     work_center_id: string;
     qty: string;
     notes: string;
+    repeat: string;
 }
 
 interface Props {
@@ -24,7 +25,7 @@ interface Props {
 
 let _rowId = 0;
 function makeRow(defaultWcId = ''): BeamRow {
-    return { localId: `beam-${++_rowId}`, work_center_id: defaultWcId, qty: '', notes: '' };
+    return { localId: `beam-${++_rowId}`, work_center_id: defaultWcId, qty: '', notes: '', repeat: '1' };
 }
 
 export default function BeamPlanningModal({ mo, machines, centerLabel = 'Beaming', onClose }: Props) {
@@ -37,14 +38,15 @@ export default function BeamPlanningModal({ mo, machines, centerLabel = 'Beaming
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    const moQty = Number(mo.qty) || 0;
+    const validRows = useMemo(() => rows.filter(r => parseFloat(r.qty) > 0), [rows]);
+    const totalWoCount = useMemo(() => validRows.reduce((s, r) => s + Math.max(1, parseInt(r.repeat) || 1), 0), [validRows]);
     const totalAssigned = useMemo(
-        () => rows.reduce((s, r) => s + (parseFloat(r.qty) || 0), 0),
+        () => rows.reduce((s, r) => s + (parseFloat(r.qty) || 0) * Math.max(1, parseInt(r.repeat) || 1), 0),
         [rows]
     );
-    const moQty = Number(mo.qty) || 0;
     const isOver = moQty > 0 && totalAssigned > moQty + 0.001;
     const isUnder = moQty > 0 && totalAssigned < moQty - 0.001;
-    const validRows = rows.filter(r => parseFloat(r.qty) > 0);
 
     const addRow = () => setRows(prev => [...prev, makeRow(defaultWcId)]);
     const removeRow = (id: string) => setRows(prev => prev.filter(r => r.localId !== id));
@@ -56,13 +58,16 @@ export default function BeamPlanningModal({ mo, machines, centerLabel = 'Beaming
         setIsSaving(true);
         setError(null);
         try {
-            const payloads = validRows.map(r => ({
-                manufacturing_order_id: mo.id,
-                work_center_id: r.work_center_id || undefined,
-                qty: parseFloat(r.qty),
-                notes: r.notes || undefined,
-                sequence: 1,
-            }));
+            const payloads = validRows.flatMap(r => {
+                const count = Math.max(1, parseInt(r.repeat) || 1);
+                return Array.from({ length: count }, () => ({
+                    manufacturing_order_id: mo.id,
+                    work_center_id: r.work_center_id || undefined,
+                    qty: parseFloat(r.qty),
+                    notes: r.notes || undefined,
+                    sequence: 1,
+                }));
+            });
             const res = await authFetch(`${API_BASE}/work-orders/bulk`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -141,7 +146,8 @@ export default function BeamPlanningModal({ mo, machines, centerLabel = 'Beaming
                             <tr>
                                 <th style={thStyle('#')}>{'#'}</th>
                                 {machines.length > 1 && <th style={thStyle('Machine')}>Machine</th>}
-                                <th style={{ ...thStyle('Qty'), width: 100 }}>Qty</th>
+                                <th style={{ ...thStyle('Qty'), width: 90 }}>Qty / Beam</th>
+                                <th style={{ ...thStyle('Repeat'), width: 56 }}>Repeat</th>
                                 <th style={thStyle('Notes / Beam ID')}>Notes / Beam ID</th>
                                 <th style={{ ...thStyle(''), width: 26 }}></th>
                             </tr>
@@ -164,7 +170,7 @@ export default function BeamPlanningModal({ mo, machines, centerLabel = 'Beaming
                                             </select>
                                         </td>
                                     )}
-                                    <td style={tdStyle({ width: 100 })}>
+                                    <td style={tdStyle({ width: 90 })}>
                                         <input
                                             type="number" min="0" step="any"
                                             style={{ ...xpInput, width: '100%', background: parseFloat(row.qty) > 0 ? 'white' : '#fffff8' }}
@@ -172,6 +178,14 @@ export default function BeamPlanningModal({ mo, machines, centerLabel = 'Beaming
                                             placeholder="qty..."
                                             onChange={e => update(row.localId, 'qty', e.target.value)}
                                             autoFocus={idx === 0}
+                                        />
+                                    </td>
+                                    <td style={tdStyle({ width: 56 })}>
+                                        <input
+                                            type="number" min="1" step="1"
+                                            style={{ ...xpInput, width: '100%', textAlign: 'center' }}
+                                            value={row.repeat}
+                                            onChange={e => update(row.localId, 'repeat', e.target.value)}
                                         />
                                     </td>
                                     <td style={tdStyle({})}>
@@ -214,7 +228,7 @@ export default function BeamPlanningModal({ mo, machines, centerLabel = 'Beaming
                         <span style={{ fontWeight: 'bold' }}>{moQty > 0 ? moQty : '—'}</span>
                         <span style={{ color: '#c0bdb5' }}>|</span>
                         <span style={{ color: '#555' }}>Beams:</span>
-                        <span style={{ fontWeight: 'bold' }}>{validRows.length}</span>
+                        <span style={{ fontWeight: 'bold' }}>{totalWoCount}</span>
                         {isOver && <span style={{ color: '#c85000', marginLeft: 'auto', fontStyle: 'italic' }}>Over-assigned</span>}
                         {isUnder && <span style={{ color: '#886600', marginLeft: 'auto', fontStyle: 'italic' }}>Partial — unassigned qty remains on MO</span>}
                         {!isOver && !isUnder && moQty > 0 && <span style={{ color: '#2e7d32', marginLeft: 'auto' }}>Fully assigned</span>}
@@ -249,7 +263,7 @@ export default function BeamPlanningModal({ mo, machines, centerLabel = 'Beaming
                     padding: '6px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 }}>
                     <span style={{ fontSize: 10, color: '#555' }}>
-                        Will create <strong>{validRows.length}</strong> Work Order{validRows.length !== 1 ? 's' : ''} under <strong>{mo.code}</strong>
+                        Will create <strong>{totalWoCount}</strong> Work Order{totalWoCount !== 1 ? 's' : ''} under <strong>{mo.code}</strong>
                     </span>
                     <div style={{ display: 'flex', gap: 6 }}>
                         <button
@@ -265,18 +279,18 @@ export default function BeamPlanningModal({ mo, machines, centerLabel = 'Beaming
                         </button>
                         <button
                             onClick={handleCreate}
-                            disabled={isSaving || validRows.length === 0}
+                            disabled={isSaving || totalWoCount === 0}
                             style={{
                                 fontFamily: xpFont, fontSize: 11, padding: '2px 14px', fontWeight: 'bold',
-                                background: isSaving || validRows.length === 0
+                                background: isSaving || totalWoCount === 0
                                     ? 'linear-gradient(to bottom, #d0d0c8, #b8b8b0)'
                                     : 'linear-gradient(to bottom, #b0e8b0, #70c870)',
                                 border: '1px solid', borderColor: '#dfdfdf #0a3e0a #0a3e0a #dfdfdf',
-                                cursor: isSaving || validRows.length === 0 ? 'not-allowed' : 'pointer',
+                                cursor: isSaving || totalWoCount === 0 ? 'not-allowed' : 'pointer',
                                 color: '#004000',
                             }}
                         >
-                            {isSaving ? '...' : `Create ${validRows.length} Beam WO${validRows.length !== 1 ? 's' : ''}`}
+                            {isSaving ? '...' : `Create ${totalWoCount} Beam WO${totalWoCount !== 1 ? 's' : ''}`}
                         </button>
                     </div>
                 </div>
