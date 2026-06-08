@@ -46,6 +46,19 @@ const xpStatusBar: React.CSSProperties = {
 
 const emptyWC = { code: '', name: '', cost_per_hour: 0, center_type: 'GENERAL', input_location_id: '', output_location_id: '', parent_id: '' };
 
+function getWcTypeChip(t?: string): React.CSSProperties {
+    switch ((t || '').toUpperCase()) {
+        case 'BEAMING':  return { background: '#fce8ff', color: '#660088', border: '1px solid #dda8f0' };
+        case 'WARPING':  return { background: '#fff3cc', color: '#664400', border: '1px solid #f0d888' };
+        case 'WEAVING':  return { background: '#e8d8ff', color: '#440099', border: '1px solid #c4a8ee' };
+        case 'DYEING':   return { background: '#cce4ff', color: '#003d80', border: '1px solid #99c4ee' };
+        case 'SETTING':  return { background: '#ffeacc', color: '#7a3d00', border: '1px solid #e8c488' };
+        case 'FINISHING':return { background: '#d4f0d4', color: '#005500', border: '1px solid #99cc99' };
+        case 'CUTTING':  return { background: '#fff0cc', color: '#886600', border: '1px solid #ddcc88' };
+        default:         return { background: '#e8e8e8', color: '#444',    border: '1px solid #ccc' };
+    }
+}
+
 function XPPanel({ icon, title, accentColor, createForm, searchVal, onSearch, searchPlaceholder, countLabel, table }: any) {
     return (
         <div style={{ ...xpBevel, height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -175,8 +188,13 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                                   <label style={xpLabel}>Type</label>
                                   <select style={{ ...xpInput, width: 90 }} value={editingWC.center_type} onChange={e => setEditingWC({ ...editingWC, center_type: e.target.value })}>
                                       <option value="GENERAL">GENERAL</option>
+                                      <option value="BEAMING">BEAMING</option>
+                                      <option value="WARPING">WARPING</option>
+                                      <option value="WEAVING">WEAVING</option>
                                       <option value="DYEING">DYEING</option>
                                       <option value="SETTING">SETTING</option>
+                                      <option value="FINISHING">FINISHING</option>
+                                      <option value="CUTTING">CUTTING</option>
                                   </select>
                               </div>
                               <div>
@@ -228,8 +246,13 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                           <div className="col-2">
                               <select className="form-select form-select-sm" value={editingWC.center_type} onChange={e => setEditingWC({ ...editingWC, center_type: e.target.value })}>
                                   <option value="GENERAL">GENERAL</option>
+                                  <option value="BEAMING">BEAMING</option>
+                                  <option value="WARPING">WARPING</option>
+                                  <option value="WEAVING">WEAVING</option>
                                   <option value="DYEING">DYEING</option>
                                   <option value="SETTING">SETTING</option>
+                                  <option value="FINISHING">FINISHING</option>
+                                  <option value="CUTTING">CUTTING</option>
                               </select>
                           </div>
                           <div className="col-3">
@@ -294,8 +317,13 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                                       <label style={xpLabel}>Type</label>
                                       <select style={{ ...xpInput, width: 90 }} value={newWorkCenter.center_type} onChange={e => setNewWorkCenter({ ...newWorkCenter, center_type: e.target.value })}>
                                           <option value="GENERAL">GENERAL</option>
+                                          <option value="BEAMING">BEAMING</option>
+                                          <option value="WARPING">WARPING</option>
+                                          <option value="WEAVING">WEAVING</option>
                                           <option value="DYEING">DYEING</option>
                                           <option value="SETTING">SETTING</option>
+                                          <option value="FINISHING">FINISHING</option>
+                                          <option value="CUTTING">CUTTING</option>
                                       </select>
                                   </div>
                                   <div>
@@ -356,7 +384,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                                                   </td>
                                                   <td style={{ padding: '4px 8px', paddingLeft: indent ? 20 : 8, fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#000', fontStyle: isGroup ? 'italic' : 'normal' }}>{wc.name}</td>
                                                   <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px' }}>
-                                                      {!isGroup && <span style={{ padding: '1px 5px', borderRadius: 2, background: wc.center_type === 'DYEING' ? '#cce4ff' : wc.center_type === 'SETTING' ? '#ffeacc' : '#e8e8e8', color: wc.center_type === 'DYEING' ? '#003d80' : wc.center_type === 'SETTING' ? '#7a3d00' : '#444' }}>{wc.center_type || 'GENERAL'}</span>}
+                                                      <span style={{ padding: '1px 5px', borderRadius: 2, ...getWcTypeChip(wc.center_type) }}>{wc.center_type || 'GENERAL'}</span>
                                                   </td>
                                                   <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#444' }}>{!isGroup ? getLocName(wc.input_location_id) : ''}</td>
                                                   <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#444' }}>{!isGroup ? getLocName(wc.output_location_id) : ''}</td>
@@ -461,8 +489,13 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                                   <label className="form-label small">Type</label>
                                   <select className="form-select form-select-sm" value={newWorkCenter.center_type} onChange={e => setNewWorkCenter({ ...newWorkCenter, center_type: e.target.value })}>
                                       <option value="GENERAL">GENERAL</option>
+                                      <option value="BEAMING">BEAMING</option>
+                                      <option value="WARPING">WARPING</option>
+                                      <option value="WEAVING">WEAVING</option>
                                       <option value="DYEING">DYEING</option>
                                       <option value="SETTING">SETTING</option>
+                                      <option value="FINISHING">FINISHING</option>
+                                      <option value="CUTTING">CUTTING</option>
                                   </select>
                               </div>
                               <div className="col-3">
@@ -522,7 +555,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                                                       {wc.code}
                                                   </td>
                                                   <td style={{ fontStyle: isGroup ? 'italic' : 'normal', paddingLeft: indent ? '2rem' : undefined }}>{wc.name}</td>
-                                                  <td>{!isGroup && <span className={`badge ${wc.center_type === 'DYEING' ? 'bg-primary' : wc.center_type === 'SETTING' ? 'bg-warning text-dark' : 'bg-secondary'}`} style={{ fontSize: 10 }}>{wc.center_type || 'GENERAL'}</span>}</td>
+                                                  <td><span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 3, ...getWcTypeChip(wc.center_type) }}>{wc.center_type || 'GENERAL'}</span></td>
                                                   <td className="small text-muted">{!isGroup ? getLocName(wc.input_location_id) : ''}</td>
                                                   <td className="small text-muted">{!isGroup ? getLocName(wc.output_location_id) : ''}</td>
                                                   <td>

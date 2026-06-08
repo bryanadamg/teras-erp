@@ -41,6 +41,7 @@ def update_work_center(wc_id: str, payload: WorkCenterCreate, db: Session = Depe
     existing = db.query(WorkCenter).filter(WorkCenter.code == payload.code, WorkCenter.id != wc_id).first()
     if existing:
         raise HTTPException(status_code=400, detail="Work Center Code already exists")
+    type_changed = wc.center_type != payload.center_type
     wc.code = payload.code
     wc.name = payload.name
     wc.description = payload.description
@@ -49,6 +50,9 @@ def update_work_center(wc_id: str, payload: WorkCenterCreate, db: Session = Depe
     wc.input_location_id = payload.input_location_id
     wc.output_location_id = payload.output_location_id
     wc.parent_id = payload.parent_id
+    # Cascade center_type to children when group type changes
+    if type_changed and not payload.parent_id:
+        db.query(WorkCenter).filter(WorkCenter.parent_id == wc.id).update({"center_type": payload.center_type})
     db.commit()
     db.refresh(wc)
     return wc
