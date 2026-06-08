@@ -7,6 +7,7 @@ from app.db.session import get_async_db
 from app.models.manufacturing import ManufacturingOrder, MOCompletion, MODependency, MOCompletionItem, MOPlannedComponent
 from app.models.work_order import WorkOrder as WorkOrderModel
 from app.models.bom import BOM, BOMLine, BOMSize, BOMOperation
+from app.models.routing import Operation as OperationModel
 from app.models.location import Location
 from app.models.sales import SalesOrder
 from app.services import stock_service, audit_service
@@ -43,7 +44,8 @@ def get_mo_options():
         selectinload(ManufacturingOrder.required_dependencies),
         selectinload(ManufacturingOrder.bom).selectinload(BOM.item),
         selectinload(ManufacturingOrder.bom).selectinload(BOM.attribute_values),
-        selectinload(ManufacturingOrder.bom).selectinload(BOM.operations),
+        selectinload(ManufacturingOrder.bom).selectinload(BOM.operations).joinedload(BOMOperation.operation),
+        selectinload(ManufacturingOrder.bom).selectinload(BOM.operations).joinedload(BOMOperation.work_center),
         selectinload(ManufacturingOrder.bom).selectinload(BOM.lines).selectinload(BOMLine.item),
         selectinload(ManufacturingOrder.bom).selectinload(BOM.lines).selectinload(BOMLine.attribute_values),
         selectinload(ManufacturingOrder.bom).selectinload(BOM.customer),
@@ -62,7 +64,8 @@ def get_mo_options():
     child_bom = child_rel.selectinload(ManufacturingOrder.bom)
     options.append(child_bom.selectinload(BOM.item))
     options.append(child_bom.selectinload(BOM.attribute_values))
-    options.append(child_bom.selectinload(BOM.operations))
+    options.append(child_bom.selectinload(BOM.operations).joinedload(BOMOperation.operation))
+    options.append(child_bom.selectinload(BOM.operations).joinedload(BOMOperation.work_center))
     options.append(child_bom.selectinload(BOM.lines).selectinload(BOMLine.item))
     options.append(child_bom.selectinload(BOM.lines).selectinload(BOMLine.attribute_values))
     options.append(child_bom.selectinload(BOM.customer))
@@ -76,7 +79,8 @@ def get_mo_options():
     gchild_bom = gchild_rel.selectinload(ManufacturingOrder.bom)
     options.append(gchild_bom.selectinload(BOM.item))
     options.append(gchild_bom.selectinload(BOM.attribute_values))
-    options.append(gchild_bom.selectinload(BOM.operations))
+    options.append(gchild_bom.selectinload(BOM.operations).joinedload(BOMOperation.operation))
+    options.append(gchild_bom.selectinload(BOM.operations).joinedload(BOMOperation.work_center))
     options.append(gchild_bom.selectinload(BOM.lines).selectinload(BOMLine.item))
     options.append(gchild_bom.selectinload(BOM.lines).selectinload(BOMLine.attribute_values))
     options.append(gchild_bom.selectinload(BOM.customer))
@@ -196,7 +200,8 @@ async def load_mo_tree(db: AsyncSession, root_ids: list) -> dict:
             selectinload(ManufacturingOrder.work_orders).selectinload(WorkOrderModel.completions),
             selectinload(ManufacturingOrder.bom).selectinload(BOM.item),
             selectinload(ManufacturingOrder.bom).selectinload(BOM.attribute_values),
-            selectinload(ManufacturingOrder.bom).selectinload(BOM.operations),
+            selectinload(ManufacturingOrder.bom).selectinload(BOM.operations).joinedload(BOMOperation.operation),
+            selectinload(ManufacturingOrder.bom).selectinload(BOM.operations).joinedload(BOMOperation.work_center),
             selectinload(ManufacturingOrder.bom).selectinload(BOM.lines).selectinload(BOMLine.item),
             selectinload(ManufacturingOrder.bom).selectinload(BOM.lines).selectinload(BOMLine.attribute_values),
             selectinload(ManufacturingOrder.bom).selectinload(BOM.sizes).selectinload(BOMSize.size),

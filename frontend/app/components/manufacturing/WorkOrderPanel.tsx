@@ -87,10 +87,18 @@ export default function WorkOrderPanel({
     const [overAssignWarning, setOverAssignWarning] = useState<{ totalAssigned: number; moQty: number } | null>(null);
     const [beamPlanOpen, setBeamPlanOpen] = useState(false);
 
-    const beamingMachines = useMemo(() =>
-        workCenters.filter((wc: any) => wc.parent_id && (wc.center_type || '').toUpperCase() === 'BEAMING'),
-        [workCenters]
-    );
+    // Work center group assigned to this MO's BOM
+    const bomWcGroup = useMemo(() => {
+        const wcId = parentMO?.bom?.work_center_id;
+        if (!wcId) return null;
+        return workCenters.find((wc: any) => String(wc.id) === String(wcId)) ?? null;
+    }, [parentMO, workCenters]);
+
+    // BEAMING machines = children of the BOM's WC group, when that group is BEAMING type
+    const beamingMachines = useMemo(() => {
+        if (!bomWcGroup || (bomWcGroup.center_type || '').toUpperCase() !== 'BEAMING') return [];
+        return workCenters.filter((wc: any) => wc.parent_id && String(wc.parent_id) === String(bomWcGroup.id));
+    }, [workCenters, bomWcGroup]);
 
     const locationList = locations || [];
 

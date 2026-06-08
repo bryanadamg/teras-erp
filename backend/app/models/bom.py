@@ -166,6 +166,7 @@ class BOMOperation(Base):
     time_minutes: Mapped[float] = mapped_column(Numeric(10, 2), default=0.0) # Estimated time
 
     work_center = relationship("WorkCenter", foreign_keys=[work_center_id])
+    operation = relationship("Operation", foreign_keys=[operation_id])
 
 
 class BOMSize(Base):

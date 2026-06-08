@@ -106,9 +106,20 @@ class BOMOperationResponse(BaseModel):
     work_center_id: Optional[UUID] = None
     sequence: int
     time_minutes: float
+    operation_name: Optional[str] = None
+    work_center_type: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+    @classmethod
+    def model_validate(cls, obj, **kwargs):
+        instance = super().model_validate(obj, **kwargs)
+        if hasattr(obj, 'operation') and obj.operation:
+            instance.operation_name = obj.operation.name
+        if hasattr(obj, 'work_center') and obj.work_center:
+            instance.work_center_type = obj.work_center.center_type
+        return instance
 
 class BOMCreate(BaseModel):
     code: str
