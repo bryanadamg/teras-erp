@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import CalendarView from '../shared/CalendarView';
-import { STATUS_COLORS } from '../../lib/xpTheme';
+import { STATUS_COLORS } from '../shared/xpTheme';
 
 // ── XP style helpers ─────────────────────────────────────────────────────────
 const xpBevel = (extra: React.CSSProperties = {}): React.CSSProperties => ({

@@ -9,7 +9,7 @@ import WOCompletionModal from './WOCompletionModal';
 import WOStepPrintModal from './WOStepPrintModal';
 import WOBulkPrintModal from './WOBulkPrintModal';
 import { getChipStyle } from './WorkOrderPanel';
-import { STATUS_COLORS, statusChipStyle, XPEmptyState } from '../../lib/xpTheme';
+import { STATUS_COLORS, statusChipStyle, XPEmptyState } from '../shared/xpTheme';
 
 const STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
 

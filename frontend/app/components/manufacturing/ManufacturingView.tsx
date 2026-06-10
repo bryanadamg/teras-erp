@@ -16,7 +16,7 @@ import ProductionRunModal from './ProductionRunModal';
 import WorkOrderPanel from './WorkOrderPanel';
 import WOCompletionModal from './WOCompletionModal';
 import MOCreationPreview from './MOCreationPreview';
-import { STATUS_COLORS, statusChipStyle } from '../../lib/xpTheme';
+import { STATUS_COLORS, statusChipStyle } from '../shared/xpTheme';
 
 export default function ManufacturingView({
     items,

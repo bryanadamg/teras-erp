@@ -10,7 +10,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useTheme } from '../../context/ThemeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import PixelAvatar from './PixelAvatar';
-import { XPLoading } from '../../lib/xpTheme';
+import { XPLoading } from './xpTheme';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
     const { currentUser, logout, loading, hasPermission } = useUser();

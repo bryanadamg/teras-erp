@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import WOStepPrintModal from './WOStepPrintModal';
 import BeamPlanningModal from './BeamPlanningModal';
 import { useToast } from '../shared/Toast';
-import { STATUS_COLORS as STATUS_BORDER } from '../../lib/xpTheme';
+import { STATUS_COLORS as STATUS_BORDER } from '../shared/xpTheme';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {

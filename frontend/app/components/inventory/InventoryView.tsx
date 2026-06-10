@@ -8,7 +8,7 @@ import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { XPEmptyState } from '../../lib/xpTheme';
+import { XPEmptyState } from '../shared/xpTheme';
 
 // XP-style category badge colours derived from category name
 function getCategoryXPStyle(category: string): { bg: string; border: string; color: string } {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import { STATUS_COLORS } from '../../lib/xpTheme';
+import { STATUS_COLORS } from '../shared/xpTheme';
 
 interface MobileScannerViewProps {
     manufacturingOrders: any[];

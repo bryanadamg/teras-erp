@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useUser } from '../context/UserContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 import PixelAvatar from '../components/shared/PixelAvatar';
-import { XPLoading } from '../lib/xpTheme';
+import { XPLoading } from '../components/shared/xpTheme';
 
 export default function LoginPage() {
     const { currentUser, login, loading } = useUser();
