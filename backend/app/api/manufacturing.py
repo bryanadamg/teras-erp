@@ -7,7 +7,7 @@ from app.db.session import get_async_db
 from app.models.manufacturing import ManufacturingOrder, MOCompletion, MODependency, MOCompletionItem, MOPlannedComponent
 from app.models.work_order import WorkOrder as WorkOrderModel
 from app.models.bom import BOM, BOMLine, BOMSize, BOMOperation
-from app.models.routing import Operation as OperationModel
+from app.models.routing import Operation as OperationModel, WorkCenter
 from app.models.location import Location
 from app.models.sales import SalesOrder
 from app.services import stock_service, audit_service
@@ -679,6 +679,13 @@ async def add_mo_completion(
     is_beam_output = bool(
         mo.item and mo.item.category and (mo.item.category.name or "").lower() == "beam"
     )
+    # Beaming WOs can live on the produced item's MO (Plan Beaming flow) —
+    # a completion on a BEAMING-type work center is also a beam birth.
+    if not is_beam_output and wo and wo.work_center_id:
+        wc_res = await db.execute(
+            select(WorkCenter.center_type).filter(WorkCenter.id == wo.work_center_id)
+        )
+        is_beam_output = (wc_res.scalar() or "").upper() == "BEAMING"
     output_batch = None
     if is_beam_output and wo_output_loc:
         beam_no = (payload.beam_number or "").strip()
