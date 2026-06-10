@@ -5,6 +5,7 @@ from sqlalchemy.orm import selectinload
 from app.db.session import get_async_db
 from app.models.batch import Batch, BatchConsumption
 from app.models.item import Item
+from app.models.stock_balance import StockBalance
 from app.schemas import BatchCreate, BatchResponse, BatchTraceResponse, BatchConsumptionResponse
 from app.api.auth import get_current_user
 from app.models.auth import User
@@ -66,6 +67,7 @@ async def create_batch(
 @router.get("", response_model=list[BatchResponse])
 async def list_batches(
     item_id: uuid.UUID | None = Query(None),
+    location_id: uuid.UUID | None = Query(None),
     skip: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_async_db),
@@ -75,7 +77,24 @@ async def list_batches(
     if item_id:
         query = query.filter(Batch.item_id == item_id)
     result = await db.execute(query.offset(skip).limit(limit))
-    return result.scalars().all()
+    batches = result.scalars().all()
+
+    # Attach remaining stock per batch (optionally scoped to a location)
+    keys = [str(b.id) for b in batches]
+    remaining_map: dict[str, float] = {}
+    if keys:
+        bal_q = (
+            select(StockBalance.batch_key, func.sum(StockBalance.qty))
+            .filter(StockBalance.batch_key.in_(keys))
+            .group_by(StockBalance.batch_key)
+        )
+        if location_id:
+            bal_q = bal_q.filter(StockBalance.location_id == location_id)
+        bal_res = await db.execute(bal_q)
+        remaining_map = {k: float(v or 0) for k, v in bal_res.all()}
+    for b in batches:
+        b.remaining = remaining_map.get(str(b.id), 0.0)
+    return batches
 
 
 @router.get("/{batch_id}", response_model=BatchResponse)

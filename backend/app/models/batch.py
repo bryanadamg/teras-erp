@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, Text, ForeignKey, DateTime, Numeric, func
+from sqlalchemy import String, Text, ForeignKey, DateTime, Numeric, Integer, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
@@ -14,6 +14,11 @@ class Batch(Base):
     batch_number: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     item_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("items.id"), index=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Beam fields: set when the batch represents a physical warp beam
+    ends: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    source_wo_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("work_orders.id", ondelete="SET NULL"), nullable=True
+    )
     created_by: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

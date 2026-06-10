@@ -12,6 +12,9 @@ interface Batch {
   notes: string | null;
   created_by: string | null;
   created_at: string;
+  ends: number | null;
+  source_wo_id: string | null;
+  remaining: number | null;
 }
 
 interface BatchConsumption {
@@ -225,6 +228,8 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                 <th style={xpTh}>Batch Number</th>
                 <th style={xpTh}>Item Code</th>
                 <th style={xpTh}>Item Name</th>
+                <th style={{ ...xpTh, textAlign: 'right' }}>Remaining</th>
+                <th style={{ ...xpTh, textAlign: 'right' }}>Ends</th>
                 <th style={xpTh}>Notes</th>
                 <th style={xpTh}>Created By</th>
                 <th style={xpTh}>Created At</th>
@@ -233,16 +238,18 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={7} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>Loading...</td></tr>
+                <tr><td colSpan={9} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>Loading...</td></tr>
               )}
               {!loading && filtered.length === 0 && (
-                <tr><td colSpan={7} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>No batches found.</td></tr>
+                <tr><td colSpan={9} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>No batches found.</td></tr>
               )}
               {filtered.map((b, i) => (
                 <tr key={b.id}>
                   <td style={xpTd(i % 2 === 1)}><strong>{b.batch_number}</strong></td>
                   <td style={xpTd(i % 2 === 1)}>{itemMap[b.item_id]?.code || b.item_id}</td>
                   <td style={xpTd(i % 2 === 1)}>{itemMap[b.item_id]?.name || '-'}</td>
+                  <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right' }}>{b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}</td>
+                  <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right' }}>{b.ends ?? '-'}</td>
                   <td style={xpTd(i % 2 === 1)}>{b.notes || '-'}</td>
                   <td style={xpTd(i % 2 === 1)}>{b.created_by || '-'}</td>
                   <td style={xpTd(i % 2 === 1)}>{new Date(b.created_at).toLocaleDateString()}</td>
@@ -267,6 +274,8 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                 <th>Batch Number</th>
                 <th>Item Code</th>
                 <th>Item Name</th>
+                <th className="text-end">Remaining</th>
+                <th className="text-end">Ends</th>
                 <th>Notes</th>
                 <th>Created By</th>
                 <th>Created At</th>
@@ -274,13 +283,15 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
               </tr>
             </thead>
             <tbody>
-              {loading && <tr><td colSpan={7} className="text-center">Loading...</td></tr>}
-              {!loading && filtered.length === 0 && <tr><td colSpan={7} className="text-center text-muted">No batches found.</td></tr>}
+              {loading && <tr><td colSpan={9} className="text-center">Loading...</td></tr>}
+              {!loading && filtered.length === 0 && <tr><td colSpan={9} className="text-center text-muted">No batches found.</td></tr>}
               {filtered.map(b => (
                 <tr key={b.id}>
                   <td><strong>{b.batch_number}</strong></td>
                   <td>{itemMap[b.item_id]?.code || b.item_id}</td>
                   <td>{itemMap[b.item_id]?.name || '-'}</td>
+                  <td className="text-end">{b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}</td>
+                  <td className="text-end">{b.ends ?? '-'}</td>
                   <td>{b.notes || '-'}</td>
                   <td>{b.created_by || '-'}</td>
                   <td>{new Date(b.created_at).toLocaleDateString()}</td>

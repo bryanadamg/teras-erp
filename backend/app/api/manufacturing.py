@@ -23,7 +23,7 @@ from app.models.attribute import AttributeValue
 from app.models.auth import User
 from app.api.auth import get_current_user
 from app.models.item import Item
-from app.models.batch import BatchConsumption
+from app.models.batch import Batch, BatchConsumption
 from datetime import datetime
 from typing import Optional
 from app.core.ws_manager import manager
@@ -668,6 +668,43 @@ async def add_mo_completion(
     if mo.status == "PENDING":
         raise HTTPException(status_code=400, detail="MO must be started before logging completions")
 
+    # --- Beam handling ---
+    # Beam birth: an MO producing a Beam-category item registers each completion
+    # as a physical beam batch. Batch stock rows always use variant_key="" — the
+    # batch itself is the identity, so attrs are intentionally not stamped.
+    wo_input_loc = wo.input_location_id if wo else None
+    wo_output_loc = wo.output_location_id if wo else None
+
+    is_beam_output = bool(
+        mo.item and mo.item.category and (mo.item.category.name or "").lower() == "beam"
+    )
+    output_batch = None
+    if is_beam_output and wo_output_loc:
+        beam_no = (payload.beam_number or "").strip()
+        if not beam_no:
+            raise HTTPException(status_code=400, detail="Beam number is required when completing a beam item")
+        dup = await db.execute(select(Batch.id).filter(Batch.batch_number == beam_no).limit(1))
+        if dup.scalars().first():
+            raise HTTPException(status_code=400, detail=f"Beam number '{beam_no}' already exists")
+        output_batch = Batch(
+            batch_number=beam_no,
+            item_id=mo.item_id,
+            ends=mo.item.ends,
+            source_wo_id=wo.id if wo else None,
+            created_by=current_user.username,
+        )
+        db.add(output_batch)
+        await db.flush()
+
+    # Beam consumption: deduct the matching input line from the selected beam batch
+    beam_batch = None
+    beam_consumed = 0.0
+    if payload.beam_batch_id:
+        res = await db.execute(select(Batch).filter(Batch.id == payload.beam_batch_id))
+        beam_batch = res.scalars().first()
+        if not beam_batch:
+            raise HTTPException(status_code=404, detail="Beam batch not found")
+
     # Create completion record
     completion = MOCompletion(
         mo_id=mo.id,
@@ -694,12 +731,10 @@ async def add_mo_completion(
         ))
 
     # Stock movement driven by WO locations only — no MO-level fallback
-    wo_input_loc = wo.input_location_id if wo else None
-    wo_output_loc = wo.output_location_id if wo else None
-
     if wo_input_loc:
         if payload.actual_items:
             for ai in payload.actual_items:
+                use_beam = beam_batch is not None and str(ai.item_id) == str(beam_batch.item_id)
                 await stock_service.add_stock_entry(
                     db,
                     item_id=ai.item_id,
@@ -708,13 +743,17 @@ async def add_mo_completion(
                     reference_type="Manufacturing Order",
                     reference_id=mo.code,
                     attribute_value_ids=[],
+                    batch_id=beam_batch.id if use_beam else None,
                 )
+                if use_beam:
+                    beam_consumed += float(ai.qty_used)
         elif mo.planned_components:
             for comp in mo.planned_components:
                 if not comp.percentage:
                     continue
                 deduct_loc_id = comp.source_location_id or wo_input_loc
                 req = (float(payload.qty_completed) * float(comp.percentage)) / 100
+                use_beam = beam_batch is not None and str(comp.item_id) == str(beam_batch.item_id)
                 await stock_service.add_stock_entry(
                     db,
                     item_id=comp.item_id,
@@ -722,8 +761,25 @@ async def add_mo_completion(
                     qty_change=-req,
                     reference_type="Manufacturing Order",
                     reference_id=mo.code,
-                    attribute_value_ids=[uuid.UUID(s) for s in comp.attribute_value_ids],
+                    # beam batch rows carry no variant attrs — batch is the identity
+                    attribute_value_ids=[] if use_beam else [uuid.UUID(s) for s in comp.attribute_value_ids],
+                    batch_id=beam_batch.id if use_beam else None,
                 )
+                if use_beam:
+                    beam_consumed += req
+
+    if beam_batch is not None:
+        if beam_consumed <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Beam batch selected but no beam consumption recorded — check WO input location and material lines",
+            )
+        db.add(BatchConsumption(
+            manufacturing_order_id=mo.id,
+            input_batch_id=beam_batch.id,
+            output_batch_id=output_batch.id if output_batch else None,
+            qty_consumed=beam_consumed,
+        ))
 
     if wo_output_loc:
         await stock_service.add_stock_entry(
@@ -733,7 +789,9 @@ async def add_mo_completion(
             qty_change=float(payload.qty_completed),
             reference_type="Manufacturing Order",
             reference_id=mo.code,
-            attribute_value_ids=[v.id for v in mo.attribute_values],
+            # beam batch rows carry no variant attrs — batch is the identity
+            attribute_value_ids=[] if output_batch else [v.id for v in mo.attribute_values],
+            batch_id=output_batch.id if output_batch else None,
         )
 
     # Sum all completions to check for auto-complete

@@ -260,6 +260,8 @@ class MOCompletionCreate(BaseModel):
     work_center_id: UUID | None = None
     work_order_id: UUID | None = None
     actual_items: list[MOCompletionItemCreate] = []
+    beam_number: str | None = None      # BEAMING output: creates a beam batch with this number
+    beam_batch_id: UUID | None = None   # WEAVING input: beam batch to consume from
 
 class MOCompletionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -1229,6 +1231,9 @@ class BatchResponse(BaseModel):
     notes: Optional[str] = None
     created_by: Optional[str] = None
     created_at: datetime
+    ends: Optional[int] = None
+    source_wo_id: Optional[UUID] = None
+    remaining: Optional[float] = None  # stock balance for this batch (populated by list endpoint)
 
     class Config:
         from_attributes = True

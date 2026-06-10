@@ -66,6 +66,27 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
     const [materialRows, setMaterialRows] = useState<MaterialRow[]>([]);
     const [submitting, setSubmitting] = useState(false);
     const [subPickerIdx, setSubPickerIdx] = useState<number | null>(null);
+    const [beamNumber, setBeamNumber] = useState('');
+    const [beamBatchId, setBeamBatchId] = useState('');
+    const [beamBatches, setBeamBatches] = useState<any[]>([]);
+
+    const isBeamItem = (itemId: string) => {
+        const it = (items || []).find((i: any) => i.id === itemId);
+        return (it?.category_path || []).some((p: string) => (p || '').toLowerCase() === 'beam');
+    };
+    // Beam output: this WO produces a physical beam — beam number required
+    const isBeamOutput = !!workOrder && (isBeamItem(mo.item_id) || (mo.item_code || '').startsWith('BEAM-'));
+    // Beam input: a BOM line consumes a beam item — operator picks which beam
+    const beamComponentItemId = workOrder ? (materialRows.find(r => isBeamItem(r.item_id))?.item_id || '') : '';
+
+    useEffect(() => {
+        if (!beamComponentItemId) { setBeamBatches([]); setBeamBatchId(''); return; }
+        const loc = workOrder?.input_location_id;
+        authFetch(`${API_BASE}/batches?item_id=${beamComponentItemId}${loc ? `&location_id=${loc}` : ''}&limit=200`)
+            .then((r: Response) => (r.ok ? r.json() : []))
+            .then((data: any[]) => setBeamBatches((data || []).filter((b: any) => (b.remaining ?? 0) > 0)))
+            .catch(() => setBeamBatches([]));
+    }, [beamComponentItemId, workOrder?.id]);
 
     // Build material rows from BOM lines when in WO mode
     useEffect(() => {
@@ -124,6 +145,14 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                     return;
                 }
             }
+            if (isBeamOutput && !beamNumber.trim()) {
+                showToast('Enter the beam number for this beam', 'danger');
+                return;
+            }
+            if (beamComponentItemId && beamBatches.length > 0 && !beamBatchId) {
+                showToast('Select the beam to consume from', 'danger');
+                return;
+            }
         } else {
             for (const ai of actualItems) {
                 if (!ai.item_id || !ai.qty_used || parseFloat(ai.qty_used) <= 0) {
@@ -151,6 +180,8 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                     work_center_id: workCenterId || null,
                     work_order_id: workOrder?.id || null,
                     actual_items: woActualItems,
+                    beam_number: isBeamOutput ? beamNumber.trim() : null,
+                    beam_batch_id: beamBatchId || null,
                 }),
             });
             if (!res.ok) {
@@ -245,6 +276,44 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                     required
                                 />
                             </div>
+                            {isBeamOutput && (
+                                <div>
+                                    <label style={{ ...xpLabel, fontWeight: 'bold' }}>Beam No.</label>
+                                    <input
+                                        type="text"
+                                        style={xpInput}
+                                        value={beamNumber}
+                                        onChange={e => setBeamNumber(e.target.value)}
+                                        placeholder="e.g. A-01 (unique per physical beam)"
+                                        required
+                                    />
+                                    <div style={{ fontSize: 9, color: '#888', marginTop: 2 }}>
+                                        Registers this beam as a stock batch with the produced kg.
+                                    </div>
+                                </div>
+                            )}
+                            {workOrder && beamComponentItemId && (
+                                <div>
+                                    <label style={{ ...xpLabel, fontWeight: 'bold' }}>Beam to Consume</label>
+                                    <select
+                                        style={{ ...xpInput, height: 22 }}
+                                        value={beamBatchId}
+                                        onChange={e => setBeamBatchId(e.target.value)}
+                                    >
+                                        <option value="">— select beam —</option>
+                                        {beamBatches.map((b: any) => (
+                                            <option key={b.id} value={b.id}>
+                                                {b.batch_number} — {Number(b.remaining ?? 0).toFixed(2)} kg remaining{b.ends ? `, ${b.ends} ends` : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {beamBatches.length === 0 && (
+                                        <div style={{ fontSize: 9, color: '#900', marginTop: 2 }}>
+                                            No beam batches with stock at the WO input location — consumption will not be tracked per beam.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                             <div style={{ display: 'flex', gap: 8 }}>
                                 <div style={{ flex: 1 }}>
                                     <label style={xpLabel}>Operator</label>

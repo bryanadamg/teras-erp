@@ -90,6 +90,9 @@ export default function MobileScannerView({
     const [error, setError]                     = useState<string | null>(null);
     const [subPickerIdx, setSubPickerIdx]       = useState<number | null>(null);
     const [subQuery, setSubQuery]               = useState('');
+    const [beamNumber, setBeamNumber]           = useState('');
+    const [beamBatchId, setBeamBatchId]         = useState('');
+    const [beamBatches, setBeamBatches]         = useState<any[]>([]);
 
     const scannerRef = useRef<Html5QrcodeScanner | null>(null);
     const terminalId = useRef(Math.random().toString(36).substr(2, 6).toUpperCase());
@@ -105,6 +108,25 @@ export default function MobileScannerView({
     const woTarget = scannedWO?.qty ?? 0;
     const woDone   = scannedWO?.qty_completed_total ?? 0;
     const woPct    = woTarget > 0 ? Math.min(100, Math.round((woDone / woTarget) * 100)) : 0;
+
+    const isBeamItem = (itemId: string) => {
+        const it = (items || []).find((i: any) => i.id === itemId);
+        return (it?.category_path || []).some((p: string) => (p || '').toLowerCase() === 'beam');
+    };
+    // Beam output: this WO produces a physical beam — beam number required
+    const isBeamOutput = !!scannedWO && !!scannedWOParentMO
+        && (isBeamItem(scannedWOParentMO.item_id) || (scannedWOParentMO.item_code || '').startsWith('BEAM-'));
+    // Beam input: a BOM line consumes a beam item — operator picks which beam
+    const beamComponentItemId = scannedWO ? (materialRows.find(r => isBeamItem(r.item_id))?.item_id || '') : '';
+
+    useEffect(() => {
+        if (!beamComponentItemId) { setBeamBatches([]); setBeamBatchId(''); return; }
+        const loc = scannedWO?.input_location_id;
+        authFetch(`${API_BASE}/batches?item_id=${beamComponentItemId}${loc ? `&location_id=${loc}` : ''}&limit=200`)
+            .then((r: Response) => (r.ok ? r.json() : []))
+            .then((data: any[]) => setBeamBatches((data || []).filter((b: any) => (b.remaining ?? 0) > 0)))
+            .catch(() => setBeamBatches([]));
+    }, [beamComponentItemId, scannedWOId]);
 
     // Scanner lifecycle — active when no WO selected
     useEffect(() => {
@@ -163,6 +185,8 @@ export default function MobileScannerView({
         setLogError('');
         setSubPickerIdx(null);
         setSubQuery('');
+        setBeamNumber('');
+        setBeamBatchId('');
     }, [scannedWOId]);
 
     // Recalculate planned actuals when output qty changes
@@ -197,6 +221,14 @@ export default function MobileScannerView({
                 return;
             }
         }
+        if (isBeamOutput && !beamNumber.trim()) {
+            setLogError('Masukkan nomor beam');
+            return;
+        }
+        if (beamComponentItemId && beamBatches.length > 0 && !beamBatchId) {
+            setLogError('Pilih beam yang dipakai');
+            return;
+        }
 
         setSubmittingLog(true);
         try {
@@ -214,6 +246,8 @@ export default function MobileScannerView({
                     work_center_id: logWorkCenterId || null,
                     work_order_id: scannedWO.id,
                     actual_items: actualItems,
+                    beam_number: isBeamOutput ? beamNumber.trim() : null,
+                    beam_batch_id: beamBatchId || null,
                 }),
             });
             if (!res.ok) {
@@ -225,6 +259,8 @@ export default function MobileScannerView({
             setLogSuccess(`Logged ${qty} — MO total: ${newTotal} / ${scannedWOParentMO.qty}`);
             setLogQty('');
             setLogNotes('');
+            setBeamNumber('');
+            setBeamBatchId('');
             setMaterialRows(prev => prev.map(r => ({ ...r, actual_qty: '', is_custom: false })));
             await onRefresh();
         } catch (err: any) {
@@ -306,6 +342,46 @@ export default function MobileScannerView({
                                 style={{ ...xpInput, fontSize: 20, padding: '8px 10px', border: '2px solid #7f9db9' }}
                             />
                         </div>
+
+                        {/* Beam number (beaming WO) */}
+                        {isBeamOutput && (
+                            <div style={{ marginBottom: 10 }}>
+                                <div style={{ fontFamily: XP_FONT, fontSize: 11, fontWeight: 'bold', marginBottom: 4 }}>Nomor Beam</div>
+                                <input
+                                    type="text"
+                                    value={beamNumber} onChange={e => setBeamNumber(e.target.value)}
+                                    placeholder="cth. A-01 (unik per beam fisik)"
+                                    style={{ ...xpInput, fontSize: 16, padding: '6px 10px', border: '2px solid #7f9db9' }}
+                                />
+                                <div style={{ fontFamily: XP_FONT, fontSize: 9, color: '#888', marginTop: 2 }}>
+                                    Beam dicatat sebagai stok batch dengan kg yang diproduksi.
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Beam picker (weaving WO) */}
+                        {beamComponentItemId && (
+                            <div style={{ marginBottom: 10 }}>
+                                <div style={{ fontFamily: XP_FONT, fontSize: 11, fontWeight: 'bold', marginBottom: 4 }}>Beam yang Dipakai</div>
+                                <select
+                                    value={beamBatchId}
+                                    onChange={e => setBeamBatchId(e.target.value)}
+                                    style={{ ...xpInput, appearance: 'auto' }}
+                                >
+                                    <option value="">— pilih beam —</option>
+                                    {beamBatches.map((b: any) => (
+                                        <option key={b.id} value={b.id}>
+                                            {b.batch_number} — {Number(b.remaining ?? 0).toFixed(2)} kg sisa{b.ends ? `, ${b.ends} ends` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                                {beamBatches.length === 0 && (
+                                    <div style={{ fontFamily: XP_FONT, fontSize: 9, color: '#900', marginTop: 2 }}>
+                                        Tidak ada beam dengan stok di lokasi input WO — konsumsi tidak tercatat per beam.
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Operator + Notes */}
                         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
