@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '../shared/Toast';
+import { STATUS_COLORS } from '../../lib/xpTheme';
 
 const XP_FONT  = 'Tahoma, "Segoe UI", Arial, sans-serif';
 const XP_BEIGE = '#ece9d8';
@@ -47,10 +48,10 @@ const xpStatusBadge = (status: string): React.CSSProperties => {
         fontFamily: XP_FONT, fontSize: 9, fontWeight: 'bold',
         padding: '1px 7px', display: 'inline-block', whiteSpace: 'nowrap',
     };
-    if (status === 'IN_PROGRESS') return { ...base, background: '#1a4a8a', color: '#fff' };
-    if (status === 'COMPLETED')   return { ...base, background: '#2e7d32', color: '#fff' };
-    if (status === 'CANCELLED')   return { ...base, background: '#666',    color: '#fff' };
-    return { ...base, background: '#b8860b', color: '#fff' };
+    if (status === 'IN_PROGRESS') return { ...base, background: STATUS_COLORS.IN_PROGRESS, color: '#fff' };
+    if (status === 'COMPLETED')   return { ...base, background: STATUS_COLORS.COMPLETED, color: '#fff' };
+    if (status === 'CANCELLED')   return { ...base, background: STATUS_COLORS.CANCELLED, color: '#fff' };
+    return { ...base, background: STATUS_COLORS.PENDING, color: '#fff' };
 };
 
 interface MobileManufacturingViewProps {
@@ -271,7 +272,7 @@ export default function MobileManufacturingView({
                                 <div
                                     style={xpPanel({
                                         padding: '10px 12px',
-                                        borderLeft: `4px solid ${mo.isOverdue ? '#cc0000' : mo.status === 'IN_PROGRESS' ? '#1a4a8a' : mo.status === 'PENDING' ? '#b8860b' : '#666'}`,
+                                        borderLeft: `4px solid ${mo.isOverdue ? '#cc0000' : mo.status === 'IN_PROGRESS' ? STATUS_COLORS.IN_PROGRESS : mo.status === 'PENDING' ? STATUS_COLORS.PENDING : '#666'}`,
                                         cursor: 'pointer',
                                     })}
                                     onClick={() => handleToggleExpand(mo.id)}
@@ -321,7 +322,7 @@ export default function MobileManufacturingView({
                                                     Runs ({runs.length})
                                                 </div>
                                                 {runs.map((run: any) => (
-                                                    <div key={run.id} style={xpPanel({ padding: '7px 10px', borderLeft: `3px solid ${run.status === 'COMPLETED' ? '#2e7d32' : run.status === 'IN_PROGRESS' ? '#1a4a8a' : '#b8860b'}` })}>
+                                                    <div key={run.id} style={xpPanel({ padding: '7px 10px', borderLeft: `3px solid ${STATUS_COLORS[run.status] || STATUS_COLORS.PENDING}` })}>
                                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
                                                             <div>
                                                                 <div style={{ fontFamily: XP_FONT, fontSize: 12, fontWeight: 'bold', color: '#333' }}>

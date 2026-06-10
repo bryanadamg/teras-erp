@@ -305,7 +305,7 @@ export default function HistoryPane({ entityType, entityId, onClose }: HistoryPa
                         </div>
                     ) : logs.length === 0 ? (
                         <div style={S.emptyState}>
-                            <div style={{ fontSize: 24, marginBottom: 6 }}>📋</div>
+                            <div style={{ fontSize: 24, marginBottom: 6, color: '#a0a0a0' }}><i className="bi bi-journal-text" /></div>
                             No events recorded for this record.
                         </div>
                     ) : (

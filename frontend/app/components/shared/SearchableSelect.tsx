@@ -249,6 +249,10 @@ export default function SearchableSelect({
             <div
                 onClick={() => !disabled && setIsOpen(!isOpen)}
                 data-testid={testId ? `${testId}-trigger` : undefined}
+                title={selectedOption ? selectedOption.label : (placeholder || 'Select...')}
+                role="combobox"
+                aria-expanded={isOpen}
+                aria-haspopup="listbox"
                 style={{
                     position: 'relative',
                     display: 'flex', alignItems: 'center',
@@ -283,7 +287,7 @@ export default function SearchableSelect({
                     background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
                     borderLeft: '1px solid #7f9db9',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 7, color: '#444', flexShrink: 0,
+                    fontSize: 10, color: '#333', flexShrink: 0,
                     pointerEvents: 'none',
                 }}>
                     ▼

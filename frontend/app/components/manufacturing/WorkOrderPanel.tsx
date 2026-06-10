@@ -3,18 +3,12 @@ import React, { useState, useMemo } from 'react';
 import WOStepPrintModal from './WOStepPrintModal';
 import BeamPlanningModal from './BeamPlanningModal';
 import { useToast } from '../shared/Toast';
+import { STATUS_COLORS as STATUS_BORDER } from '../../lib/xpTheme';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
     background: 'white', height: 20, padding: '0 4px', outline: 'none',
-};
-
-const STATUS_BORDER: Record<string, string> = {
-    PENDING: '#c8c6be',
-    IN_PROGRESS: '#6699dd',
-    COMPLETED: '#44aa44',
-    CANCELLED: '#cc4444',
 };
 
 // Work center type chip colors keyed on center_type string (case-insensitive match)

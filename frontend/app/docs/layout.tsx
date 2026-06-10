@@ -31,7 +31,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                 boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ fontSize: 20 }}>📋</span>
+                    <span style={{ fontSize: 20, color: 'white' }}><i className="bi bi-journal-text" /></span>
                     <div>
                         <div style={{ color: 'white', fontWeight: 700, fontSize: 15, letterSpacing: 0.5 }}>
                             Teras ERP — Help &amp; Documentation
@@ -111,7 +111,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                                             if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent';
                                         }}
                                     >
-                                        <span style={{ fontSize: 14 }}>{item.icon}</span>
+                                        <span style={{ fontSize: 14 }}><i className={`bi ${item.icon}`} /></span>
                                         {item.label}
                                     </div>
                                 );

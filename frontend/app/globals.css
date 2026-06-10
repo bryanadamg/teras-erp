@@ -361,8 +361,12 @@ body {
   border: 1px solid #d6d3ce !important;
   padding: 4px 8px;
   font-family: "Tahoma", sans-serif;
-  font-size: 13px !important;
+  font-size: 12px !important;
   white-space: nowrap;
+}
+
+.ui-style-classic .table th {
+  font-size: 11px !important;
 }
 
 .ui-style-classic .table-primary td {
@@ -508,6 +512,45 @@ body {
 .ui-style-classic .progress-bar.bg-info    { background-color: #008080 !important; }
 .ui-style-classic .progress-bar.bg-warning { background-color: #808000 !important; }
 .ui-style-classic .progress-bar.bg-danger  { background-color: #800000 !important; }
+
+/* ── Classic: kill modern rounding/shadows leaking from Bootstrap utilities ── */
+.ui-style-classic .rounded,
+.ui-style-classic .rounded-1,
+.ui-style-classic .rounded-2,
+.ui-style-classic .rounded-3,
+.ui-style-classic .rounded-pill,
+.ui-style-classic .rounded-circle,
+.ui-style-classic .badge {
+  border-radius: 0 !important;
+}
+.ui-style-classic .shadow,
+.ui-style-classic .shadow-sm,
+.ui-style-classic .shadow-lg {
+  box-shadow: none !important;
+}
+
+/* ── Classic: table hover = light XP selection blue (replaces Bootstrap rgba) ── */
+.ui-style-classic .table-hover > tbody > tr:hover > * {
+  --bs-table-accent-bg: #e8f0fc;
+  color: inherit;
+}
+
+/* ── Classic: XP scrollbars everywhere (was sidebar-only) ── */
+.ui-style-classic ::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+.ui-style-classic ::-webkit-scrollbar-track {
+  background: #d4d0c8;
+}
+.ui-style-classic ::-webkit-scrollbar-thumb {
+  background: linear-gradient(to right, #ffffff, #d4d0c8);
+  border: 1px solid #808080;
+  border-radius: 0;
+}
+.ui-style-classic ::-webkit-scrollbar-corner {
+  background: #d4d0c8;
+}
 
 /* Sidebar Area */
 .sidebar {
@@ -937,6 +980,38 @@ body {
   }
 }
 
+/* ── XP Loading indicator (xpTheme.tsx XPLoading) ── */
+.xp-loading-track {
+  width: 200px;
+  height: 16px;
+  margin: 0 auto;
+  background: #ffffff;
+  border: 1px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+  padding: 2px;
+  overflow: hidden;
+  position: relative;
+}
+.xp-loading-blocks {
+  position: absolute;
+  top: 2px;
+  left: 0;
+  height: 10px;
+  display: flex;
+  gap: 2px;
+  animation: xp-loading-slide 1.6s linear infinite;
+}
+.xp-loading-blocks span {
+  width: 9px;
+  height: 10px;
+  background: linear-gradient(to bottom, #5a9af4, #1a5cd4);
+  flex-shrink: 0;
+}
+@keyframes xp-loading-slide {
+  from { transform: translateX(-40px); }
+  to   { transform: translateX(206px); }
+}
+
 /* Toast Styles */
 .toast {
     background: white;
@@ -965,9 +1040,11 @@ body {
     font-family: "Tahoma", sans-serif;
     font-size: 11px;
 }
-.ui-style-classic .toast-type-success,
-.ui-style-classic .toast-type-danger,
-.ui-style-classic .toast-type-warning,
-.ui-style-classic .toast-type-info {
-    border-left: 1px solid black !important;
+/* Keep type distinguishable: XP tooltip body + colored left edge */
+.ui-style-classic .toast-type-success { border-left: 4px solid #2d7a2d !important; }
+.ui-style-classic .toast-type-danger  { border-left: 4px solid #c00000 !important; }
+.ui-style-classic .toast-type-warning { border-left: 4px solid #b8860b !important; }
+.ui-style-classic .toast-type-info    { border-left: 4px solid #0058e6 !important; }
+.ui-style-classic .toast {
+    box-shadow: 2px 2px 4px rgba(0,0,0,0.3) !important;
 }

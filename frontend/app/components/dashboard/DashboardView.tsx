@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import CalendarView from '../shared/CalendarView';
+import { STATUS_COLORS } from '../../lib/xpTheme';
 
 // ── XP style helpers ─────────────────────────────────────────────────────────
 const xpBevel = (extra: React.CSSProperties = {}): React.CSSProperties => ({
@@ -115,10 +116,10 @@ const healthNumColor: Record<HealthStatus, string> = {
 
 const StatusBadge = ({ status }: { status: string }) => {
     const cfg: Record<string, { bg: string; border: string; color: string; label: string }> = {
-        IN_PROGRESS: { bg: '#fff3cd', border: '#cc9900', color: '#664d00', label: 'IN PROG' },
-        PENDING:     { bg: '#e8e8e8', border: '#888',    color: '#333',    label: 'PENDING' },
-        COMPLETED:   { bg: '#d4edda', border: '#28a745', color: '#155724', label: 'DONE'    },
-        OVERDUE:     { bg: '#ffcccc', border: '#cc0000', color: '#660000', label: 'OVERDUE' },
+        IN_PROGRESS: { bg: '#e3edff', border: STATUS_COLORS.IN_PROGRESS, color: '#00254a', label: 'IN PROG' },
+        PENDING:     { bg: '#e8e8e8', border: '#888888',                 color: '#333333', label: 'PENDING' },
+        COMPLETED:   { bg: '#d4edda', border: STATUS_COLORS.COMPLETED,   color: '#155724', label: 'DONE'    },
+        OVERDUE:     { bg: '#ffcccc', border: STATUS_COLORS.CANCELLED,   color: '#660000', label: 'OVERDUE' },
     };
     const c = cfg[status] || cfg.PENDING;
     return (
@@ -517,7 +518,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
             {/* ── Top bar: date + title ── */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', padding: '0 2px' }}>
                 <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#00309c' }}>
-                    📊 {t('dashboard') || 'Dashboard'}
+                    <i className="bi bi-speedometer2" style={{ marginRight: 4 }} /> {t('dashboard') || 'Dashboard'}
                 </span>
                 <span style={{ fontSize: '10px', color: '#555' }}>
                     {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
@@ -563,9 +564,9 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                     lines={[
                         readySOCount > 0
                             ? { text: `${readySOCount} order${readySOCount > 1 ? 's' : ''} fully fulfillable`, color: '#228822', icon: '✓' }
-                            : { text: 'No orders fully fulfillable', color: '#aa6600', icon: '⚠' },
+                            : { text: 'No orders fully fulfillable', color: '#aa6600', icon: '!' },
                         shortSOs.length > 0
-                            ? { text: `${shortSOs.length} order${shortSOs.length > 1 ? 's' : ''} have material shortages`, color: '#aa6600', icon: '⚠' }
+                            ? { text: `${shortSOs.length} order${shortSOs.length > 1 ? 's' : ''} have material shortages`, color: '#aa6600', icon: '!' }
                             : { text: 'No material shortages', color: '#228822', icon: '✓' },
                     ]}
                     prog={deliveryReadiness}
@@ -608,7 +609,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                 {/* Action Items pane */}
                 <div style={{ ...xpBevel(), width: '260px', flexShrink: 0 }}>
                     <div style={xpTitleBar('red')}>
-                        <span>📋 Action Items</span>
+                        <span><i className="bi bi-list-check" style={{ marginRight: 4 }} />Action Items</span>
                         {(critCount > 0 || warnCount > 0) && (
                             <span style={{ fontSize: '10px', fontWeight: 'normal' }}>
                                 {critCount > 0 && `${critCount} critical`}{critCount > 0 && warnCount > 0 && ' · '}{warnCount > 0 && `${warnCount} warnings`}
@@ -618,14 +619,16 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                     <div>
                         {actionItems.length === 0 ? (
                             <div style={{ padding: '16px', textAlign: 'center', fontStyle: 'italic', color: '#666', fontSize: '10px', background: '#f0fff0', borderLeft: '3px solid #228822' }}>
-                                🟢 All systems nominal
+                                <i className="bi bi-check-circle" style={{ marginRight: 4, color: '#228822' }} />All systems nominal
                             </div>
                         ) : (
                             actionItems.map((item, i) => (
                                 <div key={i} style={alertRowStyle(item.sev)}>
-                                    <span style={{ fontSize: '11px', marginTop: '1px', flexShrink: 0 }}>
-                                        {item.sev === 'crit' ? '🔴' : item.sev === 'warn' ? '🟡' : '🟢'}
-                                    </span>
+                                    <span style={{
+                                        width: 9, height: 9, marginTop: '3px', flexShrink: 0, display: 'inline-block',
+                                        background: item.sev === 'crit' ? '#cc0000' : item.sev === 'warn' ? '#e0c000' : '#228822',
+                                        border: '1px solid rgba(0,0,0,0.35)',
+                                    }} />
                                     <div>
                                         <div style={{ fontWeight: 'bold', color: item.sev === 'crit' ? '#880000' : item.sev === 'warn' ? '#665500' : '#226622', fontSize: '10px' }}>
                                             {item.title}
@@ -644,7 +647,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                 {/* WO Table */}
                 <div style={{ ...xpBevel(), flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                     <div style={xpTitleBar('amber')}>
-                        <span>⚙ Work Order Monitoring</span>
+                        <span><i className="bi bi-gear" style={{ marginRight: 4 }} />Work Order Monitoring</span>
                         <span style={{ fontSize: '10px', fontWeight: 'normal' }}>
                             {metrics.activeWO} active · {metrics.pendingWO} pending
                         </span>
@@ -702,7 +705,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                 {/* Recent stock movements */}
                 <div style={{ ...xpBevel(), flex: 1, minWidth: 0 }}>
                     <div style={xpTitleBar('grey')}>
-                        <span>🕐 Recent Stock Movements</span>
+                        <span><i className="bi bi-clock-history" style={{ marginRight: 4 }} />Recent Stock Movements</span>
                     </div>
                     <div style={{ overflowX: 'auto' }}>
                         <table style={xpTable}>
@@ -740,7 +743,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                 {/* Warehouse distribution */}
                 <div style={{ ...xpBevel(), width: '240px', flexShrink: 0 }}>
                     <div style={xpTitleBar('grey')}>
-                        <span>🏭 Warehouse Distribution</span>
+                        <span><i className="bi bi-building" style={{ marginRight: 4 }} />Warehouse Distribution</span>
                     </div>
                     <div style={{ padding: '6px 8px', background: '#f0efe8' }}>
                         {locationStats.length === 0 ? (

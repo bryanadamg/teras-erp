@@ -105,7 +105,7 @@ const BranchingPreview = memo(({ levels }: { levels: string[][] }) => (
         overflowY: 'auto',
         flex: 1,
     }}>
-        <div style={{ color: '#000080', fontWeight: 'bold' }}>📦 {DUMMY_CODE}</div>
+        <div style={{ color: '#000080', fontWeight: 'bold' }}><i className="bi bi-box-seam" style={{ marginRight: 4 }} />{DUMMY_CODE}</div>
         {levels.map((lvl, lIdx) => (
             lvl.map((p, pIdx) => (
                 <div key={`${lIdx}-${pIdx}`} style={{ paddingLeft: `${(lIdx + 1) * 14}px`, color: lIdx === 0 ? '#333' : '#555' }}>

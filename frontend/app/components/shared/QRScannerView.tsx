@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
+import { STATUS_COLORS } from '../../lib/xpTheme';
 
 interface QRScannerViewProps {
     workOrders: any[];
@@ -166,11 +167,11 @@ export default function QRScannerView({
         }
     };
 
-    const xpStatusBadge = (status: string): React.CSSProperties => {
-        if (status === 'COMPLETED') return { background: '#2e7d32', color: '#ffffff', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '9px', fontWeight: 'bold', padding: '1px 6px', display: 'inline-block' };
-        if (status === 'IN_PROGRESS') return { background: '#1a4a8a', color: '#ffffff', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '9px', fontWeight: 'bold', padding: '1px 6px', display: 'inline-block' };
-        return { background: '#b8860b', color: '#ffffff', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '9px', fontWeight: 'bold', padding: '1px 6px', display: 'inline-block' };
-    };
+    const xpStatusBadge = (status: string): React.CSSProperties => ({
+        background: STATUS_COLORS[status] || STATUS_COLORS.PENDING, color: '#ffffff',
+        fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '9px', fontWeight: 'bold',
+        padding: '1px 6px', display: 'inline-block',
+    });
 
     const terminalId = useRef(Math.random().toString(36).substr(2, 6).toUpperCase());
 

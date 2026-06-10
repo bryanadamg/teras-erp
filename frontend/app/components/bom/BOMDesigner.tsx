@@ -179,7 +179,7 @@ const TreeView = memo(({
                 onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = '#d0e4f8'; }}
                 onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
             >
-                <span style={{ fontSize: 12 }}>{level === 0 ? '📦' : '🔩'}</span>
+                <span style={{ fontSize: 12 }}><i className={`bi ${level === 0 ? 'bi-box-seam' : 'bi-nut'}`} /></span>
                 <span style={{ flex: 1, fontWeight: level === 0 ? 'bold' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {node.item_code || 'Unnamed'}
                 </span>
@@ -692,7 +692,7 @@ export default function BOMDesigner({
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                         flexShrink: 0,
                     }}>
-                        <span style={{ color: 'white', fontSize: 11, fontWeight: 'bold' }}>📁 Structure</span>
+                        <span style={{ color: 'white', fontSize: 11, fontWeight: 'bold' }}><i className="bi bi-diagram-3" style={{ marginRight: 4 }} />Structure</span>
                         <span style={{
                             background: 'rgba(255,255,255,0.2)', color: 'white',
                             fontSize: 9, padding: '0 5px', borderRadius: 2,
@@ -720,7 +720,7 @@ export default function BOMDesigner({
                             style={{ ...xpBtnPrimary, width: '100%', fontSize: 10, display: selectedNodeId === 'root' ? 'block' : 'none' }}
                             onClick={() => setIsAutomatorOpen(true)}
                         >
-                            ⚡ Automate All Levels
+                            <i className="bi bi-lightning-fill" style={{ marginRight: 4 }} />Automate All Levels
                         </button>
                     </div>
                 </div>
@@ -737,7 +737,7 @@ export default function BOMDesigner({
                                 display: 'flex', alignItems: 'center', gap: 8,
                                 flexShrink: 0,
                             }}>
-                                <span style={{ fontSize: 16 }}>{selectedNodeId === 'root' ? '📦' : '🔩'}</span>
+                                <span style={{ fontSize: 16, color: '#000080' }}><i className={`bi ${selectedNodeId === 'root' ? 'bi-box-seam' : 'bi-nut'}`} /></span>
                                 <div style={{ flex: 1 }}>
                                     <div style={{ fontWeight: 'bold', fontSize: 12, color: '#000080' }}>
                                         {getItemName(selectedNode.item_code) || 'Select an item'}
@@ -774,7 +774,7 @@ export default function BOMDesigner({
                                                         style={{ marginLeft: 6, cursor: 'pointer', fontSize: 12 }}
                                                         onClick={() => setIsConfigOpen(true)}
                                                         title="Code Settings"
-                                                    >⚙</span>
+                                                    ><i className="bi bi-gear-fill" /></span>
                                                 )}
                                             </label>
                                             <input
@@ -1655,7 +1655,7 @@ export default function BOMDesigner({
                     }}>
                         {pctError && (
                             <span style={{ flex: 1, fontSize: 10, color: '#a02020', fontFamily: xpFont }}>
-                                ⚠ {pctError}
+                                <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 4 }} />{pctError}
                             </span>
                         )}
                         <button style={xpBtn} onClick={onCancel}>{t('cancel')}</button>
@@ -1665,7 +1665,7 @@ export default function BOMDesigner({
                             onClick={handleGlobalSave}
                             disabled={isSaving}
                         >
-                            {isSaving ? 'Processing...' : '💾 Finish & Save Tree'}
+                            {isSaving ? 'Processing...' : <><i className="bi bi-save" style={{ marginRight: 4 }} />Finish &amp; Save Tree</>}
                         </button>
                     </div>
                 </div>

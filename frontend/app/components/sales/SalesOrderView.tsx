@@ -688,7 +688,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                        <div className="col-12">
                            <label style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2} : undefined} className={classic ? '' : 'form-label small text-muted mb-1'}>Item</label>
                            <SearchableSelect
-                               options={items.map((item: any) => ({ value: item.id, label: item.name, subLabel: `${item.code}${item.category === 'Sample' ? ' ★' : ''}` }))}
+                               options={items.map((item: any) => ({ value: item.id, label: item.name, subLabel: `${item.code}${item.category === 'Sample' ? ' [SAMPLE]' : ''}` }))}
                                value={newLine.item_id}
                                onChange={handleLineItemChange}
                                placeholder="Select Item…"

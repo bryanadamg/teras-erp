@@ -9,13 +9,7 @@ import WOCompletionModal from './WOCompletionModal';
 import WOStepPrintModal from './WOStepPrintModal';
 import WOBulkPrintModal from './WOBulkPrintModal';
 import { getChipStyle } from './WorkOrderPanel';
-
-const STATUS_COLORS: Record<string, string> = {
-    PENDING: '#888',
-    IN_PROGRESS: '#0058e6',
-    COMPLETED: '#008000',
-    CANCELLED: '#a00',
-};
+import { STATUS_COLORS, statusChipStyle, XPEmptyState } from '../../lib/xpTheme';
 
 const STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
 
@@ -199,17 +193,7 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
             status === 'CANCELLED' ? 'bg-danger' : 'bg-secondary'
         }`}>{status.replace('_', ' ')}</span>;
 
-        const chipStyle: React.CSSProperties = {
-            display: 'inline-block', fontSize: 9, fontWeight: 'bold',
-            padding: '1px 6px', borderRadius: 0, border: '1px solid',
-            fontFamily: xpFont,
-        };
-        switch (status) {
-            case 'COMPLETED':   return <span style={{ ...chipStyle, background: '#2d7a2d', borderColor: '#1a5e1a', color: '#fff' }}>COMPLETED</span>;
-            case 'IN_PROGRESS': return <span style={{ ...chipStyle, background: '#0058e6', borderColor: '#003080', color: '#fff' }}>IN PROGRESS</span>;
-            case 'CANCELLED':   return <span style={{ ...chipStyle, background: '#c00000', borderColor: '#800000', color: '#fff' }}>CANCELLED</span>;
-            default:            return <span style={{ ...chipStyle, background: '#d4d0c8', borderColor: '#808080', color: '#333' }}>PENDING</span>;
-        }
+        return <span style={statusChipStyle(status)}>{(status || 'PENDING').replace('_', ' ')}</span>;
     };
 
     const moOptions = useMemo(() =>
@@ -488,8 +472,8 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                             <tbody>
                                 {filtered.length === 0 && (
                                     <tr>
-                                        <td colSpan={COLS} style={{ padding: 24, textAlign: 'center', color: '#888', fontSize: classic ? 11 : undefined }}>
-                                            No work orders found.
+                                        <td colSpan={COLS} style={classic ? { padding: 0 } : { padding: 24, textAlign: 'center', color: '#888' }}>
+                                            {classic ? <XPEmptyState message="No work orders found." icon="bi-tools" /> : 'No work orders found.'}
                                         </td>
                                     </tr>
                                 )}

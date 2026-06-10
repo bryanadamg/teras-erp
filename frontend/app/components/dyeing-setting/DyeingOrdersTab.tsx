@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { STATUS_COLORS } from '../../lib/xpTheme';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -24,13 +25,6 @@ const xpPanel: React.CSSProperties = {
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
-
-const STATUS_COLORS: Record<string, string> = {
-    PENDING: '#888',
-    IN_PROGRESS: '#0058e6',
-    COMPLETED: '#008000',
-    CANCELLED: '#c00',
-};
 
 const SHADE_COLORS: Record<string, { bg: string; color: string }> = {
     PASS: { bg: '#d4edda', color: '#155724' },

@@ -276,7 +276,7 @@ export default function CategoriesView({
                             style={xpIconBtn({ color: isSelected ? '#fff' : '#555' })}
                             title="Rename"
                             onClick={e => { e.stopPropagation(); startRename(node); }}
-                        >✎</button>
+                        ><i className="bi bi-pencil-fill" /></button>
                         {!node.is_system && (
                             <button
                                 style={xpIconBtn({ color: isSelected ? '#ffc0c0' : '#c00' })}
@@ -416,7 +416,7 @@ export default function CategoriesView({
                             style={{ padding: '0 4px', lineHeight: 1.2, fontSize: 13, color: isSelected ? '#fff' : '#6c757d', background: 'none', border: 'none' }}
                             title="Rename"
                             onClick={e => { e.stopPropagation(); startRename(node); }}
-                        >✎</button>
+                        ><i className="bi bi-pencil-fill" /></button>
                         {!node.is_system && (
                             <button
                                 className="btn btn-sm"

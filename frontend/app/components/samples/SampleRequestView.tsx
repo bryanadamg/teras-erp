@@ -1470,7 +1470,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                    {/* LEFT — Color table */}
                                                    <div style={{ width: '48%', borderRight: '1px solid #a0988c', display: 'flex', flexDirection: 'column' }}>
                                                        <div style={{ background: 'linear-gradient(to bottom, #e4e1d8, #d5d2c8)', borderBottom: '1px solid #9a9690', padding: '2px 8px', fontSize: 10, fontWeight: 'bold', color: '#111', letterSpacing: '0.3px', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'Tahoma, Arial, sans-serif', flexShrink: 0 }}>
-                                                           🎨 Colors — {s.colors?.length ?? 0} total · {s.colors?.filter((c: any) => c.status === 'APPROVED').length ?? 0} approved
+                                                           <i className="bi bi-palette" style={{ marginRight: 2 }} />Colors — {s.colors?.length ?? 0} total · {s.colors?.filter((c: any) => c.status === 'APPROVED').length ?? 0} approved
                                                        </div>
                                                        {s.colors && s.colors.length > 0 ? (
                                                            <div style={{ overflowY: 'auto', flex: 1 }}>

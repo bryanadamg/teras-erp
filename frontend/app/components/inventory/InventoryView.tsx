@@ -8,6 +8,7 @@ import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
+import { XPEmptyState } from '../../lib/xpTheme';
 
 // XP-style category badge colours derived from category name
 function getCategoryXPStyle(category: string): { bg: string; border: string; color: string } {
@@ -137,7 +138,7 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
                             <button
                                 title="View History"
                                 onClick={() => onViewHistory(item.id)}
-                                style={{ background: 'none', border: '1px solid transparent', borderRadius: '2px', cursor: 'pointer', padding: '1px 4px', color: isSelected ? '#fff' : '#555', fontSize: '11px' }}
+                                style={{ background: 'none', border: '1px solid transparent', borderRadius: '2px', cursor: 'pointer', padding: '3px 6px', color: isSelected ? '#fff' : '#555', fontSize: '12px' }}
                                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = isSelected ? 'rgba(255,255,255,0.15)' : '#e8f0f8'; }}
                                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
                             >
@@ -146,7 +147,7 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
                             <button
                                 title="Edit"
                                 onClick={() => onEdit(item)}
-                                style={{ background: 'none', border: '1px solid transparent', borderRadius: '2px', cursor: 'pointer', padding: '1px 4px', color: isSelected ? '#fff' : '#00309c', fontSize: '11px' }}
+                                style={{ background: 'none', border: '1px solid transparent', borderRadius: '2px', cursor: 'pointer', padding: '3px 6px', color: isSelected ? '#fff' : '#00309c', fontSize: '12px' }}
                                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = isSelected ? 'rgba(255,255,255,0.15)' : '#e8f0f8'; }}
                                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
                             >
@@ -155,7 +156,7 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
                             <button
                                 title="Delete"
                                 onClick={() => onDelete(item.id)}
-                                style={{ background: 'none', border: '1px solid transparent', borderRadius: '2px', cursor: 'pointer', padding: '1px 4px', color: isSelected ? '#ffcccc' : '#aa0000', fontSize: '11px' }}
+                                style={{ background: 'none', border: '1px solid transparent', borderRadius: '2px', cursor: 'pointer', padding: '3px 6px', color: isSelected ? '#ffcccc' : '#aa0000', fontSize: '12px' }}
                                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#cc8888'; (e.currentTarget as HTMLButtonElement).style.background = isSelected ? 'rgba(255,100,100,0.2)' : '#ffe8e8'; }}
                                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
                             >
@@ -1222,16 +1223,10 @@ export default function InventoryView({
                     <tr>
                       <td
                         colSpan={8}
-                        style={classic ? {
-                            textAlign: 'center', padding: '20px',
-                            color: '#666666', fontSize: '11px',
-                            fontFamily: 'Tahoma, Arial, sans-serif',
-                            fontStyle: 'italic',
-                            background: '#ffffff',
-                        } : undefined}
+                        style={classic ? { padding: 0, background: '#ffffff' } : undefined}
                         className={classic ? '' : 'text-center text-muted py-5'}
                       >
-                        No items found
+                        {classic ? <XPEmptyState message="No items found" icon="bi-box-seam" /> : 'No items found'}
                       </td>
                     </tr>
                   )}

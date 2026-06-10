@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
+import { STATUS_COLORS } from '../../lib/xpTheme';
 
 export default function CalendarView({ workOrders, items, compact = false }: any) {
   const { t } = useLanguage();
@@ -32,25 +33,18 @@ export default function CalendarView({ workOrders, items, compact = false }: any
       }
   };
 
-  // XP status colors (classic mode)
+  // XP status colors (classic mode) — borders/dots use shared STATUS_COLORS
   const getXPStatusStyle = (status: string): React.CSSProperties => {
       switch(status) {
-          case 'COMPLETED':   return { background: '#e8f5e9', border: '1px solid #2e7d32', color: '#1b4620' };
-          case 'IN_PROGRESS': return { background: '#fff8e1', border: '1px solid #c77800', color: '#4a3000' };
-          case 'CANCELLED':   return { background: '#fce4ec', border: '1px solid #b71c1c', color: '#6b0000' };
-          default:            return { background: '#dde8f5', border: '1px solid #316ac5', color: '#00006e' };
+          case 'COMPLETED':   return { background: '#e8f5e9', border: `1px solid ${STATUS_COLORS.COMPLETED}`, color: '#1b4620' };
+          case 'IN_PROGRESS': return { background: '#e3edff', border: `1px solid ${STATUS_COLORS.IN_PROGRESS}`, color: '#00254a' };
+          case 'CANCELLED':   return { background: '#fce4ec', border: `1px solid ${STATUS_COLORS.CANCELLED}`, color: '#6b0000' };
+          default:            return { background: '#fff8e1', border: `1px solid ${STATUS_COLORS.PENDING}`, color: '#4a3000' };
       }
   };
 
   // XP dot colors for compact mode
-  const getXPDotColor = (status: string) => {
-      switch(status) {
-          case 'COMPLETED':   return '#2e7d32';
-          case 'IN_PROGRESS': return '#c77800';
-          case 'CANCELLED':   return '#b71c1c';
-          default:            return '#316ac5';
-      }
-  };
+  const getXPDotColor = (status: string) => STATUS_COLORS[status] || STATUS_COLORS.PENDING;
 
   // ── XP nav button style ──────────────────────────────────────────────────
   const xpNavBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({

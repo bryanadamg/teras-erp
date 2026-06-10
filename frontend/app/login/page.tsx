@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useUser } from '../context/UserContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 import PixelAvatar from '../components/shared/PixelAvatar';
+import { XPLoading } from '../lib/xpTheme';
 
 export default function LoginPage() {
     const { currentUser, login, loading } = useUser();
@@ -75,11 +76,7 @@ export default function LoginPage() {
         d.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
     if (!mounted || loading) {
-        return (
-            <div className="d-flex justify-content-center align-items-center vh-100 bg-dark text-info fw-bold font-monospace">
-                SYSTEM_CHECK...
-            </div>
-        );
+        return <XPLoading label="Starting Teras ERP..." fullScreen />;
     }
 
     if (isMobile) {
@@ -310,7 +307,7 @@ export default function LoginPage() {
                             padding: 'clamp(1px,0.3vw,3px) clamp(4px,0.8vw,8px)',
                         }}
                     >
-                        📋 View Documentation
+                        <i className="bi bi-journal-text" style={{ marginRight: 4 }} />View Documentation
                     </a>
                 </div>
             </div>

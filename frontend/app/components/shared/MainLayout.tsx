@@ -10,11 +10,12 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useTheme } from '../../context/ThemeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import PixelAvatar from './PixelAvatar';
+import { XPLoading } from '../../lib/xpTheme';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
     const { currentUser, logout, loading, hasPermission } = useUser();
     const { handleTabHover } = useData();
-    const { language, setLanguage } = useLanguage();
+    const { language, setLanguage, t } = useLanguage();
     const { uiStyle } = useTheme();
     const router = useRouter();
     const pathname = usePathname();
@@ -45,7 +46,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
     // SSR / Initial Loading State
     if (!mounted || loading) {
-        return <div className="d-flex justify-content-center align-items-center vh-100 bg-light text-muted fw-bold">INITIALIZING_TERRAS_CORE...</div>;
+        return <XPLoading label="Starting Teras ERP..." fullScreen />;
     }
 
     // Allow Login Page and Docs pages to render without layout wrappers
@@ -63,6 +64,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
     // Map pathname to activeTab for Sidebar highlighting
     const activeTab = !pathname || pathname === '/' ? 'dashboard' : pathname.substring(1).replace(/\//g, '-');
+
+    // Page title: prefer i18n label, fall back to the URL slug
+    const tabKey = activeTab.replace(/-/g, '_');
+    const pageTitle = t(tabKey) !== tabKey ? t(tabKey) : activeTab.replace(/-/g, ' ');
 
     const handleSetActiveTab = (tab: string) => {
         const route = tab === 'dashboard' ? '/' : `/${tab}`;
@@ -84,7 +89,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 <div className={`app-header sticky-top bg-white border-bottom shadow-sm px-4 d-flex justify-content-between align-items-center no-print ${uiStyle === 'classic' ? 'classic-header' : ''}`}>
                     <div className="d-flex align-items-center gap-3">
                         <button className="btn btn-link d-md-none p-0 text-dark" onClick={() => setIsMobileSidebarOpen(true)}><i className="bi bi-list fs-3"></i></button>
-                        <h5 className="mb-0 fw-bold text-dark d-none d-md-block text-uppercase letter-spacing-1">{activeTab.replace(/-/g, ' ')}</h5>
+                        <h5 className="mb-0 fw-bold text-dark d-none d-md-block text-uppercase letter-spacing-1">{pageTitle}</h5>
                     </div>
                     
                     <div className="d-flex align-items-center gap-2 gap-md-3">

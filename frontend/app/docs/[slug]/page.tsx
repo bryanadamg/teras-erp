@@ -295,7 +295,7 @@ export default function DocsPage() {
                             gap: 6,
                         }}
                     >
-                        ← {prev.icon} {prev.label}
+                        ← <i className={`bi ${prev.icon}`} /> {prev.label}
                     </button>
                 ) : <div />}
 
@@ -315,7 +315,7 @@ export default function DocsPage() {
                             gap: 6,
                         }}
                     >
-                        {next.icon} {next.label} →
+                        <i className={`bi ${next.icon}`} /> {next.label} →
                     </button>
                 ) : <div />}
             </div>

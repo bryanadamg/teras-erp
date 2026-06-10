@@ -16,6 +16,7 @@ import ProductionRunModal from './ProductionRunModal';
 import WorkOrderPanel from './WorkOrderPanel';
 import WOCompletionModal from './WOCompletionModal';
 import MOCreationPreview from './MOCreationPreview';
+import { STATUS_COLORS, statusChipStyle } from '../../lib/xpTheme';
 
 export default function ManufacturingView({
     items,
@@ -756,7 +757,7 @@ export default function ManufacturingView({
                   <div style={{ padding: '4px', overflowY: 'auto', flex: 1 }}>
                       {treeNodes.map(({ wo: node, level, isShared }: { wo: any; level: number; isShared: boolean }) => {
                           const isActive = node.id === selectedNodeId;
-                          const statusColor = node.status === 'COMPLETED' ? '#2d7a2d' : node.status === 'IN_PROGRESS' ? (classic ? '#0058e6' : '#fd7e14') : '#6c757d';
+                          const statusColor = node.status === 'COMPLETED' ? STATUS_COLORS.COMPLETED : node.status === 'IN_PROGRESS' ? (classic ? STATUS_COLORS.IN_PROGRESS : '#fd7e14') : '#6c757d';
                           return (
                               <div
                                   key={node.id}
@@ -1534,19 +1535,7 @@ export default function ManufacturingView({
                                                           </td>
                                                           <td style={tdStyle}>
                                                               {currentStyle === 'classic' ? (
-                                                                  (() => {
-                                                                      const chipStyle: React.CSSProperties = {
-                                                                          display: 'inline-block', fontSize: '9px', fontWeight: 'bold',
-                                                                          padding: '1px 6px', borderRadius: 0, border: '1px solid',
-                                                                          fontFamily: 'Tahoma, Arial, sans-serif',
-                                                                      };
-                                                                      switch (pr.status) {
-                                                                          case 'COMPLETED': return <span style={{ ...chipStyle, background: '#2d7a2d', borderColor: '#1a5e1a', color: '#fff' }}>COMPLETED</span>;
-                                                                          case 'IN_PROGRESS': return <span style={{ ...chipStyle, background: '#0058e6', borderColor: '#003080', color: '#fff' }}>IN PROGRESS</span>;
-                                                                          case 'CANCELLED': return <span style={{ ...chipStyle, background: '#c00000', borderColor: '#800000', color: '#fff' }}>CANCELLED</span>;
-                                                                          default: return <span style={{ ...chipStyle, background: '#d4d0c8', borderColor: '#808080', color: '#333' }}>PENDING</span>;
-                                                                      }
-                                                                  })()
+                                                                  <span style={statusChipStyle(pr.status)}>{(pr.status || 'PENDING').replace('_', ' ')}</span>
                                                               ) : (
                                                                   <span className={`badge ${getStatusBadge(pr.status)} extra-small`}>{pr.status}</span>
                                                               )}
@@ -1785,18 +1774,8 @@ export default function ManufacturingView({
                                                   if (isBlocked) return <span className="badge bg-secondary extra-small" title="Earlier routing steps must complete first">BLOCKED</span>;
                                                   return <span className={`badge ${getStatusBadge(status)} extra-small`}>{status}</span>;
                                               }
-                                              const chipStyle: React.CSSProperties = {
-                                                  display: 'inline-block', fontSize: '9px', fontWeight: 'bold',
-                                                  padding: '1px 6px', borderRadius: 0, border: '1px solid',
-                                                  fontFamily: 'Tahoma, Arial, sans-serif',
-                                              };
-                                              if (isBlocked) return <span style={{ ...chipStyle, background: '#888', borderColor: '#555', color: '#fff' }} title="Earlier routing steps must complete first">BLOCKED</span>;
-                                              switch (status) {
-                                                  case 'COMPLETED':  return <span style={{ ...chipStyle, background: '#2d7a2d', borderColor: '#1a5e1a', color: '#fff' }}>COMPLETED</span>;
-                                                  case 'IN_PROGRESS': return <span style={{ ...chipStyle, background: '#0058e6', borderColor: '#003080', color: '#fff' }}>IN PROGRESS</span>;
-                                                  case 'CANCELLED': return <span style={{ ...chipStyle, background: '#c00000', borderColor: '#800000', color: '#fff' }}>CANCELLED</span>;
-                                                  default:          return <span style={{ ...chipStyle, background: '#d4d0c8', borderColor: '#808080', color: '#333' }}>PENDING</span>;
-                                              }
+                                              if (isBlocked) return <span style={statusChipStyle('PENDING', { background: '#888', borderColor: '#555', color: '#fff' })} title="Earlier routing steps must complete first">BLOCKED</span>;
+                                              return <span style={statusChipStyle(status)}>{(status || 'PENDING').replace('_', ' ')}</span>;
                                           };
 
                                           // XP-style action button

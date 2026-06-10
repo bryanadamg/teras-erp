@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { STATUS_COLORS } from '../../lib/xpTheme';
 
 const XP_FONT  = 'Tahoma, "Segoe UI", Arial, sans-serif';
 const XP_BEIGE = '#ece9d8';
@@ -39,10 +40,10 @@ const xpStatusBadge = (status: string): React.CSSProperties => {
         fontFamily: XP_FONT, fontSize: 9, fontWeight: 'bold',
         padding: '1px 6px', display: 'inline-block',
     };
-    if (status === 'IN_PROGRESS') return { ...base, background: '#1a4a8a', color: '#fff' };
-    if (status === 'COMPLETED')   return { ...base, background: '#2e7d32', color: '#fff' };
-    if (status === 'CANCELLED')   return { ...base, background: '#666',    color: '#fff' };
-    return { ...base, background: '#b8860b', color: '#fff' };
+    if (status === 'IN_PROGRESS') return { ...base, background: STATUS_COLORS.IN_PROGRESS, color: '#fff' };
+    if (status === 'COMPLETED')   return { ...base, background: STATUS_COLORS.COMPLETED, color: '#fff' };
+    if (status === 'CANCELLED')   return { ...base, background: STATUS_COLORS.CANCELLED, color: '#fff' };
+    return { ...base, background: STATUS_COLORS.PENDING, color: '#fff' };
 };
 
 export default function MobileDashboardView({ items, stockBalance, workOrders, salesOrders, kpis }: any) {
@@ -202,7 +203,7 @@ export default function MobileDashboardView({ items, stockBalance, workOrders, s
                                 display: 'flex',
                                 justifyContent: 'space-between',
                                 alignItems: 'center',
-                                borderLeft: `4px solid ${wo.isOverdue ? '#cc0000' : wo.status === 'IN_PROGRESS' ? '#1a4a8a' : '#b8860b'}`,
+                                borderLeft: `4px solid ${wo.isOverdue ? '#cc0000' : wo.status === 'IN_PROGRESS' ? STATUS_COLORS.IN_PROGRESS : STATUS_COLORS.PENDING}`,
                             })}>
                                 <div style={{ minWidth: 0 }}>
                                     <div style={{ fontFamily: "'Courier New', monospace", fontSize: 14, fontWeight: 'bold', color: '#00309c' }}>{wo.code}</div>

@@ -351,7 +351,7 @@ export default function SamplePrintModal({
                 >
                     {/* Header */}
                     <div style={headerStyle} className={headerClass}>
-                        <span>🖨 Print SPK Sample — {sample.code}</span>
+                        <span><i className="bi bi-printer" style={{ marginRight: 4 }} />Print SPK Sample — {sample.code}</span>
                         <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'inherit', fontSize: 14, cursor: 'pointer', lineHeight: 1 }}>✕</button>
                     </div>
 
@@ -416,12 +416,12 @@ export default function SamplePrintModal({
                             {isClassic ? (
                                 <>
                                     <button style={xpBtnGrey} onClick={onClose}>Close</button>
-                                    <button style={xpBtnGreen} onClick={handlePrint}>🖨 Print</button>
+                                    <button style={xpBtnGreen} onClick={handlePrint}><i className="bi bi-printer" style={{ marginRight: 4 }} />Print</button>
                                 </>
                             ) : (
                                 <>
                                     <button className="btn btn-sm btn-secondary" onClick={onClose}>Close</button>
-                                    <button className="btn btn-sm btn-success" onClick={handlePrint}>🖨 Print</button>
+                                    <button className="btn btn-sm btn-success" onClick={handlePrint}><i className="bi bi-printer" style={{ marginRight: 4 }} />Print</button>
                                 </>
                             )}
                         </div>

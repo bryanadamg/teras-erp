@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
+import { STATUS_COLORS } from '../../lib/xpTheme';
 
 interface MobileScannerViewProps {
     manufacturingOrders: any[];
@@ -63,10 +64,10 @@ const xpStatusBadge = (status: string): React.CSSProperties => {
         fontFamily: XP_FONT, fontSize: 10, fontWeight: 'bold',
         padding: '2px 8px', display: 'inline-block',
     };
-    if (status === 'COMPLETED')   return { ...base, background: '#2e7d32', color: '#fff' };
-    if (status === 'IN_PROGRESS') return { ...base, background: '#1a4a8a', color: '#fff' };
-    if (status === 'CANCELLED')   return { ...base, background: '#666',    color: '#fff' };
-    return { ...base, background: '#b8860b', color: '#fff' };
+    if (status === 'COMPLETED')   return { ...base, background: STATUS_COLORS.COMPLETED, color: '#fff' };
+    if (status === 'IN_PROGRESS') return { ...base, background: STATUS_COLORS.IN_PROGRESS, color: '#fff' };
+    if (status === 'CANCELLED')   return { ...base, background: STATUS_COLORS.CANCELLED, color: '#fff' };
+    return { ...base, background: STATUS_COLORS.PENDING, color: '#fff' };
 };
 
 const isUUID = (s: string) =>
