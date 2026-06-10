@@ -535,6 +535,22 @@ body {
   color: inherit;
 }
 
+/* ── Classic: sticky table headers (30px = classic top bar height) ── */
+.ui-style-classic .table thead th {
+  position: sticky;
+  top: 30px;
+  z-index: 10;
+}
+
+/* ── Classic: XP dotted focus rectangle for keyboard navigation ── */
+.ui-style-classic button:focus-visible,
+.ui-style-classic a:focus-visible,
+.ui-style-classic .nav-link:focus-visible,
+.ui-style-classic [role="combobox"]:focus-visible {
+  outline: 1px dotted #000000 !important;
+  outline-offset: -3px;
+}
+
 /* ── Classic: XP scrollbars everywhere (was sidebar-only) ── */
 .ui-style-classic ::-webkit-scrollbar {
   width: 16px;
@@ -836,6 +852,10 @@ body {
 
   .table th, .table td {
     border: 1px solid #dee2e6 !important;
+  }
+
+  .table thead th {
+    position: static !important;
   }
 
   .flex-print-fill {

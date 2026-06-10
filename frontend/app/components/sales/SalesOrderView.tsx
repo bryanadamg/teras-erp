@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import CodeConfigModal, { CodeConfig, buildCodeWithCounter } from '../shared/CodeConfigModal';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
@@ -8,6 +8,7 @@ import SalesPrintModal from './SalesPrintModal';
 import SOTablePrintModal from './SOTablePrintModal';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
+import { useSortable, SortMark } from '../shared/xpTheme';
 
 export default function SalesOrderView({ items, attributes, boms, salesOrders, partners, onCreateSO, onDeleteSO, onEditSO, onUpdateSOStatus, onGenerateWO, productionRuns }: any) {
   const { showToast } = useToast();
@@ -107,6 +108,11 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       textAlign: 'left' as const,
       whiteSpace: 'nowrap' as const,
       fontFamily: 'Tahoma, Arial, sans-serif',
+      position: 'sticky' as const,
+      top: 0,
+      zIndex: 5,
+      background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
+      borderBottom: '2px solid #808080',
   };
 
   const tdBase: React.CSSProperties = {
@@ -589,6 +595,14 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       const matchStatus = statusFilter === 'ALL' || so.status === statusFilter;
       return matchSearch && matchStatus;
   });
+
+  const soSortCols = useMemo(() => ({
+      po:       (so: any) => so.po_number,
+      customer: (so: any) => so.customer_name,
+      date:     (so: any) => so.order_date,
+      status:   (so: any) => so.status,
+  }), []);
+  const { sorted: sortedOrders, sort: soSort, toggle: toggleSOSort } = useSortable(filteredOrders, soSortCols);
 
 
 
@@ -1150,21 +1164,21 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                    >
                        <thead style={classic ? xpTableHeader : undefined} className={classic ? '' : 'table-light'}>
                            <tr>
-                               <th style={classic ? { ...xpThCell, width: '130px' } : undefined} className={classic ? '' : 'ps-3'}>PO# / Ref</th>
-                               <th style={classic ? { ...xpThCell, width: '180px' } : undefined}>Customer</th>
-                               <th style={classic ? { ...xpThCell, width: '72px' } : undefined}>Date</th>
+                               <th style={classic ? { ...xpThCell, width: '130px', cursor: 'pointer' } : { cursor: 'pointer' }} className={classic ? '' : 'ps-3'} onClick={() => toggleSOSort('po')} title="Sort">PO# / Ref<SortMark sort={soSort} colKey="po" /></th>
+                               <th style={classic ? { ...xpThCell, width: '180px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggleSOSort('customer')} title="Sort">Customer<SortMark sort={soSort} colKey="customer" /></th>
+                               <th style={classic ? { ...xpThCell, width: '72px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggleSOSort('date')} title="Sort">Date<SortMark sort={soSort} colKey="date" /></th>
                                <th style={classic ? { ...xpThCell, width: '180px' } : undefined}>Item</th>
                                <th style={classic ? { ...xpThCell, width: '80px' } : undefined}>Size</th>
                                <th style={classic ? { ...xpThCell, width: '140px' } : undefined}>Qty</th>
                                <th style={classic ? { ...xpThCell, width: '80px' } : undefined}>Qty 3</th>
                                <th style={classic ? { ...xpThCell, width: '110px' } : undefined}>Stock Notes</th>
                                <th style={classic ? { ...xpThCell, width: '88px' } : undefined}>Req / Conf</th>
-                               <th style={classic ? { ...xpThCell, width: '80px' } : undefined}>Status</th>
+                               <th style={classic ? { ...xpThCell, width: '80px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggleSOSort('status')} title="Sort">Status<SortMark sort={soSort} colKey="status" /></th>
                                <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '110px' } : undefined} className={classic ? '' : 'text-end pe-3'}>Actions</th>
                            </tr>
                        </thead>
                        <tbody>
-                           {filteredOrders.flatMap((so: any, rowIndex: number) => {
+                           {sortedOrders.flatMap((so: any, rowIndex: number) => {
                                const rowBg = rowIndex % 2 === 0 ? '#ffffff' : (classic ? '#f5f3ee' : '#fafafa');
                                const soLines: any[] = so.lines;
                                const lineCount = Math.max(soLines.length, 1);

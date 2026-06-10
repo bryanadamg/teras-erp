@@ -1,7 +1,22 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useTheme } from '../../context/ThemeContext';
+
+// Stack of open modals so Escape only closes the topmost one (nested levels 1-3).
+const escStack: Array<() => void> = [];
+let escListenerAttached = false;
+
+function ensureEscListener() {
+    if (escListenerAttached || typeof window === 'undefined') return;
+    escListenerAttached = true;
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && escStack.length > 0) {
+            e.stopPropagation();
+            escStack[escStack.length - 1]();
+        }
+    });
+}
 
 interface ModalWrapperProps {
     isOpen: boolean;
@@ -37,6 +52,19 @@ export default function ModalWrapper({
     const { uiStyle: currentStyle } = useTheme();
     const [closeBtnHov, setCloseBtnHov] = useState(false);
     const backdropMouseDown = useRef(false);
+    const onCloseRef = useRef(onClose);
+    onCloseRef.current = onClose;
+
+    useEffect(() => {
+        if (!isOpen) return;
+        ensureEscListener();
+        const close = () => onCloseRef.current();
+        escStack.push(close);
+        return () => {
+            const idx = escStack.indexOf(close);
+            if (idx !== -1) escStack.splice(idx, 1);
+        };
+    }, [isOpen]);
 
     if (!isOpen) return null;
 

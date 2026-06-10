@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { useSortable, SortMark } from '../shared/xpTheme';
 
 interface StockOnHandViewProps {
     locations: any[];
@@ -58,6 +59,15 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
     }, [stockBalance, search, locationFilter, itemFilter, batchMap]);
 
     const negativeCount = filtered.filter((b: any) => b.qty < 0).length;
+
+    const sortCols = useMemo(() => ({
+        item:     (b: any) => b.item_name || b.item_code,
+        location: (b: any) => b.location_name || getLocationName(b.location_id),
+        batch:    (b: any) => b.batch_key ? (batchMap[b.batch_key] || b.batch_key) : null,
+        qty:      (b: any) => b.qty,
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }), [batchMap, locations]);
+    const { sorted: sortedRows, sort, toggle: toggleSort } = useSortable(filtered, sortCols);
 
     const balanceItems = useMemo(() => {
         const seen = new Set<string>();
@@ -221,17 +231,17 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
                                 <tr>
-                                    <th style={xpTableHeader}>Item</th>
-                                    <th style={xpTableHeader}>{t('locations') || 'Location'}</th>
-                                    <th style={xpTableHeader}>Batch / Lot</th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('batch')} title="Sort">Batch / Lot<SortMark sort={sort} colKey="batch" /></th>
                                     <th style={xpTableHeader}>{t('attributes') || 'Attributes'}</th>
-                                    <th style={{ ...xpTableHeader, textAlign: 'right' }}>{t('qty') || 'Qty'}</th>
+                                    <th style={{ ...xpTableHeader, textAlign: 'right', cursor: 'pointer' }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
                                     <th style={xpTableHeader}>UOM</th>
                                     <th style={{ ...xpTableHeader, textAlign: 'right' }}>Ends</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {filtered.map((bal: any, i: number) => renderRow(bal, i))}
+                                {sortedRows.map((bal: any, i: number) => renderRow(bal, i))}
                                 {filtered.length === 0 && (
                                     <tr>
                                         <td colSpan={7} style={{ textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
@@ -297,17 +307,17 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
                     <table className="table table-hover table-sm mb-0">
                         <thead className="table-light">
                             <tr>
-                                <th>Item</th>
-                                <th>{t('locations') || 'Location'}</th>
-                                <th>Batch / Lot</th>
+                                <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
+                                <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
+                                <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('batch')} title="Sort">Batch / Lot<SortMark sort={sort} colKey="batch" /></th>
                                 <th>{t('attributes') || 'Attributes'}</th>
-                                <th className="text-end">{t('qty') || 'Qty'}</th>
+                                <th className="text-end" style={{ cursor: 'pointer' }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
                                 <th>UOM</th>
                                 <th className="text-end">Ends</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filtered.map((bal: any, i: number) => renderRow(bal, i))}
+                            {sortedRows.map((bal: any, i: number) => renderRow(bal, i))}
                             {filtered.length === 0 && (
                                 <tr>
                                     <td colSpan={7} className="text-center text-muted py-4">No stock records found</td>

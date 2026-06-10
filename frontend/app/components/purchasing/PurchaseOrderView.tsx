@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import CodeConfigModal, { CodeConfig, buildCodeWithCounter } from '../shared/CodeConfigModal';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
@@ -6,6 +6,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import PrintHeader from '../shared/PrintHeader';
 import ModalWrapper from '../shared/ModalWrapper';
 import { useTheme } from '../../context/ThemeContext';
+import { useSortable, SortMark } from '../shared/xpTheme';
 
 export default function PurchaseOrderView({ items, attributes, purchaseOrders, partners, locations, onCreatePO, onDeletePO, onCreateReceipt }: any) {
   const { showToast } = useToast();
@@ -139,6 +140,11 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
       textAlign: 'left' as const,
       whiteSpace: 'nowrap' as const,
       fontFamily: 'Tahoma, Arial, sans-serif',
+      position: 'sticky' as const,
+      top: 0,
+      zIndex: 5,
+      background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
+      borderBottom: '2px solid #808080',
   };
 
   const tdBase: React.CSSProperties = {
@@ -269,6 +275,15 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
       const matchStatus = statusFilter === 'ALL' || po.status === statusFilter;
       return matchSearch && matchStatus;
   });
+
+  const poSortCols = useMemo(() => ({
+      po:       (po: any) => po.po_number,
+      supplier: (po: any) => getSupplierName(po.supplier_id),
+      date:     (po: any) => po.order_date || po.created_at,
+      status:   (po: any) => po.status,
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [partners]);
+  const { sorted: sortedOrders, sort: poSort, toggle: togglePOSort } = useSortable(filteredOrders, poSortCols);
 
   const statusBadge = (status: string) => {
     if (classic) {
@@ -665,16 +680,16 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                        <thead style={classic ? xpTableHeader : undefined} className={classic ? '' : 'table-light'}>
                            <tr>
                                <th style={classic ? { ...xpThCell, width: '20px' } : undefined}></th>
-                               <th style={classic ? { ...xpThCell, width: '130px' } : undefined} className={classic ? '' : 'ps-2'}>PO Number</th>
-                               <th style={classic ? xpThCell : undefined}>Supplier</th>
-                               <th style={classic ? { ...xpThCell, width: '90px' } : undefined}>Date</th>
+                               <th style={classic ? { ...xpThCell, width: '130px', cursor: 'pointer' } : { cursor: 'pointer' }} className={classic ? '' : 'ps-2'} onClick={() => togglePOSort('po')} title="Sort">PO Number<SortMark sort={poSort} colKey="po" /></th>
+                               <th style={classic ? { ...xpThCell, cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => togglePOSort('supplier')} title="Sort">Supplier<SortMark sort={poSort} colKey="supplier" /></th>
+                               <th style={classic ? { ...xpThCell, width: '90px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => togglePOSort('date')} title="Sort">Date<SortMark sort={poSort} colKey="date" /></th>
                                <th style={classic ? xpThCell : undefined}>Items</th>
-                               <th style={classic ? { ...xpThCell, width: '90px' } : undefined}>Status</th>
+                               <th style={classic ? { ...xpThCell, width: '90px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => togglePOSort('status')} title="Sort">Status<SortMark sort={poSort} colKey="status" /></th>
                                <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '130px' } : undefined} className={classic ? '' : 'text-end pe-4'}>Actions</th>
                            </tr>
                        </thead>
                        <tbody>
-                           {filteredOrders.map((po: any, rowIndex: number) => (
+                           {sortedOrders.map((po: any, rowIndex: number) => (
                                <>
                                <tr
                                    key={po.id}

@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 
 /**
  * Shared Windows XP "classic" theme primitives.
@@ -110,6 +110,71 @@ export function XPLoading({ label = 'Loading...', fullScreen = false }: { label?
             {inner}
         </div>
     );
+}
+
+// ── Status bar (classic Windows bottom strip) ───────────────────────────────
+
+export function XPStatusBar({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
+    return (
+        <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
+            background: 'linear-gradient(to bottom, #f4f2ea, #e3e1d6)',
+            border: '1px solid', borderColor: '#808080 #ffffff #ffffff #808080',
+            padding: '2px 8px', marginTop: 4,
+            fontFamily: xpFont, fontSize: 10, color: '#333333',
+            userSelect: 'none',
+        }}>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{children}</span>
+            {right && <span style={{ flexShrink: 0 }}>{right}</span>}
+        </div>
+    );
+}
+
+// ── Client-side table sorting ────────────────────────────────────────────────
+
+export type SortState = { key: string; dir: 1 | -1 } | null;
+
+const isNil = (v: any) => v === null || v === undefined || v === '';
+
+function compareValues(a: any, b: any): number {
+    if (isNil(a) && isNil(b)) return 0;
+    if (typeof a === 'number' && typeof b === 'number') return a - b;
+    const na = Number(a), nb = Number(b);
+    if (!isNaN(na) && !isNaN(nb) && String(a).trim() !== '' && String(b).trim() !== '') return na - nb;
+    return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+}
+
+/**
+ * Sort rows client-side by a column key. `columns` maps key -> accessor.
+ * toggle() cycles asc -> desc -> off per column. Empty values sort last in both directions.
+ */
+export function useSortable<T>(rows: T[], columns: Record<string, (row: T) => any>) {
+    const [sort, setSort] = useState<SortState>(null);
+
+    const sorted = useMemo(() => {
+        if (!sort || !columns[sort.key]) return rows;
+        const acc = columns[sort.key];
+        return [...rows].sort((ra, rb) => {
+            const a = acc(ra), b = acc(rb);
+            if (isNil(a) !== isNil(b)) return isNil(a) ? 1 : -1;
+            return compareValues(a, b) * sort.dir;
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [rows, sort]);
+
+    const toggle = (key: string) => setSort(prev =>
+        prev?.key !== key ? { key, dir: 1 }
+        : prev.dir === 1 ? { key, dir: -1 }
+        : null
+    );
+
+    return { sorted, sort, toggle };
+}
+
+/** Arrow indicator for a sortable column header. */
+export function SortMark({ sort, colKey }: { sort: SortState; colKey: string }) {
+    if (sort?.key !== colKey) return null;
+    return <span style={{ marginLeft: 3, fontSize: 8 }}>{sort.dir === 1 ? '▲' : '▼'}</span>;
 }
 
 export function XPEmptyState({ message, icon = 'bi-inbox', children }: { message: string; icon?: string; children?: React.ReactNode }) {

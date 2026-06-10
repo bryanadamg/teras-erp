@@ -9,7 +9,7 @@ import WOCompletionModal from './WOCompletionModal';
 import WOStepPrintModal from './WOStepPrintModal';
 import WOBulkPrintModal from './WOBulkPrintModal';
 import { getChipStyle } from './WorkOrderPanel';
-import { STATUS_COLORS, statusChipStyle, XPEmptyState } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark } from '../shared/xpTheme';
 
 const STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
 
@@ -135,6 +135,20 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
         if (filterMO && wo.mo_id !== filterMO) return false;
         return true;
     }), [flatWOs, filterStatus, filterGroup, filterWC, filterMO, wcById]);
+
+    const sortCols = useMemo(() => ({
+        sequence: (wo: FlatWO) => wo.sequence,
+        name:     (wo: FlatWO) => wo.name,
+        mo:       (wo: FlatWO) => (wo as any).mo_code,
+        product:  (wo: FlatWO) => (wo as any).item_name,
+        wc:       (wo: FlatWO) => wo.work_center_name,
+        planned:  (wo: FlatWO) => wo.planned_duration_hours ?? null,
+        actual:   (wo: FlatWO) => wo.actual_duration_hours ?? null,
+        start:    (wo: FlatWO) => wo.target_start_date ?? null,
+        end:      (wo: FlatWO) => wo.target_end_date ?? null,
+        status:   (wo: FlatWO) => wo.status,
+    }), []);
+    const { sorted: sortedWOs, sort, toggle: toggleSort } = useSortable(filtered, sortCols);
 
     useEffect(() => {
         if (!highlightWOId || flatWOs.length === 0) return;
@@ -375,6 +389,7 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
     const thStyle: React.CSSProperties = classic ? {
         border: '1px solid #808080', padding: '3px 8px', color: '#000', fontWeight: 'bold',
         background: 'linear-gradient(to bottom,#fff 0%,#d4d0c8 100%)', fontSize: 10, whiteSpace: 'nowrap',
+        position: 'sticky', top: 30, zIndex: 5, // below the 30px classic top bar
     } : { fontSize: '9pt', fontWeight: 'bold', whiteSpace: 'nowrap' };
 
     const tdBase: React.CSSProperties = classic ? {
@@ -463,9 +478,14 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                                         />
                                     </th>
                                     <th style={{ ...thStyle, width: 20, padding: '3px 4px' }} className={classic ? '' : 'ps-3'} />
-                                    {['#', 'Name', 'MO', 'Product', 'Work Center', 'Planned', 'Actual', 'Target / Done', 'Start', 'End', 'Status', ''].map(h => (
-                                        <th key={h} style={{ ...thStyle, textAlign: h === '' ? 'right' : 'left' }}
-                                            className={classic ? '' : 'ps-3'}>{h}</th>
+                                    {([['#', 'sequence'], ['Name', 'name'], ['MO', 'mo'], ['Product', 'product'], ['Work Center', 'wc'], ['Planned', 'planned'], ['Actual', 'actual'], ['Target / Done', ''], ['Start', 'start'], ['End', 'end'], ['Status', 'status'], ['', '']] as [string, string][]).map(([h, key], i) => (
+                                        <th key={`${h}-${i}`}
+                                            style={{ ...thStyle, textAlign: h === '' ? 'right' : 'left', cursor: key ? 'pointer' : undefined, userSelect: 'none' }}
+                                            className={classic ? '' : 'ps-3'}
+                                            onClick={key ? () => toggleSort(key) : undefined}
+                                            title={key ? 'Sort' : undefined}>
+                                            {h}{key && <SortMark sort={sort} colKey={key} />}
+                                        </th>
                                     ))}
                                 </tr>
                             </thead>
@@ -477,7 +497,7 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                                         </td>
                                     </tr>
                                 )}
-                                {filtered.map((wo, idx) => {
+                                {sortedWOs.map((wo, idx) => {
                                     const rowBg = classic ? (idx % 2 === 0 ? '#fff' : '#f5f3ee') : undefined;
                                     const isEditing = editId === wo.id;
                                     const isExpanded = expandedWOId === wo.id;
@@ -687,6 +707,14 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                             </tbody>
                         </table>
                     </div>
+
+                    {classic && (
+                        <XPStatusBar right={<span>{selectedWOIds.size > 0 ? `${selectedWOIds.size} selected` : ''}</span>}>
+                            {filtered.length === flatWOs.length
+                                ? `${flatWOs.length} work order${flatWOs.length !== 1 ? 's' : ''}`
+                                : `${filtered.length} of ${flatWOs.length} work orders shown`}
+                        </XPStatusBar>
+                    )}
                 </div>
             </div>
         </div>

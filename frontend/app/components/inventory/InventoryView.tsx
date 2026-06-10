@@ -8,7 +8,7 @@ import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { XPEmptyState } from '../shared/xpTheme';
+import { XPEmptyState, useSortable, SortMark } from '../shared/xpTheme';
 
 // XP-style category badge colours derived from category name
 function getCategoryXPStyle(category: string): { bg: string; border: string; color: string } {
@@ -494,6 +494,14 @@ export default function InventoryView({
       });
   }, [items, forcedCategory]);
 
+  const sortCols = useMemo(() => ({
+      code:     (i: any) => i.code,
+      name:     (i: any) => i.name,
+      category: (i: any) => i.category,
+      weight:   (i: any) => i.weight_per_unit ?? null,
+  }), []);
+  const { sorted: sortedItems, sort, toggle: toggleSort } = useSortable(filteredItems, sortCols);
+
   const allSelected = filteredItems.length > 0 && selectedIds.size === filteredItems.length;
   const someSelected = selectedIds.size > 0 && !allSelected;
 
@@ -608,6 +616,11 @@ export default function InventoryView({
       borderRight: '1px solid #b0aaa0',
       textAlign: 'left' as const,
       whiteSpace: 'nowrap' as const,
+      position: 'sticky' as const,
+      top: 30, // below the 30px classic top bar
+      zIndex: 5,
+      background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
+      borderBottom: '2px solid #808080',
   };
 
   const xpStatusBar: React.CSSProperties = {
@@ -1194,17 +1207,17 @@ export default function InventoryView({
                             onChange={toggleSelectAll}
                         />
                     </th>
-                    <th style={classic ? { ...xpThCell, width: '110px' } : undefined} className={classic ? '' : 'ps-4'}>{t('item_code')}</th>
-                    <th style={classic ? xpThCell : undefined}>{t('item_name')}</th>
-                    <th style={classic ? { ...xpThCell, width: '110px' } : undefined}>{t('categories')}</th>
+                    <th style={classic ? { ...xpThCell, width: '110px', cursor: 'pointer' } : { cursor: 'pointer' }} className={classic ? '' : 'ps-4'} onClick={() => toggleSort('code')} title="Sort">{t('item_code')}<SortMark sort={sort} colKey="code" /></th>
+                    <th style={classic ? { ...xpThCell, cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggleSort('name')} title="Sort">{t('item_name')}<SortMark sort={sort} colKey="name" /></th>
+                    <th style={classic ? { ...xpThCell, width: '110px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggleSort('category')} title="Sort">{t('categories')}<SortMark sort={sort} colKey="category" /></th>
                     <th style={classic ? { ...xpThCell, width: '90px' } : undefined}>{t('source_sample')}</th>
                     <th style={classic ? xpThCell : undefined}>{t('attributes')}</th>
-                    <th style={classic ? { ...xpThCell, width: '90px' } : { width: '90px' }}>{t('weight_per_unit')}</th>
+                    <th style={classic ? { ...xpThCell, width: '90px', cursor: 'pointer' } : { width: '90px', cursor: 'pointer' }} onClick={() => toggleSort('weight')} title="Sort">{t('weight_per_unit')}<SortMark sort={sort} colKey="weight" /></th>
                     <th style={classic ? { ...xpThCell, width: '80px', borderRight: 'none' } : { width: '80px' }}>{t('actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredItems.map((item: any, idx: number) => (
+                  {sortedItems.map((item: any, idx: number) => (
                     <InventoryRow
                         key={item.id}
                         item={item}
@@ -1226,7 +1239,13 @@ export default function InventoryView({
                         style={classic ? { padding: 0, background: '#ffffff' } : undefined}
                         className={classic ? '' : 'text-center text-muted py-5'}
                       >
-                        {classic ? <XPEmptyState message="No items found" icon="bi-box-seam" /> : 'No items found'}
+                        {classic ? (
+                          <XPEmptyState message="No items found" icon="bi-box-seam">
+                            <button style={{ ...xpBtn(), marginTop: 10 }} onClick={openCreateModal}>
+                              <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />{t('create')}
+                            </button>
+                          </XPEmptyState>
+                        ) : 'No items found'}
                       </td>
                     </tr>
                   )}
