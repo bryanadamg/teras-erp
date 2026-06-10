@@ -24,6 +24,7 @@ from app.models.auth import User
 from app.api.auth import get_current_user
 from app.models.item import Item
 from app.models.batch import Batch, BatchConsumption
+from app.api.batches import generate_batch_number
 from datetime import datetime
 from typing import Optional
 from app.core.ws_manager import manager
@@ -681,11 +682,14 @@ async def add_mo_completion(
     output_batch = None
     if is_beam_output and wo_output_loc:
         beam_no = (payload.beam_number or "").strip()
-        if not beam_no:
-            raise HTTPException(status_code=400, detail="Beam number is required when completing a beam item")
-        dup = await db.execute(select(Batch.id).filter(Batch.batch_number == beam_no).limit(1))
-        if dup.scalars().first():
-            raise HTTPException(status_code=400, detail=f"Beam number '{beam_no}' already exists")
+        if beam_no:
+            dup = await db.execute(select(Batch.id).filter(Batch.batch_number == beam_no).limit(1))
+            if dup.scalars().first():
+                raise HTTPException(status_code=400, detail=f"Beam number '{beam_no}' already exists")
+        else:
+            beam_no = await generate_batch_number(db, prefix="BM")
+            # surface the generated number to the operator via completion notes
+            payload.notes = f"{payload.notes} [Beam {beam_no}]" if payload.notes else f"Beam {beam_no}"
         output_batch = Batch(
             batch_number=beam_no,
             item_id=mo.item_id,

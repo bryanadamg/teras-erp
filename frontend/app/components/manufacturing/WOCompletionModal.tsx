@@ -145,10 +145,6 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                     return;
                 }
             }
-            if (isBeamOutput && !beamNumber.trim()) {
-                showToast('Enter the beam number for this beam', 'danger');
-                return;
-            }
             if (beamComponentItemId && beamBatches.length > 0 && !beamBatchId) {
                 showToast('Select the beam to consume from', 'danger');
                 return;
@@ -180,7 +176,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                     work_center_id: workCenterId || null,
                     work_order_id: workOrder?.id || null,
                     actual_items: woActualItems,
-                    beam_number: isBeamOutput ? beamNumber.trim() : null,
+                    beam_number: isBeamOutput ? (beamNumber.trim() || null) : null,
                     beam_batch_id: beamBatchId || null,
                 }),
             });
@@ -284,11 +280,10 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                         style={xpInput}
                                         value={beamNumber}
                                         onChange={e => setBeamNumber(e.target.value)}
-                                        placeholder="e.g. A-01 (unique per physical beam)"
-                                        required
+                                        placeholder="Leave empty to auto-generate (BM-YYYYMMDD-NNNN)"
                                     />
                                     <div style={{ fontSize: 9, color: '#888', marginTop: 2 }}>
-                                        Registers this beam as a stock batch with the produced kg.
+                                        Registers this beam as a stock batch with the produced kg. Auto-generated number is shown in the entry notes.
                                     </div>
                                 </div>
                             )}

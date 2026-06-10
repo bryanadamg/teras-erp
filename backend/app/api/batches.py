@@ -20,6 +20,22 @@ def _build_batch_number(date_str: str, counter: int) -> str:
     return f"BAT-{date_str}-{str(counter).zfill(4)}"
 
 
+async def generate_batch_number(db: AsyncSession, prefix: str = "BAT") -> str:
+    """Next unique batch number for today: <prefix>-YYYYMMDD-NNNN."""
+    today = datetime.now(timezone.utc).strftime("%Y%m%d")
+    full_prefix = f"{prefix}-{today}-"
+    count_result = await db.execute(
+        select(func.count()).select_from(Batch).filter(Batch.batch_number.like(f"{full_prefix}%"))
+    )
+    n = (count_result.scalar() or 0) + 1
+    while True:
+        candidate = f"{full_prefix}{str(n).zfill(4)}"
+        check = await db.execute(select(Batch.id).filter(Batch.batch_number == candidate).limit(1))
+        if check.scalars().first() is None:
+            return candidate
+        n += 1
+
+
 @router.post("", response_model=BatchResponse)
 async def create_batch(
     payload: BatchCreate,
@@ -30,22 +46,7 @@ async def create_batch(
     if not item_result.scalars().first():
         raise HTTPException(status_code=404, detail="Item not found")
 
-    today = datetime.now(timezone.utc).strftime("%Y%m%d")
-    prefix = f"BAT-{today}-"
-
-    count_result = await db.execute(
-        select(func.count()).select_from(Batch).filter(Batch.batch_number.like(f"{prefix}%"))
-    )
-    existing_count = count_result.scalar() or 0
-    batch_number = _build_batch_number(today, existing_count + 1)
-
-    # Ensure uniqueness in edge cases
-    while True:
-        check = await db.execute(select(Batch.id).filter(Batch.batch_number == batch_number).limit(1))
-        if check.scalars().first() is None:
-            break
-        existing_count += 1
-        batch_number = _build_batch_number(today, existing_count + 1)
+    batch_number = await generate_batch_number(db)
 
     batch = Batch(
         batch_number=batch_number,

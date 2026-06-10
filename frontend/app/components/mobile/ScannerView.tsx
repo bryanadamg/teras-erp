@@ -221,10 +221,6 @@ export default function MobileScannerView({
                 return;
             }
         }
-        if (isBeamOutput && !beamNumber.trim()) {
-            setLogError('Masukkan nomor beam');
-            return;
-        }
         if (beamComponentItemId && beamBatches.length > 0 && !beamBatchId) {
             setLogError('Pilih beam yang dipakai');
             return;
@@ -246,7 +242,7 @@ export default function MobileScannerView({
                     work_center_id: logWorkCenterId || null,
                     work_order_id: scannedWO.id,
                     actual_items: actualItems,
-                    beam_number: isBeamOutput ? beamNumber.trim() : null,
+                    beam_number: isBeamOutput ? (beamNumber.trim() || null) : null,
                     beam_batch_id: beamBatchId || null,
                 }),
             });
@@ -350,11 +346,11 @@ export default function MobileScannerView({
                                 <input
                                     type="text"
                                     value={beamNumber} onChange={e => setBeamNumber(e.target.value)}
-                                    placeholder="cth. A-01 (unik per beam fisik)"
+                                    placeholder="Kosongkan untuk nomor otomatis (BM-...)"
                                     style={{ ...xpInput, fontSize: 16, padding: '6px 10px', border: '2px solid #7f9db9' }}
                                 />
                                 <div style={{ fontFamily: XP_FONT, fontSize: 9, color: '#888', marginTop: 2 }}>
-                                    Beam dicatat sebagai stok batch dengan kg yang diproduksi.
+                                    Beam dicatat sebagai stok batch dengan kg yang diproduksi. Nomor otomatis muncul di catatan entri.
                                 </div>
                             </div>
                         )}
