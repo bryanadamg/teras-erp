@@ -686,8 +686,10 @@ async def add_mo_completion(
             select(WorkCenter.center_type).filter(WorkCenter.id == wo.work_center_id)
         )
         is_beam_output = (wc_res.scalar() or "").upper() == "BEAMING"
-    # Output lot: beams always get one; other items get one when lot_tracked
-    needs_output_lot = bool(wo_output_loc) and (is_beam_output or bool(mo.item and mo.item.lot_tracked))
+    # Output lot: beams always get one; other items get one when lot_tracked.
+    # The batch row is the identity/traceability record — created even when the WO
+    # has no output location; stock booking below still requires the location.
+    needs_output_lot = is_beam_output or bool(mo.item and mo.item.lot_tracked)
     output_batch = None
     if needs_output_lot:
         label = "Beam" if is_beam_output else "Lot"
@@ -700,6 +702,9 @@ async def add_mo_completion(
             lot_no = await generate_batch_number(db, prefix="BM" if is_beam_output else "LOT")
             # surface the generated number to the operator via completion notes
             payload.notes = f"{payload.notes} [{label} {lot_no}]" if payload.notes else f"{label} {lot_no}"
+        if not wo_output_loc:
+            warn = f"{label} {lot_no} not booked to stock: work order has no output location"
+            payload.notes = f"{payload.notes} [{warn}]" if payload.notes else f"[{warn}]"
         output_batch = Batch(
             batch_number=lot_no,
             item_id=mo.item_id,
