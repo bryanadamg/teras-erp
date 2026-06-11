@@ -391,6 +391,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
        {/* Create PO Modal */}
        <ModalWrapper
            isOpen={isCreateOpen}
+           modeless
            onClose={() => { setIsCreateOpen(false); setNewPO({ po_number: '', supplier_id: '', target_location_id: '', order_date: new Date().toISOString().split('T')[0], lines: [] }); }}
            title={<><i className="bi bi-cart-plus" style={classic?{marginRight:6}:{marginRight:8}}></i>Create Purchase Order</>}
            variant="success"
@@ -497,6 +498,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
        {/* Receive Goods Modal */}
        <ModalWrapper
            isOpen={!!receiptTarget}
+           modeless
            onClose={() => setReceiptTarget(null)}
            title={<><i className="bi bi-box-arrow-in-down" style={classic?{marginRight:6}:{marginRight:8}}></i>Receive Goods — {receiptTarget?.po_number}</>}
            variant="success"

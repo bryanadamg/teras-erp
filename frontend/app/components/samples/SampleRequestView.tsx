@@ -543,6 +543,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
        {/* Create / Edit Modal */}
        <ModalWrapper
            isOpen={isCreateOpen}
+           modeless
            onClose={() => { setIsCreateOpen(false); setEditingSample(null); }}
            title={editingSample
                ? <><i className="bi bi-pencil me-2"></i>Edit Sample Request — {editingSample.code}</>

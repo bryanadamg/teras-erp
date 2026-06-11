@@ -1107,6 +1107,7 @@ export default function ManufacturingView({
 
           <ModalWrapper
               isOpen={isCreateOpen}
+              modeless
               onClose={() => setIsCreateOpen(false)}
               title={<><i className="bi bi-gear-wide-connected me-1"></i> NEW MANUFACTURING ORDER</>}
               variant="success"
@@ -1987,6 +1988,7 @@ export default function ManufacturingView({
               return (
                   <ModalWrapper
                       isOpen
+                      modeless
                       onClose={() => setEditAttrsModal(null)}
                       title={<><i className="bi bi-tags me-1"></i>Edit Attributes — <span style={{ fontFamily: 'monospace' }}>{editAttrsModal.mo.code}</span></>}
                       size="md"

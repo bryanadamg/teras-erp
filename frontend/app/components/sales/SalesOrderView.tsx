@@ -647,6 +647,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
        {/* Create / Edit SO Modal */}
        <ModalWrapper
            isOpen={isCreateOpen}
+           modeless
            onClose={() => { setIsCreateOpen(false); setEditingSOId(null); resetForm(); }}
            title={<><i className={`bi ${editingSOId ? 'bi-pencil' : 'bi-cart-plus'}`} style={classic ? {marginRight:6} : {marginRight:8}}></i>{editingSOId ? 'Edit Sales Order' : 'Create Sales Order'}</>}
            variant="primary"

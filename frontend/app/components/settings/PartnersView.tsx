@@ -442,6 +442,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
             {/* Create Modal */}
             <ModalWrapper
                 isOpen={isCreateOpen}
+                modeless
                 onClose={() => setIsCreateOpen(false)}
                 title={<><i className="bi bi-plus-circle me-1"></i> Add New {typeLabel}</>}
                 variant="primary"
@@ -554,6 +555,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
             {/* Edit Modal */}
             <ModalWrapper
                 isOpen={!!editingPartner}
+                modeless
                 onClose={() => setEditingPartner(null)}
                 title={<><i className="bi bi-pencil-square me-1"></i> Edit {typeLabel}</>}
                 variant="info"

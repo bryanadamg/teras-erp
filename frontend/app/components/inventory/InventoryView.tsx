@@ -657,6 +657,7 @@ export default function InventoryView({
       {/* Create Modal */}
       <ModalWrapper
           isOpen={isCreateOpen}
+          modeless
           onClose={() => { setIsCreateOpen(false); setNameManuallyEdited(false); setFormCatL1(''); setFormCatL2(''); setFormCatL3(''); setCreateBeam(false); setBeamName(''); setBeamUom(''); setBeamNameManuallyEdited(false); }}
           title={<span data-testid="modal-title"><i className="bi bi-box-seam me-2"></i>{t('create')} {forcedCategory ? t('sample_masters') : t('item_inventory')}</span>}
           variant="primary"
