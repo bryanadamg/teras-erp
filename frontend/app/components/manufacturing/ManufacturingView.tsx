@@ -401,6 +401,8 @@ export default function ManufacturingView({
   // Helpers
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
   const getItemCode = (id: string) => items.find((i: any) => i.id === id)?.code || id;
+  const getItemUom = (id: string) => items.find((i: any) => i.id === id)?.uom || '';
+  const uomBadgeStyle: React.CSSProperties = { background: '#dde8f5', border: '1px solid #7f9db9', color: '#336', fontSize: 9, padding: '0 4px', whiteSpace: 'nowrap', fontWeight: 'normal' };
   const getBOMCode = (id: string) => boms.find((b: any) => b.id === id)?.code || id;
   const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
   const getOpName = (id: string) => operations.find((o: any) => o.id === id)?.name || id;
@@ -904,7 +906,17 @@ export default function ManufacturingView({
                                                   {hasSubBOM && <span style={{ fontSize: '8px', background: '#fff3cd', border: '1px solid #b8860b', color: '#6b4e00', padding: '0 4px', fontWeight: 'bold' }}>SUB-BOM</span>}
                                               </td>
                                               <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', color: '#333', fontSize: '10px' }}>{attrLabel || '—'}</td>
-                                              <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', textAlign: 'right', fontFamily: 'monospace', color: '#000', fontWeight: 'bold' }}>{req.toFixed(2)}</td>
+                                              <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+                                                      {(line.percentage || 0) > 0 && (
+                                                          <span title={`${line.percentage}% of MO qty`} style={{ background: '#b46a00', color: '#fff', fontSize: 8, padding: '0 3px', fontWeight: 'bold' }}>{line.percentage}%</span>
+                                                      )}
+                                                      <span style={{ fontFamily: 'monospace', color: '#000', fontWeight: 'bold' }}>{req.toFixed(2)}</span>
+                                                      {getItemUom(line.item_id) && (
+                                                          <span style={uomBadgeStyle}>{getItemUom(line.item_id)}</span>
+                                                      )}
+                                                  </div>
+                                              </td>
                                               {showBreakdown && (
                                                   <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', verticalAlign: 'top' }}>
                                                       {parentMOBreakdown.map(({ mo, qty: parentContrib }) => {
@@ -990,7 +1002,7 @@ export default function ManufacturingView({
                   <div style={{ borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '6px 8px' }}>
                       <div style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', letterSpacing: '0.5px', marginBottom: '4px' }}>Output</div>
                       <div style={{ fontSize: '10px', color: '#000', fontWeight: 'bold' }}>{getLocationName(selectedNode.location_id)}</div>
-                      <div style={{ fontSize: '10px', color: '#444' }}>Qty: <strong style={{ color: '#000' }}>{selectedNode.qty}</strong></div>
+                      <div style={{ fontSize: '10px', color: '#444' }}>Qty: <strong style={{ color: '#000' }}>{selectedNode.qty}</strong>{getItemUom(selectedNode.item_id) && <span style={{ ...uomBadgeStyle, marginLeft: 4 }}>{getItemUom(selectedNode.item_id)}</span>}</div>
                   </div>
 
                   {/* Completion Progress */}

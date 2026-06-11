@@ -102,6 +102,8 @@ export default function BOMView({
     // Lookup helpers
     const getItemName = (id: string, provided?: string) => provided || items.find((i: any) => i.id === id)?.name || id;
     const getItemCode = (id: string, provided?: string) => provided || items.find((i: any) => i.id === id)?.code || id;
+    const getItemUom = (id: string) => items.find((i: any) => i.id === id)?.uom || '';
+    const uomBadge: React.CSSProperties = { background: '#dde8f5', border: '1px solid #7f9db9', color: '#336', fontSize: 9, padding: '0 4px', whiteSpace: 'nowrap', fontWeight: 'normal' };
     const getWcName = (id: string | null) => id ? (workCenters.find((w: any) => w.id === id)?.name || id) : '—';
     const getAttrValues = (ids: string[]) => {
         if (!ids?.length) return '—';
@@ -265,9 +267,19 @@ export default function BOMView({
                                         <i className="bi bi-geo-alt" />
                                     </span>
                                 )}
-                                {isExpandable && (
-                                    <span style={{ background: '#fff3cd', border: '1px solid #b8860b', color: '#6b4e00', fontSize: '8px', padding: '0 3px', fontWeight: 'bold', marginLeft: 'auto', flexShrink: 0 }}>Sub</span>
-                                )}
+                                <span style={{ marginLeft: 'auto', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                    {(line.percentage || 0) > 0 ? (
+                                        <span style={{ background: '#b46a00', color: '#fff', fontSize: 8, padding: '0 3px', fontWeight: 'bold' }}>{line.percentage}%</span>
+                                    ) : (line.qty || 0) > 0 ? (
+                                        <span style={{ fontFamily: "'Courier New', monospace", fontSize: 9, fontWeight: 'bold', color: '#000' }}>{Number(line.qty)}</span>
+                                    ) : null}
+                                    {getItemUom(line.item_id) && (
+                                        <span style={uomBadge}>{getItemUom(line.item_id)}</span>
+                                    )}
+                                    {isExpandable && (
+                                        <span style={{ background: '#fff3cd', border: '1px solid #b8860b', color: '#6b4e00', fontSize: '8px', padding: '0 3px', fontWeight: 'bold' }}>Sub</span>
+                                    )}
+                                </span>
                             </div>
                         </div>
                         {isExpandable && isExpanded && subBOM.lines && (
@@ -439,7 +451,7 @@ export default function BOMView({
                                             <thead>
                                                 <tr>
                                                     <th style={xpTh}>Item</th>
-                                                    <th style={{ ...xpTh, textAlign: 'right' }}>%</th>
+                                                    <th style={{ ...xpTh, textAlign: 'right' }}>Required</th>
                                                     <th style={xpTh}>Attributes</th>
                                                 </tr>
                                             </thead>
@@ -457,10 +469,15 @@ export default function BOMView({
                                                                     <span style={{ marginLeft: 5, background: '#e6eeff', border: '1px solid #0058e6', color: '#003080', fontSize: 9, padding: '0 3px', fontWeight: 'bold' }}>Sub</span>
                                                                 )}
                                                             </td>
-                                                            <td style={{ ...xpTd, textAlign: 'right' }}>
+                                                            <td style={{ ...xpTd, textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                                 {(line.percentage || 0) > 0 ? (
                                                                     <span style={{ background: '#b46a00', color: '#fff', fontSize: 9, padding: '1px 5px', fontWeight: 'bold' }}>{line.percentage}%</span>
+                                                                ) : (line.qty || 0) > 0 ? (
+                                                                    <span style={{ fontFamily: "'Courier New', monospace", fontWeight: 'bold' }}>{Number(line.qty)}</span>
                                                                 ) : <span style={{ color: '#888' }}>—</span>}
+                                                                {getItemUom(line.item_id) && (
+                                                                    <span style={{ ...uomBadge, marginLeft: 4 }}>{getItemUom(line.item_id)}</span>
+                                                                )}
                                                             </td>
                                                             <td style={{ ...xpTd, fontSize: 10, color: '#444' }}>{getAttrValues(line.attribute_value_ids || [])}</td>
                                                         </tr>
