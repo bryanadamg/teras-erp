@@ -9,6 +9,8 @@ interface Batch {
   id: string;
   batch_number: string;
   item_id: string;
+  item_code: string | null;
+  item_name: string | null;
   notes: string | null;
   created_by: string | null;
   created_at: string;
@@ -148,12 +150,15 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
 
   const itemMap = Object.fromEntries(items.map(i => [i.id, i]));
 
+  const batchItemCode = (b: Batch) => b.item_code || itemMap[b.item_id]?.code || '-';
+  const batchItemName = (b: Batch) => b.item_name || itemMap[b.item_id]?.name || '-';
+
   const filtered = batches.filter(b => {
     if (!searchTerm) return true;
     const s = searchTerm.toLowerCase();
     return b.batch_number.toLowerCase().includes(s) ||
-      (itemMap[b.item_id]?.code || '').toLowerCase().includes(s) ||
-      (itemMap[b.item_id]?.name || '').toLowerCase().includes(s);
+      batchItemCode(b).toLowerCase().includes(s) ||
+      batchItemName(b).toLowerCase().includes(s);
   });
 
   // ── Styles ────────────────────────────────────────────────────────────────
@@ -262,8 +267,8 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
               {filtered.map((b, i) => (
                 <tr key={b.id}>
                   <td style={xpTd(i % 2 === 1)}><strong>{b.batch_number}</strong></td>
-                  <td style={xpTd(i % 2 === 1)}>{itemMap[b.item_id]?.code || b.item_id}</td>
-                  <td style={xpTd(i % 2 === 1)}>{itemMap[b.item_id]?.name || '-'}</td>
+                  <td style={xpTd(i % 2 === 1)}>{batchItemCode(b)}</td>
+                  <td style={xpTd(i % 2 === 1)}>{batchItemName(b)}</td>
                   <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right' }}>{b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}</td>
                   <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right' }}>{b.ends ?? '-'}</td>
                   <td style={xpTd(i % 2 === 1)}>{b.notes || '-'}</td>
@@ -307,8 +312,8 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
               {filtered.map(b => (
                 <tr key={b.id}>
                   <td><strong>{b.batch_number}</strong></td>
-                  <td>{itemMap[b.item_id]?.code || b.item_id}</td>
-                  <td>{itemMap[b.item_id]?.name || '-'}</td>
+                  <td>{batchItemCode(b)}</td>
+                  <td>{batchItemName(b)}</td>
                   <td className="text-end">{b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}</td>
                   <td className="text-end">{b.ends ?? '-'}</td>
                   <td>{b.notes || '-'}</td>
@@ -476,7 +481,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                           <div style={{ paddingLeft: depth * 20, padding: `2px 0 2px ${depth * 20}px` }}>
                             {depth > 0 && <span style={{ color: '#888' }}>{'└ '}</span>}
                             <strong>{node.batch.batch_number}</strong>
-                            <span style={{ color: '#666' }}> ({itemMap[node.batch.item_id]?.code || itemMap[node.batch.item_id]?.name || 'unknown item'})</span>
+                            <span style={{ color: '#666' }}> ({node.batch.item_code || itemMap[node.batch.item_id]?.code || 'unknown item'})</span>
                             {node.qty_consumed != null && (
                               <span style={{ color: '#444' }}> — {node.qty_consumed} consumed{node.mo_code ? ` in ${node.mo_code}` : ''}</span>
                             )}

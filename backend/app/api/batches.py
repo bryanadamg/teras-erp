@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 from app.db.session import get_async_db
 from app.models.batch import Batch, BatchConsumption
 from app.models.item import Item
@@ -43,7 +43,8 @@ async def create_batch(
     current_user: User = Depends(get_current_user),
 ):
     item_result = await db.execute(select(Item).filter(Item.id == payload.item_id))
-    if not item_result.scalars().first():
+    item = item_result.scalars().first()
+    if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
     batch_number = await generate_batch_number(db)
@@ -57,6 +58,8 @@ async def create_batch(
     db.add(batch)
     await db.commit()
     await db.refresh(batch)
+    batch.item_code = item.code
+    batch.item_name = item.name
 
     await audit_service.log_activity(
         db, current_user.id, "CREATE", "Batch", str(batch.id),
@@ -74,7 +77,7 @@ async def list_batches(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = select(Batch).order_by(Batch.created_at.desc())
+    query = select(Batch).options(joinedload(Batch.item)).order_by(Batch.created_at.desc())
     if item_id:
         query = query.filter(Batch.item_id == item_id)
     result = await db.execute(query.offset(skip).limit(limit))
@@ -95,6 +98,8 @@ async def list_batches(
         remaining_map = {k: float(v or 0) for k, v in bal_res.all()}
     for b in batches:
         b.remaining = remaining_map.get(str(b.id), 0.0)
+        b.item_code = b.item.code if b.item else None
+        b.item_name = b.item.name if b.item else None
     return batches
 
 
@@ -104,10 +109,12 @@ async def get_batch(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(Batch).filter(Batch.id == batch_id))
+    result = await db.execute(select(Batch).options(joinedload(Batch.item)).filter(Batch.id == batch_id))
     batch = result.scalars().first()
     if not batch:
         raise HTTPException(status_code=404, detail="Lot not found")
+    batch.item_code = batch.item.code if batch.item else None
+    batch.item_name = batch.item.name if batch.item else None
     return batch
 
 
@@ -138,10 +145,12 @@ async def trace_batch_forward(
     current_user: User = Depends(get_current_user),
 ):
     """Forward traceability: raw material batch → finished goods batches produced with it."""
-    batch_result = await db.execute(select(Batch).filter(Batch.id == batch_id))
+    batch_result = await db.execute(select(Batch).options(joinedload(Batch.item)).filter(Batch.id == batch_id))
     batch = batch_result.scalars().first()
     if not batch:
         raise HTTPException(status_code=404, detail="Lot not found")
+    batch.item_code = batch.item.code if batch.item else None
+    batch.item_name = batch.item.name if batch.item else None
 
     consumptions_result = await db.execute(
         select(BatchConsumption).filter(BatchConsumption.input_batch_id == batch_id)
@@ -163,12 +172,14 @@ async def trace_batch_backward(
     """Backward genealogy: finished batch → input batches it was made from, recursively."""
     from app.models.manufacturing import ManufacturingOrder
 
-    batch_result = await db.execute(select(Batch).filter(Batch.id == batch_id))
+    batch_result = await db.execute(select(Batch).options(joinedload(Batch.item)).filter(Batch.id == batch_id))
     batch = batch_result.scalars().first()
     if not batch:
         raise HTTPException(status_code=404, detail="Lot not found")
 
     async def build_node(b: Batch, depth: int, visited: set) -> dict:
+        b.item_code = b.item.code if b.item else None
+        b.item_name = b.item.name if b.item else None
         node = {"batch": BatchResponse.model_validate(b), "inputs": []}
         if depth >= 8:
             return node
@@ -180,7 +191,7 @@ async def trace_batch_backward(
             if key in visited:
                 continue
             visited.add(key)
-            in_result = await db.execute(select(Batch).filter(Batch.id == c.input_batch_id))
+            in_result = await db.execute(select(Batch).options(joinedload(Batch.item)).filter(Batch.id == c.input_batch_id))
             in_batch = in_result.scalars().first()
             if not in_batch:
                 continue

@@ -376,7 +376,7 @@ export default function MobileScannerView({
                         {Object.keys(batchesByItem).map(itemId => (
                             <div key={itemId} style={{ marginBottom: 10 }}>
                                 <div style={{ fontFamily: XP_FONT, fontSize: 11, fontWeight: 'bold', marginBottom: 4 }}>
-                                    Lot yang Dipakai — {findItem(itemId)?.code || itemId}
+                                    Lot yang Dipakai — {materialRows.find(r => r.item_id === itemId)?.item_code || findItem(itemId)?.code || 'material'}
                                 </div>
                                 <select
                                     value={consumedBatches[itemId] || ''}

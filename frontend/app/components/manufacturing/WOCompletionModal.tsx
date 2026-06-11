@@ -306,11 +306,12 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                 </div>
                             )}
                             {workOrder && Object.keys(batchesByItem).map(itemId => {
-                                const it = findItem(itemId);
+                                const rowCode = materialRows.find(r => r.item_id === itemId)?.item_code;
+                                const code = rowCode || findItem(itemId)?.code || 'material';
                                 return (
                                     <div key={itemId}>
                                         <label style={{ ...xpLabel, fontWeight: 'bold' }}>
-                                            Lot to Consume — {it?.code || itemId}
+                                            Lot to Consume — {code}
                                         </label>
                                         <select
                                             style={{ ...xpInput, height: 22 }}

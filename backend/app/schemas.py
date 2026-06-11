@@ -1241,6 +1241,8 @@ class BatchResponse(BaseModel):
     id: UUID
     batch_number: str
     item_id: UUID
+    item_code: Optional[str] = None   # populated by batches endpoints (eager-loaded item)
+    item_name: Optional[str] = None
     notes: Optional[str] = None
     created_by: Optional[str] = None
     created_at: datetime
