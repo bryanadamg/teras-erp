@@ -116,6 +116,10 @@ export default function ModalWrapper({
         top: 56,
         transform: `translate(calc(-50% + ${dragOffset.current.x}px), ${dragOffset.current.y}px)`,
         zIndex: modalZIndex,
+        // The panel can render as a direct child of a Bootstrap .row, whose
+        // `.row > *` rule injects gutter padding/margin — neutralize it.
+        padding: 0,
+        margin: 0,
     };
 
     // ── XP Dialog ──────────────────────────────────────────────────────────
