@@ -525,13 +525,13 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                         />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={{ fontSize: 10, color: '#444' }}>Input Batch ID</span>
+                                        <span style={{ fontSize: 10, color: '#444' }}>Input Lot</span>
                                         <input
                                             type="text"
                                             style={xpInput}
                                             value={createForm.input_batch_id}
                                             onChange={e => handleCreateFormChange('input_batch_id', e.target.value)}
-                                            placeholder="batch number"
+                                            placeholder="lot number"
                                         />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -802,13 +802,13 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                     </select>
                                 </label>
                                 <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                    <span style={{ fontSize: 10, color: '#444' }}>Output Batch Number *</span>
+                                    <span style={{ fontSize: 10, color: '#444' }}>Output Lot Number *</span>
                                     <input
                                         type="text"
                                         style={xpInput}
                                         value={completeForm.output_batch_number}
                                         onChange={e => handleCompleteFormChange('output_batch_number', e.target.value)}
-                                        placeholder="batch number (required)"
+                                        placeholder="lot number (required)"
                                     />
                                 </label>
                                 <label style={{ display: 'flex', flexDirection: 'column', gap: 1, gridColumn: '1 / -1' }}>

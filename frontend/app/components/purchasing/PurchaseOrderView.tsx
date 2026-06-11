@@ -22,6 +22,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
   const [receiptTarget, setReceiptTarget] = useState<any>(null);
   const [receiptLineQtys, setReceiptLineQtys] = useState<Record<string, number>>({});
   const [receiptLineBoxes, setReceiptLineBoxes] = useState<Record<string, number | ''>>({});
+  const [receiptLineLots, setReceiptLineLots] = useState<Record<string, string>>({});
   const [receiptDate, setReceiptDate] = useState('');
   const [receiptNotes, setReceiptNotes] = useState('');
 
@@ -36,6 +37,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
     }
     setReceiptLineQtys(defaults);
     setReceiptLineBoxes({});
+    setReceiptLineLots({});
     setReceiptDate(new Date().toISOString().split('T')[0]);
     setReceiptNotes('');
     setReceiptTarget(po);
@@ -51,6 +53,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
         qty_boxes: receiptLineBoxes[po_line_id] !== '' && receiptLineBoxes[po_line_id] !== undefined
           ? Number(receiptLineBoxes[po_line_id])
           : null,
+        batch_number: (receiptLineLots[po_line_id] || '').trim() || null,
       }));
     if (lines.length === 0) { showToast('Enter qty for at least one line', 'error'); return; }
     onCreateReceipt(receiptTarget.id, { receipt_date: receiptDate || null, notes: receiptNotes || null, lines });
@@ -535,7 +538,8 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                <th style={classic?{...xpThCell,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>Ordered</th>
                                <th style={classic?{...xpThCell,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>Rcvd So Far</th>
                                <th style={classic?{...xpThCell,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>This Receipt (kg)</th>
-                               <th style={classic?{...xpThCell,textAlign:'right' as const,borderRight:'none'}:undefined} className={classic?'':'text-end'}>Boxes</th>
+                               <th style={classic?{...xpThCell,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>Boxes</th>
+                               <th style={classic?{...xpThCell,borderRight:'none'}:undefined}>Lot No.</th>
                            </tr>
                        </thead>
                        <tbody>
@@ -558,7 +562,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                            onChange={e => setReceiptLineQtys(prev => ({ ...prev, [line.id]: parseFloat(e.target.value) || 0 }))}
                                        />
                                    </td>
-                                   <td style={classic?{...tdBase,borderRight:'none',textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>
+                                   <td style={classic?{...tdBase,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>
                                        <input
                                            type="number"
                                            min="0"
@@ -568,6 +572,16 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                            className={classic?'':'form-control form-control-sm'}
                                            value={receiptLineBoxes[line.id] ?? ''}
                                            onChange={e => setReceiptLineBoxes(prev => ({ ...prev, [line.id]: e.target.value === '' ? '' : parseInt(e.target.value) || 0 }))}
+                                       />
+                                   </td>
+                                   <td style={classic?{...tdBase,borderRight:'none'}:undefined}>
+                                       <input
+                                           type="text"
+                                           placeholder="Supplier lot (optional)"
+                                           style={classic?{...xpInput,width:120}:{width:140}}
+                                           className={classic?'':'form-control form-control-sm'}
+                                           value={receiptLineLots[line.id] ?? ''}
+                                           onChange={e => setReceiptLineLots(prev => ({ ...prev, [line.id]: e.target.value }))}
                                        />
                                    </td>
                                </tr>

@@ -6,7 +6,7 @@ from app.db.session import get_async_db
 from app.models.batch import Batch, BatchConsumption
 from app.models.item import Item
 from app.models.stock_balance import StockBalance
-from app.schemas import BatchCreate, BatchResponse, BatchTraceResponse, BatchConsumptionResponse
+from app.schemas import BatchCreate, BatchResponse, BatchTraceResponse, BatchConsumptionResponse, BatchTraceBackNode
 from app.api.auth import get_current_user
 from app.models.auth import User
 from app.services import audit_service
@@ -107,7 +107,7 @@ async def get_batch(
     result = await db.execute(select(Batch).filter(Batch.id == batch_id))
     batch = result.scalars().first()
     if not batch:
-        raise HTTPException(status_code=404, detail="Batch not found")
+        raise HTTPException(status_code=404, detail="Lot not found")
     return batch
 
 
@@ -120,7 +120,7 @@ async def delete_batch(
     result = await db.execute(select(Batch).filter(Batch.id == batch_id))
     batch = result.scalars().first()
     if not batch:
-        raise HTTPException(status_code=404, detail="Batch not found")
+        raise HTTPException(status_code=404, detail="Lot not found")
 
     await db.delete(batch)
     await db.commit()
@@ -141,7 +141,7 @@ async def trace_batch_forward(
     batch_result = await db.execute(select(Batch).filter(Batch.id == batch_id))
     batch = batch_result.scalars().first()
     if not batch:
-        raise HTTPException(status_code=404, detail="Batch not found")
+        raise HTTPException(status_code=404, detail="Lot not found")
 
     consumptions_result = await db.execute(
         select(BatchConsumption).filter(BatchConsumption.input_batch_id == batch_id)
@@ -152,3 +152,46 @@ async def trace_batch_forward(
         batch=BatchResponse.model_validate(batch),
         consumptions=[BatchConsumptionResponse.model_validate(c) for c in consumptions],
     )
+
+
+@router.get("/{batch_id}/trace-back", response_model=BatchTraceBackNode)
+async def trace_batch_backward(
+    batch_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Backward genealogy: finished batch → input batches it was made from, recursively."""
+    from app.models.manufacturing import ManufacturingOrder
+
+    batch_result = await db.execute(select(Batch).filter(Batch.id == batch_id))
+    batch = batch_result.scalars().first()
+    if not batch:
+        raise HTTPException(status_code=404, detail="Lot not found")
+
+    async def build_node(b: Batch, depth: int, visited: set) -> dict:
+        node = {"batch": BatchResponse.model_validate(b), "inputs": []}
+        if depth >= 8:
+            return node
+        cons_result = await db.execute(
+            select(BatchConsumption).filter(BatchConsumption.output_batch_id == b.id)
+        )
+        for c in cons_result.scalars().all():
+            key = str(c.input_batch_id)
+            if key in visited:
+                continue
+            visited.add(key)
+            in_result = await db.execute(select(Batch).filter(Batch.id == c.input_batch_id))
+            in_batch = in_result.scalars().first()
+            if not in_batch:
+                continue
+            child = await build_node(in_batch, depth + 1, visited)
+            child["qty_consumed"] = float(c.qty_consumed)
+            child["manufacturing_order_id"] = c.manufacturing_order_id
+            mo_result = await db.execute(
+                select(ManufacturingOrder.code).filter(ManufacturingOrder.id == c.manufacturing_order_id)
+            )
+            child["mo_code"] = mo_result.scalar()
+            node["inputs"].append(child)
+        return node
+
+    return await build_node(batch, 0, {str(batch.id)})

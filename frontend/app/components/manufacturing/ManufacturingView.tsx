@@ -1039,7 +1039,7 @@ export default function ManufacturingView({
                   {/* Batch Trace */}
                   <div style={{ borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '6px 8px' }}>
                       <div style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', letterSpacing: '0.5px', marginBottom: '4px' }}>
-                          <i className="bi bi-upc-scan me-1"></i>Batches
+                          <i className="bi bi-upc-scan me-1"></i>Lots
                       </div>
                       {(() => {
                           const trace: any[] = selectedNode.batch_trace || [];

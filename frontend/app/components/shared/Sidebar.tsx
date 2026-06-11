@@ -248,7 +248,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
                   </>
                 )}
                 {hasPermission('inventory.manage') && (
-                  <NavItem tab="batches" label="Batch / Lot" icon="bi-upc-scan" isSub />
+                  <NavItem tab="batches" label="Lots" icon="bi-upc-scan" isSub />
                 )}
                 {hasPermission('inventory.manage') && (
                   <NavItem tab="stock-on-hand" label={t('stock_on_hand') || 'Stock On-Hand'} icon="bi-boxes" isSub />

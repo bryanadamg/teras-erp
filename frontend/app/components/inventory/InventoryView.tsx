@@ -252,7 +252,7 @@ export default function InventoryView({
   });
 
   // Creation State
-  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [] as string[], weight_per_unit: '' as string | number, weight_unit: 'g/y', packaging_factor_ids: [] as string[], ends: '' as string | number });
+  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [] as string[], weight_per_unit: '' as string | number, weight_unit: 'g/y', packaging_factor_ids: [] as string[], ends: '' as string | number, lot_tracked: false });
   const [nameManuallyEdited, setNameManuallyEdited] = useState(false);
 
   // Beam item creation state
@@ -424,7 +424,7 @@ export default function InventoryView({
           } else {
               showToast('Item created successfully', 'success');
           }
-          setNewItem({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [], weight_per_unit: '', weight_unit: 'g/y', packaging_factor_ids: [], ends: '' });
+          setNewItem({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [], weight_per_unit: '', weight_unit: 'g/y', packaging_factor_ids: [], ends: '', lot_tracked: false });
           setFormCatL1(''); setFormCatL2(''); setFormCatL3('');
           setNameManuallyEdited(false);
           setCreateBeam(false); setBeamName(''); setBeamUom(''); setBeamEnds('');
@@ -450,6 +450,7 @@ export default function InventoryView({
           source_color_id: editingItem.source_color_id || null,
           weight_per_unit: editingItem.weight_per_unit || null,
           weight_unit: editingItem.weight_per_unit ? (editingItem.weight_unit || 'gsm') : null,
+          lot_tracked: !!editingItem.lot_tracked,
       };
 
       onUpdateItem(editingItem.id, payload);
@@ -867,6 +868,22 @@ export default function InventoryView({
                           <option value="g/y">g/y</option>
                       </select>
                   </div>
+              </div>
+
+              <div className="mb-3" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input
+                      style={classic ? { cursor: 'pointer' } : undefined}
+                      className={classic ? '' : 'form-check-input'}
+                      type="checkbox"
+                      id="new-lot-tracked"
+                      checked={newItem.lot_tracked}
+                      onChange={e => setNewItem({ ...newItem, lot_tracked: e.target.checked })}
+                  />
+                  <label
+                      style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', cursor: 'pointer', margin: 0 } : { margin: 0 }}
+                      className={classic ? '' : 'form-check-label small'}
+                      htmlFor="new-lot-tracked"
+                  >Lot tracked — every receipt, production output and transfer requires a lot number</label>
               </div>
 
               <div className="mb-3">
@@ -1544,6 +1561,22 @@ export default function InventoryView({
                                 <option value="g/y">g/y</option>
                             </select>
                         </div>
+                    </div>
+
+                    <div className="mb-3" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <input
+                          className={classic ? '' : 'form-check-input'}
+                          style={classic ? { cursor: 'pointer' } : undefined}
+                          type="checkbox"
+                          id="edit-lot-tracked"
+                          checked={!!editingItem.lot_tracked}
+                          onChange={e => setEditingItem({ ...editingItem, lot_tracked: e.target.checked })}
+                        />
+                        <label
+                          className={classic ? '' : 'form-check-label small'}
+                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#333333', cursor: 'pointer', margin: 0 } : { margin: 0 }}
+                          htmlFor="edit-lot-tracked"
+                        >Lot tracked — every receipt, production output and transfer requires a lot number</label>
                     </div>
 
                     <div className="mb-3">

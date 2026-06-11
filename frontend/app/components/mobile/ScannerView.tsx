@@ -92,8 +92,8 @@ export default function MobileScannerView({
     const [subPickerIdx, setSubPickerIdx]       = useState<number | null>(null);
     const [subQuery, setSubQuery]               = useState('');
     const [beamNumber, setBeamNumber]           = useState('');
-    const [beamBatchId, setBeamBatchId]         = useState('');
-    const [beamBatches, setBeamBatches]         = useState<any[]>([]);
+    const [batchesByItem, setBatchesByItem]     = useState<Record<string, any[]>>({});
+    const [consumedBatches, setConsumedBatches] = useState<Record<string, string>>({});
 
     const scannerRef = useRef<Html5QrcodeScanner | null>(null);
     const terminalId = useRef(Math.random().toString(36).substr(2, 6).toUpperCase());
@@ -110,26 +110,36 @@ export default function MobileScannerView({
     const woDone   = scannedWO?.qty_completed_total ?? 0;
     const woPct    = woTarget > 0 ? Math.min(100, Math.round((woDone / woTarget) * 100)) : 0;
 
+    const findItem = (itemId: string) => (items || []).find((i: any) => i.id === itemId);
     const isBeamItem = (itemId: string) => {
-        const it = (items || []).find((i: any) => i.id === itemId);
+        const it = findItem(itemId);
         return (it?.category_path || []).some((p: string) => (p || '').toLowerCase() === 'beam');
     };
-    // Beam output: WO produces a physical beam — Beam item MO, BEAM- code, or BEAMING work center
+    // Lot output: WO produces a beam (Beam category / BEAM- code / BEAMING work center) or a lot-tracked item
     const woWcType = ((workCenters || []).find((wc: any) => wc.id === scannedWO?.work_center_id)?.center_type || '').toUpperCase();
     const isBeamOutput = !!scannedWO && !!scannedWOParentMO
         && (isBeamItem(scannedWOParentMO.item_id) || (scannedWOParentMO.item_code || '').startsWith('BEAM-') || woWcType === 'BEAMING');
+    const isLotOutput = isBeamOutput || (!!scannedWO && !!scannedWOParentMO && !!findItem(scannedWOParentMO.item_id)?.lot_tracked);
 
-    // Beam input: any material line with batch stock at the input location → operator picks the batch/beam
+    // Lot input: each material line with batch stock at the input location gets a lot picker
     const materialItemIds = scannedWO ? Array.from(new Set(materialRows.map(r => r.item_id))) : [];
     useEffect(() => {
-        if (!materialItemIds.length) { setBeamBatches([]); setBeamBatchId(''); return; }
+        if (!materialItemIds.length) { setBatchesByItem({}); setConsumedBatches({}); return; }
         const loc = scannedWO?.input_location_id;
         Promise.all(materialItemIds.map(id =>
             authFetch(`${API_BASE}/batches?item_id=${id}${loc ? `&location_id=${loc}` : ''}&limit=200`)
                 .then((r: Response) => (r.ok ? r.json() : []))
                 .catch(() => [])
-        )).then(results => {
-            setBeamBatches(results.flat().filter((b: any) => (b.remaining ?? 0) > 0));
+                .then((data: any[]) => [id, (data || []).filter((b: any) => (b.remaining ?? 0) > 0)] as const)
+        )).then(pairs => {
+            const map: Record<string, any[]> = {};
+            for (const [id, list] of pairs) { if (list.length) map[id] = list; }
+            setBatchesByItem(map);
+            setConsumedBatches(prev => {
+                const next: Record<string, string> = {};
+                for (const id of Object.keys(map)) { if (prev[id]) next[id] = prev[id]; }
+                return next;
+            });
         });
     }, [JSON.stringify(materialItemIds), scannedWOId]);
 
@@ -191,7 +201,7 @@ export default function MobileScannerView({
         setSubPickerIdx(null);
         setSubQuery('');
         setBeamNumber('');
-        setBeamBatchId('');
+        setConsumedBatches({});
     }, [scannedWOId]);
 
     // Recalculate planned actuals when output qty changes
@@ -226,9 +236,11 @@ export default function MobileScannerView({
                 return;
             }
         }
-        if (beamBatches.length > 0 && !beamBatchId) {
-            setLogError('Pilih beam yang dipakai');
-            return;
+        for (const itemId of Object.keys(batchesByItem)) {
+            if (!consumedBatches[itemId]) {
+                setLogError(`Pilih lot/beam untuk ${findItem(itemId)?.code || 'material'}`);
+                return;
+            }
         }
 
         setSubmittingLog(true);
@@ -247,8 +259,8 @@ export default function MobileScannerView({
                     work_center_id: logWorkCenterId || null,
                     work_order_id: scannedWO.id,
                     actual_items: actualItems,
-                    beam_number: isBeamOutput ? (beamNumber.trim() || null) : null,
-                    beam_batch_id: beamBatchId || null,
+                    beam_number: isLotOutput ? (beamNumber.trim() || null) : null,
+                    consumed_batches: Object.values(consumedBatches).filter(Boolean),
                 }),
             });
             if (!res.ok) {
@@ -261,7 +273,7 @@ export default function MobileScannerView({
             setLogQty('');
             setLogNotes('');
             setBeamNumber('');
-            setBeamBatchId('');
+            setConsumedBatches({});
             setMaterialRows(prev => prev.map(r => ({ ...r, actual_qty: '', is_custom: false })));
             await onRefresh();
         } catch (err: any) {
@@ -344,43 +356,42 @@ export default function MobileScannerView({
                             />
                         </div>
 
-                        {/* Beam number (beaming WO) */}
-                        {isBeamOutput && (
+                        {/* Lot/beam number (lot-tracked output) */}
+                        {isLotOutput && (
                             <div style={{ marginBottom: 10 }}>
-                                <div style={{ fontFamily: XP_FONT, fontSize: 11, fontWeight: 'bold', marginBottom: 4 }}>Nomor Beam</div>
+                                <div style={{ fontFamily: XP_FONT, fontSize: 11, fontWeight: 'bold', marginBottom: 4 }}>{isBeamOutput ? 'Nomor Beam' : 'Nomor Lot'}</div>
                                 <input
                                     type="text"
                                     value={beamNumber} onChange={e => setBeamNumber(e.target.value)}
-                                    placeholder="Kosongkan untuk nomor otomatis (BM-...)"
+                                    placeholder={isBeamOutput ? 'Kosongkan untuk nomor otomatis (BM-...)' : 'Kosongkan untuk nomor otomatis (LOT-...)'}
                                     style={{ ...xpInput, fontSize: 16, padding: '6px 10px', border: '2px solid #7f9db9' }}
                                 />
                                 <div style={{ fontFamily: XP_FONT, fontSize: 9, color: '#888', marginTop: 2 }}>
-                                    Beam dicatat sebagai stok batch dengan kg yang diproduksi. Nomor otomatis muncul di catatan entri.
+                                    Hasil produksi dicatat sebagai lot stok. Nomor otomatis muncul di catatan entri.
                                 </div>
                             </div>
                         )}
 
-                        {/* Beam picker (weaving WO) */}
-                        {beamBatches.length > 0 && (
-                            <div style={{ marginBottom: 10 }}>
-                                <div style={{ fontFamily: XP_FONT, fontSize: 11, fontWeight: 'bold', marginBottom: 4 }}>Beam yang Dipakai</div>
+                        {/* Lot pickers (consumption) */}
+                        {Object.keys(batchesByItem).map(itemId => (
+                            <div key={itemId} style={{ marginBottom: 10 }}>
+                                <div style={{ fontFamily: XP_FONT, fontSize: 11, fontWeight: 'bold', marginBottom: 4 }}>
+                                    Lot yang Dipakai — {findItem(itemId)?.code || itemId}
+                                </div>
                                 <select
-                                    value={beamBatchId}
-                                    onChange={e => setBeamBatchId(e.target.value)}
+                                    value={consumedBatches[itemId] || ''}
+                                    onChange={e => setConsumedBatches(prev => ({ ...prev, [itemId]: e.target.value }))}
                                     style={{ ...xpInput, appearance: 'auto' }}
                                 >
-                                    <option value="">— pilih beam —</option>
-                                    {beamBatches.map((b: any) => {
-                                        const code = (items || []).find((i: any) => i.id === b.item_id)?.code;
-                                        return (
-                                            <option key={b.id} value={b.id}>
-                                                {b.batch_number}{code ? ` (${code})` : ''} — {Number(b.remaining ?? 0).toFixed(2)} kg sisa{b.ends ? `, ${b.ends} ends` : ''}
-                                            </option>
-                                        );
-                                    })}
+                                    <option value="">— pilih lot —</option>
+                                    {batchesByItem[itemId].map((b: any) => (
+                                        <option key={b.id} value={b.id}>
+                                            {b.batch_number} — {Number(b.remaining ?? 0).toFixed(2)} sisa{b.ends ? `, ${b.ends} ends` : ''}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
-                        )}
+                        ))}
 
                         {/* Operator + Notes */}
                         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
@@ -392,7 +403,7 @@ export default function MobileScannerView({
                             <div style={{ flex: 2 }}>
                                 <div style={{ fontFamily: XP_FONT, fontSize: 10, marginBottom: 3 }}>Catatan</div>
                                 <input type="text" value={logNotes} onChange={e => setLogNotes(e.target.value)}
-                                    placeholder="Batch, shift, keterangan..." style={xpInput} />
+                                    placeholder="Lot, shift, keterangan..." style={xpInput} />
                             </div>
                         </div>
 

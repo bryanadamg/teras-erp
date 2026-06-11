@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useSortable, SortMark } from '../shared/xpTheme';
+import { useToast } from '../shared/Toast';
 
 interface StockOnHandViewProps {
     locations: any[];
@@ -15,12 +16,58 @@ interface StockOnHandViewProps {
 export default function StockOnHandView({ locations, stockBalance, attributes, onRefresh, authFetch, apiBase }: StockOnHandViewProps) {
     const { uiStyle } = useTheme();
     const { t } = useLanguage();
+    const { showToast } = useToast();
     const classic = uiStyle === 'classic';
 
     const [batches, setBatches] = useState<any[]>([]);
     const [search, setSearch] = useState('');
     const [locationFilter, setLocationFilter] = useState('');
     const [itemFilter, setItemFilter] = useState('');
+
+    // Transfer modal state
+    const [transferTarget, setTransferTarget] = useState<any>(null);
+    const [transferToLoc, setTransferToLoc] = useState('');
+    const [transferQty, setTransferQty] = useState('');
+    const [transferring, setTransferring] = useState(false);
+
+    const openTransfer = (bal: any) => {
+        setTransferTarget(bal);
+        setTransferToLoc('');
+        setTransferQty(String(bal.qty));
+    };
+
+    const handleTransfer = async () => {
+        if (!transferTarget) return;
+        const qty = parseFloat(transferQty);
+        if (!qty || qty <= 0) { showToast('Enter a positive quantity', 'danger'); return; }
+        if (!transferToLoc) { showToast('Select a destination location', 'danger'); return; }
+        setTransferring(true);
+        try {
+            const res = await authFetch(`${apiBase}/stock/transfer`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    item_id: transferTarget.item_id,
+                    from_location_id: transferTarget.location_id,
+                    to_location_id: transferToLoc,
+                    qty,
+                    batch_id: transferTarget.batch_key || null,
+                    attribute_value_ids: transferTarget.attribute_value_ids || [],
+                }),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || 'Transfer failed');
+            }
+            showToast('Transfer recorded', 'success');
+            setTransferTarget(null);
+            onRefresh();
+        } catch (err: any) {
+            showToast(err.message, 'danger');
+        } finally {
+            setTransferring(false);
+        }
+    };
 
     useEffect(() => {
         authFetch(`${apiBase}/batches?limit=500`)
@@ -163,6 +210,13 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
                     <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', color: '#444', whiteSpace: 'nowrap' }}>
                         {bal.item_ends != null ? bal.item_ends : ''}
                     </td>
+                    <td style={{ padding: '2px 6px', whiteSpace: 'nowrap' }}>
+                        {bal.qty > 0 && (
+                            <button style={xpBtn({ fontSize: '10px', padding: '1px 6px' })} onClick={() => openTransfer(bal)} title="Transfer to another location">
+                                Move
+                            </button>
+                        )}
+                    </td>
                 </tr>
             );
         }
@@ -193,9 +247,76 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
                 <td className="text-end fw-bold" style={{ color: qtyColor, whiteSpace: 'nowrap' }}>{bal.qty}</td>
                 <td className="text-muted small" style={{ whiteSpace: 'nowrap' }}>{bal.item_uom || ''}</td>
                 <td className="text-end small" style={{ whiteSpace: 'nowrap' }}>{bal.item_ends != null ? bal.item_ends : ''}</td>
+                <td>
+                    {bal.qty > 0 && (
+                        <button className="btn btn-sm btn-outline-primary py-0" onClick={() => openTransfer(bal)} title="Transfer to another location">
+                            Move
+                        </button>
+                    )}
+                </td>
             </tr>
         );
     };
+
+    const transferModal = transferTarget && (
+        <div className="modal show d-block" style={{ background: 'rgba(0,0,0,0.4)', zIndex: 20200 }}>
+            <div className="modal-dialog modal-dialog-centered modal-sm">
+                <div className="modal-content" style={classic ? { ...xpBevel, borderRadius: 0 } : {}}>
+                    {classic ? (
+                        <div style={xpTitleBar}>
+                            <span>Transfer Stock</span>
+                            <span style={{ cursor: 'pointer', fontWeight: 'bold' }} onClick={() => setTransferTarget(null)}>X</span>
+                        </div>
+                    ) : (
+                        <div className="modal-header">
+                            <h6 className="modal-title">Transfer Stock</h6>
+                            <button className="btn-close" onClick={() => setTransferTarget(null)} />
+                        </div>
+                    )}
+                    <div style={{ padding: 12, fontFamily: classic ? xpFont : undefined, fontSize: classic ? 11 : undefined }}>
+                        <div style={{ marginBottom: 8 }}>
+                            <strong>{transferTarget.item_name}</strong>
+                            <div style={{ fontSize: 10, color: '#666' }}>
+                                From: {transferTarget.location_name || getLocationName(transferTarget.location_id)}
+                                {transferTarget.batch_key ? ` · Lot: ${batchMap[transferTarget.batch_key] || transferTarget.batch_key}` : ''}
+                                {' · '}Available: {transferTarget.qty} {transferTarget.item_uom || ''}
+                            </div>
+                        </div>
+                        <div style={{ marginBottom: 8 }}>
+                            <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Destination</label>
+                            <select
+                                style={classic ? { ...xpSelect, width: '100%' } : undefined}
+                                className={classic ? '' : 'form-select form-select-sm'}
+                                value={transferToLoc}
+                                onChange={e => setTransferToLoc(e.target.value)}
+                            >
+                                <option value="">— select location —</option>
+                                {locations.filter((l: any) => l.id !== transferTarget.location_id).map((l: any) => (
+                                    <option key={l.id} value={l.id}>{l.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div style={{ marginBottom: 4 }}>
+                            <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Quantity</label>
+                            <input
+                                type="number" min="0.0001" step="any"
+                                style={classic ? { ...xpInput, width: '100%' } : undefined}
+                                className={classic ? '' : 'form-control form-control-sm'}
+                                value={transferQty}
+                                onChange={e => setTransferQty(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    <div style={{ padding: '6px 12px', display: 'flex', gap: 6, justifyContent: 'flex-end', borderTop: '1px solid #c0c0c0' }}>
+                        <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setTransferTarget(null)}>Cancel</button>
+                        <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-primary'} onClick={handleTransfer} disabled={transferring}>
+                            {transferring ? 'Moving...' : 'Transfer'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
 
     if (classic) {
         return (
@@ -209,7 +330,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
                         <i className="bi bi-search" style={{ fontSize: '11px', color: '#666' }} />
                         <input
                             style={{ ...xpInput, width: 180 }}
-                            placeholder="Search item, location, batch..."
+                            placeholder="Search item, location, lot..."
                             value={search}
                             onChange={e => setSearch(e.target.value)}
                         />
@@ -233,18 +354,19 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
                                 <tr>
                                     <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
                                     <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('batch')} title="Sort">Batch / Lot<SortMark sort={sort} colKey="batch" /></th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('batch')} title="Sort">Lot<SortMark sort={sort} colKey="batch" /></th>
                                     <th style={xpTableHeader}>{t('attributes') || 'Attributes'}</th>
                                     <th style={{ ...xpTableHeader, textAlign: 'right', cursor: 'pointer' }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
                                     <th style={xpTableHeader}>UOM</th>
                                     <th style={{ ...xpTableHeader, textAlign: 'right' }}>Ends</th>
+                                    <th style={xpTableHeader}></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {sortedRows.map((bal: any, i: number) => renderRow(bal, i))}
                                 {filtered.length === 0 && (
                                     <tr>
-                                        <td colSpan={7} style={{ textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
+                                        <td colSpan={8} style={{ textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
                                             No stock records found
                                         </td>
                                     </tr>
@@ -262,6 +384,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
                         <span style={{ marginLeft: 'auto', color: '#666' }}>Total: {(stockBalance || []).length} SKUs</span>
                     </div>
                 </div>
+                {transferModal}
             </div>
         );
     }
@@ -279,7 +402,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
                         <div className="col-md-4">
                             <input
                                 className="form-control form-control-sm"
-                                placeholder="Search item, location, batch..."
+                                placeholder="Search item, location, lot..."
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
                             />
@@ -309,18 +432,19 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
                             <tr>
                                 <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
                                 <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
-                                <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('batch')} title="Sort">Batch / Lot<SortMark sort={sort} colKey="batch" /></th>
+                                <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('batch')} title="Sort">Lot<SortMark sort={sort} colKey="batch" /></th>
                                 <th>{t('attributes') || 'Attributes'}</th>
                                 <th className="text-end" style={{ cursor: 'pointer' }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
                                 <th>UOM</th>
                                 <th className="text-end">Ends</th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
                             {sortedRows.map((bal: any, i: number) => renderRow(bal, i))}
                             {filtered.length === 0 && (
                                 <tr>
-                                    <td colSpan={7} className="text-center text-muted py-4">No stock records found</td>
+                                    <td colSpan={8} className="text-center text-muted py-4">No stock records found</td>
                                 </tr>
                             )}
                         </tbody>
@@ -332,6 +456,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
                     <span className="ms-auto">Total: {(stockBalance || []).length} SKUs</span>
                 </div>
             </div>
+            {transferModal}
         </div>
     );
 }

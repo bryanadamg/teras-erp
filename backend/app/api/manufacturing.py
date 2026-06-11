@@ -686,35 +686,61 @@ async def add_mo_completion(
             select(WorkCenter.center_type).filter(WorkCenter.id == wo.work_center_id)
         )
         is_beam_output = (wc_res.scalar() or "").upper() == "BEAMING"
+    # Output lot: beams always get one; other items get one when lot_tracked
+    needs_output_lot = bool(wo_output_loc) and (is_beam_output or bool(mo.item and mo.item.lot_tracked))
     output_batch = None
-    if is_beam_output and wo_output_loc:
-        beam_no = (payload.beam_number or "").strip()
-        if beam_no:
-            dup = await db.execute(select(Batch.id).filter(Batch.batch_number == beam_no).limit(1))
+    if needs_output_lot:
+        label = "Beam" if is_beam_output else "Lot"
+        lot_no = (payload.beam_number or "").strip()
+        if lot_no:
+            dup = await db.execute(select(Batch.id).filter(Batch.batch_number == lot_no).limit(1))
             if dup.scalars().first():
-                raise HTTPException(status_code=400, detail=f"Beam number '{beam_no}' already exists")
+                raise HTTPException(status_code=400, detail=f"{label} number '{lot_no}' already exists")
         else:
-            beam_no = await generate_batch_number(db, prefix="BM")
+            lot_no = await generate_batch_number(db, prefix="BM" if is_beam_output else "LOT")
             # surface the generated number to the operator via completion notes
-            payload.notes = f"{payload.notes} [Beam {beam_no}]" if payload.notes else f"Beam {beam_no}"
+            payload.notes = f"{payload.notes} [{label} {lot_no}]" if payload.notes else f"{label} {lot_no}"
         output_batch = Batch(
-            batch_number=beam_no,
+            batch_number=lot_no,
             item_id=mo.item_id,
-            ends=mo.item.ends,
+            ends=mo.item.ends if is_beam_output else None,
             source_wo_id=wo.id if wo else None,
             created_by=current_user.username,
         )
         db.add(output_batch)
         await db.flush()
 
-    # Beam consumption: deduct the matching input line from the selected beam batch
-    beam_batch = None
-    beam_consumed = 0.0
+    # Input lots: selected batches matched to material lines by item
+    input_batch_ids = list(payload.consumed_batches)
     if payload.beam_batch_id:
-        res = await db.execute(select(Batch).filter(Batch.id == payload.beam_batch_id))
-        beam_batch = res.scalars().first()
-        if not beam_batch:
-            raise HTTPException(status_code=404, detail="Beam batch not found")
+        input_batch_ids.append(payload.beam_batch_id)
+    batch_by_item: dict[str, Batch] = {}
+    if input_batch_ids:
+        res = await db.execute(select(Batch).filter(Batch.id.in_(input_batch_ids)))
+        found = res.scalars().all()
+        if len(found) != len({str(b) for b in input_batch_ids}):
+            raise HTTPException(status_code=404, detail="One or more selected lots not found")
+        for b in found:
+            batch_by_item[str(b.item_id)] = b
+    consumed_by_batch: dict[str, float] = {}
+
+    # Lot enforcement: every deducted lot-tracked material must have a batch selected
+    if wo_input_loc:
+        if payload.actual_items:
+            deducted_ids = {str(ai.item_id) for ai in payload.actual_items if float(ai.qty_used) > 0}
+        else:
+            deducted_ids = {str(c.item_id) for c in mo.planned_components if c.percentage}
+        missing = [i for i in deducted_ids if i not in batch_by_item]
+        if missing:
+            lt_res = await db.execute(
+                select(Item.code).filter(Item.id.in_(missing), Item.lot_tracked == True)  # noqa: E712
+            )
+            lt_codes = list(lt_res.scalars().all())
+            if lt_codes:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Lot-tracked materials require a lot/batch selection: {', '.join(lt_codes)}",
+                )
 
     # Create completion record
     completion = MOCompletion(
@@ -745,7 +771,7 @@ async def add_mo_completion(
     if wo_input_loc:
         if payload.actual_items:
             for ai in payload.actual_items:
-                use_beam = beam_batch is not None and str(ai.item_id) == str(beam_batch.item_id)
+                in_batch = batch_by_item.get(str(ai.item_id))
                 await stock_service.add_stock_entry(
                     db,
                     item_id=ai.item_id,
@@ -754,17 +780,17 @@ async def add_mo_completion(
                     reference_type="Manufacturing Order",
                     reference_id=mo.code,
                     attribute_value_ids=[],
-                    batch_id=beam_batch.id if use_beam else None,
+                    batch_id=in_batch.id if in_batch else None,
                 )
-                if use_beam:
-                    beam_consumed += float(ai.qty_used)
+                if in_batch:
+                    consumed_by_batch[str(in_batch.id)] = consumed_by_batch.get(str(in_batch.id), 0.0) + float(ai.qty_used)
         elif mo.planned_components:
             for comp in mo.planned_components:
                 if not comp.percentage:
                     continue
                 deduct_loc_id = comp.source_location_id or wo_input_loc
                 req = (float(payload.qty_completed) * float(comp.percentage)) / 100
-                use_beam = beam_batch is not None and str(comp.item_id) == str(beam_batch.item_id)
+                in_batch = batch_by_item.get(str(comp.item_id))
                 await stock_service.add_stock_entry(
                     db,
                     item_id=comp.item_id,
@@ -772,24 +798,25 @@ async def add_mo_completion(
                     qty_change=-req,
                     reference_type="Manufacturing Order",
                     reference_id=mo.code,
-                    # beam batch rows carry no variant attrs — batch is the identity
-                    attribute_value_ids=[] if use_beam else [uuid.UUID(s) for s in comp.attribute_value_ids],
-                    batch_id=beam_batch.id if use_beam else None,
+                    # lot batch rows carry no variant attrs — the batch is the identity
+                    attribute_value_ids=[] if in_batch else [uuid.UUID(s) for s in comp.attribute_value_ids],
+                    batch_id=in_batch.id if in_batch else None,
                 )
-                if use_beam:
-                    beam_consumed += req
+                if in_batch:
+                    consumed_by_batch[str(in_batch.id)] = consumed_by_batch.get(str(in_batch.id), 0.0) + req
 
-    if beam_batch is not None:
-        if beam_consumed <= 0:
-            raise HTTPException(
-                status_code=400,
-                detail="Beam batch selected but no beam consumption recorded — check WO input location and material lines",
-            )
+    unused = [b.batch_number for b in batch_by_item.values() if str(b.id) not in consumed_by_batch]
+    if unused:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Selected lots not consumed — check WO input location and material lines: {', '.join(unused)}",
+        )
+    for bid, qty in consumed_by_batch.items():
         db.add(BatchConsumption(
             manufacturing_order_id=mo.id,
-            input_batch_id=beam_batch.id,
+            input_batch_id=uuid.UUID(bid),
             output_batch_id=output_batch.id if output_batch else None,
-            qty_consumed=beam_consumed,
+            qty_consumed=qty,
         ))
 
     if wo_output_loc:

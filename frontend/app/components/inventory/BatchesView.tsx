@@ -64,6 +64,10 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
   const [traceData, setTraceData] = useState<BatchTrace | null>(null);
   const [traceLoading, setTraceLoading] = useState(false);
 
+  // Trace-back (genealogy) modal
+  const [traceBackData, setTraceBackData] = useState<any | null>(null);
+  const [traceBackLoading, setTraceBackLoading] = useState(false);
+
   const fetchBatches = async () => {
     setLoading(true);
     try {
@@ -73,7 +77,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
       const res = await authFetch(url);
       if (res.ok) setBatches(await res.json());
     } catch {
-      showToast('Failed to load batches', 'danger');
+      showToast('Failed to load lots', 'danger');
     } finally {
       setLoading(false);
     }
@@ -91,14 +95,14 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
         body: JSON.stringify({ item_id: createItemId, notes: createNotes || null }),
       });
       if (res.ok) {
-        showToast('Batch created', 'success');
+        showToast('Lot created', 'success');
         setIsCreateOpen(false);
         setCreateItemId('');
         setCreateNotes('');
         fetchBatches();
       } else {
         const err = await res.json();
-        showToast(err.detail || 'Failed to create batch', 'danger');
+        showToast(err.detail || 'Failed to create lot', 'danger');
       }
     } finally {
       setCreating(false);
@@ -107,8 +111,8 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
 
   const handleDelete = async (batch: Batch) => {
     const ok = await confirm({
-      title: 'Delete Batch',
-      message: `Delete batch ${batch.batch_number}? Stock linked to this batch will lose its batch reference.`,
+      title: 'Delete Lot',
+      message: `Delete lot ${batch.batch_number}? Stock linked to this lot will lose its lot reference.`,
       confirmText: 'Delete',
       variant: 'danger',
     });
@@ -127,6 +131,18 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
       else showToast('Failed to load trace', 'danger');
     } finally {
       setTraceLoading(false);
+    }
+  };
+
+  const handleTraceBack = async (batch: Batch) => {
+    setTraceBackLoading(true);
+    setTraceBackData(null);
+    try {
+      const res = await authFetch(`${apiBase}/batches/${batch.id}/trace-back`);
+      if (res.ok) setTraceBackData(await res.json());
+      else showToast('Failed to load genealogy', 'danger');
+    } finally {
+      setTraceBackLoading(false);
     }
   };
 
@@ -185,11 +201,11 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
       {classic ? (
         <div style={{ ...xpBevel, marginBottom: 12 }}>
           <div style={xpTitleBar}>
-            <span>Batch / Lot Management</span>
+            <span>Lot Management</span>
           </div>
           <div style={{ padding: '6px 8px', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898' }}>
             <button style={xpBtn()} onClick={() => setIsCreateOpen(true)}>
-              <i className="bi bi-plus" /> New Batch
+              <i className="bi bi-plus" /> New Lot
             </button>
             <button style={xpBtn()} onClick={fetchBatches}>
               <i className="bi bi-arrow-clockwise" /> Refresh
@@ -204,9 +220,9 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
         </div>
       ) : (
         <div className="d-flex align-items-center gap-2 mb-3 flex-wrap">
-          <h5 className="mb-0 fw-bold">Batch / Lot Management</h5>
+          <h5 className="mb-0 fw-bold">Lot Management</h5>
           <button className="btn btn-sm btn-primary" onClick={() => setIsCreateOpen(true)}>
-            <i className="bi bi-plus" /> New Batch
+            <i className="bi bi-plus" /> New Lot
           </button>
           <button className="btn btn-sm btn-outline-secondary" onClick={fetchBatches}>
             <i className="bi bi-arrow-clockwise" />
@@ -215,7 +231,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
             <option value="">All Items</option>
             {items.map(i => <option key={i.id} value={i.id}>{i.code} — {i.name}</option>)}
           </select>
-          <input className="form-control form-control-sm" style={{ width: 200 }} placeholder="Search batches..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+          <input className="form-control form-control-sm" style={{ width: 200 }} placeholder="Search lots..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
         </div>
       )}
 
@@ -225,7 +241,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
           <table style={xpTable}>
             <thead>
               <tr>
-                <th style={xpTh}>Batch Number</th>
+                <th style={xpTh}>Lot Number</th>
                 <th style={xpTh}>Item Code</th>
                 <th style={xpTh}>Item Name</th>
                 <th style={{ ...xpTh, textAlign: 'right' }}>Remaining</th>
@@ -241,7 +257,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                 <tr><td colSpan={9} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>Loading...</td></tr>
               )}
               {!loading && filtered.length === 0 && (
-                <tr><td colSpan={9} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>No batches found.</td></tr>
+                <tr><td colSpan={9} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>No lots found.</td></tr>
               )}
               {filtered.map((b, i) => (
                 <tr key={b.id}>
@@ -257,6 +273,9 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                     <button style={xpBtn({ marginRight: 4 })} onClick={() => handleTrace(b)} title="Trace forward">
                       <i className="bi bi-diagram-3" /> Trace
                     </button>
+                    <button style={xpBtn({ marginRight: 4 })} onClick={() => handleTraceBack(b)} title="Backward genealogy — what this lot was made from">
+                      <i className="bi bi-diagram-3" style={{ transform: 'scaleX(-1)', display: 'inline-block' }} /> Origin
+                    </button>
                     <button style={xpBtn({ background: 'linear-gradient(to bottom, #ffd0d0, #e08080)' })} onClick={() => handleDelete(b)}>
                       <i className="bi bi-trash" />
                     </button>
@@ -271,7 +290,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
           <table className="table table-sm table-hover table-bordered mb-0">
             <thead className="table-light">
               <tr>
-                <th>Batch Number</th>
+                <th>Lot Number</th>
                 <th>Item Code</th>
                 <th>Item Name</th>
                 <th className="text-end">Remaining</th>
@@ -284,7 +303,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
             </thead>
             <tbody>
               {loading && <tr><td colSpan={9} className="text-center">Loading...</td></tr>}
-              {!loading && filtered.length === 0 && <tr><td colSpan={9} className="text-center text-muted">No batches found.</td></tr>}
+              {!loading && filtered.length === 0 && <tr><td colSpan={9} className="text-center text-muted">No lots found.</td></tr>}
               {filtered.map(b => (
                 <tr key={b.id}>
                   <td><strong>{b.batch_number}</strong></td>
@@ -298,6 +317,9 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                   <td>
                     <button className="btn btn-sm btn-outline-info me-1" onClick={() => handleTrace(b)} title="Trace forward">
                       <i className="bi bi-diagram-3" />
+                    </button>
+                    <button className="btn btn-sm btn-outline-secondary me-1" onClick={() => handleTraceBack(b)} title="Backward genealogy — what this lot was made from">
+                      <i className="bi bi-diagram-3" style={{ transform: 'scaleX(-1)', display: 'inline-block' }} />
                     </button>
                     <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(b)}>
                       <i className="bi bi-trash" />
@@ -317,12 +339,12 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
             <div className={`modal-content ${classic ? '' : ''}`} style={classic ? { ...xpBevel, borderRadius: 0 } : {}}>
               {classic ? (
                 <div style={xpTitleBar}>
-                  <span>New Batch</span>
+                  <span>New Lot</span>
                   <span style={{ cursor: 'pointer', fontWeight: 'bold' }} onClick={() => setIsCreateOpen(false)}>X</span>
                 </div>
               ) : (
                 <div className="modal-header">
-                  <h5 className="modal-title">New Batch</h5>
+                  <h5 className="modal-title">New Lot</h5>
                   <button className="btn-close" onClick={() => setIsCreateOpen(false)} />
                 </div>
               )}
@@ -356,7 +378,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
               >
                 <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setIsCreateOpen(false)}>Cancel</button>
                 <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-primary'} onClick={handleCreate} disabled={creating}>
-                  {creating ? 'Creating...' : 'Create Batch'}
+                  {creating ? 'Creating...' : 'Create Lot'}
                 </button>
               </div>
             </div>
@@ -384,20 +406,20 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                 {traceLoading && <p style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>Loading trace...</p>}
                 {traceData && traceData.consumptions.length === 0 && (
                   <p style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : { color: '#666' }}>
-                    No manufacturing consumption recorded for this batch.
+                    No manufacturing consumption recorded for this lot.
                   </p>
                 )}
                 {traceData && traceData.consumptions.length > 0 && (
                   <>
                     <p style={classic ? { fontFamily: 'Tahoma', fontSize: 11, marginBottom: 8 } : { marginBottom: 8, fontSize: 13 }}>
-                      This batch was consumed in {traceData.consumptions.length} manufacturing operation(s):
+                      This lot was consumed in {traceData.consumptions.length} manufacturing operation(s):
                     </p>
                     <table style={classic ? xpTable : { width: '100%' }} className={classic ? '' : 'table table-sm table-bordered'}>
                       <thead>
                         <tr>
                           <th style={classic ? xpTh : {}}>Manufacturing Order</th>
                           <th style={classic ? xpTh : {}}>Qty Consumed</th>
-                          <th style={classic ? xpTh : {}}>Output Batch</th>
+                          <th style={classic ? xpTh : {}}>Output Lot</th>
                           <th style={classic ? xpTh : {}}>Date</th>
                         </tr>
                       </thead>
@@ -417,6 +439,57 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
               </div>
               <div style={classic ? { padding: '6px 12px', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #c0c0c0' } : { padding: '8px 16px', borderTop: '1px solid #dee2e6' }}>
                 <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setTraceData(null)}>Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Trace Back (Genealogy) Modal ── */}
+      {(traceBackData || traceBackLoading) && (
+        <div className="modal show d-block" style={{ background: 'rgba(0,0,0,0.4)' }}>
+          <div className="modal-dialog modal-dialog-centered modal-lg">
+            <div className="modal-content" style={classic ? { ...xpBevel, borderRadius: 0 } : {}}>
+              {classic ? (
+                <div style={xpTitleBar}>
+                  <span>Lot Genealogy — {traceBackData?.batch.batch_number}</span>
+                  <span style={{ cursor: 'pointer', fontWeight: 'bold' }} onClick={() => setTraceBackData(null)}>X</span>
+                </div>
+              ) : (
+                <div className="modal-header">
+                  <h5 className="modal-title">Lot Genealogy — {traceBackData?.batch.batch_number}</h5>
+                  <button className="btn-close" onClick={() => setTraceBackData(null)} />
+                </div>
+              )}
+              <div style={classic ? { padding: 12 } : { padding: 16 }}>
+                {traceBackLoading && <p style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>Loading genealogy...</p>}
+                {traceBackData && traceBackData.inputs.length === 0 && (
+                  <p style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : { color: '#666' }}>
+                    No input lots recorded for this lot.
+                  </p>
+                )}
+                {traceBackData && traceBackData.inputs.length > 0 && (
+                  <div style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : { fontSize: 13 }}>
+                    {(function renderNode(node: any, depth: number): React.ReactNode {
+                      return (
+                        <div key={`${node.batch.id}-${depth}`}>
+                          <div style={{ paddingLeft: depth * 20, padding: `2px 0 2px ${depth * 20}px` }}>
+                            {depth > 0 && <span style={{ color: '#888' }}>{'└ '}</span>}
+                            <strong>{node.batch.batch_number}</strong>
+                            <span style={{ color: '#666' }}> ({itemMap[node.batch.item_id]?.code || itemMap[node.batch.item_id]?.name || 'unknown item'})</span>
+                            {node.qty_consumed != null && (
+                              <span style={{ color: '#444' }}> — {node.qty_consumed} consumed{node.mo_code ? ` in ${node.mo_code}` : ''}</span>
+                            )}
+                          </div>
+                          {(node.inputs || []).map((c: any) => renderNode(c, depth + 1))}
+                        </div>
+                      );
+                    })(traceBackData, 0)}
+                  </div>
+                )}
+              </div>
+              <div style={classic ? { padding: '6px 12px', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #c0c0c0' } : { padding: '8px 16px', borderTop: '1px solid #dee2e6' }}>
+                <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setTraceBackData(null)}>Close</button>
               </div>
             </div>
           </div>

@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from app.db.session import get_async_db
 from app.services import stock_service, audit_service
-from app.schemas import StockLedgerResponse, StockBalanceResponse, PaginatedStockLedgerResponse, StockEntryCreate
+from app.schemas import StockLedgerResponse, StockBalanceResponse, PaginatedStockLedgerResponse, StockEntryCreate, StockTransferCreate
 from app.models.auth import User
 from app.api.auth import get_current_user
 from app.models.item import Item
@@ -86,6 +86,58 @@ async def create_stock_entry(
     )
 
     return {"status": "success", "message": "Stock entry recorded"}
+
+
+@router.post("/stock/transfer", status_code=201)
+async def transfer_stock(
+    payload: StockTransferCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    if payload.qty <= 0:
+        raise HTTPException(status_code=400, detail="qty must be positive")
+    if payload.from_location_id == payload.to_location_id:
+        raise HTTPException(status_code=400, detail="Source and destination locations must differ")
+
+    item_result = await db.execute(select(Item).filter(Item.id == payload.item_id))
+    item = item_result.scalars().first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    loc_result = await db.execute(
+        select(Location).filter(Location.id.in_([payload.from_location_id, payload.to_location_id]))
+    )
+    locs = {loc.id: loc for loc in loc_result.scalars().all()}
+    if len(locs) != 2:
+        raise HTTPException(status_code=404, detail="Location not found")
+
+    if item.lot_tracked and not payload.batch_id:
+        raise HTTPException(status_code=400, detail=f"Item {item.code} is lot-tracked — select a lot/batch to transfer")
+
+    attrs = [str(u) for u in payload.attribute_value_ids]
+    ref = f"{locs[payload.from_location_id].code} -> {locs[payload.to_location_id].code}"
+
+    # OUT first — per-batch negative stock guard blocks over-transfer
+    await stock_service.add_stock_entry(
+        db, item_id=item.id, location_id=payload.from_location_id,
+        qty_change=-payload.qty, reference_type="Transfer", reference_id=ref,
+        attribute_value_ids=attrs, batch_id=payload.batch_id,
+    )
+    await stock_service.add_stock_entry(
+        db, item_id=item.id, location_id=payload.to_location_id,
+        qty_change=payload.qty, reference_type="Transfer", reference_id=ref,
+        attribute_value_ids=attrs, batch_id=payload.batch_id,
+    )
+
+    await audit_service.log_activity(
+        db=db,
+        user_id=current_user.id,
+        action="TRANSFER",
+        entity_type="stock_entry",
+        entity_id=str(item.id),
+        changes={"item": item.code, "qty": payload.qty, "route": ref, "batch_id": str(payload.batch_id) if payload.batch_id else None},
+    )
+    return {"status": "success", "message": "Transfer recorded"}
 
 
 @router.get("/stock/balance", response_model=list[StockBalanceResponse])

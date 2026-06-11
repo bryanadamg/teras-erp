@@ -44,6 +44,7 @@ async def create_item(
     weight_unit: str | None = None,
     packaging_factor_ids: list[str] = [],
     ends: int | None = None,
+    lot_tracked: bool = False,
 ) -> Item:
     item = Item(
         code=code,
@@ -55,6 +56,7 @@ async def create_item(
         weight_per_unit=weight_per_unit,
         weight_unit=weight_unit,
         ends=ends,
+        lot_tracked=lot_tracked,
     )
 
     if attribute_ids:

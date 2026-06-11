@@ -260,8 +260,9 @@ class MOCompletionCreate(BaseModel):
     work_center_id: UUID | None = None
     work_order_id: UUID | None = None
     actual_items: list[MOCompletionItemCreate] = []
-    beam_number: str | None = None      # BEAMING output: creates a beam batch with this number
-    beam_batch_id: UUID | None = None   # WEAVING input: beam batch to consume from
+    beam_number: str | None = None      # lot-tracked/beam output: batch number (blank = auto-generate)
+    beam_batch_id: UUID | None = None   # legacy single input batch (kept for compat)
+    consumed_batches: list[UUID] = []   # input batches to consume from, matched to lines by item
 
 class MOCompletionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -497,6 +498,7 @@ class ItemCreate(BaseModel):
     weight_unit: str | None = None
     packaging_factor_ids: list[UUID] = []
     ends: int | None = None
+    lot_tracked: bool = False
 
 
 class ItemUpdate(BaseModel):
@@ -512,6 +514,7 @@ class ItemUpdate(BaseModel):
     weight_unit: str | None = None
     packaging_factor_ids: list[UUID] | None = None
     ends: int | None = None
+    lot_tracked: bool | None = None
 
 
 class ItemResponse(BaseModel):
@@ -531,6 +534,7 @@ class ItemResponse(BaseModel):
     weight_unit: str | None = None
     packaging_factor_ids: list[UUID] = []
     ends: int | None = None
+    lot_tracked: bool = False
 
     class Config:
         from_attributes = True
@@ -548,6 +552,14 @@ class StockEntryCreate(BaseModel):
     qty: float
     reference_type: str = "manual"
     reference_id: str = "manual_entry"
+
+class StockTransferCreate(BaseModel):
+    item_id: UUID
+    from_location_id: UUID
+    to_location_id: UUID
+    qty: float
+    batch_id: UUID | None = None
+    attribute_value_ids: list[UUID] = []
 
 class StockLedgerResponse(BaseModel):
     id: UUID
@@ -708,6 +720,7 @@ class GoodsReceiptLineCreate(BaseModel):
     qty_received: float
     qty_boxes: int | None = None
     batch_id: UUID | None = None
+    batch_number: str | None = None  # supplier lot no. — resolved/created server-side
 
 class GoodsReceiptCreate(BaseModel):
     receipt_date: datetime | None = None
@@ -1248,6 +1261,16 @@ class BatchConsumptionResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class BatchTraceBackNode(BaseModel):
+    """Backward genealogy: this batch + the input batches it was made from."""
+    batch: BatchResponse
+    qty_consumed: Optional[float] = None       # qty of THIS batch consumed into the parent node
+    manufacturing_order_id: Optional[UUID] = None
+    mo_code: Optional[str] = None
+    inputs: list["BatchTraceBackNode"] = []
+
+BatchTraceBackNode.model_rebuild()
 
 class BatchTraceResponse(BaseModel):
     batch: BatchResponse

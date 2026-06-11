@@ -333,7 +333,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                 <div style={{ padding: 10, background: '#f5f4ef' }}>
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0 12px' }}>
                                         <div>
-                                            {fieldRow('Input Batch', 'input_batch_id_text')}
+                                            {fieldRow('Input Lot', 'input_batch_id_text')}
                                             {fieldRow('Substrate Qty', 'substrate_qty', 'number')}
                                             {fieldRow('Machine Name', 'machine_name')}
                                         </div>
@@ -496,10 +496,10 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                         </div>
 
                         <div style={{ padding: 12 }}>
-                            {/* Output Batch Number — required */}
+                            {/* Output lot number — required */}
                             <div style={{ marginBottom: 8 }}>
                                 <label style={labelStyle}>
-                                    Output Batch Number <span style={{ color: '#c00' }}>*</span>
+                                    Output Lot Number <span style={{ color: '#c00' }}>*</span>
                                 </label>
                                 <input
                                     type="text"

@@ -67,29 +67,39 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
     const [submitting, setSubmitting] = useState(false);
     const [subPickerIdx, setSubPickerIdx] = useState<number | null>(null);
     const [beamNumber, setBeamNumber] = useState('');
-    const [beamBatchId, setBeamBatchId] = useState('');
-    const [beamBatches, setBeamBatches] = useState<any[]>([]);
+    const [batchesByItem, setBatchesByItem] = useState<Record<string, any[]>>({});
+    const [consumedBatches, setConsumedBatches] = useState<Record<string, string>>({});
 
+    const findItem = (itemId: string) => (items || []).find((i: any) => i.id === itemId);
     const isBeamItem = (itemId: string) => {
-        const it = (items || []).find((i: any) => i.id === itemId);
+        const it = findItem(itemId);
         return (it?.category_path || []).some((p: string) => (p || '').toLowerCase() === 'beam');
     };
-    // Beam output: WO produces a physical beam — Beam item MO, BEAM- code, or BEAMING work center
+    // Lot output: WO produces a beam (Beam category / BEAM- code / BEAMING work center) or a lot-tracked item
     const woWcType = ((workCenters || []).find((wc: any) => wc.id === workOrder?.work_center_id)?.center_type || '').toUpperCase();
     const isBeamOutput = !!workOrder
         && (isBeamItem(mo.item_id) || (mo.item_code || '').startsWith('BEAM-') || woWcType === 'BEAMING');
+    const isLotOutput = isBeamOutput || (!!workOrder && !!findItem(mo.item_id)?.lot_tracked);
 
-    // Beam input: any material line with batch stock at the input location → operator picks the batch/beam
+    // Lot input: each material line with batch stock at the input location gets a lot picker
     const materialItemIds = workOrder ? Array.from(new Set(materialRows.map(r => r.item_id))) : [];
     useEffect(() => {
-        if (!materialItemIds.length) { setBeamBatches([]); setBeamBatchId(''); return; }
+        if (!materialItemIds.length) { setBatchesByItem({}); setConsumedBatches({}); return; }
         const loc = workOrder?.input_location_id;
         Promise.all(materialItemIds.map(id =>
             authFetch(`${API_BASE}/batches?item_id=${id}${loc ? `&location_id=${loc}` : ''}&limit=200`)
                 .then((r: Response) => (r.ok ? r.json() : []))
                 .catch(() => [])
-        )).then(results => {
-            setBeamBatches(results.flat().filter((b: any) => (b.remaining ?? 0) > 0));
+                .then((data: any[]) => [id, (data || []).filter((b: any) => (b.remaining ?? 0) > 0)] as const)
+        )).then(pairs => {
+            const map: Record<string, any[]> = {};
+            for (const [id, list] of pairs) { if (list.length) map[id] = list; }
+            setBatchesByItem(map);
+            setConsumedBatches(prev => {
+                const next: Record<string, string> = {};
+                for (const id of Object.keys(map)) { if (prev[id]) next[id] = prev[id]; }
+                return next;
+            });
         });
     }, [JSON.stringify(materialItemIds), workOrder?.id]);
 
@@ -150,9 +160,12 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                     return;
                 }
             }
-            if (beamBatches.length > 0 && !beamBatchId) {
-                showToast('Select the beam/batch to consume from', 'danger');
-                return;
+            for (const itemId of Object.keys(batchesByItem)) {
+                if (!consumedBatches[itemId]) {
+                    const code = findItem(itemId)?.code || 'material';
+                    showToast(`Select the lot/beam to consume for ${code}`, 'danger');
+                    return;
+                }
             }
         } else {
             for (const ai of actualItems) {
@@ -181,8 +194,8 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                     work_center_id: workCenterId || null,
                     work_order_id: workOrder?.id || null,
                     actual_items: woActualItems,
-                    beam_number: isBeamOutput ? (beamNumber.trim() || null) : null,
-                    beam_batch_id: beamBatchId || null,
+                    beam_number: isLotOutput ? (beamNumber.trim() || null) : null,
+                    consumed_batches: Object.values(consumedBatches).filter(Boolean),
                 }),
             });
             if (!res.ok) {
@@ -277,41 +290,43 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                     required
                                 />
                             </div>
-                            {isBeamOutput && (
+                            {isLotOutput && (
                                 <div>
-                                    <label style={{ ...xpLabel, fontWeight: 'bold' }}>Beam No.</label>
+                                    <label style={{ ...xpLabel, fontWeight: 'bold' }}>{isBeamOutput ? 'Beam No.' : 'Lot No.'}</label>
                                     <input
                                         type="text"
                                         style={xpInput}
                                         value={beamNumber}
                                         onChange={e => setBeamNumber(e.target.value)}
-                                        placeholder="Leave empty to auto-generate (BM-YYYYMMDD-NNNN)"
+                                        placeholder={isBeamOutput ? 'Leave empty to auto-generate (BM-YYYYMMDD-NNNN)' : 'Leave empty to auto-generate (LOT-YYYYMMDD-NNNN)'}
                                     />
                                     <div style={{ fontSize: 9, color: '#888', marginTop: 2 }}>
-                                        Registers this beam as a stock batch with the produced kg. Auto-generated number is shown in the entry notes.
+                                        Output is registered as a stock lot. Auto-generated number is shown in the entry notes.
                                     </div>
                                 </div>
                             )}
-                            {workOrder && beamBatches.length > 0 && (
-                                <div>
-                                    <label style={{ ...xpLabel, fontWeight: 'bold' }}>Beam / Batch to Consume</label>
-                                    <select
-                                        style={{ ...xpInput, height: 22 }}
-                                        value={beamBatchId}
-                                        onChange={e => setBeamBatchId(e.target.value)}
-                                    >
-                                        <option value="">— select beam —</option>
-                                        {beamBatches.map((b: any) => {
-                                            const code = (items || []).find((i: any) => i.id === b.item_id)?.code;
-                                            return (
+                            {workOrder && Object.keys(batchesByItem).map(itemId => {
+                                const it = findItem(itemId);
+                                return (
+                                    <div key={itemId}>
+                                        <label style={{ ...xpLabel, fontWeight: 'bold' }}>
+                                            Lot to Consume — {it?.code || itemId}
+                                        </label>
+                                        <select
+                                            style={{ ...xpInput, height: 22 }}
+                                            value={consumedBatches[itemId] || ''}
+                                            onChange={e => setConsumedBatches(prev => ({ ...prev, [itemId]: e.target.value }))}
+                                        >
+                                            <option value="">— select lot —</option>
+                                            {batchesByItem[itemId].map((b: any) => (
                                                 <option key={b.id} value={b.id}>
-                                                    {b.batch_number}{code ? ` (${code})` : ''} — {Number(b.remaining ?? 0).toFixed(2)} kg remaining{b.ends ? `, ${b.ends} ends` : ''}
+                                                    {b.batch_number} — {Number(b.remaining ?? 0).toFixed(2)} remaining{b.ends ? `, ${b.ends} ends` : ''}
                                                 </option>
-                                            );
-                                        })}
-                                    </select>
-                                </div>
-                            )}
+                                            ))}
+                                        </select>
+                                    </div>
+                                );
+                            })}
                             <div style={{ display: 'flex', gap: 8 }}>
                                 <div style={{ flex: 1 }}>
                                     <label style={xpLabel}>Operator</label>
@@ -319,7 +334,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                 </div>
                                 <div style={{ flex: 2 }}>
                                     <label style={xpLabel}>Notes</label>
-                                    <input type="text" style={xpInput} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Batch, shift, remarks..." />
+                                    <input type="text" style={xpInput} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Lot, shift, remarks..." />
                                 </div>
                             </div>
                             {/* Work Center */}
