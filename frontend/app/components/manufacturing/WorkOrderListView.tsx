@@ -389,7 +389,7 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
     const thStyle: React.CSSProperties = classic ? {
         border: '1px solid #808080', padding: '3px 8px', color: '#000', fontWeight: 'bold',
         background: 'linear-gradient(to bottom,#fff 0%,#d4d0c8 100%)', fontSize: 10, whiteSpace: 'nowrap',
-        position: 'sticky', top: 30, zIndex: 5, // below the 30px classic top bar
+        position: 'sticky', top: 0, zIndex: 5, // sticks to top of the table's own scroll pane
     } : { fontSize: '9pt', fontWeight: 'bold', whiteSpace: 'nowrap' };
 
     const tdBase: React.CSSProperties = classic ? {
@@ -460,7 +460,7 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                     </div>
 
                     {/* Table */}
-                    <div className="table-responsive" style={{ background: classic ? '#fff' : undefined }}>
+                    <div className="table-responsive" style={classic ? { background: '#fff', maxHeight: 'calc(100vh - 180px)', overflowY: 'auto' } : undefined}>
                         <table
                             style={{ width: '100%', borderCollapse: 'collapse', fontSize: classic ? 11 : undefined, fontFamily: classic ? xpFont : undefined, background: classic ? '#fff' : undefined }}
                             className={classic ? '' : 'table table-hover align-middle mb-0'}

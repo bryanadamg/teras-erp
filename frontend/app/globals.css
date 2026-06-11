@@ -535,10 +535,12 @@ body {
   color: inherit;
 }
 
-/* ── Classic: sticky table headers (30px = classic top bar height) ── */
+/* ── Classic: sticky table headers ──
+   top: 0 — inside an overflow wrapper (.table-responsive etc.) any larger offset
+   permanently shifts the header down and leaves a blank ghost row. */
 .ui-style-classic .table thead th {
   position: sticky;
-  top: 30px;
+  top: 0;
   z-index: 10;
 }
 
