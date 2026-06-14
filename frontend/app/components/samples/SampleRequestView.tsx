@@ -40,6 +40,10 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
   const comboAttrName = useMemo(() => {
     return (attributes as any[]).find((a: any) => a.system_role === 'combo')?.name ?? null;
   }, [attributes]);
+  const materialOptions = useMemo(() => {
+    const attr = (attributes as any[]).find((a: any) => a.system_role === 'material');
+    return (attr?.values ?? []).map((v: any) => ({ value: v.value, label: v.value }));
+  }, [attributes]);
   const router = useRouter();
   const searchParams = useSearchParams();
   const highlightRef = useRef<HTMLTableRowElement | null>(null);
@@ -833,15 +837,19 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                        <div style={xpGroupBody}>
                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px 12px', marginBottom: 8 }}>
                                {[
-                                   { key: 'main_material', label: 'Main Material', placeholder: 'e.g. NILON' },
-                                   { key: 'middle_material', label: 'Middle Material', placeholder: '' },
-                                   { key: 'bottom_material', label: 'Bottom Material', placeholder: '' },
-                               ].map(({ key, label, placeholder }) => (
+                                   { key: 'main_material', label: 'Main Material' },
+                                   { key: 'middle_material', label: 'Middle Material' },
+                                   { key: 'bottom_material', label: 'Bottom Material' },
+                               ].map(({ key, label }) => (
                                    <div key={key}>
                                        <label style={xpLbl}>{label}</label>
-                                       <input style={{ ...xpInput, width: '100%', boxSizing: 'border-box' as const }}
-                                              value={(newSample as any)[key]} onChange={e => setNewSample({ ...newSample, [key]: e.target.value })}
-                                              placeholder={placeholder} />
+                                       <SearchableSelect
+                                           options={materialOptions}
+                                           value={(newSample as any)[key]}
+                                           onChange={(val: string) => setNewSample({ ...newSample, [key]: val })}
+                                           placeholder="Select material…"
+                                           size="sm"
+                                       />
                                    </div>
                                ))}
                            </div>
@@ -849,15 +857,23 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
                                <div>
                                    <label style={xpLbl}>Weft</label>
-                                   <input style={{ ...xpInput, width: '100%', boxSizing: 'border-box' as const }}
-                                          value={newSample.weft} onChange={e => setNewSample({ ...newSample, weft: e.target.value })}
-                                          placeholder="e.g. NILON" />
+                                   <SearchableSelect
+                                       options={materialOptions}
+                                       value={newSample.weft}
+                                       onChange={(val: string) => setNewSample({ ...newSample, weft: val })}
+                                       placeholder="Select material…"
+                                       size="sm"
+                                   />
                                </div>
                                <div>
                                    <label style={xpLbl}>Warp</label>
-                                   <input style={{ ...xpInput, width: '100%', boxSizing: 'border-box' as const }}
-                                          value={newSample.warp} onChange={e => setNewSample({ ...newSample, warp: e.target.value })}
-                                          placeholder="e.g. SPANDEX" />
+                                   <SearchableSelect
+                                       options={materialOptions}
+                                       value={newSample.warp}
+                                       onChange={(val: string) => setNewSample({ ...newSample, warp: val })}
+                                       placeholder="Select material…"
+                                       size="sm"
+                                   />
                                </div>
                                <div>
                                    <label style={xpLbl}>Original Weight</label>
@@ -904,13 +920,19 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                        <div className="card-body p-2">
                            <div className="row g-2 mb-2">
                                {[
-                                   { key: 'main_material', label: 'Main Material', placeholder: 'e.g. NILON' },
-                                   { key: 'middle_material', label: 'Middle Material', placeholder: '' },
-                                   { key: 'bottom_material', label: 'Bottom Material', placeholder: '' },
-                               ].map(({ key, label, placeholder }) => (
+                                   { key: 'main_material', label: 'Main Material' },
+                                   { key: 'middle_material', label: 'Middle Material' },
+                                   { key: 'bottom_material', label: 'Bottom Material' },
+                               ].map(({ key, label }) => (
                                    <div key={key} className="col-md-4">
                                        <label className="form-label small text-muted">{label}</label>
-                                       <input className="form-control form-control-sm" value={(newSample as any)[key]} onChange={e => setNewSample({ ...newSample, [key]: e.target.value })} placeholder={placeholder} />
+                                       <SearchableSelect
+                                           options={materialOptions}
+                                           value={(newSample as any)[key]}
+                                           onChange={(val: string) => setNewSample({ ...newSample, [key]: val })}
+                                           placeholder="Select material…"
+                                           size="sm"
+                                       />
                                    </div>
                                ))}
                            </div>
@@ -918,11 +940,23 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                            <div className="row g-2">
                                <div className="col-md-6">
                                    <label className="form-label small text-muted">Weft</label>
-                                   <input className="form-control form-control-sm" value={newSample.weft} onChange={e => setNewSample({ ...newSample, weft: e.target.value })} placeholder="e.g. NILON" />
+                                   <SearchableSelect
+                                       options={materialOptions}
+                                       value={newSample.weft}
+                                       onChange={(val: string) => setNewSample({ ...newSample, weft: val })}
+                                       placeholder="Select material…"
+                                       size="sm"
+                                   />
                                </div>
                                <div className="col-md-6">
                                    <label className="form-label small text-muted">Warp</label>
-                                   <input className="form-control form-control-sm" value={newSample.warp} onChange={e => setNewSample({ ...newSample, warp: e.target.value })} placeholder="e.g. SPANDEX" />
+                                   <SearchableSelect
+                                       options={materialOptions}
+                                       value={newSample.warp}
+                                       onChange={(val: string) => setNewSample({ ...newSample, warp: val })}
+                                       placeholder="Select material…"
+                                       size="sm"
+                                   />
                                </div>
                                <div className="col-md-6">
                                    <label className="form-label small text-muted">Original Weight</label>

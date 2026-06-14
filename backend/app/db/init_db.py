@@ -42,12 +42,20 @@ def seed_sizes(db):
 
 def seed_system_attributes(db):
     try:
-        from app.models.attribute import Attribute
-        for name, role in [("Colors", "color"), ("Combo", "combo")]:
+        from app.models.attribute import Attribute, AttributeValue
+        # (name, role, seed_values) — seed_values=None means no value seeding
+        system_attrs = [
+            ("Colors", "color", None),
+            ("Combo", "combo", None),
+            ("Materials", "material", ["Polyester", "Nylon", "Cotton", "Latex", "Spandex"]),
+        ]
+        for name, role, seed_values in system_attrs:
             existing = db.query(Attribute).filter(Attribute.name == name).first()
             if not existing:
-                db.add(Attribute(name=name, is_system=True, system_role=role))
+                existing = Attribute(name=name, is_system=True, system_role=role)
+                db.add(existing)
                 db.commit()
+                db.refresh(existing)
                 logger.info(f"Seeded '{name}' system attribute (role={role})")
             else:
                 changed = False
@@ -60,6 +68,14 @@ def seed_system_attributes(db):
                 if changed:
                     db.commit()
                     logger.info(f"Updated '{name}' attribute: is_system=True, system_role={role}")
+            # Seed default values only when the attribute has none yet
+            if seed_values:
+                have = db.query(AttributeValue).filter(AttributeValue.attribute_id == existing.id).count()
+                if have == 0:
+                    for v in seed_values:
+                        db.add(AttributeValue(attribute_id=existing.id, value=v))
+                    db.commit()
+                    logger.info(f"Seeded {len(seed_values)} default values for '{name}'")
     except Exception as e:
         logger.warning(f"System attribute seeding skipped: {e}")
 
