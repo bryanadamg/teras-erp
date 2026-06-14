@@ -97,8 +97,8 @@ function PODocument({
 }) {
     const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '');
 
-    const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
-    const getItemUOM = (id: string) => items.find((i: any) => i.id === id)?.uom || '';
+    const getItemName = (line: any) => line.item_name || items.find((i: any) => i.id === line.item_id)?.name || line.item_id;
+    const getItemUOM = (line: any) => line.item_uom || items.find((i: any) => i.id === line.item_id)?.uom || '';
     const supplier = partners.find((p: any) => p.id === po.supplier_id);
     const getAttributeValueName = (valId: string) => {
         for (const attr of attributes) {
@@ -230,7 +230,7 @@ function PODocument({
                             <td style={{ ...cell }}>
                                 {line && (
                                     <>
-                                        <div style={{ fontWeight: 'bold' }}>{getItemName(line.item_id)}</div>
+                                        <div style={{ fontWeight: 'bold' }}>{getItemName(line)}</div>
                                         {(line.attribute_value_ids || []).map((vid: string) => (
                                             <div key={vid} style={{ marginTop: 6 }}>{getAttributeValueName(vid)}</div>
                                         ))}
@@ -238,7 +238,7 @@ function PODocument({
                                 )}
                                 {!line && <span>&nbsp;</span>}
                             </td>
-                            <td style={{ ...cell, textAlign: 'center' }}>{line ? `${Number(line.qty).toLocaleString('en-US')}  ${getItemUOM(line.item_id)}`.trim() : ''}</td>
+                            <td style={{ ...cell, textAlign: 'center' }}>{line ? `${Number(line.qty).toLocaleString('en-US')}  ${getItemUOM(line)}`.trim() : ''}</td>
                             <td style={{ ...cell, textAlign: 'right' as const }}>{line && line.unit_price != null ? money(Number(line.unit_price)) : ''}</td>
                             <td style={{ ...cell, textAlign: 'right' as const }}>{line && line.unit_price != null ? money(lineTotal(line)) : ''}</td>
                             <td style={{ ...cell, textAlign: 'center' }}>{line ? formatDate(line.due_date) : ''}</td>

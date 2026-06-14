@@ -703,6 +703,9 @@ class PurchaseOrderLineResponse(PurchaseOrderLineCreate):
     id: UUID
     qty_received: float = 0
     attribute_value_ids: list[UUID] = []
+    item_name: str | None = None
+    item_code: str | None = None
+    item_uom: str | None = None
     class Config:
         from_attributes = True
 
@@ -735,6 +738,7 @@ class GoodsReceiptLineResponse(BaseModel):
     item_id: UUID
     item_name: str | None = None
     item_code: str | None = None
+    item_uom: str | None = None
     qty_received: float
     qty_boxes: int | None = None
     qty_cones: int | None = None

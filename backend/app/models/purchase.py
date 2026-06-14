@@ -58,3 +58,16 @@ class PurchaseOrderLine(Base):
     # Relationships
     item = relationship("Item")
     attribute_values = relationship("AttributeValue", secondary=purchase_order_line_values)
+
+    # Embedded item info — avoids frontend UUID fallback when items list is paginated
+    @property
+    def item_name(self):
+        return self.item.name if self.item else None
+
+    @property
+    def item_code(self):
+        return self.item.code if self.item else None
+
+    @property
+    def item_uom(self):
+        return self.item.uom if self.item else None

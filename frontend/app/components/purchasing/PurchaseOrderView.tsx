@@ -506,8 +506,8 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                            {receiptTarget.lines.map((line: any, idx: number) => (
                                <tr key={line.id} style={classic?{background:idx%2===0?'#ffffff':'#f5f3ee',borderBottom:'1px solid #d0cdc8'}:undefined}>
                                    <td style={classic?tdBase:undefined}>
-                                       <div style={classic?{fontWeight:'bold'}:undefined} className={classic?'':'fw-bold'}>{getItemName(line.item_id)}</div>
-                                       <div style={classic?{fontSize:'10px',color:'#666'}:undefined} className={classic?'':'small text-muted'}>{getItemCode(line.item_id)}</div>
+                                       <div style={classic?{fontWeight:'bold'}:undefined} className={classic?'':'fw-bold'}>{line.item_name || getItemName(line.item_id)}</div>
+                                       <div style={classic?{fontSize:'10px',color:'#666'}:undefined} className={classic?'':'small text-muted'}>{line.item_code || getItemCode(line.item_id)}</div>
                                    </td>
                                    <td style={classic?{...tdBase,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>{line.qty}</td>
                                    <td style={classic?{...tdBase,textAlign:'right' as const}:undefined} className={classic?'':'text-end text-muted'}>{line.qty_received || 0}</td>
@@ -522,7 +522,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                value={receiptLineQtys[line.id] ?? 0}
                                                onChange={e => setReceiptLineQtys(prev => ({ ...prev, [line.id]: parseFloat(e.target.value) || 0 }))}
                                            />
-                                           <span style={{fontSize:'9px',fontWeight:'bold',color:'#1a3d6b',textTransform:'uppercase'}}>{getItemUom(line.item_id)}</span>
+                                           <span style={{fontSize:'9px',fontWeight:'bold',color:'#1a3d6b',textTransform:'uppercase'}}>{line.item_uom || getItemUom(line.item_id)}</span>
                                        </div>
                                    </td>
                                    <td style={classic?{...tdBase,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>
@@ -731,7 +731,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                        <div style={{ marginTop: 2 }}>
                                            {po.lines.map((line: any) => (
                                                <div key={line.id} style={classic ? { fontSize: '10px', color: '#333', lineHeight: 1.4 } : undefined} className={classic ? '' : 'small text-muted'}>
-                                                   <span style={classic ? { fontWeight: 'bold' } : undefined} className={classic ? '' : 'fw-bold text-dark'}>{line.qty_received || 0}/{line.qty}</span> {getItemName(line.item_id)}
+                                                   <span style={classic ? { fontWeight: 'bold' } : undefined} className={classic ? '' : 'fw-bold text-dark'}>{line.qty_received || 0}/{line.qty}</span> {line.item_name || getItemName(line.item_id)}
                                                </div>
                                            ))}
                                        </div>
@@ -833,7 +833,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                            <div style={classic ? { display: 'flex', gap: 12, flexWrap: 'wrap' } : undefined} className={classic ? '' : 'd-flex gap-3 flex-wrap'}>
                                                                {(receipt.lines || []).map((rl: any) => (
                                                                    <span key={rl.id} style={classic ? { fontSize: '10px', color: '#333' } : undefined} className={classic ? '' : 'text-muted'}>
-                                                                       <span style={classic ? { fontWeight: 'bold' } : undefined} className={classic ? '' : 'fw-semibold text-dark'}>{rl.qty_received} {getItemUom(rl.item_id)}</span>
+                                                                       <span style={classic ? { fontWeight: 'bold' } : undefined} className={classic ? '' : 'fw-semibold text-dark'}>{rl.qty_received} {rl.item_uom || getItemUom(rl.item_id)}</span>
                                                                        {rl.qty_boxes != null && <span style={classic?{color:'#555',marginLeft:3}:undefined} className={classic?'':'text-muted'}> / {rl.qty_boxes} box{rl.qty_boxes !== 1 ? 'es' : ''}</span>}
                                                                        {rl.qty_cones != null && <span style={classic?{color:'#555',marginLeft:3}:undefined} className={classic?'':'text-muted'}> / {rl.qty_cones} cone{rl.qty_cones !== 1 ? 's' : ''}</span>}
                                                                        {rl.qty_drums != null && <span style={classic?{color:'#555',marginLeft:3}:undefined} className={classic?'':'text-muted'}> / {rl.qty_drums} drum{rl.qty_drums !== 1 ? 's' : ''}</span>}

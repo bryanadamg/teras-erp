@@ -42,3 +42,7 @@ class GoodsReceiptLine(Base):
     @property
     def item_code(self):
         return self.item.code if self.item else None
+
+    @property
+    def item_uom(self):
+        return self.item.uom if self.item else None

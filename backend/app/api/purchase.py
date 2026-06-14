@@ -23,6 +23,7 @@ def _po_query():
         select(PurchaseOrder)
         .options(
             selectinload(PurchaseOrder.lines).selectinload(PurchaseOrderLine.attribute_values),
+            selectinload(PurchaseOrder.lines).selectinload(PurchaseOrderLine.item),
             selectinload(PurchaseOrder.receipts).selectinload(GoodsReceipt.lines).selectinload(GoodsReceiptLine.item),
         )
     )
