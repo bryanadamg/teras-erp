@@ -133,6 +133,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Compress large JSON/list responses over the wire. Pure transport optimization —
+# no API contract change. Responses below minimum_size are sent uncompressed.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     return templates.TemplateResponse(

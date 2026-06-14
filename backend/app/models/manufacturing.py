@@ -31,7 +31,7 @@ class MODependency(Base):
         UUID(as_uuid=True), ForeignKey("manufacturing_orders.id", ondelete="CASCADE"), primary_key=True
     )
     required_mo_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("manufacturing_orders.id", ondelete="CASCADE"), primary_key=True
+        UUID(as_uuid=True), ForeignKey("manufacturing_orders.id", ondelete="CASCADE"), primary_key=True, index=True
     )
     qty: Mapped[float] = mapped_column(Numeric(14, 4), nullable=False)
 
@@ -69,7 +69,7 @@ class ManufacturingOrder(Base):
 
     # Traceability
     sales_order_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sales_orders.id"), nullable=True
+        UUID(as_uuid=True), ForeignKey("sales_orders.id"), nullable=True, index=True
     )
 
     parent_mo_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -170,7 +170,7 @@ class MOCompletion(Base):
     qty_completed: Mapped[float] = mapped_column(Numeric(14, 4))
     operator_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
-    work_center_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("work_centers.id"), nullable=True)
+    work_center_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("work_centers.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
     mo = relationship("ManufacturingOrder", back_populates="completions")
@@ -213,11 +213,11 @@ class MOPlannedComponent(Base):
     mo_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("manufacturing_orders.id", ondelete="CASCADE"), index=True
     )
-    item_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("items.id"))
+    item_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("items.id"), index=True)
     percentage: Mapped[float] = mapped_column(Numeric(6, 2), default=0)
     qty: Mapped[float] = mapped_column(Numeric(14, 4), default=0)
     source_location_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True
+        UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True, index=True
     )
     bom_line_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("bom_lines.id", ondelete="SET NULL"), nullable=True

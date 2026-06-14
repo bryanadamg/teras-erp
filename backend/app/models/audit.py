@@ -1,12 +1,18 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, ForeignKey, Text, DateTime
+from sqlalchemy import String, ForeignKey, Text, DateTime, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
+
+    # Composite index for the common "history of one entity" lookup:
+    # WHERE entity_type = ? AND entity_id = ? ORDER BY timestamp DESC
+    __table_args__ = (
+        Index("ix_audit_logs_entity_type_entity_id_timestamp", "entity_type", "entity_id", "timestamp"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4

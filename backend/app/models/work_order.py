@@ -23,16 +23,16 @@ class WorkOrder(Base):
     code: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(128))
     work_center_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("work_centers.id", ondelete="SET NULL"), nullable=True
+        UUID(as_uuid=True), ForeignKey("work_centers.id", ondelete="SET NULL"), nullable=True, index=True
     )
     planned_recipe_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("dye_recipes.id", ondelete="SET NULL"), nullable=True
     )
     input_location_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True
+        UUID(as_uuid=True), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True, index=True
     )
     output_location_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True
+        UUID(as_uuid=True), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True, index=True
     )
     qty: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="PENDING", index=True)
