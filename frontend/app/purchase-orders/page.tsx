@@ -32,6 +32,24 @@ export default function PurchaseOrdersPage() {
         }
     };
 
+    const handleClosePO = async (id: string) => {
+        const confirmed = await confirm({
+            title: 'Close Purchase Order',
+            message: 'Mark this PO as RECEIVED even though received quantities are short of what was ordered? This cannot be undone.',
+            confirmText: 'Close as Received',
+            variant: 'warning'
+        });
+        if (!confirmed) return;
+        const res = await authFetch(`${API_BASE}/purchase-orders/${id}/close`, { method: 'PATCH' });
+        if (res.ok) {
+            showToast('PO closed as received', 'success');
+            fetchData();
+        } else {
+            const err = await res.json().catch(() => ({}));
+            showToast(err.detail || 'Failed to close PO', 'error');
+        }
+    };
+
     const handleDeletePO = async (id: string) => {
         const confirmed = await confirm({
             title: 'Delete Purchase Order',
@@ -53,6 +71,7 @@ export default function PurchaseOrdersPage() {
                 locations={locations}
                 onCreatePO={handleCreatePO}
                 onCreateReceipt={handleCreateReceipt}
+                onClosePO={handleClosePO}
                 onDeletePO={handleDeletePO}
             />
     );

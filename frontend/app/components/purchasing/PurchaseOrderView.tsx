@@ -8,7 +8,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useTheme } from '../../context/ThemeContext';
 import { useSortable, SortMark } from '../shared/xpTheme';
 
-export default function PurchaseOrderView({ items, attributes, purchaseOrders, partners, locations, onCreatePO, onDeletePO, onCreateReceipt }: any) {
+export default function PurchaseOrderView({ items, attributes, purchaseOrders, partners, locations, onCreatePO, onDeletePO, onCreateReceipt, onClosePO }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -823,6 +823,26 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                        onClick={() => openReceiptModal(po)}
                                                    >
                                                        <i className="bi bi-box-arrow-in-down me-1"></i>Receive Goods
+                                                   </button>
+                                               )
+                                           )}
+                                           {po.status !== 'RECEIVED' && po.status !== 'CANCELLED' && (
+                                               classic ? (
+                                                   <button
+                                                       style={xpBtn({ background: 'linear-gradient(to bottom, #f0c000, #c08000)', borderColor: '#a06000 #604000 #604000 #a06000', color: '#000' })}
+                                                       title="Mark as received even if quantities are short"
+                                                       onClick={() => onClosePO(po.id)}
+                                                   >
+                                                       <i className="bi bi-check2-circle" style={{ marginRight: 3 }}></i>Close
+                                                   </button>
+                                               ) : (
+                                                   <button
+                                                       className="btn btn-sm btn-warning py-0 px-2"
+                                                       style={{fontSize: '0.75rem'}}
+                                                       title="Mark as received even if quantities are short"
+                                                       onClick={() => onClosePO(po.id)}
+                                                   >
+                                                       <i className="bi bi-check2-circle me-1"></i>Close
                                                    </button>
                                                )
                                            )}

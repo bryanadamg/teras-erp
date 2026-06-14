@@ -203,6 +203,38 @@ async def get_purchase_orders(
     return result.scalars().all()
 
 
+@router.patch("/{po_id}/close", response_model=PurchaseOrderResponse)
+async def close_purchase_order(
+    po_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Force-close a PO as RECEIVED even if quantities are short (partial/under-delivery)."""
+    result = await db.execute(_po_query().filter(PurchaseOrder.id == po_id))
+    po = result.scalars().first()
+    if not po:
+        raise HTTPException(status_code=404, detail="PO not found")
+    if po.status in ("RECEIVED", "CANCELLED"):
+        raise HTTPException(status_code=400, detail=f"PO already {po.status}")
+
+    prev_status = po.status
+    po.status = "RECEIVED"
+    await db.commit()
+
+    await audit_service.log_activity(
+        db,
+        user_id=current_user.id,
+        action="UPDATE",
+        entity_type="purchase_order",
+        entity_id=str(po.id),
+        details=f"Closed PO {po.po_number} as RECEIVED (short/partial delivery)",
+        changes={"status": [prev_status, "RECEIVED"]},
+    )
+
+    result = await db.execute(_po_query().filter(PurchaseOrder.id == po_id))
+    return result.scalars().first()
+
+
 @router.delete("/{po_id}")
 async def delete_purchase_order(
     po_id: uuid.UUID,
