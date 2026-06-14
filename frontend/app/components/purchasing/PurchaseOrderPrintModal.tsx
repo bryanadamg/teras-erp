@@ -7,7 +7,9 @@ interface POPrintSettings {
     contactTelp: string;
     contactFax: string;
     ssn: string;
+    rateMode: 'kurs_pajak' | 'ktbi';
     kursPajak: string;
+    ktbi: string;
     code: string;
     paymentTerm: string;
     category: string;
@@ -25,7 +27,9 @@ const DEFAULT_SETTINGS: POPrintSettings = {
     contactTelp: '',
     contactFax: '',
     ssn: '',
+    rateMode: 'kurs_pajak',
     kursPajak: '',
+    ktbi: '',
     code: '',
     paymentTerm: '',
     category: '',
@@ -189,7 +193,7 @@ function PODocument({
                 <tbody>
                     {([
                         ['Email', companyProfile?.email || ''],
-                        ['Kurs Pajak', settings.kursPajak],
+                        settings.rateMode === 'ktbi' ? ['KTBI', settings.ktbi] : ['Kurs Pajak', settings.kursPajak],
                         ['Code', settings.code],
                         ['Payment', settings.paymentTerm],
                         ['Category', settings.category],
@@ -404,9 +408,29 @@ export default function PurchaseOrderPrintModal({
 
                             <div>
                                 <div style={sectionLabel}>PO Details</div>
+                                <div style={{ marginBottom: 6 }}>
+                                    <div style={fieldLabel}>SSN</div>
+                                    <input style={fieldInput} value={settings.ssn} onChange={e => update({ ssn: e.target.value })} placeholder="e.g. BI 084/KMK/26/06/09" />
+                                </div>
+                                <div style={{ marginBottom: 6 }}>
+                                    <div style={fieldLabel}>Rate Variant</div>
+                                    <select style={fieldInput} value={settings.rateMode} onChange={e => update({ rateMode: e.target.value as POPrintSettings['rateMode'] })}>
+                                        <option value="kurs_pajak">Kurs Pajak</option>
+                                        <option value="ktbi">KTBI</option>
+                                    </select>
+                                </div>
+                                {settings.rateMode === 'ktbi' ? (
+                                    <div style={{ marginBottom: 6 }}>
+                                        <div style={fieldLabel}>KTBI</div>
+                                        <input style={fieldInput} value={settings.ktbi} onChange={e => update({ ktbi: e.target.value })} placeholder="e.g. KTBI value" />
+                                    </div>
+                                ) : (
+                                    <div style={{ marginBottom: 6 }}>
+                                        <div style={fieldLabel}>Kurs Pajak</div>
+                                        <input style={fieldInput} value={settings.kursPajak} onChange={e => update({ kursPajak: e.target.value })} placeholder="e.g. Rp 17.805 (09.06.26)" />
+                                    </div>
+                                )}
                                 {([
-                                    ['SSN', 'ssn', 'e.g. BI 084/KMK/26/06/09'],
-                                    ['Kurs Pajak', 'kursPajak', 'e.g. Rp 17.805 (09.06.26)'],
                                     ['Code', 'code', ''],
                                     ['Payment', 'paymentTerm', 'e.g. Net 45 days'],
                                     ['Category', 'category', 'e.g. dsc'],
