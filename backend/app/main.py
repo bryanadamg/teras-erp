@@ -135,7 +135,9 @@ app.add_middleware(
 
 # Compress large JSON/list responses over the wire. Pure transport optimization —
 # no API contract change. Responses below minimum_size are sent uncompressed.
-app.add_middleware(GZipMiddleware, minimum_size=1000)
+# compresslevel=6 (not the default 9): near-identical ratio at much lower CPU cost,
+# which matters on the low-power ARM backend host.
+app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=6)
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):

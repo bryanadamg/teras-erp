@@ -189,7 +189,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             }
 
             // Inventory / Stock
-            if (fetchTarget.includes('stock') || fetchTarget === 'dashboard' || fetchTarget === '' || fetchTarget.includes('inventory') || fetchTarget.includes('manufacturing') || fetchTarget.includes('work-orders') || fetchTarget.includes('production-runs')) {
+            // Only fetch the full stock-balance table on routes that actually consume it
+            // (dashboard, stock pages, manufacturing/MO/PR creation-availability). The
+            // inventory and work-orders views do NOT read stockBalance, so fetching the
+            // whole table there was wasted work — costly on the low-power ARM backend.
+            if (fetchTarget.includes('stock') || fetchTarget === 'dashboard' || fetchTarget === '' || fetchTarget.includes('manufacturing') || fetchTarget.includes('production-runs')) {
                 requests.push(fetch(`${API_BASE}/stock/balance`, { headers }));
                 requestTypes.push('balance');
             }

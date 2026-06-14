@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from app.models.stock_ledger import StockLedger
 from app.models.stock_balance import StockBalance
 from app.models.attribute import AttributeValue
@@ -127,12 +127,16 @@ async def get_stock_entries(db: AsyncSession, skip: int = 0, limit: int = 100) -
 async def get_all_stock_balances(db: AsyncSession, user=None):
     query = select(StockBalance)
 
+    # item/location are to-one (joinedload = single JOIN, no row multiplication).
+    # attribute_values is a collection — joinedload would multiply rows by value count
+    # and force a Python-side .unique() dedup. selectinload fetches them in one extra
+    # IN query instead, avoiding the cartesian blow-up. Cheaper CPU/RAM on the ARM host.
     result = await db.execute(query.options(
-        joinedload(StockBalance.attribute_values),
+        selectinload(StockBalance.attribute_values),
         joinedload(StockBalance.item),
         joinedload(StockBalance.location),
     ))
-    results = result.unique().scalars().all()
+    results = result.scalars().all()
 
     return [
         {
