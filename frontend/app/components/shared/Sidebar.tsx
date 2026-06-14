@@ -104,7 +104,24 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
   const [reportsExpanded,     setReportsExpanded]     = useState(true);
 
   const [hovered, setHovered] = useState<string | null>(null);
-  const H = (key: string) => ({ onMouseEnter: () => setHovered(key), onMouseLeave: () => setHovered(null) });
+  const prefetchTimer = useRef<any>(null);
+  // Hover handlers: set hover styling, and (debounced) prefetch that tab's data so the
+  // fetch overlaps the hover→click gap. Debounce avoids firing on fast mouse traversal —
+  // only a deliberate pause on an item triggers the prefetch. fetchData dedupes, so the
+  // later click/page-mount fetch joins this in-flight request instead of repeating it.
+  const H = (key: string) => ({
+    onMouseEnter: () => {
+      setHovered(key);
+      if (onTabHover) {
+        if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
+        prefetchTimer.current = setTimeout(() => onTabHover(key), 180);
+      }
+    },
+    onMouseLeave: () => {
+      setHovered(null);
+      if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
+    },
+  });
 
   const handleTabClick = (tab: string, e: React.MouseEvent) => {
     e.preventDefault();

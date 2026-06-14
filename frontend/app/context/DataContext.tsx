@@ -112,11 +112,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         return fetch(url, { ...options, headers: { ...options.headers, 'Authorization': `Bearer ${token}` } });
     }, []);
 
-    const fetchData = useCallback(async (target?: string) => {
-        if (!currentUser) return;
+    const inFlightRef = useRef<Record<string, Promise<any>>>({});
+
+    const fetchData = useCallback((target?: string) => {
+        if (!currentUser) return Promise.resolve();
         // In the new routing system, we can use the pathname or a passed target
         const fetchTarget = target || (typeof window !== 'undefined' ? window.location.pathname.substring(1) : 'dashboard') || 'dashboard';
-        
+
+        // Dedupe: if an identical fetch for this target is already running, reuse it.
+        // Collapses the sidebar-click + destination-page-mount double fetch, and the
+        // hover-prefetch + click sequence, into a single round-trip to the backend.
+        if (inFlightRef.current[fetchTarget]) return inFlightRef.current[fetchTarget];
+
+        const run = async () => {
         try {
             const token = localStorage.getItem('access_token');
             const headers = { 'Authorization': `Bearer ${token}` };
@@ -266,6 +274,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 setIsInitialLoad(false);
             }
         } catch (e) { console.error("Fetch Error", e); }
+        };
+
+        const p = run().finally(() => { delete inFlightRef.current[fetchTarget]; });
+        inFlightRef.current[fetchTarget] = p;
+        return p;
     }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, itemSearch, categoryL1, categoryL2, categoryL3, auditType, isInitialLoad, pageSize]);
 
     const handleTabHover = (tab: string) => fetchData(tab);
