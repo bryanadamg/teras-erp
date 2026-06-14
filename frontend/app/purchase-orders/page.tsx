@@ -6,7 +6,7 @@ import { useToast } from '../components/shared/Toast';
 import { useConfirm } from '../context/ConfirmContext';
 
 export default function PurchaseOrdersPage() {
-    const { items, attributes, purchaseOrders, partners, locations, fetchData, authFetch } = useData();
+    const { items, attributes, purchaseOrders, partners, locations, companyProfile, fetchData, authFetch } = useData();
     const { showToast } = useToast();
     const { confirm } = useConfirm();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
@@ -73,6 +73,7 @@ export default function PurchaseOrdersPage() {
                 onCreateReceipt={handleCreateReceipt}
                 onClosePO={handleClosePO}
                 onDeletePO={handleDeletePO}
+                companyProfile={companyProfile}
             />
     );
 }

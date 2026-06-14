@@ -3,12 +3,12 @@ import CodeConfigModal, { CodeConfig, buildCodeWithCounter } from '../shared/Cod
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import SearchableSelect from '../shared/SearchableSelect';
-import PrintHeader from '../shared/PrintHeader';
+import PurchaseOrderPrintModal from './PurchaseOrderPrintModal';
 import ModalWrapper from '../shared/ModalWrapper';
 import { useTheme } from '../../context/ThemeContext';
 import { useSortable, SortMark } from '../shared/xpTheme';
 
-export default function PurchaseOrderView({ items, attributes, purchaseOrders, partners, locations, onCreatePO, onDeletePO, onCreateReceipt, onClosePO }: any) {
+export default function PurchaseOrderView({ items, attributes, purchaseOrders, partners, locations, onCreatePO, onDeletePO, onCreateReceipt, onClosePO, companyProfile }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -284,13 +284,10 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
 
   const handlePrintPO = (po: any) => {
       setPrintingPO(po);
-      setTimeout(() => window.print(), 300);
   };
 
   const suppliers = partners.filter((p: any) => p.type === 'SUPPLIER' && p.active);
   const getSupplierName = (id: string) => partners.find((p: any) => p.id === id)?.name || id;
-  const getSupplierAddress = (id: string) => partners.find((p: any) => p.id === id)?.address || '-';
-  const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
 
   const STATUS_FILTERS = ['ALL', 'DRAFT', 'RECEIVING', 'RECEIVED'];
 
@@ -326,84 +323,20 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
     return <span className={`badge ${cls}`}>{status}</span>;
   };
 
-  // --- Print Template ---
-  const PurchaseOrderPrintTemplate = ({ po }: { po: any }) => (
-      <div className="bg-white p-5 h-100 position-fixed top-0 start-0 w-100 print-container" style={{zIndex: 2000, overflowY: 'auto'}}>
-          <PrintHeader title="Purchase Order" />
-          <div className="row mb-3 mt-4 text-dark">
-              <div className="col-8">
-                  <div className="small text-muted fw-bold uppercase">PO Number</div>
-                  <h4 className="font-monospace mb-0 fw-bold text-success">{po.po_number}</h4>
-                  <div className="small text-muted mt-1">Date: {new Date(po.order_date).toLocaleDateString()}</div>
-              </div>
-              <div className="col-4 text-end">
-                  <div className="badge bg-secondary mb-3">Status: {po.status}</div>
-              </div>
-          </div>
-          <div className="row mb-5">
-              <div className="col-6">
-                  <div className="p-3 border rounded bg-light bg-opacity-50 h-100">
-                      <h6 className="extra-small fw-bold text-uppercase text-muted border-bottom pb-2 mb-2">Supplier Details</h6>
-                      <div className="fw-bold fs-5">{getSupplierName(po.supplier_id)}</div>
-                      <div className="text-muted small mt-2" style={{ whiteSpace: 'pre-wrap' }}>{getSupplierAddress(po.supplier_id)}</div>
-                  </div>
-              </div>
-              <div className="col-6">
-                  <div className="p-3 border rounded h-100">
-                      <h6 className="extra-small fw-bold text-uppercase text-muted border-bottom pb-2 mb-2">Ship To / Destination</h6>
-                      <div className="fw-bold text-dark mb-1">{getLocationName(po.target_location_id)}</div>
-                      <div className="small text-muted mb-3">Terras Manufacturing Facility</div>
-                      <div className="badge bg-secondary mb-3">Status: {po.status}</div>
-                  </div>
-              </div>
-          </div>
-          <table className="table table-bordered table-sm mb-5">
-              <thead className="table-light">
-                  <tr style={{fontSize: '9pt'}}>
-                      <th style={{width: '15%'}}>Material Code</th>
-                      <th style={{width: '45%'}}>Description / Specification</th>
-                      <th style={{width: '15%'}} className="text-end">Quantity</th>
-                      <th style={{width: '25%'}}>Expected Delivery</th>
-                  </tr>
-              </thead>
-              <tbody>
-                  {po.lines.map((line: any) => (
-                      <tr key={line.id} style={{fontSize: '10pt'}}>
-                          <td className="font-monospace fw-bold">{getItemCode(line.item_id)}</td>
-                          <td>
-                              <div className="fw-medium">{getItemName(line.item_id)}</div>
-                              <div className="extra-small text-muted fst-italic">
-                                  {line.attribute_value_ids.map(getAttributeValueName).join(', ') || 'No variation'}
-                              </div>
-                          </td>
-                          <td className="text-end fw-bold">{line.qty}</td>
-                          <td className="small">{line.due_date ? new Date(line.due_date).toLocaleDateString() : '—'}</td>
-                      </tr>
-                  ))}
-              </tbody>
-          </table>
-          <div className="mt-5 pt-5 border-top row g-4 text-center">
-              <div className="col-4">
-                  <div className="small text-muted mb-5">Issued By</div>
-                  <div className="border-top mx-4 pt-2 small fw-bold">Procurement Officer</div>
-              </div>
-              <div className="col-4 offset-4">
-                  <div className="small text-muted mb-5">Acknowledged By</div>
-                  <div className="border-top mx-4 pt-2 small fw-bold">Supplier Signature / Stamp</div>
-              </div>
-          </div>
-          <div className="position-fixed top-0 end-0 p-3 no-print">
-              <button className="btn btn-dark shadow rounded-pill px-4" onClick={() => setPrintingPO(null)}>
-                  <i className="bi bi-x-lg me-2"></i>Close Preview
-              </button>
-          </div>
-      </div>
-  );
-
   return (
     <div className="fade-in">
        {/* Print Overlay */}
-       {printingPO && <PurchaseOrderPrintTemplate po={printingPO} />}
+       {printingPO && (
+           <PurchaseOrderPrintModal
+               po={printingPO}
+               onClose={() => setPrintingPO(null)}
+               currentStyle={currentStyle}
+               companyProfile={companyProfile}
+               items={items}
+               attributes={attributes}
+               partners={partners}
+           />
+       )}
 
        <CodeConfigModal
            isOpen={isConfigOpen}
