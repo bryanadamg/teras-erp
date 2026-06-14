@@ -677,12 +677,20 @@ class OperationResponse(OperationCreate):
 class PartnerCreate(BaseModel):
     name: str
     address: Optional[str] = None
+    contact_person: Optional[str] = None
+    phone: Optional[str] = None
+    fax: Optional[str] = None
+    email: Optional[str] = None
     type: str # CUSTOMER or SUPPLIER
     active: bool = True
 
 class PartnerUpdate(BaseModel):
     name: Optional[str] = None
     address: Optional[str] = None
+    contact_person: Optional[str] = None
+    phone: Optional[str] = None
+    fax: Optional[str] = None
+    email: Optional[str] = None
     active: Optional[bool] = None
 
 class PartnerResponse(PartnerCreate):

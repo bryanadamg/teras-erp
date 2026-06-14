@@ -10,6 +10,10 @@ interface Partner {
     id: string;
     name: string;
     address?: string;
+    contact_person?: string;
+    phone?: string;
+    fax?: string;
+    email?: string;
     type: string;
     active: boolean;
 }
@@ -28,7 +32,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
     const { t } = useLanguage();
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [editingPartner, setEditingPartner] = useState<Partner | null>(null);
-    const [newPartner, setNewPartner] = useState({ name: '', address: '', type, active: true });
+    const [newPartner, setNewPartner] = useState({ name: '', address: '', contact_person: '', phone: '', fax: '', email: '', type, active: true });
     const [deletingPartner, setDeletingPartner] = useState<Partner | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const { uiStyle: currentStyle } = useTheme();
@@ -174,7 +178,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
         e.preventDefault();
         if (!newPartner.name) return;
         onCreate(newPartner);
-        setNewPartner({ name: '', address: '', type, active: true });
+        setNewPartner({ name: '', address: '', contact_person: '', phone: '', fax: '', email: '', type, active: true });
         setIsCreateOpen(false);
     };
 
@@ -184,6 +188,10 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
         onUpdate(editingPartner.id, {
             name: editingPartner.name,
             address: editingPartner.address,
+            contact_person: editingPartner.contact_person,
+            phone: editingPartner.phone,
+            fax: editingPartner.fax,
+            email: editingPartner.email,
             active: editingPartner.active
         });
         setEditingPartner(null);
@@ -492,6 +500,24 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                         placeholder="Street, City, Zip Code…"
                     ></textarea>
                 </div>
+                <div className="mb-3">
+                    <label style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined} className={classic ? '' : 'form-label small fw-bold'}>Contact Person <span style={classic ? { fontWeight: 'normal', color: '#666' } : undefined} className={classic ? '' : 'fw-normal text-muted'}>(Attn)</span></label>
+                    <input style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} value={newPartner.contact_person} onChange={e => setNewPartner({...newPartner, contact_person: e.target.value})} placeholder="e.g. Pak Nicolas" />
+                </div>
+                <div className="row g-2 mb-3">
+                    <div className="col-6">
+                        <label style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined} className={classic ? '' : 'form-label small fw-bold'}>Phone / Telp</label>
+                        <input style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} value={newPartner.phone} onChange={e => setNewPartner({...newPartner, phone: e.target.value})} placeholder="e.g. 021 5869948" />
+                    </div>
+                    <div className="col-6">
+                        <label style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined} className={classic ? '' : 'form-label small fw-bold'}>Fax</label>
+                        <input style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} value={newPartner.fax} onChange={e => setNewPartner({...newPartner, fax: e.target.value})} placeholder="e.g. 021 5868012" />
+                    </div>
+                </div>
+                <div className="mb-3">
+                    <label style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined} className={classic ? '' : 'form-label small fw-bold'}>Email</label>
+                    <input style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} value={newPartner.email} onChange={e => setNewPartner({...newPartner, email: e.target.value})} placeholder="e.g. sales@supplier.com" />
+                </div>
             </ModalWrapper>
 
             {/* Delete Confirmation Modal */}
@@ -603,6 +629,24 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                                 value={editingPartner.address || ''}
                                 onChange={e => setEditingPartner({...editingPartner, address: e.target.value})}
                             ></textarea>
+                        </div>
+                        <div className="mb-3">
+                            <label style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined} className={classic ? '' : 'form-label small fw-bold'}>Contact Person <span style={classic ? { fontWeight: 'normal', color: '#666' } : undefined} className={classic ? '' : 'fw-normal text-muted'}>(Attn)</span></label>
+                            <input style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} value={editingPartner.contact_person || ''} onChange={e => setEditingPartner({...editingPartner, contact_person: e.target.value})} placeholder="e.g. Pak Nicolas" />
+                        </div>
+                        <div className="row g-2 mb-3">
+                            <div className="col-6">
+                                <label style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined} className={classic ? '' : 'form-label small fw-bold'}>Phone / Telp</label>
+                                <input style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} value={editingPartner.phone || ''} onChange={e => setEditingPartner({...editingPartner, phone: e.target.value})} placeholder="e.g. 021 5869948" />
+                            </div>
+                            <div className="col-6">
+                                <label style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined} className={classic ? '' : 'form-label small fw-bold'}>Fax</label>
+                                <input style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} value={editingPartner.fax || ''} onChange={e => setEditingPartner({...editingPartner, fax: e.target.value})} placeholder="e.g. 021 5868012" />
+                            </div>
+                        </div>
+                        <div className="mb-3">
+                            <label style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined} className={classic ? '' : 'form-label small fw-bold'}>Email</label>
+                            <input style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} value={editingPartner.email || ''} onChange={e => setEditingPartner({...editingPartner, email: e.target.value})} placeholder="e.g. sales@supplier.com" />
                         </div>
                         <div style={classic ? { marginTop: 10, display: 'flex', alignItems: 'center', gap: 6 } : undefined} className={classic ? '' : 'form-check mt-3'}>
                             <input

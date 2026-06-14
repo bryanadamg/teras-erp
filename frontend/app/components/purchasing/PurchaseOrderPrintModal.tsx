@@ -3,9 +3,6 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 interface POPrintSettings {
-    attn: string;
-    contactTelp: string;
-    contactFax: string;
     ssn: string;
     rateMode: 'kurs_pajak' | 'ktbi';
     kursPajak: string;
@@ -23,9 +20,6 @@ interface POPrintSettings {
 }
 
 const DEFAULT_SETTINGS: POPrintSettings = {
-    attn: '',
-    contactTelp: '',
-    contactFax: '',
     ssn: '',
     rateMode: 'kurs_pajak',
     kursPajak: '',
@@ -162,7 +156,7 @@ function PODocument({
                             <div style={{ textAlign: 'center', fontWeight: 'bold', marginBottom: 4 }}>SUPPLIER</div>
                             <table style={{ borderCollapse: 'collapse', width: '100%' }}>
                                 <tbody>
-                                    <tr><td style={labelCell}>Attn</td><td>: {settings.attn}</td></tr>
+                                    <tr><td style={labelCell}>Attn</td><td>: {supplier?.contact_person || ''}</td></tr>
                                     <tr><td style={labelCell}>Company</td><td>: {supplier?.name || ''}</td></tr>
                                     <tr><td style={labelCell}>Address</td><td style={{ whiteSpace: 'pre-line' }}>: {supplier?.address || ''}</td></tr>
                                 </tbody>
@@ -171,8 +165,8 @@ function PODocument({
                         {/* Contact Person */}
                         <td style={{ ...cell, width: '27%' }}>
                             <div style={{ textAlign: 'center', fontWeight: 'bold', marginBottom: 4 }}>CONTACT PERSON</div>
-                            <div>Telp : {settings.contactTelp}</div>
-                            <div style={{ marginTop: 10 }}>Fax : {settings.contactFax}</div>
+                            <div>Telp : {supplier?.phone || ''}</div>
+                            <div style={{ marginTop: 10 }}>Fax : {supplier?.fax || ''}</div>
                         </td>
                         {/* PO meta */}
                         <td style={{ ...cell, width: '27%', padding: 0 }}>
@@ -192,7 +186,7 @@ function PODocument({
             <table style={{ width: '100%', borderCollapse: 'collapse', borderLeft: border, borderRight: border, borderBottom: border, fontSize: '9px' }}>
                 <tbody>
                     {([
-                        ['Email', companyProfile?.email || ''],
+                        ['Email', supplier?.email || companyProfile?.email || ''],
                         settings.rateMode === 'ktbi' ? ['KTBI', settings.ktbi] : ['Kurs Pajak', settings.kursPajak],
                         ['Code', settings.code],
                         ['Payment', settings.paymentTerm],
@@ -394,17 +388,9 @@ export default function PurchaseOrderPrintModal({
                         {/* LEFT — settings panel */}
                         <div style={{ width: 230, minWidth: 230, borderRight: '1px solid #dee2e6', background: '#f8f9fa', padding: 14, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-                            <div>
-                                <div style={sectionLabel}>Contact Person</div>
-                                <div style={fieldLabel}>Attn</div>
-                                <input style={fieldInput} value={settings.attn} onChange={e => update({ attn: e.target.value })} placeholder="e.g. Pak Nicolas" />
-                                <div style={{ ...fieldLabel, marginTop: 6 }}>Telp</div>
-                                <input style={fieldInput} value={settings.contactTelp} onChange={e => update({ contactTelp: e.target.value })} placeholder="e.g. 021 5869948" />
-                                <div style={{ ...fieldLabel, marginTop: 6 }}>Fax</div>
-                                <input style={fieldInput} value={settings.contactFax} onChange={e => update({ contactFax: e.target.value })} placeholder="e.g. 021 5868012" />
+                            <div style={{ fontSize: 10, color: '#555', background: '#eef4ff', border: '1px solid #cfe0ff', padding: '6px 8px' }}>
+                                Supplier name, address, contact person (Attn), Telp, Fax &amp; Email are pulled from the supplier record. Edit them under Suppliers.
                             </div>
-
-                            <hr style={{ margin: 0, borderColor: '#dee2e6' }} />
 
                             <div>
                                 <div style={sectionLabel}>PO Details</div>

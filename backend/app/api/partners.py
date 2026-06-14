@@ -17,6 +17,10 @@ def create_partner(payload: PartnerCreate, db: Session = Depends(get_db), curren
     partner = Partner(
         name=payload.name,
         address=payload.address,
+        contact_person=payload.contact_person,
+        phone=payload.phone,
+        fax=payload.fax,
+        email=payload.email,
         type=payload.type,
         active=payload.active
     )
