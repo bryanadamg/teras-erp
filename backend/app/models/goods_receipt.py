@@ -29,6 +29,8 @@ class GoodsReceiptLine(Base):
     item_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("items.id"), index=True)
     qty_received: Mapped[float] = mapped_column(Numeric(14, 4))
     qty_boxes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    qty_cones: Mapped[int | None] = mapped_column(Integer, nullable=True)  # raw material packaging
+    qty_drums: Mapped[int | None] = mapped_column(Integer, nullable=True)  # chemical/dye packaging
     batch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("batches.id"), nullable=True)
 
     item = relationship("Item")

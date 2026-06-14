@@ -719,6 +719,8 @@ class GoodsReceiptLineCreate(BaseModel):
     po_line_id: UUID
     qty_received: float
     qty_boxes: int | None = None
+    qty_cones: int | None = None  # raw material packaging
+    qty_drums: int | None = None  # chemical/dye packaging
     batch_id: UUID | None = None
     batch_number: str | None = None  # supplier lot no. — resolved/created server-side
 
@@ -735,6 +737,8 @@ class GoodsReceiptLineResponse(BaseModel):
     item_code: str | None = None
     qty_received: float
     qty_boxes: int | None = None
+    qty_cones: int | None = None
+    qty_drums: int | None = None
     batch_id: UUID | None = None
     class Config:
         from_attributes = True

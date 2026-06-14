@@ -22,6 +22,8 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
   const [receiptTarget, setReceiptTarget] = useState<any>(null);
   const [receiptLineQtys, setReceiptLineQtys] = useState<Record<string, number>>({});
   const [receiptLineBoxes, setReceiptLineBoxes] = useState<Record<string, number | ''>>({});
+  const [receiptLineCones, setReceiptLineCones] = useState<Record<string, number | ''>>({});
+  const [receiptLineDrums, setReceiptLineDrums] = useState<Record<string, number | ''>>({});
   const [receiptLineLots, setReceiptLineLots] = useState<Record<string, string>>({});
   const [receiptDate, setReceiptDate] = useState('');
   const [receiptNotes, setReceiptNotes] = useState('');
@@ -37,6 +39,8 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
     }
     setReceiptLineQtys(defaults);
     setReceiptLineBoxes({});
+    setReceiptLineCones({});
+    setReceiptLineDrums({});
     setReceiptLineLots({});
     setReceiptDate(new Date().toISOString().split('T')[0]);
     setReceiptNotes('');
@@ -47,14 +51,19 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
     if (!receiptTarget) return;
     const lines = Object.entries(receiptLineQtys)
       .filter(([, qty]) => qty > 0)
-      .map(([po_line_id, qty_received]) => ({
-        po_line_id,
-        qty_received,
-        qty_boxes: receiptLineBoxes[po_line_id] !== '' && receiptLineBoxes[po_line_id] !== undefined
-          ? Number(receiptLineBoxes[po_line_id])
-          : null,
-        batch_number: (receiptLineLots[po_line_id] || '').trim() || null,
-      }));
+      .map(([po_line_id, qty_received]) => {
+        const itemId = receiptTarget.lines.find((l: any) => l.id === po_line_id)?.item_id;
+        const catType = itemId ? getItemCatType(itemId) : null;
+        const numOrNull = (v: number | '' | undefined) => (v !== '' && v !== undefined ? Number(v) : null);
+        return {
+          po_line_id,
+          qty_received,
+          qty_boxes: numOrNull(receiptLineBoxes[po_line_id]),
+          qty_cones: catType === 'raw' ? numOrNull(receiptLineCones[po_line_id]) : null,
+          qty_drums: (catType === 'chemical' || catType === 'dye') ? numOrNull(receiptLineDrums[po_line_id]) : null,
+          batch_number: (receiptLineLots[po_line_id] || '').trim() || null,
+        };
+      });
     if (lines.length === 0) { showToast('Enter qty for at least one line', 'error'); return; }
     onCreateReceipt(receiptTarget.id, { receipt_date: receiptDate || null, notes: receiptNotes || null, lines });
     setReceiptTarget(null);
@@ -242,6 +251,20 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
 
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
   const getItemCode = (id: string) => items.find((i: any) => i.id === id)?.code || id;
+  const getItem = (id: string) => items.find((i: any) => i.id === id);
+  const getItemUom = (id: string) => getItem(id)?.uom || '';
+  // Classify by seeded system categories: "Raw Material", "Chemical", "Dye"
+  const getItemCatType = (id: string): 'raw' | 'chemical' | 'dye' | null => {
+      const path = (getItem(id)?.category_path || []).map((s: string) => s.toLowerCase());
+      if (path.some((p: string) => p.includes('dye'))) return 'dye';
+      if (path.some((p: string) => p.includes('chemical'))) return 'chemical';
+      if (path.some((p: string) => p.includes('raw material'))) return 'raw';
+      return null;
+  };
+  const getItemCatLabel = (id: string) => {
+      const path = getItem(id)?.category_path || [];
+      return path.length ? path[path.length - 1] : '';
+  };
 
   const getBoundAttributes = (itemId: string) => {
       const item = items.find((i: any) => i.id === itemId);
@@ -481,6 +504,8 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                <div>
                                    <span style={{fontWeight:'bold'}}>{getItemName(line.item_id)}</span>
                                    <span style={{color:classic?'#555':'',marginLeft:8,fontSize:classic?'10px':''}}>{getItemCode(line.item_id)}</span>
+                                   {getItemUom(line.item_id) && <span style={{display:'inline-block',marginLeft:8,padding:'1px 6px',fontSize:'9px',fontWeight:'bold',background:'#dfe8f5',border:'1px solid #7f9db9',color:'#1a3d6b',borderRadius:classic?0:3,textTransform:'uppercase'}}>{getItemUom(line.item_id)}</span>}
+                                   {getItemCatLabel(line.item_id) && <span style={{display:'inline-block',marginLeft:4,padding:'1px 6px',fontSize:'9px',fontWeight:'bold',background:'#f0e8d8',border:'1px solid #b8a060',color:'#6b4e1a',borderRadius:classic?0:3}}>{getItemCatLabel(line.item_id)}</span>}
                                    {line.due_date && <span style={{color:classic?'#666':'',marginLeft:8,fontSize:classic?'10px':''}}><i className="bi bi-calendar2" style={{marginRight:3}}></i>{new Date(line.due_date).toLocaleDateString()}</span>}
                                    {(line.attribute_value_ids||[]).length>0 && <div style={{color:classic?'#666':'',fontSize:classic?'10px':'',fontStyle:'italic'}}>{(line.attribute_value_ids||[]).map(getAttributeValueName).join(', ')}</div>}
                                </div>
@@ -537,8 +562,10 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                <th style={classic?xpThCell:undefined}>Item</th>
                                <th style={classic?{...xpThCell,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>Ordered</th>
                                <th style={classic?{...xpThCell,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>Rcvd So Far</th>
-                               <th style={classic?{...xpThCell,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>This Receipt (kg)</th>
+                               <th style={classic?{...xpThCell,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>This Receipt</th>
                                <th style={classic?{...xpThCell,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>Boxes</th>
+                               <th style={classic?{...xpThCell,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>Cones</th>
+                               <th style={classic?{...xpThCell,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>Drum</th>
                                <th style={classic?{...xpThCell,borderRight:'none'}:undefined}>Lot No.</th>
                            </tr>
                        </thead>
@@ -552,15 +579,18 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                    <td style={classic?{...tdBase,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>{line.qty}</td>
                                    <td style={classic?{...tdBase,textAlign:'right' as const}:undefined} className={classic?'':'text-end text-muted'}>{line.qty_received || 0}</td>
                                    <td style={classic?{...tdBase,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>
-                                       <input
-                                           type="number"
-                                           min="0"
-                                           step="0.001"
-                                           style={classic?{...xpInput,width:90,textAlign:'right'}:{width:100,textAlign:'right' as const}}
-                                           className={classic?'':'form-control form-control-sm'}
-                                           value={receiptLineQtys[line.id] ?? 0}
-                                           onChange={e => setReceiptLineQtys(prev => ({ ...prev, [line.id]: parseFloat(e.target.value) || 0 }))}
-                                       />
+                                       <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:4}}>
+                                           <input
+                                               type="number"
+                                               min="0"
+                                               step="0.001"
+                                               style={classic?{...xpInput,width:90,textAlign:'right'}:{width:100,textAlign:'right' as const}}
+                                               className={classic?'':'form-control form-control-sm'}
+                                               value={receiptLineQtys[line.id] ?? 0}
+                                               onChange={e => setReceiptLineQtys(prev => ({ ...prev, [line.id]: parseFloat(e.target.value) || 0 }))}
+                                           />
+                                           <span style={{fontSize:'9px',fontWeight:'bold',color:'#1a3d6b',textTransform:'uppercase'}}>{getItemUom(line.item_id)}</span>
+                                       </div>
                                    </td>
                                    <td style={classic?{...tdBase,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>
                                        <input
@@ -573,6 +603,34 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                            value={receiptLineBoxes[line.id] ?? ''}
                                            onChange={e => setReceiptLineBoxes(prev => ({ ...prev, [line.id]: e.target.value === '' ? '' : parseInt(e.target.value) || 0 }))}
                                        />
+                                   </td>
+                                   <td style={classic?{...tdBase,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>
+                                       {getItemCatType(line.item_id) === 'raw' ? (
+                                           <input
+                                               type="number"
+                                               min="0"
+                                               step="1"
+                                               placeholder="—"
+                                               style={classic?{...xpInput,width:60,textAlign:'right'}:{width:80,textAlign:'right' as const}}
+                                               className={classic?'':'form-control form-control-sm'}
+                                               value={receiptLineCones[line.id] ?? ''}
+                                               onChange={e => setReceiptLineCones(prev => ({ ...prev, [line.id]: e.target.value === '' ? '' : parseInt(e.target.value) || 0 }))}
+                                           />
+                                       ) : <span style={{color:'#bbb'}}>—</span>}
+                                   </td>
+                                   <td style={classic?{...tdBase,textAlign:'right' as const}:undefined} className={classic?'':'text-end'}>
+                                       {(getItemCatType(line.item_id) === 'chemical' || getItemCatType(line.item_id) === 'dye') ? (
+                                           <input
+                                               type="number"
+                                               min="0"
+                                               step="1"
+                                               placeholder="—"
+                                               style={classic?{...xpInput,width:60,textAlign:'right'}:{width:80,textAlign:'right' as const}}
+                                               className={classic?'':'form-control form-control-sm'}
+                                               value={receiptLineDrums[line.id] ?? ''}
+                                               onChange={e => setReceiptLineDrums(prev => ({ ...prev, [line.id]: e.target.value === '' ? '' : parseInt(e.target.value) || 0 }))}
+                                           />
+                                       ) : <span style={{color:'#bbb'}}>—</span>}
                                    </td>
                                    <td style={classic?{...tdBase,borderRight:'none'}:undefined}>
                                        <input
@@ -822,8 +880,10 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                            <div style={classic ? { display: 'flex', gap: 12, flexWrap: 'wrap' } : undefined} className={classic ? '' : 'd-flex gap-3 flex-wrap'}>
                                                                {(receipt.lines || []).map((rl: any) => (
                                                                    <span key={rl.id} style={classic ? { fontSize: '10px', color: '#333' } : undefined} className={classic ? '' : 'text-muted'}>
-                                                                       <span style={classic ? { fontWeight: 'bold' } : undefined} className={classic ? '' : 'fw-semibold text-dark'}>{rl.qty_received} kg</span>
+                                                                       <span style={classic ? { fontWeight: 'bold' } : undefined} className={classic ? '' : 'fw-semibold text-dark'}>{rl.qty_received} {getItemUom(rl.item_id)}</span>
                                                                        {rl.qty_boxes != null && <span style={classic?{color:'#555',marginLeft:3}:undefined} className={classic?'':'text-muted'}> / {rl.qty_boxes} box{rl.qty_boxes !== 1 ? 'es' : ''}</span>}
+                                                                       {rl.qty_cones != null && <span style={classic?{color:'#555',marginLeft:3}:undefined} className={classic?'':'text-muted'}> / {rl.qty_cones} cone{rl.qty_cones !== 1 ? 's' : ''}</span>}
+                                                                       {rl.qty_drums != null && <span style={classic?{color:'#555',marginLeft:3}:undefined} className={classic?'':'text-muted'}> / {rl.qty_drums} drum{rl.qty_drums !== 1 ? 's' : ''}</span>}
                                                                        {' '}{rl.item_name || getItemName(rl.item_id)}
                                                                    </span>
                                                                ))}
