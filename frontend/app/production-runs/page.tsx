@@ -33,10 +33,12 @@ export default function ProductionRunsPage() {
         const action = searchParams.get('action');
         if (action === 'create_pr' && soId !== consumedSOIdRef.current) {
             consumedSOIdRef.current = soId;
+            const soCode = searchParams.get('so_code') || undefined;
             const bomEntriesRaw = searchParams.get('bom_entries');
             if (bomEntriesRaw) {
                 setInitialPRState({
                     sales_order_id: soId,
+                    sales_order_code: soCode,
                     bom_entries: JSON.parse(decodeURIComponent(bomEntriesRaw)),
                 });
             } else {
@@ -45,6 +47,7 @@ export default function ProductionRunsPage() {
                 const totalQtyRaw = searchParams.get('total_qty');
                 setInitialPRState({
                     sales_order_id: soId,
+                    sales_order_code: soCode,
                     bom_id: searchParams.get('bom_id'),
                     sizes: sizesRaw ? JSON.parse(decodeURIComponent(sizesRaw)) : [],
                     total_qty: totalQtyRaw ? parseFloat(totalQtyRaw) : undefined,

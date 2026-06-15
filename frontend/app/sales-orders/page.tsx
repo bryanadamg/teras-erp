@@ -135,6 +135,7 @@ export default function SalesOrdersPage() {
         const params: Record<string, string> = {
             action: 'create_pr',
             sales_order_id: so.id,
+            so_code: so.po_number || '',
             bom_entries: encodeURIComponent(JSON.stringify(entries)),
         };
         router.push(`/production-runs?${new URLSearchParams(params).toString()}`);

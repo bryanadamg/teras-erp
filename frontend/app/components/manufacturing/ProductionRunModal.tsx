@@ -39,6 +39,7 @@ interface Props {
         locked?: boolean;
     }>;
     salesOrderId?: string;
+    salesOrderCode?: string;
     productionRuns?: any[];
 }
 
@@ -201,7 +202,7 @@ function BomEntryRow({
 
 export default function ProductionRunModal({
     boms, items, attributes, locations, onSave, onClose,
-    initialBomId, initialSizes, initialTotalQty, initialBomEntries, salesOrderId, productionRuns,
+    initialBomId, initialSizes, initialTotalQty, initialBomEntries, salesOrderId, salesOrderCode, productionRuns,
 }: Props) {
     const [code, setCode] = useState('');
     const [locationCode, setLocationCode] = useState('');
@@ -263,10 +264,20 @@ export default function ProductionRunModal({
     }, [initialBomEntries, initialBomId, initialSizes, initialTotalQty]);
 
     useEffect(() => {
-        const firstBom = boms.find((b: any) => b.id === bomEntries[0]?.bomId);
-        if (firstBom) {
-            const item = firstBom.item_name || firstBom.item_code || 'ITEM';
-            const base = `PR-${item.toUpperCase().replace(/\s+/g, '-').slice(0, 12)}`;
+        // When created from a Sales Order, derive the PR code from the SO code; otherwise fall back to the BOM item.
+        let base: string | null = null;
+        if (salesOrderCode) {
+            // Strip a leading "SO-"/"SO" so SO-123 becomes PR-123 (not PR-SO-123).
+            const soSuffix = salesOrderCode.toUpperCase().replace(/\s+/g, '-').replace(/^SO-?/, '');
+            base = `PR-${soSuffix}`;
+        } else {
+            const firstBom = boms.find((b: any) => b.id === bomEntries[0]?.bomId);
+            if (firstBom) {
+                const item = firstBom.item_name || firstBom.item_code || 'ITEM';
+                base = `PR-${item.toUpperCase().replace(/\s+/g, '-').slice(0, 12)}`;
+            }
+        }
+        if (base) {
             const existingCodes = new Set((productionRuns || []).map((pr: any) => String(pr.code)));
             let n = 1;
             let candidate = `${base}-${String(n).padStart(3, '0')}`;
@@ -276,7 +287,7 @@ export default function ProductionRunModal({
             }
             setCode(candidate);
         }
-    }, [bomEntries[0]?.bomId]);
+    }, [bomEntries[0]?.bomId, salesOrderCode]);
 
     const showFormulaSection = bomEntries.some(e =>
         e.rawSoQtys && e.locked && e.bomId && hasStandardSizes(boms.find((b: any) => b.id === e.bomId))

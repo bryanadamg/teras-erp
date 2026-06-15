@@ -72,6 +72,7 @@ export default function ManufacturingView({
   const [prModalInitialSizes, setPrModalInitialSizes] = useState<Record<string, string> | undefined>(undefined);
   const [prModalTotalQty, setPrModalTotalQty] = useState<string | undefined>(undefined);
   const [prModalSalesOrderId, setPrModalSalesOrderId] = useState<string | undefined>(undefined);
+  const [prModalSalesOrderCode, setPrModalSalesOrderCode] = useState<string | undefined>(undefined);
   const [prModalInitialEntries, setPrModalInitialEntries] = useState<Array<{bomId: string; sizeQtys: Record<string,string>; totalQty: string; locked?: boolean}> | undefined>(undefined);
 
   // Derived Pagination
@@ -199,6 +200,7 @@ export default function ManufacturingView({
                   setActiveTab('production-runs');
                   setPrModalInitialEntries(entries);
                   setPrModalSalesOrderId(initialPRState.sales_order_id || undefined);
+                  setPrModalSalesOrderCode(initialPRState.sales_order_code || undefined);
                   setIsPRModalOpen(true);
                   onClearInitialPRState?.();
                   const count = entries.length;
@@ -219,6 +221,7 @@ export default function ManufacturingView({
                   setPrModalInitialSizes(Object.keys(sizeMap).length > 0 ? sizeMap : undefined);
                   setPrModalTotalQty(total_qty ? String(total_qty) : undefined);
                   setPrModalSalesOrderId(sales_order_id || undefined);
+                  setPrModalSalesOrderCode(initialPRState.sales_order_code || undefined);
                   setIsPRModalOpen(true);
                   onClearInitialPRState?.();
                   showToast('Production Run pre-filled from Sales Order', 'info');
@@ -1970,12 +1973,13 @@ export default function ManufacturingView({
                   attributes={attributes}
                   locations={locations}
                   onSave={onCreateProductionRun}
-                  onClose={() => { setIsPRModalOpen(false); setPrModalBom(null); setPrModalInitialSizes(undefined); setPrModalTotalQty(undefined); setPrModalSalesOrderId(undefined); setPrModalInitialEntries(undefined); }}
+                  onClose={() => { setIsPRModalOpen(false); setPrModalBom(null); setPrModalInitialSizes(undefined); setPrModalTotalQty(undefined); setPrModalSalesOrderId(undefined); setPrModalSalesOrderCode(undefined); setPrModalInitialEntries(undefined); }}
                   initialBomId={prModalBom?.id}
                   initialSizes={prModalInitialSizes}
                   initialTotalQty={prModalTotalQty}
                   initialBomEntries={prModalInitialEntries}
                   salesOrderId={prModalSalesOrderId}
+                  salesOrderCode={prModalSalesOrderCode}
                   productionRuns={productionRuns}
               />
           )}
