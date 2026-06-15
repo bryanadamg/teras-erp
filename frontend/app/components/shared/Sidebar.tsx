@@ -324,7 +324,10 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
               {chevron(dyeingExpanded)}
             </div>
             {dyeingExpanded && (
-              <NavItem tab="dyeing-setting" label="Dyeing & Setting" icon="bi-palette" isSub />
+              <>
+                <NavItem tab="dyeing-setting" label="Dyeing & Setting" icon="bi-palette" isSub />
+                <NavItem tab="lab-dips" label="Lab Dip Requests" icon="bi-droplet" isSub />
+              </>
             )}
           </>
         )}

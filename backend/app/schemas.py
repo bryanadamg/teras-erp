@@ -950,6 +950,84 @@ class SampleRequestResponse(BaseModel):
     class Config:
         from_attributes = True
 
+# --- Lab Dip Request Schemas ---
+
+class LabDipLineCreate(BaseModel):
+    color_name: str
+    submission_round: int = 1
+    recipe_ref: Optional[str] = None
+    order: int = 0
+
+class LabDipLineUpdate(BaseModel):
+    id: Optional[UUID] = None
+    color_name: str
+    submission_round: int = 1
+    recipe_ref: Optional[str] = None
+    order: int = 0
+
+class LabDipLineResponse(BaseModel):
+    id: UUID
+    color_name: str
+    submission_round: int = 1
+    recipe_ref: Optional[str] = None
+    status: str = "PENDING"
+    remarks: Optional[str] = None
+    order: int = 0
+    model_config = ConfigDict(from_attributes=True)
+
+class LabDipRequestCreate(BaseModel):
+    customer_id: Optional[UUID] = None
+    base_item_id: Optional[UUID] = None
+    approved_recipe_id: Optional[UUID] = None
+    request_date: Optional[str] = None
+    season: Optional[str] = None
+    customer_article_code: Optional[str] = None
+    internal_article_code: Optional[str] = None
+    substrate: Optional[str] = None
+    color_standard: Optional[str] = None
+    request_type: str = "NEW"
+    due_date: Optional[str] = None
+    estimated_completion_date: Optional[str] = None
+    notes: Optional[str] = None
+    dips: list[LabDipLineCreate] = []
+
+class LabDipRequestUpdate(BaseModel):
+    customer_id: Optional[UUID] = None
+    base_item_id: Optional[UUID] = None
+    approved_recipe_id: Optional[UUID] = None
+    request_date: Optional[str] = None
+    season: Optional[str] = None
+    customer_article_code: Optional[str] = None
+    internal_article_code: Optional[str] = None
+    substrate: Optional[str] = None
+    color_standard: Optional[str] = None
+    request_type: str = "NEW"
+    due_date: Optional[str] = None
+    estimated_completion_date: Optional[str] = None
+    notes: Optional[str] = None
+    dips: list[LabDipLineUpdate] = []
+
+class LabDipRequestResponse(BaseModel):
+    id: UUID
+    code: str
+    status: str
+    request_type: str = "NEW"
+    created_at: datetime
+    customer_id: Optional[UUID] = None
+    base_item_id: Optional[UUID] = None
+    approved_recipe_id: Optional[UUID] = None
+    request_date: Optional[date] = None
+    season: Optional[str] = None
+    customer_article_code: Optional[str] = None
+    internal_article_code: Optional[str] = None
+    substrate: Optional[str] = None
+    color_standard: Optional[str] = None
+    due_date: Optional[date] = None
+    estimated_completion_date: Optional[date] = None
+    notes: Optional[str] = None
+    dips: list[LabDipLineResponse] = []
+    model_config = ConfigDict(from_attributes=True)
+
 # --- Auth Schemas ---
 
 class PermissionBase(BaseModel):
