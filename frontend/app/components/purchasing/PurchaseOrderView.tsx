@@ -27,6 +27,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
   const [receiptLineLots, setReceiptLineLots] = useState<Record<string, string>>({});
   const [receiptDate, setReceiptDate] = useState('');
   const [receiptNotes, setReceiptNotes] = useState('');
+  const [receiptLocationId, setReceiptLocationId] = useState('');
 
   // Expanded rows for receipt history
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
@@ -44,6 +45,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
     setReceiptLineLots({});
     setReceiptDate(new Date().toISOString().split('T')[0]);
     setReceiptNotes('');
+    setReceiptLocationId(po.target_location_id || '');
     setReceiptTarget(po);
   };
 
@@ -65,7 +67,8 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
         };
       });
     if (lines.length === 0) { showToast('Enter qty for at least one line', 'error'); return; }
-    onCreateReceipt(receiptTarget.id, { receipt_date: receiptDate || null, notes: receiptNotes || null, lines });
+    if (!receiptLocationId) { showToast('Select a receiving warehouse', 'error'); return; }
+    onCreateReceipt(receiptTarget.id, { receipt_date: receiptDate || null, notes: receiptNotes || null, location_id: receiptLocationId || null, lines });
     setReceiptTarget(null);
   };
 
@@ -559,11 +562,15 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
            {receiptTarget && (
                <div>
                    <div className="row g-2 mb-3">
-                       <div className="col-md-4">
+                       <div className="col-md-3">
                            <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Receipt Date</label>
                            <input type="date" className="form-control" style={classic?{...xpInput,width:'100%',height:'22px'}:undefined} value={receiptDate} onChange={e => setReceiptDate(e.target.value)} />
                        </div>
-                       <div className="col-md-8">
+                       <div className="col-md-4">
+                           <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Receiving Warehouse</label>
+                           <SearchableSelect options={locations.map((l: any) => ({ value: l.id, label: l.name, subLabel: l.code }))} value={receiptLocationId} onChange={(val) => setReceiptLocationId(val)} placeholder="Select warehouse…" required />
+                       </div>
+                       <div className="col-md-5">
                            <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Notes</label>
                            <input type="text" className="form-control" style={classic?xpInput:undefined} placeholder="e.g. Short delivery, weighed on arrival" value={receiptNotes} onChange={e => setReceiptNotes(e.target.value)} />
                        </div>

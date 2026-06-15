@@ -96,13 +96,16 @@ async def create_goods_receipt(
         raise HTTPException(status_code=404, detail="PO not found")
     if po.status == "CANCELLED":
         raise HTTPException(status_code=400, detail="Cannot receive a cancelled PO")
-    if not po.target_location_id:
-        raise HTTPException(status_code=400, detail="Target location not set for this PO")
+    # Receiving warehouse: per-receipt choice wins, else fall back to the PO's target location
+    recv_location_id = payload.location_id or po.target_location_id
+    if not recv_location_id:
+        raise HTTPException(status_code=400, detail="Select a receiving warehouse for this receipt")
 
     line_map = {line.id: line for line in po.lines}
 
     gr = GoodsReceipt(
         po_id=po.id,
+        location_id=recv_location_id,
         receipt_date=payload.receipt_date or datetime.utcnow(),
         notes=payload.notes,
         created_by_id=current_user.id,
@@ -155,7 +158,7 @@ async def create_goods_receipt(
         await stock_service.add_stock_entry(
             db,
             item_id=po_line.item_id,
-            location_id=po.target_location_id,
+            location_id=recv_location_id,
             attribute_value_ids=[str(v.id) for v in po_line.attribute_values],
             qty_change=rl.qty_received,
             reference_type="Goods Receipt",

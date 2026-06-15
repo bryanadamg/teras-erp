@@ -748,6 +748,7 @@ class GoodsReceiptLineCreate(BaseModel):
 class GoodsReceiptCreate(BaseModel):
     receipt_date: datetime | None = None
     notes: str | None = None
+    location_id: UUID | None = None  # receiving warehouse; falls back to PO target location
     lines: list[GoodsReceiptLineCreate]
 
 class GoodsReceiptLineResponse(BaseModel):
@@ -768,6 +769,7 @@ class GoodsReceiptLineResponse(BaseModel):
 class GoodsReceiptResponse(BaseModel):
     id: UUID
     po_id: UUID
+    location_id: UUID | None = None
     receipt_date: datetime
     notes: str | None = None
     created_at: datetime
