@@ -35,6 +35,7 @@ class WorkOrder(Base):
         UUID(as_uuid=True), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True, index=True
     )
     qty: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    ends: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # warp ends (utas) per beam; overrides item.ends at beam birth
     status: Mapped[str] = mapped_column(String(32), default="PENDING", index=True)
     planned_duration_hours: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     actual_duration_hours: Mapped[Optional[float]] = mapped_column(Float, nullable=True)

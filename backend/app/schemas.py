@@ -447,6 +447,7 @@ class WorkOrderCreate(BaseModel):
     input_location_id: UUID | None = None
     output_location_id: UUID | None = None
     qty: float | None = None
+    ends: int | None = None
     planned_duration_hours: float | None = None
     notes: str | None = None
     target_start_date: datetime | None = None
@@ -468,6 +469,7 @@ class WorkOrderResponse(BaseModel):
     input_location: LocationResponse | None = None
     output_location: LocationResponse | None = None
     qty: float | None = None
+    ends: int | None = None
     qty_completed_total: float = 0.0
     status: str
     planned_duration_hours: float | None = None

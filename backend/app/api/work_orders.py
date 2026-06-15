@@ -423,6 +423,7 @@ async def create_work_orders_bulk(
             input_location_id=input_location_id,
             output_location_id=output_location_id,
             qty=payload.qty,
+            ends=payload.ends,
             planned_duration_hours=payload.planned_duration_hours,
             notes=payload.notes,
             target_start_date=payload.target_start_date,

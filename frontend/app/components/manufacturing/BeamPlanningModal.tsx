@@ -12,20 +12,21 @@ interface BeamRow {
     localId: string;
     work_center_id: string;
     qty: string;
+    ends: string;
     notes: string;
     repeat: string;
 }
 
 interface Props {
-    mo: { id: string; code: string; qty: number; item_name?: string; uom?: string };
+    mo: { id: string; code: string; qty: number; item_name?: string; uom?: string; ends?: number };
     machines: Array<{ id: string; name: string }>;
     centerLabel?: string;
     onClose: () => void;
 }
 
 let _rowId = 0;
-function makeRow(defaultWcId = ''): BeamRow {
-    return { localId: `beam-${++_rowId}`, work_center_id: defaultWcId, qty: '', notes: '', repeat: '1' };
+function makeRow(defaultWcId = '', defaultEnds = ''): BeamRow {
+    return { localId: `beam-${++_rowId}`, work_center_id: defaultWcId, qty: '', ends: defaultEnds, notes: '', repeat: '1' };
 }
 
 export default function BeamPlanningModal({ mo, machines, centerLabel = 'Beaming', onClose }: Props) {
@@ -34,7 +35,8 @@ export default function BeamPlanningModal({ mo, machines, centerLabel = 'Beaming
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
     const defaultWcId = machines[0]?.id || '';
-    const [rows, setRows] = useState<BeamRow[]>([makeRow(defaultWcId)]);
+    const defaultEnds = mo.ends != null ? String(mo.ends) : '';
+    const [rows, setRows] = useState<BeamRow[]>([makeRow(defaultWcId, defaultEnds)]);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -48,7 +50,7 @@ export default function BeamPlanningModal({ mo, machines, centerLabel = 'Beaming
     const isOver = moQty > 0 && totalAssigned > moQty + 0.001;
     const isUnder = moQty > 0 && totalAssigned < moQty - 0.001;
 
-    const addRow = () => setRows(prev => [...prev, makeRow(defaultWcId)]);
+    const addRow = () => setRows(prev => [...prev, makeRow(defaultWcId, defaultEnds)]);
     const removeRow = (id: string) => setRows(prev => prev.filter(r => r.localId !== id));
     const update = (id: string, field: keyof BeamRow, val: string) =>
         setRows(prev => prev.map(r => r.localId === id ? { ...r, [field]: val } : r));
@@ -64,6 +66,7 @@ export default function BeamPlanningModal({ mo, machines, centerLabel = 'Beaming
                     manufacturing_order_id: mo.id,
                     work_center_id: r.work_center_id || undefined,
                     qty: parseFloat(r.qty),
+                    ends: r.ends ? parseInt(r.ends) : undefined,
                     notes: r.notes || undefined,
                     sequence: 1,
                 }));
@@ -124,6 +127,7 @@ export default function BeamPlanningModal({ mo, machines, centerLabel = 'Beaming
                             { label: 'MO', value: mo.code },
                             { label: 'Item', value: mo.item_name || '—' },
                             { label: 'Total Qty', value: moQty > 0 ? `${moQty} ${mo.uom || ''}`.trim() : '—' },
+                            ...(mo.ends != null ? [{ label: 'Ends', value: String(mo.ends) }] : []),
                         ].map(({ label, value }, i) => (
                             <React.Fragment key={label}>
                                 {i > 0 && <div style={{ width: 1, background: '#c0bdb5', height: 26 }} />}
@@ -147,6 +151,7 @@ export default function BeamPlanningModal({ mo, machines, centerLabel = 'Beaming
                                 <th style={thStyle('#')}>{'#'}</th>
                                 {machines.length > 1 && <th style={thStyle('Machine')}>Machine</th>}
                                 <th style={{ ...thStyle('Qty'), width: 90 }}>Qty / Beam</th>
+                                <th style={{ ...thStyle('Ends'), width: 100 }}>Qty / Ends (Utas)</th>
                                 <th style={{ ...thStyle('Repeat'), width: 56 }}>Repeat</th>
                                 <th style={thStyle('Notes / Beam ID')}>Notes / Beam ID</th>
                                 <th style={{ ...thStyle(''), width: 26 }}></th>
@@ -178,6 +183,15 @@ export default function BeamPlanningModal({ mo, machines, centerLabel = 'Beaming
                                             placeholder="qty..."
                                             onChange={e => update(row.localId, 'qty', e.target.value)}
                                             autoFocus={idx === 0}
+                                        />
+                                    </td>
+                                    <td style={tdStyle({ width: 100 })}>
+                                        <input
+                                            type="number" min="0" step="1"
+                                            style={{ ...xpInput, width: '100%' }}
+                                            value={row.ends}
+                                            placeholder="ends..."
+                                            onChange={e => update(row.localId, 'ends', e.target.value)}
                                         />
                                     </td>
                                     <td style={tdStyle({ width: 56 })}>

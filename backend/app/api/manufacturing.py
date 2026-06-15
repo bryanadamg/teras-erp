@@ -705,10 +705,14 @@ async def add_mo_completion(
         if not wo_output_loc:
             warn = f"{label} {lot_no} not booked to stock: work order has no output location"
             payload.notes = f"{payload.notes} [{warn}]" if payload.notes else f"[{warn}]"
+        # Beam ends: per-WO planned ends (utas) override the item default
+        beam_ends = None
+        if is_beam_output:
+            beam_ends = (wo.ends if wo and wo.ends else None) or (mo.item.ends if mo.item else None)
         output_batch = Batch(
             batch_number=lot_no,
             item_id=mo.item_id,
-            ends=mo.item.ends if is_beam_output else None,
+            ends=beam_ends,
             source_wo_id=wo.id if wo else None,
             created_by=current_user.username,
         )
