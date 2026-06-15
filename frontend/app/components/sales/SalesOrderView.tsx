@@ -18,6 +18,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const [printingSO, setPrintingSO] = useState<any>(null);
   const [isTablePrintOpen, setIsTablePrintOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [customerSearch, setCustomerSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const { uiStyle: currentStyle } = useTheme();
   const { companyProfile, uoms } = useData();
@@ -589,11 +590,13 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const STATUS_FILTERS = ['ALL', 'PENDING', 'READY', 'SENT', 'DELIVERED'];
 
   const filteredOrders = salesOrders.filter((so: any) => {
-      const matchSearch = !searchTerm ||
+      const matchPO = !searchTerm ||
           so.po_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          so.customer_name.toLowerCase().includes(searchTerm.toLowerCase());
+          (so.customer_po_ref || '').toLowerCase().includes(searchTerm.toLowerCase());
+      const matchCustomer = !customerSearch ||
+          so.customer_name.toLowerCase().includes(customerSearch.toLowerCase());
       const matchStatus = statusFilter === 'ALL' || so.status === statusFilter;
-      return matchSearch && matchStatus;
+      return matchPO && matchCustomer && matchStatus;
   });
 
   const soSortCols = useMemo(() => ({
@@ -1100,10 +1103,16 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
            {classic ? (
                <div style={xpToolbar}>
                    <input
-                       style={{ ...xpInput, width: 180 }}
-                       placeholder="Search PO# or customer…"
+                       style={{ ...xpInput, width: 150 }}
+                       placeholder="Search PO#…"
                        value={searchTerm}
                        onChange={e => setSearchTerm(e.target.value)}
+                   />
+                   <input
+                       style={{ ...xpInput, width: 150 }}
+                       placeholder="Search Customer…"
+                       value={customerSearch}
+                       onChange={e => setCustomerSearch(e.target.value)}
                    />
                    <div style={xpSep}></div>
                    {STATUS_FILTERS.map(s => (
@@ -1125,14 +1134,24 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                </div>
            ) : (
                <div className="px-3 py-2 border-bottom d-flex align-items-center gap-2 flex-wrap bg-white">
-                   <div className="position-relative" style={{ flex: '1 1 160px', maxWidth: 240 }}>
+                   <div className="position-relative" style={{ flex: '1 1 140px', maxWidth: 200 }}>
                        <i className="bi bi-search position-absolute" style={{ left: 7, top: '50%', transform: 'translateY(-50%)', fontSize: 11, opacity: 0.5 }}></i>
                        <input
                            className="form-control form-control-sm"
                            style={{ paddingLeft: 24 }}
-                           placeholder="Search PO# or customer…"
+                           placeholder="Search PO#…"
                            value={searchTerm}
                            onChange={e => setSearchTerm(e.target.value)}
+                       />
+                   </div>
+                   <div className="position-relative" style={{ flex: '1 1 140px', maxWidth: 200 }}>
+                       <i className="bi bi-person position-absolute" style={{ left: 7, top: '50%', transform: 'translateY(-50%)', fontSize: 11, opacity: 0.5 }}></i>
+                       <input
+                           className="form-control form-control-sm"
+                           style={{ paddingLeft: 24 }}
+                           placeholder="Search Customer…"
+                           value={customerSearch}
+                           onChange={e => setCustomerSearch(e.target.value)}
                        />
                    </div>
                    <div className="d-flex gap-1 flex-wrap">
@@ -1420,7 +1439,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                        style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'center', padding: '24px 8px', color: '#888', fontStyle: 'italic' } : undefined}
                                        className={classic ? '' : 'text-center py-5 text-muted'}
                                    >
-                                       {searchTerm || statusFilter !== 'ALL'
+                                       {searchTerm || customerSearch || statusFilter !== 'ALL'
                                            ? 'No orders match the current filter.'
                                            : 'No Sales Orders found. Create one to get started.'}
                                    </td>
