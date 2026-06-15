@@ -862,6 +862,39 @@ export default function ManufacturingView({
                       </div>
                   </div>
 
+                  {/* Production Progress — prominent, full width under MO code */}
+                  {(selectedNode.status === 'IN_PROGRESS' || selectedNode.status === 'COMPLETED' || (selectedNode.qty_completed_total ?? 0) > 0) && (() => {
+                      const done = selectedNode.qty_completed_total ?? 0;
+                      const total = selectedNode.qty ?? 0;
+                      const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+                      return (
+                          <div style={{
+                              background: classic ? '#eef2f7' : '#f8fafc',
+                              borderBottom: classic ? '1px solid #808080' : '1px solid #dee2e6',
+                              padding: '6px 10px', display: 'flex', alignItems: 'center', gap: '12px'
+                          }}>
+                              <span style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
+                                  Production Progress
+                              </span>
+                              {/* XP-style striped progress bar */}
+                              <div style={{ flex: 1, border: '1px solid #7f9db9', height: 15, background: '#fff', position: 'relative', overflow: 'hidden' }}>
+                                  <div style={{
+                                      height: '100%', width: `${pct}%`,
+                                      background: pct >= 100
+                                          ? 'repeating-linear-gradient(45deg,#2e7d32,#2e7d32 3px,#4caf50 3px,#4caf50 6px)'
+                                          : 'repeating-linear-gradient(45deg,#000080,#000080 3px,#1565c0 3px,#1565c0 6px)',
+                                      transition: 'width 0.2s',
+                                  }} />
+                                  <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: 'bold', color: pct > 50 ? '#fff' : '#000080' }}>
+                                      {pct}%
+                                  </span>
+                              </div>
+                              <span style={{ fontSize: '10px', color: '#555', whiteSpace: 'nowrap' }}>Done: <strong style={{ color: '#000' }}>{done.toFixed(2)}</strong></span>
+                              <span style={{ fontSize: '10px', color: '#555', whiteSpace: 'nowrap' }}>Left: <strong style={{ color: done >= total ? '#1a6e1a' : '#c00' }}>{Math.max(0, total - done).toFixed(2)}</strong></span>
+                          </div>
+                      );
+                  })()}
+
                   {/* Section title */}
                   <div style={{
                       background: classic ? '#d4d0c8' : '#f1f3f5',
@@ -1004,37 +1037,6 @@ export default function ManufacturingView({
                       <div style={{ fontSize: '10px', color: '#000', fontWeight: 'bold' }}>{getLocationName(selectedNode.location_id)}</div>
                       <div style={{ fontSize: '10px', color: '#444' }}>Qty: <strong style={{ color: '#000' }}>{selectedNode.qty}</strong>{getItemUom(selectedNode.item_id) && <span style={{ ...uomBadgeStyle, marginLeft: 4 }}>{getItemUom(selectedNode.item_id)}</span>}</div>
                   </div>
-
-                  {/* Completion Progress */}
-                  {(selectedNode.status === 'IN_PROGRESS' || selectedNode.status === 'COMPLETED' || (selectedNode.qty_completed_total ?? 0) > 0) && (() => {
-                      const done = selectedNode.qty_completed_total ?? 0;
-                      const total = selectedNode.qty ?? 0;
-                      const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
-                      return (
-                          <div style={{ borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '6px 8px' }}>
-                              <div style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', letterSpacing: '0.5px', marginBottom: '4px' }}>
-                                  Production Progress
-                              </div>
-                              {/* XP-style striped progress bar */}
-                              <div style={{ border: '1px solid #7f9db9', height: 13, background: '#fff', position: 'relative', overflow: 'hidden', marginBottom: 3 }}>
-                                  <div style={{
-                                      height: '100%', width: `${pct}%`,
-                                      background: pct >= 100
-                                          ? 'repeating-linear-gradient(45deg,#2e7d32,#2e7d32 3px,#4caf50 3px,#4caf50 6px)'
-                                          : 'repeating-linear-gradient(45deg,#000080,#000080 3px,#1565c0 3px,#1565c0 6px)',
-                                      transition: 'width 0.2s',
-                                  }} />
-                                  <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', fontWeight: 'bold', color: pct > 50 ? '#fff' : '#000080' }}>
-                                      {pct}%
-                                  </span>
-                              </div>
-                              <div style={{ fontSize: '9px', color: '#555', display: 'flex', justifyContent: 'space-between' }}>
-                                  <span>Done: <strong style={{ color: '#000' }}>{done.toFixed(2)}</strong></span>
-                                  <span>Left: <strong style={{ color: done >= total ? '#1a6e1a' : '#c00' }}>{Math.max(0, total - done).toFixed(2)}</strong></span>
-                              </div>
-                          </div>
-                      );
-                  })()}
 
                   {/* Batch Trace */}
                   <div style={{ borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '6px 8px' }}>
