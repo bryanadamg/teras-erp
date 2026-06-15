@@ -863,10 +863,19 @@ export default function ManufacturingView({
                   </div>
 
                   {/* Production Progress — prominent, full width under MO code */}
-                  {(selectedNode.status === 'IN_PROGRESS' || selectedNode.status === 'COMPLETED' || (selectedNode.qty_completed_total ?? 0) > 0) && (() => {
+                  {(selectedNode.status === 'IN_PROGRESS' || selectedNode.status === 'COMPLETED' || (selectedNode.qty_completed_total ?? 0) > 0 || (selectedNode.work_orders || []).some((w: any) => w.status !== 'COMPLETED')) && (() => {
                       const done = selectedNode.qty_completed_total ?? 0;
                       const total = selectedNode.qty ?? 0;
-                      const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+                      const remaining = Math.max(0, total - done);
+                      // Projected output from WOs that are set up but not yet completed
+                      const plannedRaw = (selectedNode.work_orders || [])
+                          .filter((w: any) => w.status !== 'COMPLETED')
+                          .reduce((s: number, w: any) => s + Math.max(0, (w.qty ?? 0) - (w.qty_completed_total ?? 0)), 0);
+                      const planned = Math.min(plannedRaw, remaining);   // cap so Done + Planned ≤ total
+                      const left = Math.max(0, remaining - planned);     // qty not yet covered by any WO
+                      const donePct = total > 0 ? Math.min(100, (done / total) * 100) : 0;
+                      const plannedPct = total > 0 ? Math.min(100 - donePct, (planned / total) * 100) : 0;
+                      const pctLabel = Math.round(donePct);
                       return (
                           <div style={{
                               background: classic ? '#eef2f7' : '#f8fafc',
@@ -876,21 +885,27 @@ export default function ManufacturingView({
                               <span style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
                                   Production Progress
                               </span>
-                              {/* XP-style striped progress bar */}
+                              {/* XP-style striped progress bar: Done (solid) + Planned (light hatch) */}
                               <div style={{ flex: 1, border: '1px solid #7f9db9', height: 15, background: '#fff', position: 'relative', overflow: 'hidden' }}>
                                   <div style={{
-                                      height: '100%', width: `${pct}%`,
-                                      background: pct >= 100
+                                      position: 'absolute', top: 0, left: 0, height: '100%', width: `${donePct}%`,
+                                      background: donePct >= 100
                                           ? 'repeating-linear-gradient(45deg,#2e7d32,#2e7d32 3px,#4caf50 3px,#4caf50 6px)'
                                           : 'repeating-linear-gradient(45deg,#000080,#000080 3px,#1565c0 3px,#1565c0 6px)',
                                       transition: 'width 0.2s',
                                   }} />
-                                  <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: 'bold', color: pct > 50 ? '#fff' : '#000080' }}>
-                                      {pct}%
+                                  <div style={{
+                                      position: 'absolute', top: 0, left: `${donePct}%`, height: '100%', width: `${plannedPct}%`,
+                                      background: 'repeating-linear-gradient(45deg,#9fc0e8,#9fc0e8 3px,#c8ddf5 3px,#c8ddf5 6px)',
+                                      transition: 'width 0.2s, left 0.2s',
+                                  }} />
+                                  <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: 'bold', color: pctLabel > 50 ? '#fff' : '#000080' }}>
+                                      {pctLabel}%
                                   </span>
                               </div>
                               <span style={{ fontSize: '10px', color: '#555', whiteSpace: 'nowrap' }}>Done: <strong style={{ color: '#000' }}>{done.toFixed(2)}</strong></span>
-                              <span style={{ fontSize: '10px', color: '#555', whiteSpace: 'nowrap' }}>Left: <strong style={{ color: done >= total ? '#1a6e1a' : '#c00' }}>{Math.max(0, total - done).toFixed(2)}</strong></span>
+                              <span style={{ fontSize: '10px', color: '#555', whiteSpace: 'nowrap' }}>Planned: <strong style={{ color: '#1565c0' }}>{planned.toFixed(2)}</strong></span>
+                              <span style={{ fontSize: '10px', color: '#555', whiteSpace: 'nowrap' }}>Left: <strong style={{ color: left <= 0 ? '#1a6e1a' : '#c00' }}>{left.toFixed(2)}</strong></span>
                           </div>
                       );
                   })()}
