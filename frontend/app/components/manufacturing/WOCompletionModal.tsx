@@ -138,6 +138,12 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
     const remaining = Math.max(0, target - totalCompleted);
     const pct = target > 0 ? Math.min(100, Math.round((totalCompleted / target) * 100)) : 0;
 
+    // Current WO progress (this step's own target)
+    const woTarget = workOrder?.qty ?? 0;
+    const woDone = workOrder?.qty_completed_total ?? 0;
+    const woRemaining = Math.max(0, woTarget - woDone);
+    const woPct = woTarget > 0 ? Math.min(100, Math.round((woDone / woTarget) * 100)) : 0;
+
     const addActualItem = () => setActualItems(prev => [...prev, { item_id: '', qty_used: '' }]);
     const removeActualItem = (idx: number) => setActualItems(prev => prev.filter((_, i) => i !== idx));
     const updateActualItem = (idx: number, field: keyof ActualItem, value: string) =>
@@ -244,21 +250,47 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                 <span style={{ fontSize: 11, fontWeight: 'bold', color: '#000080' }}>{mo.item_name || mo.item_code}</span>
                                 <span style={{ fontSize: 10, color: '#555' }}>{mo.code}</span>
                             </div>
-                            {/* XP-style progress bar */}
-                            <div style={{ border: '1px solid #7f9db9', height: 14, background: '#fff', position: 'relative', overflow: 'hidden' }}>
-                                <div style={{
-                                    height: '100%',
-                                    width: `${pct}%`,
-                                    background: pct >= 100
-                                        ? 'repeating-linear-gradient(45deg, #2e7d32, #2e7d32 4px, #4caf50 4px, #4caf50 8px)'
-                                        : 'repeating-linear-gradient(45deg, #000080, #000080 4px, #1565c0 4px, #1565c0 8px)',
-                                    transition: 'width 0.2s',
-                                }} />
-                                <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 'bold', color: pct > 50 ? '#fff' : '#000080', textShadow: pct > 50 ? '0 0 3px rgba(0,0,0,0.8)' : 'none' }}>
-                                    {totalCompleted.toFixed(2)} / {target} ({pct}%)
-                                </span>
+                            {/* MO-level progress bar (whole order) */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ fontSize: 9, fontWeight: 'bold', color: '#555', width: 26, flexShrink: 0 }}>MO</span>
+                                <div style={{ flex: 1, border: '1px solid #7f9db9', height: 14, background: '#fff', position: 'relative', overflow: 'hidden' }}>
+                                    <div style={{
+                                        height: '100%',
+                                        width: `${pct}%`,
+                                        background: pct >= 100
+                                            ? 'repeating-linear-gradient(45deg, #2e7d32, #2e7d32 4px, #4caf50 4px, #4caf50 8px)'
+                                            : 'repeating-linear-gradient(45deg, #000080, #000080 4px, #1565c0 4px, #1565c0 8px)',
+                                        transition: 'width 0.2s',
+                                    }} />
+                                    <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 'bold', color: pct > 50 ? '#fff' : '#000080', textShadow: pct > 50 ? '0 0 3px rgba(0,0,0,0.8)' : 'none' }}>
+                                        {totalCompleted.toFixed(2)} / {target} ({pct}%)
+                                    </span>
+                                </div>
                             </div>
-                            <div style={{ fontSize: 10, color: '#555' }}>Remaining: <strong>{remaining.toFixed(2)}</strong></div>
+
+                            {/* Current WO progress bar (this step's target) */}
+                            {workOrder && woTarget > 0 && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span style={{ fontSize: 9, fontWeight: 'bold', color: '#555', width: 26, flexShrink: 0 }}>WO</span>
+                                    <div style={{ flex: 1, border: '1px solid #b9947f', height: 14, background: '#fff', position: 'relative', overflow: 'hidden' }}>
+                                        <div style={{
+                                            height: '100%',
+                                            width: `${woPct}%`,
+                                            background: woPct >= 100
+                                                ? 'repeating-linear-gradient(45deg, #2e7d32, #2e7d32 4px, #4caf50 4px, #4caf50 8px)'
+                                                : 'repeating-linear-gradient(45deg, #b46a00, #b46a00 4px, #e08a14 4px, #e08a14 8px)',
+                                            transition: 'width 0.2s',
+                                        }} />
+                                        <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 'bold', color: woPct > 50 ? '#fff' : '#b46a00', textShadow: woPct > 50 ? '0 0 3px rgba(0,0,0,0.8)' : 'none' }}>
+                                            {woDone.toFixed(2)} / {woTarget} ({woPct}%)
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+                            <div style={{ fontSize: 10, color: '#555', display: 'flex', gap: 12 }}>
+                                <span>MO remaining: <strong>{remaining.toFixed(2)}</strong></span>
+                                {workOrder && woTarget > 0 && <span>WO remaining: <strong style={{ color: '#b46a00' }}>{woRemaining.toFixed(2)}</strong></span>}
+                            </div>
                         </div>
 
                         {/* Entry fields */}
@@ -267,11 +299,6 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                             {workOrder && (
                                 <div style={{ background: '#e8f0fe', border: '1px solid #a8c0f0', padding: '4px 8px', fontSize: 10 }}>
                                     <span style={{ color: '#000080', fontWeight: 'bold' }}>WO: {workOrder.code || workOrder.name}</span>
-                                    {workOrder.qty != null && (
-                                        <span style={{ color: '#555', marginLeft: 8 }}>
-                                            Target: {workOrder.qty} | Done so far: {(workOrder.qty_completed_total ?? 0).toFixed(2)}
-                                        </span>
-                                    )}
                                 </div>
                             )}
                             <div>
