@@ -43,8 +43,8 @@ export default function WOStepPrintModal({
     });
 
     useEffect(() => {
-        document.body.classList.add('wo-print-preview-active');
-        return () => { document.body.classList.remove('wo-print-preview-active'); };
+        document.body.classList.add('wo-step-print-active');
+        return () => { document.body.classList.remove('wo-step-print-active'); };
     }, []);
 
     useEffect(() => {
@@ -59,102 +59,122 @@ export default function WOStepPrintModal({
         try { localStorage.setItem('wo_step_print_settings', JSON.stringify(next)); } catch { /* noop */ }
     };
 
-    const bomLines: any[] = parentMO?.bom?.lines || [];
+    const allBomLines: any[] = parentMO?.bom?.lines || [];
+    const bomOps: any[] = parentMO?.bom?.operations || [];
     const woQty = workOrder.qty ?? 0;
+    const woEnds = workOrder.ends ?? null;
     const doneQty = workOrder.qty_completed_total ?? 0;
     const pct = woQty > 0 ? Math.min(100, Math.round((doneQty / woQty) * 100)) : 0;
     const displayCompany = companyProfile?.name || '';
 
-    const gridLbl: React.CSSProperties = { background: '#f0f0f0', border: '1px solid #ccc', padding: '2px 6px', fontSize: '8px', color: '#444', fontWeight: 'bold', whiteSpace: 'nowrap' };
-    const gridVal: React.CSSProperties = { border: '1px solid #ccc', padding: '2px 6px', fontSize: '8px', color: '#000' };
+    // Components for THIS WO's step: BOM lines tied to an operation on this WO's work center.
+    // Fall back to all BOM lines when the step has no material mapped (e.g. un-routed BOM / beam WO).
+    const woWcId = String(workOrder.work_center_id || '');
+    const stepOpIds = new Set(
+        bomOps.filter((op: any) => woWcId && String(op.work_center_id || '') === woWcId).map((op: any) => String(op.id))
+    );
+    const stepLines = allBomLines.filter((l: any) => l.bom_operation_id && stepOpIds.has(String(l.bom_operation_id)));
+    const usedAllLines = stepLines.length === 0;
+    const bomLines = usedAllLines ? allBomLines : stepLines;
+
+    // Actual consumed materials logged against this WO (summed across its completions)
+    const actualByItem: Record<string, number> = {};
+    (parentMO?.completions || [])
+        .filter((c: any) => String(c.work_order_id || '') === String(workOrder.id))
+        .forEach((c: any) => (c.actual_items || []).forEach((ai: any) => {
+            const k = String(ai.item_id);
+            actualByItem[k] = (actualByItem[k] || 0) + Number(ai.qty_used || 0);
+        }));
+
+    const gridLbl: React.CSSProperties = { background: '#f0f0f0', border: '1px solid #bbb', padding: '3px 6px', fontSize: '9px', color: '#333', fontWeight: 'bold', whiteSpace: 'nowrap' };
+    const gridVal: React.CSSProperties = { border: '1px solid #bbb', padding: '3px 6px', fontSize: '11px', color: '#000' };
+    const heroLbl: React.CSSProperties = { fontSize: '8px', color: '#555', fontWeight: 'bold', letterSpacing: '0.5px' };
 
     const documentContent = (
-        <div style={{ fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#000', lineHeight: 1.4 }}>
+        <div style={{ fontFamily: 'Arial, sans-serif', color: '#000', lineHeight: 1.3, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
 
-            {/* Header row */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #000', paddingBottom: '6px', marginBottom: '8px' }}>
-                <div>
-                    {companyProfile?.logo_url ? (
-                        <img src={`${STATIC_BASE}${companyProfile.logo_url}`} alt="Logo" style={{ maxHeight: '40px', maxWidth: '140px', objectFit: 'contain', display: 'block', marginBottom: '2px' }} />
-                    ) : (
-                        <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#003080' }}>{displayCompany}</div>
-                    )}
-                    {companyProfile?.address && <div style={{ fontSize: '7px', color: '#555' }}>{companyProfile.address}</div>}
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '15px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>KARTU KERJA</div>
-                    <div style={{ fontSize: '7px', color: '#555', marginTop: '2px' }}>
+            {/* Header: title + identity fill the top-left; QR right */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #000', paddingBottom: '5px', marginBottom: '6px', gap: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', minWidth: 0 }}>
+                    <div style={{ fontSize: '18px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', lineHeight: 1.05 }}>KARTU KERJA</div>
+                    <div style={{ fontSize: '12px', fontFamily: 'monospace', fontWeight: 'bold' }}>{parentMO?.code || '—'}</div>
+                    {displayCompany && <div style={{ fontSize: '8px', color: '#555', fontWeight: 'bold' }}>{displayCompany}</div>}
+                    <div style={{ fontSize: '8px', color: '#666' }}>
                         {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        {settings.headerDepartment ? ` · ${settings.headerDepartment}` : ''}
                     </div>
-                    {settings.headerDepartment && (
-                        <div style={{ fontSize: '7px', color: '#555' }}>Dept: {settings.headerDepartment}</div>
-                    )}
                 </div>
-                {/* Large QR — operator scans this to open the log form */}
-                <div style={{ border: '2px solid #000', padding: '3px', flexShrink: 0, textAlign: 'center' }}>
+                {/* QR — operator scans to open the log form */}
+                <div style={{ border: '2px solid #000', padding: '2px', flexShrink: 0, textAlign: 'center' }}>
                     {qrDataUrl
-                        ? <img src={qrDataUrl} alt="QR" style={{ width: '90px', height: '90px', display: 'block' }} />
-                        : <div style={{ width: '90px', height: '90px', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '7px', color: '#888' }}>Generating...</div>
+                        ? <img src={qrDataUrl} alt="QR" style={{ width: '84px', height: '84px', display: 'block' }} />
+                        : <div style={{ width: '84px', height: '84px', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '7px', color: '#888' }}>...</div>
                     }
-                    <div style={{ fontSize: '6px', color: '#555', marginTop: '2px' }}>Scan in ERP Scanner</div>
+                    <div style={{ fontSize: '6px', color: '#555', marginTop: '1px' }}>Scan in ERP Scanner</div>
                 </div>
             </div>
 
-            {/* Identity grid */}
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '8px' }}>
+            {/* OPERASI hero — primary operator read */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', border: '2px solid #000', padding: '4px 8px', marginBottom: '6px' }}>
+                <div style={{ minWidth: 0 }}>
+                    <div style={heroLbl}>OPERASI</div>
+                    <div style={{ fontSize: '20px', fontWeight: 'bold', lineHeight: 1.05, wordBreak: 'break-word' }}>{workOrder.name}</div>
+                </div>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={heroLbl}>WORK CENTER</div>
+                    <div style={{ fontSize: '13px', fontWeight: 'bold' }}>{workOrder.work_center_name || '—'}</div>
+                    <div style={{ fontSize: '9px', color: '#555' }}>Step {workOrder.sequence}</div>
+                </div>
+            </div>
+
+            {/* Qty hero — kg + ends, large for the floor */}
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
+                <div style={{ flex: 1, border: '1px solid #999', padding: '3px 8px' }}>
+                    <div style={heroLbl}>QTY (KG)</div>
+                    <div style={{ fontSize: '17px', fontWeight: 'bold' }}>
+                        {woQty > 0 ? woQty : '—'}<span style={{ fontSize: '9px', color: '#666', fontWeight: 'normal' }}>{woQty > 0 ? ' kg' : ''}</span>
+                    </div>
+                </div>
+                <div style={{ flex: 1, border: '1px solid #999', padding: '3px 8px' }}>
+                    <div style={heroLbl}>QTY (ENDS / UTAS)</div>
+                    <div style={{ fontSize: '17px', fontWeight: 'bold' }}>
+                        {woEnds != null ? woEnds : '—'}<span style={{ fontSize: '9px', color: '#666', fontWeight: 'normal' }}>{woEnds != null ? ' utas' : ''}</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Identity grid — Produk / Status / Progress */}
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '6px' }}>
                 <tbody>
                     <tr>
-                        <td style={{ ...gridLbl, width: '18%' }}>OPERASI</td>
-                        <td colSpan={3} style={{ ...gridVal, fontWeight: 'bold', fontSize: '10px' }}>{workOrder.name}</td>
+                        <td style={{ ...gridLbl, width: '24%' }}>Produk</td>
+                        <td colSpan={3} style={{ ...gridVal, fontWeight: 'bold' }}>{parentMO?.item_name || '—'}</td>
                     </tr>
                     <tr>
-                        <td style={gridLbl}>Step #</td>
-                        <td style={{ ...gridVal, width: '15%' }}>{workOrder.sequence}</td>
-                        <td style={{ ...gridLbl, width: '18%' }}>Work Center</td>
-                        <td style={gridVal}>{workOrder.work_center_name || '—'}</td>
-                    </tr>
-                    <tr>
-                        <td style={gridLbl}>No. SPK</td>
-                        <td style={{ ...gridVal, fontFamily: 'monospace' }}>{parentMO?.code || '—'}</td>
-                        <td style={gridLbl}>Produk</td>
-                        <td style={gridVal}>{parentMO?.item_name || '—'}</td>
-                    </tr>
-                    <tr>
-                        <td style={gridLbl}>Target Qty</td>
-                        <td style={{ ...gridVal, fontWeight: 'bold' }}>
-                            {woQty > 0 ? `${woQty}` : '—'}
-                        </td>
-                        <td style={gridLbl}>Progress</td>
+                        <td style={{ ...gridLbl, width: '24%' }}>Status</td>
+                        <td style={{ ...gridVal, width: '26%' }}>{workOrder.status}</td>
+                        <td style={{ ...gridLbl, width: '22%' }}>Progress</td>
                         <td style={gridVal}>
                             {woQty > 0 ? (
-                                <span>
-                                    {doneQty.toFixed(2)} / {woQty}
-                                    <span style={{ color: '#888', marginLeft: 4 }}>({pct}%)</span>
-                                </span>
+                                <span>{doneQty.toFixed(2)} / {woQty} <span style={{ color: '#888' }}>({pct}%)</span></span>
                             ) : '—'}
                         </td>
-                    </tr>
-                    <tr>
-                        <td style={gridLbl}>Status</td>
-                        <td style={gridVal}>{workOrder.status}</td>
-                        <td style={gridLbl}>Tanggal Cetak</td>
-                        <td style={{ ...gridVal, color: '#555' }}>{new Date().toLocaleString('id-ID')}</td>
                     </tr>
                 </tbody>
             </table>
 
-            {/* Materials */}
+            {/* Materials — components processed/needed for this WO */}
             {settings.showMaterials && bomLines.length > 0 && (
                 <>
-                    <div style={{ fontSize: '7px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', letterSpacing: '0.3px', marginBottom: '3px', borderTop: '1px solid #ccc', paddingTop: '5px' }}>
-                        Material (berdasarkan BOM)
+                    <div style={{ fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', letterSpacing: '0.3px', marginBottom: '2px' }}>
+                        {usedAllLines ? 'Material (berdasarkan BOM)' : 'Komponen Operasi Ini'}
                     </div>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8px', marginBottom: '8px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', marginBottom: '6px' }}>
                         <thead>
                             <tr style={{ background: '#f0f0f0' }}>
-                                <th style={{ border: '1px solid #ccc', padding: '2px 4px', textAlign: 'left' }}>Komponen</th>
-                                <th style={{ border: '1px solid #ccc', padding: '2px 4px', textAlign: 'right', width: '20%' }}>Req. Qty</th>
-                                <th style={{ border: '1px solid #ccc', padding: '2px 4px', textAlign: 'right', width: '20%' }}>Aktual</th>
+                                <th style={{ border: '1px solid #bbb', padding: '2px 5px', textAlign: 'left' }}>Komponen</th>
+                                <th style={{ border: '1px solid #bbb', padding: '2px 5px', textAlign: 'right', width: '22%' }}>Perlu</th>
+                                <th style={{ border: '1px solid #bbb', padding: '2px 5px', textAlign: 'right', width: '22%' }}>Aktual</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -162,18 +182,21 @@ export default function WOStepPrintModal({
                                 const reqQty = woQty > 0
                                     ? (parseFloat(line.percentage) > 0 ? (woQty * parseFloat(line.percentage)) / 100 : woQty * parseFloat(line.qty || 0))
                                     : null;
+                                const actual = actualByItem[String(line.item_id)];
                                 return (
                                     <tr key={line.id}>
-                                        <td style={{ border: '1px solid #ccc', padding: '2px 6px' }}>
-                                            <span style={{ fontFamily: 'monospace', color: '#555', marginRight: '4px', fontSize: '7px' }}>
+                                        <td style={{ border: '1px solid #bbb', padding: '2px 5px' }}>
+                                            <span style={{ fontFamily: 'monospace', color: '#555', marginRight: '4px', fontSize: '8px' }}>
                                                 {line.item_code || ''}
                                             </span>
                                             {line.item_name || line.item_id}
                                         </td>
-                                        <td style={{ border: '1px solid #ccc', padding: '2px 6px', textAlign: 'right', fontWeight: 'bold' }}>
-                                            {reqQty != null ? reqQty.toFixed(3) : '—'}
+                                        <td style={{ border: '1px solid #bbb', padding: '2px 5px', textAlign: 'right', fontWeight: 'bold' }}>
+                                            {reqQty != null ? reqQty.toFixed(2) : '—'}
                                         </td>
-                                        <td style={{ border: '1px solid #ccc', padding: '2px 6px' }} />
+                                        <td style={{ border: '1px solid #bbb', padding: '2px 5px', textAlign: 'right', fontWeight: actual != null ? 'bold' : 'normal' }}>
+                                            {actual != null ? actual.toFixed(2) : ''}
+                                        </td>
                                     </tr>
                                 );
                             })}
@@ -182,31 +205,32 @@ export default function WOStepPrintModal({
                 </>
             )}
 
+            {/* Spacer — pushes fill-in + signature to the bottom of the A6 card */}
+            <div style={{ flexGrow: 1, minHeight: '6px' }} />
+
             {/* Fill-in fields */}
             {settings.showFillFields && (
-                <div style={{ borderTop: '1px solid #ccc', paddingTop: '6px', marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {['Output Aktual (qty)', 'Operator', 'Tanggal Selesai'].map(label => (
+                <div style={{ borderTop: '1px solid #ccc', paddingTop: '6px', display: 'flex', flexDirection: 'column', gap: '11px', marginBottom: '6px' }}>
+                    {['Output Aktual', 'Operator', 'Tgl Selesai'].map(label => (
                         <div key={label} style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
-                            <span style={{ fontSize: '8px', fontWeight: 'bold', whiteSpace: 'nowrap', minWidth: '120px' }}>{label}:</span>
-                            <div style={{ flex: 1, borderBottom: '1px solid #333', height: '14px' }} />
+                            <span style={{ fontSize: '9px', fontWeight: 'bold', whiteSpace: 'nowrap', minWidth: '78px' }}>{label}:</span>
+                            <div style={{ flex: 1, borderBottom: '1px solid #333', height: '15px' }} />
                         </div>
                     ))}
                 </div>
             )}
 
-            {/* Signature */}
-            {settings.showSignature && (
-                <div style={{ marginTop: '16px', borderTop: '1px solid #ccc', paddingTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
-                    <div style={{ textAlign: 'center' }}>
-                        <div style={{ borderBottom: '1px solid #000', height: '28px', width: '100px', marginBottom: '2px' }} />
-                        <div style={{ fontSize: '7px', fontWeight: 'bold' }}>ACC TEKNISI</div>
-                    </div>
+            {/* Signature + footer */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderTop: '1px solid #ccc', paddingTop: '6px' }}>
+                <div style={{ fontSize: '6px', color: '#999', lineHeight: 1.3 }}>
+                    {workOrder.code || `Step ${workOrder.sequence}`}<br />ID: {workOrder.id}
                 </div>
-            )}
-
-            {/* Footer */}
-            <div style={{ marginTop: '8px', fontSize: '6px', color: '#999', borderTop: '1px solid #eee', paddingTop: '4px' }}>
-                {parentMO?.code} · {workOrder.code || `Step ${workOrder.sequence}`} · ID: {workOrder.id}
+                {settings.showSignature && (
+                    <div style={{ textAlign: 'center' }}>
+                        <div style={{ borderBottom: '1px solid #000', height: '26px', width: '100px', marginBottom: '2px' }} />
+                        <div style={{ fontSize: '8px', fontWeight: 'bold' }}>ACC TEKNISI</div>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -275,9 +299,9 @@ export default function WOStepPrintModal({
                             </div>
                         </div>
 
-                        {/* Preview */}
-                        <div style={{ flex: 1, background: '#e0e0e0', overflowY: 'auto', padding: '16px', display: 'flex', justifyContent: 'center' }}>
-                            <div className="wo-print-paper" style={{ background: '#fff', width: '100%', maxWidth: '520px', padding: '20px 24px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', fontSize: '9px', lineHeight: '1.5', color: '#000', fontFamily: 'Arial, sans-serif' }}>
+                        {/* Preview — sized to A6 portrait (105×148mm) */}
+                        <div style={{ flex: 1, background: '#e0e0e0', overflowY: 'auto', padding: '16px', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
+                            <div className="wo-print-paper wo-step-card" style={{ background: '#fff', width: '378px', minHeight: '535px', padding: '18px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', color: '#000', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
                                 {documentContent}
                             </div>
                         </div>
@@ -303,7 +327,7 @@ export default function WOStepPrintModal({
 
             {createPortal(
                 <div className="wo-print-paper-portal" style={{ display: 'none' }}>
-                    <div className="wo-print-paper" style={{ background: '#fff', width: '100%', padding: '20px 24px', fontSize: '9px', lineHeight: '1.5', color: '#000', fontFamily: 'Arial, sans-serif' }}>
+                    <div className="wo-print-paper wo-step-card" style={{ background: '#fff', width: '100%', color: '#000', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: 'column' }}>
                         {documentContent}
                     </div>
                 </div>,

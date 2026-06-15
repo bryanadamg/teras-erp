@@ -907,6 +907,39 @@ body {
     width: 100% !important;
   }
 
+  /* Kartu Kerja (single WO step card) — printed at A6, isolated from the A4 SPK above */
+  body.wo-step-print-active > *:not(.wo-print-paper-portal) {
+    display: none !important;
+  }
+  body.wo-step-print-active .wo-print-paper-portal {
+    display: block !important;
+    width: 100% !important;
+    page: wostepcard;
+  }
+  body.wo-step-print-active .wo-step-card,
+  body.wo-step-print-active .wo-print-paper-portal .wo-step-card {
+    page: wostepcard;
+    box-shadow: none !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 136mm; /* A6 height (148mm) − 2×6mm page margin → fills the card */
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+  }
+  /* Override the A4 body sizing for the A6 card sheet */
+  body.wo-step-print-active {
+    width: auto !important;
+  }
+  html:has(body.wo-step-print-active) {
+    width: auto !important;
+  }
+  @page wostepcard {
+    size: A6 portrait;
+    margin: 6mm;
+  }
+
   /* WO bulk print — hide everything except the bulk portal */
   body.wo-bulk-print-active > *:not(.wo-bulk-print-portal) {
     display: none !important;
