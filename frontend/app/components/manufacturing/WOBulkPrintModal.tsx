@@ -4,8 +4,7 @@ import { createPortal } from 'react-dom';
 import QRCode from 'qrcode';
 import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
-
-const STATIC_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000').replace(/\/api$/, '');
+import KartuKerjaCard from './KartuKerjaCard';
 
 interface PrintSettings {
     showMaterials: boolean;
@@ -63,152 +62,26 @@ export default function WOBulkPrintModal({
         try { localStorage.setItem('wo_step_print_settings', JSON.stringify(next)); } catch {}
     };
 
-    const getStepMaterials = (wo: any, parentMO: any): any[] => {
-        const ops: any[] = parentMO?.bom?.operations || [];
-        const op = ops.find(o => o.sequence === wo.sequence);
-        if (!op) return [];
-        return (parentMO?.bom?.lines || []).filter((l: any) => l.bom_operation_id === op.id);
-    };
-
-    const displayCompany = companyProfile?.name || '';
-
     const renderCard = (wo: any, forPortal: boolean) => {
         const parentMO = manufacturingOrders.find(m => m.id === wo.mo_id);
-        const woQty = wo.qty ?? 0;
-        const stepMaterials = settings.showMaterials ? getStepMaterials(wo, parentMO) : [];
-        const qrUrl = qrUrls[wo.id] || '';
-
-        const lbl: React.CSSProperties = {
-            background: '#f0f0f0', border: '1px solid #ccc',
-            padding: '2px 4px', fontSize: '7px', color: '#444', fontWeight: 'bold', whiteSpace: 'nowrap',
-        };
-        const val: React.CSSProperties = { border: '1px solid #ccc', padding: '2px 4px', fontSize: '7px', color: '#000' };
-
         return (
             <div key={wo.id} style={{
                 border: '1px solid #888',
-                padding: forPortal ? '4mm' : '8px',
-                fontFamily: 'Arial, sans-serif',
-                fontSize: '7px',
+                padding: forPortal ? '4mm' : '10px',
                 overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
                 background: '#fff',
                 breakInside: 'avoid' as any,
+                ...(forPortal ? {} : { minHeight: '352px' }),
             }}>
-                {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #000', paddingBottom: '4px', marginBottom: '5px' }}>
-                    <div>
-                        {companyProfile?.logo_url ? (
-                            <img src={`${STATIC_BASE}${companyProfile.logo_url}`} alt="" style={{ maxHeight: '26px', maxWidth: '90px', objectFit: 'contain', display: 'block', marginBottom: '1px' }} />
-                        ) : (
-                            <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#003080' }}>{displayCompany}</div>
-                        )}
-                        <div style={{ fontSize: '6px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.8px', color: '#555', marginTop: '1px' }}>KARTU KERJA</div>
-                        {settings.headerDepartment && <div style={{ fontSize: '6px', color: '#555' }}>Dept: {settings.headerDepartment}</div>}
-                    </div>
-                    <div style={{ border: '2px solid #000', padding: '2px', flexShrink: 0, textAlign: 'center' }}>
-                        {qrUrl
-                            ? <img src={qrUrl} alt="QR" style={{ width: '58px', height: '58px', display: 'block' }} />
-                            : <div style={{ width: '58px', height: '58px', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '6px', color: '#888' }}>...</div>
-                        }
-                        <div style={{ fontSize: '5px', color: '#555', marginTop: '1px' }}>Scan to Log</div>
-                    </div>
-                </div>
-
-                {/* Identity grid */}
-                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '4px' }}>
-                    <tbody>
-                        <tr>
-                            <td style={{ ...lbl, width: '22%' }}>OPERASI</td>
-                            <td colSpan={3} style={{ ...val, fontWeight: 'bold', fontSize: '9px' }}>{wo.name}</td>
-                        </tr>
-                        <tr>
-                            <td style={lbl}>Step #</td>
-                            <td style={{ ...val, width: '12%' }}>{wo.sequence}</td>
-                            <td style={{ ...lbl, width: '22%' }}>Work Center</td>
-                            <td style={val}>{wo.work_center_name || '—'}</td>
-                        </tr>
-                        <tr>
-                            <td style={lbl}>No. SPK</td>
-                            <td colSpan={3} style={{ ...val, fontFamily: 'monospace', fontSize: '6px' }}>{parentMO?.code || wo.mo_code || '—'}</td>
-                        </tr>
-                        <tr>
-                            <td style={lbl}>Produk</td>
-                            <td colSpan={3} style={val}>{parentMO?.item_name || wo.item_name || '—'}</td>
-                        </tr>
-                        <tr>
-                            <td style={lbl}>Target Qty</td>
-                            <td colSpan={3} style={{ ...val, fontWeight: 'bold' }}>{woQty > 0 ? woQty : '—'}</td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                {/* Step materials */}
-                {settings.showMaterials && stepMaterials.length > 0 && (
-                    <>
-                        <div style={{ fontSize: '6px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', borderTop: '1px solid #ccc', paddingTop: '3px', marginBottom: '2px' }}>
-                            Material (step)
-                        </div>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '6px', marginBottom: '4px' }}>
-                            <thead>
-                                <tr style={{ background: '#f0f0f0' }}>
-                                    <th style={{ border: '1px solid #ccc', padding: '1px 3px', textAlign: 'left' }}>Komponen</th>
-                                    <th style={{ border: '1px solid #ccc', padding: '1px 3px', textAlign: 'right', width: '22%' }}>Req Qty</th>
-                                    <th style={{ border: '1px solid #ccc', padding: '1px 3px', width: '20%' }}>Aktual</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {stepMaterials.map((line: any) => {
-                                    const reqQty = woQty > 0
-                                        ? (parseFloat(line.percentage) > 0
-                                            ? (woQty * parseFloat(line.percentage)) / 100
-                                            : woQty * parseFloat(line.qty || 0))
-                                        : null;
-                                    return (
-                                        <tr key={line.id}>
-                                            <td style={{ border: '1px solid #ccc', padding: '1px 3px' }}>
-                                                <span style={{ fontFamily: 'monospace', color: '#555', marginRight: '3px', fontSize: '5px' }}>{line.item_code || ''}</span>
-                                                {line.item_name || line.item_id}
-                                            </td>
-                                            <td style={{ border: '1px solid #ccc', padding: '1px 3px', textAlign: 'right', fontWeight: 'bold' }}>
-                                                {reqQty != null ? reqQty.toFixed(2) : '—'}
-                                            </td>
-                                            <td style={{ border: '1px solid #ccc', padding: '1px 3px' }} />
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </>
-                )}
-
-                {/* Fill-in fields */}
-                {settings.showFillFields && (
-                    <div style={{ borderTop: '1px solid #ccc', paddingTop: '4px', marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '7px' }}>
-                        {['Output Aktual', 'Operator', 'Tgl Selesai'].map(label => (
-                            <div key={label} style={{ display: 'flex', alignItems: 'flex-end', gap: '5px' }}>
-                                <span style={{ fontSize: '6px', fontWeight: 'bold', whiteSpace: 'nowrap', minWidth: '70px' }}>{label}:</span>
-                                <div style={{ flex: 1, borderBottom: '1px solid #333', height: '12px' }} />
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                {/* Signature */}
-                {settings.showSignature && (
-                    <div style={{ marginTop: '8px', borderTop: '1px solid #ccc', paddingTop: '5px', display: 'flex', justifyContent: 'flex-end' }}>
-                        <div style={{ textAlign: 'center' }}>
-                            <div style={{ borderBottom: '1px solid #000', height: '20px', width: '70px', marginBottom: '2px' }} />
-                            <div style={{ fontSize: '6px', fontWeight: 'bold' }}>ACC TEKNISI</div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Footer */}
-                <div style={{ marginTop: '4px', fontSize: '5px', color: '#bbb', borderTop: '1px solid #eee', paddingTop: '2px' }}>
-                    {wo.mo_code} · {wo.code || `Step ${wo.sequence}`} · {wo.id}
-                </div>
+                <KartuKerjaCard
+                    workOrder={wo}
+                    parentMO={parentMO}
+                    qrDataUrl={qrUrls[wo.id] || ''}
+                    settings={settings}
+                    companyName={companyProfile?.name}
+                />
             </div>
         );
     };
