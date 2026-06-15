@@ -44,6 +44,16 @@ async def create_purchase_order(
         supplier_id=payload.supplier_id,
         target_location_id=payload.target_location_id,
         order_date=payload.order_date,
+        ssn=payload.ssn,
+        rate_mode=payload.rate_mode,
+        kurs_pajak=payload.kurs_pajak,
+        ktbi=payload.ktbi,
+        code=payload.code,
+        payment_term=payload.payment_term,
+        category=payload.category,
+        vat_percent=payload.vat_percent,
+        discount=payload.discount,
+        notes=payload.notes,
     )
     db.add(po)
     await db.flush()

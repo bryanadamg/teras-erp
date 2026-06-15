@@ -722,6 +722,16 @@ class PurchaseOrderCreate(BaseModel):
     supplier_id: UUID | None = None
     target_location_id: UUID | None = None
     order_date: datetime | None = None
+    ssn: str | None = None
+    rate_mode: str | None = "kurs_pajak"
+    kurs_pajak: str | None = None
+    ktbi: str | None = None
+    code: str | None = None
+    payment_term: str | None = None
+    category: str | None = None
+    vat_percent: float | None = 11
+    discount: float | None = 0
+    notes: str | None = None
     lines: list[PurchaseOrderLineCreate]
 
 # --- Goods Receipt Schemas ---

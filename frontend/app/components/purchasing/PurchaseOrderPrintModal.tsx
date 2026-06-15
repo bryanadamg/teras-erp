@@ -2,37 +2,20 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
+// PO document fields (SSN, rate, kurs, code, payment, category, VAT, discount, notes)
+// now live on the PurchaseOrder record — entered at PO creation, read here from `po`.
+// Only signatures and the footer-notes toggle remain print-time preferences.
 interface POPrintSettings {
-    ssn: string;
-    rateMode: 'kurs_pajak' | 'ktbi';
-    kursPajak: string;
-    ktbi: string;
-    code: string;
-    paymentTerm: string;
-    category: string;
-    vatPercent: number;
-    discount: number;
     preparedBy: string;
     examinedBy: string;
     approvedBy: string;
-    notes: string;
     showFooterNotes: boolean;
 }
 
 const DEFAULT_SETTINGS: POPrintSettings = {
-    ssn: '',
-    rateMode: 'kurs_pajak',
-    kursPajak: '',
-    ktbi: '',
-    code: '',
-    paymentTerm: '',
-    category: '',
-    vatPercent: 11,
-    discount: 0,
     preparedBy: '',
     examinedBy: '',
     approvedBy: '',
-    notes: '',
     showFooterNotes: true,
 };
 
@@ -104,8 +87,9 @@ function PODocument({
 
     const lineTotal = (line: any) => (Number(line.qty) || 0) * (Number(line.unit_price) || 0);
     const subtotal = po.lines.reduce((s: number, l: any) => s + lineTotal(l), 0);
-    const discount = Number(settings.discount) || 0;
-    const vat = (subtotal - discount) * (Number(settings.vatPercent) || 0) / 100;
+    const vatPercent = Number(po.vat_percent) || 0;
+    const discount = Number(po.discount) || 0;
+    const vat = (subtotal - discount) * vatPercent / 100;
     const total = subtotal - discount + vat;
 
     const paddedLines = [
@@ -173,7 +157,7 @@ function PODocument({
                             <table style={{ borderCollapse: 'collapse', width: '100%', height: '100%' }}>
                                 <tbody>
                                     <tr><td style={{ ...cell, fontWeight: 'bold' }}>PO NUMBER :</td><td style={{ ...cell, textAlign: 'right' as const, fontWeight: 'bold' }}>{po.po_number}</td></tr>
-                                    <tr><td style={{ ...cell, fontWeight: 'bold' }}>SSN :</td><td style={{ ...cell, textAlign: 'right' as const }}>{settings.ssn}</td></tr>
+                                    <tr><td style={{ ...cell, fontWeight: 'bold' }}>SSN :</td><td style={{ ...cell, textAlign: 'right' as const }}>{po.ssn || ''}</td></tr>
                                     <tr><td style={{ ...cell, fontWeight: 'bold' }}>PO DATE :</td><td style={{ ...cell, textAlign: 'right' as const }}>{formatDate(po.order_date)}</td></tr>
                                 </tbody>
                             </table>
@@ -187,10 +171,10 @@ function PODocument({
                 <tbody>
                     {([
                         ['Email', supplier?.email || companyProfile?.email || ''],
-                        settings.rateMode === 'ktbi' ? ['KTBI', settings.ktbi] : ['Kurs Pajak', settings.kursPajak],
-                        ['Code', settings.code],
-                        ['Payment', settings.paymentTerm],
-                        ['Category', settings.category],
+                        po.rate_mode === 'ktbi' ? ['KTBI', po.ktbi || ''] : ['Kurs Pajak', po.kurs_pajak || ''],
+                        ['Code', po.code || ''],
+                        ['Payment', po.payment_term || ''],
+                        ['Category', po.category || ''],
                     ] as [string, string][]).map(([label, value]) => (
                         <tr key={label}>
                             <td style={{ width: 80, paddingLeft: 5, fontWeight: 500 }}>{label}</td>
@@ -247,7 +231,7 @@ function PODocument({
                     <tr>
                         <td style={{ ...cell, width: '58%', verticalAlign: 'top' }} rowSpan={4}>
                             <div style={{ fontWeight: 'bold' }}>Notes</div>
-                            <div style={{ whiteSpace: 'pre-line', marginTop: 2 }}>{settings.notes || po.notes || ''}</div>
+                            <div style={{ whiteSpace: 'pre-line', marginTop: 2 }}>{po.notes || ''}</div>
                         </td>
                         <td style={{ ...cell, width: '20%', fontWeight: 'bold' }}>Subtotal</td>
                         <td style={{ ...cell, textAlign: 'right' as const }}>Rp&nbsp;&nbsp;{money(subtotal)}</td>
@@ -257,7 +241,7 @@ function PODocument({
                         <td style={{ ...cell, textAlign: 'right' as const }}>Rp&nbsp;&nbsp;{discount ? money(discount) : ''}</td>
                     </tr>
                     <tr>
-                        <td style={{ ...cell, fontWeight: 'bold' }}>VAT {settings.vatPercent}%</td>
+                        <td style={{ ...cell, fontWeight: 'bold' }}>VAT {vatPercent}%</td>
                         <td style={{ ...cell, textAlign: 'right' as const }}>Rp&nbsp;&nbsp;{money(vat)}</td>
                     </tr>
                     <tr>
@@ -389,56 +373,8 @@ export default function PurchaseOrderPrintModal({
                         <div style={{ width: 230, minWidth: 230, borderRight: '1px solid #dee2e6', background: '#f8f9fa', padding: 14, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
                             <div style={{ fontSize: 10, color: '#555', background: '#eef4ff', border: '1px solid #cfe0ff', padding: '6px 8px' }}>
-                                Supplier name, address, contact person (Attn), Telp, Fax &amp; Email are pulled from the supplier record. Edit them under Suppliers.
+                                Document fields (SSN, rate, kurs, code, payment, category, VAT, discount, prices &amp; notes) are set on the Purchase Order at creation. Supplier details come from the supplier record.
                             </div>
-
-                            <div>
-                                <div style={sectionLabel}>PO Details</div>
-                                <div style={{ marginBottom: 6 }}>
-                                    <div style={fieldLabel}>SSN</div>
-                                    <input style={fieldInput} value={settings.ssn} onChange={e => update({ ssn: e.target.value })} placeholder="e.g. BI 084/KMK/26/06/09" />
-                                </div>
-                                <div style={{ marginBottom: 6 }}>
-                                    <div style={fieldLabel}>Rate Variant</div>
-                                    <select style={fieldInput} value={settings.rateMode} onChange={e => update({ rateMode: e.target.value as POPrintSettings['rateMode'] })}>
-                                        <option value="kurs_pajak">Kurs Pajak</option>
-                                        <option value="ktbi">KTBI</option>
-                                    </select>
-                                </div>
-                                {settings.rateMode === 'ktbi' ? (
-                                    <div style={{ marginBottom: 6 }}>
-                                        <div style={fieldLabel}>KTBI</div>
-                                        <input style={fieldInput} value={settings.ktbi} onChange={e => update({ ktbi: e.target.value })} placeholder="e.g. KTBI value" />
-                                    </div>
-                                ) : (
-                                    <div style={{ marginBottom: 6 }}>
-                                        <div style={fieldLabel}>Kurs Pajak</div>
-                                        <input style={fieldInput} value={settings.kursPajak} onChange={e => update({ kursPajak: e.target.value })} placeholder="e.g. Rp 17.805 (09.06.26)" />
-                                    </div>
-                                )}
-                                {([
-                                    ['Code', 'code', ''],
-                                    ['Payment', 'paymentTerm', 'e.g. Net 45 days'],
-                                    ['Category', 'category', 'e.g. dsc'],
-                                ] as [string, keyof POPrintSettings, string][]).map(([label, key, ph]) => (
-                                    <div key={key} style={{ marginBottom: 6 }}>
-                                        <div style={fieldLabel}>{label}</div>
-                                        <input style={fieldInput} value={settings[key] as string} onChange={e => update({ [key]: e.target.value } as any)} placeholder={ph} />
-                                    </div>
-                                ))}
-                            </div>
-
-                            <hr style={{ margin: 0, borderColor: '#dee2e6' }} />
-
-                            <div>
-                                <div style={sectionLabel}>Totals</div>
-                                <div style={fieldLabel}>VAT %</div>
-                                <input type="number" style={fieldInput} value={settings.vatPercent} onChange={e => update({ vatPercent: parseFloat(e.target.value) || 0 })} />
-                                <div style={{ ...fieldLabel, marginTop: 6 }}>Discount (Rp)</div>
-                                <input type="number" style={fieldInput} value={settings.discount} onChange={e => update({ discount: parseFloat(e.target.value) || 0 })} />
-                            </div>
-
-                            <hr style={{ margin: 0, borderColor: '#dee2e6' }} />
 
                             <div>
                                 <div style={sectionLabel}>Signatures</div>
@@ -457,9 +393,8 @@ export default function PurchaseOrderPrintModal({
                             <hr style={{ margin: 0, borderColor: '#dee2e6' }} />
 
                             <div>
-                                <div style={sectionLabel}>Notes</div>
-                                <textarea style={{ ...fieldInput, minHeight: 50, resize: 'vertical' as const }} value={settings.notes} onChange={e => update({ notes: e.target.value })} placeholder="Optional notes" />
-                                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#111', cursor: 'pointer', marginTop: 8 }}>
+                                <div style={sectionLabel}>Footer</div>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#111', cursor: 'pointer' }}>
                                     <input type="checkbox" checked={settings.showFooterNotes} onChange={e => update({ showFooterNotes: e.target.checked })} />
                                     Footer Notes
                                 </label>

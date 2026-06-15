@@ -29,7 +29,18 @@ class PurchaseOrder(Base):
     order_date: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     status: Mapped[str] = mapped_column(String(32), default="DRAFT") # DRAFT, SENT, RECEIVED, CANCELLED
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    
+
+    # PO document fields — captured at creation, rendered on the printed PO
+    ssn: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    rate_mode: Mapped[str | None] = mapped_column(String(16), nullable=True, default="kurs_pajak")  # kurs_pajak | ktbi
+    kurs_pajak: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    ktbi: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    payment_term: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    category: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    vat_percent: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True, default=11)
+    discount: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True, default=0)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # Relationships

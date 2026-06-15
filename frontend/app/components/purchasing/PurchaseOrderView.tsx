@@ -168,15 +168,31 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
       fontSize: '11px',
   };
 
-  const [newPO, setNewPO] = useState({
+  // Shared label style for create-form fields (classic = XP look)
+  const lblStyle: React.CSSProperties | undefined = classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined;
+  const lblCls = classic ? '' : 'form-label small text-muted';
+
+  const freshPO = () => ({
       po_number: '',
       supplier_id: '',
       target_location_id: '',
       order_date: new Date().toISOString().split('T')[0],
-      lines: [] as any[]
+      ssn: '',
+      rate_mode: 'kurs_pajak',
+      kurs_pajak: '',
+      ktbi: '',
+      code: '',
+      payment_term: '',
+      category: '',
+      vat_percent: 11 as number,
+      discount: 0 as number,
+      notes: '',
+      lines: [] as any[],
   });
 
-  const [newLine, setNewLine] = useState({ item_id: '', qty: 0, due_date: '', attribute_value_ids: [] as string[] });
+  const [newPO, setNewPO] = useState(freshPO);
+
+  const [newLine, setNewLine] = useState({ item_id: '', qty: 0, unit_price: '' as number | '', due_date: '', attribute_value_ids: [] as string[] });
 
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [codeConfig, setCodeConfig] = useState<CodeConfig>({
@@ -221,8 +237,9 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
 
   const handleAddLine = () => {
       if (!newLine.item_id || newLine.qty <= 0) return;
-      setNewPO({ ...newPO, lines: [...newPO.lines, { ...newLine }] });
-      setNewLine({ item_id: '', qty: 0, due_date: '', attribute_value_ids: [] });
+      const line = { ...newLine, unit_price: newLine.unit_price === '' ? null : Number(newLine.unit_price) };
+      setNewPO({ ...newPO, lines: [...newPO.lines, line] });
+      setNewLine({ item_id: '', qty: 0, unit_price: '', due_date: '', attribute_value_ids: [] });
   };
 
   const handleRemoveLine = (index: number) => {
@@ -243,9 +260,11 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
           supplier_id: newPO.supplier_id || null,
           target_location_id: newPO.target_location_id || null,
           order_date: newPO.order_date || null,
+          vat_percent: Number(newPO.vat_percent) || 0,
+          discount: Number(newPO.discount) || 0,
           lines: newPO.lines.map((line: any) => ({ ...line, due_date: line.due_date || null }))
       });
-      setNewPO({ po_number: '', supplier_id: '', target_location_id: '', order_date: new Date().toISOString().split('T')[0], lines: [] });
+      setNewPO(freshPO());
       setIsCreateOpen(false);
   };
 
@@ -351,7 +370,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
        <ModalWrapper
            isOpen={isCreateOpen}
            modeless
-           onClose={() => { setIsCreateOpen(false); setNewPO({ po_number: '', supplier_id: '', target_location_id: '', order_date: new Date().toISOString().split('T')[0], lines: [] }); }}
+           onClose={() => { setIsCreateOpen(false); setNewPO(freshPO()); }}
            title={<><i className="bi bi-cart-plus" style={classic?{marginRight:6}:{marginRight:8}}></i>Create Purchase Order</>}
            variant="success"
            size="xl"
@@ -390,13 +409,69 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                    </div>
                </div>
 
+               {/* ── PO Document Details (rendered on the printed PO) ── */}
+               {classic
+                   ? <div style={{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',fontWeight:'bold',color:'#444',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:4,paddingBottom:2,borderBottom:'1px solid #c0bdb5'}}>Document Details</div>
+                   : <h6 className="small text-uppercase text-muted fw-bold mb-2">Document Details</h6>
+               }
+               <div style={{background:classic?'#f5f4ef':'rgba(0,0,0,0.02)',border:classic?'1px solid #b0a898':'1px solid #dee2e6',padding:classic?'6px 8px':'12px',marginBottom:classic?6:12}}>
+                   <div className="row g-2">
+                       <div className="col-md-4">
+                           <label style={lblStyle} className={lblCls}>SSN</label>
+                           <input className="form-control" style={classic?xpInput:undefined} placeholder="e.g. BI 084/KMK/26/06/09" value={newPO.ssn} onChange={e => setNewPO({...newPO, ssn: e.target.value})} />
+                       </div>
+                       <div className="col-md-4">
+                           <label style={lblStyle} className={lblCls}>Rate Variant</label>
+                           <select className="form-select form-select-sm" style={classic?{...xpInput,height:'22px',borderRadius:0,width:'100%'}:undefined} value={newPO.rate_mode} onChange={e => setNewPO({...newPO, rate_mode: e.target.value})}>
+                               <option value="kurs_pajak">Kurs Pajak</option>
+                               <option value="ktbi">KTBI</option>
+                           </select>
+                       </div>
+                       {newPO.rate_mode === 'ktbi' ? (
+                           <div className="col-md-4">
+                               <label style={lblStyle} className={lblCls}>KTBI</label>
+                               <input className="form-control" style={classic?xpInput:undefined} placeholder="e.g. KTBI value" value={newPO.ktbi} onChange={e => setNewPO({...newPO, ktbi: e.target.value})} />
+                           </div>
+                       ) : (
+                           <div className="col-md-4">
+                               <label style={lblStyle} className={lblCls}>Kurs Pajak</label>
+                               <input className="form-control" style={classic?xpInput:undefined} placeholder="e.g. Rp 17.805 (09.06.26)" value={newPO.kurs_pajak} onChange={e => setNewPO({...newPO, kurs_pajak: e.target.value})} />
+                           </div>
+                       )}
+                       <div className="col-md-4">
+                           <label style={lblStyle} className={lblCls}>Code</label>
+                           <input className="form-control" style={classic?xpInput:undefined} value={newPO.code} onChange={e => setNewPO({...newPO, code: e.target.value})} />
+                       </div>
+                       <div className="col-md-4">
+                           <label style={lblStyle} className={lblCls}>Payment</label>
+                           <input className="form-control" style={classic?xpInput:undefined} placeholder="e.g. Net 45 days" value={newPO.payment_term} onChange={e => setNewPO({...newPO, payment_term: e.target.value})} />
+                       </div>
+                       <div className="col-md-4">
+                           <label style={lblStyle} className={lblCls}>Category</label>
+                           <input className="form-control" style={classic?xpInput:undefined} placeholder="e.g. dsc" value={newPO.category} onChange={e => setNewPO({...newPO, category: e.target.value})} />
+                       </div>
+                       <div className="col-md-3">
+                           <label style={lblStyle} className={lblCls}>VAT %</label>
+                           <input type="number" className="form-control" style={classic?xpInput:undefined} value={newPO.vat_percent} onChange={e => setNewPO({...newPO, vat_percent: parseFloat(e.target.value) || 0})} />
+                       </div>
+                       <div className="col-md-3">
+                           <label style={lblStyle} className={lblCls}>Discount (Rp)</label>
+                           <input type="number" className="form-control" style={classic?xpInput:undefined} value={newPO.discount} onChange={e => setNewPO({...newPO, discount: parseFloat(e.target.value) || 0})} />
+                       </div>
+                       <div className="col-md-6">
+                           <label style={lblStyle} className={lblCls}>Notes</label>
+                           <input className="form-control" style={classic?xpInput:undefined} placeholder="Optional notes printed on the PO" value={newPO.notes} onChange={e => setNewPO({...newPO, notes: e.target.value})} />
+                       </div>
+                   </div>
+               </div>
+
                {classic
                    ? <div style={{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',fontWeight:'bold',color:'#444',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:4,paddingBottom:2,borderBottom:'1px solid #c0bdb5'}}>Order Items</div>
                    : <h6 className="small text-uppercase text-muted fw-bold mb-2">Order Items</h6>
                }
                <div style={{background:classic?'#f5f4ef':'rgba(0,0,0,0.02)',border:classic?'1px solid #b0a898':'1px solid #dee2e6',padding:classic?'6px 8px':'12px',marginBottom:classic?6:12}}>
                    <div className="row g-2 mb-2">
-                       <div className="col-5">
+                       <div className="col-4">
                            <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted mb-1'}>Item</label>
                            <SearchableSelect options={items.map((item: any) => ({ value: item.id, label: item.name, subLabel: item.code }))} value={newLine.item_id} onChange={(val) => setNewLine({...newLine, item_id: val, attribute_value_ids: []})} placeholder="Select Item…" />
                        </div>
@@ -404,7 +479,11 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                            <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted mb-1'}>Qty</label>
                            <input type="number" className="form-control" style={classic?xpInput:undefined} placeholder="0" value={newLine.qty || ''} onChange={e => setNewLine({...newLine, qty: parseFloat(e.target.value)})} />
                        </div>
-                       <div className="col-3">
+                       <div className="col-2">
+                           <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted mb-1'}>Price (Rp)</label>
+                           <input type="number" min="0" step="0.01" className="form-control" style={classic?xpInput:undefined} placeholder="0.00" value={newLine.unit_price} onChange={e => setNewLine({...newLine, unit_price: e.target.value === '' ? '' : parseFloat(e.target.value)})} />
+                       </div>
+                       <div className="col-2">
                            <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted mb-1'}>Expected By</label>
                            <input type="date" className="form-control" style={classic?{...xpInput,width:'100%',height:'22px'}:undefined} value={newLine.due_date} onChange={e => setNewLine({...newLine, due_date: e.target.value})} />
                        </div>
@@ -443,6 +522,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                    {(line.attribute_value_ids||[]).length>0 && <div style={{color:classic?'#666':'',fontSize:classic?'10px':'',fontStyle:'italic'}}>{(line.attribute_value_ids||[]).map(getAttributeValueName).join(', ')}</div>}
                                </div>
                                <div style={{display:'flex',alignItems:'center',gap:12}}>
+                                   {line.unit_price != null && <span style={{color:classic?'#555':'',fontSize:classic?'10px':''}}>@ Rp {Number(line.unit_price).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>}
                                    <span style={{fontWeight:'bold'}}>×{line.qty}</span>
                                    <button type="button" style={classic?{...xpBtn(),border:'1px solid transparent',background:'transparent',padding:'1px 5px'}:undefined} className={classic?'':'btn btn-sm btn-link text-danger p-0'} onClick={() => handleRemoveLine(idx)}>
                                        <i className="bi bi-x-circle" style={{color:classic?'#c00000':''}}></i>
