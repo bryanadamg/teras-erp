@@ -153,7 +153,7 @@ async def create_goods_receipt(
             batch_id=batch_id,
         )
 
-        po_line.qty_received = (po_line.qty_received or 0) + rl.qty_received
+        po_line.qty_received = float(po_line.qty_received or 0) + rl.qty_received
 
     # Update PO status
     all_fulfilled = all(line.qty_received >= line.qty for line in po.lines)
