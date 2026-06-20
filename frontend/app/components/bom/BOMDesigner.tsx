@@ -416,6 +416,18 @@ export default function BOMDesigner({
         const it = getItemByCode(code);
         return !!it && (((it.category_path || []).some((c: string) => (c || '').toLowerCase() === 'beam')) || it.ends != null);
     }, [getItemByCode]);
+    // Work center (group, or its parent group) is BEAMING type. Covers inline-created items with no category/ends yet.
+    const isBeamWc = useCallback((wcId?: string) => {
+        if (!wcId) return false;
+        const wc = (workCenters || []).find((w: any) => String(w.id) === String(wcId));
+        if (!wc) return false;
+        if ((wc.center_type || '').toUpperCase() === 'BEAMING') return true;
+        const parent = wc.parent_id ? (workCenters || []).find((w: any) => String(w.id) === String(wc.parent_id)) : null;
+        return (parent?.center_type || '').toUpperCase() === 'BEAMING';
+    }, [workCenters]);
+    const isBeamNode = useCallback((node: any) =>
+        !!node && (isBeamCode(node.item_code) || isBeamWc(node.work_center_id)),
+    [isBeamCode, isBeamWc]);
 
     const hasExistingBOM = useCallback((code: string, attributeValueIds: string[] = []): boolean => {
         const item = items.find((i: any) => (i.code || '').trim().toLowerCase() === (code || '').trim().toLowerCase());
@@ -822,9 +834,9 @@ export default function BOMDesigner({
                                             )}
                                         </div>
 
-                                        {/* Batch Size — for beam items this is the warp-ends (utas) count */}
-                                        <div style={{ width: isBeamCode(selectedNode.item_code) ? 120 : 80 }}>
-                                            <label style={xpLabel}>{isBeamCode(selectedNode.item_code) ? 'Warp Ends (Utas)' : 'Batch Size'}</label>
+                                        {/* Batch Size — for beam items/BEAMING machine this is the warp-ends (utas) count */}
+                                        <div style={{ width: isBeamNode(selectedNode) ? 120 : 80 }}>
+                                            <label style={xpLabel}>{isBeamNode(selectedNode) ? 'Warp Ends (Utas)' : 'Batch Size'}</label>
                                             <input
                                                 data-testid="batch-size-input"
                                                 type="number"

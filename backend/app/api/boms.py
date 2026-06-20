@@ -20,14 +20,34 @@ from app.models.attribute import AttributeValue
 router = APIRouter()
 
 
-async def _sync_beam_ends(db: AsyncSession, item_id, qty: float) -> None:
-    """If item is in Beam category, write bom.qty → item.ends."""
+async def _sync_beam_ends(db: AsyncSession, bom: BOM) -> None:
+    """For beam BOMs, write bom.qty → item.ends (the warp-ends/utas count).
+
+    A BOM is treated as a beam when its produced item is in the 'beam' category
+    OR its work center (or that center's parent group) is of center_type BEAMING.
+    The work-center path covers items created inline during BOM creation that have
+    no category yet (e.g. auto-generated BOMs)."""
+    is_beam = False
+    if bom.work_center_id:
+        wc = (await db.execute(select(WorkCenter).filter(WorkCenter.id == bom.work_center_id))).scalars().first()
+        if wc:
+            if (wc.center_type or '').upper() == 'BEAMING':
+                is_beam = True
+            elif wc.parent_id:
+                parent = (await db.execute(select(WorkCenter).filter(WorkCenter.id == wc.parent_id))).scalars().first()
+                if parent and (parent.center_type or '').upper() == 'BEAMING':
+                    is_beam = True
+
     result = await db.execute(
-        select(Item).options(joinedload(Item.category)).filter(Item.id == item_id)
+        select(Item).options(joinedload(Item.category)).filter(Item.id == bom.item_id)
     )
     item = result.scalars().first()
-    if item and item.category and item.category.name.lower() == 'beam':
-        item.ends = int(qty)
+    if not item:
+        return
+    if not is_beam and item.category and item.category.name.lower() == 'beam':
+        is_beam = True
+    if is_beam:
+        item.ends = int(bom.qty)
         await db.commit()
 
 
@@ -188,7 +208,7 @@ async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db
         changes=payload.model_dump()
     )
 
-    await _sync_beam_ends(db, bom.item_id, bom.qty)
+    await _sync_beam_ends(db, bom)
 
     refresh_bom.attribute_value_ids = [v.id for v in refresh_bom.attribute_values]
     for bl in refresh_bom.lines:
@@ -473,7 +493,7 @@ async def update_bom(
         changes={"lines_before": before_lines, "lines_after": after_lines},
     )
 
-    await _sync_beam_ends(db, updated_bom.item_id, updated_bom.qty)
+    await _sync_beam_ends(db, updated_bom)
 
     updated_bom.attribute_value_ids = [v.id for v in updated_bom.attribute_values]
     for bl in updated_bom.lines:
