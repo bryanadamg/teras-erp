@@ -46,6 +46,12 @@ export default function LocationsPage() {
         return res;
     };
 
+    const handleRenameCategory = async (id: string, name: string) => {
+        const res = await authFetch(`${API_BASE}/location-categories/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+        if (res.ok) fetchData();
+        return res;
+    };
+
     const handleDeleteCategory = async (id: string) => {
         const confirmed = await confirm({
             title: 'Delete Category',
@@ -65,6 +71,7 @@ export default function LocationsPage() {
                 onUpdateLocation={handleUpdateLocation}
                 onDeleteLocation={handleDeleteLocation}
                 onCreateCategory={handleCreateCategory}
+                onRenameCategory={handleRenameCategory}
                 onDeleteCategory={handleDeleteCategory}
                 onRefresh={fetchData}
                 fetchLocations={fetchLocations}
