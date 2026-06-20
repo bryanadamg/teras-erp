@@ -298,6 +298,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       item_id: '', qty: 0, due_date: '', attribute_value_ids: [] as string[],
       ket_stock: '', internal_confirmation_date: '', qty_kg: '', qty2: '', uom2: '',
       uom2_factor: null as number | null,
+      bom_id: '',
       bom_size_id: '',
   });
   const [lastDeliveryDates, setLastDeliveryDates] = useState({ due_date: '', internal_confirmation_date: '' });
@@ -352,10 +353,11 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
 
   const handleAddLine = () => {
       if (!newLine.item_id || newLine.qty <= 0) return;
-      setNewSO({ ...newSO, lines: [...newSO.lines, { ...newLine, bom_size_id: newLine.bom_size_id || null }] });
+      const { bom_id: _bomId, ...lineToSave } = newLine;
+      setNewSO({ ...newSO, lines: [...newSO.lines, { ...lineToSave, bom_size_id: newLine.bom_size_id || null }] });
       const nextDates = { due_date: newLine.due_date, internal_confirmation_date: newLine.internal_confirmation_date };
       setLastDeliveryDates(nextDates);
-      setNewLine({ item_id: '', qty: 0, due_date: nextDates.due_date, attribute_value_ids: [], ket_stock: '', internal_confirmation_date: nextDates.internal_confirmation_date, qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_size_id: '' });
+      setNewLine({ item_id: '', qty: 0, due_date: nextDates.due_date, attribute_value_ids: [], ket_stock: '', internal_confirmation_date: nextDates.internal_confirmation_date, qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_id: '', bom_size_id: '' });
       setQtyMeter('');
       setQtyGrossYd('');
       setQtyRoll('');
@@ -416,7 +418,9 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const handleLineItemChange = (val: string) => {
       const m = parseFloat(qtyMeter) || 0;
       const kg = kgAuto ? calcKgAuto(val, newLine.qty, m) : null;
-      setNewLine({ ...newLine, item_id: val, attribute_value_ids: [], bom_size_id: '', qty_kg: kg !== null ? kg : newLine.qty_kg });
+      const itemBoms = (boms || []).filter((b: any) => b.item_id === val);
+      const autoBomId = itemBoms.length === 1 ? itemBoms[0].id : '';
+      setNewLine({ ...newLine, item_id: val, attribute_value_ids: [], bom_id: autoBomId, bom_size_id: '', qty_kg: kg !== null ? kg : newLine.qty_kg });
       const selectedItem = items.find((i: any) => i.id === val);
       const factorIds = (selectedItem?.packaging_factor_ids || []).map(String);
       const allFactors = uoms.flatMap((u: any) => u.factors || []);
@@ -427,15 +431,18 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       setPicFactor(picF ? parseFloat(picF.value) : null);
   };
 
-  const getBOMSizesForLine = (itemId: string, attrValueIds: string[]) => {
+  // BOM matching is item-level only. Variants no longer dictate which BOM is used
+  // (variants are a note on the SO line). If an item has multiple BOMs, the user
+  // picks one explicitly; sizes come from the selected BOM.
+  const getItemBoms = (itemId: string) => {
       if (!boms || !itemId) return [];
-      const bom = boms.find((b: any) => {
-          if (b.item_id !== itemId) return false;
-          const bomAttrs = b.attribute_value_ids || [];
-          if (attrValueIds.length !== bomAttrs.length) return false;
-          return attrValueIds.every((id: string) => bomAttrs.includes(id));
-      });
-      return bom?.sizes || [];
+      return boms.filter((b: any) => b.item_id === itemId);
+  };
+
+  const getSelectedBom = (itemId: string, bomId: string) => {
+      const itemBoms = getItemBoms(itemId);
+      if (itemBoms.length === 1) return itemBoms[0];
+      return itemBoms.find((b: any) => b.id === bomId) || null;
   };
 
   const formatBomSizeLabel = (bs: any): string => {
@@ -591,7 +598,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const resetForm = () => {
       setNewSO({ po_number: '', customer_po_ref: '', customer_name: '', order_date: new Date().toISOString().split('T')[0], lines: [] });
       setLastDeliveryDates({ due_date: '', internal_confirmation_date: '' });
-      setNewLine({ item_id: '', qty: 0, due_date: '', attribute_value_ids: [], ket_stock: '', internal_confirmation_date: '', qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_size_id: '' });
+      setNewLine({ item_id: '', qty: 0, due_date: '', attribute_value_ids: [], ket_stock: '', internal_confirmation_date: '', qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_id: '', bom_size_id: '' });
       setQtyMeter('');
       setQtyGrossYd('');
       setQtyRoll('');
@@ -1212,27 +1219,51 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                            </div>
                        )}
 
-                       {/* Size / Measurement */}
+                       {/* BOM + Size / Measurement (item-level; variants do not gate this) */}
                        {(() => {
-                           const bomSizes = getBOMSizesForLine(newLine.item_id, newLine.attribute_value_ids);
-                           if (!bomSizes.length) return null;
+                           const itemBoms = getItemBoms(newLine.item_id);
+                           if (!itemBoms.length) return null;
+                           const selectedBom = getSelectedBom(newLine.item_id, newLine.bom_id);
+                           const bomSizes = selectedBom?.sizes || [];
                            return (
-                               <div className="col-12 mt-1">
-                                   <div style={{background:'#ffffff',border:classic?'1px solid #b0a898':'1px solid #dee2e6',padding:classic?'4px 6px':'8px'}}>
-                                       <div style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',fontWeight:'bold',color:'#444',marginBottom:4}:undefined} className={classic?'':'text-muted fw-bold mb-2 small'}>Size / Measurement</div>
-                                       <select
-                                           className="form-select form-select-sm"
-                                           style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',border:'1px solid #7f9db9',height:'22px',borderRadius:0,padding:'1px 4px',background:'#ffffff',outline:'none',width:'100%'}:undefined}
-                                           value={newLine.bom_size_id}
-                                           onChange={e => setNewLine({...newLine, bom_size_id: e.target.value})}
-                                       >
-                                           <option value="">No specific size</option>
-                                           {bomSizes.map((bs: any) => (
-                                               <option key={bs.id} value={bs.id}>{formatBomSizeLabel(bs)}</option>
-                                           ))}
-                                       </select>
-                                   </div>
-                               </div>
+                               <>
+                                   {itemBoms.length > 1 && (
+                                       <div className="col-12 mt-1">
+                                           <div style={{background:'#ffffff',border:classic?'1px solid #b0a898':'1px solid #dee2e6',padding:classic?'4px 6px':'8px'}}>
+                                               <div style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',fontWeight:'bold',color:'#444',marginBottom:4}:undefined} className={classic?'':'text-muted fw-bold mb-2 small'}>BOM</div>
+                                               <select
+                                                   className="form-select form-select-sm"
+                                                   style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',border:'1px solid #7f9db9',height:'22px',borderRadius:0,padding:'1px 4px',background:'#ffffff',outline:'none',width:'100%'}:undefined}
+                                                   value={newLine.bom_id}
+                                                   onChange={e => setNewLine({...newLine, bom_id: e.target.value, bom_size_id: ''})}
+                                               >
+                                                   <option value="">Select BOM</option>
+                                                   {itemBoms.map((b: any) => (
+                                                       <option key={b.id} value={b.id}>{b.code}{b.description ? ` — ${b.description}` : ''}</option>
+                                                   ))}
+                                               </select>
+                                           </div>
+                                       </div>
+                                   )}
+                                   {bomSizes.length > 0 && (
+                                       <div className="col-12 mt-1">
+                                           <div style={{background:'#ffffff',border:classic?'1px solid #b0a898':'1px solid #dee2e6',padding:classic?'4px 6px':'8px'}}>
+                                               <div style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',fontWeight:'bold',color:'#444',marginBottom:4}:undefined} className={classic?'':'text-muted fw-bold mb-2 small'}>Size / Measurement</div>
+                                               <select
+                                                   className="form-select form-select-sm"
+                                                   style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',border:'1px solid #7f9db9',height:'22px',borderRadius:0,padding:'1px 4px',background:'#ffffff',outline:'none',width:'100%'}:undefined}
+                                                   value={newLine.bom_size_id}
+                                                   onChange={e => setNewLine({...newLine, bom_size_id: e.target.value})}
+                                               >
+                                                   <option value="">No specific size</option>
+                                                   {bomSizes.map((bs: any) => (
+                                                       <option key={bs.id} value={bs.id}>{formatBomSizeLabel(bs)}</option>
+                                                   ))}
+                                               </select>
+                                           </div>
+                                       </div>
+                                   )}
+                               </>
                            );
                        })()}
                    </div>
