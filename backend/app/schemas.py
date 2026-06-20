@@ -575,6 +575,9 @@ class StockEntryCreate(BaseModel):
     qty: float
     reference_type: str = "manual"
     reference_id: str = "manual_entry"
+    qty_cones: int | None = None
+    qty_boxes: int | None = None
+    qty_drums: int | None = None
 
 class StockTransferCreate(BaseModel):
     item_id: UUID
@@ -583,6 +586,9 @@ class StockTransferCreate(BaseModel):
     qty: float
     batch_id: UUID | None = None
     attribute_value_ids: list[UUID] = []
+    qty_cones: int | None = None
+    qty_boxes: int | None = None
+    qty_drums: int | None = None
 
 class StockLedgerResponse(BaseModel):
     id: UUID
@@ -613,6 +619,9 @@ class StockBalanceResponse(BaseModel):
     location_id: UUID
     location_name: str = ""
     qty: float
+    qty_cones: int = 0
+    qty_boxes: int = 0
+    qty_drums: int = 0
     batch_key: str = ""
 
 class UOMCreate(BaseModel):

@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import ForeignKey, Numeric, Table, Column, String, UniqueConstraint
+from sqlalchemy import ForeignKey, Numeric, Table, Column, String, UniqueConstraint, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
@@ -31,6 +31,11 @@ class StockBalance(Base):
     qty: Mapped[float] = mapped_column(
         Numeric(14, 4), default=0.0
     )
+
+    # Aggregated packaging counts (no base-UOM conversion). Parallel to qty.
+    qty_cones: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    qty_boxes: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    qty_drums: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
     # For unique indexing of variants
     # Store sorted attribute value IDs as a string for easy matching

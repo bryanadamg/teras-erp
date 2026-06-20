@@ -128,7 +128,10 @@ async def add_stock_api(payload: StockEntryCreate, db: AsyncSession = Depends(ge
         attribute_value_ids=[str(vid) for vid in payload.attribute_value_ids],
         qty_change=payload.qty,
         reference_type="manual",
-        reference_id="manual_entry"
+        reference_id="manual_entry",
+        cones_change=payload.qty_cones or 0,
+        boxes_change=payload.qty_boxes or 0,
+        drums_change=payload.qty_drums or 0,
     )
     
     await audit_service.log_activity(

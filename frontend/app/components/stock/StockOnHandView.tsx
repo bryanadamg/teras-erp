@@ -32,12 +32,19 @@ export default function StockOnHandView({ locations, locationCategories = [], st
     const [transferTarget, setTransferTarget] = useState<any>(null);
     const [transferToLoc, setTransferToLoc] = useState('');
     const [transferQty, setTransferQty] = useState('');
+    const [transferCones, setTransferCones] = useState('');
+    const [transferBoxes, setTransferBoxes] = useState('');
+    const [transferDrums, setTransferDrums] = useState('');
     const [transferring, setTransferring] = useState(false);
 
     const openTransfer = (bal: any) => {
         setTransferTarget(bal);
         setTransferToLoc('');
         setTransferQty(String(bal.qty));
+        // Default packaging counts to the full holding; operator trims as needed.
+        setTransferCones(bal.qty_cones ? String(bal.qty_cones) : '');
+        setTransferBoxes(bal.qty_boxes ? String(bal.qty_boxes) : '');
+        setTransferDrums(bal.qty_drums ? String(bal.qty_drums) : '');
     };
 
     const handleTransfer = async () => {
@@ -57,6 +64,9 @@ export default function StockOnHandView({ locations, locationCategories = [], st
                     qty,
                     batch_id: transferTarget.batch_key || null,
                     attribute_value_ids: transferTarget.attribute_value_ids || [],
+                    qty_cones: transferCones ? parseInt(transferCones, 10) : null,
+                    qty_boxes: transferBoxes ? parseInt(transferBoxes, 10) : null,
+                    qty_drums: transferDrums ? parseInt(transferDrums, 10) : null,
                 }),
             });
             if (!res.ok) {
@@ -136,6 +146,17 @@ export default function StockOnHandView({ locations, locationCategories = [], st
         return valId;
     };
 
+    // Packaging counts (no UOM conversion) — show only nonzero units.
+    const pkgParts = (bal: any): { n: number; label: string }[] => {
+        const out: { n: number; label: string }[] = [];
+        const c = bal.qty_cones || 0, b = bal.qty_boxes || 0, d = bal.qty_drums || 0;
+        if (c) out.push({ n: c, label: c === 1 || c === -1 ? 'cone' : 'cones' });
+        if (b) out.push({ n: b, label: b === 1 || b === -1 ? 'box' : 'boxes' });
+        if (d) out.push({ n: d, label: d === 1 || d === -1 ? 'drum' : 'drums' });
+        return out;
+    };
+    const pkgTotal = (bal: any) => Math.abs(bal.qty_cones || 0) + Math.abs(bal.qty_boxes || 0) + Math.abs(bal.qty_drums || 0);
+
     const filtered = useMemo(() => {
         const s = search.toLowerCase();
         return (stockBalance || []).filter((bal: any) => {
@@ -167,6 +188,7 @@ export default function StockOnHandView({ locations, locationCategories = [], st
         category: (b: any) => getLocCategoryName(b.location_id) || '',
         batch:    (b: any) => b.batch_key ? (batchMap[b.batch_key] || b.batch_key) : null,
         qty:      (b: any) => b.qty,
+        packaging: (b: any) => pkgTotal(b),
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }), [batchMap, locations, locMap, catById]);
     const { sorted: sortedRows, sort, toggle: toggleSort } = useSortable(filtered, sortCols);
@@ -280,6 +302,15 @@ export default function StockOnHandView({ locations, locationCategories = [], st
                     <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', color: '#666', whiteSpace: 'nowrap' }}>
                         {bal.item_uom || ''}
                     </td>
+                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', whiteSpace: 'nowrap' }}>
+                        {pkgParts(bal).length === 0
+                            ? <span style={{ color: '#999' }}>-</span>
+                            : pkgParts(bal).map((p, idx) => (
+                                <span key={idx} style={{ color: p.n < 0 ? '#c00000' : '#5a3c00' }}>
+                                    {idx > 0 ? ' / ' : ''}{p.n} {p.label}
+                                </span>
+                            ))}
+                    </td>
                     <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', color: '#444', whiteSpace: 'nowrap' }}>
                         {bal.item_ends != null ? bal.item_ends : ''}
                     </td>
@@ -333,6 +364,15 @@ export default function StockOnHandView({ locations, locationCategories = [], st
                 </td>
                 <td className="text-end fw-bold" style={{ color: qtyColor, whiteSpace: 'nowrap' }}>{bal.qty}</td>
                 <td className="text-muted small" style={{ whiteSpace: 'nowrap' }}>{bal.item_uom || ''}</td>
+                <td className="small" style={{ whiteSpace: 'nowrap' }}>
+                    {pkgParts(bal).length === 0
+                        ? <span className="text-muted">-</span>
+                        : pkgParts(bal).map((p, idx) => (
+                            <span key={idx} className={p.n < 0 ? 'text-danger' : ''}>
+                                {idx > 0 ? ' / ' : ''}{p.n} {p.label}
+                            </span>
+                        ))}
+                </td>
                 <td className="text-end small" style={{ whiteSpace: 'nowrap' }}>{bal.item_ends != null ? bal.item_ends : ''}</td>
                 <td>
                     {bal.qty > 0 && (
@@ -383,7 +423,7 @@ export default function StockOnHandView({ locations, locationCategories = [], st
                                 ))}
                             </select>
                         </div>
-                        <div style={{ marginBottom: 4 }}>
+                        <div style={{ marginBottom: 8 }}>
                             <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Quantity</label>
                             <input
                                 type="number" min="0.0001" step="any"
@@ -392,6 +432,29 @@ export default function StockOnHandView({ locations, locationCategories = [], st
                                 value={transferQty}
                                 onChange={e => setTransferQty(e.target.value)}
                             />
+                        </div>
+                        <div style={{ marginBottom: 4 }}>
+                            <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>
+                                Packaging to move <span style={{ color: '#888', fontWeight: 'normal' }}>(optional)</span>
+                            </label>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                                {([
+                                    ['Cones', transferCones, setTransferCones],
+                                    ['Boxes', transferBoxes, setTransferBoxes],
+                                    ['Drums', transferDrums, setTransferDrums],
+                                ] as [string, string, (v: string) => void][]).map(([lbl, val, set]) => (
+                                    <div key={lbl} style={{ flex: 1 }}>
+                                        <input
+                                            type="number" min="0" step="1" placeholder={lbl}
+                                            title={lbl}
+                                            style={classic ? { ...xpInput, width: '100%' } : undefined}
+                                            className={classic ? '' : 'form-control form-control-sm'}
+                                            value={val}
+                                            onChange={e => set(e.target.value)}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
                     <div style={{ padding: '6px 12px', display: 'flex', gap: 6, justifyContent: 'flex-end', borderTop: '1px solid #c0c0c0' }}>
@@ -452,6 +515,7 @@ export default function StockOnHandView({ locations, locationCategories = [], st
                                     <th style={xpTableHeader}>{t('attributes') || 'Attributes'}</th>
                                     <th style={{ ...xpTableHeader, textAlign: 'right', cursor: 'pointer' }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
                                     <th style={xpTableHeader}>UOM</th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('packaging')} title="Sort">Packaging<SortMark sort={sort} colKey="packaging" /></th>
                                     <th style={{ ...xpTableHeader, textAlign: 'right' }}>Ends</th>
                                     <th style={xpTableHeader}></th>
                                 </tr>
@@ -460,7 +524,7 @@ export default function StockOnHandView({ locations, locationCategories = [], st
                                 {sortedRows.map((bal: any, i: number) => renderRow(bal, i))}
                                 {filtered.length === 0 && (
                                     <tr>
-                                        <td colSpan={10} style={{ textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
+                                        <td colSpan={11} style={{ textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
                                             No stock records found
                                         </td>
                                     </tr>
@@ -539,6 +603,7 @@ export default function StockOnHandView({ locations, locationCategories = [], st
                                 <th>{t('attributes') || 'Attributes'}</th>
                                 <th className="text-end" style={{ cursor: 'pointer' }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
                                 <th>UOM</th>
+                                <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('packaging')} title="Sort">Packaging<SortMark sort={sort} colKey="packaging" /></th>
                                 <th className="text-end">Ends</th>
                                 <th></th>
                             </tr>
@@ -547,7 +612,7 @@ export default function StockOnHandView({ locations, locationCategories = [], st
                             {sortedRows.map((bal: any, i: number) => renderRow(bal, i))}
                             {filtered.length === 0 && (
                                 <tr>
-                                    <td colSpan={10} className="text-center text-muted py-4">No stock records found</td>
+                                    <td colSpan={11} className="text-center text-muted py-4">No stock records found</td>
                                 </tr>
                             )}
                         </tbody>

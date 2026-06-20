@@ -48,10 +48,18 @@ async def add_stock_entry(
     reference_id,
     attribute_value_ids: list[str] = [],
     batch_id=None,
+    cones_change: int = 0,
+    boxes_change: int = 0,
+    drums_change: int = 0,
 ):
     batch_key = str(batch_id) if batch_id else ""
+    cones_change = int(cones_change or 0)
+    boxes_change = int(boxes_change or 0)
+    drums_change = int(drums_change or 0)
 
-    # 1. Prevent Negative Stock (using pre-calculated balance)
+    # 1. Prevent Negative Stock (using pre-calculated balance).
+    # Guard applies to base qty only — packaging counts are advisory tallies
+    # (no UOM conversion) and may legitimately drift, so they never block.
     if qty_change < 0:
         current_balance = await get_stock_balance(db, item_id, location_id, attribute_value_ids, batch_key)
         if current_balance + qty_change < 0:
@@ -68,6 +76,9 @@ async def add_stock_entry(
         reference_type=reference_type,
         reference_id=reference_id,
         batch_id=batch_id,
+        qty_cones_change=cones_change or None,
+        qty_boxes_change=boxes_change or None,
+        qty_drums_change=drums_change or None,
     )
 
     if attribute_value_ids:
@@ -98,7 +109,10 @@ async def add_stock_entry(
             location_id=location_id,
             variant_key=v_key,
             batch_key=batch_key,
-            qty=qty_change
+            qty=qty_change,
+            qty_cones=cones_change,
+            qty_boxes=boxes_change,
+            qty_drums=drums_change,
         )
         if attribute_value_ids:
             result = await db.execute(select(AttributeValue).filter(AttributeValue.id.in_(attribute_value_ids)))
@@ -107,6 +121,9 @@ async def add_stock_entry(
         db.add(balance)
     else:
         balance.qty = float(balance.qty) + float(qty_change)
+        balance.qty_cones = int(balance.qty_cones or 0) + cones_change
+        balance.qty_boxes = int(balance.qty_boxes or 0) + boxes_change
+        balance.qty_drums = int(balance.qty_drums or 0) + drums_change
 
     await db.commit()
 
@@ -152,9 +169,13 @@ async def get_all_stock_balances(db: AsyncSession, user=None):
             "location_name": r.location.name if r.location else str(r.location_id),
             "attribute_value_ids": [v.id for v in r.attribute_values],
             "qty": float(r.qty),
+            "qty_cones": int(r.qty_cones or 0),
+            "qty_boxes": int(r.qty_boxes or 0),
+            "qty_drums": int(r.qty_drums or 0),
             "batch_key": r.batch_key,
         }
-        for r in results if r.qty != 0
+        for r in results
+        if r.qty != 0 or r.qty_cones or r.qty_boxes or r.qty_drums
     ]
 
 async def get_batch_stock_balances(db: AsyncSession, requirements: list[dict]):

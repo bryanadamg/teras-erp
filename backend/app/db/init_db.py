@@ -290,6 +290,9 @@ def sync_stock_balances(db):
             if s_key not in aggregated:
                 aggregated[s_key] = {
                     "qty": 0.0,
+                    "cones": 0,
+                    "boxes": 0,
+                    "drums": 0,
                     "attr_ids": attr_ids,
                     "item_id": e.item_id,
                     "location_id": e.location_id,
@@ -297,6 +300,9 @@ def sync_stock_balances(db):
                     "b_key": b_key,
                 }
             aggregated[s_key]["qty"] += float(e.qty_change)
+            aggregated[s_key]["cones"] += int(e.qty_cones_change or 0)
+            aggregated[s_key]["boxes"] += int(e.qty_boxes_change or 0)
+            aggregated[s_key]["drums"] += int(e.qty_drums_change or 0)
 
         logger.info(f"Aggregated {len(entries)} ledger entries into {len(aggregated)} unique balance records.")
 
@@ -307,6 +313,9 @@ def sync_stock_balances(db):
                 variant_key=data["v_key"],
                 batch_key=data["b_key"],
                 qty=data["qty"],
+                qty_cones=data["cones"],
+                qty_boxes=data["boxes"],
+                qty_drums=data["drums"],
             )
             if data["attr_ids"]:
                 vals = db.query(AttributeValue).filter(AttributeValue.id.in_(data["attr_ids"])).all()

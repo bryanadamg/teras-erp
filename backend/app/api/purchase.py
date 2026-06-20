@@ -164,6 +164,9 @@ async def create_goods_receipt(
             reference_type="Goods Receipt",
             reference_id=str(gr.id),
             batch_id=batch_id,
+            cones_change=rl.qty_cones or 0,
+            boxes_change=rl.qty_boxes or 0,
+            drums_change=rl.qty_drums or 0,
         )
 
         po_line.qty_received = float(po_line.qty_received or 0) + rl.qty_received

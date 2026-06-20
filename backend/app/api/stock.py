@@ -74,6 +74,9 @@ async def create_stock_entry(
         reference_type=payload.reference_type,
         reference_id=payload.reference_id,
         attribute_value_ids=attribute_value_ids,
+        cones_change=payload.qty_cones or 0,
+        boxes_change=payload.qty_boxes or 0,
+        drums_change=payload.qty_drums or 0,
     )
 
     await audit_service.log_activity(
@@ -117,16 +120,22 @@ async def transfer_stock(
     attrs = [str(u) for u in payload.attribute_value_ids]
     ref = f"{locs[payload.from_location_id].code} -> {locs[payload.to_location_id].code}"
 
+    c = payload.qty_cones or 0
+    b = payload.qty_boxes or 0
+    d = payload.qty_drums or 0
+
     # OUT first — per-batch negative stock guard blocks over-transfer
     await stock_service.add_stock_entry(
         db, item_id=item.id, location_id=payload.from_location_id,
         qty_change=-payload.qty, reference_type="Transfer", reference_id=ref,
         attribute_value_ids=attrs, batch_id=payload.batch_id,
+        cones_change=-c, boxes_change=-b, drums_change=-d,
     )
     await stock_service.add_stock_entry(
         db, item_id=item.id, location_id=payload.to_location_id,
         qty_change=payload.qty, reference_type="Transfer", reference_id=ref,
         attribute_value_ids=attrs, batch_id=payload.batch_id,
+        cones_change=c, boxes_change=b, drums_change=d,
     )
 
     await audit_service.log_activity(

@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, Numeric, String, DateTime, Table, Column
+from sqlalchemy import ForeignKey, Numeric, String, DateTime, Table, Column, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
@@ -31,6 +31,12 @@ class StockLedger(Base):
     qty_change: Mapped[float] = mapped_column(
         Numeric(14, 4)  # precision for manufacturing
     )
+
+    # Packaging counts (no base-UOM conversion) — signed delta per movement.
+    # Parallel tallies alongside qty_change; null = not applicable for this item.
+    qty_cones_change: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    qty_boxes_change: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    qty_drums_change: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     reference_type: Mapped[str] = mapped_column(String(32))
     reference_id: Mapped[str] = mapped_column(String(64))
