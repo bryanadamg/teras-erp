@@ -4,6 +4,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from app.models.stock_ledger import StockLedger
 from app.models.stock_balance import StockBalance
 from app.models.attribute import AttributeValue
+from app.models.item import Item
 from fastapi import HTTPException
 
 def _generate_variant_key(attribute_value_ids: list[str]) -> str:
@@ -133,7 +134,7 @@ async def get_all_stock_balances(db: AsyncSession, user=None):
     # IN query instead, avoiding the cartesian blow-up. Cheaper CPU/RAM on the ARM host.
     result = await db.execute(query.options(
         selectinload(StockBalance.attribute_values),
-        joinedload(StockBalance.item),
+        joinedload(StockBalance.item).joinedload(Item.category),
         joinedload(StockBalance.location),
     ))
     results = result.scalars().all()
@@ -145,6 +146,8 @@ async def get_all_stock_balances(db: AsyncSession, user=None):
             "item_code": r.item.code if r.item else str(r.item_id),
             "item_uom": r.item.uom if r.item else "",
             "item_ends": r.item.ends if r.item else None,
+            "item_category_id": (r.item.category_id if r.item else None),
+            "item_category_name": (r.item.category.name if r.item and r.item.category else None),
             "location_id": r.location_id,
             "location_name": r.location.name if r.location else str(r.location_id),
             "attribute_value_ids": [v.id for v in r.attribute_values],

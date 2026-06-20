@@ -221,12 +221,12 @@ export default function LocationsView({
               {/* LEFT: category rail */}
               <div style={{ width: 240, flexShrink: 0, borderRight: '1px solid #b0a898', background: '#f5f4ef', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ ...xpToolbar, justifyContent: 'space-between' }}>
-                  <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, fontWeight: 'bold' }}>Categories</span>
-                  <button style={xpBtn({ padding: '1px 6px' })} onClick={() => setAddingCat(v => !v)} title="New category"><i className="bi bi-folder-plus" /></button>
+                  <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, fontWeight: 'bold' }}>Location Categories</span>
+                  <button style={xpBtn({ padding: '1px 6px' })} onClick={() => setAddingCat(v => !v)} title="New location category"><i className="bi bi-folder-plus" /></button>
                 </div>
                 {addingCat && (
                   <form onSubmit={handleAddCategory} style={{ display: 'flex', gap: 4, padding: '4px 6px', borderBottom: '1px solid #d8d4c8' }}>
-                    <input autoFocus style={{ ...xpInput, flex: 1, minWidth: 0 }} placeholder="Category name" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} />
+                    <input autoFocus style={{ ...xpInput, flex: 1, minWidth: 0 }} placeholder="Location category name" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} />
                     <button type="submit" disabled={isAddingCat} style={xpBtn({ opacity: isAddingCat ? 0.6 : 1 })}>{t('add')}</button>
                   </form>
                 )}
@@ -239,7 +239,7 @@ export default function LocationsView({
                   {catRow(UNCAT, 'Uncategorized', uncatCount, { isDrop: true, targetId: null })}
                 </div>
                 <div style={{ background: 'linear-gradient(to bottom,#e8e6df,#d5d3cc)', borderTop: '1px solid #b0a898', padding: '2px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, color: '#333' }}>
-                  <b>{totalCount}</b> locations · <b>{sortedCategories.length}</b> categories
+                  <b>{totalCount}</b> locations · <b>{sortedCategories.length}</b> location categories
                 </div>
               </div>
 
@@ -378,12 +378,12 @@ export default function LocationsView({
               {/* LEFT: category rail */}
               <div className="col-md-4 col-lg-3 border-end d-flex flex-column">
                 <div className="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
-                  <span className="text-muted text-uppercase small fw-bold">Categories</span>
-                  <button className="btn btn-sm btn-outline-secondary py-0" onClick={() => setAddingCat(v => !v)} title="New category"><i className="bi bi-folder-plus" /></button>
+                  <span className="text-muted text-uppercase small fw-bold">Location Categories</span>
+                  <button className="btn btn-sm btn-outline-secondary py-0" onClick={() => setAddingCat(v => !v)} title="New location category"><i className="bi bi-folder-plus" /></button>
                 </div>
                 {addingCat && (
                   <form onSubmit={handleAddCategory} className="input-group input-group-sm p-2 border-bottom">
-                    <input autoFocus className="form-control" placeholder="Category name" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} />
+                    <input autoFocus className="form-control" placeholder="Location category name" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} />
                     <button type="submit" className="btn btn-outline-primary" disabled={isAddingCat}>{t('add')}</button>
                   </form>
                 )}
@@ -394,7 +394,7 @@ export default function LocationsView({
                   {mCatItem(UNCAT, 'Uncategorized', uncatCount, { isDrop: true, targetId: null })}
                 </div>
                 <div className="px-3 py-2 border-top text-muted small">
-                  <b>{totalCount}</b> locations · <b>{sortedCategories.length}</b> categories
+                  <b>{totalCount}</b> locations · <b>{sortedCategories.length}</b> location categories
                 </div>
               </div>
 

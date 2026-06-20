@@ -6,6 +6,7 @@ import { useToast } from '../shared/Toast';
 
 interface StockOnHandViewProps {
     locations: any[];
+    locationCategories: any[];
     stockBalance: any[];
     attributes: any[];
     onRefresh: () => void;
@@ -13,7 +14,9 @@ interface StockOnHandViewProps {
     apiBase: string;
 }
 
-export default function StockOnHandView({ locations, stockBalance, attributes, onRefresh, authFetch, apiBase }: StockOnHandViewProps) {
+const UNCAT = '__uncat__';
+
+export default function StockOnHandView({ locations, locationCategories = [], stockBalance, attributes, onRefresh, authFetch, apiBase }: StockOnHandViewProps) {
     const { uiStyle } = useTheme();
     const { t } = useLanguage();
     const { showToast } = useToast();
@@ -22,6 +25,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
     const [batches, setBatches] = useState<any[]>([]);
     const [search, setSearch] = useState('');
     const [locationFilter, setLocationFilter] = useState('');
+    const [categoryFilter, setCategoryFilter] = useState('');
     const [itemFilter, setItemFilter] = useState('');
 
     // Transfer modal state
@@ -83,6 +87,47 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
     }, [batches]);
 
     const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
+
+    const locMap = useMemo(() => {
+        const m: Record<string, any> = {};
+        for (const l of (locations || [])) m[l.id] = l;
+        return m;
+    }, [locations]);
+    const catById = useMemo(() => {
+        const m: Record<string, string> = {};
+        for (const c of (locationCategories || [])) m[c.id] = c.name;
+        return m;
+    }, [locationCategories]);
+    const getLocCategoryId = (locId: string): string | null => locMap[locId]?.category_id || null;
+    const getLocCategoryName = (locId: string): string => {
+        const loc = locMap[locId];
+        if (!loc) return '';
+        if (loc.category_name) return loc.category_name;
+        return loc.category_id ? (catById[loc.category_id] || '') : '';
+    };
+
+    const sortedCategories = useMemo(
+        () => [...(locationCategories || [])].sort((a: any, b: any) => a.name.localeCompare(b.name)),
+        [locationCategories]
+    );
+
+    // Location dropdown narrows to the chosen category.
+    const locationOptions = useMemo(() => {
+        const ls = [...(locations || [])].sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
+        if (!categoryFilter) return ls;
+        if (categoryFilter === UNCAT) return ls.filter((l: any) => !l.category_id);
+        return ls.filter((l: any) => l.category_id === categoryFilter);
+    }, [locations, categoryFilter]);
+
+    const onCategoryChange = (val: string) => {
+        setCategoryFilter(val);
+        if (val && locationFilter) {
+            const cid = getLocCategoryId(locationFilter);
+            const matches = val === UNCAT ? !cid : cid === val;
+            if (!matches) setLocationFilter('');
+        }
+    };
+
     const getAttrValueName = (valId: string) => {
         for (const attr of attributes) {
             const v = attr.values?.find((v: any) => v.id === valId);
@@ -95,25 +140,35 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
         const s = search.toLowerCase();
         return (stockBalance || []).filter((bal: any) => {
             if (locationFilter && bal.location_id !== locationFilter) return false;
+            if (categoryFilter) {
+                const cid = getLocCategoryId(bal.location_id);
+                if (categoryFilter === UNCAT) { if (cid) return false; }
+                else if (cid !== categoryFilter) return false;
+            }
             if (itemFilter && bal.item_id !== itemFilter) return false;
             if (!s) return true;
             const name = (bal.item_name || '').toLowerCase();
             const code = (bal.item_code || '').toLowerCase();
+            const itemCat = (bal.item_category_name || '').toLowerCase();
             const loc = (bal.location_name || getLocationName(bal.location_id)).toLowerCase();
+            const cat = getLocCategoryName(bal.location_id).toLowerCase();
             const batch = bal.batch_key ? (batchMap[bal.batch_key] || bal.batch_key).toLowerCase() : '';
-            return name.includes(s) || code.includes(s) || loc.includes(s) || batch.includes(s);
+            return name.includes(s) || code.includes(s) || itemCat.includes(s) || loc.includes(s) || cat.includes(s) || batch.includes(s);
         });
-    }, [stockBalance, search, locationFilter, itemFilter, batchMap]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [stockBalance, search, locationFilter, categoryFilter, itemFilter, batchMap, locMap, catById]);
 
     const negativeCount = filtered.filter((b: any) => b.qty < 0).length;
 
     const sortCols = useMemo(() => ({
-        item:     (b: any) => b.item_name || b.item_code,
+        item:        (b: any) => b.item_name || b.item_code,
+        itemCategory: (b: any) => b.item_category_name || '',
         location: (b: any) => b.location_name || getLocationName(b.location_id),
+        category: (b: any) => getLocCategoryName(b.location_id) || '',
         batch:    (b: any) => b.batch_key ? (batchMap[b.batch_key] || b.batch_key) : null,
         qty:      (b: any) => b.qty,
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }), [batchMap, locations]);
+    }), [batchMap, locations, locMap, catById]);
     const { sorted: sortedRows, sort, toggle: toggleSort } = useSortable(filtered, sortCols);
 
     const balanceItems = useMemo(() => {
@@ -176,8 +231,26 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
                         <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#000' }}>{bal.item_name}</div>
                         <div style={{ fontSize: '10px', color: '#666', fontVariant: 'all-small-caps' }}>{bal.item_code}</div>
                     </td>
+                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px' }}>
+                        {bal.item_category_name ? (
+                            <span style={{ background: '#e4eef0', border: '1px solid #8fb3bb', padding: '0 5px', fontSize: '10px', color: '#2a464a' }}>
+                                {bal.item_category_name}
+                            </span>
+                        ) : (
+                            <span style={{ fontSize: '10px', color: '#999', fontStyle: 'italic' }}>—</span>
+                        )}
+                    </td>
                     <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', color: '#000' }}>
                         {bal.location_name || getLocationName(bal.location_id)}
+                    </td>
+                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px' }}>
+                        {getLocCategoryName(bal.location_id) ? (
+                            <span style={{ background: '#eef0e4', border: '1px solid #b7bb8f', padding: '0 5px', fontSize: '10px', color: '#4a4a2a' }}>
+                                {getLocCategoryName(bal.location_id)}
+                            </span>
+                        ) : (
+                            <span style={{ fontSize: '10px', color: '#999', fontStyle: 'italic' }}>—</span>
+                        )}
                     </td>
                     <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px' }}>
                         {bal.batch_key ? (
@@ -227,7 +300,21 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
                     <div className="fw-medium">{bal.item_name}</div>
                     <small className="text-muted font-monospace">{bal.item_code}</small>
                 </td>
+                <td>
+                    {bal.item_category_name ? (
+                        <span className="badge bg-info-subtle text-info-emphasis">{bal.item_category_name}</span>
+                    ) : (
+                        <span className="text-muted">—</span>
+                    )}
+                </td>
                 <td>{bal.location_name || getLocationName(bal.location_id)}</td>
+                <td>
+                    {getLocCategoryName(bal.location_id) ? (
+                        <span className="badge bg-secondary-subtle text-secondary-emphasis">{getLocCategoryName(bal.location_id)}</span>
+                    ) : (
+                        <span className="text-muted">—</span>
+                    )}
+                </td>
                 <td>
                     {bal.batch_key ? (
                         <span className="badge bg-warning text-dark">{batchLabel}</span>
@@ -335,9 +422,14 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
                             onChange={e => setSearch(e.target.value)}
                         />
                         <div style={xpSep} />
+                        <select style={{ ...xpSelect, width: 160 }} value={categoryFilter} onChange={e => onCategoryChange(e.target.value)}>
+                            <option value="">All Location Categories</option>
+                            {sortedCategories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            <option value={UNCAT}>Uncategorized</option>
+                        </select>
                         <select style={{ ...xpSelect, width: 150 }} value={locationFilter} onChange={e => setLocationFilter(e.target.value)}>
                             <option value="">All Locations</option>
-                            {locations.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                            {locationOptions.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
                         </select>
                         <select style={{ ...xpSelect, width: 180 }} value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
                             <option value="">All Items</option>
@@ -353,7 +445,9 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
                             <thead>
                                 <tr>
                                     <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('itemCategory')} title="Sort">Item Category<SortMark sort={sort} colKey="itemCategory" /></th>
                                     <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('category')} title="Sort">Location Category<SortMark sort={sort} colKey="category" /></th>
                                     <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('batch')} title="Sort">Lot<SortMark sort={sort} colKey="batch" /></th>
                                     <th style={xpTableHeader}>{t('attributes') || 'Attributes'}</th>
                                     <th style={{ ...xpTableHeader, textAlign: 'right', cursor: 'pointer' }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
@@ -366,7 +460,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
                                 {sortedRows.map((bal: any, i: number) => renderRow(bal, i))}
                                 {filtered.length === 0 && (
                                     <tr>
-                                        <td colSpan={8} style={{ textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
+                                        <td colSpan={10} style={{ textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
                                             No stock records found
                                         </td>
                                     </tr>
@@ -399,18 +493,25 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
                 </div>
                 <div className="card-body pb-0">
                     <div className="row g-2 mb-3">
-                        <div className="col-md-4">
+                        <div className="col-md-3">
                             <input
                                 className="form-control form-control-sm"
-                                placeholder="Search item, location, lot..."
+                                placeholder="Search item, location, category, lot..."
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
                             />
                         </div>
-                        <div className="col-md-3">
+                        <div className="col-md-2">
+                            <select className="form-select form-select-sm" value={categoryFilter} onChange={e => onCategoryChange(e.target.value)}>
+                                <option value="">All Location Categories</option>
+                                {sortedCategories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                <option value={UNCAT}>Uncategorized</option>
+                            </select>
+                        </div>
+                        <div className="col-md-2">
                             <select className="form-select form-select-sm" value={locationFilter} onChange={e => setLocationFilter(e.target.value)}>
                                 <option value="">All Locations</option>
-                                {locations.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                                {locationOptions.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
                             </select>
                         </div>
                         <div className="col-md-3">
@@ -431,7 +532,9 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
                         <thead className="table-light">
                             <tr>
                                 <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
+                                <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('itemCategory')} title="Sort">Item Category<SortMark sort={sort} colKey="itemCategory" /></th>
                                 <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
+                                <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('category')} title="Sort">Location Category<SortMark sort={sort} colKey="category" /></th>
                                 <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('batch')} title="Sort">Lot<SortMark sort={sort} colKey="batch" /></th>
                                 <th>{t('attributes') || 'Attributes'}</th>
                                 <th className="text-end" style={{ cursor: 'pointer' }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
@@ -444,7 +547,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
                             {sortedRows.map((bal: any, i: number) => renderRow(bal, i))}
                             {filtered.length === 0 && (
                                 <tr>
-                                    <td colSpan={8} className="text-center text-muted py-4">No stock records found</td>
+                                    <td colSpan={10} className="text-center text-muted py-4">No stock records found</td>
                                 </tr>
                             )}
                         </tbody>
