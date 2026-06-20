@@ -9,6 +9,7 @@ import SOTablePrintModal from './SOTablePrintModal';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useSortable, SortMark } from '../shared/xpTheme';
+import { useRouter } from 'next/navigation';
 
 export default function SalesOrderView({ items, attributes, boms, salesOrders, partners, onCreateSO, onDeleteSO, onEditSO, onUpdateSOStatus, onGenerateWO, productionRuns }: any) {
   const { showToast } = useToast();
@@ -24,6 +25,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const { companyProfile, uoms, authFetch } = useData();
 
   // Lineage (SO → PR → MO → WO → beam) trace modal
+  const router = useRouter();
   const lineageEnvBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
   const LINEAGE_API_BASE = lineageEnvBase.endsWith('/api') ? lineageEnvBase : `${lineageEnvBase}/api`;
   const [lineageSO, setLineageSO] = useState<any>(null);
@@ -45,51 +47,141 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
     }
   };
 
-  const lineageStatusColor = (s: string) => ({
-    COMPLETED: '#1a7a1a', IN_PROGRESS: '#b8860b', PENDING: '#666', CANCELLED: '#aa0000',
-  } as Record<string, string>)[s] || '#666';
+  const closeLineage = () => { setLineageSO(null); setLineageData(null); };
+  const goToMO = (code: string) => { closeLineage(); router.push(`/manufacturing-orders?mo=${encodeURIComponent(code)}`); };
+  const goToPR = (code: string) => { closeLineage(); router.push(`/production-runs?pr=${encodeURIComponent(code)}`); };
 
-  const renderLineageWO = (wo: any) => (
-    <div key={wo.id} style={{ marginLeft: 22, padding: '2px 0 2px 8px', borderLeft: '2px solid #e0e0e0' }}>
-      <span style={{ color: '#999' }}>WO </span>
-      <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{wo.code || wo.name}</span>
-      {wo.code && <span style={{ color: '#555' }}> · {wo.name}</span>}
-      {wo.work_center_name && <span style={{ color: '#777' }}> · {wo.work_center_name}</span>}
-      <span style={{ marginLeft: 6, fontWeight: 'bold', color: lineageStatusColor(wo.status) }}>{wo.status}</span>
-      {wo.qty != null && <span style={{ color: '#555' }}> · {wo.qty}</span>}
-      {(wo.beams || []).map((bm: any) => (
-        <div key={bm.id} style={{ marginLeft: 22, padding: '1px 0', color: '#333' }}>
-          <i className="bi bi-box-seam me-1" style={{ color: '#8a5a00' }}></i>
-          <span style={{ color: '#8a5a00', fontWeight: 'bold' }}>Beam </span>
-          <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{bm.batch_number}</span>
-          {bm.item_code && <span style={{ color: '#777' }}> ({bm.item_code})</span>}
-          {bm.ends != null && <span style={{ color: '#777' }}> · {bm.ends} ends</span>}
-          <span style={{ marginLeft: 6, color: bm.remaining > 0 ? '#1a7a1a' : '#999' }}>
-            {bm.remaining > 0 ? `${bm.remaining} remaining` : 'depleted'}
-          </span>
-        </div>
-      ))}
-    </div>
+  // Status → [bg, border, text] palette for lineage badges
+  const lineageStatusPalette = (s: string): [string, string, string] => (({
+    COMPLETED: ['#d6f0d6', '#8cc28c', '#1a5e1a'],
+    IN_PROGRESS: ['#fff1c2', '#e0c060', '#7a5a00'],
+    READY: ['#cfe2ff', '#9ec5fe', '#0a58ca'],
+    PENDING: ['#ececec', '#bcbcbc', '#555555'],
+    CANCELLED: ['#f8d7da', '#e0a0a0', '#aa0000'],
+  } as Record<string, [string, string, string]>)[s] || ['#ececec', '#bcbcbc', '#555555']);
+
+  const lineageStatusBadge = (s: string) => {
+    const [bg, bd, fg] = lineageStatusPalette(s);
+    return (
+      <span style={{ fontSize: '0.68rem', background: bg, border: `1px solid ${bd}`, color: fg, padding: '0 6px', borderRadius: classic ? 0 : 10, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+        {(s || 'PENDING').replace('_', ' ')}
+      </span>
+    );
+  };
+
+  // Clickable code chip (MO / PR). onClick navigates to the relevant page.
+  const lineageCodeChip = (code: string, onClick: () => void, scheme: 'mo' | 'pr') => {
+    const colors = scheme === 'pr'
+      ? { bg: '#e4f5e4', bd: '#90c090', fg: '#1a5e1a' }
+      : { bg: '#dce8ff', bd: '#9ab0e0', fg: '#003ea6' };
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        title={`Open ${code}`}
+        style={{
+          fontFamily: 'monospace', fontWeight: 'bold', fontSize: '0.72rem',
+          background: colors.bg, border: `1px solid ${colors.bd}`, color: colors.fg,
+          padding: '1px 7px', borderRadius: classic ? 0 : 4, cursor: 'pointer',
+          display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.filter = 'brightness(0.93)'; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.filter = 'none'; }}
+      >
+        <i className={`bi ${scheme === 'pr' ? 'bi-collection-play' : 'bi-box'}`} style={{ fontSize: '0.7rem' }}></i>
+        {code}
+        <i className="bi bi-box-arrow-up-right" style={{ fontSize: '0.6rem', opacity: 0.6 }}></i>
+      </button>
+    );
+  };
+
+  const lineageChip = (text: React.ReactNode, bg: string, bd: string, fg: string, icon?: string) => (
+    <span style={{ fontSize: '0.68rem', background: bg, border: `1px solid ${bd}`, color: fg, padding: '0 6px', borderRadius: classic ? 0 : 3, fontWeight: 600, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+      {icon && <i className={`bi ${icon}`} style={{ fontSize: '0.62rem' }}></i>}{text}
+    </span>
   );
 
-  const renderLineageMO = (mo: any, isComponent = false): React.ReactNode => (
-    <div key={mo.id} style={{ marginLeft: isComponent ? 22 : 0, marginTop: 4, paddingLeft: isComponent ? 8 : 0, borderLeft: isComponent ? '2px solid #cfe0ff' : 'none' }}>
-      <div>
-        <i className={`bi ${isComponent ? 'bi-diagram-2' : 'bi-box'} me-1`} style={{ color: '#0058e6' }}></i>
-        <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#0058e6' }}>{mo.code}</span>
-        <span style={{ color: '#333' }}> · {mo.item_code}{mo.item_name ? ` — ${mo.item_name}` : ''}</span>
-        <span style={{ color: '#555' }}> · {mo.qty}</span>
-        <span style={{ marginLeft: 6, fontWeight: 'bold', color: lineageStatusColor(mo.status) }}>{mo.status}</span>
-        {isComponent && (
-          <span style={{ marginLeft: 6, fontSize: '0.8em', background: '#eef4ff', border: '1px solid #b8ccf0', color: '#003ea6', padding: '0 5px', fontWeight: 'bold' }}>
-            SHARED COMPONENT{mo.dep_qty != null ? ` · ${mo.dep_qty}` : ''}
-          </span>
-        )}
+  const lineageProgressBar = (pct: number) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+      <div style={{ flex: 1, minWidth: 50, maxWidth: 130, height: 6, background: '#e4e4e4', borderRadius: 3, border: classic ? '1px solid #b0b0b0' : undefined, overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? '#2d7a2d' : '#0058e6', transition: 'width 0.3s' }} />
       </div>
-      {(mo.work_orders || []).map(renderLineageWO)}
-      {(mo.component_mos || []).map((c: any) => renderLineageMO(c, true))}
+      <span style={{ fontSize: '0.66rem', fontFamily: 'monospace', color: '#666', minWidth: 28 }}>{pct}%</span>
     </div>
   );
+
+  // Flatten an MO subtree into typed rows (mo / wo / beam) with an indent level.
+  const flattenMO = (mo: any, level: number, isComponent: boolean, out: any[]) => {
+    out.push({ kind: 'mo', level, mo, isComponent });
+    (mo.work_orders || []).forEach((wo: any) => {
+      out.push({ kind: 'wo', level: level + 1, wo });
+      (wo.beams || []).forEach((bm: any) => out.push({ kind: 'beam', level: level + 2, beam: bm }));
+    });
+    (mo.component_mos || []).forEach((c: any) => flattenMO(c, level + 1, true, out));
+    return out;
+  };
+
+  const lineageTd = (extra: React.CSSProperties = {}): React.CSSProperties => ({
+    padding: '3px 8px', borderBottom: classic ? '1px solid #e2dfd6' : '1px solid #eee',
+    verticalAlign: 'middle', ...extra,
+  });
+
+  const renderLineageRow = (row: any, key: string) => {
+    const indent = 6 + row.level * 16;
+    const itemStyle: React.CSSProperties = { fontSize: '0.68rem', color: '#999' };
+    if (row.kind === 'mo') {
+      const mo = row.mo;
+      const wos = mo.work_orders || [];
+      const done = wos.filter((w: any) => w.status === 'COMPLETED').length;
+      const pct = wos.length ? Math.round((done / wos.length) * 100) : (mo.status === 'COMPLETED' ? 100 : 0);
+      return (
+        <tr key={key} style={{ background: row.isComponent ? (classic ? '#f3f6ff' : '#f7faff') : (classic ? '#fff' : undefined) }}>
+          <td style={lineageTd({ paddingLeft: indent })}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+              {lineageCodeChip(mo.code, () => goToMO(mo.code), 'mo')}
+              {row.isComponent && lineageChip(`SHARED${mo.dep_qty != null ? ` · ${mo.dep_qty}` : ''}`, '#eef4ff', '#b8ccf0', '#003ea6', 'bi-diagram-2')}
+            </div>
+          </td>
+          <td style={lineageTd()}><span style={itemStyle}>{mo.item_code}</span></td>
+          <td style={lineageTd({ textAlign: 'right', fontFamily: 'monospace', fontSize: '0.72rem' })}>{mo.qty}</td>
+          <td style={lineageTd()}>{lineageStatusBadge(mo.status)}</td>
+          <td style={lineageTd({ minWidth: 120 })}>{lineageProgressBar(pct)}</td>
+        </tr>
+      );
+    }
+    if (row.kind === 'wo') {
+      const wo = row.wo;
+      return (
+        <tr key={key}>
+          <td style={lineageTd({ paddingLeft: indent })}>
+            <span style={{ fontSize: '0.64rem', color: '#999', marginRight: 5 }}>WO#{wo.sequence}</span>
+            <span style={{ fontFamily: 'monospace', fontSize: '0.72rem', color: '#555' }}>{wo.code || wo.name}</span>
+          </td>
+          <td style={lineageTd()}>{wo.work_center_name && lineageChip(wo.work_center_name, '#eef4ff', '#b8ccf0', '#003ea6', 'bi-gear')}</td>
+          <td style={lineageTd({ textAlign: 'right', fontFamily: 'monospace', fontSize: '0.72rem' })}>{wo.qty ?? ''}</td>
+          <td style={lineageTd()}>{lineageStatusBadge(wo.status)}</td>
+          <td style={lineageTd()}></td>
+        </tr>
+      );
+    }
+    // beam
+    const bm = row.beam;
+    return (
+      <tr key={key}>
+        <td style={lineageTd({ paddingLeft: indent })}>
+          <span title={`Beam ${bm.batch_number}`} style={{ fontSize: '0.68rem', background: '#fdf3e0', border: '1px solid #e0c08a', color: '#8a5a00', padding: '1px 7px', borderRadius: classic ? 0 : 4, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <i className="bi bi-box-seam"></i><span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{bm.batch_number}</span>
+          </span>
+        </td>
+        <td style={lineageTd()}><span style={itemStyle}>{bm.item_code}{bm.ends != null ? ` · ${bm.ends}e` : ''}</span></td>
+        <td style={lineageTd({ textAlign: 'right' })}></td>
+        <td style={lineageTd()}>
+          <span style={{ fontSize: '0.68rem', fontWeight: 'bold', color: bm.remaining > 0 ? '#1a5e1a' : '#999' }}>{bm.remaining > 0 ? `${bm.remaining} left` : 'depleted'}</span>
+        </td>
+        <td style={lineageTd()}></td>
+      </tr>
+    );
+  };
 
 
   const classic = currentStyle === 'classic';
@@ -722,27 +814,51 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                            {!lineageLoading && lineageData && (lineageData.production_runs || []).length === 0 && (
                                <p className="text-muted">No Production Runs created from this Sales Order yet. Everything produced for this order will appear here once a PR is created.</p>
                            )}
-                           {!lineageLoading && lineageData && (lineageData.production_runs || []).map((pr: any) => (
-                               <div key={pr.id} style={{ marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #e8e8e8' }}>
-                                   <div style={{ fontWeight: 'bold', fontSize: classic ? 13 : 14 }}>
-                                       <i className="bi bi-collection-play me-1" style={{ color: '#1a5e1a' }}></i>
-                                       <span style={{ fontFamily: 'monospace', color: '#1a5e1a' }}>{pr.code}</span>
-                                       <span style={{ marginLeft: 6, fontWeight: 'bold', color: lineageStatusColor(pr.status) }}>{pr.status}</span>
+                           {!lineageLoading && lineageData && (lineageData.production_runs || []).map((pr: any) => {
+                               const prMos = pr.manufacturing_orders || [];
+                               const prDone = prMos.filter((m: any) => m.status === 'COMPLETED').length;
+                               const prPct = prMos.length ? Math.round((prDone / prMos.length) * 100) : 0;
+                               const rows: any[] = [];
+                               prMos.forEach((mo: any) => flattenMO(mo, 0, false, rows));
+                               (pr.unpegged_components || []).forEach((mo: any) => flattenMO(mo, 0, true, rows));
+                               const thStyle: React.CSSProperties = {
+                                   padding: '3px 8px', fontSize: classic ? '0.66rem' : '0.7rem', fontWeight: 'bold',
+                                   color: '#555', textAlign: 'left', borderBottom: classic ? '1px solid #b8c4de' : '1px solid #dbe5f5', whiteSpace: 'nowrap',
+                               };
+                               const sectBorder = classic ? '1px solid #b8c4de' : '1px solid #dbe5f5';
+                               return (
+                               <div key={pr.id} style={{ marginBottom: 16 }}>
+                                   {/* PR section header bar */}
+                                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '5px 8px', background: classic ? '#e3ebf8' : '#eef3fb', border: sectBorder, borderBottom: 'none' }}>
+                                       {lineageCodeChip(pr.code, () => goToPR(pr.code), 'pr')}
+                                       {lineageStatusBadge(pr.status)}
+                                       <span style={{ color: '#777', fontSize: '0.72rem' }}>{prDone}/{prMos.length} MO done</span>
+                                       <div style={{ flex: 1, minWidth: 80, maxWidth: 180, height: 8, background: '#e4e4e4', borderRadius: 4, overflow: 'hidden' }}>
+                                           <div style={{ height: '100%', width: `${prPct}%`, background: prPct === 100 ? '#2d7a2d' : '#0058e6' }} />
+                                       </div>
+                                       <span style={{ fontSize: '0.7rem', fontFamily: 'monospace', color: '#555' }}>{prPct}%</span>
                                    </div>
-                                   <div style={{ marginTop: 4 }}>
-                                       {(pr.manufacturing_orders || []).length === 0 && (
-                                           <div style={{ marginLeft: 22, color: '#999', fontStyle: 'italic' }}>No manufacturing orders.</div>
-                                       )}
-                                       {(pr.manufacturing_orders || []).map((mo: any) => renderLineageMO(mo, false))}
-                                       {(pr.unpegged_components || []).length > 0 && (
-                                           <div style={{ marginTop: 4 }}>
-                                               <div style={{ color: '#777', fontStyle: 'italic', marginLeft: 0 }}>Shared components (not pegged to a root MO):</div>
-                                               {(pr.unpegged_components || []).map((mo: any) => renderLineageMO(mo, true))}
-                                           </div>
-                                       )}
-                                   </div>
+                                   {rows.length === 0 ? (
+                                       <div style={{ padding: '8px', color: '#999', fontStyle: 'italic', border: sectBorder }}>No manufacturing orders.</div>
+                                   ) : (
+                                       <table style={{ width: '100%', borderCollapse: 'collapse', border: sectBorder }}>
+                                           <thead>
+                                               <tr style={{ background: classic ? '#f0ede4' : '#f7f7f7' }}>
+                                                   <th style={thStyle}>Order / Step</th>
+                                                   <th style={thStyle}>Item</th>
+                                                   <th style={{ ...thStyle, textAlign: 'right' }}>Qty</th>
+                                                   <th style={thStyle}>Status</th>
+                                                   <th style={thStyle}>Progress</th>
+                                               </tr>
+                                           </thead>
+                                           <tbody>
+                                               {rows.map((row: any, ri: number) => renderLineageRow(row, `${pr.id}-${ri}`))}
+                                           </tbody>
+                                       </table>
+                                   )}
                                </div>
-                           ))}
+                               );
+                           })}
                        </div>
                        <div className="modal-footer" style={classic ? { padding: '6px 12px', borderTop: '1px solid #c0c0c0' } : {}}>
                            <button className={classic ? '' : 'btn btn-sm btn-secondary'} style={classic ? xpBtn() : undefined} onClick={() => { setLineageSO(null); setLineageData(null); }}>Close</button>

@@ -26,9 +26,17 @@ export default function ProductionRunsPage() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const [initialPRState, setInitialPRState] = useState<any>(null);
+    const [initialPRFilter, setInitialPRFilter] = useState<string>('');
     const consumedSOIdRef = useRef<string | null>(null);
+    const consumedPRFilterRef = useRef<string | null>(null);
 
     useEffect(() => {
+        const prCode = searchParams.get('pr');
+        if (prCode && prCode !== consumedPRFilterRef.current) {
+            consumedPRFilterRef.current = prCode;
+            setInitialPRFilter(prCode);
+            router.replace('/production-runs');
+        }
         const soId = searchParams.get('sales_order_id');
         const action = searchParams.get('action');
         if (action === 'create_pr' && soId !== consumedSOIdRef.current) {
@@ -176,6 +184,7 @@ export default function ProductionRunsPage() {
             setPrPage={setPrPage}
             initialPRState={initialPRState}
             onClearInitialPRState={handleClearInitialPRState}
+            initialPRFilter={initialPRFilter}
             initialTab="production-runs"
             showTabSwitcher={false}
         />

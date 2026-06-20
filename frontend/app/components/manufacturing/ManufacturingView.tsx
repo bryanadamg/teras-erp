@@ -52,6 +52,7 @@ export default function ManufacturingView({
     initialTab,
     showTabSwitcher = true,
     initialMOFilter,
+    initialPRFilter,
 }: any) {
   const { showToast } = useToast();
   const router = useRouter();
@@ -123,12 +124,16 @@ export default function ManufacturingView({
   });
   // Local search inputs (debounced into context, which drives server-side paginated search)
   const [moCodeFilter, setMoCodeFilter] = useState<string>(initialMOFilter || moSearch || '');
-  const [prSearch, setPrSearch] = useState<string>(prSearchCtx || '');
+  const [prSearch, setPrSearch] = useState<string>(initialPRFilter || prSearchCtx || '');
   const [editAttrsModal, setEditAttrsModal] = useState<{ mo: any; selected: string[] } | null>(null);
 
   useEffect(() => {
       if (initialMOFilter) setMoCodeFilter(initialMOFilter);
   }, [initialMOFilter]);
+
+  useEffect(() => {
+      if (initialPRFilter) setPrSearch(initialPRFilter);
+  }, [initialPRFilter]);
 
   // Debounce MO search input → context (resets to page 1 + refetches matching page)
   useEffect(() => {
@@ -1619,7 +1624,22 @@ export default function ManufacturingView({
                                                   return (
                                                       <React.Fragment key={pr.id}>
                                                       <tr style={{ background: rowBg }}>
-                                                          <td style={{ ...tdStyle, fontFamily: 'monospace', fontWeight: 'bold' }}>{pr.code}</td>
+                                                          <td style={{ ...tdStyle, fontFamily: 'monospace', fontWeight: 'bold' }}>
+                                                              <div>{pr.code}</div>
+                                                              {pr.sales_order_id && (
+                                                                  <div style={{ marginTop: 3 }}>
+                                                                      <span style={currentStyle === 'classic' ? {
+                                                                          fontSize: '8px', background: '#dce8ff', border: '1px solid #9ab0e0',
+                                                                          color: '#003ea6', padding: '0 5px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', fontFamily: 'Tahoma, Arial, sans-serif',
+                                                                      } : {
+                                                                          fontSize: '0.65rem', background: '#cfe2ff', border: '1px solid #9ec5fe',
+                                                                          color: '#0a58ca', padding: '1px 6px', borderRadius: 3, fontWeight: 'bold', display: 'inline-flex', alignItems: 'center',
+                                                                      }} title="Originating Sales Order">
+                                                                          <i className="bi bi-receipt me-1" style={{ fontSize: currentStyle === 'classic' ? '7px' : undefined }}></i>SO: {pr.sales_order_code || '—'}
+                                                                      </span>
+                                                                  </div>
+                                                              )}
+                                                          </td>
                                                           <td style={tdStyle}>
                                                               <div style={{ fontWeight: 'bold', fontSize: currentStyle === 'classic' ? '11px' : undefined }}>
                                                                   {pr.bom_entries?.length > 0
