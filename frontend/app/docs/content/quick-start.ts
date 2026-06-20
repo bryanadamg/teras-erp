@@ -39,11 +39,11 @@ export const quickStartPage: DocPage = {
         },
         {
             heading: '7. Manufacture',
-            body: 'Open Manufacturing → Manufacturing Orders to see MOs created from sales or planned production. Run the BOM Automator to generate child Work Orders for sub-assemblies. Track each WO through the shop floor — operators can scan the QR code on the printed work order at the /scanner terminal to update status in real-time.',
+            body: 'Open Manufacturing to see Manufacturing Orders created from sales or planned production (use a Production Run, or the BOM Automator, to generate the child MOs for sub-assemblies). Create the Work Orders for each routing step and dispatch them to the floor — operators scan the QR code on the printed Work Order at the /scanner terminal to log completions in real-time. Completing a Work Order deducts the components it consumes and posts its output.',
         },
         {
             heading: '8. Receive Purchased Goods',
-            body: 'When components arrive from a supplier, open the Purchase Order and click Receive. This creates a stock ledger entry and increments the balance at the target location automatically.',
+            body: 'When components arrive from a supplier, open the Purchase Order and click Receive. Record the quantity (with any packaging counts and supplier lot), and capture the supplier\'s delivery note — number, date, and a scanned attachment. This creates a stock ledger entry and increments the balance at the target location automatically.',
         },
     ],
 };

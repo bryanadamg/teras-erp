@@ -3,17 +3,40 @@ import { DocPage } from '../docsContent';
 export const manufacturingPage: DocPage = {
     slug: 'manufacturing',
     title: 'Manufacturing',
-    subtitle: 'Plan, execute, and track production with Manufacturing Orders, Work Orders, and Production Runs.',
-    badges: ['Manufacturing Orders', 'Work Orders', 'Production Runs', 'Variant Consolidation', 'MES', 'Target vs Actual'],
+    subtitle: 'Plan, execute, and track production with Production Runs, Manufacturing Orders, and Work Orders.',
+    badges: ['Production Runs', 'Manufacturing Orders', 'Work Orders', 'Variant Consolidation', 'Beaming', 'Lot Tracking', 'MES'],
     sections: [
         {
             heading: 'Three-Tier Production Model',
-            body: 'Every production campaign in Teras ERP follows a three-tier hierarchy:',
+            body: 'Every production campaign in Teras ERP follows a three-tier hierarchy — Production Run → Manufacturing Order → Work Order:',
             steps: [
-                'Production Run — the top-level planning container. Groups one or more BOMs and their Manufacturing Orders into a single scheduled batch. Provides a consolidated material requirements view across all orders in the run.',
-                'Manufacturing Order (MO) — one production job for a specific finished good and quantity. Linked to a BOM. Carries status, timestamps, and material availability checks. An MO cannot start until all its upstream component MOs are complete.',
-                'Work Order (WO) — a single routing step within an MO (e.g. "Weave", "Dye", "QC"). Tracks operator, planned vs. actual duration, and operation-level status. Work Orders do not move stock — stock movement happens at MO completion.',
+                'Production Run (PR) — the top-level planning container. A run carries one or more BOM entries (one per item, colour, or size variant) and, on creation, generates the finished-goods Manufacturing Orders and consolidates shared sub-assembly demand across every entry. It provides a single material requirements view across the whole batch.',
+                'Manufacturing Order (MO) — the production plan for one finished good and quantity, linked to a BOM. It snapshots its BOM lines at creation time so later BOM edits do not disturb in-flight orders, carries status and target/actual timestamps, and is the level managers monitor.',
+                'Work Order (WO) — the execution-level task card under an MO, one per routing step (e.g. "Beaming", "Weaving", "Dyeing", "QC"). Work Orders are created and dispatched to the floor manually, are logged independently of one another, and are the unit that moves stock: completing a WO deducts the components it consumes and posts its output.',
             ],
+            callout: {
+                type: 'info',
+                text: 'Work Orders carry the QR code that operators scan on the shop floor. Manufacturing Orders are supervisory and never carry a QR code.',
+            },
+        },
+        {
+            heading: 'Work Orders — Floor Execution',
+            body: 'Work Orders are independent task cards, not an automatically-generated routing chain. They are created manually for the steps a run needs, can be created while the parent MO is still PENDING, and can be logged in any order — there is no sequential gate between WOs on the same MO.',
+            items: [
+                'Each WO defines its own input and output stock locations (defaulted from its work centre).',
+                'Completing a WO deducts the BOM components it consumes from the input location and posts its output to the output location.',
+                'Lot-tracked materials require a specific lot to be selected at consumption; lot-tracked or beam outputs auto-create a new output lot (see Lot Tracking and Beaming).',
+                'A WO advances to IN_PROGRESS automatically on its first logged completion.',
+                'WO cards can be printed individually or bulk-printed for an entire run, each with a QR code, component list, and routing detail.',
+            ],
+        },
+        {
+            heading: 'Work Centres, Groups & Locations',
+            body: 'Work centres are defined under Settings → Routing. Each has a type (GENERAL, BEAMING, WEAVING, DYEING, SETTING, …) and optional default input/output stock locations that flow onto the Work Orders assigned to it. Work centres can be organised into parent/child groups, and the Work Order list can be filtered by work-centre group to give each floor area its own queue.',
+            callout: {
+                type: 'info',
+                text: 'Assigning a WO to a DYEING work centre auto-resolves the matching active dye recipe for the MO\'s attributes and pre-creates a pending Dyeing Run — see the Dyeing & Setting page.',
+            },
         },
         {
             heading: 'Multi-BOM Production Runs',
@@ -32,7 +55,7 @@ export const manufacturingPage: DocPage = {
             ],
             callout: {
                 type: 'tip',
-                text: 'Consolidated component MOs are marked as shared. A root MO cannot be started until all its shared component MOs reach Completed status — enforcing the correct material flow sequence.',
+                text: 'Consolidated component MOs are marked as shared. Prepare and complete the shared component MOs first so the base material exists in stock — a root MO can only be started once its components are available (the start transition checks stock and blocks on a shortfall).',
             },
         },
         {
@@ -51,21 +74,28 @@ export const manufacturingPage: DocPage = {
                     ['**Consolidated**', '—', '**36**', '**18**', '**18**'],
                 ],
             },
-            body: 'Result: one consolidated MO for Item-B (qty 36) instead of two separate orders. Operators prepare Item-B once. The XL and L finishing orders can only start after the shared Item-B MO is complete.',
         },
         {
-            heading: 'Case 2 — Colour Variants via Dyeing',
-            body: 'Item-A is a base fabric with one BOM and no colour attribute. Colour variants (e.g. Black-218, Red-X) are produced by running Item-A through the Dyeing & Setting process with the matching dye recipe. They are not separate BOMs — they are the same item with a colour attribute value applied.',
+            heading: 'Case 2 — Colour Variants Sharing a Greige Base',
+            body: 'Item-A has colour variants (Black-218, Red-X). Each colour has its own BOM that adds only the variant-specific colorant on top of the same shared greige/base item, Item-B. There is one greige BOM (BOM-B) and one recipe for it — no duplicated base BOM per colour.',
+            code:
+`BOM-A-Black-218  →  Item-A [Black-218]
+  ├─ Item-B          80%   [shared greige — BOM-B]
+  └─ Black-218 Dye   5 m   [variant-specific]
+
+BOM-A-Red-X      →  Item-A [Red-X]
+  ├─ Item-B          80%   [same shared BOM-B]
+  └─ Red-X Dye       5 m   [variant-specific]`,
             callout: {
                 type: 'info',
-                text: 'When creating a Production Run for multiple colours, add one BOM entry per colour. Each entry uses the same base BOM. Set the Colour selector on each entry to the target colour (e.g. Black-218). The system creates one root MO per colour entry, all using the same base BOM. Sub-assembly demand is consolidated in Pass 2 — base material is prepared once for the whole batch. Each root MO carries the colour attribute so stock credits correctly to Item-A [Black-218] and Item-A [Red-X] separately.',
+                text: 'Add one BOM entry per colour to the Production Run. Pass 2 groups the shared greige (Item-B via BOM-B) under one identical key across every colour entry, so a single consolidated Item-B component MO is created for the whole batch. Each root MO carries its colour attribute, so finished goods credit to Item-A [Black-218] and Item-A [Red-X] separately.',
             },
             table: {
-                headers: ['PR Entry', 'BOM', 'Colour attr', 'Root MO produced'],
+                headers: ['PR Entry', 'Variant BOM', 'Shared greige', 'Root MO produced'],
                 rows: [
-                    ['Entry 1', 'BOM-Item-A', 'Black-218', 'Item-A [Black-218]'],
-                    ['Entry 2', 'BOM-Item-A', 'Red-X',     'Item-A [Red-X]'],
-                    ['Consolidated', 'BOM-Item-A sub-components', '—', 'Shared component MO'],
+                    ['Entry 1', 'BOM-A-Black-218', 'BOM-B (Item-B)', 'Item-A [Black-218]'],
+                    ['Entry 2', 'BOM-A-Red-X',     'BOM-B (Item-B)', 'Item-A [Red-X]'],
+                    ['Consolidated', '—', 'BOM-B (Item-B)', 'One shared Item-B component MO'],
                 ],
             },
         },
@@ -74,18 +104,28 @@ export const manufacturingPage: DocPage = {
             body: 'Expanding a Production Run row reveals a live material requirements panel. This aggregates component demand across all Manufacturing Orders in the run, compares totals against current stock, and highlights shortfalls. A per-MO breakdown shows each order\'s contribution to every line.',
         },
         {
+            heading: 'Beaming & Beam Stock',
+            body: 'For woven products, warp beams are planned and tracked as stock lots:',
+            items: [
+                'Beam Planning Modal — bulk-create BEAMING Work Orders for a run from one screen, including repeat rows for multi-beam warps.',
+                'Beam birth — completing a BEAMING WO creates a beam lot (a Batch) carrying its warp ends and the producing WO. The beam number is auto-generated (BM-YYYYMMDD-NNNN) or entered manually, and is surfaced so the operator can label the physical beam.',
+                'Beam consumption — a WEAVING WO selects a beam lot to consume; the matching material line is deducted with full lot-consumption traceability.',
+                'Remaining beam weight is read from the materialised stock balance — the ledger is the single source of truth, with no parallel counter. Warp-ends fields surface on the BOM and MO throughout.',
+            ],
+        },
+        {
             heading: 'MO Status Flow',
-            body: 'Manufacturing Orders follow a strict status progression:',
+            body: 'Manufacturing Orders follow a status progression:',
             steps: [
-                'PENDING — MO created, not yet started. Material availability is checked on every list load.',
-                'IN_PROGRESS — Production has started. All upstream shared component MOs must be COMPLETED before this transition is allowed. Stock is checked at this point; insufficient material blocks the transition.',
-                'COMPLETED — Output posted to stock. Raw material components deducted from source location. Finished goods credited to output location. Linked Sales Order is set to READY if applicable.',
+                'PENDING — MO created, not yet started. Material availability is checked on every list load. MO attributes (e.g. colour) can still be edited at this stage.',
+                'IN_PROGRESS — Production has started. The start transition checks component stock at the source location; an insufficient balance blocks the transition.',
+                'COMPLETED — Output and component movements are owned by the Work Order completions logged against the MO. When a root MO completes, its linked Sales Order is set to READY.',
                 'CANCELLED — No stock movement. MO withdrawn before completion.',
             ],
         },
         {
             heading: 'Incremental Completion',
-            body: 'Manufacturing Orders support incremental completion — operators log partial output quantities without closing the MO. Each completion entry immediately deducts raw material components proportionally from stock and credits finished goods output. The MO auto-completes when cumulative logged output reaches the ordered quantity.',
+            body: 'Production is logged incrementally through the Manufacturing Order\'s Work Orders — operators record partial output without closing the order. Each completion entry immediately deducts the consumed components from stock and posts the produced quantity (and any output lot/beam). Cumulative logged output drives MO progress toward the ordered quantity.',
         },
         {
             heading: 'Dual-Track Timestamps',
@@ -95,27 +135,32 @@ export const manufacturingPage: DocPage = {
                 rows: [
                     ['Target Start', 'Planner at creation', 'Planned production start date'],
                     ['Target End',   'Planner at creation', 'Planned production completion date'],
-                    ['Actual Start', 'System on IN_PROGRESS', 'Real production start timestamp'],
-                    ['Actual End',   'System on COMPLETED',   'Real completion timestamp'],
+                    ['Actual Start', 'System on first activity', 'Real production start timestamp'],
+                    ['Actual End',   'System on completion',   'Real completion timestamp'],
                 ],
             },
         },
         {
+            heading: 'Sales Order Lineage',
+            body: 'Production traces back to the originating Sales Order. A Production Run, its MOs, its WOs, and the beams they produce all carry the SO reference, surfaced as SO badges across the PR, MO, and batch screens and as a dedicated Lineage view on the Sales Order. For shared component MOs (which have no direct SO), the beam falls back to the Production Run\'s Sales Order so origin is still traceable.',
+        },
+        {
             heading: 'Shop Floor QR Terminal',
-            body: 'The /scanner page provides a mobile-optimised operator interface. Each printed MO includes a QR code. Scanning a PENDING MO starts it. Scanning an IN_PROGRESS MO opens the completion entry form. Status changes broadcast to all connected users via WebSocket.',
+            body: 'The /scanner page provides a mobile-optimised operator interface. Each printed Work Order carries a QR code; scanning it opens that WO\'s completion entry form, where the operator logs produced quantity, picks consumed lots, and (for beams) records the beam number. Status changes broadcast to all connected users via WebSocket.',
         },
         {
             heading: 'Key Actions',
             items: [
-                'Create Manufacturing Orders manually or from Sales Order lines',
                 'Create Production Runs with multiple BOM entries to batch colour and size variants together',
-                'Shared sub-assemblies are automatically consolidated into one component MO per unique sub-BOM',
+                'Shared sub-assemblies (incl. shared greige) are automatically consolidated into one component MO per unique sub-BOM',
                 'View aggregated material requirements per Production Run with per-MO contribution breakdown',
-                'Log incremental completions to record partial output and trigger proportional material deductions',
-                'Track MO status through PENDING → IN_PROGRESS → COMPLETED with upstream dependency enforcement',
+                'Create Work Orders manually for the routing steps a run needs, each with its own input/output location',
+                'Plan beaming in bulk and track each beam as a stock lot from beaming through weaving',
+                'Log incremental completions on Work Orders to post output and deduct components, with lot selection where required',
+                'Track MO status through PENDING → IN_PROGRESS → COMPLETED with a stock-availability check at start',
                 'Monitor target vs. actual timestamps to measure schedule variance',
-                'Scan QR codes at the shop floor terminal to update MO status from mobile devices',
-                'Print individual MO and WO sheets with QR codes, component lists, and routing steps',
+                'Scan WO QR codes at the shop floor terminal to log completions from mobile devices',
+                'Trace any production back to its originating Sales Order',
             ],
         },
     ],

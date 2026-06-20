@@ -12,7 +12,12 @@ export const settingsPage: DocPage = {
         },
         {
             heading: 'Routing & Work Centres',
-            body: 'Define the manufacturing operations (routing steps) and the work centres where they are performed under Settings → Routing. Examples: "Cut" at work centre "Cutting Room", "Sew" at work centre "Sewing Floor". Routing steps are assigned to BOMs and appear on printed Work Orders to guide shop floor operators.',
+            body: 'Define the manufacturing operations (routing steps) and the work centres where they are performed under Settings → Routing. Examples: "Weave" at work centre "Weaving Floor", "Dye" at work centre "Dye House". Routing steps are assigned to BOMs and appear on printed Work Orders to guide shop floor operators.',
+            items: [
+                'Each work centre has a type (GENERAL, BEAMING, WEAVING, DYEING, SETTING, …) that drives type-specific behaviour — e.g. a DYEING centre auto-resolves dye recipes for its Work Orders.',
+                'Work centres can define default input and output stock locations, which flow onto the Work Orders assigned to them.',
+                'Work centres can be organised into parent/child groups, and the Work Order list can be filtered by group so each floor area gets its own queue.',
+            ],
         },
         {
             heading: 'Database Infrastructure',
@@ -24,13 +29,14 @@ export const settingsPage: DocPage = {
         },
         {
             heading: 'Locations Administration',
-            body: 'Physical warehouse locations are managed under Settings → Locations (or Stock → Locations). You can add, rename, and deactivate locations. Deactivated locations are hidden from stock entry pickers but their historical ledger entries are retained.',
+            body: 'Physical warehouse locations are managed under Settings → Locations (or Stock → Locations) on a master-detail screen. You can add, rename, and deactivate locations, and group them under location categories (drag a location onto a category to reassign). Deactivated locations are hidden from stock entry pickers but their historical ledger entries are retained.',
         },
         {
             heading: 'Key Actions',
             items: [
                 'Set company name, address, and logo for printed documents',
-                'Define routing steps and work centres for BOM and WO operations',
+                'Define routing steps and work centres (with type, input/output locations, and groups) for BOM and WO operations',
+                'Group warehouse locations under location categories',
                 'Configure and hot-swap database connections without a restart',
                 'Take point-in-time database snapshots for backup and recovery',
                 'Change the UI theme (Modern / Compact / Classic)',

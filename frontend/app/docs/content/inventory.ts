@@ -11,6 +11,10 @@ export const inventoryPage: DocPage = {
             body: 'An Item is any product, raw material, component, or sub-assembly tracked by the system. Each item has a unique code, a description, a category, and a unit of measure. Items can be marked active or inactive — inactive items are hidden from operational screens but retained for historical records.',
         },
         {
+            heading: 'Lot Tracking',
+            body: 'An item can be flagged lot-tracked. Once set, the system captures a lot (UI label "Lot") on every movement — supplier lots at goods receipt, auto-created output lots at Work Order completion, and a lot selection on transfers and consumption — enabling full backward genealogy. See Stock & Locations for the end-to-end lot flow.',
+        },
+        {
             heading: 'Bulk Import',
             body: 'Items can be imported in bulk via the Excel upload feature on the Inventory page. The import template maps columns to item fields. Validation errors are surfaced per-row before any data is committed.',
         },
@@ -38,6 +42,7 @@ export const inventoryPage: DocPage = {
             heading: 'Key Actions',
             items: [
                 'Create, edit, and deactivate items',
+                'Flag items as lot-tracked for full lot genealogy',
                 'Assign attributes to an item and generate variant combinations',
                 'Assign category and UOM',
                 'Define UOMs with custom conversion factors',

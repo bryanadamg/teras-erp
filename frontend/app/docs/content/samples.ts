@@ -12,7 +12,7 @@ export const samplesPage: DocPage = {
         },
         {
             heading: 'Sample Requests',
-            body: 'A Sample Request is raised when a customer or internal team needs a physical sample produced. It contains the item specification, requested quantity, target delivery date, and a reference to any associated Sales Order. Sample Requests are editable at any stage before approval, allowing the specification to be refined as development progresses.',
+            body: 'A Sample Request is raised when a customer or internal team needs a physical sample produced. It contains the item specification, requested quantity, target delivery date, the materials to use (selected from the item catalogue rather than typed free-form), and a reference to any associated Sales Order. Sample Requests are editable at any stage before approval, allowing the specification to be refined as development progresses.',
         },
         {
             heading: 'Design Attachments',

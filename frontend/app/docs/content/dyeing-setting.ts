@@ -4,7 +4,7 @@ export const dyeingSettingPage: DocPage = {
     slug: 'dyeing-setting',
     title: 'Dyeing & Setting',
     subtitle: 'Manage dye recipes, execute dyeing runs, and record heat-setting operations — from Kartu Celup to batch output.',
-    badges: ['Dye Recipes', 'Dyeing Runs', 'Setting Runs', 'Kartu Celup', 'Bak Cuci', 'Chemical Tracking', 'Batch Traceability'],
+    badges: ['Lab Dips', 'Dye Recipes', 'Dyeing Runs', 'Setting Runs', 'Kartu Celup', 'Bak Cuci', 'Chemical Tracking', 'Batch Traceability'],
     sections: [
         {
             heading: 'Overview',
@@ -24,8 +24,26 @@ export const dyeingSettingPage: DocPage = {
             ],
         },
         {
+            heading: 'Lab Dip Requests',
+            body: 'Before a colour goes into production it passes through a lab dip — a colour-matching approval gate, found in the Dyeing & Setting group of the sidebar. A Lab Dip Request (code LD-YYYY-#####) is raised against a customer, a base item, and a colour standard (e.g. a Pantone reference), and tracks colour submissions through approval.',
+            steps: [
+                'Raise a request with one or more colour lines, choosing the request type (New, Resubmit, or Strike-off).',
+                'Each colour line is reviewed per submission round and marked Approved, Rejected, or Resubmit; approved lines lock.',
+                'The request status moves Draft → Submitted → Approved / Rejected.',
+                'On approval, the request ties to the dye recipe that achieves the matched colour — the link from an approved colour to the recipe used in production.',
+            ],
+            callout: {
+                type: 'tip',
+                text: 'Lab dips mirror the Sample Request approval pattern but live under Dyeing & Setting. They establish which recipe a colour maps to before any Production Run is planned.',
+            },
+        },
+        {
+            heading: 'Work Order Integration',
+            body: 'Assigning a Work Order to a DYEING work centre wires the dyeing workflow automatically: the system finds the active dye recipe whose attribute values match the Manufacturing Order\'s attributes, sets it as the WO\'s planned recipe, and pre-creates a PENDING Dyeing Run with the substrate quantity already filled in. Both steps are hard requirements — the MO must have attributes and a matching active recipe must exist.',
+        },
+        {
             heading: 'Dye Recipes',
-            body: 'A Dye Recipe is the standard formula for achieving a specific colour on a specific substrate. It is master data — not tied to any single job — and can be referenced by many dyeing runs.',
+            body: 'A Dye Recipe is the standard formula for achieving a specific colour on a specific substrate. It is master data — not tied to any single job — and can be referenced by many dyeing runs. A recipe carries the attribute values (e.g. Colour) that bind it to matching Manufacturing Orders, and its code is editable.',
             table: {
                 headers: ['Field', 'Purpose'],
                 rows: [
@@ -160,7 +178,9 @@ export const dyeingSettingPage: DocPage = {
         {
             heading: 'Key Actions',
             items: [
+                'Raise lab dip requests and approve colour submissions to tie a matched colour to its dye recipe',
                 'Create reusable dye recipes with chemical lines (g/L or g/100kg), Bak Cuci wash baths, and finishing steps',
+                'Let a DYEING work order auto-resolve its recipe and pre-create a pending dyeing run from the MO attributes',
                 'Print a Kartu Celup (dyeing recipe card) directly from the recipe detail view',
                 'Create dyeing runs with full job metadata matching the physical Kartu Celup header',
                 'Start and complete dyeing runs with auto-scaled planned chemical quantities from the recipe',

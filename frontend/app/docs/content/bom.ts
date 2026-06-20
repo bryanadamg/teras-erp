@@ -100,7 +100,7 @@ BOM-B            →  Item-B  [no variant — single shared recipe]
         },
         {
             heading: 'BOM Automator',
-            body: 'The BOM Automator analyses a Manufacturing Order\'s BOM tree and automatically generates child Work Orders for every sub-assembly level. It matches component attribute values to the correct child BOMs and creates a linked MO hierarchy in a single operation — eliminating the need to create sub-assembly orders one by one.',
+            body: 'The BOM Automator analyses a BOM tree and automatically generates the child Manufacturing Orders for every sub-assembly level. It matches component attribute values to the correct child BOMs and creates a linked MO hierarchy in a single operation — eliminating the need to create sub-assembly orders one by one. Automator defaults follow each item\'s own unit of measure, and the wizard\'s settings are saved per user.',
         },
         {
             heading: 'Key Actions',
@@ -115,7 +115,7 @@ BOM-B            →  Item-B  [no variant — single shared recipe]
                 'Toggle root-only view to hide sub-assembly BOMs from the list',
                 'Print a BOM sheet for any level of the assembly tree',
                 'Attach routing steps with work centre assignments',
-                'Run the BOM Automator to generate child Work Orders for all sub-assembly levels',
+                'Run the BOM Automator to generate child Manufacturing Orders for all sub-assembly levels',
             ],
         },
     ],
