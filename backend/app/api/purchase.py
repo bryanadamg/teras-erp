@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
+from pathlib import Path
+import shutil
 from app.db.session import get_async_db
 from app.schemas import PurchaseOrderCreate, PurchaseOrderResponse, GoodsReceiptCreate, GoodsReceiptResponse
 from app.models.purchase import PurchaseOrder, PurchaseOrderLine
@@ -108,6 +110,8 @@ async def create_goods_receipt(
         location_id=recv_location_id,
         receipt_date=payload.receipt_date or datetime.utcnow(),
         notes=payload.notes,
+        delivery_note_number=(payload.delivery_note_number or "").strip() or None,
+        delivery_note_date=payload.delivery_note_date,
         created_by_id=current_user.id,
     )
     db.add(gr)
@@ -190,6 +194,50 @@ async def create_goods_receipt(
         select(GoodsReceipt)
         .options(selectinload(GoodsReceipt.lines).selectinload(GoodsReceiptLine.item))
         .filter(GoodsReceipt.id == gr.id)
+    )
+    return final.scalars().first()
+
+
+@router.post("/receipts/{receipt_id}/delivery-note", response_model=GoodsReceiptResponse)
+async def upload_delivery_note(
+    receipt_id: uuid.UUID,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Attach a scanned supplier delivery note (Surat Jalan) PDF/image to a goods receipt."""
+    result = await db.execute(select(GoodsReceipt).filter(GoodsReceipt.id == receipt_id))
+    gr = result.scalars().first()
+    if not gr:
+        raise HTTPException(status_code=404, detail="Goods receipt not found")
+
+    allowed = {".pdf", ".png", ".jpg", ".jpeg"}
+    ext = Path(file.filename).suffix.lower() if file.filename else ".pdf"
+    if ext not in allowed:
+        raise HTTPException(status_code=400, detail="Delivery note must be a PDF or image (pdf/png/jpg)")
+
+    upload_dir = Path("static/receipts")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    file_path = upload_dir / f"{receipt_id}_dn{ext}"
+    with file_path.open("wb") as buf:
+        shutil.copyfileobj(file.file, buf)
+
+    gr.delivery_note_url = f"/static/receipts/{receipt_id}_dn{ext}"
+    await db.commit()
+
+    await audit_service.log_activity(
+        db,
+        user_id=current_user.id,
+        action="UPDATE",
+        entity_type="GoodsReceipt",
+        entity_id=str(receipt_id),
+        details=f"Attached delivery note {file.filename}",
+    )
+
+    final = await db.execute(
+        select(GoodsReceipt)
+        .options(selectinload(GoodsReceipt.lines).selectinload(GoodsReceiptLine.item))
+        .filter(GoodsReceipt.id == receipt_id)
     )
     return final.scalars().first()
 

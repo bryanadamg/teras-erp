@@ -781,6 +781,8 @@ class GoodsReceiptCreate(BaseModel):
     receipt_date: datetime | None = None
     notes: str | None = None
     location_id: UUID | None = None  # receiving warehouse; falls back to PO target location
+    delivery_note_number: str | None = None  # supplier Surat Jalan no.
+    delivery_note_date: date | None = None    # date on the supplier DN
     lines: list[GoodsReceiptLineCreate]
 
 class GoodsReceiptLineResponse(BaseModel):
@@ -804,6 +806,9 @@ class GoodsReceiptResponse(BaseModel):
     location_id: UUID | None = None
     receipt_date: datetime
     notes: str | None = None
+    delivery_note_number: str | None = None
+    delivery_note_date: date | None = None
+    delivery_note_url: str | None = None
     created_at: datetime
     lines: list[GoodsReceiptLineResponse] = []
     class Config:

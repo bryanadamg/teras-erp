@@ -1,9 +1,9 @@
 import uuid
-from sqlalchemy import String, ForeignKey, Numeric, DateTime, Text, Integer
+from sqlalchemy import String, ForeignKey, Numeric, DateTime, Text, Integer, Date
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
-from datetime import datetime
+from datetime import datetime, date
 
 
 class GoodsReceipt(Base):
@@ -15,6 +15,10 @@ class GoodsReceipt(Base):
     location_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True)
     receipt_date: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Supplier delivery note (Surat Jalan) — supplier's shipment document.
+    delivery_note_number: Mapped[str | None] = mapped_column(String(64), nullable=True)  # free-text, supplier's own number
+    delivery_note_date: Mapped[date | None] = mapped_column(Date, nullable=True)  # date printed on the DN (ship date)
+    delivery_note_url: Mapped[str | None] = mapped_column(String(255), nullable=True)  # scanned DN attachment (PDF)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     created_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
 

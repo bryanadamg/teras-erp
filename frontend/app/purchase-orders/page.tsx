@@ -17,19 +17,32 @@ export default function PurchaseOrdersPage() {
         if (res.ok) fetchData();
     };
 
-    const handleCreateReceipt = async (poId: string, receiptPayload: any) => {
+    const handleCreateReceipt = async (poId: string, receiptPayload: any, dnFile?: File | null) => {
         const res = await authFetch(`${API_BASE}/purchase-orders/${poId}/receipts`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(receiptPayload),
         });
-        if (res.ok) {
-            showToast('Goods received into stock', 'success');
-            fetchData();
-        } else {
+        if (!res.ok) {
             const err = await res.json().catch(() => ({}));
             showToast(err.detail || 'Failed to record receipt', 'error');
+            return;
         }
+        // Receipt booked. Attach the delivery-note file in a second step if one was picked.
+        if (dnFile) {
+            const receipt = await res.json().catch(() => null);
+            if (receipt?.id) {
+                const fd = new FormData();
+                fd.append('file', dnFile);
+                const up = await authFetch(`${API_BASE}/purchase-orders/receipts/${receipt.id}/delivery-note`, {
+                    method: 'POST',
+                    body: fd,
+                });
+                if (!up.ok) showToast('Goods received, but delivery note upload failed', 'error');
+            }
+        }
+        showToast('Goods received into stock', 'success');
+        fetchData();
     };
 
     const handleClosePO = async (id: string) => {

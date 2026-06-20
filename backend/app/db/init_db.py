@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 def ensure_static_dirs():
     """Ensure required static directories exist."""
     try:
-        for subdir in ("static/logos", "static/samples", "static/boms"):
+        for subdir in ("static/logos", "static/samples", "static/boms", "static/receipts"):
             p = Path(subdir)
             if not p.exists():
                 p.mkdir(parents=True, exist_ok=True)

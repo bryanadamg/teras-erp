@@ -17,6 +17,8 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
   const [statusFilter, setStatusFilter] = useState('ALL');
   const { uiStyle: currentStyle } = useTheme();
   const classic = currentStyle === 'classic';
+  // Backend origin for static files (delivery-note attachments live at /static, not /api)
+  const STATIC_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '');
 
   // Receipt modal state
   const [receiptTarget, setReceiptTarget] = useState<any>(null);
@@ -28,6 +30,9 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
   const [receiptDate, setReceiptDate] = useState('');
   const [receiptNotes, setReceiptNotes] = useState('');
   const [receiptLocationId, setReceiptLocationId] = useState('');
+  const [receiptDnNumber, setReceiptDnNumber] = useState('');
+  const [receiptDnDate, setReceiptDnDate] = useState('');
+  const [receiptDnFile, setReceiptDnFile] = useState<File | null>(null);
 
   // Expanded rows for receipt history
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
@@ -42,6 +47,9 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
     setReceiptDate(new Date().toISOString().split('T')[0]);
     setReceiptNotes('');
     setReceiptLocationId(po.target_location_id || '');
+    setReceiptDnNumber('');
+    setReceiptDnDate('');
+    setReceiptDnFile(null);
     setReceiptTarget(po);
   };
 
@@ -64,7 +72,18 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
       });
     if (lines.length === 0) { showToast('Enter qty for at least one line', 'error'); return; }
     if (!receiptLocationId) { showToast('Select a receiving warehouse', 'error'); return; }
-    onCreateReceipt(receiptTarget.id, { receipt_date: receiptDate || null, notes: receiptNotes || null, location_id: receiptLocationId || null, lines });
+    onCreateReceipt(
+      receiptTarget.id,
+      {
+        receipt_date: receiptDate || null,
+        notes: receiptNotes || null,
+        location_id: receiptLocationId || null,
+        delivery_note_number: receiptDnNumber.trim() || null,
+        delivery_note_date: receiptDnDate || null,
+        lines,
+      },
+      receiptDnFile,
+    );
     setReceiptTarget(null);
   };
 
@@ -571,6 +590,20 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                            <input type="text" className="form-control" style={classic?xpInput:undefined} placeholder="e.g. Short delivery, weighed on arrival" value={receiptNotes} onChange={e => setReceiptNotes(e.target.value)} />
                        </div>
                    </div>
+                   <div className="row g-2 mb-3">
+                       <div className="col-md-3">
+                           <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Delivery Note No. <span style={{color:'#888'}}>(Surat Jalan)</span></label>
+                           <input type="text" className="form-control" style={classic?{...xpInput,width:'100%'}:undefined} placeholder="Supplier's DN number" value={receiptDnNumber} onChange={e => setReceiptDnNumber(e.target.value)} />
+                       </div>
+                       <div className="col-md-3">
+                           <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Delivery Note Date</label>
+                           <input type="date" className="form-control" style={classic?{...xpInput,width:'100%',height:'22px'}:undefined} value={receiptDnDate} onChange={e => setReceiptDnDate(e.target.value)} />
+                       </div>
+                       <div className="col-md-6">
+                           <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Attach Delivery Note <span style={{color:'#888'}}>(PDF / image)</span></label>
+                           <input type="file" accept=".pdf,.png,.jpg,.jpeg" className="form-control" style={classic?{...xpInput,width:'100%'}:undefined} onChange={e => setReceiptDnFile(e.target.files?.[0] || null)} />
+                       </div>
+                   </div>
                    <div style={{overflowX:'auto'}}>
                    <table className={classic?'':'table table-sm'} style={classic?{width:'100%',borderCollapse:'collapse',fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px'}:{minWidth:480}}>
                        <thead>
@@ -905,7 +938,9 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                <span style={classic ? { color: '#888', fontStyle: 'italic' } : undefined} className={classic ? '' : 'text-muted fst-italic small'}>No receipts recorded yet.</span>
                                            ) : (
                                                <div>
-                                                   <div style={classic ? { fontWeight: 'bold', fontSize: '10px', color: '#444', textTransform: 'uppercase', marginBottom: 4 } : undefined} className={classic ? '' : 'small fw-bold text-muted text-uppercase mb-2'}>Receipt History</div>
+                                                   <div style={classic ? { fontWeight: 'bold', fontSize: '10px', color: '#444', textTransform: 'uppercase', marginBottom: 4 } : undefined} className={classic ? '' : 'small fw-bold text-muted text-uppercase mb-2'}>
+                                                       Receipt History — {(po.receipts || []).length} {(po.receipts || []).length === 1 ? 'delivery' : 'deliveries'}
+                                                   </div>
                                                    {(po.receipts || []).map((receipt: any) => {
                                                        const rlines = receipt.lines || [];
                                                        const hasBoxes = rlines.some((l: any) => l.qty_boxes != null);
@@ -916,9 +951,23 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                        const numR = { textAlign: 'right' as const };
                                                        return (
                                                            <div key={receipt.id} style={classic ? { marginBottom: 8 } : undefined} className={classic ? '' : 'mb-3'}>
-                                                               <div style={classic ? { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 2 } : undefined} className={classic ? '' : 'd-flex justify-content-between align-items-baseline mb-1'}>
-                                                                   <span style={classic ? { fontWeight: 'bold', color: '#1a3d6b' } : undefined} className={classic ? '' : 'fw-bold'}>
-                                                                       {new Date(receipt.receipt_date).toLocaleDateString()}
+                                                               <div style={classic ? { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 2, gap: 8, flexWrap: 'wrap' } : undefined} className={classic ? '' : 'd-flex justify-content-between align-items-baseline mb-1 gap-2 flex-wrap'}>
+                                                                   <span style={classic ? { display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' } : undefined} className={classic ? '' : 'd-flex align-items-baseline gap-2 flex-wrap'}>
+                                                                       <span style={classic ? { fontWeight: 'bold', color: '#1a3d6b' } : undefined} className={classic ? '' : 'fw-bold'}>
+                                                                           {new Date(receipt.receipt_date).toLocaleDateString()}
+                                                                       </span>
+                                                                       {receipt.delivery_note_number && (
+                                                                           <span style={classic ? { fontSize: '10px', color: '#333' } : undefined} className={classic ? '' : 'small'}>
+                                                                               DN: <span style={{ fontWeight: 'bold' }}>{receipt.delivery_note_number}</span>
+                                                                               {receipt.delivery_note_date && <span style={{ color: '#777' }}> ({new Date(receipt.delivery_note_date).toLocaleDateString()})</span>}
+                                                                           </span>
+                                                                       )}
+                                                                       {receipt.delivery_note_url && (
+                                                                           <a href={`${STATIC_BASE}${receipt.delivery_note_url}`} target="_blank" rel="noopener noreferrer"
+                                                                              style={classic ? { fontSize: '10px', color: '#0046d5' } : undefined} className={classic ? '' : 'small'}>
+                                                                               <i className="bi bi-paperclip" /> View DN
+                                                                           </a>
+                                                                       )}
                                                                    </span>
                                                                    {receipt.notes && <span style={classic ? { color: '#666', fontStyle: 'italic', fontSize: '10px' } : undefined} className={classic ? '' : 'text-muted fst-italic small'}>{receipt.notes}</span>}
                                                                </div>
