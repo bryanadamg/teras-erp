@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.orm import joinedload, selectinload
 from app.db.session import get_async_db
 from uuid import UUID
@@ -191,18 +191,48 @@ async def get_available_pr_code(
 async def list_production_runs(
     skip: int = 0,
     limit: int = 50,
+    search: str | None = None,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
-    count_result = await db.execute(select(func.count()).select_from(ProductionRun))
-    total = count_result.scalar()
-    result = await db.execute(
+    conditions = []
+    if search and search.strip():
+        like = f"%{search.strip()}%"
+        # Match by entry BOM code / item name / item code (multi-BOM path)
+        entry_match = (
+            select(PRBomEntry.id)
+            .join(BOM, BOM.id == PRBomEntry.bom_id)
+            .join(Item, Item.id == BOM.item_id)
+            .where(
+                PRBomEntry.pr_id == ProductionRun.id,
+                or_(BOM.code.ilike(like), Item.name.ilike(like), Item.code.ilike(like)),
+            )
+            .exists()
+        )
+        # Match by directly-linked BOM (legacy single-BOM path)
+        legacy_match = (
+            select(BOM.id)
+            .join(Item, Item.id == BOM.item_id)
+            .where(
+                BOM.id == ProductionRun.bom_id,
+                or_(BOM.code.ilike(like), Item.name.ilike(like), Item.code.ilike(like)),
+            )
+            .exists()
+        )
+        conditions.append(or_(ProductionRun.code.ilike(like), entry_match, legacy_match))
+
+    count_query = select(func.count()).select_from(ProductionRun)
+    list_query = (
         select(ProductionRun)
         .options(*_pr_load_options())
         .order_by(ProductionRun.created_at.desc())
-        .offset(skip)
-        .limit(limit)
     )
+    if conditions:
+        count_query = count_query.where(*conditions)
+        list_query = list_query.where(*conditions)
+    count_result = await db.execute(count_query)
+    total = count_result.scalar()
+    result = await db.execute(list_query.offset(skip).limit(limit))
     prs = result.unique().scalars().all()
     for pr in prs:
         _post_process_pr(pr)

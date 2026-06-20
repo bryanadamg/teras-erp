@@ -468,6 +468,7 @@ async def get_manufacturing_orders(
     limit: int = 100,
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
+    search: Optional[str] = Query(None),
     all_levels: bool = False, # New flag to include children in the flat list if desired
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
@@ -486,6 +487,20 @@ async def get_manufacturing_orders(
         id_query = id_query.filter(ManufacturingOrder.created_at >= start_date)
     if end_date:
         id_query = id_query.filter(ManufacturingOrder.created_at <= end_date)
+
+    if search and search.strip():
+        like = f"%{search.strip()}%"
+        id_query = (
+            id_query
+            .outerjoin(Item, Item.id == ManufacturingOrder.item_id)
+            .outerjoin(BOM, BOM.id == ManufacturingOrder.bom_id)
+            .filter(or_(
+                ManufacturingOrder.code.ilike(like),
+                Item.name.ilike(like),
+                Item.code.ilike(like),
+                BOM.code.ilike(like),
+            ))
+        )
 
     count_result = await db.execute(select(func.count()).select_from(id_query.subquery()))
     total = count_result.scalar()

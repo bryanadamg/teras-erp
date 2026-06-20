@@ -56,7 +56,8 @@ export default function ManufacturingView({
   const { showToast } = useToast();
   const router = useRouter();
   const { t } = useLanguage();
-  const { authFetch, companyProfile, fetchData } = useData();
+  const { authFetch, companyProfile, fetchData, pagination } = useData();
+  const { moSearch, setMoSearch, prSearch: prSearchCtx, setPrSearch: setPrSearchCtx } = pagination;
   const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
   const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
   const [viewMode, setViewMode] = useState('list');
@@ -120,14 +121,32 @@ export default function ManufacturingView({
       includeYear: false,
       includeMonth: false
   });
-  const [moCodeFilter, setMoCodeFilter] = useState<string>(initialMOFilter || '');
-  const [prSearch, setPrSearch] = useState<string>('');
+  // Local search inputs (debounced into context, which drives server-side paginated search)
+  const [moCodeFilter, setMoCodeFilter] = useState<string>(initialMOFilter || moSearch || '');
+  const [prSearch, setPrSearch] = useState<string>(prSearchCtx || '');
   const [editAttrsModal, setEditAttrsModal] = useState<{ mo: any; selected: string[] } | null>(null);
 
   useEffect(() => {
       if (initialMOFilter) setMoCodeFilter(initialMOFilter);
   }, [initialMOFilter]);
 
+  // Debounce MO search input → context (resets to page 1 + refetches matching page)
+  useEffect(() => {
+      const id = setTimeout(() => {
+          if (moCodeFilter !== moSearch) setMoSearch(moCodeFilter);
+      }, 350);
+      return () => clearTimeout(id);
+  }, [moCodeFilter]);
+
+  // Debounce PR search input → context
+  useEffect(() => {
+      const id = setTimeout(() => {
+          if (prSearch !== prSearchCtx) setPrSearchCtx(prSearch);
+      }, 350);
+      return () => clearTimeout(id);
+  }, [prSearch]);
+
+  // Auto-expand the matching MO when arriving via a code deep-link
   useEffect(() => {
       if (!moCodeFilter || manufacturingOrders.length === 0) return;
       const match = manufacturingOrders.find((wo: any) =>
@@ -332,7 +351,6 @@ export default function ManufacturingView({
       value: string,
       onChange: (v: string) => void,
       placeholder: string,
-      shown: number,
       total: number,
   ) => {
       const classic = currentStyle === 'classic';
@@ -377,13 +395,14 @@ export default function ManufacturingView({
               </div>
               {value && (
                   <span style={{ fontSize: classic ? 10 : 12, color: '#666' }}>
-                      {shown} of {total}
+                      {total} result{total === 1 ? '' : 's'}
                   </span>
               )}
           </div>
       );
   };
 
+  // Text search is server-side (paginated). Only the date range is filtered client-side here.
   const filteredWorkOrders = manufacturingOrders.filter((wo: any) => {
       const date = new Date(wo.created_at);
       const start = startDate ? new Date(startDate) : null;
@@ -394,38 +413,10 @@ export default function ManufacturingView({
           endDateTime.setHours(23, 59, 59, 999);
           if (date > endDateTime) return false;
       }
-      if (moCodeFilter) {
-          const q = moCodeFilter.toLowerCase();
-          const itemName = wo.item_name || items.find((i: any) => i.id === wo.item_id)?.name;
-          const bomCode = boms.find((b: any) => b.id === wo.bom_id)?.code;
-          const attrNames = (wo.attribute_value_ids || []).map((valId: string) => {
-              for (const attr of attributes) {
-                  const v = attr.values.find((x: any) => x.id === valId);
-                  if (v) return v.value;
-              }
-              return '';
-          });
-          const hay = [wo.code, itemName, wo.sales_order_code, bomCode, ...attrNames]
-              .filter(Boolean).join(' ').toLowerCase();
-          return hay.includes(q);
-      }
       return true;
   });
 
-  const filteredProductionRuns = (productionRuns || []).filter((pr: any) => {
-      if (!prSearch) return true;
-      const q = prSearch.toLowerCase();
-      const styleParts: string[] = [];
-      if (pr.bom_entries?.length > 0) {
-          for (const e of pr.bom_entries) {
-              styleParts.push(e.bom?.item_name, e.bom?.item_code, e.bom?.code);
-          }
-      } else {
-          styleParts.push(pr.bom?.item_name, pr.bom?.item_code, pr.bom?.code);
-      }
-      const hay = [pr.code, ...styleParts].filter(Boolean).join(' ').toLowerCase();
-      return hay.includes(q);
-  });
+  const filteredProductionRuns = productionRuns || [];
 
   const handleBOMChange = async (bomId: string) => {
       const base = buildWOBasePattern(bomId);
@@ -1581,10 +1572,10 @@ export default function ManufacturingView({
                       {/* Production Runs tab content */}
                       {activeTab === 'production-runs' && (
                           <div>
-                              {productionRuns && productionRuns.length > 0 && renderSearchBar(
+                              {((productionRuns && productionRuns.length > 0) || prSearch) && renderSearchBar(
                                   prSearch, setPrSearch,
                                   'Search by code, style, or BOM...',
-                                  filteredProductionRuns.length, productionRuns.length,
+                                  prTotal,
                               )}
                               {productionRuns && productionRuns.length > 0 ? (
                                   <div className="table-responsive">
@@ -1610,11 +1601,6 @@ export default function ManufacturingView({
                                               </tr>
                                           </thead>
                                           <tbody>
-                                              {filteredProductionRuns.length === 0 && (
-                                                  <tr><td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#888', fontSize: currentStyle === 'classic' ? 11 : undefined }}>
-                                                      No Production Runs match "<strong>{prSearch}</strong>".
-                                                  </td></tr>
-                                              )}
                                               {filteredProductionRuns.map((pr: any, rowIdx: number) => {
                                                   const mos = pr.manufacturing_orders || [];
                                                   const done = mos.filter((m: any) => m.status === 'COMPLETED').length;
@@ -1811,7 +1797,9 @@ export default function ManufacturingView({
                                       color: '#888',
                                   }}>
                                       <i className="bi bi-collection-play" style={{ fontSize: 32, display: 'block', marginBottom: 8, opacity: 0.4 }}></i>
-                                      No Production Runs yet. Click <strong>New Production Run</strong> to get started.
+                                      {prSearch
+                                          ? <>No Production Runs match "<strong>{prSearch}</strong>".</>
+                                          : <>No Production Runs yet. Click <strong>New Production Run</strong> to get started.</>}
                                   </div>
                               )}
                           </div>
@@ -1824,8 +1812,8 @@ export default function ManufacturingView({
                           <div className="table-responsive">
                               {renderSearchBar(
                                   moCodeFilter, setMoCodeFilter,
-                                  'Search by MO code, product, variant, SO, or BOM...',
-                                  filteredWorkOrders.length, manufacturingOrders.length,
+                                  'Search by MO code, product, or BOM...',
+                                  totalItems,
                               )}
                               <table style={{
                                   width: '100%',

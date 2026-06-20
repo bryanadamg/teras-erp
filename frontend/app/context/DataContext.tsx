@@ -37,6 +37,8 @@ interface DataContextType {
         prPage: number; setPrPage: (p: number) => void; prTotal: number;
         auditPage: number; setAuditPage: (p: number) => void; auditTotal: number;
         reportPage: number; setReportPage: (p: number) => void; reportTotal: number;
+        moSearch: string; setMoSearch: (s: string) => void;
+        prSearch: string; setPrSearch: (s: string) => void;
         pageSize: number;
     };
     
@@ -95,11 +97,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const [reportTotal, setReportTotal] = useState(0);
     const [pageSize] = useState(50);
     const [itemSearch, setItemSearch] = useState('');
+    const [moSearch, setMoSearch] = useState('');
+    const [prSearch, setPrSearch] = useState('');
     const [categoryL1, setCategoryL1] = useState('');
     const [categoryL2, setCategoryL2] = useState('');
     const [categoryL3, setCategoryL3] = useState('');
     const [auditType, setAuditType] = useState('');
     const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+    const handleSetMoSearch = useCallback((v: string) => {
+        setMoSearch(v); setWoPage(1);
+    }, []);
+
+    const handleSetPrSearch = useCallback((v: string) => {
+        setPrSearch(v); setPrPage(1);
+    }, []);
 
     const handleSetCategoryL1 = useCallback((v: string) => {
         setCategoryL1(v); setCategoryL2(''); setCategoryL3('');
@@ -192,10 +204,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             if (fetchTarget.includes('manufacturing') || fetchTarget.includes('work-orders') || fetchTarget.includes('production-runs') || fetchTarget.includes('sales-orders') || fetchTarget === 'dashboard' || fetchTarget === '' || fetchTarget.includes('reports')) {
                 const moSkip = (woPage - 1) * pageSize;
                 const moAllLevels = fetchTarget.includes('work-orders') ? '&all_levels=true' : '';
-                requests.push(fetch(`${API_BASE}/manufacturing-orders?skip=${moSkip}&limit=${pageSize}${moAllLevels}`, { headers }));
+                const moSearchParam = moSearch ? `&search=${encodeURIComponent(moSearch)}` : '';
+                requests.push(fetch(`${API_BASE}/manufacturing-orders?skip=${moSkip}&limit=${pageSize}${moAllLevels}${moSearchParam}`, { headers }));
                 requestTypes.push('manufacturing-orders');
                 const prSkip = (prPage - 1) * pageSize;
-                requests.push(fetch(`${API_BASE}/production-runs?skip=${prSkip}&limit=${pageSize}`, { headers }));
+                const prSearchParam = prSearch ? `&search=${encodeURIComponent(prSearch)}` : '';
+                requests.push(fetch(`${API_BASE}/production-runs?skip=${prSkip}&limit=${pageSize}${prSearchParam}`, { headers }));
                 requestTypes.push('production-runs');
             }
 
@@ -283,11 +297,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         const p = run().finally(() => { delete inFlightRef.current[fetchTarget]; });
         inFlightRef.current[fetchTarget] = p;
         return p;
-    }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, itemSearch, categoryL1, categoryL2, categoryL3, auditType, isInitialLoad, pageSize]);
+    }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, itemSearch, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, isInitialLoad, pageSize]);
 
     const handleTabHover = (tab: string) => fetchData(tab);
 
-    useEffect(() => { if (currentUser) fetchData(); }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, itemSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData]);
+    useEffect(() => { if (currentUser) fetchData(); }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, itemSearch, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData]);
 
     // WebSocket Logic
     const fetchDataRef = useRef(fetchData);
@@ -334,7 +348,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         items, locations, locationCategories, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
         partners, dashboardKPIs, companyProfile,
-        pagination: { itemPage, setItemPage, itemTotal, woPage, setWoPage, woTotal, prPage, setPrPage, prTotal, auditPage, setAuditPage, auditTotal, reportPage, setReportPage, reportTotal, pageSize },
+        pagination: { itemPage, setItemPage, itemTotal, woPage, setWoPage, woTotal, prPage, setPrPage, prTotal, auditPage, setAuditPage, auditTotal, reportPage, setReportPage, reportTotal, moSearch, setMoSearch: handleSetMoSearch, prSearch, setPrSearch: handleSetPrSearch, pageSize },
         filters: { itemSearch, setItemSearch, categoryL1, setCategoryL1: handleSetCategoryL1, categoryL2, setCategoryL2: handleSetCategoryL2, categoryL3, setCategoryL3, auditType, setAuditType },
         fetchData, handleTabHover, authFetch
     }), [
@@ -342,8 +356,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
         partners, dashboardKPIs, companyProfile,
         itemPage, itemTotal, woPage, woTotal, prPage, prTotal, auditPage, auditTotal, reportPage, reportTotal, pageSize,
-        itemSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData, handleTabHover, authFetch,
-        handleSetCategoryL1, handleSetCategoryL2
+        itemSearch, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData, handleTabHover, authFetch,
+        handleSetCategoryL1, handleSetCategoryL2, handleSetMoSearch, handleSetPrSearch
     ]);
 
     return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
