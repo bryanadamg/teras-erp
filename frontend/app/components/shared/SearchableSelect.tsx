@@ -87,7 +87,10 @@ export default function SearchableSelect({
             if (dropdownRef.current?.contains(e.target as Node)) return;
             setIsOpen(false);
         };
-        const onResize = () => setIsOpen(false);
+        // Reposition (don't close) on resize — a scrollbar toggle from page
+        // reflow fires a spurious resize on classic-scrollbar OSes; closing here
+        // collapsed the dropdown mid-search. Reposition keeps it glued to trigger.
+        const onResize = () => calcDropdownPos();
         window.addEventListener('scroll', onScroll, true);
         window.addEventListener('resize', onResize);
         return () => {

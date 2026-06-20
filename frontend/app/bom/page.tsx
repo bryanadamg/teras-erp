@@ -4,7 +4,7 @@ import BOMView from '../components/bom/BOMView';
 import { useData } from '../context/DataContext';
 import { useConfirm } from '../context/ConfirmContext';
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 
 export default function BOMPage() {
     const { items, attributes, sizes, boms, locations, operations, workCenters, partners, companyProfile, productionRuns, fetchData, authFetch, filters } = useData();
@@ -26,6 +26,17 @@ export default function BOMPage() {
     const handleClearInitialState = () => {
         setInitialCreateState(null);
     };
+
+    // Debounce item-search so each keystroke does not trigger a full global
+    // refetch (items+boms). The unthrottled refetch reflowed the page on every
+    // char, toggling the window scrollbar and collapsing the SearchableSelect.
+    const setItemSearch = filters.setItemSearch;
+    const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const handleItemSearch = useCallback((term: string) => {
+        if (searchTimer.current) clearTimeout(searchTimer.current);
+        searchTimer.current = setTimeout(() => setItemSearch(term), 250);
+    }, [setItemSearch]);
+    useEffect(() => () => { if (searchTimer.current) clearTimeout(searchTimer.current); }, []);
 
     const handleCreateBOM = async (p: any) => {
         const res = await authFetch(`${API_BASE}/boms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
@@ -116,7 +127,7 @@ export default function BOMPage() {
                 onUploadBOMDesign={handleUploadBOMDesign}
                 onDeleteBOM={handleDeleteBOM}
                 onDeleteMultipleBOMs={handleDeleteMultipleBOMs}
-                onSearchItem={filters.setItemSearch}
+                onSearchItem={handleItemSearch}
                 onCreateItem={handleCreateItem}
                 locations={locations || []}
                 onCreateProductionRun={handleCreateProductionRun}
