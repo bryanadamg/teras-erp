@@ -121,6 +121,7 @@ export default function ManufacturingView({
       includeMonth: false
   });
   const [moCodeFilter, setMoCodeFilter] = useState<string>(initialMOFilter || '');
+  const [prSearch, setPrSearch] = useState<string>('');
   const [editAttrsModal, setEditAttrsModal] = useState<{ mo: any; selected: string[] } | null>(null);
 
   useEffect(() => {
@@ -326,6 +327,63 @@ export default function ManufacturingView({
       setPrintPreviewWO(wo);
   };
 
+  // Shared search bar for the PR / MO list tabs
+  const renderSearchBar = (
+      value: string,
+      onChange: (v: string) => void,
+      placeholder: string,
+      shown: number,
+      total: number,
+  ) => {
+      const classic = currentStyle === 'classic';
+      return (
+          <div className="no-print" style={{
+              padding: classic ? '5px 8px' : '8px 12px',
+              borderBottom: classic ? '1px solid #808080' : '1px solid #dee2e6',
+              background: classic ? '#ece9d8' : '#fff',
+              display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+              <div style={{ position: 'relative', flex: '0 0 320px', maxWidth: '100%' }}>
+                  <i className="bi bi-search" style={{
+                      position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)',
+                      fontSize: 11, color: '#888', pointerEvents: 'none',
+                  }}></i>
+                  <input
+                      type="text"
+                      value={value}
+                      onChange={(e) => onChange(e.target.value)}
+                      placeholder={placeholder}
+                      style={{
+                          width: '100%', padding: '3px 24px 3px 26px',
+                          fontFamily: classic ? 'Tahoma, Arial, sans-serif' : undefined,
+                          fontSize: classic ? 11 : 13,
+                          border: classic ? '1px solid' : '1px solid #ced4da',
+                          borderColor: classic ? '#808080 #dfdfdf #dfdfdf #808080' : '#ced4da',
+                          borderRadius: classic ? 0 : 4,
+                          color: '#000', background: '#fff',
+                      }}
+                  />
+                  {value && (
+                      <button
+                          onClick={() => onChange('')}
+                          title="Clear search"
+                          style={{
+                              position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)',
+                              border: 'none', background: 'transparent', cursor: 'pointer',
+                              color: '#888', fontSize: 13, lineHeight: 1, padding: '0 4px',
+                          }}
+                      >x</button>
+                  )}
+              </div>
+              {value && (
+                  <span style={{ fontSize: classic ? 10 : 12, color: '#666' }}>
+                      {shown} of {total}
+                  </span>
+              )}
+          </div>
+      );
+  };
+
   const filteredWorkOrders = manufacturingOrders.filter((wo: any) => {
       const date = new Date(wo.created_at);
       const start = startDate ? new Date(startDate) : null;
@@ -336,8 +394,37 @@ export default function ManufacturingView({
           endDateTime.setHours(23, 59, 59, 999);
           if (date > endDateTime) return false;
       }
-      if (moCodeFilter) return wo.code.toLowerCase().includes(moCodeFilter.toLowerCase());
+      if (moCodeFilter) {
+          const q = moCodeFilter.toLowerCase();
+          const itemName = wo.item_name || items.find((i: any) => i.id === wo.item_id)?.name;
+          const bomCode = boms.find((b: any) => b.id === wo.bom_id)?.code;
+          const attrNames = (wo.attribute_value_ids || []).map((valId: string) => {
+              for (const attr of attributes) {
+                  const v = attr.values.find((x: any) => x.id === valId);
+                  if (v) return v.value;
+              }
+              return '';
+          });
+          const hay = [wo.code, itemName, wo.sales_order_code, bomCode, ...attrNames]
+              .filter(Boolean).join(' ').toLowerCase();
+          return hay.includes(q);
+      }
       return true;
+  });
+
+  const filteredProductionRuns = (productionRuns || []).filter((pr: any) => {
+      if (!prSearch) return true;
+      const q = prSearch.toLowerCase();
+      const styleParts: string[] = [];
+      if (pr.bom_entries?.length > 0) {
+          for (const e of pr.bom_entries) {
+              styleParts.push(e.bom?.item_name, e.bom?.item_code, e.bom?.code);
+          }
+      } else {
+          styleParts.push(pr.bom?.item_name, pr.bom?.item_code, pr.bom?.code);
+      }
+      const hay = [pr.code, ...styleParts].filter(Boolean).join(' ').toLowerCase();
+      return hay.includes(q);
   });
 
   const handleBOMChange = async (bomId: string) => {
@@ -391,14 +478,7 @@ export default function ManufacturingView({
   };
 
   const toggleRow = (id: string) => {
-      const isCollapsing = !!expandedRows[id];
       setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
-      if (isCollapsing && moCodeFilter) {
-          const wo = manufacturingOrders.find((w: any) => w.id === id);
-          if (wo && wo.code.toLowerCase().includes(moCodeFilter.toLowerCase())) {
-              setMoCodeFilter('');
-          }
-      }
   };
 
   // Helpers
@@ -1501,6 +1581,11 @@ export default function ManufacturingView({
                       {/* Production Runs tab content */}
                       {activeTab === 'production-runs' && (
                           <div>
+                              {productionRuns && productionRuns.length > 0 && renderSearchBar(
+                                  prSearch, setPrSearch,
+                                  'Search by code, style, or BOM...',
+                                  filteredProductionRuns.length, productionRuns.length,
+                              )}
                               {productionRuns && productionRuns.length > 0 ? (
                                   <div className="table-responsive">
                                       <table style={{
@@ -1525,7 +1610,12 @@ export default function ManufacturingView({
                                               </tr>
                                           </thead>
                                           <tbody>
-                                              {productionRuns.map((pr: any, rowIdx: number) => {
+                                              {filteredProductionRuns.length === 0 && (
+                                                  <tr><td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#888', fontSize: currentStyle === 'classic' ? 11 : undefined }}>
+                                                      No Production Runs match "<strong>{prSearch}</strong>".
+                                                  </td></tr>
+                                              )}
+                                              {filteredProductionRuns.map((pr: any, rowIdx: number) => {
                                                   const mos = pr.manufacturing_orders || [];
                                                   const done = mos.filter((m: any) => m.status === 'COMPLETED').length;
                                                   const total = mos.length;
@@ -1732,23 +1822,10 @@ export default function ManufacturingView({
                           <div className="p-3"><CalendarView workOrders={manufacturingOrders} items={items} /></div>
                       ) : activeTab === 'manufacturing-orders' && (
                           <div className="table-responsive">
-                              {moCodeFilter && (
-                                  <div style={{
-                                      padding: '5px 12px',
-                                      background: currentStyle === 'classic' ? '#fffbe6' : '#fff3cd',
-                                      borderBottom: currentStyle === 'classic' ? '1px solid #808080' : '1px solid #ffc107',
-                                      display: 'flex', alignItems: 'center', gap: 6,
-                                      fontSize: currentStyle === 'classic' ? 10 : 12,
-                                      fontFamily: currentStyle === 'classic' ? 'Tahoma, Arial, sans-serif' : undefined,
-                                  }}>
-                                      <i className="bi bi-funnel-fill" style={{ color: '#856404', fontSize: 11 }}></i>
-                                      <span style={{ color: '#856404' }}>Filtered: <strong style={{ fontFamily: 'monospace' }}>{moCodeFilter}</strong></span>
-                                      <button
-                                          onClick={() => setMoCodeFilter('')}
-                                          title="Clear filter"
-                                          style={{ marginLeft: 4, cursor: 'pointer', border: 'none', background: 'transparent', color: '#856404', fontWeight: 'bold', padding: '0 4px', fontSize: 13, lineHeight: 1 }}
-                                      >x</button>
-                                  </div>
+                              {renderSearchBar(
+                                  moCodeFilter, setMoCodeFilter,
+                                  'Search by MO code, product, variant, SO, or BOM...',
+                                  filteredWorkOrders.length, manufacturingOrders.length,
                               )}
                               <table style={{
                                   width: '100%',
@@ -1785,6 +1862,13 @@ export default function ManufacturingView({
                                       </tr>
                                   </thead>
                                   <tbody>
+                                      {filteredWorkOrders.length === 0 && (
+                                          <tr><td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#888', fontSize: currentStyle === 'classic' ? 11 : undefined }}>
+                                              {moCodeFilter
+                                                  ? <>No Manufacturing Orders match "<strong>{moCodeFilter}</strong>".</>
+                                                  : 'No Manufacturing Orders yet.'}
+                                          </td></tr>
+                                      )}
                                       {filteredWorkOrders.map((wo: any, rowIdx: number) => {
                                           const warning = getDueDateWarning(wo);
                                           const isExpanded = expandedRows[wo.id];
