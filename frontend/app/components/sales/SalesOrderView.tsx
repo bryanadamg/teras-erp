@@ -110,12 +110,12 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
     </div>
   );
 
-  // Flatten an MO subtree into typed rows (mo / wo / beam) with an indent level.
+  // Flatten an MO subtree into typed rows (mo / beam) with an indent level.
+  // WOs are omitted (too many); their output beams are re-parented directly under the MO.
   const flattenMO = (mo: any, level: number, isComponent: boolean, out: any[]) => {
     out.push({ kind: 'mo', level, mo, isComponent });
     (mo.work_orders || []).forEach((wo: any) => {
-      out.push({ kind: 'wo', level: level + 1, wo });
-      (wo.beams || []).forEach((bm: any) => out.push({ kind: 'beam', level: level + 2, beam: bm }));
+      (wo.beams || []).forEach((bm: any) => out.push({ kind: 'beam', level: level + 1, beam: bm }));
     });
     (mo.component_mos || []).forEach((c: any) => flattenMO(c, level + 1, true, out));
     return out;
@@ -146,21 +146,6 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
           <td style={lineageTd({ textAlign: 'right', fontFamily: 'monospace', fontSize: '0.72rem' })}>{mo.qty}</td>
           <td style={lineageTd()}>{lineageStatusBadge(mo.status)}</td>
           <td style={lineageTd({ minWidth: 120 })}>{lineageProgressBar(pct)}</td>
-        </tr>
-      );
-    }
-    if (row.kind === 'wo') {
-      const wo = row.wo;
-      return (
-        <tr key={key}>
-          <td style={lineageTd({ paddingLeft: indent })}>
-            <span style={{ fontSize: '0.64rem', color: '#999', marginRight: 5 }}>WO#{wo.sequence}</span>
-            <span style={{ fontFamily: 'monospace', fontSize: '0.72rem', color: '#555' }}>{wo.code || wo.name}</span>
-          </td>
-          <td style={lineageTd()}>{wo.work_center_name && lineageChip(wo.work_center_name, '#eef4ff', '#b8ccf0', '#003ea6', 'bi-gear')}</td>
-          <td style={lineageTd({ textAlign: 'right', fontFamily: 'monospace', fontSize: '0.72rem' })}>{wo.qty ?? ''}</td>
-          <td style={lineageTd()}>{lineageStatusBadge(wo.status)}</td>
-          <td style={lineageTd()}></td>
         </tr>
       );
     }
