@@ -1,12 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete as sa_delete
-from sqlalchemy.orm import selectinload
+from sqlalchemy import select, func, delete as sa_delete
+from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.exc import IntegrityError
 from app.db.session import get_async_db
 from app.schemas import SalesOrderCreate, SalesOrderUpdate, SalesOrderResponse
 from app.models.sales import SalesOrder, SalesOrderLine, sales_order_line_values
 from app.models.attribute import AttributeValue
+from app.models.production_run import ProductionRun
+from app.models.manufacturing import ManufacturingOrder
+from app.models.work_order import WorkOrder
+from app.models.batch import Batch
+from app.models.stock_balance import StockBalance
 from app.api.auth import get_current_user
 from app.models.auth import User
 from app.services import audit_service
@@ -241,3 +246,132 @@ async def delete_sales_order(so_id: uuid.UUID, db: AsyncSession = Depends(get_as
     await db.delete(so)
     await db.commit()
     return {"status": "success"}
+
+
+@router.get("/{so_id}/lineage")
+async def get_sales_order_lineage(
+    so_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Full production lineage for a Sales Order: SO → Production Runs → MOs → WOs → beams.
+
+    Shows everything produced for this SO so users can see how every MO, WO and beam
+    ties back to the order that started it. Shared component MOs (consolidated greige/base)
+    are nested under the root MO that depends on them, with the dependency qty."""
+    so_result = await db.execute(select(SalesOrder).filter(SalesOrder.id == so_id))
+    so = so_result.scalars().first()
+    if not so:
+        raise HTTPException(status_code=404, detail="SO not found")
+
+    pr_result = await db.execute(
+        select(ProductionRun)
+        .filter(ProductionRun.sales_order_id == so_id)
+        .order_by(ProductionRun.created_at)
+    )
+    prs = pr_result.scalars().all()
+    pr_ids = [pr.id for pr in prs]
+
+    # Load every MO under those PRs with the data needed to build the tree
+    mos_by_pr: dict = {}
+    all_mos: list = []
+    if pr_ids:
+        mos_result = await db.execute(
+            select(ManufacturingOrder)
+            .options(
+                selectinload(ManufacturingOrder.item),
+                selectinload(ManufacturingOrder.work_orders).joinedload(WorkOrder.work_center),
+                selectinload(ManufacturingOrder.required_dependencies),
+            )
+            .filter(ManufacturingOrder.production_run_id.in_(pr_ids))
+        )
+        for mo in mos_result.scalars().unique().all():
+            mos_by_pr.setdefault(mo.production_run_id, []).append(mo)
+            all_mos.append(mo)
+
+    # Beams produced by any WO under this SO: source_wo_id → beam Batch
+    all_wo_ids = [wo.id for mo in all_mos for wo in mo.work_orders]
+    beams_by_wo: dict = {}
+    if all_wo_ids:
+        batch_rows = await db.execute(
+            select(Batch).options(joinedload(Batch.item)).filter(Batch.source_wo_id.in_(all_wo_ids))
+        )
+        batches = batch_rows.scalars().all()
+        keys = [str(b.id) for b in batches]
+        remaining_map: dict = {}
+        if keys:
+            bal = await db.execute(
+                select(StockBalance.batch_key, func.sum(StockBalance.qty))
+                .filter(StockBalance.batch_key.in_(keys))
+                .group_by(StockBalance.batch_key)
+            )
+            remaining_map = {k: float(v or 0) for k, v in bal.all()}
+        for b in batches:
+            beams_by_wo.setdefault(b.source_wo_id, []).append({
+                "id": str(b.id),
+                "batch_number": b.batch_number,
+                "item_code": b.item.code if b.item else None,
+                "ends": b.ends,
+                "remaining": remaining_map.get(str(b.id), 0.0),
+            })
+
+    def wo_node(wo) -> dict:
+        return {
+            "id": str(wo.id),
+            "code": wo.code,
+            "name": wo.name,
+            "sequence": wo.sequence,
+            "work_center_name": wo.work_center.name if wo.work_center else None,
+            "status": wo.status,
+            "qty": float(wo.qty) if wo.qty is not None else None,
+            "beams": beams_by_wo.get(wo.id, []),
+        }
+
+    def mo_node(mo, dep_qty=None) -> dict:
+        return {
+            "id": str(mo.id),
+            "code": mo.code,
+            "item_code": mo.item.code if mo.item else None,
+            "item_name": mo.item.name if mo.item else None,
+            "qty": float(mo.qty),
+            "status": mo.status,
+            "is_shared_component": mo.is_shared_component,
+            "dep_qty": dep_qty,
+            "work_orders": [wo_node(w) for w in sorted(mo.work_orders, key=lambda x: x.sequence)],
+            "component_mos": [],
+        }
+
+    production_runs = []
+    for pr in prs:
+        pr_mos = mos_by_pr.get(pr.id, [])
+        comp_map = {mo.id: mo for mo in pr_mos if mo.is_shared_component}
+        roots = [mo for mo in pr_mos if not mo.is_shared_component]
+        root_nodes = []
+        pegged: set = set()
+        for r in roots:
+            rn = mo_node(r)
+            for dep in r.required_dependencies:
+                comp = comp_map.get(dep.required_mo_id)
+                if comp:
+                    pegged.add(dep.required_mo_id)
+                    rn["component_mos"].append(mo_node(comp, dep_qty=float(dep.qty)))
+            root_nodes.append(rn)
+        # Components not pegged to any root (defensive — should be rare)
+        unpegged = [mo_node(c) for cid, c in comp_map.items() if cid not in pegged]
+        production_runs.append({
+            "id": str(pr.id),
+            "code": pr.code,
+            "status": pr.status,
+            "manufacturing_orders": root_nodes,
+            "unpegged_components": unpegged,
+        })
+
+    return {
+        "sales_order": {
+            "id": str(so.id),
+            "po_number": so.po_number,
+            "customer_name": so.customer_name,
+            "status": so.status,
+        },
+        "production_runs": production_runs,
+    }

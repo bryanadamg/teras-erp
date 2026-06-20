@@ -141,6 +141,8 @@ def _pr_load_options():
     mos = selectinload(ProductionRun.manufacturing_orders)
     entries = selectinload(ProductionRun.bom_entries)
     return [
+        # Originating Sales Order (for lineage display)
+        joinedload(ProductionRun.sales_order),
         # Legacy single-bom field (backward compat for old PRs)
         joinedload(ProductionRun.bom).options(*_bom_load_options()),
         # New multi-bom entries
@@ -170,6 +172,8 @@ def _pr_load_options():
 def _post_process_pr(pr: ProductionRun):
     """Populate all calculated fields on every MO within a PR after eager loading."""
     from app.api.manufacturing import populate_mo_ids
+    # Populate originating SO code (eager-loaded via _pr_load_options)
+    pr.sales_order_code = pr.sales_order.po_number if pr.sales_order else None
     for mo in pr.manufacturing_orders:
         populate_mo_ids(mo)
 

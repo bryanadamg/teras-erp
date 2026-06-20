@@ -1947,8 +1947,14 @@ export default function ManufacturingView({
                                                               <div style={{ fontSize: '9px', color: '#555' }}>
                                                                   BOM: {getBOMCode(wo.bom_id)}
                                                                   {wo.sales_order_id && (
-                                                                      <span style={{ marginLeft: '6px', fontWeight: 'bold', color: currentStyle === 'classic' ? '#0058e6' : undefined }} className={currentStyle !== 'classic' ? 'text-primary' : ''}>
-                                                                          SO: {wo.sales_order_code || '—'}
+                                                                      <span style={currentStyle === 'classic' ? {
+                                                                          marginLeft: 6, fontSize: '8px', background: '#dce8ff', border: '1px solid #9ab0e0',
+                                                                          color: '#003ea6', padding: '0 5px', fontWeight: 'bold', whiteSpace: 'nowrap',
+                                                                      } : {
+                                                                          marginLeft: 6, fontSize: '0.65rem', background: '#cfe2ff', border: '1px solid #9ec5fe',
+                                                                          color: '#0a58ca', padding: '1px 6px', borderRadius: 3, fontWeight: 'bold', whiteSpace: 'nowrap',
+                                                                      }} title="Originating Sales Order">
+                                                                          <i className="bi bi-receipt me-1" style={{ fontSize: currentStyle === 'classic' ? '7px' : undefined }}></i>SO: {wo.sales_order_code || '—'}
                                                                       </span>
                                                                   )}
                                                                   {wo.child_mos && wo.child_mos.length > 0 && (

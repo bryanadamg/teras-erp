@@ -1,11 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.orm import selectinload, joinedload, aliased
 from app.db.session import get_async_db
 from app.models.batch import Batch, BatchConsumption
 from app.models.item import Item
 from app.models.stock_balance import StockBalance
+from app.models.work_order import WorkOrder
+from app.models.manufacturing import ManufacturingOrder
+from app.models.production_run import ProductionRun
+from app.models.sales import SalesOrder
 from app.schemas import BatchCreate, BatchResponse, BatchTraceResponse, BatchConsumptionResponse, BatchTraceBackNode
 from app.api.auth import get_current_user
 from app.models.auth import User
@@ -14,6 +18,53 @@ from datetime import datetime, timezone
 import uuid
 
 router = APIRouter(prefix="/batches", tags=["batches"])
+
+
+async def _resolve_batch_origins(db: AsyncSession, batches: list[Batch]) -> None:
+    """Populate origin lineage (mo / production run / sales order) on beam batches.
+
+    A beam batch carries source_wo_id → WO → MO → (PR, SO). Shared-component MOs have
+    sales_order_id=None, so the SO falls back to the MO's Production Run's sales_order_id.
+    """
+    wo_ids = {b.source_wo_id for b in batches if b.source_wo_id}
+    if not wo_ids:
+        return
+    mo_so = aliased(SalesOrder)   # SO linked directly on the MO
+    pr_so = aliased(SalesOrder)   # SO linked on the MO's Production Run
+    rows = await db.execute(
+        select(
+            WorkOrder.id,
+            ManufacturingOrder.id,
+            ManufacturingOrder.code,
+            ManufacturingOrder.production_run_id,
+            ProductionRun.code,
+            ManufacturingOrder.sales_order_id,
+            mo_so.po_number,
+            ProductionRun.sales_order_id,
+            pr_so.po_number,
+        )
+        .join(ManufacturingOrder, ManufacturingOrder.id == WorkOrder.manufacturing_order_id)
+        .outerjoin(ProductionRun, ProductionRun.id == ManufacturingOrder.production_run_id)
+        .outerjoin(mo_so, mo_so.id == ManufacturingOrder.sales_order_id)
+        .outerjoin(pr_so, pr_so.id == ProductionRun.sales_order_id)
+        .filter(WorkOrder.id.in_(wo_ids))
+    )
+    origin: dict = {}
+    for (wo_id, mo_id, mo_code, pr_id, pr_code,
+         mo_so_id, mo_so_code, pr_so_id, pr_so_code) in rows.all():
+        origin[wo_id] = {
+            "mo_id": mo_id,
+            "mo_code": mo_code,
+            "production_run_id": pr_id,
+            "production_run_code": pr_code,
+            "sales_order_id": mo_so_id or pr_so_id,
+            "sales_order_code": mo_so_code or pr_so_code,
+        }
+    for b in batches:
+        info = origin.get(b.source_wo_id)
+        if info:
+            for k, v in info.items():
+                setattr(b, k, v)
 
 
 def _build_batch_number(date_str: str, counter: int) -> str:
@@ -100,6 +151,7 @@ async def list_batches(
         b.remaining = remaining_map.get(str(b.id), 0.0)
         b.item_code = b.item.code if b.item else None
         b.item_name = b.item.name if b.item else None
+    await _resolve_batch_origins(db, list(batches))
     return batches
 
 
@@ -115,6 +167,7 @@ async def get_batch(
         raise HTTPException(status_code=404, detail="Lot not found")
     batch.item_code = batch.item.code if batch.item else None
     batch.item_name = batch.item.name if batch.item else None
+    await _resolve_batch_origins(db, [batch])
     return batch
 
 
@@ -198,10 +251,19 @@ async def trace_batch_backward(
             child = await build_node(in_batch, depth + 1, visited)
             child["qty_consumed"] = float(c.qty_consumed)
             child["manufacturing_order_id"] = c.manufacturing_order_id
+            mo_so = aliased(SalesOrder)
+            pr_so = aliased(SalesOrder)
             mo_result = await db.execute(
-                select(ManufacturingOrder.code).filter(ManufacturingOrder.id == c.manufacturing_order_id)
+                select(ManufacturingOrder.code, mo_so.po_number, pr_so.po_number)
+                .outerjoin(ProductionRun, ProductionRun.id == ManufacturingOrder.production_run_id)
+                .outerjoin(mo_so, mo_so.id == ManufacturingOrder.sales_order_id)
+                .outerjoin(pr_so, pr_so.id == ProductionRun.sales_order_id)
+                .filter(ManufacturingOrder.id == c.manufacturing_order_id)
             )
-            child["mo_code"] = mo_result.scalar()
+            mo_row = mo_result.first()
+            if mo_row:
+                child["mo_code"] = mo_row[0]
+                child["sales_order_code"] = mo_row[1] or mo_row[2]
             node["inputs"].append(child)
         return node
 

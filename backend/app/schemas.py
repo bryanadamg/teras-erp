@@ -391,6 +391,7 @@ class ProductionRunResponse(BaseModel):
     code: str
     bom_id: UUID | None = None
     sales_order_id: UUID | None = None
+    sales_order_code: str | None = None
     location_id: UUID
     source_location_id: UUID | None = None
     status: str
@@ -1377,6 +1378,13 @@ class BatchResponse(BaseModel):
     ends: Optional[int] = None
     source_wo_id: Optional[UUID] = None
     remaining: Optional[float] = None  # stock balance for this batch (populated by list endpoint)
+    # Origin lineage — resolved from source_wo_id → WO → MO → PR/SO (populated by batches endpoints)
+    mo_id: Optional[UUID] = None
+    mo_code: Optional[str] = None
+    production_run_id: Optional[UUID] = None
+    production_run_code: Optional[str] = None
+    sales_order_id: Optional[UUID] = None
+    sales_order_code: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -1398,6 +1406,7 @@ class BatchTraceBackNode(BaseModel):
     qty_consumed: Optional[float] = None       # qty of THIS batch consumed into the parent node
     manufacturing_order_id: Optional[UUID] = None
     mo_code: Optional[str] = None
+    sales_order_code: Optional[str] = None     # originating SO of the MO that consumed this batch
     inputs: list["BatchTraceBackNode"] = []
 
 BatchTraceBackNode.model_rebuild()

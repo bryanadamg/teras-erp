@@ -17,6 +17,10 @@ interface Batch {
   ends: number | null;
   source_wo_id: string | null;
   remaining: number | null;
+  // Origin lineage (beam batches): resolved from source_wo_id → WO → MO → PR/SO
+  mo_code: string | null;
+  production_run_code: string | null;
+  sales_order_code: string | null;
 }
 
 interface BatchConsumption {
@@ -153,6 +157,30 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
   const batchItemCode = (b: Batch) => b.item_code || itemMap[b.item_id]?.code || '-';
   const batchItemName = (b: Batch) => b.item_name || itemMap[b.item_id]?.name || '-';
 
+  // Origin lineage cell — only beam batches carry SO/PR/MO references
+  const originCell = (b: Batch) => {
+    if (!b.sales_order_code && !b.production_run_code && !b.mo_code) {
+      return <span style={{ color: '#ccc' }}>—</span>;
+    }
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 1, lineHeight: 1.2 }}>
+        {b.sales_order_code && (
+          <span style={{ fontWeight: 'bold', color: classic ? '#0058e6' : '#0d6efd', fontSize: classic ? 10 : undefined }}>
+            SO: {b.sales_order_code}
+          </span>
+        )}
+        {b.mo_code && (
+          <span style={{ color: '#555', fontFamily: 'monospace', fontSize: classic ? 9 : 11 }}>
+            {b.mo_code}{b.production_run_code ? ` · ${b.production_run_code}` : ''}
+          </span>
+        )}
+        {!b.sales_order_code && !b.mo_code && b.production_run_code && (
+          <span style={{ color: '#888', fontSize: classic ? 9 : 11 }}>PR: {b.production_run_code}</span>
+        )}
+      </div>
+    );
+  };
+
   const filtered = batches.filter(b => {
     if (!searchTerm) return true;
     const s = searchTerm.toLowerCase();
@@ -249,6 +277,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                 <th style={xpTh}>Lot Number</th>
                 <th style={xpTh}>Item Code</th>
                 <th style={xpTh}>Item Name</th>
+                <th style={xpTh}>Origin</th>
                 <th style={{ ...xpTh, textAlign: 'right' }}>Remaining</th>
                 <th style={{ ...xpTh, textAlign: 'right' }}>Ends</th>
                 <th style={xpTh}>Notes</th>
@@ -259,16 +288,17 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={9} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>Loading...</td></tr>
+                <tr><td colSpan={10} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>Loading...</td></tr>
               )}
               {!loading && filtered.length === 0 && (
-                <tr><td colSpan={9} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>No lots found.</td></tr>
+                <tr><td colSpan={10} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>No lots found.</td></tr>
               )}
               {filtered.map((b, i) => (
                 <tr key={b.id}>
                   <td style={xpTd(i % 2 === 1)}><strong>{b.batch_number}</strong></td>
                   <td style={xpTd(i % 2 === 1)}>{batchItemCode(b)}</td>
                   <td style={xpTd(i % 2 === 1)}>{batchItemName(b)}</td>
+                  <td style={xpTd(i % 2 === 1)}>{originCell(b)}</td>
                   <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right' }}>{b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}</td>
                   <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right' }}>{b.ends ?? '-'}</td>
                   <td style={xpTd(i % 2 === 1)}>{b.notes || '-'}</td>
@@ -298,6 +328,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                 <th>Lot Number</th>
                 <th>Item Code</th>
                 <th>Item Name</th>
+                <th>Origin</th>
                 <th className="text-end">Remaining</th>
                 <th className="text-end">Ends</th>
                 <th>Notes</th>
@@ -307,13 +338,14 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
               </tr>
             </thead>
             <tbody>
-              {loading && <tr><td colSpan={9} className="text-center">Loading...</td></tr>}
-              {!loading && filtered.length === 0 && <tr><td colSpan={9} className="text-center text-muted">No lots found.</td></tr>}
+              {loading && <tr><td colSpan={10} className="text-center">Loading...</td></tr>}
+              {!loading && filtered.length === 0 && <tr><td colSpan={10} className="text-center text-muted">No lots found.</td></tr>}
               {filtered.map(b => (
                 <tr key={b.id}>
                   <td><strong>{b.batch_number}</strong></td>
                   <td>{batchItemCode(b)}</td>
                   <td>{batchItemName(b)}</td>
+                  <td>{originCell(b)}</td>
                   <td className="text-end">{b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}</td>
                   <td className="text-end">{b.ends ?? '-'}</td>
                   <td>{b.notes || '-'}</td>
@@ -484,6 +516,9 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                             <span style={{ color: '#666' }}> ({node.batch.item_code || itemMap[node.batch.item_id]?.code || 'unknown item'})</span>
                             {node.qty_consumed != null && (
                               <span style={{ color: '#444' }}> — {node.qty_consumed} consumed{node.mo_code ? ` in ${node.mo_code}` : ''}</span>
+                            )}
+                            {node.sales_order_code && (
+                              <span style={{ marginLeft: 6, fontWeight: 'bold', color: classic ? '#0058e6' : '#0d6efd' }}>SO: {node.sales_order_code}</span>
                             )}
                           </div>
                           {(node.inputs || []).map((c: any) => renderNode(c, depth + 1))}

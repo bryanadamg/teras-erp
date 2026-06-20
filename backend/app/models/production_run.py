@@ -60,6 +60,7 @@ class ProductionRun(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
     bom: Mapped[Optional["BOM"]] = relationship("BOM", foreign_keys=[bom_id])
+    sales_order = relationship("SalesOrder", foreign_keys=[sales_order_id], lazy="noload")
     bom_entries: Mapped[List["PRBomEntry"]] = relationship(
         "PRBomEntry", cascade="all, delete-orphan",
         primaryjoin="PRBomEntry.pr_id == ProductionRun.id",

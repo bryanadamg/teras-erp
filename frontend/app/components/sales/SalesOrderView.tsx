@@ -21,7 +21,75 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const [customerSearch, setCustomerSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const { uiStyle: currentStyle } = useTheme();
-  const { companyProfile, uoms } = useData();
+  const { companyProfile, uoms, authFetch } = useData();
+
+  // Lineage (SO → PR → MO → WO → beam) trace modal
+  const lineageEnvBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
+  const LINEAGE_API_BASE = lineageEnvBase.endsWith('/api') ? lineageEnvBase : `${lineageEnvBase}/api`;
+  const [lineageSO, setLineageSO] = useState<any>(null);
+  const [lineageData, setLineageData] = useState<any>(null);
+  const [lineageLoading, setLineageLoading] = useState(false);
+
+  const openLineage = async (so: any) => {
+    setLineageSO(so);
+    setLineageData(null);
+    setLineageLoading(true);
+    try {
+      const res = await authFetch(`${LINEAGE_API_BASE}/sales-orders/${so.id}/lineage`);
+      if (res.ok) setLineageData(await res.json());
+      else showToast('Failed to load lineage', 'danger');
+    } catch {
+      showToast('Failed to load lineage', 'danger');
+    } finally {
+      setLineageLoading(false);
+    }
+  };
+
+  const lineageStatusColor = (s: string) => ({
+    COMPLETED: '#1a7a1a', IN_PROGRESS: '#b8860b', PENDING: '#666', CANCELLED: '#aa0000',
+  } as Record<string, string>)[s] || '#666';
+
+  const renderLineageWO = (wo: any) => (
+    <div key={wo.id} style={{ marginLeft: 22, padding: '2px 0 2px 8px', borderLeft: '2px solid #e0e0e0' }}>
+      <span style={{ color: '#999' }}>WO </span>
+      <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{wo.code || wo.name}</span>
+      {wo.code && <span style={{ color: '#555' }}> · {wo.name}</span>}
+      {wo.work_center_name && <span style={{ color: '#777' }}> · {wo.work_center_name}</span>}
+      <span style={{ marginLeft: 6, fontWeight: 'bold', color: lineageStatusColor(wo.status) }}>{wo.status}</span>
+      {wo.qty != null && <span style={{ color: '#555' }}> · {wo.qty}</span>}
+      {(wo.beams || []).map((bm: any) => (
+        <div key={bm.id} style={{ marginLeft: 22, padding: '1px 0', color: '#333' }}>
+          <i className="bi bi-box-seam me-1" style={{ color: '#8a5a00' }}></i>
+          <span style={{ color: '#8a5a00', fontWeight: 'bold' }}>Beam </span>
+          <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{bm.batch_number}</span>
+          {bm.item_code && <span style={{ color: '#777' }}> ({bm.item_code})</span>}
+          {bm.ends != null && <span style={{ color: '#777' }}> · {bm.ends} ends</span>}
+          <span style={{ marginLeft: 6, color: bm.remaining > 0 ? '#1a7a1a' : '#999' }}>
+            {bm.remaining > 0 ? `${bm.remaining} remaining` : 'depleted'}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderLineageMO = (mo: any, isComponent = false): React.ReactNode => (
+    <div key={mo.id} style={{ marginLeft: isComponent ? 22 : 0, marginTop: 4, paddingLeft: isComponent ? 8 : 0, borderLeft: isComponent ? '2px solid #cfe0ff' : 'none' }}>
+      <div>
+        <i className={`bi ${isComponent ? 'bi-diagram-2' : 'bi-box'} me-1`} style={{ color: '#0058e6' }}></i>
+        <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#0058e6' }}>{mo.code}</span>
+        <span style={{ color: '#333' }}> · {mo.item_code}{mo.item_name ? ` — ${mo.item_name}` : ''}</span>
+        <span style={{ color: '#555' }}> · {mo.qty}</span>
+        <span style={{ marginLeft: 6, fontWeight: 'bold', color: lineageStatusColor(mo.status) }}>{mo.status}</span>
+        {isComponent && (
+          <span style={{ marginLeft: 6, fontSize: '0.8em', background: '#eef4ff', border: '1px solid #b8ccf0', color: '#003ea6', padding: '0 5px', fontWeight: 'bold' }}>
+            SHARED COMPONENT{mo.dep_qty != null ? ` · ${mo.dep_qty}` : ''}
+          </span>
+        )}
+      </div>
+      {(mo.work_orders || []).map(renderLineageWO)}
+      {(mo.component_mos || []).map((c: any) => renderLineageMO(c, true))}
+    </div>
+  );
 
 
   const classic = currentStyle === 'classic';
@@ -635,6 +703,53 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                attributes={attributes}
                partners={partners}
            />
+       )}
+
+       {/* Production Lineage Modal — SO → PR → MO → WO → beams */}
+       {(lineageSO || lineageData) && (
+           <div className="modal show d-block" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => { setLineageSO(null); setLineageData(null); }}>
+               <div className="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable" onClick={e => e.stopPropagation()}>
+                   <div className="modal-content" style={classic ? { border: '2px solid', borderColor: '#0058e6 #001840 #001840 #0058e6', borderRadius: 0 } : {}}>
+                       <div className="modal-header" style={classic ? { background: 'linear-gradient(to right,#0058e6,#08a5ff)', color: '#fff', padding: '4px 10px', borderBottom: '1px solid #003080' } : {}}>
+                           <h5 className="modal-title" style={{ fontSize: classic ? 13 : undefined, color: classic ? '#fff' : undefined }}>
+                               <i className="bi bi-diagram-3 me-2"></i>Production Lineage — {lineageSO?.po_number}
+                               {lineageSO?.customer_name && <span style={{ fontWeight: 'normal', fontSize: '0.85em', marginLeft: 8, opacity: 0.9 }}>{lineageSO.customer_name}</span>}
+                           </h5>
+                           <button className={classic ? '' : 'btn-close'} style={classic ? { background: 'none', border: 'none', color: '#fff', fontWeight: 'bold', cursor: 'pointer', fontSize: 14 } : {}} onClick={() => { setLineageSO(null); setLineageData(null); }}>{classic ? 'X' : ''}</button>
+                       </div>
+                       <div className="modal-body" style={{ fontSize: classic ? 12 : 13, fontFamily: classic ? 'Tahoma,Arial,sans-serif' : undefined }}>
+                           {lineageLoading && <p className="text-muted">Loading lineage...</p>}
+                           {!lineageLoading && lineageData && (lineageData.production_runs || []).length === 0 && (
+                               <p className="text-muted">No Production Runs created from this Sales Order yet. Everything produced for this order will appear here once a PR is created.</p>
+                           )}
+                           {!lineageLoading && lineageData && (lineageData.production_runs || []).map((pr: any) => (
+                               <div key={pr.id} style={{ marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #e8e8e8' }}>
+                                   <div style={{ fontWeight: 'bold', fontSize: classic ? 13 : 14 }}>
+                                       <i className="bi bi-collection-play me-1" style={{ color: '#1a5e1a' }}></i>
+                                       <span style={{ fontFamily: 'monospace', color: '#1a5e1a' }}>{pr.code}</span>
+                                       <span style={{ marginLeft: 6, fontWeight: 'bold', color: lineageStatusColor(pr.status) }}>{pr.status}</span>
+                                   </div>
+                                   <div style={{ marginTop: 4 }}>
+                                       {(pr.manufacturing_orders || []).length === 0 && (
+                                           <div style={{ marginLeft: 22, color: '#999', fontStyle: 'italic' }}>No manufacturing orders.</div>
+                                       )}
+                                       {(pr.manufacturing_orders || []).map((mo: any) => renderLineageMO(mo, false))}
+                                       {(pr.unpegged_components || []).length > 0 && (
+                                           <div style={{ marginTop: 4 }}>
+                                               <div style={{ color: '#777', fontStyle: 'italic', marginLeft: 0 }}>Shared components (not pegged to a root MO):</div>
+                                               {(pr.unpegged_components || []).map((mo: any) => renderLineageMO(mo, true))}
+                                           </div>
+                                       )}
+                                   </div>
+                               </div>
+                           ))}
+                       </div>
+                       <div className="modal-footer" style={classic ? { padding: '6px 12px', borderTop: '1px solid #c0c0c0' } : {}}>
+                           <button className={classic ? '' : 'btn btn-sm btn-secondary'} style={classic ? xpBtn() : undefined} onClick={() => { setLineageSO(null); setLineageData(null); }}>Close</button>
+                       </div>
+                   </div>
+               </div>
+           </div>
        )}
 
        <CodeConfigModal
@@ -1258,6 +1373,16 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                                    <span key={pr.id} style={{ fontSize:9, whiteSpace:'nowrap' as const, background:'#d1e7dd', border:'1px solid #a3cfbb', color:'#0a3622', padding:'1px 5px', borderRadius:3, fontWeight:'bold' }}>
                                                        <i className="bi bi-check-circle me-1"></i>{pr.code}
                                                    </span>
+                                               ))}
+                                               {soPRs.length > 0 && (classic ? (
+                                                   <button key="lineage" title="View full production lineage — PR, MO, WO and beams created for this SO" onClick={() => openLineage(so)}
+                                                       style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', padding:'1px 5px', cursor:'pointer', whiteSpace:'nowrap' as const, background:'linear-gradient(to bottom,#fff,#d4d0c8)', border:'1px solid', borderColor:'#dfdfdf #808080 #808080 #dfdfdf', color:'#003ea6', fontWeight:'bold' }}>
+                                                       <i className="bi bi-diagram-3" style={{ marginRight:2 }}></i>Lineage
+                                                   </button>
+                                               ) : (
+                                                   <button key="lineage" className="btn btn-sm btn-outline-primary py-0 px-2" style={{ fontSize:9, whiteSpace:'nowrap' as const }} title="View full production lineage — PR, MO, WO and beams created for this SO" onClick={() => openLineage(so)}>
+                                                       <i className="bi bi-diagram-3 me-1"></i>Lineage
+                                                   </button>
                                                ))}
                                            </div>
                                        )}
