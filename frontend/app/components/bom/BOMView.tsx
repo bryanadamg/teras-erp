@@ -103,6 +103,8 @@ export default function BOMView({
     const getItemName = (id: string, provided?: string) => provided || items.find((i: any) => i.id === id)?.name || id;
     const getItemCode = (id: string, provided?: string) => provided || items.find((i: any) => i.id === id)?.code || id;
     const getItemUom = (id: string) => items.find((i: any) => i.id === id)?.uom || '';
+    // Beam items carry a warp-ends count; for a beam BOM the qty IS the ends (set on BOM creation).
+    const getItemEnds = (id: string): number | null => { const e = items.find((i: any) => i.id === id)?.ends; return e != null ? e : null; };
     const uomBadge: React.CSSProperties = { background: '#dde8f5', border: '1px solid #7f9db9', color: '#336', fontSize: 9, padding: '0 4px', whiteSpace: 'nowrap', fontWeight: 'normal' };
     const getWcName = (id: string | null) => id ? (workCenters.find((w: any) => w.id === id)?.name || id) : '—';
     const getAttrValues = (ids: string[]) => {
@@ -565,8 +567,12 @@ export default function BOMView({
                                             </div>
                                         )}
                                         <div>
-                                            <div style={lbl}>Batch Output</div>
-                                            <div style={val}>{Number(displayBOM.qty).toFixed(2)} <span style={{ fontWeight: 'normal', color: '#555', fontSize: 9 }}>pcs</span></div>
+                                            <div style={lbl}>{getItemEnds(displayBOM.item_id) != null ? 'Warp Ends (Utas)' : 'Batch Output'}</div>
+                                            {getItemEnds(displayBOM.item_id) != null ? (
+                                                <div><span style={{ display: 'inline-block', background: '#e6f4ea', border: '1px solid #4caf50', color: '#1a6e2e', fontWeight: 'bold', fontSize: 11, padding: '1px 8px', borderRadius: 2 }}>{Math.round(Number(displayBOM.qty))} ends</span></div>
+                                            ) : (
+                                                <div style={val}>{Number(displayBOM.qty).toFixed(2)} <span style={{ fontWeight: 'normal', color: '#555', fontSize: 9 }}>pcs</span></div>
+                                            )}
                                         </div>
                                         <div>
                                             <div style={lbl}>Tolerance</div>
@@ -908,9 +914,15 @@ export default function BOMView({
                                                             <span title="Operations" style={{ background: '#e8f5e8', border: '1px solid #2d7a2d', color: '#1a4d1a', fontSize: 10, padding: '1px 6px', whiteSpace: 'nowrap' }}>
                                                                 <i className="bi bi-wrench" style={{ marginRight: 3 }} />{bom.operations?.length ?? 0} op{bom.operations?.length !== 1 ? 's' : ''}
                                                             </span>
-                                                            <span title="Batch output" style={{ background: '#f5f3ee', border: '1px solid #b0aaa0', color: '#333', fontSize: 10, padding: '1px 6px', whiteSpace: 'nowrap' }}>
-                                                                <i className="bi bi-box-seam" style={{ marginRight: 3 }} />{Number(bom.qty ?? 1).toFixed(2)}
-                                                            </span>
+                                                            {getItemEnds(bom.item_id) != null ? (
+                                                                <span title="Warp ends (utas)" style={{ background: '#e6f4ea', border: '1px solid #4caf50', color: '#1a6e2e', fontWeight: 'bold', fontSize: 10, padding: '1px 6px', whiteSpace: 'nowrap' }}>
+                                                                    <i className="bi bi-bezier2" style={{ marginRight: 3 }} />{Math.round(Number(bom.qty ?? 1))} ends
+                                                                </span>
+                                                            ) : (
+                                                                <span title="Batch output" style={{ background: '#f5f3ee', border: '1px solid #b0aaa0', color: '#333', fontSize: 10, padding: '1px 6px', whiteSpace: 'nowrap' }}>
+                                                                    <i className="bi bi-box-seam" style={{ marginRight: 3 }} />{Number(bom.qty ?? 1).toFixed(2)}
+                                                                </span>
+                                                            )}
                                                             <span title={bom.active ? 'Active' : 'Inactive'} style={{ display: 'inline-block', width: 8, height: 8, background: bom.active ? '#00aa00' : '#cc0000', border: `1px solid ${bom.active ? '#005500' : '#660000'}`, flexShrink: 0 }} />
                                                         </div>
                                                     </td>

@@ -408,6 +408,15 @@ export default function BOMDesigner({
         items.find((i: any) => (i.code || '').trim().toLowerCase() === (code || '').trim().toLowerCase())?.uom || '',
     [items]);
 
+    // Beam finished items: BOM "Batch Size" (qty) is repurposed as the warp-ends (utas) count.
+    const getItemByCode = useCallback((code: string) =>
+        items.find((i: any) => (i.code || '').trim().toLowerCase() === (code || '').trim().toLowerCase()),
+    [items]);
+    const isBeamCode = useCallback((code: string) => {
+        const it = getItemByCode(code);
+        return !!it && (((it.category_path || []).some((c: string) => (c || '').toLowerCase() === 'beam')) || it.ends != null);
+    }, [getItemByCode]);
+
     const hasExistingBOM = useCallback((code: string, attributeValueIds: string[] = []): boolean => {
         const item = items.find((i: any) => (i.code || '').trim().toLowerCase() === (code || '').trim().toLowerCase());
         if (!item) return false;
@@ -793,11 +802,13 @@ export default function BOMDesigner({
                                                     options={items.map((i: any) => ({ value: i.code, label: i.name, subLabel: i.code }))}
                                                     value={selectedNode.item_code}
                                                     onChange={(code: string) => {
+                                                        const beamEnds = isBeamCode(code) ? getItemByCode(code)?.ends : null;
                                                         setRootBOM(prev => ({
                                                             ...prev,
                                                             item_code: code,
                                                             code: suggestBOMCode(code, prev.attribute_value_ids),
-                                                            attribute_value_ids: []
+                                                            attribute_value_ids: [],
+                                                            ...(beamEnds != null ? { qty: beamEnds } : {})
                                                         }));
                                                     }}
                                                     placeholder="Select Item..."
@@ -811,9 +822,9 @@ export default function BOMDesigner({
                                             )}
                                         </div>
 
-                                        {/* Batch Size */}
-                                        <div style={{ width: 80 }}>
-                                            <label style={xpLabel}>Batch Size</label>
+                                        {/* Batch Size — for beam items this is the warp-ends (utas) count */}
+                                        <div style={{ width: isBeamCode(selectedNode.item_code) ? 120 : 80 }}>
+                                            <label style={xpLabel}>{isBeamCode(selectedNode.item_code) ? 'Warp Ends (Utas)' : 'Batch Size'}</label>
                                             <input
                                                 data-testid="batch-size-input"
                                                 type="number"

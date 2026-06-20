@@ -706,7 +706,7 @@ export default function WorkOrderPanel({
                         qty: parentMO.qty,
                         item_name: parentMO.item_name,
                         uom: parentMO.uom,
-                        ends: parentMO.bom?.qty,
+                        ends: parentMO.item_ends ?? parentMO.bom?.qty,
                     }}
                     machines={beamingMachines.map((wc: any) => ({ id: wc.id, name: wc.name }))}
                     onClose={() => setBeamPlanOpen(false)}

@@ -308,6 +308,7 @@ class ManufacturingOrderResponse(BaseModel):
     item_id: UUID
     item_code: str | None = None
     item_name: str | None = None
+    item_ends: int | None = None  # beam warp-ends (utas); authoritative default for beam WO planning
     sales_order_id: UUID | None = None
     sales_order_code: str | None = None
     parent_mo_id: UUID | None = None

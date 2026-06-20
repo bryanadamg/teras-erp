@@ -788,6 +788,11 @@ export default function ManufacturingView({
                                       <div title={node.item_name} style={{ fontSize: '10px', color: isActive ? '#e0ecff' : '#444', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                           {node.item_name}
                                       </div>
+                                      {node.item_ends != null && (
+                                          <div title="Warp ends (utas) · qty to manufacture" style={{ fontSize: '9px', fontWeight: 700, whiteSpace: 'nowrap', color: isActive ? '#cfe3ff' : '#1a6e2e' }}>
+                                              {node.item_ends} ends · {node.qty} {getItemUom(node.item_id)}
+                                          </div>
+                                      )}
                                       {((node.attribute_value_ids || []).length > 0 || node.bom_size_id) && (
                                           <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap', marginTop: 2 }}>
                                               {(node.attribute_value_ids || []).map((id: string) => (
@@ -1053,7 +1058,7 @@ export default function ManufacturingView({
                   <div style={{ borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '6px 8px' }}>
                       <div style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', letterSpacing: '0.5px', marginBottom: '4px' }}>Output</div>
                       <div style={{ fontSize: '10px', color: '#000', fontWeight: 'bold' }}>{getLocationName(selectedNode.location_id)}</div>
-                      <div style={{ fontSize: '10px', color: '#444' }}>Qty: <strong style={{ color: '#000' }}>{selectedNode.qty}</strong>{getItemUom(selectedNode.item_id) && <span style={{ ...uomBadgeStyle, marginLeft: 4 }}>{getItemUom(selectedNode.item_id)}</span>}</div>
+                      <div style={{ fontSize: '10px', color: '#444' }}>Qty: <strong style={{ color: '#000' }}>{selectedNode.qty}</strong>{getItemUom(selectedNode.item_id) && <span style={{ ...uomBadgeStyle, marginLeft: 4 }}>{getItemUom(selectedNode.item_id)}</span>}{selectedNode.item_ends != null && <span style={{ marginLeft: 8, color: '#1a6e2e', fontWeight: 'bold' }}>Ends: {selectedNode.item_ends}</span>}</div>
                   </div>
 
                   {/* Batch Trace */}

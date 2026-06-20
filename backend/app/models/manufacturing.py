@@ -158,6 +158,10 @@ class ManufacturingOrder(Base):
     def item_name(self) -> str | None:
         return self.item.name if self.item else None
 
+    @property
+    def item_ends(self) -> int | None:
+        return self.item.ends if self.item else None
+
 
 class MOCompletion(Base):
     __tablename__ = "mo_completions"
