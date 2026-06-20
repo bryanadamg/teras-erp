@@ -20,7 +20,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
 
   // Receipt modal state
   const [receiptTarget, setReceiptTarget] = useState<any>(null);
-  const [receiptLineQtys, setReceiptLineQtys] = useState<Record<string, number>>({});
+  const [receiptLineQtys, setReceiptLineQtys] = useState<Record<string, number | ''>>({});
   const [receiptLineBoxes, setReceiptLineBoxes] = useState<Record<string, number | ''>>({});
   const [receiptLineCones, setReceiptLineCones] = useState<Record<string, number | ''>>({});
   const [receiptLineDrums, setReceiptLineDrums] = useState<Record<string, number | ''>>({});
@@ -33,12 +33,8 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
 
   const openReceiptModal = (po: any) => {
-    const defaults: Record<string, number> = {};
-    for (const line of po.lines) {
-      const remaining = Math.max(0, line.qty - (line.qty_received || 0));
-      defaults[line.id] = remaining;
-    }
-    setReceiptLineQtys(defaults);
+    // Leave "This Receipt" blank — operator enters actual received qty manually.
+    setReceiptLineQtys({});
     setReceiptLineBoxes({});
     setReceiptLineCones({});
     setReceiptLineDrums({});
@@ -52,14 +48,14 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
   const handleReceiptSubmit = () => {
     if (!receiptTarget) return;
     const lines = Object.entries(receiptLineQtys)
-      .filter(([, qty]) => qty > 0)
+      .filter(([, qty]) => qty !== '' && Number(qty) > 0)
       .map(([po_line_id, qty_received]) => {
         const itemId = receiptTarget.lines.find((l: any) => l.id === po_line_id)?.item_id;
         const catType = itemId ? getItemCatType(itemId) : null;
         const numOrNull = (v: number | '' | undefined) => (v !== '' && v !== undefined ? Number(v) : null);
         return {
           po_line_id,
-          qty_received,
+          qty_received: Number(qty_received),
           qty_boxes: numOrNull(receiptLineBoxes[po_line_id]),
           qty_cones: catType === 'raw' ? numOrNull(receiptLineCones[po_line_id]) : null,
           qty_drums: (catType === 'chemical' || catType === 'dye') ? numOrNull(receiptLineDrums[po_line_id]) : null,
@@ -606,8 +602,9 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                step="0.001"
                                                style={classic?{...xpInput,width:90,textAlign:'right'}:{width:100,textAlign:'right' as const}}
                                                className={classic?'':'form-control form-control-sm'}
-                                               value={receiptLineQtys[line.id] ?? 0}
-                                               onChange={e => setReceiptLineQtys(prev => ({ ...prev, [line.id]: parseFloat(e.target.value) || 0 }))}
+                                               placeholder="—"
+                                               value={receiptLineQtys[line.id] ?? ''}
+                                               onChange={e => setReceiptLineQtys(prev => ({ ...prev, [line.id]: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 }))}
                                            />
                                            <span style={{fontSize:'9px',fontWeight:'bold',color:'#1a3d6b',textTransform:'uppercase'}}>{line.item_uom || getItemUom(line.item_id)}</span>
                                        </div>
