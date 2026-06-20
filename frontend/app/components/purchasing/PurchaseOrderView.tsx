@@ -906,27 +906,50 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                            ) : (
                                                <div>
                                                    <div style={classic ? { fontWeight: 'bold', fontSize: '10px', color: '#444', textTransform: 'uppercase', marginBottom: 4 } : undefined} className={classic ? '' : 'small fw-bold text-muted text-uppercase mb-2'}>Receipt History</div>
-                                                   {(po.receipts || []).map((receipt: any) => (
-                                                       <div key={receipt.id} style={classic ? { background: '#ffffff', border: '1px solid #c0bdb5', padding: '4px 8px', marginBottom: 4 } : undefined} className={classic ? '' : 'card card-body p-2 mb-2 small'}>
-                                                           <div style={classic ? { display: 'flex', justifyContent: 'space-between', marginBottom: 2 } : undefined} className={classic ? '' : 'd-flex justify-content-between mb-1'}>
-                                                               <span style={classic ? { fontWeight: 'bold' } : undefined} className={classic ? '' : 'fw-bold'}>
-                                                                   {new Date(receipt.receipt_date).toLocaleDateString()}
-                                                               </span>
-                                                               {receipt.notes && <span style={classic ? { color: '#666', fontStyle: 'italic' } : undefined} className={classic ? '' : 'text-muted fst-italic'}>{receipt.notes}</span>}
-                                                           </div>
-                                                           <div style={classic ? { display: 'flex', gap: 12, flexWrap: 'wrap' } : undefined} className={classic ? '' : 'd-flex gap-3 flex-wrap'}>
-                                                               {(receipt.lines || []).map((rl: any) => (
-                                                                   <span key={rl.id} style={classic ? { fontSize: '10px', color: '#333' } : undefined} className={classic ? '' : 'text-muted'}>
-                                                                       <span style={classic ? { fontWeight: 'bold' } : undefined} className={classic ? '' : 'fw-semibold text-dark'}>{rl.qty_received} {rl.item_uom || getItemUom(rl.item_id)}</span>
-                                                                       {rl.qty_boxes != null && <span style={classic?{color:'#555',marginLeft:3}:undefined} className={classic?'':'text-muted'}> / {rl.qty_boxes} box{rl.qty_boxes !== 1 ? 'es' : ''}</span>}
-                                                                       {rl.qty_cones != null && <span style={classic?{color:'#555',marginLeft:3}:undefined} className={classic?'':'text-muted'}> / {rl.qty_cones} cone{rl.qty_cones !== 1 ? 's' : ''}</span>}
-                                                                       {rl.qty_drums != null && <span style={classic?{color:'#555',marginLeft:3}:undefined} className={classic?'':'text-muted'}> / {rl.qty_drums} drum{rl.qty_drums !== 1 ? 's' : ''}</span>}
-                                                                       {' '}{rl.item_name || getItemName(rl.item_id)}
+                                                   {(po.receipts || []).map((receipt: any) => {
+                                                       const rlines = receipt.lines || [];
+                                                       const hasBoxes = rlines.some((l: any) => l.qty_boxes != null);
+                                                       const hasCones = rlines.some((l: any) => l.qty_cones != null);
+                                                       const hasDrums = rlines.some((l: any) => l.qty_drums != null);
+                                                       const thXp: React.CSSProperties = { padding: '2px 8px', fontSize: '10px', fontWeight: 'bold', color: '#1a3d6b', background: '#e4e0d4', borderBottom: '1px solid #b0a898', textAlign: 'left' };
+                                                       const tdXp: React.CSSProperties = { padding: '2px 8px', fontSize: '10px', color: '#333', borderTop: '1px solid #e6e3da' };
+                                                       const numR = { textAlign: 'right' as const };
+                                                       return (
+                                                           <div key={receipt.id} style={classic ? { marginBottom: 8 } : undefined} className={classic ? '' : 'mb-3'}>
+                                                               <div style={classic ? { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 2 } : undefined} className={classic ? '' : 'd-flex justify-content-between align-items-baseline mb-1'}>
+                                                                   <span style={classic ? { fontWeight: 'bold', color: '#1a3d6b' } : undefined} className={classic ? '' : 'fw-bold'}>
+                                                                       {new Date(receipt.receipt_date).toLocaleDateString()}
                                                                    </span>
-                                                               ))}
+                                                                   {receipt.notes && <span style={classic ? { color: '#666', fontStyle: 'italic', fontSize: '10px' } : undefined} className={classic ? '' : 'text-muted fst-italic small'}>{receipt.notes}</span>}
+                                                               </div>
+                                                               <table style={classic ? { width: '100%', borderCollapse: 'collapse', background: '#fff', border: '1px solid #c0bdb5' } : undefined} className={classic ? '' : 'table table-sm table-bordered bg-white mb-0 align-middle small'}>
+                                                                   <thead>
+                                                                       <tr className={classic ? '' : 'table-light'}>
+                                                                           <th style={classic ? thXp : undefined}>Item</th>
+                                                                           <th style={classic ? { ...thXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>Received</th>
+                                                                           {hasBoxes && <th style={classic ? { ...thXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>Boxes</th>}
+                                                                           {hasCones && <th style={classic ? { ...thXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>Cones</th>}
+                                                                           {hasDrums && <th style={classic ? { ...thXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>Drums</th>}
+                                                                       </tr>
+                                                                   </thead>
+                                                                   <tbody>
+                                                                       {rlines.map((rl: any) => (
+                                                                           <tr key={rl.id}>
+                                                                               <td style={classic ? tdXp : undefined} className={classic ? '' : 'fw-semibold text-dark'}>{rl.item_name || getItemName(rl.item_id)}</td>
+                                                                               <td style={classic ? { ...tdXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>
+                                                                                   <span style={classic ? { fontWeight: 'bold' } : undefined} className={classic ? '' : 'fw-bold'}>{rl.qty_received}</span>
+                                                                                   <span style={{ marginLeft: 3, color: '#888', fontSize: '9px', textTransform: 'uppercase' }}>{rl.item_uom || getItemUom(rl.item_id)}</span>
+                                                                               </td>
+                                                                               {hasBoxes && <td style={classic ? { ...tdXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>{rl.qty_boxes != null ? rl.qty_boxes : <span style={{ color: '#bbb' }}>—</span>}</td>}
+                                                                               {hasCones && <td style={classic ? { ...tdXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>{rl.qty_cones != null ? rl.qty_cones : <span style={{ color: '#bbb' }}>—</span>}</td>}
+                                                                               {hasDrums && <td style={classic ? { ...tdXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>{rl.qty_drums != null ? rl.qty_drums : <span style={{ color: '#bbb' }}>—</span>}</td>}
+                                                                           </tr>
+                                                                       ))}
+                                                                   </tbody>
+                                                               </table>
                                                            </div>
-                                                       </div>
-                                                   ))}
+                                                       );
+                                                   })}
                                                </div>
                                            )}
                                        </td>
