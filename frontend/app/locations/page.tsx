@@ -5,7 +5,7 @@ import { useData } from '../context/DataContext';
 import { useConfirm } from '../context/ConfirmContext';
 
 export default function LocationsPage() {
-    const { locations, fetchData, authFetch } = useData();
+    const { locations, locationCategories, fetchData, authFetch } = useData();
     const { confirm } = useConfirm();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
@@ -24,6 +24,12 @@ export default function LocationsPage() {
         return res;
     };
 
+    const handleUpdateLocation = async (id: string, body: any) => {
+        const res = await authFetch(`${API_BASE}/locations/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        if (res.ok) fetchData();
+        return res;
+    };
+
     const handleDeleteLocation = async (id: string) => {
         const confirmed = await confirm({
             title: 'Delete Location', message: 'Are you sure you want to delete this location?',
@@ -34,11 +40,32 @@ export default function LocationsPage() {
         if (res.ok) fetchData();
     };
 
+    const handleCreateCategory = async (name: string) => {
+        const res = await authFetch(`${API_BASE}/location-categories`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+        if (res.ok) fetchData();
+        return res;
+    };
+
+    const handleDeleteCategory = async (id: string) => {
+        const confirmed = await confirm({
+            title: 'Delete Category',
+            message: 'Delete this category? Locations assigned to it will become uncategorized.',
+            confirmText: 'Delete', variant: 'danger',
+        });
+        if (!confirmed) return;
+        const res = await authFetch(`${API_BASE}/location-categories/${id}`, { method: 'DELETE' });
+        if (res.ok) fetchData();
+    };
+
     return (
             <LocationsView
                 locations={locations}
+                locationCategories={locationCategories}
                 onCreateLocation={handleCreateLocation}
+                onUpdateLocation={handleUpdateLocation}
                 onDeleteLocation={handleDeleteLocation}
+                onCreateCategory={handleCreateCategory}
+                onDeleteCategory={handleDeleteCategory}
                 onRefresh={fetchData}
                 fetchLocations={fetchLocations}
             />
