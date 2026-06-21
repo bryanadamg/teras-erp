@@ -1366,12 +1366,13 @@ export default function BOMDesigner({
                                                     />
                                                 </div>
                                                 <div style={{ width: 60 }}>
-                                                    <label style={{ ...xpLabel, fontSize: 10 }}>Qty</label>
+                                                    <label style={{ ...xpLabel, fontSize: 10 }}>{isBeamNode(selectedNode) ? 'Ends' : 'Qty'}</label>
                                                     <input
                                                         type="number"
                                                         style={xpInput}
                                                         placeholder="—"
                                                         min="0"
+                                                        title={isBeamNode(selectedNode) ? 'Warp ends contributed by this yarn' : undefined}
                                                         value={pendingQty}
                                                         onChange={e => setPendingQty(e.target.value)}
                                                     />
@@ -1412,7 +1413,7 @@ export default function BOMDesigner({
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 6px', background: '#ece9d8', borderBottom: '1px solid #aca899', fontSize: 9, color: '#555', fontWeight: 'bold' }}>
                                                         <span style={{ flex: 1 }}>Component</span>
                                                         <span style={{ width: 57, textAlign: 'right' }}>%</span>
-                                                        <span style={{ width: 48, textAlign: 'right' }}>Qty</span>
+                                                        <span style={{ width: 48, textAlign: 'right' }}>{isBeamNode(selectedNode) ? 'Ends' : 'Qty'}</span>
                                                         {selectedNode.operations.length > 0 && <span style={{ width: 80 }}>Step</span>}
                                                         <span style={{ width: 96, flexShrink: 0 }}></span>
                                                     </div>
@@ -1455,7 +1456,7 @@ export default function BOMDesigner({
                                                         </div>
                                                         <input
                                                             type="number"
-                                                            title="Quantity (note only)"
+                                                            title={isBeamNode(selectedNode) ? 'Warp ends contributed by this yarn' : 'Quantity (note only)'}
                                                             placeholder="—"
                                                             min="0"
                                                             style={{ ...xpInput, width: 48, textAlign: 'right', padding: '1px 3px' }}

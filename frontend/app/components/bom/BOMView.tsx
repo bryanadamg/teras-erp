@@ -378,6 +378,9 @@ export default function BOMView({
         const totalMinutes = ops.reduce((sum: number, op: any) => sum + (op.time_minutes || 0), 0);
         const totalPct = lines.reduce((sum: number, l: any) => sum + (l.percentage || 0), 0);
         const hasPct = lines.some((l: any) => (l.percentage || 0) > 0);
+        // Beam BOM: each component line's qty holds that yarn's warp-ends count (independent of % / kg).
+        const beamBom = getItemEnds(displayBOM.item_id) != null || (displayBOM.work_center_name || '').toUpperCase().includes('BEAM');
+        const totalLineEnds = lines.reduce((sum: number, l: any) => sum + (Number(l.qty) || 0), 0);
         const nodeCount = countTreeNodes(bom);
         const parentName = isRootSelected ? '' : findParentName(bom, selectedBomId);
         const subBOMCount = lines.filter((l: any) => !!findSubBOM(l)).length;
@@ -454,6 +457,7 @@ export default function BOMView({
                                                 <tr>
                                                     <th style={xpTh}>Item</th>
                                                     <th style={{ ...xpTh, textAlign: 'right' }}>Required</th>
+                                                    {beamBom && <th style={{ ...xpTh, textAlign: 'right' }}>Ends</th>}
                                                     <th style={xpTh}>Attributes</th>
                                                 </tr>
                                             </thead>
@@ -481,6 +485,13 @@ export default function BOMView({
                                                                     <span style={{ ...uomBadge, marginLeft: 4 }}>{getItemUom(line.item_id)}</span>
                                                                 )}
                                                             </td>
+                                                            {beamBom && (
+                                                                <td style={{ ...xpTd, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                                    {(Number(line.qty) || 0) > 0
+                                                                        ? <span style={{ background: '#e6f4ea', border: '1px solid #4caf50', color: '#1a6e2e', fontWeight: 'bold', fontSize: 10, padding: '0 5px' }}>{Math.round(Number(line.qty))} ends</span>
+                                                                        : <span style={{ color: '#888' }}>—</span>}
+                                                                </td>
+                                                            )}
                                                             <td style={{ ...xpTd, fontSize: 10, color: '#444' }}>{getAttrValues(line.attribute_value_ids || [])}</td>
                                                         </tr>
                                                     );
@@ -488,10 +499,13 @@ export default function BOMView({
                                             </tbody>
                                             <tfoot>
                                                 <tr>
-                                                    <td colSpan={3} style={{ ...xpFooterTd, textAlign: 'right' }}>
+                                                    <td colSpan={beamBom ? 4 : 3} style={{ ...xpFooterTd, textAlign: 'right' }}>
                                                         {lines.length} component{lines.length !== 1 ? 's' : ''}
                                                         {hasPct && (
                                                             <> · Total %: <span style={{ fontWeight: 'bold', color: Math.abs(totalPct - 100) < 0.01 ? '#004400' : '#880000' }}>{totalPct.toFixed(1)}%</span></>
+                                                        )}
+                                                        {beamBom && totalLineEnds > 0 && (
+                                                            <> · Total yarn ends: <span style={{ fontWeight: 'bold', color: '#1a6e2e' }}>{Math.round(totalLineEnds)}</span></>
                                                         )}
                                                     </td>
                                                 </tr>
