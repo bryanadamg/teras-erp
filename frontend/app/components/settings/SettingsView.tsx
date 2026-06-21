@@ -13,14 +13,14 @@ export default function SettingsView({
   const { showToast } = useToast();
   const { currentUser, users, setCurrentUser, hasPermission, refreshUsers } = useUser();
 
+  const { uiStyle: currentStyle } = useTheme();
+  const classic = currentStyle === 'classic';
+
   const [name, setName] = useState(appName);
   const [style, setStyle] = useState(uiStyle || currentStyle || 'classic');
   const [roles, setRoles] = useState<any[]>([]);
   const [allPermissions, setAllPermissions] = useState<any[]>([]);
   const [allCategories, setAllCategories] = useState<any[]>([]);
-
-  const { uiStyle: currentStyle } = useTheme();
-  const classic = currentStyle === 'classic';
 
   // Database Management State
   const [currentDbUrl, setCurrentDbUrl] = useState('');

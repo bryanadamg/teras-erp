@@ -50,6 +50,7 @@ class Item(Base):
     weight_unit: Mapped[str | None] = mapped_column(String(16), nullable=True)  # e.g. gsm, g/m², oz/yd²
     ends: Mapped[int | None] = mapped_column(nullable=True)  # warp ends count for beam items
     lot_tracked: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")  # enforce lot/batch on all stock moves
+    min_stock_level: Mapped[float | None] = mapped_column(Float, nullable=True)  # reorder point; null → default low-stock threshold (10)
 
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

@@ -52,7 +52,7 @@ export function normalizeCounter(segs: Segment[]): Segment[] {
 
 export function getDefaultSegments(type: string): Segment[] {
   const defaultPrefixes: Record<string, string> = {
-    BOM: 'BOM', WO: 'WO', PO: 'PO', SO: 'SO', SAMPLE: 'SMP', ITEM: 'ITM', DYE: 'DR',
+    BOM: 'BOM', WO: 'WO', MO: 'MO', PO: 'PO', SO: 'SO', SAMPLE: 'SMP', ITEM: 'ITM', DYE: 'DR',
   };
   const prefix = defaultPrefixes[type] ?? 'CODE';
   const segs: Segment[] = [{ type: 'prefix', value: prefix }];
@@ -242,7 +242,7 @@ export function insertAtGap(
 
 function getTypeName(type: string): string {
   const names: Record<string, string> = {
-    BOM: 'BOM', WO: 'Work Order', PO: 'Purchase Order',
+    BOM: 'BOM', WO: 'Work Order', MO: 'Manufacturing Order', PO: 'Purchase Order',
     SO: 'Sales Order', SAMPLE: 'Sample Request', ITEM: 'Item', DYE: 'Dye Recipe',
   };
   return names[type] ?? 'Document';
@@ -385,7 +385,7 @@ function SegmentChipDefault({
 interface CodeConfigModalProps {
     isOpen: boolean;
     onClose: () => void;
-    type: 'BOM' | 'WO' | 'PO' | 'SO' | 'SAMPLE' | 'ITEM' | 'DYE';
+    type: 'BOM' | 'WO' | 'MO' | 'PO' | 'SO' | 'SAMPLE' | 'ITEM' | 'DYE';
     onSave: (config: CodeConfig) => void;
     initialConfig?: CodeConfig;
     attributes: any[];

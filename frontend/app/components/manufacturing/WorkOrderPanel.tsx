@@ -51,6 +51,7 @@ interface WO {
     notes?: string;
     target_start_date?: string | null;
     target_end_date?: string | null;
+    created_at?: string;
 }
 
 const emptyForm = { group_id: '', work_center_id: '', input_location_id: '', output_location_id: '', planned_duration_hours: '', qty: '', target_start_date: '', target_end_date: '' };
@@ -216,7 +217,7 @@ export default function WorkOrderPanel({
     };
 
     const sorted = [...workOrders].sort((a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
     );
 
     return (

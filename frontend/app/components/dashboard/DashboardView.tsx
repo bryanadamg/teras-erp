@@ -220,8 +220,9 @@ export default function DashboardView({ items, locations, locationCategories, st
 
     // namedLowStock: [{id, name, code, totalStock}]
     const namedLowStock: any[] = hasSummary
-        ? (summary.low_stock_items || []).map((l: any) => ({ id: l.item_id, name: l.item_name, code: l.item_code, totalStock: l.total_qty }))
+        ? (summary.low_stock_items || []).map((l: any) => ({ id: l.item_id, name: l.item_name, code: l.item_code, totalStock: l.total_qty, minLevel: l.min_level }))
         : [];
+    const outCount = namedLowStock.filter((i: any) => i.totalStock <= 0).length;
 
     // recentActivity: [{itemName, qty_change, created_at, location_name}]
     const recentActivity: any[] = hasSummary
@@ -276,15 +277,16 @@ export default function DashboardView({ items, locations, locationCategories, st
     const actionItems = useMemo(() => {
         const list: { sev: 'crit' | 'warn' | 'info'; title: string; sub: string; detail: string }[] = [];
         namedLowStock.forEach((i: any) => {
+            const out = i.totalStock <= 0;
             list.push({
-                sev: 'crit', title: `${i.name} — OUT`, sub: `Total stock: ${i.totalStock} units`,
-                detail: `On-hand stock for "${i.name}" across all locations is ${i.totalStock} (zero or below). Work orders and sales orders that consume it will stall until it is replenished — raise a Purchase Order or a Production Run.`,
+                sev: out ? 'crit' : 'warn', title: `${i.name} — ${out ? 'OUT' : 'LOW'}`, sub: `Stock ${i.totalStock} · reorder at ${i.minLevel}`,
+                detail: `On-hand stock for "${i.name}" across all locations is ${i.totalStock}, ${out ? 'at or below zero' : `below its reorder point of ${i.minLevel}`}. Work orders and sales orders that consume it may stall until it is replenished — raise a Purchase Order or a Production Run.`,
             });
         });
         if (metrics.lowStock > namedLowStock.length) {
             list.push({
-                sev: 'crit', title: `${metrics.lowStock - namedLowStock.length} more items low`, sub: 'Check inventory for details',
-                detail: `${metrics.lowStock - namedLowStock.length} additional item(s) have total on-hand stock below the low-stock threshold (10 units). Open Inventory to see exactly which items need reordering.`,
+                sev: 'warn', title: `${metrics.lowStock - namedLowStock.length} more items low`, sub: 'Check inventory for details',
+                detail: `${metrics.lowStock - namedLowStock.length} additional item(s) have total on-hand stock below their reorder point (per-item, default 10 units). Open Inventory to see exactly which items need reordering.`,
             });
         }
         overdueWOs.slice(0, 3).forEach((w: any) => {
@@ -310,7 +312,7 @@ export default function DashboardView({ items, locations, locationCategories, st
     }, [summary, overdueWOs, metrics.lowStock, metrics.pendingWO]);
 
     // ── Health statuses ──────────────────────────────────────────────────────
-    const stockHealth: HealthStatus  = namedLowStock.length > 0 ? 'crit' : metrics.lowStock > 0 ? 'warn' : 'ok';
+    const stockHealth: HealthStatus  = outCount > 0 ? 'crit' : (namedLowStock.length > 0 || metrics.lowStock > 0) ? 'warn' : 'ok';
     const prodHealth: HealthStatus   = overdueWOs.length > 0 ? 'warn' : 'ok';
     const orderHealth: HealthStatus  = deliveryReadiness < 50 ? 'crit' : deliveryReadiness < 80 ? 'warn' : 'ok';
 
@@ -322,6 +324,7 @@ export default function DashboardView({ items, locations, locationCategories, st
                 ...w,
                 isOverdue: w.target_end_date && new Date(w.target_end_date) < today,
                 itemName: resolveName(w.item_id),
+                progress: parseFloat(w.qty) > 0 ? Math.min(100, (parseFloat(w.qty_completed_total || 0) / parseFloat(w.qty)) * 100) : 0,
             }))
             .sort((a: any, b: any) => {
                 if (a.isOverdue && !b.isOverdue) return -1;
@@ -451,7 +454,7 @@ export default function DashboardView({ items, locations, locationCategories, st
                                     {namedLowStock.map((i: any) => (
                                         <li key={i.id} className="list-group-item d-flex justify-content-between align-items-center py-2">
                                             <span><span className="font-monospace text-muted me-2">{i.code}</span>{i.name}</span>
-                                            <span className="badge bg-danger">{i.totalStock} units</span>
+                                            <span className={`badge ${i.totalStock <= 0 ? 'bg-danger' : 'bg-warning text-dark'}`}>{i.totalStock} / min {i.minLevel}</span>
                                         </li>
                                     ))}
                                 </ul>
@@ -581,8 +584,11 @@ export default function DashboardView({ items, locations, locationCategories, st
                                                     <td>{wo.itemName}</td>
                                                     <td><span className={`badge ${wo.status === 'IN_PROGRESS' ? 'bg-warning text-dark' : 'bg-secondary'} extra-small`}>{wo.status}</span></td>
                                                     <td>
-                                                        <div className="progress" style={{ height: '6px', width: '120px' }} role="progressbar" aria-valuenow={wo.status === 'IN_PROGRESS' ? 60 : 0} aria-valuemin={0} aria-valuemax={100}>
-                                                            <div className={`progress-bar ${wo.status === 'IN_PROGRESS' ? 'bg-warning' : 'bg-secondary'}`} style={{ width: wo.status === 'IN_PROGRESS' ? '60%' : '0%' }}></div>
+                                                        <div className="d-flex align-items-center gap-2">
+                                                            <div className="progress flex-grow-1" style={{ height: '6px', maxWidth: '120px' }} role="progressbar" aria-valuenow={Math.round(wo.progress)} aria-valuemin={0} aria-valuemax={100}>
+                                                                <div className={`progress-bar ${wo.isOverdue ? 'bg-danger' : wo.status === 'IN_PROGRESS' ? 'bg-warning' : 'bg-secondary'}`} style={{ width: `${wo.progress}%` }}></div>
+                                                            </div>
+                                                            <small className="text-muted" style={{ fontSize: '0.65rem', minWidth: 26 }}>{wo.progress.toFixed(0)}%</small>
                                                         </div>
                                                     </td>
                                                     <td className="text-end pe-3 fw-bold">{wo.qty?.toLocaleString()}</td>
@@ -735,8 +741,8 @@ export default function DashboardView({ items, locations, locationCategories, st
                     <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: "'Courier New', monospace", color: '#0058e6', lineHeight: 1.1 }}>{metrics.totalItems}</div>
                     <div style={{ fontSize: '8px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>{t('total_skus')}</div>
                 </div>
-                <div style={kpiTileStyle(namedLowStock.length > 0 ? 'crit' : metrics.lowStock > 0 ? 'warn' : undefined)}>
-                    <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: "'Courier New', monospace", color: namedLowStock.length > 0 ? '#cc0000' : metrics.lowStock > 0 ? '#c77800' : '#228822', lineHeight: 1.1 }}>{metrics.lowStock}</div>
+                <div style={kpiTileStyle(outCount > 0 ? 'crit' : metrics.lowStock > 0 ? 'warn' : undefined)}>
+                    <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: "'Courier New', monospace", color: outCount > 0 ? '#cc0000' : metrics.lowStock > 0 ? '#c77800' : '#228822', lineHeight: 1.1 }}>{metrics.lowStock}</div>
                     <div style={{ fontSize: '8px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>{t('low_stock')}</div>
                 </div>
                 <div style={kpiTileStyle(overdueWOs.length > 0 ? 'warn' : undefined)}>
@@ -834,8 +840,8 @@ export default function DashboardView({ items, locations, locationCategories, st
                             </thead>
                             <tbody>
                                 {activeWOList.map((wo: any, idx: number) => {
-                                    const progColor: 'red' | 'orange' | 'blue' = wo.isOverdue ? 'red' : wo.status === 'IN_PROGRESS' ? 'blue' : 'orange';
-                                    const progWidth = wo.status === 'IN_PROGRESS' ? 55 : 0;
+                                    const progColor: 'red' | 'orange' | 'blue' | 'green' = wo.isOverdue ? 'red' : wo.progress >= 100 ? 'green' : wo.status === 'IN_PROGRESS' ? 'blue' : 'orange';
+                                    const progWidth = wo.progress;
                                     const displayStatus = wo.isOverdue ? 'OVERDUE' : wo.status;
                                     return (
                                         <tr key={wo.id}>
@@ -843,8 +849,11 @@ export default function DashboardView({ items, locations, locationCategories, st
                                             <td style={{ ...xpTd(idx % 2 === 1), fontWeight: 'bold', color: '#000' }}>{wo.itemName}</td>
                                             <td style={xpTd(idx % 2 === 1)}><StatusBadge status={displayStatus} /></td>
                                             <td style={xpTd(idx % 2 === 1)}>
-                                                <div style={xpProgTrack} role="progressbar" aria-valuenow={progWidth} aria-valuemin={0} aria-valuemax={100}>
-                                                    <div style={{ ...xpProgFill(progColor), width: `${progWidth}%` }}></div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                    <div style={{ ...xpProgTrack, flex: 1 }} role="progressbar" aria-valuenow={Math.round(progWidth)} aria-valuemin={0} aria-valuemax={100}>
+                                                        <div style={{ ...xpProgFill(progColor), width: `${progWidth}%` }}></div>
+                                                    </div>
+                                                    <span style={{ fontSize: 9, color: '#555', minWidth: 22, textAlign: 'right' }}>{progWidth.toFixed(0)}%</span>
                                                 </div>
                                             </td>
                                             <td style={{ ...xpTd(idx % 2 === 1), textAlign: 'right', fontWeight: 'bold' }}>{wo.qty?.toLocaleString()}</td>

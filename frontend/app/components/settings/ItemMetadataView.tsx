@@ -11,13 +11,13 @@ interface Props {
     uoms: any[];
     attributes: any[];
     onCreateCategory: (name: string, parentId?: string) => Promise<any>;
-    onDeleteCategory: (id: string) => void;
+    onDeleteCategory: (id: string) => Promise<void>;
     onRenameCategory: (id: string, name: string) => Promise<void>;
-    onCreateUOM: (name: string) => void;
+    onCreateUOM: (name: string) => Promise<Response>;
     onDeleteUOM: (id: string) => void;
     onSaveUOMFactor: (fromUomId: string, toUomId: string, value: number) => void;
     onDeleteUOMFactor: (uomId: string, factorId: string) => void;
-    onCreateAttribute: (p: any) => void;
+    onCreateAttribute: (p: any) => Promise<Response>;
     onUpdateAttribute: (id: string, name: string) => void;
     onDeleteAttribute: (id: string) => void;
     onAddValue: (attributeId: string, value: string) => void;

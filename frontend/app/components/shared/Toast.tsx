@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
 
-type ToastType = 'success' | 'danger' | 'warning' | 'info';
+type ToastType = 'success' | 'danger' | 'warning' | 'info' | 'error';
 
 interface Toast {
     id: string;
@@ -21,7 +21,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
     const showToast = useCallback((message: string, type: ToastType = 'info') => {
         const id = Math.random().toString(36).substring(2, 9);
-        setToasts((prev) => [...prev, { id, message, type }]);
+        // Normalize 'error' alias to 'danger' so it renders with danger styling/icon.
+        const resolved: ToastType = type === 'error' ? 'danger' : type;
+        setToasts((prev) => [...prev, { id, message, type: resolved }]);
         
         // Auto-remove after 4 seconds
         setTimeout(() => {

@@ -522,6 +522,7 @@ class ItemCreate(BaseModel):
     packaging_factor_ids: list[UUID] = []
     ends: int | None = None
     lot_tracked: bool = False
+    min_stock_level: float | None = None
 
 
 class ItemUpdate(BaseModel):
@@ -538,6 +539,7 @@ class ItemUpdate(BaseModel):
     packaging_factor_ids: list[UUID] | None = None
     ends: int | None = None
     lot_tracked: bool | None = None
+    min_stock_level: float | None = None
 
 
 class ItemResponse(BaseModel):
@@ -558,6 +560,7 @@ class ItemResponse(BaseModel):
     packaging_factor_ids: list[UUID] = []
     ends: int | None = None
     lot_tracked: bool = False
+    min_stock_level: float | None = None
 
     class Config:
         from_attributes = True

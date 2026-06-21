@@ -39,9 +39,14 @@ def refresh_all_kpis(db: Session):
     pending_wo = db.query(WorkOrder).filter(WorkOrder.status == "PENDING").count()
     update_kpi(db, "pending_wo", float(pending_wo))
 
-    # 4. Low Stock Items (Items where total qty across all locs < 10)
-    # Optimized: Group by item_id in stock_balances and sum
-    low_stock_query = db.query(StockBalance.item_id).group_by(StockBalance.item_id).having(func.sum(StockBalance.qty) < 10)
+    # 4. Low Stock Items (total qty across all locs below the item's reorder
+    #    point). Per-item Item.min_stock_level; falls back to 10 when unset.
+    low_stock_query = (
+        db.query(StockBalance.item_id)
+        .join(Item, Item.id == StockBalance.item_id)
+        .group_by(StockBalance.item_id, Item.min_stock_level)
+        .having(func.sum(StockBalance.qty) < func.coalesce(Item.min_stock_level, 10))
+    )
     low_stock_count = low_stock_query.count()
     update_kpi(db, "low_stock", float(low_stock_count))
 

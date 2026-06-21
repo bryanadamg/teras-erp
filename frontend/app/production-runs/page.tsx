@@ -149,7 +149,16 @@ export default function ProductionRunsPage() {
     };
 
     if (isMobile) {
-        return <MobileManufacturingView workOrders={manufacturingOrders} items={items} />;
+        return (
+            <MobileManufacturingView
+                manufacturingOrders={manufacturingOrders}
+                items={items}
+                workCenters={workCenters}
+                boms={boms}
+                authFetch={authFetch}
+                onRefresh={fetchData}
+            />
+        );
     }
 
     const handleClearInitialPRState = useCallback(() => setInitialPRState(null), []);

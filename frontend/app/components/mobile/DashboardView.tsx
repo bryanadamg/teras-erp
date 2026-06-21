@@ -75,13 +75,13 @@ export default function MobileDashboardView({ items, stockBalance, workOrders, s
     // namedLowStock + shortSOs come from the server summary (the full stock-balance
     // and all sales-orders are no longer shipped to the dashboard).
     const namedLowStock: any[] = hasSummary
-        ? (summary.low_stock_items || []).map((l: any) => ({ id: l.item_id, name: l.item_name, totalStock: l.total_qty }))
+        ? (summary.low_stock_items || []).map((l: any) => ({ id: l.item_id, name: l.item_name, totalStock: l.total_qty, minLevel: l.min_level }))
         : [];
     const shortSOs: any[] = hasSummary ? (summary.short_orders || []) : [];
 
     const actionItems = useMemo(() => {
         const list: { sev: 'crit' | 'warn' | 'info'; title: string; sub: string }[] = [];
-        namedLowStock.forEach((i: any) => list.push({ sev: 'crit', title: `${i.name} — OUT`, sub: `Stock: ${i.totalStock} units` }));
+        namedLowStock.forEach((i: any) => { const out = i.totalStock <= 0; list.push({ sev: out ? 'crit' : 'warn', title: `${i.name} — ${out ? 'OUT' : 'LOW'}`, sub: `Stock ${i.totalStock} · reorder at ${i.minLevel}` }); });
         if (metrics.lowStock > namedLowStock.length)
             list.push({ sev: 'crit', title: `${metrics.lowStock - namedLowStock.length} more low-stock items`, sub: 'Check inventory' });
         overdueWOs.slice(0, 3).forEach((w: any) => {
@@ -103,6 +103,7 @@ export default function MobileDashboardView({ items, stockBalance, workOrders, s
                 ...w,
                 isOverdue: w.target_end_date && new Date(w.target_end_date) < today,
                 itemName: resolveName(w.item_id),
+                progress: parseFloat(w.qty) > 0 ? Math.min(100, (parseFloat(w.qty_completed_total || 0) / parseFloat(w.qty)) * 100) : 0,
             }))
             .sort((a: any, b: any) => {
                 if (a.isOverdue && !b.isOverdue) return -1;
@@ -221,6 +222,12 @@ export default function MobileDashboardView({ items, stockBalance, workOrders, s
                                             <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 3 }} aria-hidden="true" />Overdue
                                         </div>
                                     )}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
+                                        <div style={{ flex: 1, maxWidth: 130, height: 6, background: '#fff', border: '1px solid #808080' }} role="progressbar" aria-valuenow={Math.round(wo.progress)} aria-valuemin={0} aria-valuemax={100}>
+                                            <div style={{ height: '100%', width: `${wo.progress}%`, background: wo.isOverdue ? '#cc0000' : wo.progress >= 100 ? 'linear-gradient(to bottom,#6ec86e,#2a7a2a)' : wo.status === 'IN_PROGRESS' ? 'linear-gradient(to bottom,#4fa4ff,#0058e6)' : '#bbb' }} />
+                                        </div>
+                                        <span style={{ fontFamily: XP_FONT, fontSize: 9, color: '#666', minWidth: 24 }}>{wo.progress.toFixed(0)}%</span>
+                                    </div>
                                 </div>
                                 <span style={xpStatusBadge(wo.status)}>
                                     {wo.status === 'IN_PROGRESS' ? 'IN PROGRESS' : wo.status}

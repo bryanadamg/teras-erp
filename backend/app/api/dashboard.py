@@ -63,17 +63,21 @@ async def get_dashboard_summary(
         for row in wd_result.all()
     ]
 
-    # --- Low stock items: items WITH a StockBalance row whose summed qty <= 0 ---
+    # --- Low stock items: items WITH a StockBalance row whose summed qty is
+    #     below the item's reorder point (Item.min_stock_level, default 10).
+    #     Ordered most-deficient first. ---
     ls_result = await db.execute(
         select(
             StockBalance.item_id,
             Item.name,
             Item.code,
+            func.coalesce(Item.min_stock_level, 10).label("min_level"),
             func.sum(StockBalance.qty).label("total_qty"),
         )
         .join(Item, Item.id == StockBalance.item_id)
-        .group_by(StockBalance.item_id, Item.name, Item.code)
-        .having(func.sum(StockBalance.qty) <= 0)
+        .group_by(StockBalance.item_id, Item.name, Item.code, Item.min_stock_level)
+        .having(func.sum(StockBalance.qty) < func.coalesce(Item.min_stock_level, 10))
+        .order_by((func.sum(StockBalance.qty) - func.coalesce(Item.min_stock_level, 10)).asc())
         .limit(10)
     )
     low_stock_items = [
@@ -81,6 +85,7 @@ async def get_dashboard_summary(
             "item_id": str(row.item_id),
             "item_name": row.name,
             "item_code": row.code,
+            "min_level": float(row.min_level or 0),
             "total_qty": float(row.total_qty or 0),
         }
         for row in ls_result.all()
