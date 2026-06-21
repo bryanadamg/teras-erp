@@ -1,12 +1,14 @@
 'use client';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useData } from '../../context/DataContext';
+import { useTheme } from '../../context/ThemeContext';
 import DyeRecipeTab from './DyeRecipeTab';
 import DyeingOrdersTab from './DyeingOrdersTab';
 import SettingOrdersTab from './SettingOrdersTab';
 
 // ── XP Style Constants ────────────────────────────────────────────────────────
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
+const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 const xpInput: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
     background: 'white', padding: '1px 4px', outline: 'none', height: 20,
@@ -37,6 +39,8 @@ const TABS: { key: TabKey; label: string; icon: string }[] = [
 
 export default function DyeingSettingView() {
     const { authFetch, items, attributes } = useData();
+    const { uiStyle } = useTheme();
+    const classic = uiStyle === 'classic';
     const [activeTab, setActiveTab] = useState<TabKey>('recipes');
     const [recipes, setRecipes] = useState<any[]>([]);
 
@@ -65,7 +69,7 @@ export default function DyeingSettingView() {
     };
 
     // ── Tab button styles ─────────────────────────────────────────────────────
-    const tabBarStyle: React.CSSProperties = {
+    const tabBarStyle: React.CSSProperties = classic ? {
         background: '#d6dff7',
         borderBottom: '1px solid #7f9db9',
         display: 'flex',
@@ -73,10 +77,32 @@ export default function DyeingSettingView() {
         padding: '4px 8px 0',
         gap: 2,
         fontFamily: xpFont,
+    } : {
+        background: '#fff',
+        borderBottom: '1px solid #dbe1ea',
+        display: 'flex',
+        alignItems: 'flex-end',
+        padding: '0 10px',
+        gap: 4,
+        fontFamily: modernFont,
     };
 
     const tabBtnStyle = (key: TabKey): React.CSSProperties => {
         const active = activeTab === key;
+        if (!classic) {
+            return {
+                fontFamily: modernFont,
+                fontSize: 12.5,
+                padding: '9px 14px',
+                cursor: 'pointer',
+                border: 'none',
+                borderBottom: active ? '2px solid #2563eb' : '2px solid transparent',
+                background: 'transparent',
+                color: active ? '#2563eb' : '#64748b',
+                fontWeight: active ? 600 : 500,
+                userSelect: 'none',
+            };
+        }
         return {
             fontFamily: xpFont,
             fontSize: 11,
@@ -101,7 +127,7 @@ export default function DyeingSettingView() {
 
     // ── Render ────────────────────────────────────────────────────────────────
     return (
-        <div style={{
+        <div style={classic ? {
             display: 'flex',
             flexDirection: 'column',
             height: '100%',
@@ -109,9 +135,19 @@ export default function DyeingSettingView() {
             border: '2px solid',
             borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
             background: '#ece9d8',
+        } : {
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
+            fontFamily: modernFont,
+            border: '1px solid #dbe1ea',
+            borderRadius: 9,
+            background: '#fff',
+            overflow: 'hidden',
+            boxShadow: '0 1px 2px rgba(15,23,42,0.06)',
         }}>
             {/* Title bar */}
-            <div style={{
+            <div style={classic ? {
                 background: 'linear-gradient(to right, #001060, #111133)',
                 color: 'white',
                 padding: '6px 12px',
@@ -122,8 +158,20 @@ export default function DyeingSettingView() {
                 alignItems: 'center',
                 gap: 8,
                 flexShrink: 0,
+            } : {
+                background: '#f7f9fc',
+                color: '#1e293b',
+                padding: '11px 14px',
+                fontFamily: modernFont,
+                fontSize: 14,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                flexShrink: 0,
+                borderBottom: '1px solid #dbe1ea',
             }}>
-                <i className="bi bi-droplet-fill" style={{ fontSize: 14 }} />
+                <i className="bi bi-droplet-fill" style={{ fontSize: 14, color: classic ? undefined : '#2563eb' }} />
                 Dyeing &amp; Setting
             </div>
 

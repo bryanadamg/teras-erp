@@ -2,25 +2,57 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { STATUS_COLORS } from '../shared/xpTheme';
+import { useTheme } from '../../context/ThemeContext';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
-const xpInput: React.CSSProperties = {
+const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+
+const makeInput = (classic: boolean): React.CSSProperties => classic ? {
     fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
     background: 'white', padding: '1px 4px', outline: 'none', height: 20,
+} : {
+    fontFamily: modernFont, fontSize: 13, border: '1px solid #cbd3df',
+    borderRadius: 7, padding: '4px 8px', background: '#fff', color: '#1e293b',
+    outline: 'none', height: 'auto',
 };
-const xpBtn: React.CSSProperties = {
+const makeBtn = (classic: boolean): React.CSSProperties => classic ? {
     fontFamily: xpFont, fontSize: 10, padding: '2px 8px',
     background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
     border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
     cursor: 'pointer',
+} : {
+    fontFamily: modernFont, fontSize: 12.5, fontWeight: 500, padding: '5px 12px',
+    background: '#fff', color: '#334155', border: '1px solid #cbd3df',
+    borderRadius: 7, cursor: 'pointer',
 };
-const xpSectionHeader: React.CSSProperties = {
+const makePrimaryBtn = (classic: boolean): React.CSSProperties => classic ? {
+    fontFamily: xpFont, fontSize: 10, padding: '2px 8px',
+    background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
+    border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
+    cursor: 'pointer',
+} : {
+    fontFamily: modernFont, fontSize: 12.5, fontWeight: 600, padding: '5px 12px',
+    background: '#2563eb', color: '#fff', border: 'none',
+    borderRadius: 7, cursor: 'pointer',
+};
+const makeSectionHeader = (classic: boolean): React.CSSProperties => classic ? {
     background: 'linear-gradient(to right, #3060b8, #1a3d90)',
     color: 'white', padding: '3px 8px',
     fontFamily: xpFont, fontSize: 11, fontWeight: 'bold',
+} : {
+    background: '#eef1f6', color: '#475569', textTransform: 'uppercase',
+    fontWeight: 700, fontSize: 11, letterSpacing: '0.04em', padding: '7px 12px',
+    borderBottom: '1px solid #dbe1ea', fontFamily: modernFont,
 };
-const xpPanel: React.CSSProperties = {
+const makePanel = (classic: boolean): React.CSSProperties => classic ? {
     border: '1px solid #7f9db9', background: 'white',
+} : {
+    background: '#fff', border: '1px solid #dbe1ea', borderRadius: 9,
+};
+const makeThCell = (classic: boolean): React.CSSProperties => classic ? {} : {
+    background: '#eef1f6', color: '#475569', textTransform: 'uppercase',
+    fontSize: 11, fontWeight: 700, borderBottom: '1.5px solid #cbd3df',
+    fontFamily: modernFont,
 };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
@@ -104,6 +136,14 @@ const emptyCompleteForm: CompleteForm = {
 };
 
 export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrdersTabProps) {
+    const { uiStyle } = useTheme();
+    const classic = uiStyle === 'classic';
+    const xpInput = makeInput(classic);
+    const xpBtn = makeBtn(classic);
+    const xpPrimaryBtn = makePrimaryBtn(classic);
+    const xpSectionHeader = makeSectionHeader(classic);
+    const xpPanel = makePanel(classic);
+    const xpThCell = makeThCell(classic);
     const [workOrders, setWorkOrders] = useState<any[]>([]);
     const [selectedWoId, setSelectedWoId] = useState<string | null>(null);
     const [runs, setRuns] = useState<any[]>([]);
@@ -370,20 +410,30 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
     };
 
     return (
-        <div style={{ display: 'flex', gap: 6, fontFamily: xpFont, fontSize: 11, height: '100%', minHeight: 400 }}>
+        <div style={classic
+            ? { display: 'flex', gap: 6, fontFamily: xpFont, fontSize: 11, height: '100%', minHeight: 400 }
+            : { display: 'flex', gap: 10, fontFamily: modernFont, fontSize: 13, height: '100%', minHeight: 400, background: '#f8fafc' }}>
             {/* Left pane: Work Orders */}
-            <div style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', ...xpPanel }}>
+            <div style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', overflow: classic ? undefined : 'hidden', ...xpPanel }}>
                 <div style={xpSectionHeader}>Dyeing Work Orders</div>
                 <div style={{ overflowY: 'auto', flex: 1 }}>
                     {workOrders.length === 0 ? (
-                        <div style={{ padding: '8px', color: '#666', fontSize: 11 }}>No dyeing work orders found.</div>
+                        <div style={{ padding: '8px', color: classic ? '#666' : '#64748b', fontSize: classic ? 11 : 13 }}>No dyeing work orders found.</div>
                     ) : (
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: classic ? 11 : 13 }}>
                             <thead>
-                                <tr style={{ background: '#ece9d8', borderBottom: '1px solid #7f9db9' }}>
-                                    <th style={{ padding: '2px 6px', textAlign: 'left', fontWeight: 'bold', whiteSpace: 'nowrap' }}>WO Name</th>
-                                    <th style={{ padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' }}>Status</th>
-                                    <th style={{ padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' }}>MO Ref</th>
+                                <tr style={classic
+                                    ? { background: '#ece9d8', borderBottom: '1px solid #7f9db9' }
+                                    : {}}>
+                                    <th style={classic
+                                        ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold', whiteSpace: 'nowrap' }
+                                        : { ...xpThCell, padding: '6px 10px', textAlign: 'left', whiteSpace: 'nowrap' }}>WO Name</th>
+                                    <th style={classic
+                                        ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' }
+                                        : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Status</th>
+                                    <th style={classic
+                                        ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' }
+                                        : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>MO Ref</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -393,31 +443,36 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                         <tr
                                             key={wo.id}
                                             onClick={() => handleSelectWo(wo)}
-                                            style={{
+                                            style={classic ? {
                                                 cursor: 'pointer',
                                                 background: isSelected ? '#316ac5' : 'transparent',
                                                 color: isSelected ? 'white' : '#000',
                                                 borderBottom: '1px solid #e0e0e0',
+                                            } : {
+                                                cursor: 'pointer',
+                                                background: isSelected ? '#e7eefc' : 'transparent',
+                                                color: isSelected ? '#1d4ed8' : '#334155',
+                                                borderBottom: '1px solid #e6eaf1',
                                             }}
                                         >
-                                            <td style={{ padding: '2px 6px', whiteSpace: 'nowrap' }}>
+                                            <td style={{ padding: classic ? '2px 6px' : '6px 10px', whiteSpace: 'nowrap' }}>
                                                 <div>{wo.name ?? wo.wo_number ?? `WO-${shortId(wo.id)}`}</div>
                                                 {wo.work_center_name && (
-                                                    <div style={{ fontSize: 10, color: isSelected ? '#cce' : '#666' }}>
+                                                    <div style={{ fontSize: classic ? 10 : 11, color: isSelected ? (classic ? '#cce' : '#2563eb') : (classic ? '#666' : '#64748b') }}>
                                                         {wo.work_center_name}
                                                     </div>
                                                 )}
                                             </td>
-                                            <td style={{ padding: '2px 6px', whiteSpace: 'nowrap' }}>
+                                            <td style={{ padding: classic ? '2px 6px' : '6px 10px', whiteSpace: 'nowrap' }}>
                                                 <span style={{
-                                                    color: isSelected ? 'white' : (STATUS_COLORS[wo.status] ?? '#333'),
+                                                    color: isSelected ? (classic ? 'white' : '#1d4ed8') : (STATUS_COLORS[wo.status] ?? '#333'),
                                                     fontWeight: isSelected ? 'normal' : 'bold',
-                                                    fontSize: 10,
+                                                    fontSize: classic ? 10 : 11,
                                                 }}>
                                                     {wo.status ?? '-'}
                                                 </span>
                                             </td>
-                                            <td style={{ padding: '2px 6px', fontSize: 10, color: isSelected ? '#cce' : '#555' }}>
+                                            <td style={{ padding: classic ? '2px 6px' : '6px 10px', fontSize: classic ? 10 : 11, color: isSelected ? (classic ? '#cce' : '#2563eb') : (classic ? '#555' : '#64748b') }}>
                                                 {wo.manufacturing_order_id ? shortId(wo.manufacturing_order_id) : '-'}
                                             </td>
                                         </tr>
@@ -430,9 +485,9 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
             </div>
 
             {/* Right pane: Runs */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', ...xpPanel, minWidth: 0 }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: classic ? undefined : 'hidden', ...xpPanel, minWidth: 0 }}>
                 {!selectedWoId ? (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#888', fontSize: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: classic ? '#888' : '#64748b', fontSize: classic ? 12 : 13 }}>
                         Select a work order to view dyeing runs.
                     </div>
                 ) : (
@@ -442,7 +497,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                 Dyeing Runs - {selectedWo?.name ?? selectedWo?.wo_number ?? `WO ${shortId(selectedWoId)}`}
                             </span>
                             <button
-                                style={{ ...xpBtn, fontSize: 10 }}
+                                style={classic ? { ...xpBtn, fontSize: 10 } : { ...xpPrimaryBtn, fontSize: 12 }}
                                 onClick={handleOpenCreateRun}
                             >
                                 {showCreateRun ? 'Cancel' : '+ Create Run'}
@@ -450,61 +505,71 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                         </div>
 
                         {errorMsg && (
-                            <div style={{ background: '#fff3cd', border: '1px solid #ffc107', padding: '3px 8px', fontSize: 11, color: '#664d03' }}>
+                            <div style={classic
+                                ? { background: '#fff3cd', border: '1px solid #ffc107', padding: '3px 8px', fontSize: 11, color: '#664d03' }
+                                : { background: '#fef3cd', border: '1px solid #f0d98a', borderRadius: 7, margin: 8, padding: '6px 10px', fontSize: 13, color: '#854d0e' }}>
                                 {errorMsg}
                             </div>
                         )}
 
                         {/* Create Run Form */}
                         {showCreateRun && (
-                            <div style={{ borderBottom: '1px solid #7f9db9', padding: '6px 8px', background: '#f5f4ed' }}>
-                                <div style={{ fontWeight: 'bold', fontSize: 11, marginBottom: 4 }}>New Dyeing Run</div>
+                            <div style={classic
+                                ? { borderBottom: '1px solid #7f9db9', padding: '6px 8px', background: '#f5f4ed' }
+                                : { borderBottom: '1px solid #dbe1ea', padding: '10px 12px', background: '#f8fafc' }}>
+                                <div style={classic
+                                    ? { fontWeight: 'bold', fontSize: 11, marginBottom: 4 }
+                                    : { fontWeight: 700, fontSize: 14, marginBottom: 8, color: '#1e293b' }}>New Dyeing Run</div>
                                 {/* Job Info */}
-                                <div style={{ fontSize: 10, color: '#666', fontWeight: 600, marginBottom: 3, borderBottom: '1px solid #d0d8e8', paddingBottom: 2 }}>Job Info</div>
+                                <div style={classic
+                                    ? { fontSize: 10, color: '#666', fontWeight: 600, marginBottom: 3, borderBottom: '1px solid #d0d8e8', paddingBottom: 2 }
+                                    : { fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6, borderBottom: '1px solid #e6eaf1', paddingBottom: 4 }}>Job Info</div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px 12px', marginBottom: 8 }}>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={{ fontSize: 10, color: '#444' }}>Customer</span>
+                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Customer</span>
                                         <input type="text" style={xpInput} value={createForm.customer_name}
                                             onChange={e => handleCreateFormChange('customer_name', e.target.value)} placeholder="customer name" />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={{ fontSize: 10, color: '#444' }}>No. PO</span>
+                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>No. PO</span>
                                         <input type="text" style={xpInput} value={createForm.po_number}
                                             onChange={e => handleCreateFormChange('po_number', e.target.value)} placeholder="PO number" />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={{ fontSize: 10, color: '#444' }}>Artikel</span>
+                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Artikel</span>
                                         <input type="text" style={xpInput} value={createForm.artikel}
                                             onChange={e => handleCreateFormChange('artikel', e.target.value)} placeholder="article code" />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={{ fontSize: 10, color: '#444' }}>Warna</span>
+                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Warna</span>
                                         <input type="text" style={xpInput} value={createForm.color_name}
                                             onChange={e => handleCreateFormChange('color_name', e.target.value)} placeholder="color name" />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={{ fontSize: 10, color: '#444' }}>Color Matching</span>
+                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Color Matching</span>
                                         <input type="text" style={xpInput} value={createForm.color_matching_ref}
                                             onChange={e => handleCreateFormChange('color_matching_ref', e.target.value)} placeholder="ref code" />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={{ fontSize: 10, color: '#444' }}>LOT</span>
+                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>LOT</span>
                                         <input type="text" style={xpInput} value={createForm.lot_number}
                                             onChange={e => handleCreateFormChange('lot_number', e.target.value)} placeholder="lot number" />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={{ fontSize: 10, color: '#444' }}>Qty Order (kg)</span>
+                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Qty Order (kg)</span>
                                         <input type="number" step="0.01" style={xpInput} value={createForm.qty_order_kg}
                                             onChange={e => handleCreateFormChange('qty_order_kg', e.target.value)} placeholder="e.g. 65" />
                                     </label>
                                 </div>
                                 {/* Process Params */}
-                                <div style={{ fontSize: 10, color: '#666', fontWeight: 600, marginBottom: 3, borderBottom: '1px solid #d0d8e8', paddingBottom: 2 }}>Process</div>
+                                <div style={classic
+                                    ? { fontSize: 10, color: '#666', fontWeight: 600, marginBottom: 3, borderBottom: '1px solid #d0d8e8', paddingBottom: 2 }
+                                    : { fontSize: 11, color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6, borderBottom: '1px solid #e6eaf1', paddingBottom: 4 }}>Process</div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px 12px' }}>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={{ fontSize: 10, color: '#444' }}>Recipe</span>
+                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Recipe</span>
                                         <select
-                                            style={{ ...xpInput, height: 22 }}
+                                            style={classic ? { ...xpInput, height: 22 } : { ...xpInput, height: 30 }}
                                             value={createForm.recipe_id}
                                             onChange={e => handleCreateFormChange('recipe_id', e.target.value)}
                                         >
@@ -515,7 +580,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                         </select>
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={{ fontSize: 10, color: '#444' }}>Substrate Qty</span>
+                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Substrate Qty</span>
                                         <input
                                             type="number"
                                             style={xpInput}
@@ -525,7 +590,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                         />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={{ fontSize: 10, color: '#444' }}>Input Lot</span>
+                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Input Lot</span>
                                         <input
                                             type="text"
                                             style={xpInput}
@@ -535,7 +600,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                         />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={{ fontSize: 10, color: '#444' }}>Machine Name</span>
+                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Machine Name</span>
                                         <input
                                             type="text"
                                             style={xpInput}
@@ -545,7 +610,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                         />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={{ fontSize: 10, color: '#444' }}>Liquor Ratio</span>
+                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Liquor Ratio</span>
                                         <input
                                             type="number"
                                             style={xpInput}
@@ -555,22 +620,22 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                         />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={{ fontSize: 10, color: '#444' }}>Volume Air (L)</span>
+                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Volume Air (L)</span>
                                         <input type="number" step="0.1" style={xpInput} value={createForm.volume_air_liters}
                                             onChange={e => handleCreateFormChange('volume_air_liters', e.target.value)} placeholder="e.g. 190" />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={{ fontSize: 10, color: '#444' }}>Speed</span>
+                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Speed</span>
                                         <input type="number" step="0.1" style={xpInput} value={createForm.machine_speed}
                                             onChange={e => handleCreateFormChange('machine_speed', e.target.value)} placeholder="e.g. 7" />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={{ fontSize: 10, color: '#444' }}>Tekanan (Pressure)</span>
+                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Tekanan (Pressure)</span>
                                         <input type="text" style={xpInput} value={createForm.machine_pressure}
                                             onChange={e => handleCreateFormChange('machine_pressure', e.target.value)} placeholder="pressure" />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={{ fontSize: 10, color: '#444' }}>Temperature (C)</span>
+                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Temperature (C)</span>
                                         <input
                                             type="number"
                                             style={xpInput}
@@ -580,7 +645,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                         />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={{ fontSize: 10, color: '#444' }}>Duration (min)</span>
+                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Duration (min)</span>
                                         <input
                                             type="number"
                                             style={xpInput}
@@ -590,7 +655,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                         />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={{ fontSize: 10, color: '#444' }}>Operator Name</span>
+                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Operator Name</span>
                                         <input
                                             type="text"
                                             style={xpInput}
@@ -600,7 +665,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                         />
                                     </label>
                                     <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={{ fontSize: 10, color: '#444' }}>Notes</span>
+                                        <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Notes</span>
                                         <input
                                             type="text"
                                             style={xpInput}
@@ -610,8 +675,8 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                         />
                                     </label>
                                 </div>
-                                <div style={{ marginTop: 6, display: 'flex', gap: 4 }}>
-                                    <button style={xpBtn} onClick={handleSaveRun} disabled={saving}>
+                                <div style={{ marginTop: classic ? 6 : 10, display: 'flex', gap: classic ? 4 : 8 }}>
+                                    <button style={xpPrimaryBtn} onClick={handleSaveRun} disabled={saving}>
                                         {saving ? 'Saving...' : 'Save Run'}
                                     </button>
                                     <button style={xpBtn} onClick={() => { setShowCreateRun(false); setCreateForm(emptyCreateForm); setErrorMsg(null); }}>
@@ -624,22 +689,24 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                         {/* Runs table */}
                         <div style={{ overflowY: 'auto', flex: 1 }}>
                             {loading ? (
-                                <div style={{ padding: 12, color: '#555', fontSize: 11 }}>Loading runs...</div>
+                                <div style={{ padding: 12, color: classic ? '#555' : '#64748b', fontSize: classic ? 11 : 13 }}>Loading runs...</div>
                             ) : runs.length === 0 ? (
-                                <div style={{ padding: 12, color: '#888', fontSize: 11 }}>No dyeing runs for this work order.</div>
+                                <div style={{ padding: 12, color: classic ? '#888' : '#64748b', fontSize: classic ? 11 : 13 }}>No dyeing runs for this work order.</div>
                             ) : (
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: classic ? 11 : 13 }}>
                                     <thead>
-                                        <tr style={{ background: '#ece9d8', borderBottom: '1px solid #7f9db9' }}>
-                                            <th style={{ padding: '2px 6px', textAlign: 'left', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Run #</th>
-                                            <th style={{ padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' }}>Recipe</th>
-                                            <th style={{ padding: '2px 6px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Substrate Qty</th>
-                                            <th style={{ padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' }}>Machine</th>
-                                            <th style={{ padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' }}>Status</th>
-                                            <th style={{ padding: '2px 6px', textAlign: 'left', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Shade Result</th>
-                                            <th style={{ padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' }}>Started</th>
-                                            <th style={{ padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' }}>Completed</th>
-                                            <th style={{ padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' }}>Actions</th>
+                                        <tr style={classic
+                                            ? { background: '#ece9d8', borderBottom: '1px solid #7f9db9' }
+                                            : {}}>
+                                            <th style={classic ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left', whiteSpace: 'nowrap' }}>Run #</th>
+                                            <th style={classic ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Recipe</th>
+                                            <th style={classic ? { padding: '2px 6px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Substrate Qty</th>
+                                            <th style={classic ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Machine</th>
+                                            <th style={classic ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Status</th>
+                                            <th style={classic ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left', whiteSpace: 'nowrap' }}>Shade Result</th>
+                                            <th style={classic ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Started</th>
+                                            <th style={classic ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Completed</th>
+                                            <th style={classic ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -650,25 +717,27 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                 ?? (run.recipe_id ? shortId(run.recipe_id) : '-');
                                             const shadeColors = run.shade_result ? SHADE_COLORS[run.shade_result] : null;
                                             return (
-                                                <tr key={run.id} style={{ borderBottom: '1px solid #e0e0e0', background: idx % 2 === 0 ? 'white' : '#f9f8f4' }}>
-                                                    <td style={{ padding: '2px 6px', whiteSpace: 'nowrap', fontWeight: 'bold' }}>{runLabel}</td>
-                                                    <td style={{ padding: '2px 6px' }}>{recipeName}</td>
-                                                    <td style={{ padding: '2px 6px', textAlign: 'right' }}>
+                                                <tr key={run.id} style={classic
+                                                    ? { borderBottom: '1px solid #e0e0e0', background: idx % 2 === 0 ? 'white' : '#f9f8f4' }
+                                                    : { borderBottom: '1px solid #e6eaf1', background: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
+                                                    <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap', fontWeight: 'bold' } : { padding: '6px 10px', whiteSpace: 'nowrap', fontWeight: 700, color: '#1e293b', fontFamily: modernFont }}>{runLabel}</td>
+                                                    <td style={classic ? { padding: '2px 6px' } : { padding: '6px 10px', color: '#334155', fontFamily: modernFont }}>{recipeName}</td>
+                                                    <td style={classic ? { padding: '2px 6px', textAlign: 'right' } : { padding: '6px 10px', textAlign: 'right', color: '#334155', fontFamily: modernFont }}>
                                                         {run.substrate_qty != null ? run.substrate_qty : '-'}
                                                     </td>
-                                                    <td style={{ padding: '2px 6px' }}>{run.machine_name ?? '-'}</td>
-                                                    <td style={{ padding: '2px 6px', whiteSpace: 'nowrap' }}>
+                                                    <td style={classic ? { padding: '2px 6px' } : { padding: '6px 10px', color: '#334155', fontFamily: modernFont }}>{run.machine_name ?? '-'}</td>
+                                                    <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap' } : { padding: '6px 10px', whiteSpace: 'nowrap' }}>
                                                         <span style={{
                                                             color: STATUS_COLORS[run.status] ?? '#333',
                                                             fontWeight: 'bold',
-                                                            fontSize: 10,
+                                                            fontSize: classic ? 10 : 11,
                                                         }}>
                                                             {run.status ?? '-'}
                                                         </span>
                                                     </td>
-                                                    <td style={{ padding: '2px 6px' }}>
+                                                    <td style={classic ? { padding: '2px 6px' } : { padding: '6px 10px' }}>
                                                         {run.status === 'COMPLETED' && run.shade_result ? (
-                                                            <span style={{
+                                                            <span style={classic ? {
                                                                 padding: '1px 6px',
                                                                 borderRadius: 2,
                                                                 fontSize: 10,
@@ -676,25 +745,33 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                                 background: shadeColors?.bg ?? '#eee',
                                                                 color: shadeColors?.color ?? '#333',
                                                                 border: '1px solid #ccc',
+                                                            } : {
+                                                                padding: '1px 8px',
+                                                                borderRadius: 6,
+                                                                fontSize: 11,
+                                                                fontWeight: 700,
+                                                                background: shadeColors?.bg ?? '#eee',
+                                                                color: shadeColors?.color ?? '#333',
+                                                                border: '1px solid #ccc',
                                                             }}>
                                                                 {run.shade_result}
                                                             </span>
                                                         ) : (
-                                                            <span style={{ color: '#999' }}>-</span>
+                                                            <span style={{ color: classic ? '#999' : '#94a3b8' }}>-</span>
                                                         )}
                                                     </td>
-                                                    <td style={{ padding: '2px 6px', whiteSpace: 'nowrap', fontSize: 10 }}>
+                                                    <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap', fontSize: 10 } : { padding: '6px 10px', whiteSpace: 'nowrap', fontSize: 12, color: '#64748b', fontFamily: modernFont }}>
                                                         {formatDateTime(run.started_at)}
                                                     </td>
-                                                    <td style={{ padding: '2px 6px', whiteSpace: 'nowrap', fontSize: 10 }}>
+                                                    <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap', fontSize: 10 } : { padding: '6px 10px', whiteSpace: 'nowrap', fontSize: 12, color: '#64748b', fontFamily: modernFont }}>
                                                         {formatDateTime(run.completed_at)}
                                                     </td>
-                                                    <td style={{ padding: '2px 6px', whiteSpace: 'nowrap' }}>
-                                                        <div style={{ display: 'flex', gap: 3 }}>
+                                                    <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap' } : { padding: '6px 10px', whiteSpace: 'nowrap' }}>
+                                                        <div style={{ display: 'flex', gap: classic ? 3 : 6 }}>
                                                             {run.status === 'PENDING' && (
                                                                 <>
                                                                     <button
-                                                                        style={xpBtn}
+                                                                        style={xpPrimaryBtn}
                                                                         onClick={() => handleStartRun(run)}
                                                                     >
                                                                         Start
@@ -709,7 +786,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                             )}
                                                             {run.status === 'IN_PROGRESS' && (
                                                                 <button
-                                                                    style={xpBtn}
+                                                                    style={xpPrimaryBtn}
                                                                     onClick={() => handleOpenComplete(run)}
                                                                 >
                                                                     Complete
@@ -735,7 +812,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                     background: 'rgba(0,0,0,0.45)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
-                    <div style={{
+                    <div style={classic ? {
                         background: '#ece9d8',
                         border: '2px solid #0a246a',
                         width: 640,
@@ -746,9 +823,22 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                         fontFamily: xpFont,
                         fontSize: 11,
                         boxShadow: '3px 3px 8px rgba(0,0,0,0.4)',
+                    } : {
+                        background: '#f8fafc',
+                        border: '1px solid #dbe1ea',
+                        borderRadius: 9,
+                        width: 640,
+                        maxWidth: '95vw',
+                        maxHeight: '90vh',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        overflow: 'hidden',
+                        fontFamily: modernFont,
+                        fontSize: 13,
+                        boxShadow: '0 12px 32px rgba(15,23,42,0.22)',
                     }}>
                         {/* Title bar */}
-                        <div style={{
+                        <div style={classic ? {
                             background: 'linear-gradient(to right, #0a246a, #a6b5e3)',
                             color: 'white',
                             padding: '3px 8px',
@@ -757,13 +847,24 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                             justifyContent: 'space-between',
                             fontSize: 11,
                             fontWeight: 'bold',
+                        } : {
+                            background: '#f7f9fc',
+                            color: '#1e293b',
+                            padding: '10px 14px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            fontSize: 14,
+                            fontWeight: 700,
+                            borderBottom: '1px solid #dbe1ea',
+                            fontFamily: modernFont,
                         }}>
                             <span>
                                 Complete Dyeing Run {showCompleteModal.run_number ?? showCompleteModal.run_code ?? `#${showCompleteModal.id}`}
                             </span>
                             <button
                                 onClick={() => { setShowCompleteModal(null); setErrorMsg(null); }}
-                                style={{
+                                style={classic ? {
                                     background: 'linear-gradient(to bottom, #e06060, #c03030)',
                                     border: '1px solid #800',
                                     color: 'white',
@@ -773,15 +874,27 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                     cursor: 'pointer',
                                     lineHeight: '16px',
                                     fontWeight: 'bold',
+                                } : {
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: '#64748b',
+                                    fontFamily: modernFont,
+                                    fontSize: 16,
+                                    padding: '0 6px',
+                                    cursor: 'pointer',
+                                    lineHeight: '20px',
+                                    fontWeight: 700,
                                 }}
                             >
                                 X
                             </button>
                         </div>
 
-                        <div style={{ overflowY: 'auto', flex: 1, padding: 10 }}>
+                        <div style={{ overflowY: 'auto', flex: 1, padding: classic ? 10 : 14 }}>
                             {errorMsg && (
-                                <div style={{ background: '#fff3cd', border: '1px solid #ffc107', padding: '3px 8px', fontSize: 11, color: '#664d03', marginBottom: 6 }}>
+                                <div style={classic
+                                    ? { background: '#fff3cd', border: '1px solid #ffc107', padding: '3px 8px', fontSize: 11, color: '#664d03', marginBottom: 6 }
+                                    : { background: '#fef3cd', border: '1px solid #f0d98a', borderRadius: 7, padding: '6px 10px', fontSize: 13, color: '#854d0e', marginBottom: 10 }}>
                                     {errorMsg}
                                 </div>
                             )}
@@ -789,9 +902,9 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                             {/* Shade & batch fields */}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', marginBottom: 8 }}>
                                 <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                    <span style={{ fontSize: 10, color: '#444' }}>Shade Result</span>
+                                    <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Shade Result</span>
                                     <select
-                                        style={{ ...xpInput, height: 22 }}
+                                        style={classic ? { ...xpInput, height: 22 } : { ...xpInput, height: 30 }}
                                         value={completeForm.shade_result}
                                         onChange={e => handleCompleteFormChange('shade_result', e.target.value)}
                                     >
@@ -802,7 +915,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                     </select>
                                 </label>
                                 <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                    <span style={{ fontSize: 10, color: '#444' }}>Output Lot Number *</span>
+                                    <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Output Lot Number *</span>
                                     <input
                                         type="text"
                                         style={xpInput}
@@ -812,7 +925,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                     />
                                 </label>
                                 <label style={{ display: 'flex', flexDirection: 'column', gap: 1, gridColumn: '1 / -1' }}>
-                                    <span style={{ fontSize: 10, color: '#444' }}>Shade Notes</span>
+                                    <span style={classic ? { fontSize: 10, color: '#444' } : { fontSize: 11, color: '#475569', fontWeight: 500, marginBottom: 2 }}>Shade Notes</span>
                                     <textarea
                                         style={{ ...xpInput, height: 48, resize: 'vertical' }}
                                         value={completeForm.shade_notes}
@@ -823,30 +936,34 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                             </div>
 
                             {/* Chemicals section */}
-                            <div style={{ ...xpPanel, marginBottom: 6 }}>
+                            <div style={{ ...xpPanel, marginBottom: classic ? 6 : 10, overflow: classic ? undefined : 'hidden' }}>
                                 <div style={{ ...xpSectionHeader, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                     <span>Chemicals Used</span>
-                                    <button style={{ ...xpBtn, fontSize: 10 }} onClick={handleAddChemical}>+ Add Chemical</button>
+                                    <button style={classic ? { ...xpBtn, fontSize: 10 } : { ...xpPrimaryBtn, fontSize: 12 }} onClick={handleAddChemical}>+ Add Chemical</button>
                                 </div>
                                 {completeForm.chemicals.length === 0 ? (
-                                    <div style={{ padding: '6px 8px', color: '#888', fontSize: 11 }}>No chemicals added. Click "+ Add Chemical" to begin.</div>
+                                    <div style={{ padding: classic ? '6px 8px' : '8px 12px', color: classic ? '#888' : '#64748b', fontSize: classic ? 11 : 13 }}>No chemicals added. Click "+ Add Chemical" to begin.</div>
                                 ) : (
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: classic ? 11 : 13 }}>
                                         <thead>
-                                            <tr style={{ background: '#ece9d8', borderBottom: '1px solid #7f9db9' }}>
-                                                <th style={{ padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' }}>Item</th>
-                                                <th style={{ padding: '2px 6px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Planned Qty</th>
-                                                <th style={{ padding: '2px 6px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Actual Qty</th>
-                                                <th style={{ padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' }}>UOM</th>
-                                                <th style={{ padding: '2px 6px' }}></th>
+                                            <tr style={classic
+                                                ? { background: '#ece9d8', borderBottom: '1px solid #7f9db9' }
+                                                : {}}>
+                                                <th style={classic ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Item</th>
+                                                <th style={classic ? { padding: '2px 6px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Planned Qty</th>
+                                                <th style={classic ? { padding: '2px 6px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Actual Qty</th>
+                                                <th style={classic ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>UOM</th>
+                                                <th style={classic ? { padding: '2px 6px' } : { ...xpThCell, padding: '6px 10px' }}></th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {completeForm.chemicals.map((row, idx) => (
-                                                <tr key={idx} style={{ borderBottom: '1px solid #e0e0e0', background: idx % 2 === 0 ? 'white' : '#f9f8f4' }}>
-                                                    <td style={{ padding: '2px 4px' }}>
+                                                <tr key={idx} style={classic
+                                                    ? { borderBottom: '1px solid #e0e0e0', background: idx % 2 === 0 ? 'white' : '#f9f8f4' }
+                                                    : { borderBottom: '1px solid #e6eaf1', background: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
+                                                    <td style={{ padding: classic ? '2px 4px' : '5px 6px' }}>
                                                         <select
-                                                            style={{ ...xpInput, width: '100%', height: 22 }}
+                                                            style={classic ? { ...xpInput, width: '100%', height: 22 } : { ...xpInput, width: '100%', height: 30 }}
                                                             value={row.item_id}
                                                             onChange={e => handleChemicalChange(idx, 'item_id', e.target.value)}
                                                         >
@@ -858,7 +975,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                             ))}
                                                         </select>
                                                     </td>
-                                                    <td style={{ padding: '2px 4px' }}>
+                                                    <td style={{ padding: classic ? '2px 4px' : '5px 6px' }}>
                                                         <input
                                                             type="number"
                                                             style={{ ...xpInput, width: 70 }}
@@ -866,7 +983,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                             onChange={e => handleChemicalChange(idx, 'planned_qty', e.target.value)}
                                                         />
                                                     </td>
-                                                    <td style={{ padding: '2px 4px' }}>
+                                                    <td style={{ padding: classic ? '2px 4px' : '5px 6px' }}>
                                                         <input
                                                             type="number"
                                                             style={{ ...xpInput, width: 70 }}
@@ -874,7 +991,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                             onChange={e => handleChemicalChange(idx, 'actual_qty', e.target.value)}
                                                         />
                                                     </td>
-                                                    <td style={{ padding: '2px 4px' }}>
+                                                    <td style={{ padding: classic ? '2px 4px' : '5px 6px' }}>
                                                         <input
                                                             type="text"
                                                             style={{ ...xpInput, width: 50 }}
@@ -883,9 +1000,9 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                             placeholder="UOM"
                                                         />
                                                     </td>
-                                                    <td style={{ padding: '2px 4px' }}>
+                                                    <td style={{ padding: classic ? '2px 4px' : '5px 6px' }}>
                                                         <button
-                                                            style={{ ...xpBtn, fontSize: 10, color: '#800' }}
+                                                            style={classic ? { ...xpBtn, fontSize: 10, color: '#800' } : { ...xpBtn, fontSize: 12, color: '#b91c1c', borderColor: '#f0c2c2' }}
                                                             onClick={() => handleRemoveChemical(idx)}
                                                         >
                                                             Remove
@@ -900,23 +1017,30 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                         </div>
 
                         {/* Modal footer */}
-                        <div style={{
+                        <div style={classic ? {
                             borderTop: '1px solid #7f9db9',
                             padding: '6px 10px',
                             display: 'flex',
                             justifyContent: 'flex-end',
                             gap: 4,
                             background: '#ece9d8',
+                        } : {
+                            borderTop: '1px solid #dbe1ea',
+                            padding: '10px 14px',
+                            display: 'flex',
+                            justifyContent: 'flex-end',
+                            gap: 8,
+                            background: '#f7f9fc',
                         }}>
                             <button
-                                style={{ ...xpBtn, padding: '3px 16px' }}
+                                style={classic ? { ...xpBtn, padding: '3px 16px' } : { ...xpPrimaryBtn, padding: '6px 18px' }}
                                 onClick={handleSaveComplete}
                                 disabled={saving || !completeForm.output_batch_number}
                             >
                                 {saving ? 'Saving...' : 'Save'}
                             </button>
                             <button
-                                style={{ ...xpBtn, padding: '3px 16px' }}
+                                style={classic ? { ...xpBtn, padding: '3px 16px' } : { ...xpBtn, padding: '6px 18px' }}
                                 onClick={() => { setShowCompleteModal(null); setErrorMsg(null); }}
                                 disabled={saving}
                             >

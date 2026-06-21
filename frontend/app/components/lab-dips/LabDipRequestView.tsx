@@ -2,54 +2,96 @@
 import React, { useState, useMemo } from 'react';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
+import { useTheme } from '../../context/ThemeContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 
 // ── XP style constants (consistent with DyeingSettingView) ──────────────────
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
-const xpInput: React.CSSProperties = {
+const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+const xpInput = (classic: boolean): React.CSSProperties => classic ? {
     fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
     background: 'white', padding: '1px 6px', outline: 'none', height: 20,
+} : {
+    fontFamily: modernFont, fontSize: 13, border: '1px solid #cbd3df', borderRadius: 7,
+    padding: '4px 8px', background: '#fff', color: '#1e293b', outline: 'none', height: 'auto',
 };
-const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
+const xpBtn = (classic: boolean, extra: React.CSSProperties = {}): React.CSSProperties => classic ? {
     fontFamily: xpFont, fontSize: 11, padding: '2px 10px', cursor: 'pointer',
     background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
     border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000',
     ...extra,
-});
-const xpGroupBox: React.CSSProperties = {
-    border: '1px solid #c0bdb5', boxShadow: 'inset 1px 1px 0 #fff, 1px 1px 0 #c0bdb5', marginBottom: 10,
+} : {
+    fontFamily: modernFont, fontSize: 12.5, fontWeight: 500, padding: '5px 12px', cursor: 'pointer',
+    background: '#fff', color: '#334155', border: '1px solid #cbd3df', borderRadius: 7,
+    ...extra,
 };
-const xpGroupHeader: React.CSSProperties = {
+// Modern primary-button overrides (Submit/Create/Add/New). Merged on top of the secondary base above.
+const modernPrimaryBtn: React.CSSProperties = {
+    fontWeight: 600, background: '#2563eb', color: '#fff', border: 'none',
+};
+const xpGroupBox = (classic: boolean): React.CSSProperties => classic ? {
+    border: '1px solid #c0bdb5', boxShadow: 'inset 1px 1px 0 #fff, 1px 1px 0 #c0bdb5', marginBottom: 10,
+} : {
+    background: '#fff', border: '1px solid #dbe1ea', borderRadius: 9, marginBottom: 10, overflow: 'hidden',
+};
+const xpGroupHeader = (classic: boolean): React.CSSProperties => classic ? {
     background: 'linear-gradient(to right, #3a6fc4 0%, #6a9fd8 60%, #a8c8f0 100%)',
     color: '#fff', fontFamily: xpFont, fontSize: 10, fontWeight: 'bold',
     padding: '3px 8px', letterSpacing: '0.5px', textTransform: 'uppercase' as const,
+} : {
+    background: '#eef1f6', color: '#475569', fontFamily: modernFont, fontSize: 11, fontWeight: 700,
+    padding: '7px 12px', letterSpacing: '0.04em', textTransform: 'uppercase' as const,
+    borderBottom: '1px solid #dbe1ea',
 };
-const xpGroupBody: React.CSSProperties = { background: '#fff', padding: '10px' };
-const xpLbl: React.CSSProperties = { fontFamily: xpFont, fontSize: 11, color: '#000', display: 'block', marginBottom: 2 };
-const xpThCell: React.CSSProperties = {
+const xpGroupBody = (classic: boolean): React.CSSProperties => classic
+    ? { background: '#fff', padding: '10px' }
+    : { background: '#fff', padding: '10px' };
+const xpLbl = (classic: boolean): React.CSSProperties => classic
+    ? { fontFamily: xpFont, fontSize: 11, color: '#000', display: 'block', marginBottom: 2 }
+    : { fontFamily: modernFont, fontSize: 12, color: '#475569', fontWeight: 600, display: 'block', marginBottom: 3 };
+const xpThCell = (classic: boolean): React.CSSProperties => classic ? {
     padding: '3px 6px', borderRight: '1px solid #b0aaa0', textAlign: 'left' as const,
     whiteSpace: 'nowrap' as const, fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#000',
+} : {
+    padding: '6px 10px', textAlign: 'left' as const, whiteSpace: 'nowrap' as const,
+    fontFamily: modernFont, fontSize: 11, fontWeight: 700, color: '#475569',
+    textTransform: 'uppercase' as const, background: '#eef1f6', borderBottom: '1.5px solid #cbd3df',
 };
-const tdBase: React.CSSProperties = {
+const tdBase = (classic: boolean): React.CSSProperties => classic ? {
     padding: '4px 6px', borderRight: '1px solid #c0bdb5', borderBottom: '1px solid #d0cdc8',
     verticalAlign: 'middle' as const, fontFamily: xpFont, fontSize: 11,
+} : {
+    padding: '6px 10px', borderBottom: '1px solid #e6eaf1',
+    verticalAlign: 'middle' as const, fontFamily: modernFont, fontSize: 13, color: '#334155',
 };
 
 const REQUEST_TYPES = ['NEW', 'RESUBMIT', 'STRIKE_OFF'];
 const STATUS_FILTERS = ['ALL', 'DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED'];
 const REQUEST_STATUSES = ['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED'];
 
-const statusStyle = (status: string): React.CSSProperties => {
+const statusStyle = (status: string, classic: boolean): React.CSSProperties => {
+    if (classic) {
+        const map: Record<string, { bg: string; border: string; color: string }> = {
+            APPROVED:  { bg: '#d4edda', border: '#27713a', color: '#0c3a1a' },
+            REJECTED:  { bg: '#f8d7da', border: '#a01a1a', color: '#4a0000' },
+            SUBMITTED: { bg: '#dce4f5', border: '#3a5faa', color: '#0d2a6e' },
+            RESUBMIT:  { bg: '#fff3cd', border: '#b8860b', color: '#3e2000' },
+            PENDING:   { bg: '#e8e8e8', border: '#7a7a7a', color: '#111' },
+        };
+        const s = map[status] || { bg: '#e8e8e8', border: '#7a7a7a', color: '#111' };
+        return { background: s.bg, border: `1px solid ${s.border}`, color: s.color, padding: '1px 5px', fontSize: 9, fontFamily: xpFont, fontWeight: 'bold', whiteSpace: 'nowrap' as const };
+    }
+    // Modern: semantic colors preserved, softer bg + matching text/border, rounded 6px.
     const map: Record<string, { bg: string; border: string; color: string }> = {
-        APPROVED:  { bg: '#d4edda', border: '#27713a', color: '#0c3a1a' },
-        REJECTED:  { bg: '#f8d7da', border: '#a01a1a', color: '#4a0000' },
-        SUBMITTED: { bg: '#dce4f5', border: '#3a5faa', color: '#0d2a6e' },
-        RESUBMIT:  { bg: '#fff3cd', border: '#b8860b', color: '#3e2000' },
-        PENDING:   { bg: '#e8e8e8', border: '#7a7a7a', color: '#111' },
+        APPROVED:  { bg: '#ecfdf3', border: '#abdfc0', color: '#15803d' },
+        REJECTED:  { bg: '#fef2f2', border: '#f3c4c4', color: '#dc2626' },
+        SUBMITTED: { bg: '#eff6ff', border: '#bfd3f5', color: '#1d4ed8' },
+        RESUBMIT:  { bg: '#fffbeb', border: '#fce3a6', color: '#b45309' },
+        PENDING:   { bg: '#f1f5f9', border: '#d4dce6', color: '#475569' },
     };
-    const s = map[status] || { bg: '#e8e8e8', border: '#7a7a7a', color: '#111' };
-    return { background: s.bg, border: `1px solid ${s.border}`, color: s.color, padding: '1px 5px', fontSize: 9, fontFamily: xpFont, fontWeight: 'bold', whiteSpace: 'nowrap' as const };
+    const s = map[status] || { bg: '#f1f5f9', border: '#d4dce6', color: '#475569' };
+    return { display: 'inline-block', background: s.bg, border: `1px solid ${s.border}`, color: s.color, borderRadius: 6, padding: '2px 8px', fontSize: 11, fontFamily: modernFont, fontWeight: 600, whiteSpace: 'nowrap' as const };
 };
 
 const today = () => new Date().toISOString().split('T')[0];
@@ -77,6 +119,8 @@ export default function LabDipRequestView({
 }: any) {
     const { confirm } = useConfirm();
     useToast();
+    const { uiStyle } = useTheme();
+    const classic = uiStyle === 'classic';
 
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('ALL');
@@ -180,107 +224,139 @@ export default function LabDipRequestView({
 
     // ── Dip status buttons (mirror SampleColor approval UI) ──
     const dipBtn = (active: boolean, kind: 'reject' | 'resubmit'): React.CSSProperties => {
+        if (classic) {
+            const palette = kind === 'reject'
+                ? { on: 'linear-gradient(to bottom, #d32f2f, #8b0000)', border: '#7f0000 #4a0000 #4a0000 #7f0000', color: '#fff' }
+                : { on: 'linear-gradient(to bottom, #ffe082, #c77800)', border: '#a06000 #603000 #603000 #a06000', color: '#3e2000' };
+            return {
+                fontFamily: xpFont, fontSize: 10, padding: '1px 7px', cursor: 'pointer', border: '1px solid',
+                borderRight: 'none', whiteSpace: 'nowrap' as const,
+                background: active ? palette.on : 'linear-gradient(to bottom, #f5f5f5, #e0dfd8)',
+                borderColor: active ? palette.border : '#d0cfc8 #a0a09a #a0a09a #d0cfc8',
+                color: active ? palette.color : '#666', fontWeight: active ? 'bold' : 'normal',
+            };
+        }
+        // Modern: segmented control look; active state keeps the semantic color.
         const palette = kind === 'reject'
-            ? { on: 'linear-gradient(to bottom, #d32f2f, #8b0000)', border: '#7f0000 #4a0000 #4a0000 #7f0000', color: '#fff' }
-            : { on: 'linear-gradient(to bottom, #ffe082, #c77800)', border: '#a06000 #603000 #603000 #a06000', color: '#3e2000' };
+            ? { onBg: '#fef2f2', onBorder: '#f3c4c4', onColor: '#dc2626' }
+            : { onBg: '#fffbeb', onBorder: '#fce3a6', onColor: '#b45309' };
         return {
-            fontFamily: xpFont, fontSize: 10, padding: '1px 7px', cursor: 'pointer', border: '1px solid',
-            borderRight: 'none', whiteSpace: 'nowrap' as const,
-            background: active ? palette.on : 'linear-gradient(to bottom, #f5f5f5, #e0dfd8)',
-            borderColor: active ? palette.border : '#d0cfc8 #a0a09a #a0a09a #d0cfc8',
-            color: active ? palette.color : '#666', fontWeight: active ? 'bold' : 'normal',
+            fontFamily: modernFont, fontSize: 12, padding: '4px 10px', cursor: 'pointer',
+            border: '1px solid', borderRight: 'none', whiteSpace: 'nowrap' as const,
+            background: active ? palette.onBg : '#fff',
+            borderColor: active ? palette.onBorder : '#cbd3df',
+            color: active ? palette.onColor : '#64748b', fontWeight: active ? 600 : 500,
         };
     };
-    const approveBtn = (): React.CSSProperties => ({
+    const approveBtn = (): React.CSSProperties => classic ? {
         fontFamily: xpFont, fontSize: 10, padding: '1px 7px', cursor: 'pointer', border: '1px solid',
         whiteSpace: 'nowrap' as const, background: 'linear-gradient(to bottom, #f5f5f5, #e0dfd8)',
         borderColor: '#d0cfc8 #a0a09a #a0a09a #d0cfc8', color: '#666',
-    });
+    } : {
+        fontFamily: modernFont, fontSize: 12, padding: '4px 10px', cursor: 'pointer', border: '1px solid',
+        whiteSpace: 'nowrap' as const, background: '#fff', borderColor: '#cbd3df', color: '#64748b', fontWeight: 500,
+    };
+
+    const primaryToolbarBtn = classic
+        ? xpBtn(true, { background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', color: '#fff', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', fontWeight: 'bold' })
+        : xpBtn(false, modernPrimaryBtn);
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', fontFamily: xpFont, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }}>
+        <div style={classic
+            ? { display: 'flex', flexDirection: 'column', height: '100%', fontFamily: xpFont, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
+            : { display: 'flex', flexDirection: 'column', height: '100%', fontFamily: modernFont, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
             {/* Title bar */}
-            <div style={{ background: 'linear-gradient(to right, #001060, #111133)', color: '#fff', padding: '6px 12px', fontSize: 13, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                <i className="bi bi-droplet" style={{ fontSize: 14 }} />
+            <div style={classic
+                ? { background: 'linear-gradient(to right, #001060, #111133)', color: '#fff', padding: '6px 12px', fontSize: 13, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }
+                : { background: '#f7f9fc', color: '#1e293b', borderBottom: '1px solid #dbe1ea', padding: '8px 12px', fontSize: 14, fontWeight: 700, fontFamily: modernFont, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                <i className="bi bi-droplet" style={classic ? { fontSize: 14 } : { fontSize: 14, color: '#2563eb' }} />
                 Lab Dip Requests
             </div>
 
             {/* Toolbar */}
-            <div style={{ background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const, flexShrink: 0 }}>
-                <button style={xpBtn({ background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', color: '#fff', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', fontWeight: 'bold' })} onClick={openCreate}>
+            <div style={classic
+                ? { background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const, flexShrink: 0 }
+                : { background: '#fff', borderBottom: '1px solid #dbe1ea', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const, flexShrink: 0 }}>
+                <button style={primaryToolbarBtn} onClick={openCreate}>
                     <i className="bi bi-plus-lg" /> New Lab Dip Request
                 </button>
-                <span style={{ width: 1, height: 20, background: '#a0988c', margin: '0 2px' }} />
-                <input style={{ ...xpInput, width: 200 }} placeholder="Search code, color standard, article…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-                <span style={{ width: 1, height: 20, background: '#a0988c', margin: '0 2px' }} />
+                <span style={classic ? { width: 1, height: 20, background: '#a0988c', margin: '0 2px' } : { width: 1, height: 20, background: '#dbe1ea', margin: '0 2px' }} />
+                <input style={{ ...xpInput(classic), width: 200 }} placeholder="Search code, color standard, article…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                <span style={classic ? { width: 1, height: 20, background: '#a0988c', margin: '0 2px' } : { width: 1, height: 20, background: '#dbe1ea', margin: '0 2px' }} />
                 {STATUS_FILTERS.map(s => (
-                    <button key={s} style={statusFilter === s ? xpBtn({ background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', color: '#fff', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', fontWeight: 'bold' }) : xpBtn()} onClick={() => setStatusFilter(s)}>
+                    <button key={s} style={statusFilter === s ? primaryToolbarBtn : xpBtn(classic)} onClick={() => setStatusFilter(s)}>
                         {s}
                     </button>
                 ))}
-                <span style={{ marginLeft: 'auto', fontSize: 11, color: '#333' }}>{filtered.length} item{filtered.length !== 1 ? 's' : ''}</span>
+                <span style={classic ? { marginLeft: 'auto', fontSize: 11, color: '#333' } : { marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>{filtered.length} item{filtered.length !== 1 ? 's' : ''}</span>
             </div>
 
             {/* Table */}
             <div style={{ flex: 1, background: '#fff', overflowY: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
-                    <thead style={{ background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080' }}>
+                    <thead style={classic
+                        ? { background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080' }
+                        : { background: '#eef1f6' }}>
                         <tr>
-                            <th style={{ ...xpThCell, width: 140 }}>Request Code</th>
-                            <th style={{ ...xpThCell, width: 120 }}>Customer</th>
-                            <th style={xpThCell}>Target / Article</th>
-                            <th style={{ ...xpThCell, width: 90 }}>Type</th>
-                            <th style={{ ...xpThCell, width: 110 }}>Status</th>
-                            <th style={{ ...xpThCell, width: 90 }}>Dips</th>
-                            <th style={{ ...xpThCell, width: 130, textAlign: 'right' as const, borderRight: 'none' }}>Actions</th>
+                            <th style={{ ...xpThCell(classic), width: 140 }}>Request Code</th>
+                            <th style={{ ...xpThCell(classic), width: 120 }}>Customer</th>
+                            <th style={xpThCell(classic)}>Target / Article</th>
+                            <th style={{ ...xpThCell(classic), width: 90 }}>Type</th>
+                            <th style={{ ...xpThCell(classic), width: 110 }}>Status</th>
+                            <th style={{ ...xpThCell(classic), width: 90 }}>Dips</th>
+                            <th style={{ ...xpThCell(classic), width: 130, textAlign: 'right' as const, borderRight: 'none' }}>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {filtered.length === 0 && (
-                            <tr><td colSpan={7} style={{ ...tdBase, textAlign: 'center' as const, color: '#888', fontStyle: 'italic', padding: 20 }}>No lab dip requests yet.</td></tr>
+                            <tr><td colSpan={7} style={{ ...tdBase(classic), textAlign: 'center' as const, color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>No lab dip requests yet.</td></tr>
                         )}
                         {filtered.map((r: any, idx: number) => {
                             const approved = (r.dips || []).filter((d: any) => d.status === 'APPROVED').length;
                             const total = (r.dips || []).length;
                             return (
                                 <React.Fragment key={r.id}>
-                                    <tr onClick={() => toggleExpand(r.id)} style={{ background: idx % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5', cursor: 'pointer' }}>
-                                        <td style={tdBase}>
+                                    <tr onClick={() => toggleExpand(r.id)} style={classic
+                                        ? { background: idx % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5', cursor: 'pointer' }
+                                        : { background: idx % 2 === 0 ? '#fff' : '#f8fafc', cursor: 'pointer' }}>
+                                        <td style={tdBase(classic)}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                <button onClick={e => { e.stopPropagation(); toggleExpand(r.id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', fontSize: 10, color: '#333' }}>
+                                                <button onClick={e => { e.stopPropagation(); toggleExpand(r.id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', fontSize: 10, color: classic ? '#333' : '#64748b' }}>
                                                     {expandedIds.has(r.id) ? '▼' : '▶'}
                                                 </button>
                                                 <div>
-                                                    <div style={{ fontFamily: "'Courier New', monospace", fontWeight: 'bold', color: '#0047c8', fontSize: 10 }}>{r.code}</div>
-                                                    <div style={{ fontSize: 9, color: '#555' }}>{r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}</div>
+                                                    <div style={classic
+                                                        ? { fontFamily: "'Courier New', monospace", fontWeight: 'bold', color: '#0047c8', fontSize: 10 }
+                                                        : { fontFamily: "'Courier New', monospace", fontWeight: 700, color: '#2563eb', fontSize: 12 }}>{r.code}</div>
+                                                    <div style={{ fontSize: classic ? 9 : 11, color: classic ? '#555' : '#64748b' }}>{r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}</div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td style={tdBase}>
-                                            {r.customer_id ? getCustomerName(r.customer_id) : <span style={{ fontSize: 9, color: '#555', fontStyle: 'italic' }}>Internal</span>}
+                                        <td style={tdBase(classic)}>
+                                            {r.customer_id ? getCustomerName(r.customer_id) : <span style={{ fontSize: classic ? 9 : 12, color: classic ? '#555' : '#64748b', fontStyle: 'italic' }}>Internal</span>}
                                         </td>
-                                        <td style={tdBase}>
-                                            {r.color_standard && <div style={{ fontWeight: 'bold', fontSize: 11 }}>{r.color_standard}</div>}
-                                            {r.customer_article_code && <div style={{ fontSize: 9, color: '#555' }}>{r.customer_article_code}</div>}
-                                            {!r.color_standard && !r.customer_article_code && <span style={{ fontSize: 9, color: '#888', fontStyle: 'italic' }}>—</span>}
+                                        <td style={tdBase(classic)}>
+                                            {r.color_standard && <div style={{ fontWeight: 'bold', fontSize: classic ? 11 : 13 }}>{r.color_standard}</div>}
+                                            {r.customer_article_code && <div style={{ fontSize: classic ? 9 : 11, color: classic ? '#555' : '#64748b' }}>{r.customer_article_code}</div>}
+                                            {!r.color_standard && !r.customer_article_code && <span style={{ fontSize: classic ? 9 : 12, color: classic ? '#888' : '#94a3b8', fontStyle: 'italic' }}>—</span>}
                                         </td>
-                                        <td style={tdBase}><span style={{ fontSize: 10 }}>{r.request_type}</span></td>
-                                        <td style={tdBase}><span style={statusStyle(r.status)}>{r.status}</span></td>
-                                        <td style={tdBase}>
+                                        <td style={tdBase(classic)}><span style={{ fontSize: classic ? 10 : 13 }}>{r.request_type}</span></td>
+                                        <td style={tdBase(classic)}><span style={statusStyle(r.status, classic)}>{r.status}</span></td>
+                                        <td style={tdBase(classic)}>
                                             {total > 0 ? (
-                                                <span style={{ fontSize: 11 }}>
-                                                    <span style={{ fontWeight: 'bold', color: approved === total ? '#1a6e1a' : approved > 0 ? '#0047c8' : '#777' }}>{approved}</span>
-                                                    <span style={{ color: '#777' }}>/{total}</span>
-                                                    <span style={{ fontSize: 9, color: '#555', marginLeft: 3 }}>approved</span>
+                                                <span style={{ fontSize: classic ? 11 : 13 }}>
+                                                    <span style={{ fontWeight: 'bold', color: approved === total ? (classic ? '#1a6e1a' : '#15803d') : approved > 0 ? (classic ? '#0047c8' : '#2563eb') : (classic ? '#777' : '#94a3b8') }}>{approved}</span>
+                                                    <span style={{ color: classic ? '#777' : '#94a3b8' }}>/{total}</span>
+                                                    <span style={{ fontSize: classic ? 9 : 11, color: classic ? '#555' : '#64748b', marginLeft: 3 }}>approved</span>
                                                 </span>
-                                            ) : <span style={{ fontSize: 9, color: '#888', fontStyle: 'italic' }}>—</span>}
+                                            ) : <span style={{ fontSize: classic ? 9 : 12, color: classic ? '#888' : '#94a3b8', fontStyle: 'italic' }}>—</span>}
                                         </td>
-                                        <td style={{ ...tdBase, borderRight: 'none', textAlign: 'right' as const }}>
+                                        <td style={{ ...tdBase(classic), borderRight: 'none', textAlign: 'right' as const }}>
                                             <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end', alignItems: 'center' }}>
-                                                <button title="Edit" onClick={e => { e.stopPropagation(); openEdit(r); }} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: '#555', fontSize: 13 }}>
+                                                <button title="Edit" onClick={e => { e.stopPropagation(); openEdit(r); }} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#555' : '#64748b', fontSize: 13 }}>
                                                     <i className="bi bi-pencil" />
                                                 </button>
-                                                <button title="Delete" onClick={e => { e.stopPropagation(); onDelete(r.id); }} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: '#a00', fontSize: 13 }}>
+                                                <button title="Delete" onClick={e => { e.stopPropagation(); onDelete(r.id); }} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#a00' : '#dc2626', fontSize: 13 }}>
                                                     <i className="bi bi-trash" />
                                                 </button>
                                             </div>
@@ -288,50 +364,58 @@ export default function LabDipRequestView({
                                     </tr>
                                     {expandedIds.has(r.id) && (
                                         <tr>
-                                            <td colSpan={7} style={{ padding: 0, borderBottom: '2px solid #9a9690' }}>
-                                                <div style={{ background: '#ece9d8', borderTop: '2px solid #0058e6', padding: 10, display: 'flex', gap: 12, flexWrap: 'wrap' as const }}>
+                                            <td colSpan={7} style={classic ? { padding: 0, borderBottom: '2px solid #9a9690' } : { padding: 0, borderBottom: '1px solid #dbe1ea' }}>
+                                                <div style={classic
+                                                    ? { background: '#ece9d8', borderTop: '2px solid #0058e6', padding: 10, display: 'flex', gap: 12, flexWrap: 'wrap' as const }
+                                                    : { background: '#f8fafc', borderTop: '2px solid #2563eb', padding: 10, display: 'flex', gap: 12, flexWrap: 'wrap' as const }}>
                                                     {/* Request status control */}
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', marginBottom: 6 }}>
-                                                        <span style={{ fontSize: 10, fontWeight: 'bold', color: '#111' }}>Request Status:</span>
-                                                        <select style={{ ...xpInput, width: 130 }} value={r.status} onChange={e => onUpdateStatus(r.id, e.target.value)}>
+                                                        <span style={{ fontSize: classic ? 10 : 12, fontWeight: classic ? 'bold' : 600, color: classic ? '#111' : '#475569' }}>Request Status:</span>
+                                                        <select style={{ ...xpInput(classic), width: 130 }} value={r.status} onChange={e => onUpdateStatus(r.id, e.target.value)}>
                                                             {REQUEST_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                                                         </select>
-                                                        {r.substrate && <span style={{ fontSize: 10, color: '#444' }}>Substrate: <b>{r.substrate}</b></span>}
+                                                        {r.substrate && <span style={{ fontSize: classic ? 10 : 12, color: classic ? '#444' : '#334155' }}>Substrate: <b>{r.substrate}</b></span>}
                                                         {r.approved_recipe_id && (
-                                                            <span style={{ fontSize: 10, color: '#1b5e20' }}>
+                                                            <span style={{ fontSize: classic ? 10 : 12, color: classic ? '#1b5e20' : '#15803d' }}>
                                                                 Recipe: <b>{recipeOptions.find((o: any) => o.value === r.approved_recipe_id)?.label || 'linked'}</b>
                                                             </span>
                                                         )}
                                                     </div>
                                                     {/* Dips table */}
-                                                    <div style={{ width: '100%', background: '#fff', border: '1px solid #b0a898' }}>
-                                                        <div style={{ background: 'linear-gradient(to bottom, #e4e1d8, #d5d2c8)', borderBottom: '1px solid #9a9690', padding: '2px 8px', fontSize: 10, fontWeight: 'bold', color: '#111' }}>
+                                                    <div style={classic
+                                                        ? { width: '100%', background: '#fff', border: '1px solid #b0a898' }
+                                                        : { width: '100%', background: '#fff', border: '1px solid #dbe1ea', borderRadius: 9, overflow: 'hidden' }}>
+                                                        <div style={classic
+                                                            ? { background: 'linear-gradient(to bottom, #e4e1d8, #d5d2c8)', borderBottom: '1px solid #9a9690', padding: '2px 8px', fontSize: 10, fontWeight: 'bold', color: '#111' }
+                                                            : { background: '#eef1f6', borderBottom: '1px solid #dbe1ea', padding: '7px 12px', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase' as const, letterSpacing: '0.04em' }}>
                                                             <i className="bi bi-palette" /> Dips — {total} total · {approved} approved
                                                         </div>
                                                         {total > 0 ? (
                                                             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                                                 <thead>
                                                                     <tr>
-                                                                        <th style={{ ...xpThCell, fontSize: 9 }}>Color / Shade</th>
-                                                                        <th style={{ ...xpThCell, fontSize: 9, width: 80 }}>Round</th>
-                                                                        <th style={{ ...xpThCell, fontSize: 9, width: 140 }}>Recipe Ref</th>
-                                                                        <th style={{ ...xpThCell, fontSize: 9, width: 90 }}>Status</th>
-                                                                        <th style={{ ...xpThCell, fontSize: 9, textAlign: 'center' as const, borderRight: 'none', width: 230 }}>Update Status</th>
+                                                                        <th style={{ ...xpThCell(classic), fontSize: classic ? 9 : 11 }}>Color / Shade</th>
+                                                                        <th style={{ ...xpThCell(classic), fontSize: classic ? 9 : 11, width: 80 }}>Round</th>
+                                                                        <th style={{ ...xpThCell(classic), fontSize: classic ? 9 : 11, width: 140 }}>Recipe Ref</th>
+                                                                        <th style={{ ...xpThCell(classic), fontSize: classic ? 9 : 11, width: 90 }}>Status</th>
+                                                                        <th style={{ ...xpThCell(classic), fontSize: classic ? 9 : 11, textAlign: 'center' as const, borderRight: 'none', width: 230 }}>Update Status</th>
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody>
-                                                                    {(r.dips || []).map((d: any) => {
+                                                                    {(r.dips || []).map((d: any, dipIdx: number) => {
                                                                         const st = d.status || 'PENDING';
                                                                         const isApproved = st === 'APPROVED';
                                                                         return (
-                                                                            <tr key={d.id} style={{ borderBottom: '1px solid #e8e5e0' }}>
-                                                                                <td style={{ ...tdBase, fontWeight: 'bold' }}>{d.color_name}</td>
-                                                                                <td style={tdBase}>#{d.submission_round}</td>
-                                                                                <td style={tdBase}>{d.recipe_ref || <span style={{ color: '#aaa' }}>—</span>}</td>
-                                                                                <td style={tdBase}><span style={statusStyle(st)}>{st}</span></td>
-                                                                                <td style={{ ...tdBase, borderRight: 'none', textAlign: 'center' as const }}>
+                                                                            <tr key={d.id} style={classic
+                                                                                ? { borderBottom: '1px solid #e8e5e0' }
+                                                                                : { borderBottom: '1px solid #e6eaf1', background: dipIdx % 2 === 0 ? '#fff' : '#f8fafc' }}>
+                                                                                <td style={{ ...tdBase(classic), fontWeight: 'bold' }}>{d.color_name}</td>
+                                                                                <td style={tdBase(classic)}>#{d.submission_round}</td>
+                                                                                <td style={tdBase(classic)}>{d.recipe_ref || <span style={{ color: classic ? '#aaa' : '#94a3b8' }}>—</span>}</td>
+                                                                                <td style={tdBase(classic)}><span style={statusStyle(st, classic)}>{st}</span></td>
+                                                                                <td style={{ ...tdBase(classic), borderRight: 'none', textAlign: 'center' as const }}>
                                                                                     {isApproved ? (
-                                                                                        <span style={{ fontSize: 10, color: '#1b5e20', fontWeight: 'bold' }}>Approved</span>
+                                                                                        <span style={{ fontSize: classic ? 10 : 12, color: classic ? '#1b5e20' : '#15803d', fontWeight: classic ? 'bold' : 600 }}>Approved</span>
                                                                                     ) : (
                                                                                         <div style={{ display: 'inline-flex' }}>
                                                                                             <button type="button" style={dipBtn(st === 'RESUBMIT', 'resubmit')} onClick={() => onUpdateDipStatus(r.id, d.id, st === 'RESUBMIT' ? 'PENDING' : 'RESUBMIT')}>Resubmit</button>
@@ -346,7 +430,7 @@ export default function LabDipRequestView({
                                                                 </tbody>
                                                             </table>
                                                         ) : (
-                                                            <div style={{ padding: 10, fontSize: 11, color: '#888', fontStyle: 'italic' }}>No dips on this request.</div>
+                                                            <div style={{ padding: 10, fontSize: classic ? 11 : 13, color: classic ? '#888' : '#64748b', fontStyle: 'italic' }}>No dips on this request.</div>
                                                         )}
                                                     </div>
                                                 </div>
@@ -370,8 +454,10 @@ export default function LabDipRequestView({
                 size="lg"
                 footer={
                     <>
-                        <button type="button" style={xpBtn()} onClick={() => { setIsModalOpen(false); setEditing(null); }}>Cancel</button>
-                        <button type="button" style={xpBtn({ background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', color: '#fff', fontWeight: 'bold' })} onClick={handleSubmit as any}>
+                        <button type="button" style={xpBtn(classic)} onClick={() => { setIsModalOpen(false); setEditing(null); }}>Cancel</button>
+                        <button type="button" style={classic
+                            ? xpBtn(true, { background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', color: '#fff', fontWeight: 'bold' })
+                            : xpBtn(false, modernPrimaryBtn)} onClick={handleSubmit as any}>
                             {editing ? 'Save Changes' : 'Create Request'}
                         </button>
                     </>
@@ -379,85 +465,89 @@ export default function LabDipRequestView({
             >
                 <form onSubmit={handleSubmit} id="create-lab-dip-form">
                     {/* ① Identity */}
-                    <div style={xpGroupBox}>
-                        <div style={xpGroupHeader}>① Identity</div>
-                        <div style={xpGroupBody}>
+                    <div style={xpGroupBox(classic)}>
+                        <div style={xpGroupHeader(classic)}>① Identity</div>
+                        <div style={xpGroupBody(classic)}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
                                 <div>
-                                    <label style={xpLbl}>Request Code</label>
-                                    <input style={{ ...xpInput, width: '100%', boxSizing: 'border-box' as const, background: '#f0f0f0', color: '#666' }} value={editing ? editing.code : 'Auto-generated (LD-…)'} readOnly />
+                                    <label style={xpLbl(classic)}>Request Code</label>
+                                    <input style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const, background: classic ? '#f0f0f0' : '#f1f5f9', color: classic ? '#666' : '#64748b' }} value={editing ? editing.code : 'Auto-generated (LD-…)'} readOnly />
                                 </div>
                                 <div>
-                                    <label style={xpLbl}>Request Date <span style={{ color: '#a00' }}>*</span></label>
-                                    <input type="date" style={{ ...xpInput, width: '100%', boxSizing: 'border-box' as const }} value={form.request_date} onChange={e => setField('request_date', e.target.value)} required />
+                                    <label style={xpLbl(classic)}>Request Date <span style={{ color: classic ? '#a00' : '#dc2626' }}>*</span></label>
+                                    <input type="date" style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const }} value={form.request_date} onChange={e => setField('request_date', e.target.value)} required />
                                 </div>
                                 <div style={{ gridColumn: '1 / -1' }}>
-                                    <label style={xpLbl}>Customer (Optional)</label>
+                                    <label style={xpLbl(classic)}>Customer (Optional)</label>
                                     <SearchableSelect options={customerOptions} value={form.customer_id} onChange={(v: string) => setField('customer_id', v)} placeholder="Select customer…" />
                                 </div>
                                 <div>
-                                    <label style={xpLbl}>Season / Project</label>
-                                    <input style={{ ...xpInput, width: '100%', boxSizing: 'border-box' as const }} value={form.season} onChange={e => setField('season', e.target.value)} placeholder="e.g. Spring 2026" />
+                                    <label style={xpLbl(classic)}>Season / Project</label>
+                                    <input style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const }} value={form.season} onChange={e => setField('season', e.target.value)} placeholder="e.g. Spring 2026" />
                                 </div>
                                 <div>
-                                    <label style={xpLbl}>Request Type</label>
-                                    <select style={{ ...xpInput, width: '100%', boxSizing: 'border-box' as const }} value={form.request_type} onChange={e => setField('request_type', e.target.value)}>
+                                    <label style={xpLbl(classic)}>Request Type</label>
+                                    <select style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const }} value={form.request_type} onChange={e => setField('request_type', e.target.value)}>
                                         {REQUEST_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                                     </select>
                                 </div>
                                 <div>
-                                    <label style={xpLbl}>Customer Article Code</label>
-                                    <input style={{ ...xpInput, width: '100%', boxSizing: 'border-box' as const }} value={form.customer_article_code} onChange={e => setField('customer_article_code', e.target.value)} />
+                                    <label style={xpLbl(classic)}>Customer Article Code</label>
+                                    <input style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const }} value={form.customer_article_code} onChange={e => setField('customer_article_code', e.target.value)} />
                                 </div>
                                 <div>
-                                    <label style={xpLbl}>Internal Article Code</label>
-                                    <input style={{ ...xpInput, width: '100%', boxSizing: 'border-box' as const }} value={form.internal_article_code} onChange={e => setField('internal_article_code', e.target.value)} />
+                                    <label style={xpLbl(classic)}>Internal Article Code</label>
+                                    <input style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const }} value={form.internal_article_code} onChange={e => setField('internal_article_code', e.target.value)} />
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     {/* ② Target & Substrate */}
-                    <div style={xpGroupBox}>
-                        <div style={xpGroupHeader}>② Target &amp; Substrate</div>
-                        <div style={xpGroupBody}>
+                    <div style={xpGroupBox(classic)}>
+                        <div style={xpGroupHeader(classic)}>② Target &amp; Substrate</div>
+                        <div style={xpGroupBody(classic)}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
                                 <div>
-                                    <label style={xpLbl}>Color Standard / Pantone</label>
-                                    <input style={{ ...xpInput, width: '100%', boxSizing: 'border-box' as const }} value={form.color_standard} onChange={e => setField('color_standard', e.target.value)} placeholder="e.g. Pantone 18-1664 TCX" />
+                                    <label style={xpLbl(classic)}>Color Standard / Pantone</label>
+                                    <input style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const }} value={form.color_standard} onChange={e => setField('color_standard', e.target.value)} placeholder="e.g. Pantone 18-1664 TCX" />
                                 </div>
                                 <div>
-                                    <label style={xpLbl}>Substrate (fabric quality)</label>
-                                    <input style={{ ...xpInput, width: '100%', boxSizing: 'border-box' as const }} value={form.substrate} onChange={e => setField('substrate', e.target.value)} placeholder="e.g. 100% Cotton 150gsm" />
+                                    <label style={xpLbl(classic)}>Substrate (fabric quality)</label>
+                                    <input style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const }} value={form.substrate} onChange={e => setField('substrate', e.target.value)} placeholder="e.g. 100% Cotton 150gsm" />
                                 </div>
                                 <div style={{ gridColumn: '1 / -1' }}>
-                                    <label style={xpLbl}>Substrate Item (Optional)</label>
+                                    <label style={xpLbl(classic)}>Substrate Item (Optional)</label>
                                     <SearchableSelect options={[{ value: '', label: 'None' }, ...itemOptions]} value={form.base_item_id} onChange={(v: string) => setField('base_item_id', v)} placeholder="Link base/greige item…" />
                                 </div>
                                 <div>
-                                    <label style={xpLbl}>Due Date</label>
-                                    <input type="date" style={{ ...xpInput, width: '100%', boxSizing: 'border-box' as const }} value={form.due_date} onChange={e => setField('due_date', e.target.value)} />
+                                    <label style={xpLbl(classic)}>Due Date</label>
+                                    <input type="date" style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const }} value={form.due_date} onChange={e => setField('due_date', e.target.value)} />
                                 </div>
                                 <div>
-                                    <label style={xpLbl}>Estimated Completion</label>
-                                    <input type="date" style={{ ...xpInput, width: '100%', boxSizing: 'border-box' as const }} value={form.estimated_completion_date} onChange={e => setField('estimated_completion_date', e.target.value)} />
+                                    <label style={xpLbl(classic)}>Estimated Completion</label>
+                                    <input type="date" style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const }} value={form.estimated_completion_date} onChange={e => setField('estimated_completion_date', e.target.value)} />
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     {/* ③ Dips */}
-                    <div style={xpGroupBox}>
-                        <div style={xpGroupHeader}>③ Dips (Submissions)</div>
-                        <div style={xpGroupBody}>
-                            <div style={{ background: '#f5f9ff', border: '1px solid #b0c8e8', minHeight: 40, padding: '6px 8px', marginBottom: 6 }}>
+                    <div style={xpGroupBox(classic)}>
+                        <div style={xpGroupHeader(classic)}>③ Dips (Submissions)</div>
+                        <div style={xpGroupBody(classic)}>
+                            <div style={classic
+                                ? { background: '#f5f9ff', border: '1px solid #b0c8e8', minHeight: 40, padding: '6px 8px', marginBottom: 6 }
+                                : { background: '#f8fafc', border: '1px solid #dbe1ea', borderRadius: 7, minHeight: 40, padding: '6px 8px', marginBottom: 6 }}>
                                 {form.dips.length === 0
-                                    ? <span style={{ fontSize: 11, color: '#999', fontStyle: 'italic' }}>No dips added yet…</span>
+                                    ? <span style={{ fontSize: classic ? 11 : 13, color: classic ? '#999' : '#94a3b8', fontStyle: 'italic' }}>No dips added yet…</span>
                                     : form.dips.map((d, idx) => (
-                                        <span key={idx} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 7px', marginRight: 4, marginBottom: 4, background: '#e8f4e8', border: '1px solid #7aba7a', fontSize: 11 }}>
-                                            <span style={{ fontSize: 9, fontWeight: 'bold', color: '#228b22' }}>R{d.submission_round}</span>
+                                        <span key={idx} style={classic
+                                            ? { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 7px', marginRight: 4, marginBottom: 4, background: '#e8f4e8', border: '1px solid #7aba7a', fontSize: 11 }
+                                            : { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', marginRight: 4, marginBottom: 4, background: '#ecfdf3', border: '1px solid #abdfc0', borderRadius: 6, fontSize: 12.5, color: '#15803d', fontFamily: modernFont }}>
+                                            <span style={{ fontSize: classic ? 9 : 11, fontWeight: 'bold', color: classic ? '#228b22' : '#15803d' }}>R{d.submission_round}</span>
                                             {d.color_name}
-                                            <span onClick={() => removeDip(idx)} style={{ cursor: 'pointer', color: '#a00', marginLeft: 2, fontWeight: 'bold', fontSize: 12, lineHeight: 1 }} title="Remove">×</span>
+                                            <span onClick={() => removeDip(idx)} style={{ cursor: 'pointer', color: classic ? '#a00' : '#dc2626', marginLeft: 2, fontWeight: 'bold', fontSize: 12, lineHeight: 1 }} title="Remove">×</span>
                                         </span>
                                     ))
                                 }
@@ -466,24 +556,24 @@ export default function LabDipRequestView({
                                 <div style={{ flex: 1 }}>
                                     <SearchableSelect options={colorOptions} value={pendingColor} onChange={setPendingColor} placeholder="Select color/shade…" size="sm" />
                                 </div>
-                                <label style={{ fontSize: 10, color: '#555' }}>Round</label>
-                                <input type="number" min={1} style={{ ...xpInput, width: 56 }} value={pendingRound} onChange={e => setPendingRound(parseInt(e.target.value) || 1)} />
-                                <button type="button" style={xpBtn()} onClick={addPendingDip}><i className="bi bi-plus-lg" /> Add</button>
+                                <label style={{ fontSize: classic ? 10 : 12, color: classic ? '#555' : '#475569', fontWeight: classic ? undefined : 600 }}>Round</label>
+                                <input type="number" min={1} style={{ ...xpInput(classic), width: 56 }} value={pendingRound} onChange={e => setPendingRound(parseInt(e.target.value) || 1)} />
+                                <button type="button" style={classic ? xpBtn(true) : xpBtn(false, modernPrimaryBtn)} onClick={addPendingDip}><i className="bi bi-plus-lg" /> Add</button>
                             </div>
                         </div>
                     </div>
 
                     {/* ④ Recipe link & notes */}
-                    <div style={xpGroupBox}>
-                        <div style={xpGroupHeader}>④ Approved Recipe &amp; Notes</div>
-                        <div style={xpGroupBody}>
+                    <div style={xpGroupBox(classic)}>
+                        <div style={xpGroupHeader(classic)}>④ Approved Recipe &amp; Notes</div>
+                        <div style={xpGroupBody(classic)}>
                             <div style={{ marginBottom: 8 }}>
-                                <label style={xpLbl}>Approved Dye Recipe (Optional)</label>
+                                <label style={xpLbl(classic)}>Approved Dye Recipe (Optional)</label>
                                 <SearchableSelect options={[{ value: '', label: 'Not yet linked' }, ...recipeOptions]} value={form.approved_recipe_id} onChange={(v: string) => setField('approved_recipe_id', v)} placeholder="Link approved recipe…" />
                             </div>
                             <div>
-                                <label style={xpLbl}>Notes</label>
-                                <textarea style={{ ...xpInput, height: 'auto', padding: '4px 6px', width: '100%', resize: 'vertical' as const, boxSizing: 'border-box' as const }} rows={2} value={form.notes} onChange={e => setField('notes', e.target.value)} />
+                                <label style={xpLbl(classic)}>Notes</label>
+                                <textarea style={{ ...xpInput(classic), height: 'auto', padding: '4px 6px', width: '100%', resize: 'vertical' as const, boxSizing: 'border-box' as const }} rows={2} value={form.notes} onChange={e => setField('notes', e.target.value)} />
                             </div>
                         </div>
                     </div>

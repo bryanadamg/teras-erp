@@ -1,25 +1,57 @@
 'use client';
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTheme } from '../../context/ThemeContext';
 
-// ── XP Style Constants ────────────────────────────────────────────────────────
+// ── Fonts ───────────────────────────────────────────────────────────────────
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
-const xpInput: React.CSSProperties = {
+const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+
+// ── Style helpers (theme-aware) ───────────────────────────────────────────────
+const xpInput = (classic: boolean): React.CSSProperties => classic ? {
     fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
     background: 'white', padding: '1px 4px', outline: 'none', height: 20,
+} : {
+    fontFamily: modernFont, fontSize: 13, border: '1px solid #cbd3df',
+    borderRadius: 7, padding: '4px 8px', background: '#fff', color: '#1e293b',
+    outline: 'none', height: 'auto',
 };
-const xpBtn: React.CSSProperties = {
+
+const xpBtn = (classic: boolean): React.CSSProperties => classic ? {
     fontFamily: xpFont, fontSize: 10, padding: '2px 8px',
     background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
     border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
     cursor: 'pointer',
+} : {
+    fontFamily: modernFont, fontSize: 12.5, fontWeight: 500, padding: '5px 12px',
+    background: '#fff', color: '#334155', border: '1px solid #cbd3df',
+    borderRadius: 7, cursor: 'pointer',
 };
-const xpSectionHeader: React.CSSProperties = {
+
+const xpBtnPrimary = (classic: boolean): React.CSSProperties => classic ? {
+    fontFamily: xpFont, fontSize: 10, padding: '2px 8px',
+    background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
+    border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
+    cursor: 'pointer',
+} : {
+    fontFamily: modernFont, fontSize: 12.5, fontWeight: 600, padding: '5px 12px',
+    background: '#2563eb', color: '#fff', border: 'none',
+    borderRadius: 7, cursor: 'pointer',
+};
+
+const xpSectionHeader = (classic: boolean): React.CSSProperties => classic ? {
     background: 'linear-gradient(to right, #3060b8, #1a3d90)',
     color: 'white', padding: '3px 8px',
     fontFamily: xpFont, fontSize: 11, fontWeight: 'bold',
+} : {
+    background: '#eef1f6', color: '#475569', textTransform: 'uppercase',
+    fontWeight: 700, fontSize: 11, letterSpacing: '0.04em', padding: '7px 12px',
+    borderBottom: '1px solid #dbe1ea', fontFamily: modernFont,
 };
-const xpPanel: React.CSSProperties = {
+
+const xpPanel = (classic: boolean): React.CSSProperties => classic ? {
     border: '1px solid #7f9db9', background: 'white',
+} : {
+    border: '1px solid #dbe1ea', background: '#fff', borderRadius: 9,
 };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -72,24 +104,38 @@ const fmtNum = (v: any, decimals = 2) => {
     return isNaN(n) ? '—' : n.toFixed(decimals);
 };
 
-const statusChip = (status: string) => {
-    const base: React.CSSProperties = {
+const statusChip = (status: string, classic: boolean) => {
+    const base: React.CSSProperties = classic ? {
         display: 'inline-block', fontFamily: xpFont, fontSize: 9, fontWeight: 'bold',
         padding: '1px 6px', border: '1px solid',
+    } : {
+        display: 'inline-block', fontFamily: modernFont, fontSize: 10, fontWeight: 700,
+        padding: '2px 8px', border: '1px solid', borderRadius: 6,
     };
     switch (status) {
         case 'COMPLETED':
-            return <span style={{ ...base, background: '#2d7a2d', borderColor: '#1a5e1a', color: '#fff' }}>COMPLETED</span>;
+            return classic
+                ? <span style={{ ...base, background: '#2d7a2d', borderColor: '#1a5e1a', color: '#fff' }}>COMPLETED</span>
+                : <span style={{ ...base, background: '#dcfce7', borderColor: '#86efac', color: '#15803d' }}>COMPLETED</span>;
         case 'IN_PROGRESS':
-            return <span style={{ ...base, background: '#0058e6', borderColor: '#003080', color: '#fff' }}>IN PROGRESS</span>;
+            return classic
+                ? <span style={{ ...base, background: '#0058e6', borderColor: '#003080', color: '#fff' }}>IN PROGRESS</span>
+                : <span style={{ ...base, background: '#eff6ff', borderColor: '#bfd3f5', color: '#1d4ed8' }}>IN PROGRESS</span>;
         case 'CANCELLED':
-            return <span style={{ ...base, background: '#c00000', borderColor: '#800000', color: '#fff' }}>CANCELLED</span>;
+            return classic
+                ? <span style={{ ...base, background: '#c00000', borderColor: '#800000', color: '#fff' }}>CANCELLED</span>
+                : <span style={{ ...base, background: '#fee2e2', borderColor: '#fca5a5', color: '#b91c1c' }}>CANCELLED</span>;
         default:
-            return <span style={{ ...base, background: '#d4d0c8', borderColor: '#808080', color: '#333' }}>PENDING</span>;
+            return classic
+                ? <span style={{ ...base, background: '#d4d0c8', borderColor: '#808080', color: '#333' }}>PENDING</span>
+                : <span style={{ ...base, background: '#f1f5f9', borderColor: '#cbd3df', color: '#64748b' }}>PENDING</span>;
     }
 };
 
 export default function SettingOrdersTab({ items, authFetch }: Props) {
+    const { uiStyle } = useTheme();
+    const classic = uiStyle === 'classic';
+
     const [workOrders, setWorkOrders] = useState<any[]>([]);
     const [selectedWoId, setSelectedWoId] = useState<string | null>(null);
     const [runs, setRuns] = useState<any[]>([]);
@@ -214,23 +260,33 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
     };
 
     // ── Styles ────────────────────────────────────────────────────────────────
-    const thStyle: React.CSSProperties = {
+    const thStyle: React.CSSProperties = classic ? {
         background: 'linear-gradient(to bottom, #fff 0%, #d4d0c8 100%)',
         border: '1px solid #808080', padding: '2px 6px',
         fontFamily: xpFont, fontSize: 10, fontWeight: 'bold',
         whiteSpace: 'nowrap', textAlign: 'left',
+    } : {
+        background: '#eef1f6', color: '#475569', textTransform: 'uppercase',
+        fontSize: 11, fontWeight: 700, padding: '6px 10px',
+        borderBottom: '1.5px solid #cbd3df', fontFamily: modernFont,
+        whiteSpace: 'nowrap', textAlign: 'left',
     };
-    const tdStyle: React.CSSProperties = {
+    const tdStyle: React.CSSProperties = classic ? {
         border: '1px solid #c0bdb5', padding: '2px 6px',
         fontFamily: xpFont, fontSize: 10, verticalAlign: 'middle',
+    } : {
+        color: '#334155', fontSize: 13, padding: '6px 10px',
+        borderBottom: '1px solid #e6eaf1', fontFamily: modernFont, verticalAlign: 'middle',
     };
 
     const inputStyle = (width?: number): React.CSSProperties => ({
-        ...xpInput, width: width ?? '100%',
+        ...xpInput(classic), width: width ?? '100%',
     });
 
-    const labelStyle: React.CSSProperties = {
+    const labelStyle: React.CSSProperties = classic ? {
         fontFamily: xpFont, fontSize: 10, color: '#000', display: 'block', marginBottom: 1,
+    } : {
+        fontFamily: modernFont, fontSize: 12, color: '#64748b', display: 'block', marginBottom: 3, fontWeight: 500,
     };
 
     const fieldRow = (label: string, field: keyof CreateForm, type = 'text', width?: number) => (
@@ -247,17 +303,17 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
 
     // ── Render ────────────────────────────────────────────────────────────────
     return (
-        <div style={{ display: 'flex', height: '100%', fontFamily: xpFont, fontSize: 11 }}>
+        <div style={{ display: 'flex', height: '100%', fontFamily: classic ? xpFont : modernFont, fontSize: 11, background: classic ? undefined : '#f8fafc' }}>
 
             {/* Left pane — WO list */}
-            <div style={{ width: 280, minWidth: 280, borderRight: '1px solid #7f9db9', display: 'flex', flexDirection: 'column', background: '#f5f4ef' }}>
-                <div style={xpSectionHeader}>Setting Work Orders</div>
+            <div style={{ width: 280, minWidth: 280, borderRight: classic ? '1px solid #7f9db9' : '1px solid #dbe1ea', display: 'flex', flexDirection: 'column', background: classic ? '#f5f4ef' : '#fff' }}>
+                <div style={xpSectionHeader(classic)}>Setting Work Orders</div>
                 <div style={{ flex: 1, overflowY: 'auto', padding: 4 }}>
                     {loading && (
-                        <div style={{ padding: 8, color: '#888', fontSize: 10 }}>Loading...</div>
+                        <div style={{ padding: 8, color: classic ? '#888' : '#64748b', fontSize: 10 }}>Loading...</div>
                     )}
                     {!loading && workOrders.length === 0 && (
-                        <div style={{ padding: 8, color: '#888', fontSize: 10, fontStyle: 'italic' }}>
+                        <div style={{ padding: 8, color: classic ? '#888' : '#64748b', fontSize: 10, fontStyle: 'italic' }}>
                             No setting work orders found.
                         </div>
                     )}
@@ -267,30 +323,36 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                             <div
                                 key={wo.id}
                                 onClick={() => setSelectedWoId(wo.id === selectedWoId ? null : wo.id)}
-                                style={{
+                                style={classic ? {
                                     padding: '4px 8px', marginBottom: 2, cursor: 'pointer',
                                     background: selected
                                         ? 'linear-gradient(to bottom, #3060b8, #1a3d90)'
                                         : '#ece9d8',
                                     border: selected ? '1px solid #1a3d90' : '1px solid #c0bdb5',
                                     color: selected ? '#fff' : '#000',
+                                } : {
+                                    padding: '6px 10px', marginBottom: 4, cursor: 'pointer',
+                                    background: selected ? '#eff6ff' : '#fff',
+                                    border: selected ? '1px solid #2563eb' : '1px solid #dbe1ea',
+                                    borderRadius: 7,
+                                    color: selected ? '#1d4ed8' : '#1e293b',
                                 }}
                             >
-                                <div style={{ fontWeight: 'bold', fontSize: 11 }}>{wo.name || wo.code || wo.id}</div>
+                                <div style={{ fontWeight: classic ? 'bold' : 600, fontSize: classic ? 11 : 13 }}>{wo.name || wo.code || wo.id}</div>
                                 {wo.mo_code && (
-                                    <div style={{ fontSize: 9, color: selected ? '#cce0ff' : '#666', fontFamily: 'monospace' }}>
+                                    <div style={{ fontSize: 9, color: classic ? (selected ? '#cce0ff' : '#666') : (selected ? '#2563eb' : '#64748b'), fontFamily: 'monospace' }}>
                                         MO: {wo.mo_code}
                                     </div>
                                 )}
                                 {wo.status && (
-                                    <div style={{ marginTop: 2 }}>{statusChip(wo.status)}</div>
+                                    <div style={{ marginTop: 2 }}>{statusChip(wo.status, classic)}</div>
                                 )}
                             </div>
                         );
                     })}
                 </div>
-                <div style={{ borderTop: '1px solid #c0bdb5', padding: 4 }}>
-                    <button onClick={fetchWorkOrders} style={{ ...xpBtn, width: '100%', fontSize: 10 }}>
+                <div style={{ borderTop: classic ? '1px solid #c0bdb5' : '1px solid #dbe1ea', padding: 4 }}>
+                    <button onClick={fetchWorkOrders} style={{ ...xpBtn(classic), width: '100%', fontSize: 10 }}>
                         Refresh
                     </button>
                 </div>
@@ -298,19 +360,22 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
 
             {/* Right pane — Runs */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                <div style={{ ...xpSectionHeader, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ ...xpSectionHeader(classic), display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>
                         Setting Runs{selectedWo ? ` — ${selectedWo.name || selectedWo.code || selectedWoId}` : ''}
                     </span>
                     {selectedWoId && (
                         <button
                             onClick={() => { setShowCreateRun(true); setCreateForm(EMPTY_CREATE); }}
-                            style={{
-                                ...xpBtn,
+                            style={classic ? {
+                                ...xpBtn(classic),
                                 fontSize: 9, padding: '1px 8px',
                                 background: 'linear-gradient(to bottom, #b0e8b0, #70c870)',
                                 borderColor: '#0a3e0a #1a5e1a #1a5e1a #0a3e0a',
                                 color: '#004000',
+                            } : {
+                                ...xpBtnPrimary(classic),
+                                fontSize: 11, padding: '4px 10px',
                             }}
                         >
                             + New Run
@@ -319,18 +384,18 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                 </div>
 
                 {!selectedWoId ? (
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontSize: 11, fontStyle: 'italic' }}>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: classic ? '#888' : '#64748b', fontSize: 11, fontStyle: 'italic' }}>
                         Select a work order to view setting runs.
                     </div>
                 ) : (
                     <>
                         {/* Create Run form */}
                         {showCreateRun && (
-                            <div style={{ ...xpPanel, margin: 8, padding: 0, borderColor: '#7f9db9' }}>
-                                <div style={{ ...xpSectionHeader, background: 'linear-gradient(to right, #5a7a20, #3a5a10)', fontSize: 10 }}>
+                            <div style={classic ? { ...xpPanel(classic), margin: 8, padding: 0, borderColor: '#7f9db9' } : { ...xpPanel(classic), margin: 8, padding: 0 }}>
+                                <div style={classic ? { ...xpSectionHeader(classic), background: 'linear-gradient(to right, #5a7a20, #3a5a10)', fontSize: 10 } : { ...xpSectionHeader(classic) }}>
                                     New Setting Run
                                 </div>
-                                <div style={{ padding: 10, background: '#f5f4ef' }}>
+                                <div style={{ padding: 10, background: classic ? '#f5f4ef' : '#fff' }}>
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0 12px' }}>
                                         <div>
                                             {fieldRow('Input Lot', 'input_batch_id_text')}
@@ -348,7 +413,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                             <div style={{ marginBottom: 6 }}>
                                                 <label style={labelStyle}>Notes</label>
                                                 <textarea
-                                                    style={{ ...xpInput, height: 38, width: '100%', resize: 'vertical', padding: '2px 4px' }}
+                                                    style={{ ...xpInput(classic), height: 38, width: '100%', resize: 'vertical', padding: classic ? '2px 4px' : '4px 8px' }}
                                                     value={createForm.notes}
                                                     onChange={e => setCreateForm(f => ({ ...f, notes: e.target.value }))}
                                                 />
@@ -359,16 +424,16 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                         <button
                                             onClick={handleCreateRun}
                                             disabled={saving}
-                                            style={{
-                                                ...xpBtn,
+                                            style={classic ? {
+                                                ...xpBtn(classic),
                                                 background: 'linear-gradient(to bottom, #b0e8b0, #70c870)',
                                                 borderColor: '#0a3e0a #1a5e1a #1a5e1a #0a3e0a',
                                                 color: '#004000',
-                                            }}
+                                            } : xpBtnPrimary(classic)}
                                         >
                                             {saving ? 'Saving...' : 'Create Run'}
                                         </button>
-                                        <button onClick={() => setShowCreateRun(false)} style={xpBtn}>
+                                        <button onClick={() => setShowCreateRun(false)} style={xpBtn(classic)}>
                                             Cancel
                                         </button>
                                     </div>
@@ -379,12 +444,12 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                         {/* Runs table */}
                         <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
                             {runs.length === 0 ? (
-                                <div style={{ padding: 12, color: '#888', fontSize: 10, fontStyle: 'italic', textAlign: 'center' }}>
+                                <div style={{ padding: 12, color: classic ? '#888' : '#64748b', fontSize: 10, fontStyle: 'italic', textAlign: 'center' }}>
                                     No setting runs yet.
                                 </div>
                             ) : (
                                 <div style={{ overflowX: 'auto' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', ...(classic ? {} : { border: '1px solid #dbe1ea', borderRadius: 9, overflow: 'hidden' }) }}>
                                         <thead>
                                             <tr>
                                                 {[
@@ -402,7 +467,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                             {runs.map((run: any, idx: number) => (
                                                 <tr
                                                     key={run.id}
-                                                    style={{ background: idx % 2 === 0 ? '#fff' : '#f5f3ee' }}
+                                                    style={{ background: idx % 2 === 0 ? '#fff' : (classic ? '#f5f3ee' : '#f8fafc') }}
                                                 >
                                                     <td style={tdStyle}>{run.run_number ?? idx + 1}</td>
                                                     <td style={tdStyle}>{fmtNum(run.substrate_qty)}</td>
@@ -411,7 +476,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                                     <td style={tdStyle}>{fmtNum(run.speed_mpm, 1)}</td>
                                                     <td style={tdStyle}>{fmtNum(run.width_cm, 1)}</td>
                                                     <td style={tdStyle}>{fmtNum(run.overfeed_pct, 2)}</td>
-                                                    <td style={tdStyle}>{statusChip(run.status || 'PENDING')}</td>
+                                                    <td style={tdStyle}>{statusChip(run.status || 'PENDING', classic)}</td>
                                                     <td style={tdStyle}>{fmtNum(run.actual_width_cm, 1)}</td>
                                                     <td style={tdStyle}>{fmtNum(run.actual_gsm, 2)}</td>
                                                     <td style={tdStyle}>{fmtNum(run.actual_shrinkage_pct, 2)}</td>
@@ -419,12 +484,15 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                                         {(!run.status || run.status === 'PENDING') && (
                                                             <button
                                                                 onClick={() => handleStartRun(run)}
-                                                                style={{
-                                                                    ...xpBtn, fontSize: 9,
+                                                                style={classic ? {
+                                                                    ...xpBtn(classic), fontSize: 9,
                                                                     background: 'linear-gradient(to bottom, #c0d8ff, #80a8e8)',
                                                                     borderColor: '#003080 #80a8e8 #80a8e8 #003080',
                                                                     color: '#001060',
                                                                     marginRight: 3,
+                                                                } : {
+                                                                    ...xpBtnPrimary(classic), fontSize: 11,
+                                                                    padding: '4px 10px', marginRight: 4,
                                                                 }}
                                                             >
                                                                 Start
@@ -436,12 +504,15 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                                                     setShowCompleteModal(run);
                                                                     setCompleteForm(EMPTY_COMPLETE);
                                                                 }}
-                                                                style={{
-                                                                    ...xpBtn, fontSize: 9,
+                                                                style={classic ? {
+                                                                    ...xpBtn(classic), fontSize: 9,
                                                                     background: 'linear-gradient(to bottom, #b0e8b0, #70c870)',
                                                                     borderColor: '#0a3e0a #1a5e1a #1a5e1a #0a3e0a',
                                                                     color: '#004000',
                                                                     marginRight: 3,
+                                                                } : {
+                                                                    ...xpBtnPrimary(classic), fontSize: 11,
+                                                                    padding: '4px 10px', marginRight: 4,
                                                                 }}
                                                             >
                                                                 Complete
@@ -469,26 +540,37 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                     }}
                     onClick={e => { if (e.target === e.currentTarget) setShowCompleteModal(null); }}
                 >
-                    <div style={{
+                    <div style={classic ? {
                         background: '#ece9d8', border: '2px solid',
                         borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
                         minWidth: 320, maxWidth: 420, fontFamily: xpFont,
+                    } : {
+                        background: '#fff', border: '1px solid #dbe1ea',
+                        borderRadius: 9, minWidth: 320, maxWidth: 420, fontFamily: modernFont,
+                        boxShadow: '0 10px 40px rgba(15,23,42,0.18)', overflow: 'hidden',
                     }}>
                         {/* Title bar */}
-                        <div style={{
+                        <div style={classic ? {
                             background: 'linear-gradient(to right, #0058e6, #08a5ff)',
                             padding: '4px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        } : {
+                            background: '#f7f9fc', borderBottom: '1px solid #dbe1ea',
+                            padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                         }}>
-                            <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 11, fontFamily: xpFont }}>
+                            <span style={classic ? { color: '#fff', fontWeight: 'bold', fontSize: 11, fontFamily: xpFont } : { color: '#1e293b', fontWeight: 700, fontSize: 13, fontFamily: modernFont }}>
                                 Complete Setting Run
                             </span>
                             <button
                                 onClick={() => setShowCompleteModal(null)}
-                                style={{
+                                style={classic ? {
                                     background: 'linear-gradient(to bottom, #f0efe6, #c0bdb5)',
                                     border: '1px solid #808080', color: '#000',
                                     fontFamily: xpFont, fontSize: 10, cursor: 'pointer',
                                     padding: '0 5px', lineHeight: '14px',
+                                } : {
+                                    background: '#fff', border: '1px solid #cbd3df', color: '#334155',
+                                    fontFamily: modernFont, fontSize: 12, cursor: 'pointer',
+                                    padding: '1px 7px', lineHeight: '16px', borderRadius: 6,
                                 }}
                             >
                                 X
@@ -499,12 +581,12 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                             {/* Output lot number — required */}
                             <div style={{ marginBottom: 8 }}>
                                 <label style={labelStyle}>
-                                    Output Lot Number <span style={{ color: '#c00' }}>*</span>
+                                    Output Lot Number <span style={{ color: classic ? '#c00' : '#dc2626' }}>*</span>
                                 </label>
                                 <input
                                     type="text"
                                     autoFocus
-                                    style={{ ...xpInput, width: '100%' }}
+                                    style={{ ...xpInput(classic), width: '100%' }}
                                     value={completeForm.output_batch_number}
                                     onChange={e => setCompleteForm(f => ({ ...f, output_batch_number: e.target.value }))}
                                 />
@@ -514,7 +596,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                     <label style={labelStyle}>Actual Width (cm)</label>
                                     <input
                                         type="number"
-                                        style={{ ...xpInput, width: '100%' }}
+                                        style={{ ...xpInput(classic), width: '100%' }}
                                         value={completeForm.actual_width_cm}
                                         onChange={e => setCompleteForm(f => ({ ...f, actual_width_cm: e.target.value }))}
                                     />
@@ -523,7 +605,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                     <label style={labelStyle}>Actual GSM</label>
                                     <input
                                         type="number"
-                                        style={{ ...xpInput, width: '100%' }}
+                                        style={{ ...xpInput(classic), width: '100%' }}
                                         value={completeForm.actual_gsm}
                                         onChange={e => setCompleteForm(f => ({ ...f, actual_gsm: e.target.value }))}
                                     />
@@ -532,7 +614,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                     <label style={labelStyle}>Actual Shrinkage (%)</label>
                                     <input
                                         type="number"
-                                        style={{ ...xpInput, width: '100%' }}
+                                        style={{ ...xpInput(classic), width: '100%' }}
                                         value={completeForm.actual_shrinkage_pct}
                                         onChange={e => setCompleteForm(f => ({ ...f, actual_shrinkage_pct: e.target.value }))}
                                     />
@@ -543,19 +625,25 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                 <button
                                     onClick={handleCompleteRun}
                                     disabled={completing || !completeForm.output_batch_number.trim()}
-                                    style={{
-                                        ...xpBtn,
+                                    style={classic ? {
+                                        ...xpBtn(classic),
                                         background: !completeForm.output_batch_number.trim()
                                             ? '#d4d0c8'
                                             : 'linear-gradient(to bottom, #b0e8b0, #70c870)',
                                         borderColor: '#0a3e0a #1a5e1a #1a5e1a #0a3e0a',
                                         color: !completeForm.output_batch_number.trim() ? '#888' : '#004000',
                                         opacity: completing ? 0.7 : 1,
+                                    } : {
+                                        ...xpBtnPrimary(classic),
+                                        background: !completeForm.output_batch_number.trim() ? '#cbd5e1' : '#2563eb',
+                                        color: !completeForm.output_batch_number.trim() ? '#94a3b8' : '#fff',
+                                        cursor: !completeForm.output_batch_number.trim() ? 'default' : 'pointer',
+                                        opacity: completing ? 0.7 : 1,
                                     }}
                                 >
                                     {completing ? 'Completing...' : 'Complete Run'}
                                 </button>
-                                <button onClick={() => setShowCompleteModal(null)} style={xpBtn}>
+                                <button onClick={() => setShowCompleteModal(null)} style={xpBtn(classic)}>
                                     Cancel
                                 </button>
                             </div>

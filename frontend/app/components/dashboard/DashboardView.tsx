@@ -135,7 +135,9 @@ const StatusBadge = ({ status }: { status: string }) => {
 };
 
 // ── Dependency-free inline SVG donut (no chart library — light on old clients) ──
-const DONUT_COLORS = ['#0058e6', '#2a7a2a', '#cc7700', '#b71c1c', '#6a3fb5', '#0c8a8a', '#8a6d00'];
+// Modern-only (the classic dashboard uses XP gauges), so the palette is tuned to
+// the modern blue theme rather than the old saturated XP colors.
+const DONUT_COLORS = ['#2563eb', '#0ea5e9', '#14b8a6', '#8b5cf6', '#f59e0b', '#ec4899', '#64748b'];
 const Donut = ({ segments, size = 132, stroke = 20, centerLabel, centerSub, ariaLabel }: {
     segments: { label: string; value: number }[];
     size?: number; stroke?: number; centerLabel: string; centerSub?: string; ariaLabel: string;
@@ -144,9 +146,14 @@ const Donut = ({ segments, size = 132, stroke = 20, centerLabel, centerSub, aria
     const r = (size - stroke) / 2;
     const circ = 2 * Math.PI * r;
     let acc = 0;
+    // Shrink the center number so long values (e.g. "1,234,567") never spill past
+    // the inner hole. Usable width ≈ size − 2·stroke; ~0.62em per char for Tahoma bold.
+    const innerWidth = size - stroke * 2 - 10;
+    const labelLen = String(centerLabel).length || 1;
+    const labelFont = Math.max(9, Math.min(size * 0.17, innerWidth / (labelLen * 0.62)));
     return (
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={ariaLabel}>
-            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e6e3da" strokeWidth={stroke} />
+            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#eef1f6" strokeWidth={stroke} />
             <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
                 {total > 0 && segments.map((seg, i) => {
                     const dash = (seg.value / total) * circ;
@@ -160,12 +167,12 @@ const Donut = ({ segments, size = 132, stroke = 20, centerLabel, centerSub, aria
                 })}
             </g>
             <text x="50%" y="46%" textAnchor="middle" dominantBaseline="central"
-                fontFamily="Tahoma, Arial, sans-serif" fontSize={size * 0.17} fontWeight="bold" fill="#222">
+                fontFamily="system-ui, 'Segoe UI', Arial, sans-serif" fontSize={labelFont} fontWeight="bold" fill="#1e293b">
                 {centerLabel}
             </text>
             {centerSub && (
                 <text x="50%" y="62%" textAnchor="middle" dominantBaseline="central"
-                    fontFamily="Tahoma, Arial, sans-serif" fontSize={size * 0.085} fill="#777">
+                    fontFamily="system-ui, 'Segoe UI', Arial, sans-serif" fontSize={size * 0.085} fill="#64748b">
                     {centerSub}
                 </text>
             )}
@@ -371,20 +378,22 @@ export default function DashboardView({ items, locations, locationCategories, st
     // DEFAULT (non-classic) layout
     // ────────────────────────────────────────────────────────────────────────
     if (!classic) {
-        const KPICard = ({ title, value, subtext, icon, colorClass, onClick }: any) => (
+        const KPICard = ({ title, value, subtext, icon, bg, textDark, onClick }: any) => {
+            const textCls = textDark ? 'text-dark' : 'text-white';
+            return (
             <div className="col-md-4 col-lg-2">
                 <div
-                    className={`card h-100 border-0 shadow-sm ${colorClass} text-white ${onClick ? 'kpi-clickable' : ''}`}
+                    className={`card h-100 border-0 shadow-sm ${textCls} ${onClick ? 'kpi-clickable' : ''}`}
                     onClick={onClick}
                     role={onClick ? 'button' : undefined}
                     tabIndex={onClick ? 0 : undefined}
                     onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
                     aria-label={onClick ? `${title}: ${value}. ${t('view_details')}` : `${title}: ${value}`}
-                    style={onClick ? { cursor: 'pointer' } : undefined}
+                    style={{ background: bg, ...(onClick ? { cursor: 'pointer' } : {}) }}
                 >
                     <div className="card-body p-3">
                         <div className="d-flex justify-content-between align-items-center mb-2">
-                            <h6 className="card-title mb-0 opacity-75 small text-uppercase fw-bold text-white">{title}</h6>
+                            <h6 className={`card-title mb-0 opacity-75 small text-uppercase fw-bold ${textCls}`}>{title}</h6>
                             <i className={`bi ${icon} fs-4 opacity-50`} aria-hidden="true"></i>
                         </div>
                         <h3 className="fw-bold mb-0">{value}</h3>
@@ -392,7 +401,8 @@ export default function DashboardView({ items, locations, locationCategories, st
                     </div>
                 </div>
             </div>
-        );
+            );
+        };
 
         const AdvisorPill = ({ icon, color, children, onClick, action }: any) => (
             <div className="d-flex align-items-center gap-2 extra-small text-nowrap">
@@ -414,7 +424,7 @@ export default function DashboardView({ items, locations, locationCategories, st
                 </div>
 
                 {/* Smart Advisor */}
-                <div className="card border-0 shadow-sm mb-4 bg-dark text-white overflow-hidden">
+                <div className="card border-0 shadow-sm mb-4 text-white overflow-hidden" style={{ background: '#1e293b' }}>
                     <div className="card-body p-2 px-3">
                         <div className="row align-items-center g-3">
                             <div className="col-auto border-end border-secondary pe-3">
@@ -463,12 +473,12 @@ export default function DashboardView({ items, locations, locationCategories, st
 
                 {/* KPI cards */}
                 <div className="row g-3 mb-3">
-                    <KPICard title={t('item_inventory')} value={metrics.totalItems} subtext={t('total_skus')} icon="bi-box-seam" colorClass="bg-primary" onClick={() => router.push('/inventory')} />
-                    <KPICard title={t('low_stock')} value={metrics.lowStock} subtext={t('view_details')} icon="bi-exclamation-triangle" colorClass="bg-warning text-dark" onClick={() => setDrill(drill === 'lowstock' ? null : 'lowstock')} />
-                    <KPICard title={t('active_wo')} value={metrics.activeWO} subtext="Production" icon="bi-gear-wide-connected" colorClass="bg-success" onClick={() => router.push('/work-orders')} />
-                    <KPICard title={t('pending_wo')} value={metrics.pendingWO} subtext="In Queue" icon="bi-clock-history" colorClass="bg-info" onClick={() => router.push('/work-orders')} />
-                    <KPICard title={t('samples')} value={metrics.activeSamples} subtext="In Development" icon="bi-eyedropper" colorClass="bg-secondary" onClick={() => router.push('/samples')} />
-                    <KPICard title={t('open_orders')} value={metrics.openOrders} subtext={t('view_details')} icon="bi-receipt" colorClass="bg-dark" onClick={() => setDrill(drill === 'short' ? null : 'short')} />
+                    <KPICard title={t('item_inventory')} value={metrics.totalItems} subtext={t('total_skus')} icon="bi-box-seam" bg="#2563eb" onClick={() => router.push('/inventory')} />
+                    <KPICard title={t('low_stock')} value={metrics.lowStock} subtext={t('view_details')} icon="bi-exclamation-triangle" bg="#f59e0b" textDark onClick={() => setDrill(drill === 'lowstock' ? null : 'lowstock')} />
+                    <KPICard title={t('active_wo')} value={metrics.activeWO} subtext="Production" icon="bi-gear-wide-connected" bg="#16a34a" onClick={() => router.push('/work-orders')} />
+                    <KPICard title={t('pending_wo')} value={metrics.pendingWO} subtext="In Queue" icon="bi-clock-history" bg="#8b5cf6" onClick={() => router.push('/work-orders')} />
+                    <KPICard title={t('samples')} value={metrics.activeSamples} subtext="In Development" icon="bi-eyedropper" bg="#0ea5e9" onClick={() => router.push('/samples')} />
+                    <KPICard title={t('open_orders')} value={metrics.openOrders} subtext={t('view_details')} icon="bi-receipt" bg="#475569" onClick={() => setDrill(drill === 'short' ? null : 'short')} />
                 </div>
 
                 {/* Drill-down panel */}
