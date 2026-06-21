@@ -131,6 +131,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const inFlightRef = useRef<Record<string, Promise<any>>>({});
+    // Mirror itemIndex into a ref so fetchData can check "do we already have the
+    // full item index?" without taking itemIndex as a dependency (which would
+    // rebuild the callback on every index update).
+    const itemIndexRef = useRef(itemIndex);
+    useEffect(() => { itemIndexRef.current = itemIndex; }, [itemIndex]);
 
     const fetchData = useCallback((target?: string) => {
         if (!currentUser) return Promise.resolve();
@@ -179,7 +184,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 requests.push(fetch(`${API_BASE}/operations`, { headers })); requestTypes.push('operations');
                 requests.push(fetch(`${API_BASE}/partners`, { headers })); requestTypes.push('partners');
                 requests.push(fetch(`${API_BASE}/settings/company`, { headers })); requestTypes.push('company-profile');
-                requests.push(fetch(`${API_BASE}/items/lookup`, { headers })); requestTypes.push('item-lookup');
             }
 
             // 2. DOMAIN DATA (Inventory, Orders, etc.)
@@ -195,10 +199,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             }
 
             // Complete item name/code index — resolves names for items beyond the
-            // paginated items page (fixes UUID-instead-of-name in lists/prints).
-            // Master block already fetches it on initial load; this refreshes it
-            // after item CRUD without double-fetching during the first load.
-            if (!isInitialLoad && fetchTarget.includes('inventory')) {
+            // paginated items page (fixes UUID-instead-of-name in lists/prints,
+            // incl. the dashboard WO table). Fetch whenever we don't yet have it
+            // (covers a stale pre-itemIndex localStorage master cache and any
+            // entry route), or after item CRUD on the inventory page.
+            const idxEmpty = !itemIndexRef.current || Object.keys(itemIndexRef.current).length === 0;
+            if (idxEmpty || fetchTarget.includes('inventory')) {
                 requests.push(fetch(`${API_BASE}/items/lookup`, { headers })); requestTypes.push('item-lookup');
             }
 
