@@ -48,6 +48,7 @@ def seed_system_attributes(db):
             ("Colors", "color", None),
             ("Combo", "combo", None),
             ("Materials", "material", ["Polyester", "Nylon", "Cotton", "Latex", "Spandex"]),
+            ("Color Code", "labdip_color", None),
         ]
         for name, role, seed_values in system_attrs:
             existing = db.query(Attribute).filter(Attribute.name == name).first()

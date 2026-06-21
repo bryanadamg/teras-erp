@@ -352,7 +352,7 @@ export default function ItemMetadataView({
                                                 <span style={{ background: isActive ? 'rgba(255,255,255,0.2)' : '#e0dfd8', border: `1px solid ${isActive ? 'rgba(255,255,255,0.4)' : '#b0a898'}`, padding: '0 4px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: isActive ? '#ffffff' : '#555' }}>{attr.values.length}</span>
                                                 {attr.system_role && (
                                                     <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '9px', background: isActive ? 'rgba(180,220,255,0.3)' : '#dce8ff', border: `1px solid ${isActive ? 'rgba(180,220,255,0.5)' : '#7fa8e0'}`, color: isActive ? '#d0e8ff' : '#003080', padding: '0 4px' }}>
-                                                        {attr.system_role === 'color' ? 'Sample Colors' : attr.system_role === 'material' ? 'Sample Materials' : 'Sample Combo'}
+                                                        {attr.system_role === 'color' ? 'Sample Colors' : attr.system_role === 'material' ? 'Sample Materials' : attr.system_role === 'labdip_color' ? 'Labdip Colors' : 'Sample Combo'}
                                                     </span>
                                                 )}
                                             </div>
@@ -621,7 +621,7 @@ export default function ItemMetadataView({
                                                 <span className={`badge ${isActive ? 'bg-light text-primary' : 'bg-light text-dark border'}`}>{attr.values.length}</span>
                                                 {attr.system_role && (
                                                     <span className="badge bg-primary bg-opacity-10 text-primary border border-primary" style={{ fontSize: 9, fontWeight: 'normal' }}>
-                                                        {attr.system_role === 'color' ? 'Sample Colors' : attr.system_role === 'material' ? 'Sample Materials' : 'Sample Combo'}
+                                                        {attr.system_role === 'color' ? 'Sample Colors' : attr.system_role === 'material' ? 'Sample Materials' : attr.system_role === 'labdip_color' ? 'Labdip Colors' : 'Sample Combo'}
                                                     </span>
                                                 )}
                                             </div>

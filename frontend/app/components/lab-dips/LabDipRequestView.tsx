@@ -88,7 +88,7 @@ export default function LabDipRequestView({
     const [pendingRound, setPendingRound] = useState(1);
 
     const colorOptions = useMemo(() => {
-        const attr = (attributes as any[]).find((a: any) => a.system_role === 'color');
+        const attr = (attributes as any[]).find((a: any) => a.system_role === 'labdip_color');
         return (attr?.values ?? []).map((v: any) => ({ value: v.value, label: v.value }));
     }, [attributes]);
 
