@@ -37,7 +37,7 @@ body {
    flows through without per-component overrides.
    ============================================================ */
 .ui-style-modern {
-  --sidebar-width: 224px;     /* trimmer than the 260px default → wider content, less sideways scroll */
+  --sidebar-width: 200px;     /* match classic exactly → identical content width, tables fit the same */
   --primary-color: #2563eb;   /* blue-600  */
   --primary-light: #3b82f6;   /* blue-500  */
   --primary-dark:  #1d4ed8;   /* blue-700  */
@@ -64,9 +64,9 @@ body {
   background: var(--bg-color) !important;
 }
 
-/* Denser content gutter — fit more per screen (default wrapper is .p-4) */
+/* Match Classic's 10px horizontal content gutter so tables get the same width */
 .ui-style-modern .main-content > .p-4 {
-  padding: 1rem 1.15rem !important;
+  padding: 12px 10px !important;
 }
 
 /* Sidebar separation from the grey canvas */
@@ -219,21 +219,24 @@ body {
 .ui-style-modern .table {
   --bs-table-bg: transparent;
 }
+/* Dimensions mirror Classic exactly (padding 4px 8px, 11px head / 12px body,
+   no uppercase or letter-spacing that would widen columns) so any table that
+   fits without sideways scroll in Classic fits identically here. Only the
+   colours/stripes/borders are modern. */
 .ui-style-modern .table th {
-  text-transform: uppercase;
-  font-size: 0.66rem;
-  letter-spacing: 0.03em;
+  text-transform: none;
+  font-size: 11px;
   color: #475569;
   background: #eef1f6;
   border-bottom: 1.5px solid var(--border-strong);
   font-weight: 700;
-  padding: 6px 8px;
+  padding: 4px 8px;
 }
 .ui-style-modern .table td {
   color: #334155;
   border-bottom: 1px solid var(--row-line);
-  padding: 5px 8px;
-  font-size: 0.78rem;
+  padding: 4px 8px;
+  font-size: 12px;
 }
 .ui-style-modern .table > tbody > tr:nth-of-type(even) > * {
   background-color: var(--stripe);

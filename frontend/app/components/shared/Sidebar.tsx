@@ -98,9 +98,9 @@ function navItemStyleModern(
 ): React.CSSProperties {
   const bg = isActive ? M_SOFT : isHovered ? M_HOVER_BG : 'transparent';
   return {
-    padding: isDeepSub ? '5px 12px 5px 38px'
-           : isSub     ? '5px 12px 5px 30px'
-           : '6px 12px 6px 14px',
+    padding: isDeepSub ? '5px 8px 5px 32px'
+           : isSub     ? '5px 8px 5px 24px'
+           : '6px 10px 6px 13px',
     color: isActive ? M_PRIMARY : M_TEXT,
     background: bg,
     fontWeight: isActive ? 600 : 500,
@@ -108,8 +108,8 @@ function navItemStyleModern(
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
-    fontSize: isSub ? 12.5 : 13,
+    gap: 7,
+    fontSize: isSub ? 12 : 12.5,
     fontFamily: modernFont,
     userSelect: 'none' as const,
     transition: 'background 0.12s, color 0.12s',
