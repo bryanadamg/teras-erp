@@ -1,13 +1,13 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func
-from app.models.kpi import KPICache
+from app.models.kpi import KPICache, KPIHistory
 from app.models.item import Item
 from app.models.manufacturing import ManufacturingOrder as WorkOrder
 from app.models.stock_balance import StockBalance
 from app.models.sales import SalesOrder
 from app.models.sample import SampleRequest
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 
 def get_kpi(db: Session, key: str, ttl_minutes: int = 10):
     """Retrieves a KPI from cache or returns None if expired."""
@@ -58,7 +58,38 @@ def refresh_all_kpis(db: Session):
     open_sos = db.query(SalesOrder).filter(SalesOrder.status == "PENDING").count()
     update_kpi(db, "open_sos", float(open_sos))
 
+    _snapshot_kpi_history(db)
     return True
+
+
+def _snapshot_kpi_history(db: Session):
+    """Upsert today's value for every cached KPI — one row per key per day.
+    Builds the daily time series behind the dashboard trend charts."""
+    today = datetime.now(timezone.utc).date()
+    for k in db.query(KPICache).all():
+        existing = db.query(KPIHistory).filter(
+            KPIHistory.key == k.key, KPIHistory.snapshot_date == today
+        ).first()
+        if existing:
+            existing.value = k.value
+        else:
+            db.add(KPIHistory(key=k.key, value=k.value, snapshot_date=today))
+    db.commit()
+
+
+def get_kpi_history(db: Session, days: int = 30):
+    """{key: [{"date": "YYYY-MM-DD", "value": float}, ...]} for the last N days, ascending."""
+    cutoff = datetime.now(timezone.utc).date() - timedelta(days=days)
+    rows = (
+        db.query(KPIHistory)
+        .filter(KPIHistory.snapshot_date >= cutoff)
+        .order_by(KPIHistory.snapshot_date.asc())
+        .all()
+    )
+    out: dict = {}
+    for r in rows:
+        out.setdefault(r.key, []).append({"date": r.snapshot_date.isoformat(), "value": r.value})
+    return out
 
 def get_all_cached_kpis(db: Session):
     """Returns all cached KPIs, refreshing if cache is empty or older than 5 minutes."""

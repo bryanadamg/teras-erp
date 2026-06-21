@@ -37,6 +37,18 @@ export default function StockOnHandView({ locations, locationCategories = [], st
     const [transferDrums, setTransferDrums] = useState('');
     const [transferring, setTransferring] = useState(false);
 
+    const [rebuilding, setRebuilding] = useState(false);
+    const handleRebuild = async () => {
+        if (rebuilding) return;
+        setRebuilding(true);
+        try {
+            const res = await authFetch(`${apiBase}/stock/balances/rebuild`, { method: 'POST' });
+            if (res.ok) { showToast('Stock balances rebuilt from ledger', 'success'); onRefresh(); }
+            else { showToast(`Rebuild failed (HTTP ${res.status})`, 'danger'); }
+        } catch { showToast('Rebuild failed — network error', 'danger'); }
+        finally { setRebuilding(false); }
+    };
+
     const openTransfer = (bal: any) => {
         setTransferTarget(bal);
         setTransferToLoc('');
@@ -502,6 +514,9 @@ export default function StockOnHandView({ locations, locationCategories = [], st
                         <button style={xpBtn()} onClick={onRefresh} title="Refresh">
                             <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh
                         </button>
+                        <button style={xpBtn()} onClick={handleRebuild} disabled={rebuilding} title="Recompute stock balances from the ledger (use if balances look stale)">
+                            <i className="bi bi-arrow-repeat" style={{ marginRight: 4 }} />{rebuilding ? 'Rebuilding...' : 'Rebuild'}
+                        </button>
                     </div>
                     <div style={{ flex: 1, overflowY: 'auto', background: '#ffffff', maxHeight: 'calc(100vh - 200px)' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -587,6 +602,11 @@ export default function StockOnHandView({ locations, locationCategories = [], st
                         <div className="col-md-2">
                             <button className="btn btn-outline-secondary btn-sm w-100" onClick={onRefresh}>
                                 <i className="bi bi-arrow-clockwise me-1" />Refresh
+                            </button>
+                        </div>
+                        <div className="col-md-2">
+                            <button className="btn btn-outline-secondary btn-sm w-100" onClick={handleRebuild} disabled={rebuilding} title="Recompute stock balances from the ledger (use if balances look stale)">
+                                <i className="bi bi-arrow-repeat me-1" />{rebuilding ? 'Rebuilding...' : 'Rebuild'}
                             </button>
                         </div>
                     </div>

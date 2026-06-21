@@ -25,6 +25,11 @@ def refresh_kpis(db: Session = Depends(get_db), current_user: User = Depends(get
     kpi_service.refresh_all_kpis(db)
     return {"status": "success"}
 
+@router.get("/kpis/history")
+def get_kpi_history(days: int = 30, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Daily KPI time series for trend charts: {key: [{date, value}, ...]}."""
+    return kpi_service.get_kpi_history(db, days=days)
+
 
 @router.get("/summary")
 async def get_dashboard_summary(

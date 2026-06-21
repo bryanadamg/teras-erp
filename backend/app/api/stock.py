@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from sqlalchemy import select, func
-from app.db.session import get_async_db
+from app.db.session import get_async_db, get_db
 from app.services import stock_service, audit_service, kpi_service
 from app.core.ws_manager import manager
 from app.schemas import StockLedgerResponse, StockBalanceResponse, PaginatedStockLedgerResponse, StockEntryCreate, StockTransferCreate
@@ -166,3 +167,17 @@ async def transfer_stock(
 @router.get("/stock/balance", response_model=list[StockBalanceResponse])
 async def get_stock_balance_api(db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
     return await stock_service.get_all_stock_balances(db, user=current_user)
+
+
+@router.post("/stock/balances/rebuild")
+def rebuild_stock_balances(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Recompute the materialized StockBalance table from the StockLedger.
+
+    StockBalance is only rebuilt at startup; if the ledger and the summary drift
+    (long-running service, out-of-band ledger writes), this lets an operator
+    resync on demand without a restart. Sync endpoint — sync_stock_balances
+    takes a sync Session.
+    """
+    from app.db.init_db import sync_stock_balances
+    sync_stock_balances(db)
+    return {"status": "success", "message": "Stock balances rebuilt from ledger"}

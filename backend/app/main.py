@@ -8,6 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 import os
+import json
 import logging
 from contextlib import asynccontextmanager
 
@@ -86,7 +87,17 @@ async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            await websocket.receive_text()
+            raw = await websocket.receive_text()
+            # App-level heartbeat: reply to client pings so the browser can detect
+            # a dead/idle connection (native WS ping/pong isn't exposed to JS) and
+            # so proxies don't drop an otherwise-silent long-lived socket.
+            if raw:
+                try:
+                    msg = json.loads(raw)
+                    if isinstance(msg, dict) and msg.get("type") == "ping":
+                        await websocket.send_json({"type": "pong"})
+                except Exception:
+                    pass
     except WebSocketDisconnect:
         manager.disconnect(websocket)
     except Exception:

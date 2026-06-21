@@ -29,6 +29,7 @@ interface DataContextType {
     partners: any[];
     dashboardKPIs: any;
     dashboardSummary: any;
+    dashboardKpiHistory: any;
     itemIndex: Record<string, { name: string; code: string }>;
     companyProfile: any;
 
@@ -85,6 +86,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const [partners, setPartners] = useState([]);
     const [dashboardKPIs, setDashboardKPIs] = useState<any>({});
     const [dashboardSummary, setDashboardSummary] = useState<any>(null);
+    const [dashboardKpiHistory, setDashboardKpiHistory] = useState<any>({});
     const [itemIndex, setItemIndex] = useState<Record<string, { name: string; code: string }>>({});
     const [companyProfile, setCompanyProfile] = useState<any>(null);
 
@@ -216,6 +218,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 requestTypes.push('kpis');
                 requests.push(fetch(`${API_BASE}/dashboard/summary`, { headers }));
                 requestTypes.push('dashboard-summary');
+                requests.push(fetch(`${API_BASE}/dashboard/kpis/history?days=30`, { headers }));
+                requestTypes.push('kpi-history');
             }
 
             // Engineering
@@ -302,6 +306,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     case 'item-lookup': { const idx: Record<string, { name: string; code: string }> = {}; for (const it of (data || [])) idx[String(it.id)] = { name: it.name, code: it.code }; setItemIndex(idx); newMasterData.itemIndex = idx; break; }
                     case 'kpis': setDashboardKPIs(data); break;
                     case 'dashboard-summary': setDashboardSummary(data); break;
+                    case 'kpi-history': setDashboardKpiHistory(data); break;
                     case 'boms': setBoms(data); break;
                     case 'manufacturing-orders': setManufacturingOrders(data.items); setWoTotal(data.total); break;
                     case 'production-runs': setProductionRuns(data.items); setPrTotal(data.total); break;
@@ -347,12 +352,26 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         const wsUrl = API_BASE.replace(/^http/, 'ws') + '/ws/events';
         let ws: WebSocket;
         let reconnectTimer: any;
+        let pingTimer: any;
+        let lastActivity = Date.now();
 
         const connect = () => {
             ws = new WebSocket(wsUrl);
+            ws.onopen = () => {
+                lastActivity = Date.now();
+                clearInterval(pingTimer);
+                // App-level heartbeat: ping every 25s; if no traffic for 60s the
+                // link is dead (server gone, proxy dropped it) — force a reconnect.
+                pingTimer = setInterval(() => {
+                    if (Date.now() - lastActivity > 60000) { try { ws.close(); } catch {} return; }
+                    try { ws.send(JSON.stringify({ type: 'ping' })); } catch {}
+                }, 25000);
+            };
             ws.onmessage = (event) => {
+                lastActivity = Date.now();
                 try {
                     const data = JSON.parse(event.data);
+                    if (data.type === 'pong') return;
                     switch (data.type) {
                         case 'WORK_ORDER_UPDATE':
                         case 'MANUFACTURING_ORDER_UPDATE':
@@ -375,11 +394,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     }
                 } catch (e) { console.error("WS Error", e); }
             };
-            ws.onclose = (e) => { if (e.code !== 1000) reconnectTimer = setTimeout(connect, 5000); };
+            ws.onclose = (e) => { clearInterval(pingTimer); if (e.code !== 1000) reconnectTimer = setTimeout(connect, 5000); };
             ws.onerror = () => ws.close();
         };
         connect();
-        return () => { if (ws) ws.close(1000); clearTimeout(reconnectTimer); };
+        return () => { clearInterval(pingTimer); if (ws) ws.close(1000); clearTimeout(reconnectTimer); };
     }, [currentUser, showToast]);
 
     // Dashboard auto-refresh: while the user is viewing the dashboard, refresh
@@ -396,14 +415,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const value = React.useMemo(() => ({
         items, locations, locationCategories, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
-        partners, dashboardKPIs, dashboardSummary, itemIndex, companyProfile,
+        partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, itemIndex, companyProfile,
         pagination: { itemPage, setItemPage, itemTotal, woPage, setWoPage, woTotal, prPage, setPrPage, prTotal, auditPage, setAuditPage, auditTotal, reportPage, setReportPage, reportTotal, moSearch, setMoSearch: handleSetMoSearch, prSearch, setPrSearch: handleSetPrSearch, pageSize },
         filters: { itemSearch, setItemSearch, categoryL1, setCategoryL1: handleSetCategoryL1, categoryL2, setCategoryL2: handleSetCategoryL2, categoryL3, setCategoryL3, auditType, setAuditType },
         fetchData, handleTabHover, authFetch
     }), [
         items, locations, locationCategories, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
-        partners, dashboardKPIs, dashboardSummary, itemIndex, companyProfile,
+        partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, itemIndex, companyProfile,
         itemPage, itemTotal, woPage, woTotal, prPage, prTotal, auditPage, auditTotal, reportPage, reportTotal, pageSize,
         itemSearch, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData, handleTabHover, authFetch,
         handleSetCategoryL1, handleSetCategoryL2, handleSetMoSearch, handleSetPrSearch

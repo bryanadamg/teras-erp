@@ -173,7 +173,38 @@ const Donut = ({ segments, size = 132, stroke = 20, centerLabel, centerSub, aria
     );
 };
 
-export default function DashboardView({ items, locations, locationCategories, stockBalance, workOrders, stockEntries, samples, salesOrders, kpis, summary, itemIndex }: any) {
+// ── Dependency-free inline SVG sparkline (KPI daily trend) ─────────────────────
+const Sparkline = ({ data, color = '#0058e6', width = 120, height = 28, ariaLabel }: {
+    data: { date: string; value: number }[]; color?: string; width?: number; height?: number; ariaLabel: string;
+}) => {
+    const vals = (data || []).map(d => d.value);
+    if (vals.length < 2) return <span style={{ fontSize: 9, color: '#aaa', fontFamily: 'Tahoma, Arial, sans-serif' }}>not enough history</span>;
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const range = (max - min) || 1;
+    const pad = 2;
+    const pts = vals.map((v, i) => {
+        const x = pad + (i / (vals.length - 1)) * (width - pad * 2);
+        const y = pad + (height - pad * 2) - ((v - min) / range) * (height - pad * 2);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    const lastX = pad + (width - pad * 2);
+    const lastY = pad + (height - pad * 2) - ((vals[vals.length - 1] - min) / range) * (height - pad * 2);
+    return (
+        <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={ariaLabel} style={{ display: 'block' }}>
+            <polyline points={pts} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+            <circle cx={lastX} cy={lastY} r={2} fill={color} />
+        </svg>
+    );
+};
+
+const TREND_METRICS = [
+    { key: 'low_stock', color: '#cc7700' },
+    { key: 'active_wo', color: '#0058e6' },
+    { key: 'pending_wo', color: '#888888' },
+    { key: 'open_sos', color: '#2a7a2a' },
+];
+
+export default function DashboardView({ items, locations, locationCategories, stockBalance, workOrders, stockEntries, samples, salesOrders, kpis, summary, itemIndex, kpiHistory }: any) {
     const { t } = useLanguage();
     const { uiStyle: currentStyle } = useTheme();
     const classic = currentStyle === 'classic';
@@ -558,6 +589,41 @@ export default function DashboardView({ items, locations, locationCategories, st
                                     ))}
                                     {recentActivity.length === 0 && <li className="list-group-item text-center py-5 text-muted small">{t('no_recent_movements')}</li>}
                                 </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* KPI Trends */}
+                <div className="row g-4 mb-4">
+                    <div className="col-12">
+                        <div className="card shadow-sm border-0">
+                            <div className="card-header bg-white"><h5 className="card-title mb-0">{t('kpi_trends')}</h5></div>
+                            <div className="card-body">
+                                <div className="row g-3">
+                                    {TREND_METRICS.map((m) => {
+                                        const series = kpiHistory?.[m.key] || [];
+                                        const last = series.length ? series[series.length - 1].value : (kpis?.[m.key] ?? 0);
+                                        const first = series.length ? series[0].value : last;
+                                        const delta = last - first;
+                                        const labelKey = m.key === 'open_sos' ? 'open_orders' : m.key;
+                                        const deltaCls = m.key === 'low_stock' ? (delta > 0 ? 'text-danger' : delta < 0 ? 'text-success' : 'text-muted') : 'text-muted';
+                                        return (
+                                            <div key={m.key} className="col-6 col-md-3">
+                                                <div className="border rounded p-2 h-100">
+                                                    <div className="d-flex justify-content-between align-items-baseline mb-1">
+                                                        <span className="text-muted text-uppercase fw-bold" style={{ fontSize: '0.65rem' }}>{t(labelKey)}</span>
+                                                        <span className="fw-bold">{last.toLocaleString()}</span>
+                                                    </div>
+                                                    <Sparkline data={series} color={m.color} width={200} height={32} ariaLabel={`${t(labelKey)} 30-day trend`} />
+                                                    <div className={`mt-1 ${deltaCls}`} style={{ fontSize: '0.65rem' }}>
+                                                        {delta === 0 ? 'no change · 30d' : `${delta > 0 ? '+' : ''}${delta.toLocaleString()} · 30d`}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -972,6 +1038,35 @@ export default function DashboardView({ items, locations, locationCategories, st
                             </div>
                         )}
                     </div>
+                </div>
+            </div>
+
+            {/* ── Row 5: KPI Trends ── */}
+            <div style={{ ...xpBevel(), marginTop: '6px' }}>
+                <div style={xpTitleBar('grey')}>
+                    <span><i className="bi bi-graph-up" style={{ marginRight: 4 }} aria-hidden="true" />{t('kpi_trends')}</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '6px', padding: '8px', background: '#f0efe8' }}>
+                    {TREND_METRICS.map((m) => {
+                        const series = kpiHistory?.[m.key] || [];
+                        const last = series.length ? series[series.length - 1].value : (kpis?.[m.key] ?? 0);
+                        const first = series.length ? series[0].value : last;
+                        const delta = last - first;
+                        const labelKey = m.key === 'open_sos' ? 'open_orders' : m.key;
+                        const deltaColor = m.key === 'low_stock' ? (delta > 0 ? '#cc0000' : delta < 0 ? '#228822' : '#777') : '#777';
+                        return (
+                            <div key={m.key} style={{ border: '1px solid #c0bdb5', background: '#fff', padding: '6px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
+                                    <span style={{ fontSize: 8, fontWeight: 'bold', textTransform: 'uppercase', color: '#444' }}>{t(labelKey)}</span>
+                                    <span style={{ fontFamily: "'Courier New', monospace", fontWeight: 'bold', fontSize: 13, color: '#00309c' }}>{last.toLocaleString()}</span>
+                                </div>
+                                <Sparkline data={series} color={m.color} width={150} height={30} ariaLabel={`${t(labelKey)} 30-day trend`} />
+                                <div style={{ fontSize: 8, color: deltaColor, marginTop: 2 }}>
+                                    {delta === 0 ? 'no change · 30d' : `${delta > 0 ? '+' : ''}${delta.toLocaleString()} · 30d`}
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
         </div>
