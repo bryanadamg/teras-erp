@@ -37,6 +37,7 @@ body {
    flows through without per-component overrides.
    ============================================================ */
 .ui-style-modern {
+  --sidebar-width: 224px;     /* trimmer than the 260px default → wider content, less sideways scroll */
   --primary-color: #2563eb;   /* blue-600  */
   --primary-light: #3b82f6;   /* blue-500  */
   --primary-dark:  #1d4ed8;   /* blue-700  */
@@ -84,6 +85,57 @@ body {
 .ui-style-modern .app-header h5 {
   color: var(--text);
   font-weight: 700;
+}
+
+/* Top-bar controls — unify the scanner / settings / language / user / logout
+   cluster onto the modern system (kills the cyan-gear + grey + pill mismatch). */
+.ui-style-modern .app-header .btn {
+  height: 34px;
+  border-radius: 8px !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+/* Neutral action chips: scanner, settings gear, user pill */
+.ui-style-modern .app-header .btn-outline-secondary,
+.ui-style-modern .app-header .btn-outline-info,
+.ui-style-modern .app-header .btn-light,
+.ui-style-modern .app-header .dropdown > .btn {
+  background: #fff !important;
+  border: 1px solid var(--border) !important;
+  color: #475569 !important;
+}
+.ui-style-modern .app-header .btn-outline-secondary:hover,
+.ui-style-modern .app-header .btn-outline-info:hover,
+.ui-style-modern .app-header .btn-light:hover,
+.ui-style-modern .app-header .dropdown > .btn:hover {
+  background: var(--primary-soft) !important;
+  border-color: var(--primary-light) !important;
+  color: var(--primary-color) !important;
+}
+/* Username text stays dark on the user pill (icon hover handled above) */
+.ui-style-modern .app-header .dropdown > .btn {
+  color: var(--text) !important;
+}
+/* Language selector → same chip treatment, overrides the pill/bg-light utilities */
+.ui-style-modern .app-header .form-select {
+  background-color: #fff !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  height: 34px !important;
+  color: #475569;
+}
+/* Logout — refined danger, matched shape + height */
+.ui-style-modern .app-header .btn-outline-danger {
+  background: #fff !important;
+  border: 1px solid #f0c2c2 !important;
+  color: #dc2626 !important;
+}
+.ui-style-modern .app-header .btn-outline-danger:hover {
+  background: #fef2f2 !important;
+  border-color: #e89393 !important;
+  color: #b91c1c !important;
 }
 
 /* Cards / panels — calm, no hover lift, denser padding (ERP density) */
@@ -169,19 +221,19 @@ body {
 }
 .ui-style-modern .table th {
   text-transform: uppercase;
-  font-size: 0.68rem;
-  letter-spacing: 0.04em;
+  font-size: 0.66rem;
+  letter-spacing: 0.03em;
   color: #475569;
   background: #eef1f6;
   border-bottom: 1.5px solid var(--border-strong);
   font-weight: 700;
-  padding: 7px 12px;
+  padding: 6px 8px;
 }
 .ui-style-modern .table td {
   color: #334155;
   border-bottom: 1px solid var(--row-line);
-  padding: 6px 12px;
-  font-size: 0.875rem;
+  padding: 5px 8px;
+  font-size: 0.78rem;
 }
 .ui-style-modern .table > tbody > tr:nth-of-type(even) > * {
   background-color: var(--stripe);
