@@ -596,11 +596,20 @@ class StockTransferCreate(BaseModel):
 class StockLedgerResponse(BaseModel):
     id: UUID
     item_id: UUID
+    item_name: str = ""
+    item_code: str = ""
+    item_uom: str = ""
     attribute_value_ids: list[UUID] = []
     location_id: UUID
+    location_name: str = ""
     qty_change: float
+    qty_cones_change: int | None = None
+    qty_boxes_change: int | None = None
+    qty_drums_change: int | None = None
     reference_type: str
     reference_id: str
+    batch_id: UUID | None = None
+    batch_number: str | None = None
     created_at: datetime
 
     class Config:
@@ -611,6 +620,11 @@ class PaginatedStockLedgerResponse(BaseModel):
     total: int
     page: int
     size: int
+    # Aggregates over the full filtered set (not just the current page).
+    total_in: float = 0
+    total_out: float = 0
+    # Distinct reference types across the whole ledger — powers the filter dropdown.
+    reference_types: list[str] = []
 
 class StockBalanceResponse(BaseModel):
     item_id: UUID

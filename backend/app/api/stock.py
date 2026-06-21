@@ -17,38 +17,117 @@ router = APIRouter()
 
 @router.get("/stock", response_model=PaginatedStockLedgerResponse)
 async def get_stock_ledger(
-    skip: int = 0, 
-    limit: int = 100, 
+    skip: int = 0,
+    limit: int = 100,
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
+    search: Optional[str] = Query(None, description="Match item name/code or reference id"),
+    location_id: Optional[str] = Query(None),
+    reference_type: Optional[str] = Query(None),
+    direction: Optional[str] = Query(None, description="'in' (qty >= 0) or 'out' (qty < 0)"),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     from app.models.stock_ledger import StockLedger
-    query = select(StockLedger)
-    
+    from sqlalchemy import or_, case
+    from sqlalchemy.orm import selectinload, joinedload
+
+    # Build the shared filter set once so the page query, count, and aggregates
+    # all describe the exact same slice of the ledger.
+    conditions = []
     if start_date:
-        query = query.filter(StockLedger.created_at >= start_date)
+        conditions.append(StockLedger.created_at >= start_date)
     if end_date:
-        query = query.filter(StockLedger.created_at <= end_date)
-        
-    # Count total
-    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
-    total = count_result.scalar()
-    
-    # Get items
-    result = await db.execute(
-        query.order_by(StockLedger.created_at.desc())
-        .offset(skip)
-        .limit(limit)
-    )
-    items = result.scalars().all()
-    
+        conditions.append(StockLedger.created_at <= end_date)
+    if location_id:
+        conditions.append(StockLedger.location_id == location_id)
+    if reference_type:
+        conditions.append(StockLedger.reference_type == reference_type)
+    if direction == "in":
+        conditions.append(StockLedger.qty_change >= 0)
+    elif direction == "out":
+        conditions.append(StockLedger.qty_change < 0)
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        item_sub = select(Item.id).where(or_(Item.name.ilike(term), Item.code.ilike(term)))
+        conditions.append(or_(StockLedger.reference_id.ilike(term), StockLedger.item_id.in_(item_sub)))
+
+    total = (await db.execute(
+        select(func.count(StockLedger.id)).where(*conditions)
+    )).scalar() or 0
+
+    # In / out totals over the WHOLE filtered set (the page-level sum would lie).
+    agg = (await db.execute(
+        select(
+            func.coalesce(func.sum(case((StockLedger.qty_change > 0, StockLedger.qty_change), else_=0)), 0),
+            func.coalesce(func.sum(case((StockLedger.qty_change < 0, StockLedger.qty_change), else_=0)), 0),
+        ).where(*conditions)
+    )).first()
+    total_in = float(agg[0] or 0)
+    total_out = float(agg[1] or 0)
+
+    rows = (await db.execute(
+        select(StockLedger).where(*conditions)
+        .options(selectinload(StockLedger.attribute_values), joinedload(StockLedger.batch))
+        .order_by(StockLedger.created_at.desc())
+        .offset(skip).limit(limit)
+    )).scalars().all()
+
+    # Resolve item + location display fields for just this page (small IN queries),
+    # so the client renders straight from the response instead of cross-referencing
+    # whatever happens to be loaded in its caches.
+    item_ids = {r.item_id for r in rows}
+    loc_ids = {r.location_id for r in rows}
+    item_map = {}
+    if item_ids:
+        for iid, nm, cd, uom in (await db.execute(
+            select(Item.id, Item.name, Item.code, Item.uom).where(Item.id.in_(item_ids))
+        )).all():
+            item_map[iid] = (nm, cd, uom)
+    loc_map = {}
+    if loc_ids:
+        for lid, nm in (await db.execute(
+            select(Location.id, Location.name).where(Location.id.in_(loc_ids))
+        )).all():
+            loc_map[lid] = nm
+
+    items = []
+    for r in rows:
+        nm, cd, uom = item_map.get(r.item_id, ("", "", ""))
+        items.append({
+            "id": r.id,
+            "item_id": r.item_id,
+            "item_name": nm or "",
+            "item_code": cd or "",
+            "item_uom": uom or "",
+            "attribute_value_ids": [v.id for v in (r.attribute_values or [])],
+            "location_id": r.location_id,
+            "location_name": loc_map.get(r.location_id, "") or "",
+            "qty_change": float(r.qty_change),
+            "qty_cones_change": r.qty_cones_change,
+            "qty_boxes_change": r.qty_boxes_change,
+            "qty_drums_change": r.qty_drums_change,
+            "reference_type": r.reference_type,
+            "reference_id": r.reference_id,
+            "batch_id": r.batch_id,
+            "batch_number": r.batch.batch_number if r.batch else None,
+            "created_at": r.created_at,
+        })
+
+    reference_types = sorted([
+        rt for rt in (await db.execute(
+            select(StockLedger.reference_type).distinct()
+        )).scalars().all() if rt
+    ])
+
     return {
         "items": items,
         "total": total,
-        "page": (skip // limit) + 1,
-        "size": len(items)
+        "page": (skip // limit) + 1 if limit else 1,
+        "size": len(items),
+        "total_in": total_in,
+        "total_out": total_out,
+        "reference_types": reference_types,
     }
 
 @router.post("/stock", status_code=201)
