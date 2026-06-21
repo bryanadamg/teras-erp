@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func
 from app.models.kpi import KPICache
 from app.models.item import Item
@@ -68,5 +69,13 @@ def get_all_cached_kpis(db: Session):
     if needs_refresh:
         refresh_all_kpis(db)
         kpis = db.query(KPICache).all()
-    
+
     return {k.key: k.value for k in kpis}
+
+
+async def invalidate_kpis_async(db: AsyncSession):
+    """Mark all cached KPIs stale so the next dashboard fetch recomputes them."""
+    from sqlalchemy import update
+    from datetime import datetime, timezone
+    await db.execute(update(KPICache).values(updated_at=datetime(1970, 1, 1, tzinfo=timezone.utc)))
+    await db.commit()

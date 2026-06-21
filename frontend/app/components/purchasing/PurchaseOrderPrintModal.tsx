@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useData } from '../../context/DataContext';
 
 // PO document fields (SSN, rate, kurs, code, payment, category, VAT, discount, notes)
 // now live on the PurchaseOrder record — entered at PO creation, read here from `po`.
@@ -73,8 +74,9 @@ function PODocument({
     settings: POPrintSettings;
 }) {
     const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '');
+    const { itemIndex } = useData();
 
-    const getItemName = (line: any) => line.item_name || items.find((i: any) => i.id === line.item_id)?.name || line.item_id;
+    const getItemName = (line: any) => line.item_name || items.find((i: any) => i.id === line.item_id)?.name || itemIndex?.[String(line.item_id)]?.name || line.item_id;
     const getItemUOM = (line: any) => line.item_uom || items.find((i: any) => i.id === line.item_id)?.uom || '';
     const supplier = partners.find((p: any) => p.id === po.supplier_id);
     const getAttributeValueName = (valId: string) => {

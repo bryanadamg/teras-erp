@@ -57,7 +57,7 @@ export default function ManufacturingView({
   const { showToast } = useToast();
   const router = useRouter();
   const { t } = useLanguage();
-  const { authFetch, companyProfile, fetchData, pagination } = useData();
+  const { authFetch, companyProfile, fetchData, pagination, itemIndex } = useData();
   const { moSearch, setMoSearch, prSearch: prSearchCtx, setPrSearch: setPrSearchCtx } = pagination;
   const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
   const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
@@ -478,8 +478,8 @@ export default function ManufacturingView({
   };
 
   // Helpers
-  const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
-  const getItemCode = (id: string) => items.find((i: any) => i.id === id)?.code || id;
+  const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || itemIndex?.[String(id)]?.name || id;
+  const getItemCode = (id: string) => items.find((i: any) => i.id === id)?.code || itemIndex?.[String(id)]?.code || id;
   const getItemUom = (id: string) => items.find((i: any) => i.id === id)?.uom || '';
   const uomBadgeStyle: React.CSSProperties = { background: '#dde8f5', border: '1px solid #7f9db9', color: '#336', fontSize: 9, padding: '0 4px', whiteSpace: 'nowrap', fontWeight: 'normal' };
   const getBOMCode = (id: string) => boms.find((b: any) => b.id === id)?.code || id;

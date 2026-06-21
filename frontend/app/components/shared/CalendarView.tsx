@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useData } from '../../context/DataContext';
 import { STATUS_COLORS } from './xpTheme';
 
 export default function CalendarView({ workOrders, items, compact = false }: any) {
   const { t } = useLanguage();
+  const { itemIndex } = useData();
   const [currentDate, setCurrentDate] = useState(new Date());
   const { uiStyle: currentStyle } = useTheme();
   const classic = currentStyle === 'classic';
@@ -21,7 +23,7 @@ export default function CalendarView({ workOrders, items, compact = false }: any
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
   const goToToday = () => setCurrentDate(new Date());
 
-  const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
+  const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || itemIndex?.[String(id)]?.name || id;
 
   // Bootstrap status classes (modern mode)
   const getStatusColor = (status: string) => {

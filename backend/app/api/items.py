@@ -11,8 +11,25 @@ from app.models.location import Location
 from app.models.auth import User
 from app.api.auth import get_current_user
 from sqlalchemy import select
+from app.core.ws_manager import manager
+from app.services import kpi_service
 
 router = APIRouter()
+
+
+@router.get("/items/lookup")
+async def get_items_lookup(db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+    """Lightweight id/code/name list of ALL items.
+
+    Declared BEFORE any dynamic GET /items/{item_id} route so 'lookup' is not
+    captured as an item_id path param. Columns only — no eager loads, no pagination.
+    """
+    from app.models.item import Item
+    result = await db.execute(select(Item.id, Item.code, Item.name))
+    return [
+        {"id": str(row.id), "name": row.name, "code": row.code}
+        for row in result.all()
+    ]
 
 
 def _populate_source_info(item) -> None:
@@ -54,6 +71,12 @@ async def create_item_api(payload: ItemCreate, db: AsyncSession = Depends(get_as
         details=f"Created item {item.code} ({item.name})",
         changes=payload.model_dump()
     )
+
+    try:
+        await kpi_service.invalidate_kpis_async(db)
+        await manager.broadcast({"type": "KPI_UPDATE"})
+    except Exception:
+        pass
 
     _populate_source_info(item)
     return item
@@ -195,5 +218,11 @@ async def delete_item(item_id: str, db: AsyncSession = Depends(get_async_db), cu
         entity_id=item_id,
         details=details
     )
-    
+
+    try:
+        await kpi_service.invalidate_kpis_async(db)
+        await manager.broadcast({"type": "KPI_UPDATE"})
+    except Exception:
+        pass
+
     return {"status": "success", "message": "Item deleted"}

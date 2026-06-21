@@ -2,6 +2,7 @@ import { useState } from 'react';
 import SearchableSelect from '../shared/SearchableSelect';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useData } from '../../context/DataContext';
 
 export default function ReportsView({
     stockEntries,
@@ -15,6 +16,7 @@ export default function ReportsView({
     onPageChange
 }: any) {
   const { t } = useLanguage();
+  const { itemIndex } = useData();
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -25,7 +27,7 @@ export default function ReportsView({
   const startRange = (currentPage - 1) * pageSize + 1;
   const endRange = Math.min(currentPage * pageSize, totalItems);
 
-  const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
+  const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || itemIndex?.[String(id)]?.name || id;
   const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
 
   const handlePrint = () => window.print();

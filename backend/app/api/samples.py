@@ -8,7 +8,8 @@ from app.models.item import Item as ItemModel
 from app.schemas import SampleRequestCreate, SampleRequestUpdate, SampleRequestResponse, SampleColorResponse
 from app.models.auth import User
 from app.api.auth import get_current_user
-from app.services import audit_service
+from app.services import audit_service, kpi_service
+from app.core.ws_manager import manager
 from datetime import datetime, date
 from pathlib import Path
 import shutil, os, uuid
@@ -101,6 +102,12 @@ async def create_sample_request(
         details=f"Created Sample Request {sample.code}",
         changes={"code": sample.code, "customer_article_code": sample.customer_article_code},
     )
+
+    try:
+        await kpi_service.invalidate_kpis_async(db)
+        await manager.broadcast({"type": "KPI_UPDATE"})
+    except Exception:
+        pass
 
     await _enrich_colors_with_items(db, [sample])
     sample.is_unread = False
@@ -261,6 +268,13 @@ async def update_sample_status(
         details=f"Updated Sample {sample.code} status from {previous_status} to {status}",
         changes={"status": status, "previous_status": previous_status},
     )
+
+    try:
+        await kpi_service.invalidate_kpis_async(db)
+        await manager.broadcast({"type": "KPI_UPDATE"})
+    except Exception:
+        pass
+
     return {"status": "success", "message": f"Sample updated to {status}"}
 
 
@@ -452,4 +466,11 @@ async def delete_sample(
         entity_id=sample_id,
         details=details,
     )
+
+    try:
+        await kpi_service.invalidate_kpis_async(db)
+        await manager.broadcast({"type": "KPI_UPDATE"})
+    except Exception:
+        pass
+
     return {"status": "success", "message": "Sample deleted"}

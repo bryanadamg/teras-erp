@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from app.db.session import get_async_db
-from app.services import stock_service, audit_service
+from app.services import stock_service, audit_service, kpi_service
+from app.core.ws_manager import manager
 from app.schemas import StockLedgerResponse, StockBalanceResponse, PaginatedStockLedgerResponse, StockEntryCreate, StockTransferCreate
 from app.models.auth import User
 from app.api.auth import get_current_user
@@ -88,6 +89,12 @@ async def create_stock_entry(
         changes={"item": payload.item_code, "location": payload.location_code, "qty": payload.qty},
     )
 
+    try:
+        await kpi_service.invalidate_kpis_async(db)
+        await manager.broadcast({"type": "KPI_UPDATE"})
+    except Exception:
+        pass
+
     return {"status": "success", "message": "Stock entry recorded"}
 
 
@@ -146,6 +153,13 @@ async def transfer_stock(
         entity_id=str(item.id),
         changes={"item": item.code, "qty": payload.qty, "route": ref, "batch_id": str(payload.batch_id) if payload.batch_id else None},
     )
+
+    try:
+        await kpi_service.invalidate_kpis_async(db)
+        await manager.broadcast({"type": "KPI_UPDATE"})
+    except Exception:
+        pass
+
     return {"status": "success", "message": "Transfer recorded"}
 
 

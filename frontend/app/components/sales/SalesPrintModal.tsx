@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useData } from '../../context/DataContext';
 
 interface SOPrintSettings {
     preparedBy: string;
@@ -39,8 +40,9 @@ function SODocument({
     settings: SOPrintSettings;
 }) {
     const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '');
+    const { itemIndex } = useData();
 
-    const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
+    const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || itemIndex?.[String(id)]?.name || id;
     const getItemUOM = (id: string) => items.find((i: any) => i.id === id)?.uom || '';
     const getCustomerAddress = (name: string) => partners.find((p: any) => p.name === name)?.address || '';
     const getAttributeValueName = (valId: string) => {

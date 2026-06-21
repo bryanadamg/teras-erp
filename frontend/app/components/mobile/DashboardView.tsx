@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { useLanguage } from '../../context/LanguageContext';
 import { STATUS_COLORS } from '../shared/xpTheme';
 
 const XP_FONT  = 'Tahoma, "Segoe UI", Arial, sans-serif';
@@ -46,66 +47,54 @@ const xpStatusBadge = (status: string): React.CSSProperties => {
     return { ...base, background: STATUS_COLORS.PENDING, color: '#fff' };
 };
 
-export default function MobileDashboardView({ items, stockBalance, workOrders, salesOrders, kpis }: any) {
+export default function MobileDashboardView({ items, stockBalance, workOrders, salesOrders, kpis, summary, itemIndex }: any) {
     const router = useRouter();
+    const { t } = useLanguage();
     const today = new Date();
+    const hasSummary = !!summary;
+
+    const resolveName = (id: string) =>
+        itemIndex?.[String(id)]?.name || (items || []).find((i: any) => i.id === id)?.name || id;
 
     const metrics = {
-        totalItems: kpis?.total_items ?? items.length,
+        totalItems: kpis?.total_items ?? (items || []).length,
         lowStock:   kpis?.low_stock   ?? 0,
         activeWO:   kpis?.active_wo   ?? 0,
-        openOrders: kpis?.open_sos    ?? (salesOrders || []).filter((s: any) => s.status === 'PENDING').length,
+        pendingWO:  kpis?.pending_wo  ?? 0,
+        openOrders: kpis?.open_sos    ?? (summary?.open_so_count ?? (salesOrders || []).filter((s: any) => s.status === 'PENDING').length),
     };
+
+    const prodYield = hasSummary ? summary.production_yield : 100;
+    const deliveryReadiness = hasSummary ? summary.delivery_readiness : 100;
 
     const overdueWOs = (workOrders || []).filter((w: any) =>
         ['IN_PROGRESS', 'PENDING'].includes(w.status) &&
         w.target_end_date && new Date(w.target_end_date) < today
     );
 
-    const namedLowStock = useMemo(() => {
-        return (items || [])
-            .map((item: any) => {
-                const total = (stockBalance || [])
-                    .filter((b: any) => String(b.item_id) === String(item.id))
-                    .reduce((s: number, b: any) => s + parseFloat(b.qty || 0), 0);
-                const hasRecord = (stockBalance || []).some((b: any) => String(b.item_id) === String(item.id));
-                return { ...item, totalStock: total, hasRecord };
-            })
-            .filter((i: any) => i.hasRecord && i.totalStock <= 0)
-            .slice(0, 4);
-    }, [items, stockBalance]);
-
-    const shortSOs = (salesOrders || []).filter((so: any) => {
-        if (!(so.lines || []).length) return false;
-        return (so.lines || []).some((line: any) => {
-            const inStock = (stockBalance || [])
-                .filter((b: any) => String(b.item_id) === String(line.item_id))
-                .reduce((s: number, b: any) => s + parseFloat(b.qty), 0);
-            return inStock < line.qty;
-        });
-    });
+    // namedLowStock + shortSOs come from the server summary (the full stock-balance
+    // and all sales-orders are no longer shipped to the dashboard).
+    const namedLowStock: any[] = hasSummary
+        ? (summary.low_stock_items || []).map((l: any) => ({ id: l.item_id, name: l.item_name, totalStock: l.total_qty }))
+        : [];
+    const shortSOs: any[] = hasSummary ? (summary.short_orders || []) : [];
 
     const actionItems = useMemo(() => {
         const list: { sev: 'crit' | 'warn' | 'info'; title: string; sub: string }[] = [];
-        namedLowStock.forEach(i => list.push({ sev: 'crit', title: `${i.name} — OUT`, sub: `Stock: ${i.totalStock} units` }));
+        namedLowStock.forEach((i: any) => list.push({ sev: 'crit', title: `${i.name} — OUT`, sub: `Stock: ${i.totalStock} units` }));
         if (metrics.lowStock > namedLowStock.length)
             list.push({ sev: 'crit', title: `${metrics.lowStock - namedLowStock.length} more low-stock items`, sub: 'Check inventory' });
         overdueWOs.slice(0, 3).forEach((w: any) => {
-            const name = (items || []).find((i: any) => i.id === w.item_id)?.name || w.code;
-            list.push({ sev: 'warn', title: `${w.code} — Overdue`, sub: `${name} · due ${w.target_end_date?.slice(0, 10) || '?'}` });
+            list.push({ sev: 'warn', title: `${w.code} — Overdue`, sub: `${resolveName(w.item_id)} · due ${w.target_end_date?.slice(0, 10) || '?'}` });
         });
         shortSOs.slice(0, 2).forEach((so: any) => {
-            const short = (so.lines || []).filter((line: any) => {
-                const inStock = (stockBalance || []).filter((b: any) => String(b.item_id) === String(line.item_id)).reduce((s: number, b: any) => s + parseFloat(b.qty), 0);
-                return inStock < line.qty;
-            }).length;
-            list.push({ sev: 'warn', title: `${so.code} — Material Gap`, sub: `${short} of ${so.lines.length} lines unfulfilled` });
+            list.push({ sev: 'warn', title: `${so.code} — Material Gap`, sub: `${so.short_lines} of ${so.total_lines} lines unfulfilled` });
         });
-        const pendingReady = (workOrders || []).filter((w: any) => w.status === 'PENDING').length;
-        if (pendingReady > 0)
-            list.push({ sev: 'info', title: `${pendingReady} WO${pendingReady > 1 ? 's' : ''} ready to release`, sub: 'Review and start production' });
+        if (metrics.pendingWO > 0)
+            list.push({ sev: 'info', title: `${metrics.pendingWO} WO${metrics.pendingWO > 1 ? 's' : ''} ready to release`, sub: 'Review and start production' });
         return list;
-    }, [namedLowStock, overdueWOs, shortSOs, workOrders, metrics.lowStock]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [summary, overdueWOs, metrics.lowStock, metrics.pendingWO]);
 
     const activeWOList = useMemo(() => {
         return (workOrders || [])
@@ -113,7 +102,7 @@ export default function MobileDashboardView({ items, stockBalance, workOrders, s
             .map((w: any) => ({
                 ...w,
                 isOverdue: w.target_end_date && new Date(w.target_end_date) < today,
-                itemName: (items || []).find((i: any) => i.id === w.item_id)?.name || w.item_id,
+                itemName: resolveName(w.item_id),
             }))
             .sort((a: any, b: any) => {
                 if (a.isOverdue && !b.isOverdue) return -1;
@@ -122,23 +111,36 @@ export default function MobileDashboardView({ items, stockBalance, workOrders, s
                 return 0;
             })
             .slice(0, 10);
-    }, [workOrders, items]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [workOrders, items, itemIndex]);
 
     const kpiCards = [
-        { label: 'Total SKUs',  value: metrics.totalItems, icon: 'bi-tags-fill',        alert: false },
-        { label: 'Low Stock',   value: metrics.lowStock,   icon: 'bi-exclamation-triangle-fill', alert: metrics.lowStock > 0 },
-        { label: 'Active WOs',  value: metrics.activeWO,   icon: 'bi-gear-fill',         alert: false },
-        { label: 'Open Orders', value: metrics.openOrders, icon: 'bi-bag-fill',          alert: false },
+        { label: t('total_skus'),  value: metrics.totalItems, icon: 'bi-tags-fill',        alert: false },
+        { label: t('low_stock'),   value: metrics.lowStock,   icon: 'bi-exclamation-triangle-fill', alert: metrics.lowStock > 0 },
+        { label: t('active_wo'),   value: metrics.activeWO,   icon: 'bi-gear-fill',         alert: false },
+        { label: t('pending_wo'),  value: metrics.pendingWO,  icon: 'bi-clock-history',     alert: false },
+        { label: t('open_orders'), value: metrics.openOrders, icon: 'bi-bag-fill',          alert: false },
+        { label: t('samples'),     value: kpis?.active_samples ?? 0, icon: 'bi-eyedropper',  alert: false },
     ];
 
     const sevBorderLeft = { crit: '#cc0000', warn: '#b8860b', info: '#1a4a8a' };
     const sevBg         = { crit: '#fce8e8', warn: '#fef9e7', info: '#e8f0fe' };
     const sevColor      = { crit: '#6b0000', warn: '#5a3e00', info: '#0a246a' };
 
+    const PctBar = ({ label, pct, good }: { label: string; pct: number; good: boolean }) => (
+        <div style={xpPanel({ padding: '8px 10px', flex: 1, minWidth: 0 })}>
+            <div style={{ fontFamily: XP_FONT, fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5, color: '#666', marginBottom: 3 }}>{label}</div>
+            <div style={{ fontFamily: "'Courier New', monospace", fontSize: 20, fontWeight: 'bold', color: good ? '#1a7a1a' : '#c77800', lineHeight: 1 }}>{pct.toFixed(0)}%</div>
+            <div style={{ height: 6, background: '#fff', border: '1px solid #808080', marginTop: 4 }} role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label={label}>
+                <div style={{ height: '100%', width: `${Math.min(100, pct)}%`, background: good ? 'linear-gradient(to bottom, #6ec86e, #2a7a2a)' : 'linear-gradient(to bottom, #ffbb44, #cc7700)' }} />
+            </div>
+        </div>
+    );
+
     return (
         <div style={{ background: XP_BEIGE, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-            {/* KPI 2×2 grid */}
+            {/* KPI grid */}
             <div>
                 <div style={xpSectionLabel}>System Status</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -149,7 +151,7 @@ export default function MobileDashboardView({ items, stockBalance, workOrders, s
                             background: k.alert ? '#fce8e8' : '#f5f4ef',
                         })}>
                             <div style={{ fontFamily: XP_FONT, fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5, color: k.alert ? '#cc0000' : '#666', marginBottom: 3 }}>
-                                <i className={`bi ${k.icon}`} style={{ marginRight: 4 }} />{k.label}
+                                <i className={`bi ${k.icon}`} style={{ marginRight: 4 }} aria-hidden="true" />{k.label}
                             </div>
                             <div style={{ fontFamily: "'Courier New', monospace", fontSize: 28, fontWeight: 'bold', color: k.alert ? '#cc0000' : '#00309c', lineHeight: 1 }}>
                                 {k.value}
@@ -159,10 +161,16 @@ export default function MobileDashboardView({ items, stockBalance, workOrders, s
                 </div>
             </div>
 
+            {/* Yield + Delivery readiness */}
+            <div style={{ display: 'flex', gap: 8 }}>
+                <PctBar label={t('production_yield')} pct={prodYield} good={prodYield > 90} />
+                <PctBar label={t('delivery_readiness')} pct={deliveryReadiness} good={deliveryReadiness > 80} />
+            </div>
+
             {/* Needs Attention */}
             {actionItems.length > 0 && (
                 <div>
-                    <div style={xpSectionLabel}>Needs Attention</div>
+                    <div style={xpSectionLabel}>{t('action_items')}</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                         {actionItems.slice(0, 5).map((item, i) => (
                             <div key={i} style={{
@@ -182,7 +190,7 @@ export default function MobileDashboardView({ items, stockBalance, workOrders, s
             {/* Active Work Orders */}
             <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-                    <div style={xpSectionLabel}>Active Work Orders</div>
+                    <div style={xpSectionLabel}>{t('work_orders')}</div>
                     <button
                         onClick={() => router.push('/work-orders')}
                         style={{ background: 'none', border: 'none', color: '#0058e6', fontFamily: XP_FONT, fontSize: 11, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
@@ -193,7 +201,7 @@ export default function MobileDashboardView({ items, stockBalance, workOrders, s
 
                 {activeWOList.length === 0 ? (
                     <div style={xpInset({ padding: '16px', textAlign: 'center', color: '#666', fontFamily: XP_FONT, fontSize: 12 })}>
-                        No active work orders
+                        {t('no_active_production')}
                     </div>
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -210,7 +218,7 @@ export default function MobileDashboardView({ items, stockBalance, workOrders, s
                                     <div style={{ fontFamily: XP_FONT, fontSize: 11, color: '#444', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wo.itemName}</div>
                                     {wo.isOverdue && (
                                         <div style={{ fontFamily: XP_FONT, fontSize: 10, color: '#cc0000', fontWeight: 'bold', marginTop: 1 }}>
-                                            <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 3 }} />Overdue
+                                            <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 3 }} aria-hidden="true" />Overdue
                                         </div>
                                     )}
                                 </div>

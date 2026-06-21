@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useData } from '../../context/DataContext';
 
 const TABLE_SETTINGS_KEY = 'so_table_print_settings';
 
@@ -14,8 +15,9 @@ function SOTableDocument({
     companyProfile: any;
 }) {
     const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '');
+    const { itemIndex } = useData();
 
-    const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
+    const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || itemIndex?.[String(id)]?.name || id;
     const getAttributeValues = (ids: string[]) =>
         ids.map(vid => {
             for (const attr of attributes) {

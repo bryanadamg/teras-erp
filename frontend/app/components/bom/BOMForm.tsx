@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import CodeConfigModal, { CodeConfig, buildCodeWithCounter } from '../shared/CodeConfigModal';
 import SearchableSelect from '../shared/SearchableSelect';
 import { useLanguage } from '../../context/LanguageContext';
+import { useData } from '../../context/DataContext';
 
-export default function BOMForm({ 
+export default function BOMForm({
     initialItemCode, 
     items, 
     boms, 
@@ -17,7 +18,8 @@ export default function BOMForm({
     isSubForm = false
 }: any) {
   const { t } = useLanguage();
-  
+  const { itemIndex } = useData();
+
   const [newBOM, setNewBOM] = useState({
       code: '',
       description: '',
@@ -128,7 +130,7 @@ export default function BOMForm({
   };
 
   // Helpers
-  const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
+  const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || itemIndex?.[String(id)]?.name || id;
   const getItemId = (code: string) => items.find((i: any) => i.code === code)?.id;
   const getOpName = (id: string) => operations.find((o: any) => o.id === id)?.name || id;
   const getWCName = (id: string) => workCenters.find((w: any) => w.id === id)?.name || id;

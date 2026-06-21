@@ -6,11 +6,13 @@ import SearchableSelect from '../shared/SearchableSelect';
 import PurchaseOrderPrintModal from './PurchaseOrderPrintModal';
 import ModalWrapper from '../shared/ModalWrapper';
 import { useTheme } from '../../context/ThemeContext';
+import { useData } from '../../context/DataContext';
 import { useSortable, SortMark } from '../shared/xpTheme';
 
 export default function PurchaseOrderView({ items, attributes, purchaseOrders, partners, locations, onCreatePO, onDeletePO, onCreateReceipt, onClosePO, companyProfile }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
+  const { itemIndex } = useData();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [printingPO, setPrintingPO] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -286,8 +288,8 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
       setIsCreateOpen(false);
   };
 
-  const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
-  const getItemCode = (id: string) => items.find((i: any) => i.id === id)?.code || id;
+  const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || itemIndex?.[String(id)]?.name || id;
+  const getItemCode = (id: string) => items.find((i: any) => i.id === id)?.code || itemIndex?.[String(id)]?.code || id;
   const getItem = (id: string) => items.find((i: any) => i.id === id);
   const getItemUom = (id: string) => getItem(id)?.uom || '';
   // Classify by seeded system categories: "Raw Material", "Chemical", "Dye"

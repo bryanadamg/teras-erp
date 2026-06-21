@@ -14,7 +14,9 @@ from app.models.batch import Batch
 from app.models.stock_balance import StockBalance
 from app.api.auth import get_current_user
 from app.models.auth import User
-from app.services import audit_service
+from app.services import audit_service, kpi_service
+from app.core.ws_manager import manager
+from typing import Optional
 from datetime import datetime
 import uuid
 
@@ -83,17 +85,31 @@ async def create_sales_order(payload: SalesOrderCreate, db: AsyncSession = Depen
             line.item_name = line.item.name
             line.item_code = line.item.code
 
+    try:
+        await kpi_service.invalidate_kpis_async(db)
+        await manager.broadcast({"type": "KPI_UPDATE"})
+    except Exception:
+        pass
+
     return so_refreshed
 
 @router.get("", response_model=list[SalesOrderResponse])
-async def get_sales_orders(db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(
+async def get_sales_orders(
+    status: Optional[str] = None,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    query = (
         select(SalesOrder)
         .options(
             selectinload(SalesOrder.lines).selectinload(SalesOrderLine.attribute_values),
             selectinload(SalesOrder.lines).selectinload(SalesOrderLine.item),
         )
-        .order_by(SalesOrder.created_at.desc())
+    )
+    if status:
+        query = query.filter(SalesOrder.status == status)
+    result = await db.execute(
+        query.order_by(SalesOrder.created_at.desc())
     )
     orders = result.scalars().all()
 
@@ -184,6 +200,12 @@ async def update_sales_order(so_id: uuid.UUID, payload: SalesOrderUpdate, db: As
         details=f"Updated SO {so_refreshed.po_number}"
     )
 
+    try:
+        await kpi_service.invalidate_kpis_async(db)
+        await manager.broadcast({"type": "KPI_UPDATE"})
+    except Exception:
+        pass
+
     return so_refreshed
 
 @router.put("/{so_id}/status", response_model=SalesOrderResponse)
@@ -225,7 +247,13 @@ async def update_sales_order_status(so_id: uuid.UUID, status: str, db: AsyncSess
         entity_id=str(so.id),
         details=f"Status: {prev_status} -> {status}"
     )
-    
+
+    try:
+        await kpi_service.invalidate_kpis_async(db)
+        await manager.broadcast({"type": "KPI_UPDATE"})
+    except Exception:
+        pass
+
     return so
 
 @router.delete("/{so_id}")
@@ -245,6 +273,13 @@ async def delete_sales_order(so_id: uuid.UUID, db: AsyncSession = Depends(get_as
     )
     await db.delete(so)
     await db.commit()
+
+    try:
+        await kpi_service.invalidate_kpis_async(db)
+        await manager.broadcast({"type": "KPI_UPDATE"})
+    except Exception:
+        pass
+
     return {"status": "success"}
 
 

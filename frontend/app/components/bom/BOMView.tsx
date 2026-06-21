@@ -6,6 +6,7 @@ import BOMPrintModal from './BOMPrintModal';
 import ProductionRunModal from '../manufacturing/ProductionRunModal';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
+import { useData } from '../../context/DataContext';
 
 const xpTh: React.CSSProperties = {
     background: 'linear-gradient(to bottom, #fff, #d4d0c8)',
@@ -57,6 +58,7 @@ export default function BOMView({
 }: any) {
     const { showToast } = useToast();
     const { t } = useLanguage();
+    const { itemIndex } = useData();
     const { uiStyle: currentStyle } = useTheme();
     const classic = currentStyle === 'classic';
 
@@ -100,8 +102,8 @@ export default function BOMView({
     };
 
     // Lookup helpers
-    const getItemName = (id: string, provided?: string) => provided || items.find((i: any) => i.id === id)?.name || id;
-    const getItemCode = (id: string, provided?: string) => provided || items.find((i: any) => i.id === id)?.code || id;
+    const getItemName = (id: string, provided?: string) => provided || items.find((i: any) => i.id === id)?.name || itemIndex?.[String(id)]?.name || id;
+    const getItemCode = (id: string, provided?: string) => provided || items.find((i: any) => i.id === id)?.code || itemIndex?.[String(id)]?.code || id;
     const getItemUom = (id: string) => items.find((i: any) => i.id === id)?.uom || '';
     // Beam items carry a warp-ends count; for a beam BOM the qty IS the ends (set on BOM creation).
     const getItemEnds = (id: string): number | null => { const e = items.find((i: any) => i.id === id)?.ends; return e != null ? e : null; };

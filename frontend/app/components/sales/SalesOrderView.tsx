@@ -22,7 +22,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const [customerSearch, setCustomerSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const { uiStyle: currentStyle } = useTheme();
-  const { companyProfile, uoms, authFetch } = useData();
+  const { companyProfile, uoms, authFetch, itemIndex } = useData();
 
   // Lineage (SO → PR → MO → WO → beam) trace modal
   const router = useRouter();
@@ -666,8 +666,8 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       }
   };
 
-  const getItemName = (id: string, embedded?: string) => items.find((i: any) => i.id === id)?.name || embedded || id;
-  const getItemCode = (id: string, embedded?: string) => items.find((i: any) => i.id === id)?.code || embedded || id;
+  const getItemName = (id: string, embedded?: string) => items.find((i: any) => i.id === id)?.name || embedded || itemIndex?.[String(id)]?.name || id;
+  const getItemCode = (id: string, embedded?: string) => items.find((i: any) => i.id === id)?.code || embedded || itemIndex?.[String(id)]?.code || id;
   const isSample = (id: string) => items.find((i: any) => i.id === id)?.category === 'Sample';
 
   const getStatusBadge = (status: string) => {

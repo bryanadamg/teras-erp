@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useData } from '../../context/DataContext';
 import { STATUS_COLORS } from './xpTheme';
 
 interface QRScannerViewProps {
@@ -27,6 +28,7 @@ export default function QRScannerView({
 }: QRScannerViewProps) {
     const { t } = useLanguage();
     const { uiStyle: currentStyle } = useTheme();
+    const { itemIndex } = useData();
     const classic = currentStyle === 'classic';
 
     const [scannedWO, setScannedWO] = useState<any>(null);
@@ -53,7 +55,7 @@ export default function QRScannerView({
     });
 
     // --- Validation Logic ---
-    const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || id;
+    const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || itemIndex?.[String(id)]?.name || id;
     const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
 
     const calculateRequiredQty = (baseQty: number, line: any, bom: any) => {

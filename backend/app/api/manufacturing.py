@@ -10,7 +10,7 @@ from app.models.bom import BOM, BOMLine, BOMSize, BOMOperation
 from app.models.routing import Operation as OperationModel, WorkCenter
 from app.models.location import Location
 from app.models.sales import SalesOrder
-from app.services import stock_service, audit_service
+from app.services import stock_service, audit_service, kpi_service
 from app.schemas import (
     ManufacturingOrderCreate, ManufacturingOrderResponse,
     PaginatedManufacturingOrderResponse,
@@ -604,6 +604,12 @@ async def update_manufacturing_order_status(mo_id: str, status: str, db: AsyncSe
     await audit_service.log_activity(db, current_user.id, "UPDATE_STATUS", "ManufacturingOrder", mo_id, f"{previous_status} -> {status}")
     await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": mo_id, "status": status, "code": mo.code})
 
+    try:
+        await kpi_service.invalidate_kpis_async(db)
+        await manager.broadcast({"type": "KPI_UPDATE"})
+    except Exception:
+        pass
+
     return {"status": "success", "message": f"Updated to {status}"}
 
 @router.patch("/manufacturing-orders/{mo_id}/attributes", response_model=ManufacturingOrderResponse)
@@ -887,6 +893,12 @@ async def add_mo_completion(
     await audit_service.log_activity(db, current_user.id, "COMPLETION", "ManufacturingOrder", mo_id, f"Logged {payload.qty_completed} completed (total {total_completed}/{mo.qty})")
     await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": mo_id, "status": mo.status, "code": mo.code})
 
+    try:
+        await kpi_service.invalidate_kpis_async(db)
+        await manager.broadcast({"type": "KPI_UPDATE"})
+    except Exception:
+        pass
+
     mo_map = await load_mo_tree(db, [mo.id])
     mo = mo_map.get(mo.id)
     populate_mo_ids(mo)
@@ -972,6 +984,12 @@ async def complete_manufacturing_order_with_batches(
     await db.commit()
     await audit_service.log_activity(db, current_user.id, "COMPLETE", "ManufacturingOrder", mo_id, f"Completed with batch tracking")
     await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": mo_id, "status": "COMPLETED", "code": mo.code})
+
+    try:
+        await kpi_service.invalidate_kpis_async(db)
+        await manager.broadcast({"type": "KPI_UPDATE"})
+    except Exception:
+        pass
 
     return {"status": "success", "message": "Completed with batch tracking"}
 

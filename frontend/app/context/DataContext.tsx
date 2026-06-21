@@ -28,6 +28,8 @@ interface DataContextType {
     auditLogs: any[];
     partners: any[];
     dashboardKPIs: any;
+    dashboardSummary: any;
+    itemIndex: Record<string, { name: string; code: string }>;
     companyProfile: any;
 
     // Pagination & Search State
@@ -82,6 +84,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const [auditLogs, setAuditLogs] = useState([]);
     const [partners, setPartners] = useState([]);
     const [dashboardKPIs, setDashboardKPIs] = useState<any>({});
+    const [dashboardSummary, setDashboardSummary] = useState<any>(null);
+    const [itemIndex, setItemIndex] = useState<Record<string, { name: string; code: string }>>({});
     const [companyProfile, setCompanyProfile] = useState<any>(null);
 
     // UI & Sync State
@@ -154,6 +158,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     setLocations(data.locations || []); setLocationCategories(data.locationCategories || []); setAttributes(data.attributes || []); setCategories(data.categories || []);
                     setUoms(data.uoms || []); setSizes(data.sizes || []); setWorkCenters(data.workCenters || []); setOperations(data.operations || []);
                     setPartners(data.partners || []);
+                    setItemIndex(data.itemIndex || {});
                     setIsInitialLoad(false); masterFetched = true;
                 }
             }
@@ -174,6 +179,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 requests.push(fetch(`${API_BASE}/operations`, { headers })); requestTypes.push('operations');
                 requests.push(fetch(`${API_BASE}/partners`, { headers })); requestTypes.push('partners');
                 requests.push(fetch(`${API_BASE}/settings/company`, { headers })); requestTypes.push('company-profile');
+                requests.push(fetch(`${API_BASE}/items/lookup`, { headers })); requestTypes.push('item-lookup');
             }
 
             // 2. DOMAIN DATA (Inventory, Orders, etc.)
@@ -188,10 +194,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 requestTypes.push('items');
             }
 
-            // KPIs
+            // Complete item name/code index — resolves names for items beyond the
+            // paginated items page (fixes UUID-instead-of-name in lists/prints).
+            // Master block already fetches it on initial load; this refreshes it
+            // after item CRUD without double-fetching during the first load.
+            if (!isInitialLoad && fetchTarget.includes('inventory')) {
+                requests.push(fetch(`${API_BASE}/items/lookup`, { headers })); requestTypes.push('item-lookup');
+            }
+
+            // KPIs + dashboard summary (server-side aggregates: warehouse distribution,
+            // low-stock names, delivery readiness, recent movements, yield — so the
+            // dashboard no longer ships the full stock-balance + all sales-orders).
             if (fetchTarget === 'dashboard' || fetchTarget === '') {
                 requests.push(fetch(`${API_BASE}/dashboard/kpis`, { headers }));
                 requestTypes.push('kpis');
+                requests.push(fetch(`${API_BASE}/dashboard/summary`, { headers }));
+                requestTypes.push('dashboard-summary');
             }
 
             // Engineering
@@ -218,7 +236,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             // (dashboard, stock pages, manufacturing/MO/PR creation-availability). The
             // inventory and work-orders views do NOT read stockBalance, so fetching the
             // whole table there was wasted work — costly on the low-power ARM backend.
-            if (fetchTarget.includes('stock') || fetchTarget === 'dashboard' || fetchTarget === '' || fetchTarget.includes('manufacturing') || fetchTarget.includes('production-runs')) {
+            if (fetchTarget.includes('stock') || fetchTarget.includes('manufacturing') || fetchTarget.includes('production-runs')) {
                 requests.push(fetch(`${API_BASE}/stock/balance`, { headers }));
                 requestTypes.push('balance');
             }
@@ -230,7 +248,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             }
 
             // Sales & CRM
-            if (fetchTarget.includes('sales-orders') || fetchTarget.includes('samples') || fetchTarget === 'dashboard' || fetchTarget === '' || fetchTarget.includes('customers')) {
+            if (fetchTarget.includes('sales-orders') || fetchTarget.includes('samples') || fetchTarget.includes('customers')) {
                 requests.push(fetch(`${API_BASE}/sales-orders`, { headers }));
                 requestTypes.push('sales-orders');
                 requests.push(fetch(`${API_BASE}/samples`, { headers }));
@@ -238,13 +256,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             }
 
             // Procurement
-            if (fetchTarget.includes('purchase-orders') || fetchTarget === 'dashboard' || fetchTarget === '' || fetchTarget.includes('suppliers')) {
+            if (fetchTarget.includes('purchase-orders') || fetchTarget.includes('suppliers')) {
                 requests.push(fetch(`${API_BASE}/purchase-orders`, { headers }));
                 requestTypes.push('purchase-orders');
             }
 
             // Partners (Customers/Suppliers)
-            if (fetchTarget.includes('customers') || fetchTarget.includes('suppliers') || fetchTarget.includes('samples') || fetchTarget === 'dashboard' || fetchTarget === '') {
+            if (fetchTarget.includes('customers') || fetchTarget.includes('suppliers') || fetchTarget.includes('samples')) {
                 requests.push(fetch(`${API_BASE}/partners`, { headers }));
                 requestTypes.push('partners');
             }
@@ -258,9 +276,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
             const responses = await Promise.all(requests);
             const newMasterData: any = {};
+            const failedTypes: string[] = [];
             for (let i = 0; i < responses.length; i++) {
                 const res = responses[i]; const type = requestTypes[i];
-                if (!res.ok) { console.warn(`[DataContext] ${type} fetch failed: HTTP ${res.status} ${res.url}`); continue; }
+                if (!res.ok) { console.warn(`[DataContext] ${type} fetch failed: HTTP ${res.status} ${res.url}`); failedTypes.push(`${type} (${res.status})`); continue; }
                 const data = await res.json();
                 switch(type) {
                     case 'locations': setLocations(data); newMasterData.locations = data; break;
@@ -274,7 +293,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     case 'partners': setPartners(data); newMasterData.partners = data; break;
                     case 'company-profile': setCompanyProfile(data); newMasterData.companyProfile = data; break;
                     case 'items': setItems(data.items); setItemTotal(data.total); break;
+                    case 'item-lookup': { const idx: Record<string, { name: string; code: string }> = {}; for (const it of (data || [])) idx[String(it.id)] = { name: it.name, code: it.code }; setItemIndex(idx); newMasterData.itemIndex = idx; break; }
                     case 'kpis': setDashboardKPIs(data); break;
+                    case 'dashboard-summary': setDashboardSummary(data); break;
                     case 'boms': setBoms(data); break;
                     case 'manufacturing-orders': setManufacturingOrders(data.items); setWoTotal(data.total); break;
                     case 'production-runs': setProductionRuns(data.items); setPrTotal(data.total); break;
@@ -286,18 +307,24 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     case 'audit-logs': setAuditLogs(data.items); setAuditTotal(data.total); break;
                 }
             }
+            if (failedTypes.length > 0) {
+                showToast(`Some data could not be loaded: ${failedTypes.join(', ')}`, 'warning');
+            }
             if (Object.keys(newMasterData).length > 0) {
                 const cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{"data":{}}');
                 localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: { ...cache.data, ...newMasterData } }));
                 setIsInitialLoad(false);
             }
-        } catch (e) { console.error("Fetch Error", e); }
+        } catch (e) {
+            console.error("Fetch Error", e);
+            showToast('Network error — could not reach the server. Check your connection.', 'danger');
+        }
         };
 
         const p = run().finally(() => { delete inFlightRef.current[fetchTarget]; });
         inFlightRef.current[fetchTarget] = p;
         return p;
-    }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, itemSearch, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, isInitialLoad, pageSize]);
+    }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, itemSearch, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, isInitialLoad, pageSize, showToast]);
 
     const handleTabHover = (tab: string) => fetchData(tab);
 
@@ -332,6 +359,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                         case 'PRODUCTION_RUN_UPDATE':
                             fetchDataRef.current('work-orders');
                             break;
+                        case 'KPI_UPDATE':
+                            // A mutation invalidated the KPI cache — refresh dashboard
+                            // KPIs + summary so the numbers stay live.
+                            fetchDataRef.current('dashboard');
+                            break;
                         default:
                             break;
                     }
@@ -344,17 +376,28 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         return () => { if (ws) ws.close(1000); clearTimeout(reconnectTimer); };
     }, [currentUser, showToast]);
 
+    // Dashboard auto-refresh: while the user is viewing the dashboard, refresh
+    // KPIs + summary every 60s so numbers stay live without a manual reload.
+    useEffect(() => {
+        if (!currentUser) return;
+        const id = setInterval(() => {
+            const path = typeof window !== 'undefined' ? window.location.pathname : '';
+            if (path === '/' || path.startsWith('/dashboard')) fetchDataRef.current('dashboard');
+        }, 60000);
+        return () => clearInterval(id);
+    }, [currentUser]);
+
     const value = React.useMemo(() => ({
         items, locations, locationCategories, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
-        partners, dashboardKPIs, companyProfile,
+        partners, dashboardKPIs, dashboardSummary, itemIndex, companyProfile,
         pagination: { itemPage, setItemPage, itemTotal, woPage, setWoPage, woTotal, prPage, setPrPage, prTotal, auditPage, setAuditPage, auditTotal, reportPage, setReportPage, reportTotal, moSearch, setMoSearch: handleSetMoSearch, prSearch, setPrSearch: handleSetPrSearch, pageSize },
         filters: { itemSearch, setItemSearch, categoryL1, setCategoryL1: handleSetCategoryL1, categoryL2, setCategoryL2: handleSetCategoryL2, categoryL3, setCategoryL3, auditType, setAuditType },
         fetchData, handleTabHover, authFetch
     }), [
         items, locations, locationCategories, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
-        partners, dashboardKPIs, companyProfile,
+        partners, dashboardKPIs, dashboardSummary, itemIndex, companyProfile,
         itemPage, itemTotal, woPage, woTotal, prPage, prTotal, auditPage, auditTotal, reportPage, reportTotal, pageSize,
         itemSearch, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData, handleTabHover, authFetch,
         handleSetCategoryL1, handleSetCategoryL2, handleSetMoSearch, handleSetPrSearch

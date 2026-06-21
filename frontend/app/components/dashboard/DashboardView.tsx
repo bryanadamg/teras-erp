@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import CalendarView from '../shared/CalendarView';
@@ -133,105 +134,143 @@ const StatusBadge = ({ status }: { status: string }) => {
     );
 };
 
-export default function DashboardView({ items, locations, stockBalance, workOrders, stockEntries, samples, salesOrders, kpis }: any) {
+// ── Dependency-free inline SVG donut (no chart library — light on old clients) ──
+const DONUT_COLORS = ['#0058e6', '#2a7a2a', '#cc7700', '#b71c1c', '#6a3fb5', '#0c8a8a', '#8a6d00'];
+const Donut = ({ segments, size = 132, stroke = 20, centerLabel, centerSub, ariaLabel }: {
+    segments: { label: string; value: number }[];
+    size?: number; stroke?: number; centerLabel: string; centerSub?: string; ariaLabel: string;
+}) => {
+    const total = segments.reduce((s, x) => s + x.value, 0);
+    const r = (size - stroke) / 2;
+    const circ = 2 * Math.PI * r;
+    let acc = 0;
+    return (
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={ariaLabel}>
+            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e6e3da" strokeWidth={stroke} />
+            <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
+                {total > 0 && segments.map((seg, i) => {
+                    const dash = (seg.value / total) * circ;
+                    const el = (
+                        <circle key={i} cx={size / 2} cy={size / 2} r={r} fill="none"
+                            stroke={DONUT_COLORS[i % DONUT_COLORS.length]} strokeWidth={stroke}
+                            strokeDasharray={`${dash} ${circ - dash}`} strokeDashoffset={-acc} />
+                    );
+                    acc += dash;
+                    return el;
+                })}
+            </g>
+            <text x="50%" y="46%" textAnchor="middle" dominantBaseline="central"
+                fontFamily="Tahoma, Arial, sans-serif" fontSize={size * 0.17} fontWeight="bold" fill="#222">
+                {centerLabel}
+            </text>
+            {centerSub && (
+                <text x="50%" y="62%" textAnchor="middle" dominantBaseline="central"
+                    fontFamily="Tahoma, Arial, sans-serif" fontSize={size * 0.085} fill="#777">
+                    {centerSub}
+                </text>
+            )}
+        </svg>
+    );
+};
+
+export default function DashboardView({ items, locations, stockBalance, workOrders, stockEntries, samples, salesOrders, kpis, summary, itemIndex }: any) {
     const { t } = useLanguage();
     const { uiStyle: currentStyle } = useTheme();
     const classic = currentStyle === 'classic';
+    const router = useRouter();
+    const [drill, setDrill] = useState<'lowstock' | 'short' | null>(null);
+
+    // Resolve item name across the FULL catalog (itemIndex), falling back to the
+    // paginated items array, then the raw id. Fixes UUID-instead-of-name on the
+    // WO table for items beyond the first items page.
+    const resolveName = (id: string) =>
+        itemIndex?.[String(id)]?.name || (items || []).find((i: any) => i.id === id)?.name || id;
+
+    const hasSummary = !!summary;
 
     // ── Metrics ──────────────────────────────────────────────────────────────
     const metrics = {
-        totalItems:    kpis?.total_items    ?? items.length,
+        totalItems:    kpis?.total_items    ?? (items || []).length,
         lowStock:      kpis?.low_stock      ?? 0,
         activeWO:      kpis?.active_wo      ?? 0,
         pendingWO:     kpis?.pending_wo     ?? 0,
         activeSamples: kpis?.active_samples ?? 0,
-        openOrders:    kpis?.open_sos       ?? (salesOrders || []).filter((s: any) => s.status === 'PENDING').length,
+        openOrders:    kpis?.open_sos       ?? (summary?.open_so_count ?? (salesOrders || []).filter((s: any) => s.status === 'PENDING').length),
     };
 
-    // ── Production Yield ─────────────────────────────────────────────────────
-    const yieldOrders = (workOrders || []).filter((w: any) => ['COMPLETED', 'IN_PROGRESS'].includes(w.status));
-    const completedQty = yieldOrders.filter((w: any) => w.status === 'COMPLETED').reduce((s: number, w: any) => s + parseFloat(w.qty), 0);
-    const totalStartedQty = yieldOrders.reduce((s: number, w: any) => s + parseFloat(w.qty), 0);
-    const prodYield = totalStartedQty > 0 ? (completedQty / totalStartedQty) * 100 : 100;
+    // ── Server-computed aggregates (with client fallback if summary missing) ───
+    const prodYield = hasSummary
+        ? summary.production_yield
+        : (() => {
+            const yo = (workOrders || []).filter((w: any) => ['COMPLETED', 'IN_PROGRESS'].includes(w.status));
+            const done = yo.filter((w: any) => w.status === 'COMPLETED').reduce((s: number, w: any) => s + parseFloat(w.qty), 0);
+            const tot = yo.reduce((s: number, w: any) => s + parseFloat(w.qty), 0);
+            return tot > 0 ? (done / tot) * 100 : 100;
+        })();
 
-    // ── Delivery Readiness ───────────────────────────────────────────────────
-    const openSOs = (salesOrders || []).filter((s: any) => s.status === 'PENDING');
-    let readySOCount = 0;
-    openSOs.forEach((so: any) => {
-        const allAvail = (so.lines || []).every((line: any) => {
-            const inStock = (stockBalance || [])
-                .filter((b: any) => String(b.item_id) === String(line.item_id))
-                .reduce((s: number, b: any) => s + parseFloat(b.qty), 0);
-            return inStock >= line.qty;
-        });
-        if (allAvail && (so.lines || []).length > 0) readySOCount++;
-    });
-    const deliveryReadiness = openSOs.length > 0 ? (readySOCount / openSOs.length) * 100 : 100;
+    const deliveryReadiness = hasSummary ? summary.delivery_readiness : 100;
+    const openSOsCount = hasSummary ? summary.open_so_count : (salesOrders || []).filter((s: any) => s.status === 'PENDING').length;
+    const readySOCount = hasSummary ? summary.ready_so_count : 0;
+    // shortSOs: [{code, short_lines, total_lines}]
+    const shortSOs: any[] = hasSummary ? (summary.short_orders || []) : [];
+    const shortSOCount = hasSummary ? summary.short_so_count : shortSOs.length;
 
-    // ── Named low-stock items ────────────────────────────────────────────────
-    const namedLowStock = useMemo(() => {
-        return (items || [])
-            .map((item: any) => {
-                const total = (stockBalance || [])
-                    .filter((b: any) => String(b.item_id) === String(item.id))
-                    .reduce((s: number, b: any) => s + parseFloat(b.qty || 0), 0);
-                const hasRecord = (stockBalance || []).some((b: any) => String(b.item_id) === String(item.id));
-                return { ...item, totalStock: total, hasRecord };
-            })
-            .filter((i: any) => i.hasRecord && i.totalStock <= 0)
-            .slice(0, 4);
-    }, [items, stockBalance]);
+    // namedLowStock: [{id, name, code, totalStock}]
+    const namedLowStock: any[] = hasSummary
+        ? (summary.low_stock_items || []).map((l: any) => ({ id: l.item_id, name: l.item_name, code: l.item_code, totalStock: l.total_qty }))
+        : [];
 
-    // ── Overdue WOs ──────────────────────────────────────────────────────────
+    // recentActivity: [{itemName, qty_change, created_at, location_name}]
+    const recentActivity: any[] = hasSummary
+        ? (summary.recent_movements || []).map((m: any, i: number) => ({
+            key: i, itemName: m.item_name, qty_change: m.qty_change, created_at: m.created_at, location_name: m.location_name,
+        }))
+        : [...(stockEntries || [])]
+            .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            .slice(0, 5)
+            .map((e: any, i: number) => ({ key: i, itemName: resolveName(e.item_id), qty_change: e.qty_change, created_at: e.created_at, location_name: (locations || []).find((l: any) => String(l.id) === String(e.location_id))?.name || '—' }));
+
+    // locationStats: [{id, name, totalQty}]
+    const locationStats: any[] = hasSummary
+        ? (summary.warehouse_distribution || []).map((w: any) => ({ id: w.location_id, name: w.location_name, totalQty: w.total_qty }))
+        : (locations || []).map((loc: any) => ({
+            ...loc,
+            totalQty: (stockBalance || []).filter((b: any) => String(b.location_id) === String(loc.id)).reduce((s: number, b: any) => s + parseFloat(b.qty), 0),
+        })).filter((l: any) => l.totalQty > 0).sort((a: any, b: any) => b.totalQty - a.totalQty);
+    const totalStockQty = locationStats.reduce((s: number, l: any) => s + l.totalQty, 0);
+
+    // ── Overdue WOs (from the MO list, which IS loaded on the dashboard) ───────
     const today = new Date();
     const overdueWOs = (workOrders || []).filter((w: any) =>
         ['IN_PROGRESS', 'PENDING'].includes(w.status) &&
         w.target_end_date && new Date(w.target_end_date) < today
     );
 
-    // ── SOs with material shortages ──────────────────────────────────────────
-    const shortSOs = openSOs.filter((so: any) => {
-        if (!(so.lines || []).length) return false;
-        return (so.lines || []).some((line: any) => {
-            const inStock = (stockBalance || [])
-                .filter((b: any) => String(b.item_id) === String(line.item_id))
-                .reduce((s: number, b: any) => s + parseFloat(b.qty), 0);
-            return inStock < line.qty;
-        });
-    });
-
     // ── Action items list ────────────────────────────────────────────────────
     const actionItems = useMemo(() => {
         const list: { sev: 'crit' | 'warn' | 'info'; title: string; sub: string }[] = [];
-        namedLowStock.forEach(i => {
+        namedLowStock.forEach((i: any) => {
             list.push({ sev: 'crit', title: `${i.name} — OUT`, sub: `Total stock: ${i.totalStock} units` });
         });
         if (metrics.lowStock > namedLowStock.length) {
             list.push({ sev: 'crit', title: `${metrics.lowStock - namedLowStock.length} more items low`, sub: 'Check inventory for details' });
         }
         overdueWOs.slice(0, 3).forEach((w: any) => {
-            const name = (items || []).find((i: any) => i.id === w.item_id)?.name || w.item_id;
-            list.push({ sev: 'warn', title: `${w.code} — Overdue`, sub: `${name} · due ${w.target_end_date?.slice(0,10) || '?'}` });
+            list.push({ sev: 'warn', title: `${w.code} — Overdue`, sub: `${resolveName(w.item_id)} · due ${w.target_end_date?.slice(0, 10) || '?'}` });
         });
         shortSOs.slice(0, 2).forEach((so: any) => {
-            const shortLines = (so.lines || []).filter((line: any) => {
-                const inStock = (stockBalance || [])
-                    .filter((b: any) => String(b.item_id) === String(line.item_id))
-                    .reduce((s: number, b: any) => s + parseFloat(b.qty), 0);
-                return inStock < line.qty;
-            }).length;
-            list.push({ sev: 'warn', title: `${so.code} — Material Gap`, sub: `${shortLines} of ${so.lines.length} lines unfulfilled` });
+            list.push({ sev: 'warn', title: `${so.code} — Material Gap`, sub: `${so.short_lines} of ${so.total_lines} lines unfulfilled` });
         });
-        const pendingReady = (workOrders || []).filter((w: any) => w.status === 'PENDING').length;
-        if (pendingReady > 0) {
-            list.push({ sev: 'info', title: `${pendingReady} WO${pendingReady > 1 ? 's' : ''} ready to release`, sub: 'Review and start production' });
+        if (metrics.pendingWO > 0) {
+            list.push({ sev: 'info', title: `${metrics.pendingWO} WO${metrics.pendingWO > 1 ? 's' : ''} ready to release`, sub: 'Review and start production' });
         }
         return list;
-    }, [namedLowStock, overdueWOs, shortSOs, workOrders, metrics.lowStock]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [summary, overdueWOs, metrics.lowStock, metrics.pendingWO]);
 
     // ── Health statuses ──────────────────────────────────────────────────────
     const stockHealth: HealthStatus  = namedLowStock.length > 0 ? 'crit' : metrics.lowStock > 0 ? 'warn' : 'ok';
-    const prodHealth: HealthStatus   = overdueWOs.length > 0 ? 'warn' : metrics.activeWO > 0 ? 'ok' : 'ok';
+    const prodHealth: HealthStatus   = overdueWOs.length > 0 ? 'warn' : 'ok';
     const orderHealth: HealthStatus  = deliveryReadiness < 50 ? 'crit' : deliveryReadiness < 80 ? 'warn' : 'ok';
 
     // ── Active WOs for table ─────────────────────────────────────────────────
@@ -241,7 +280,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
             .map((w: any) => ({
                 ...w,
                 isOverdue: w.target_end_date && new Date(w.target_end_date) < today,
-                itemName: (items || []).find((i: any) => i.id === w.item_id)?.name || w.item_id,
+                itemName: resolveName(w.item_id),
             }))
             .sort((a: any, b: any) => {
                 if (a.isOverdue && !b.isOverdue) return -1;
@@ -250,94 +289,95 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                 return 0;
             })
             .slice(0, 8);
-    }, [workOrders, items]);
-
-    // ── Recent activity ──────────────────────────────────────────────────────
-    const recentActivity = [...(stockEntries || [])]
-        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        .slice(0, 5)
-        .map((e: any) => ({
-            ...e,
-            itemName: (items || []).find((i: any) => i.id === e.item_id)?.name || e.item_id,
-        }));
-
-    // ── Location stats ────────────────────────────────────────────────────────
-    const locationStats = (locations || []).map((loc: any) => {
-        const totalQty = (stockBalance || [])
-            .filter((b: any) => String(b.location_id) === String(loc.id))
-            .reduce((s: number, b: any) => s + parseFloat(b.qty), 0);
-        return { ...loc, totalQty };
-    }).filter((l: any) => l.totalQty > 0).sort((a: any, b: any) => b.totalQty - a.totalQty);
-    const totalStockQty = locationStats.reduce((s: number, l: any) => s + l.totalQty, 0);
-
-    const getItemName = (id: string) => (items || []).find((i: any) => i.id === id)?.name || id;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [workOrders, items, itemIndex]);
 
     // ────────────────────────────────────────────────────────────────────────
-    // DEFAULT (non-classic) layout — unchanged from original
+    // DEFAULT (non-classic) layout
     // ────────────────────────────────────────────────────────────────────────
     if (!classic) {
-        const KPICard = ({ title, value, subtext, icon, colorClass }: any) => (
+        const KPICard = ({ title, value, subtext, icon, colorClass, onClick }: any) => (
             <div className="col-md-4 col-lg-2">
-                <div className={`card h-100 border-0 shadow-sm ${colorClass} text-white`}>
+                <div
+                    className={`card h-100 border-0 shadow-sm ${colorClass} text-white ${onClick ? 'kpi-clickable' : ''}`}
+                    onClick={onClick}
+                    role={onClick ? 'button' : undefined}
+                    tabIndex={onClick ? 0 : undefined}
+                    onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
+                    aria-label={onClick ? `${title}: ${value}. ${t('view_details')}` : `${title}: ${value}`}
+                    style={onClick ? { cursor: 'pointer' } : undefined}
+                >
                     <div className="card-body p-3">
                         <div className="d-flex justify-content-between align-items-center mb-2">
                             <h6 className="card-title mb-0 opacity-75 small text-uppercase fw-bold text-white">{title}</h6>
-                            <i className={`bi ${icon} fs-4 opacity-50`}></i>
+                            <i className={`bi ${icon} fs-4 opacity-50`} aria-hidden="true"></i>
                         </div>
                         <h3 className="fw-bold mb-0">{value}</h3>
-                        <small className="opacity-75" style={{fontSize: '0.75rem'}}>{subtext}</small>
+                        <small className="opacity-75" style={{ fontSize: '0.75rem' }}>{subtext}</small>
                     </div>
                 </div>
             </div>
         );
+
+        const AdvisorPill = ({ icon, color, children, onClick, action }: any) => (
+            <div className="d-flex align-items-center gap-2 extra-small text-nowrap">
+                <i className={`bi ${icon} ${color}`} aria-hidden="true"></i>
+                <span>{children}</span>
+                {action && (
+                    <button className="btn btn-sm btn-outline-light py-0 px-2 extra-small" style={{ fontSize: '0.6rem' }} onClick={onClick}>
+                        {action} →
+                    </button>
+                )}
+            </div>
+        );
+
         return (
             <div className="fade-in">
                 <div className="d-flex justify-content-between align-items-center mb-3">
-                    <h4 className="fw-bold mb-0 text-capitalize">{t('dashboard') || 'Dashboard'}</h4>
+                    <h4 className="fw-bold mb-0 text-capitalize">{t('dashboard')}</h4>
                     <span className="text-muted small">{new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
                 </div>
+
+                {/* Smart Advisor */}
                 <div className="card border-0 shadow-sm mb-4 bg-dark text-white overflow-hidden">
                     <div className="card-body p-2 px-3">
                         <div className="row align-items-center g-3">
                             <div className="col-auto border-end border-secondary pe-3">
                                 <div className="d-flex align-items-center gap-2">
-                                    <i className="bi bi-cpu-fill text-info"></i>
-                                    <span className="extra-small fw-bold text-uppercase letter-spacing-1">Smart Advisor</span>
+                                    <i className="bi bi-cpu-fill text-info" aria-hidden="true"></i>
+                                    <span className="extra-small fw-bold text-uppercase letter-spacing-1">{t('smart_advisor')}</span>
                                 </div>
                             </div>
                             <div className="col">
                                 <div className="d-flex gap-4 overflow-auto no-scrollbar py-1">
                                     {metrics.lowStock > 0 && (
-                                        <div className="d-flex align-items-center gap-2 extra-small text-nowrap">
-                                            <i className="bi bi-info-circle-fill text-warning"></i>
-                                            <span><strong>{metrics.lowStock} Items</strong> require replenishment.</span>
-                                        </div>
+                                        <AdvisorPill icon="bi-info-circle-fill" color="text-warning" action={t('inventory')} onClick={() => router.push('/inventory')}>
+                                            <strong>{metrics.lowStock} {t('item')}{metrics.lowStock > 1 ? 's' : ''}</strong> {t('require_replenishment')}.
+                                        </AdvisorPill>
                                     )}
                                     {metrics.pendingWO > 0 && (
-                                        <div className="d-flex align-items-center gap-2 extra-small text-nowrap">
-                                            <i className="bi bi-gear-fill text-info"></i>
-                                            <span><strong>{metrics.pendingWO} WOs</strong> are ready for release.</span>
-                                        </div>
+                                        <AdvisorPill icon="bi-gear-fill" color="text-info" action={t('work_orders')} onClick={() => router.push('/work-orders')}>
+                                            <strong>{metrics.pendingWO} WO{metrics.pendingWO > 1 ? 's' : ''}</strong> {t('ready_for_release')}.
+                                        </AdvisorPill>
                                     )}
-                                    {deliveryReadiness < 100 && openSOs.length > 0 && (
-                                        <div className="d-flex align-items-center gap-2 extra-small text-nowrap">
-                                            <i className="bi bi-truck text-secondary"></i>
-                                            <span>Material shortages affecting <strong>{Math.round(100 - deliveryReadiness)}%</strong> of orders.</span>
-                                        </div>
+                                    {deliveryReadiness < 100 && openSOsCount > 0 && (
+                                        <AdvisorPill icon="bi-truck" color="text-secondary" action={t('sales_orders')} onClick={() => router.push('/sales-orders')}>
+                                            {t('material_shortages_affecting')} <strong>{Math.round(100 - deliveryReadiness)}%</strong> {t('of_orders')}.
+                                        </AdvisorPill>
                                     )}
                                     {metrics.lowStock === 0 && metrics.pendingWO === 0 && (
-                                        <div className="extra-small text-muted italic">System state is currently balanced.</div>
+                                        <div className="extra-small text-muted italic">{t('system_balanced')}</div>
                                     )}
                                 </div>
                             </div>
                             <div className="col-auto ms-auto border-start border-secondary ps-3">
                                 <div className="d-flex gap-4">
                                     <div className="text-center">
-                                        <div className="extra-small text-muted fw-bold uppercase" style={{fontSize: '0.6rem'}}>Production Yield</div>
+                                        <div className="extra-small text-muted fw-bold uppercase" style={{ fontSize: '0.6rem' }}>{t('production_yield')}</div>
                                         <div className={`fw-bold small ${prodYield > 90 ? 'text-success' : 'text-warning'}`}>{prodYield.toFixed(1)}%</div>
                                     </div>
                                     <div className="text-center">
-                                        <div className="extra-small text-muted fw-bold uppercase" style={{fontSize: '0.6rem'}}>Delivery Ready</div>
+                                        <div className="extra-small text-muted fw-bold uppercase" style={{ fontSize: '0.6rem' }}>{t('delivery_readiness')}</div>
                                         <div className={`fw-bold small ${deliveryReadiness > 80 ? 'text-success' : 'text-warning'}`}>{deliveryReadiness.toFixed(1)}%</div>
                                     </div>
                                 </div>
@@ -345,84 +385,134 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                         </div>
                     </div>
                 </div>
-                <div className="row g-3 mb-4">
-                    <KPICard title={t('item_inventory')} value={metrics.totalItems} subtext="Total SKUs" icon="bi-box-seam" colorClass="bg-primary" />
-                    <KPICard title="Low Stock" value={metrics.lowStock} subtext="Global Alert" icon="bi-exclamation-triangle" colorClass="bg-warning text-dark" />
-                    <KPICard title="Active WO" value={metrics.activeWO} subtext="Production" icon="bi-gear-wide-connected" colorClass="bg-success" />
-                    <KPICard title="Pending WO" value={metrics.pendingWO} subtext="In Queue" icon="bi-clock-history" colorClass="bg-info" />
-                    <KPICard title="Samples" value={metrics.activeSamples} subtext="In Development" icon="bi-eyedropper" colorClass="bg-secondary" />
-                    <KPICard title="Open Orders" value={metrics.openOrders} subtext="Sales Pipeline" icon="bi-receipt" colorClass="bg-dark" />
+
+                {/* KPI cards */}
+                <div className="row g-3 mb-3">
+                    <KPICard title={t('item_inventory')} value={metrics.totalItems} subtext={t('total_skus')} icon="bi-box-seam" colorClass="bg-primary" onClick={() => router.push('/inventory')} />
+                    <KPICard title={t('low_stock')} value={metrics.lowStock} subtext={t('view_details')} icon="bi-exclamation-triangle" colorClass="bg-warning text-dark" onClick={() => setDrill(drill === 'lowstock' ? null : 'lowstock')} />
+                    <KPICard title={t('active_wo')} value={metrics.activeWO} subtext="Production" icon="bi-gear-wide-connected" colorClass="bg-success" onClick={() => router.push('/work-orders')} />
+                    <KPICard title={t('pending_wo')} value={metrics.pendingWO} subtext="In Queue" icon="bi-clock-history" colorClass="bg-info" onClick={() => router.push('/work-orders')} />
+                    <KPICard title={t('samples')} value={metrics.activeSamples} subtext="In Development" icon="bi-eyedropper" colorClass="bg-secondary" onClick={() => router.push('/samples')} />
+                    <KPICard title={t('open_orders')} value={metrics.openOrders} subtext={t('view_details')} icon="bi-receipt" colorClass="bg-dark" onClick={() => setDrill(drill === 'short' ? null : 'short')} />
                 </div>
+
+                {/* Drill-down panel */}
+                {drill && (
+                    <div className="card border-0 shadow-sm mb-4">
+                        <div className="card-header bg-white d-flex justify-content-between align-items-center">
+                            <h6 className="mb-0">{drill === 'lowstock' ? `${t('low_stock')} — ${t('item')}s` : `${t('order_health')} — ${t('material_shortages_affecting')}`}</h6>
+                            <button className="btn btn-sm btn-light" onClick={() => setDrill(null)} aria-label={t('cancel')}><i className="bi bi-x-lg"></i></button>
+                        </div>
+                        <div className="card-body p-0">
+                            {drill === 'lowstock' ? (
+                                <ul className="list-group list-group-flush">
+                                    {namedLowStock.length === 0 && <li className="list-group-item text-muted small">{t('all_systems_nominal')}</li>}
+                                    {namedLowStock.map((i: any) => (
+                                        <li key={i.id} className="list-group-item d-flex justify-content-between align-items-center py-2">
+                                            <span><span className="font-monospace text-muted me-2">{i.code}</span>{i.name}</span>
+                                            <span className="badge bg-danger">{i.totalStock} units</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <ul className="list-group list-group-flush">
+                                    {shortSOs.length === 0 && <li className="list-group-item text-muted small">{t('all_systems_nominal')}</li>}
+                                    {shortSOs.map((so: any) => (
+                                        <li key={so.code} className="list-group-item d-flex justify-content-between align-items-center py-2">
+                                            <span className="fw-medium">{so.code}</span>
+                                            <span className="badge bg-warning text-dark">{so.short_lines} / {so.total_lines} {t('materials').toLowerCase()}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Charts + calendar + activity */}
                 <div className="row g-4 mb-4">
                     <div className="col-md-4">
                         <div className="card h-100 shadow-sm border-0">
-                            <div className="card-header bg-white"><h5 className="card-title mb-0">Warehouse Distribution</h5></div>
+                            <div className="card-header bg-white"><h5 className="card-title mb-0">{t('warehouse_distribution')}</h5></div>
                             <div className="card-body">
-                                <div className="d-flex flex-column gap-4">
-                                    {locationStats.map((loc: any, idx: number) => {
-                                        const pct = totalStockQty > 0 ? (loc.totalQty / totalStockQty) * 100 : 0;
-                                        const colors = ['bg-primary', 'bg-success', 'bg-info', 'bg-warning', 'bg-danger'];
-                                        return (
-                                            <div key={loc.id}>
-                                                <div className="d-flex justify-content-between mb-1">
-                                                    <span className="fw-bold text-dark">{loc.name}</span>
-                                                    <span className="small text-muted">{loc.totalQty.toLocaleString()} units</span>
-                                                </div>
-                                                <div className="progress shadow-sm" style={{height: '10px'}}>
-                                                    <div className={`progress-bar ${colors[idx % colors.length]}`} style={{width: `${pct}%`}}></div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                    {locationStats.length === 0 && <div className="text-center py-5"><i className="bi bi-pie-chart text-muted opacity-25 display-1"></i><p className="text-muted small mt-2">No inventory recorded.</p></div>}
-                                </div>
+                                {locationStats.length === 0 ? (
+                                    <div className="text-center py-5"><i className="bi bi-pie-chart text-muted opacity-25 display-1" aria-hidden="true"></i><p className="text-muted small mt-2">{t('no_inventory_recorded')}</p></div>
+                                ) : (
+                                    <div className="d-flex align-items-center gap-3 flex-wrap">
+                                        <Donut
+                                            segments={locationStats.slice(0, 7).map((l: any) => ({ label: l.name, value: l.totalQty }))}
+                                            centerLabel={totalStockQty.toLocaleString()}
+                                            centerSub="units"
+                                            ariaLabel={`${t('warehouse_distribution')}: ${locationStats.map((l: any) => `${l.name} ${l.totalQty}`).join(', ')}`}
+                                        />
+                                        <div className="flex-grow-1" style={{ minWidth: 120 }}>
+                                            {locationStats.slice(0, 7).map((loc: any, idx: number) => {
+                                                const pct = totalStockQty > 0 ? (loc.totalQty / totalStockQty) * 100 : 0;
+                                                return (
+                                                    <div key={loc.id} className="d-flex align-items-center justify-content-between mb-1 small">
+                                                        <span className="d-flex align-items-center gap-2 text-truncate">
+                                                            <span style={{ width: 10, height: 10, borderRadius: 2, background: DONUT_COLORS[idx % DONUT_COLORS.length], display: 'inline-block', flexShrink: 0 }}></span>
+                                                            <span className="text-truncate">{loc.name}</span>
+                                                        </span>
+                                                        <span className="text-muted ms-2">{pct.toFixed(0)}%</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
                     <div className="col-md-4">
                         <div className="card h-100 shadow-sm border-0">
-                            <div className="card-header bg-white"><h5 className="card-title mb-0">Production Deadlines</h5></div>
+                            <div className="card-header bg-white"><h5 className="card-title mb-0">{t('production_deadlines')}</h5></div>
                             <div className="card-body">
                                 <CalendarView workOrders={workOrders} items={items} compact={true} />
                                 <div className="mt-3 d-flex flex-wrap gap-2 justify-content-center">
-                                    <small className="text-muted d-flex align-items-center"><span className="bg-primary rounded-circle me-1" style={{width: 6, height: 6, display: 'inline-block'}}></span> Pending</small>
-                                    <small className="text-muted d-flex align-items-center"><span className="bg-warning rounded-circle me-1" style={{width: 6, height: 6, display: 'inline-block'}}></span> Active</small>
-                                    <small className="text-muted d-flex align-items-center"><span className="bg-success rounded-circle me-1" style={{width: 6, height: 6, display: 'inline-block'}}></span> Done</small>
+                                    <small className="text-muted d-flex align-items-center"><span className="bg-primary rounded-circle me-1" style={{ width: 6, height: 6, display: 'inline-block' }}></span> {t('pending')}</small>
+                                    <small className="text-muted d-flex align-items-center"><span className="bg-warning rounded-circle me-1" style={{ width: 6, height: 6, display: 'inline-block' }}></span> {t('in_progress')}</small>
+                                    <small className="text-muted d-flex align-items-center"><span className="bg-success rounded-circle me-1" style={{ width: 6, height: 6, display: 'inline-block' }}></span> {t('completed')}</small>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div className="col-md-4">
                         <div className="card h-100 shadow-sm border-0">
-                            <div className="card-header bg-white"><h5 className="card-title mb-0">Recent Activity</h5></div>
+                            <div className="card-header bg-white"><h5 className="card-title mb-0">{t('recent_activity')}</h5></div>
                             <div className="card-body p-0">
                                 <ul className="list-group list-group-flush">
                                     {recentActivity.map((entry: any) => (
-                                        <li key={entry.id} className="list-group-item d-flex justify-content-between align-items-center py-2 border-0 border-bottom">
-                                            <div style={{minWidth: 0}}>
+                                        <li key={entry.key} className="list-group-item d-flex justify-content-between align-items-center py-2 border-0 border-bottom">
+                                            <div style={{ minWidth: 0 }}>
                                                 <div className="fw-medium text-truncate small">{entry.itemName}</div>
-                                                <small className="text-muted d-block font-monospace" style={{fontSize: '0.65rem'}}>{new Date(entry.created_at).toLocaleString()}</small>
+                                                <small className="text-muted d-block font-monospace" style={{ fontSize: '0.65rem' }}>{new Date(entry.created_at).toLocaleString()}</small>
                                             </div>
                                             <div className={`fw-bold ms-2 small ${entry.qty_change > 0 ? 'text-success' : 'text-danger'}`}>
                                                 {entry.qty_change > 0 ? '+' : ''}{entry.qty_change}
                                             </div>
                                         </li>
                                     ))}
-                                    {recentActivity.length === 0 && <li className="list-group-item text-center py-5 text-muted small">No recent movements</li>}
+                                    {recentActivity.length === 0 && <li className="list-group-item text-center py-5 text-muted small">{t('no_recent_movements')}</li>}
                                 </ul>
                             </div>
                         </div>
                     </div>
                 </div>
+
+                {/* Manufacturing monitoring */}
                 <div className="row">
                     <div className="col-12">
                         <div className="card shadow-sm border-0">
-                            <div className="card-header bg-white"><h5 className="card-title mb-0">Manufacturing Monitoring</h5></div>
+                            <div className="card-header bg-white d-flex justify-content-between align-items-center">
+                                <h5 className="card-title mb-0">{t('manufacturing_monitoring')}</h5>
+                                <span className="small text-muted">{metrics.activeWO} {t('active_wo').toLowerCase()} · {metrics.pendingWO} {t('pending').toLowerCase()}</span>
+                            </div>
                             <div className="card-body p-0">
                                 <div className="table-responsive">
                                     <table className="table table-hover align-middle mb-0 small">
                                         <thead className="table-light">
-                                            <tr><th className="ps-3">Code</th><th>Product</th><th>Status</th><th>Progress</th><th className="text-end pe-3">Target</th></tr>
+                                            <tr><th className="ps-3">{t('code')}</th><th>{t('product')}</th><th>{t('status')}</th><th>{t('progress')}</th><th className="text-end pe-3">{t('target')}</th></tr>
                                         </thead>
                                         <tbody>
                                             {activeWOList.map((wo: any) => (
@@ -430,11 +520,15 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                                     <td className="ps-3 font-monospace fw-bold">{wo.code}</td>
                                                     <td>{wo.itemName}</td>
                                                     <td><span className={`badge ${wo.status === 'IN_PROGRESS' ? 'bg-warning text-dark' : 'bg-secondary'} extra-small`}>{wo.status}</span></td>
-                                                    <td><div className="progress" style={{height: '6px', width: '120px'}}><div className={`progress-bar ${wo.status === 'IN_PROGRESS' ? 'bg-warning' : 'bg-secondary'}`} style={{width: wo.status === 'IN_PROGRESS' ? '60%' : '0%'}}></div></div></td>
+                                                    <td>
+                                                        <div className="progress" style={{ height: '6px', width: '120px' }} role="progressbar" aria-valuenow={wo.status === 'IN_PROGRESS' ? 60 : 0} aria-valuemin={0} aria-valuemax={100}>
+                                                            <div className={`progress-bar ${wo.status === 'IN_PROGRESS' ? 'bg-warning' : 'bg-secondary'}`} style={{ width: wo.status === 'IN_PROGRESS' ? '60%' : '0%' }}></div>
+                                                        </div>
+                                                    </td>
                                                     <td className="text-end pe-3 fw-bold">{wo.qty?.toLocaleString()}</td>
                                                 </tr>
                                             ))}
-                                            {activeWOList.length === 0 && <tr><td colSpan={5} className="text-center py-4 text-muted">No active production runs</td></tr>}
+                                            {activeWOList.length === 0 && <tr><td colSpan={5} className="text-center py-4 text-muted">{t('no_active_production')}</td></tr>}
                                         </tbody>
                                     </table>
                                 </div>
@@ -493,7 +587,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                             <span>{progLabel}</span>
                             <span style={{ fontWeight: 'bold', color: '#333' }}>{prog.toFixed(1)}%</span>
                         </div>
-                        <div style={xpProgTrack}>
+                        <div style={xpProgTrack} role="progressbar" aria-valuenow={Math.round(prog)} aria-valuemin={0} aria-valuemax={100} aria-label={progLabel}>
                             <div style={{ ...xpProgFill(progColor), width: `${Math.min(100, prog)}%` }}></div>
                         </div>
                     </div>
@@ -518,7 +612,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
             {/* ── Top bar: date + title ── */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', padding: '0 2px' }}>
                 <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#00309c' }}>
-                    <i className="bi bi-speedometer2" style={{ marginRight: 4 }} /> {t('dashboard') || 'Dashboard'}
+                    <i className="bi bi-speedometer2" style={{ marginRight: 4 }} aria-hidden="true" /> {t('dashboard')}
                 </span>
                 <span style={{ fontSize: '10px', color: '#555' }}>
                     {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
@@ -529,49 +623,49 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
             <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
                 <HealthPanel
                     status={stockHealth}
-                    title="Stock Health"
+                    title={t('stock_health')}
                     bigNum={namedLowStock.length > 0 ? namedLowStock.length : metrics.totalItems}
                     bigLabel={namedLowStock.length > 0 ? `item${namedLowStock.length > 1 ? 's' : ''} at critical level` : 'SKUs in inventory'}
                     lines={namedLowStock.length > 0
                         ? namedLowStock.slice(0, 2).map((i: any) => ({ text: `${i.name} — ${i.totalStock} units`, color: '#880000', icon: '●' }))
-                          .concat(metrics.totalItems ? [{ text: `${metrics.totalItems} total SKUs across ${(locations||[]).length} locations`, color: '#555', icon: '' }] : [])
+                          .concat(metrics.totalItems ? [{ text: `${metrics.totalItems} total SKUs across ${(locations || []).length} locations`, color: '#555', icon: '' }] : [])
                         : [
-                            { text: `${metrics.totalItems} total SKUs tracked`, color: '#228822', icon: '✓' },
-                            { text: `${(locations||[]).length} warehouse location${(locations||[]).length !== 1 ? 's' : ''}`, color: '#555', icon: '' },
+                            { text: `${metrics.totalItems} total SKUs tracked`, color: '#228822', icon: '+' },
+                            { text: `${(locations || []).length} warehouse location${(locations || []).length !== 1 ? 's' : ''}`, color: '#555', icon: '' },
                           ]
                     }
                 />
                 <HealthPanel
                     status={prodHealth}
-                    title="Production Health"
+                    title={t('production_health')}
                     bigNum={metrics.activeWO}
                     bigLabel="active work orders"
                     lines={[
                         overdueWOs.length > 0
-                            ? { text: `${overdueWOs[0].code} overdue (${overdueWOs[0].target_end_date?.slice(0,10) || '?'})`, color: '#aa6600', icon: '●' }
-                            : { text: 'No overdue work orders', color: '#228822', icon: '✓' },
+                            ? { text: `${overdueWOs[0].code} overdue (${overdueWOs[0].target_end_date?.slice(0, 10) || '?'})`, color: '#aa6600', icon: '●' }
+                            : { text: 'No overdue work orders', color: '#228822', icon: '+' },
                         { text: `${metrics.pendingWO} WO${metrics.pendingWO !== 1 ? 's' : ''} pending release`, color: '#555', icon: '' },
                     ]}
                     prog={prodYield}
                     progColor={prodYield > 90 ? 'green' : 'orange'}
-                    progLabel="Production Yield"
+                    progLabel={t('production_yield')}
                 />
                 <HealthPanel
                     status={orderHealth}
-                    title="Order Health"
+                    title={t('order_health')}
                     bigNum={metrics.openOrders}
                     bigLabel="open sales orders"
                     lines={[
                         readySOCount > 0
-                            ? { text: `${readySOCount} order${readySOCount > 1 ? 's' : ''} fully fulfillable`, color: '#228822', icon: '✓' }
+                            ? { text: `${readySOCount} order${readySOCount > 1 ? 's' : ''} fully fulfillable`, color: '#228822', icon: '+' }
                             : { text: 'No orders fully fulfillable', color: '#aa6600', icon: '!' },
-                        shortSOs.length > 0
-                            ? { text: `${shortSOs.length} order${shortSOs.length > 1 ? 's' : ''} have material shortages`, color: '#aa6600', icon: '!' }
-                            : { text: 'No material shortages', color: '#228822', icon: '✓' },
+                        shortSOCount > 0
+                            ? { text: `${shortSOCount} order${shortSOCount > 1 ? 's' : ''} have material shortages`, color: '#aa6600', icon: '!' }
+                            : { text: 'No material shortages', color: '#228822', icon: '+' },
                     ]}
                     prog={deliveryReadiness}
                     progColor={deliveryReadiness > 80 ? 'green' : deliveryReadiness > 50 ? 'orange' : 'red'}
-                    progLabel="Delivery Readiness"
+                    progLabel={t('delivery_readiness')}
                 />
             </div>
 
@@ -579,27 +673,27 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: '4px', marginBottom: '6px' }}>
                 <div style={kpiTileStyle()}>
                     <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: "'Courier New', monospace", color: '#0058e6', lineHeight: 1.1 }}>{metrics.totalItems}</div>
-                    <div style={{ fontSize: '8px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>Total SKUs</div>
+                    <div style={{ fontSize: '8px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>{t('total_skus')}</div>
                 </div>
                 <div style={kpiTileStyle(namedLowStock.length > 0 ? 'crit' : metrics.lowStock > 0 ? 'warn' : undefined)}>
                     <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: "'Courier New', monospace", color: namedLowStock.length > 0 ? '#cc0000' : metrics.lowStock > 0 ? '#c77800' : '#228822', lineHeight: 1.1 }}>{metrics.lowStock}</div>
-                    <div style={{ fontSize: '8px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>Low Stock</div>
+                    <div style={{ fontSize: '8px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>{t('low_stock')}</div>
                 </div>
                 <div style={kpiTileStyle(overdueWOs.length > 0 ? 'warn' : undefined)}>
                     <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: "'Courier New', monospace", color: overdueWOs.length > 0 ? '#c77800' : '#333', lineHeight: 1.1 }}>{metrics.activeWO}</div>
-                    <div style={{ fontSize: '8px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>Active WO</div>
+                    <div style={{ fontSize: '8px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>{t('active_wo')}</div>
                 </div>
                 <div style={kpiTileStyle()}>
                     <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: "'Courier New', monospace", color: '#333', lineHeight: 1.1 }}>{metrics.pendingWO}</div>
-                    <div style={{ fontSize: '8px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>Pending WO</div>
+                    <div style={{ fontSize: '8px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>{t('pending_wo')}</div>
                 </div>
                 <div style={kpiTileStyle()}>
                     <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: "'Courier New', monospace", color: '#333', lineHeight: 1.1 }}>{metrics.activeSamples}</div>
-                    <div style={{ fontSize: '8px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>Samples</div>
+                    <div style={{ fontSize: '8px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>{t('samples')}</div>
                 </div>
-                <div style={kpiTileStyle(shortSOs.length > 0 ? 'warn' : undefined)}>
-                    <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: "'Courier New', monospace", color: shortSOs.length > 0 ? '#c77800' : '#333', lineHeight: 1.1 }}>{metrics.openOrders}</div>
-                    <div style={{ fontSize: '8px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>Open Orders</div>
+                <div style={kpiTileStyle(shortSOCount > 0 ? 'warn' : undefined)}>
+                    <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: "'Courier New', monospace", color: shortSOCount > 0 ? '#c77800' : '#333', lineHeight: 1.1 }}>{metrics.openOrders}</div>
+                    <div style={{ fontSize: '8px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>{t('open_orders')}</div>
                 </div>
             </div>
 
@@ -609,7 +703,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                 {/* Action Items pane */}
                 <div style={{ ...xpBevel(), width: '260px', flexShrink: 0 }}>
                     <div style={xpTitleBar('red')}>
-                        <span><i className="bi bi-list-check" style={{ marginRight: 4 }} />Action Items</span>
+                        <span><i className="bi bi-list-check" style={{ marginRight: 4 }} aria-hidden="true" />{t('action_items')}</span>
                         {(critCount > 0 || warnCount > 0) && (
                             <span style={{ fontSize: '10px', fontWeight: 'normal' }}>
                                 {critCount > 0 && `${critCount} critical`}{critCount > 0 && warnCount > 0 && ' · '}{warnCount > 0 && `${warnCount} warnings`}
@@ -619,7 +713,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                     <div>
                         {actionItems.length === 0 ? (
                             <div style={{ padding: '16px', textAlign: 'center', fontStyle: 'italic', color: '#666', fontSize: '10px', background: '#f0fff0', borderLeft: '3px solid #228822' }}>
-                                <i className="bi bi-check-circle" style={{ marginRight: 4, color: '#228822' }} />All systems nominal
+                                <i className="bi bi-check-circle" style={{ marginRight: 4, color: '#228822' }} aria-hidden="true" />{t('all_systems_nominal')}
                             </div>
                         ) : (
                             actionItems.map((item, i) => (
@@ -647,7 +741,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                 {/* WO Table */}
                 <div style={{ ...xpBevel(), flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                     <div style={xpTitleBar('amber')}>
-                        <span><i className="bi bi-gear" style={{ marginRight: 4 }} />Work Order Monitoring</span>
+                        <span><i className="bi bi-gear" style={{ marginRight: 4 }} aria-hidden="true" />{t('work_order_monitoring')}</span>
                         <span style={{ fontSize: '10px', fontWeight: 'normal' }}>
                             {metrics.activeWO} active · {metrics.pendingWO} pending
                         </span>
@@ -656,12 +750,12 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                         <table style={xpTable}>
                             <thead>
                                 <tr>
-                                    <th style={{ ...xpTh, width: '100px' }}>Code</th>
-                                    <th style={xpTh}>Product</th>
-                                    <th style={{ ...xpTh, width: '65px' }}>Status</th>
-                                    <th style={{ ...xpTh, width: '110px' }}>Progress</th>
-                                    <th style={{ ...xpTh, width: '50px', textAlign: 'right' }}>Qty</th>
-                                    <th style={{ ...xpTh, width: '75px', borderRight: 'none' }}>Due Date</th>
+                                    <th style={{ ...xpTh, width: '100px' }}>{t('code')}</th>
+                                    <th style={xpTh}>{t('product')}</th>
+                                    <th style={{ ...xpTh, width: '65px' }}>{t('status')}</th>
+                                    <th style={{ ...xpTh, width: '110px' }}>{t('progress')}</th>
+                                    <th style={{ ...xpTh, width: '50px', textAlign: 'right' }}>{t('qty')}</th>
+                                    <th style={{ ...xpTh, width: '75px', borderRight: 'none' }}>{t('due_date')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -675,26 +769,26 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                             <td style={{ ...xpTd(idx % 2 === 1), fontWeight: 'bold', color: '#000' }}>{wo.itemName}</td>
                                             <td style={xpTd(idx % 2 === 1)}><StatusBadge status={displayStatus} /></td>
                                             <td style={xpTd(idx % 2 === 1)}>
-                                                <div style={xpProgTrack}>
+                                                <div style={xpProgTrack} role="progressbar" aria-valuenow={progWidth} aria-valuemin={0} aria-valuemax={100}>
                                                     <div style={{ ...xpProgFill(progColor), width: `${progWidth}%` }}></div>
                                                 </div>
                                             </td>
                                             <td style={{ ...xpTd(idx % 2 === 1), textAlign: 'right', fontWeight: 'bold' }}>{wo.qty?.toLocaleString()}</td>
                                             <td style={{ ...xpTd(idx % 2 === 1), borderRight: 'none', color: wo.isOverdue ? '#cc0000' : '#333', fontWeight: wo.isOverdue ? 'bold' : 'normal', fontSize: '9px' }}>
-                                                {wo.target_end_date ? `${wo.target_end_date.slice(0,10)}${wo.isOverdue ? ' ●' : ''}` : '—'}
+                                                {wo.target_end_date ? `${wo.target_end_date.slice(0, 10)}${wo.isOverdue ? ' ●' : ''}` : '—'}
                                             </td>
                                         </tr>
                                     );
                                 })}
                                 {activeWOList.length === 0 && (
-                                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: '16px', color: '#666', fontStyle: 'italic', fontSize: '10px', background: '#fff' }}>No active production runs</td></tr>
+                                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: '16px', color: '#666', fontStyle: 'italic', fontSize: '10px', background: '#fff' }}>{t('no_active_production')}</td></tr>
                                 )}
                             </tbody>
                         </table>
                     </div>
                     <div style={xpStatusBar}>
-                        <span>Production Yield: {prodYield.toFixed(1)}%</span>
-                        <span>Delivery Readiness: {deliveryReadiness.toFixed(1)}%</span>
+                        <span>{t('production_yield')}: {prodYield.toFixed(1)}%</span>
+                        <span>{t('delivery_readiness')}: {deliveryReadiness.toFixed(1)}%</span>
                     </div>
                 </div>
             </div>
@@ -705,27 +799,27 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                 {/* Recent stock movements */}
                 <div style={{ ...xpBevel(), flex: 1, minWidth: 0 }}>
                     <div style={xpTitleBar('grey')}>
-                        <span><i className="bi bi-clock-history" style={{ marginRight: 4 }} />Recent Stock Movements</span>
+                        <span><i className="bi bi-clock-history" style={{ marginRight: 4 }} aria-hidden="true" />{t('recent_stock_movements')}</span>
                     </div>
                     <div style={{ overflowX: 'auto' }}>
                         <table style={xpTable}>
                             <thead>
                                 <tr>
-                                    <th style={xpTh}>Item</th>
-                                    <th style={{ ...xpTh, width: '60px', textAlign: 'right' }}>Change</th>
-                                    <th style={{ ...xpTh, width: '110px' }}>Location</th>
-                                    <th style={{ ...xpTh, width: '90px', borderRight: 'none' }}>When</th>
+                                    <th style={xpTh}>{t('item')}</th>
+                                    <th style={{ ...xpTh, width: '60px', textAlign: 'right' }}>{t('change')}</th>
+                                    <th style={{ ...xpTh, width: '110px' }}>{t('locations')}</th>
+                                    <th style={{ ...xpTh, width: '90px', borderRight: 'none' }}>{t('when')}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {recentActivity.map((entry: any, idx: number) => (
-                                    <tr key={entry.id}>
+                                    <tr key={entry.key}>
                                         <td style={{ ...xpTd(idx % 2 === 1), fontWeight: 'bold', color: '#000' }}>{entry.itemName}</td>
                                         <td style={{ ...xpTd(idx % 2 === 1), textAlign: 'right', fontWeight: 'bold', color: entry.qty_change > 0 ? '#228822' : '#cc0000' }}>
                                             {entry.qty_change > 0 ? '+' : ''}{entry.qty_change}
                                         </td>
                                         <td style={{ ...xpTd(idx % 2 === 1), fontSize: '9px', color: '#444' }}>
-                                            {(locations || []).find((l: any) => String(l.id) === String(entry.location_id))?.name || '—'}
+                                            {entry.location_name || '—'}
                                         </td>
                                         <td style={{ ...xpTd(idx % 2 === 1), fontSize: '9px', color: '#666', borderRight: 'none' }}>
                                             {new Date(entry.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -733,7 +827,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                     </tr>
                                 ))}
                                 {recentActivity.length === 0 && (
-                                    <tr><td colSpan={4} style={{ textAlign: 'center', padding: '12px', color: '#666', fontStyle: 'italic', fontSize: '10px', background: '#fff' }}>No recent movements</td></tr>
+                                    <tr><td colSpan={4} style={{ textAlign: 'center', padding: '12px', color: '#666', fontStyle: 'italic', fontSize: '10px', background: '#fff' }}>{t('no_recent_movements')}</td></tr>
                                 )}
                             </tbody>
                         </table>
@@ -743,11 +837,11 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                 {/* Warehouse distribution */}
                 <div style={{ ...xpBevel(), width: '240px', flexShrink: 0 }}>
                     <div style={xpTitleBar('grey')}>
-                        <span><i className="bi bi-building" style={{ marginRight: 4 }} />Warehouse Distribution</span>
+                        <span><i className="bi bi-building" style={{ marginRight: 4 }} aria-hidden="true" />{t('warehouse_distribution')}</span>
                     </div>
                     <div style={{ padding: '6px 8px', background: '#f0efe8' }}>
                         {locationStats.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: '12px', color: '#888', fontStyle: 'italic', fontSize: '10px' }}>No stock recorded</div>
+                            <div style={{ textAlign: 'center', padding: '12px', color: '#888', fontStyle: 'italic', fontSize: '10px' }}>{t('no_inventory_recorded')}</div>
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                 {locationStats.slice(0, 5).map((loc: any, idx: number) => {
@@ -759,7 +853,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                                 <span style={{ fontWeight: 'bold', color: '#000' }}>{loc.name}</span>
                                                 <span style={{ color: '#555' }}>{loc.totalQty.toLocaleString()} · {pct.toFixed(0)}%</span>
                                             </div>
-                                            <div style={xpProgTrack}>
+                                            <div style={xpProgTrack} role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label={loc.name}>
                                                 <div style={{ ...xpProgFill(colors[idx % colors.length]), width: `${pct}%` }}></div>
                                             </div>
                                         </div>
