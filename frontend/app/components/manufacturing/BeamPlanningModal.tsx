@@ -20,6 +20,7 @@ interface BeamRow {
 interface Props {
     mo: { id: string; code: string; qty: number; item_name?: string; uom?: string; ends?: number };
     machines: Array<{ id: string; name: string }>;
+    components?: Array<{ name: string; code?: string; ends: number | null }>;
     centerLabel?: string;
     onClose: () => void;
 }
@@ -29,7 +30,7 @@ function makeRow(defaultWcId = '', defaultEnds = ''): BeamRow {
     return { localId: `beam-${++_rowId}`, work_center_id: defaultWcId, qty: '', ends: defaultEnds, notes: '', repeat: '1' };
 }
 
-export default function BeamPlanningModal({ mo, machines, centerLabel = 'Beaming', onClose }: Props) {
+export default function BeamPlanningModal({ mo, machines, components = [], centerLabel = 'Beaming', onClose }: Props) {
     const { authFetch, fetchData } = useData();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
@@ -127,7 +128,7 @@ export default function BeamPlanningModal({ mo, machines, centerLabel = 'Beaming
                             { label: 'MO', value: mo.code },
                             { label: 'Item', value: mo.item_name || '—' },
                             { label: 'Total Qty', value: moQty > 0 ? `${moQty} ${mo.uom || ''}`.trim() : '—' },
-                            ...(mo.ends != null ? [{ label: 'Ends', value: String(mo.ends) }] : []),
+                            ...(mo.ends != null ? [{ label: 'Beam Ends', value: String(mo.ends) }] : []),
                         ].map(({ label, value }, i) => (
                             <React.Fragment key={label}>
                                 {i > 0 && <div style={{ width: 1, background: '#c0bdb5', height: 26 }} />}
@@ -138,6 +139,25 @@ export default function BeamPlanningModal({ mo, machines, centerLabel = 'Beaming
                             </React.Fragment>
                         ))}
                     </div>
+
+                    {/* Yarn components — ends per yarn (read-only, from BOM) */}
+                    {components.length > 0 && (
+                        <div style={{ background: '#f5f3ee', border: '1px solid #c0bdb5', padding: '5px 8px', marginBottom: 8 }}>
+                            <div style={{ fontSize: 9, color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>
+                                Yarn Components — Ends per Yarn
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                {components.map((c, i) => (
+                                    <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'white', border: '1px solid #c0bdb5', padding: '1px 6px', fontSize: 10 }}>
+                                        <span style={{ color: '#222', fontWeight: 'bold' }}>{c.name}</span>
+                                        <span style={{ background: '#e6f4ea', border: '1px solid #4caf50', color: '#1a6e2e', fontWeight: 'bold', padding: '0 4px' }}>
+                                            {c.ends != null && c.ends > 0 ? `${Math.round(c.ends)} ends` : '— ends'}
+                                        </span>
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Section label */}
                     <div style={{ fontSize: 10, fontWeight: 'bold', color: '#444', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
