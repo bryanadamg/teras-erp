@@ -1,6 +1,7 @@
 import { useState, useRef, useLayoutEffect } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUser } from '../../context/UserContext';
+import { useTheme } from '../../context/ThemeContext';
 
 interface SidebarProps {
   activeTab: string;
@@ -77,9 +78,72 @@ function sectionHdrStyle(isHovered: boolean): React.CSSProperties {
   };
 }
 
+// ── Modern (clean SaaS) theme primitives ─────────────────────────────────────
+// Light sidebar, corporate-blue accent. Mirrors the classic helpers above so the
+// component body can pick a palette without branching every style inline.
+const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+const M_PRIMARY     = '#2563eb';
+const M_PRIMARY_DK  = '#1d4ed8';
+const M_SOFT        = '#eff6ff';
+const M_HOVER_BG    = '#f1f5f9';
+const M_TEXT        = '#475569';
+const M_SECTION     = '#94a3b8';
+const M_BORDER      = '#e5e7eb';
+
+function navItemStyleModern(
+  isActive: boolean,
+  isHovered: boolean,
+  isSub = false,
+  isDeepSub = false,
+): React.CSSProperties {
+  const bg = isActive ? M_SOFT : isHovered ? M_HOVER_BG : 'transparent';
+  return {
+    padding: isDeepSub ? '7px 12px 7px 42px'
+           : isSub     ? '7px 12px 7px 34px'
+           : '8px 12px 8px 15px',
+    color: isActive ? M_PRIMARY : M_TEXT,
+    background: bg,
+    fontWeight: isActive ? 600 : 500,
+    borderLeft: `3px solid ${isActive ? M_PRIMARY : 'transparent'}`,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 9,
+    fontSize: isSub ? 12.5 : 13,
+    fontFamily: modernFont,
+    userSelect: 'none' as const,
+    transition: 'background 0.12s, color 0.12s',
+    textDecoration: 'none',
+    listStyle: 'none',
+  };
+}
+
+function sectionHdrStyleModern(isHovered: boolean): React.CSSProperties {
+  return {
+    background: 'transparent',
+    color: isHovered ? M_PRIMARY : M_SECTION,
+    fontWeight: 700,
+    fontSize: 10.5,
+    padding: '14px 14px 5px',
+    letterSpacing: '0.6px',
+    textTransform: 'uppercase' as const,
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    cursor: 'pointer',
+    userSelect: 'none' as const,
+    fontFamily: modernFont,
+    transition: 'color 0.12s',
+  };
+}
+
 export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, isOpen }: SidebarProps) {
   const { t } = useLanguage();
   const { hasPermission, logout } = useUser();
+  const { uiStyle } = useTheme();
+  const classic = uiStyle === 'classic';
+  const navStyle = classic ? navItemStyle : navItemStyleModern;
+  const hdrStyle = classic ? sectionHdrStyle : sectionHdrStyleModern;
   const sidebarRef = useRef<HTMLDivElement>(null);
 
   // Persist scroll position
@@ -130,7 +194,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
   };
 
   const chevron = (expanded: boolean) => (
-    <span style={{ fontSize: 10, opacity: 0.85 }}>{expanded ? '▾' : '▸'}</span>
+    <span style={{ fontSize: 10, opacity: classic ? 0.85 : 0.6 }}>{expanded ? '▾' : '▸'}</span>
   );
 
   // Shorthand: a nav link row
@@ -138,11 +202,11 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
     tab, label, icon, isSub = false, isDeepSub = false,
   }: { tab: string; label: string; icon: string; isSub?: boolean; isDeepSub?: boolean }) => (
     <div
-      style={navItemStyle(activeTab === tab, hovered === tab, isSub, isDeepSub)}
+      style={navStyle(activeTab === tab, hovered === tab, isSub, isDeepSub)}
       onClick={(e) => handleTabClick(tab, e)}
       {...H(tab)}
     >
-      <span style={{ width: 14, textAlign: 'center', fontSize: 12 }}><i className={`bi ${icon}`} /></span>
+      <span style={{ width: classic ? 14 : 16, textAlign: 'center', fontSize: classic ? 12 : 14 }}><i className={`bi ${icon}`} /></span>
       <span>{label}</span>
     </div>
   );
@@ -152,10 +216,15 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
       className={`sidebar ${isOpen ? 'mobile-open' : ''}`}
       ref={sidebarRef}
       onScroll={handleScroll}
-      style={{ background: SIDEBAR_BG, display: 'flex', flexDirection: 'column', fontFamily: xpFont }}
+      style={{
+        background: classic ? SIDEBAR_BG : '#ffffff',
+        display: 'flex',
+        flexDirection: 'column',
+        fontFamily: classic ? xpFont : modernFont,
+      }}
     >
       {/* ── Header ── */}
-      <div style={{
+      <div style={classic ? {
         background: 'linear-gradient(to bottom, #1e4eb8 0%, #0a246a 100%)',
         padding: '8px 10px',
         color: '#fff',
@@ -171,6 +240,21 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         userSelect: 'none',
         fontFamily: xpFont,
         minHeight: 40,
+      } : {
+        background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+        padding: '15px 16px',
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: 700,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 9,
+        flexShrink: 0,
+        borderBottom: '1px solid #1d4ed8',
+        letterSpacing: '0.2px',
+        userSelect: 'none',
+        fontFamily: modernFont,
+        minHeight: 56,
       }}>
         <i className="bi bi-building-fill" style={{ fontSize: 18 }} />
         <span className="text-truncate" title={appName}>{appName}</span>
@@ -178,11 +262,11 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {/* ── Quick Scan ── */}
-        <div style={{ padding: '8px 8px 4px' }}>
+        <div style={{ padding: classic ? '8px 8px 4px' : '12px 12px 4px' }}>
           <button
             onClick={() => setActiveTab('scanner')}
             {...H('scanner')}
-            style={{
+            style={classic ? {
               width: '100%',
               padding: '6px 0',
               background: hovered === 'scanner'
@@ -202,6 +286,24 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
               justifyContent: 'center',
               gap: 6,
               letterSpacing: '0.5px',
+            } : {
+              width: '100%',
+              padding: '9px 0',
+              background: hovered === 'scanner' ? M_PRIMARY_DK : M_PRIMARY,
+              border: 'none',
+              borderRadius: 10,
+              color: '#fff',
+              fontFamily: modernFont,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 7,
+              letterSpacing: '0.3px',
+              boxShadow: '0 1px 2px rgba(37,99,235,0.35)',
+              transition: 'background 0.12s',
             }}
           >
             <i className="bi bi-qr-code-scan" /> QUICK SCAN
@@ -213,7 +315,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
 
         {/* ── Sales ── */}
         <div
-          style={sectionHdrStyle(hovered === 'hdr-sales')}
+          style={hdrStyle(hovered === 'hdr-sales')}
           onClick={() => setSalesExpanded(!salesExpanded)}
           {...H('hdr-sales')}
         >
@@ -231,7 +333,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
 
         {/* ── Procurement ── */}
         <div
-          style={sectionHdrStyle(hovered === 'hdr-procurement')}
+          style={hdrStyle(hovered === 'hdr-procurement')}
           onClick={() => setProcurementExpanded(!procurementExpanded)}
           {...H('hdr-procurement')}
         >
@@ -249,7 +351,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         {(hasPermission('inventory.manage') || hasPermission('stock.entry') || hasPermission('locations.manage')) && (
           <>
             <div
-              style={sectionHdrStyle(hovered === 'hdr-inventory')}
+              style={hdrStyle(hovered === 'hdr-inventory')}
               onClick={() => setInventoryExpanded(!inventoryExpanded)}
               {...H('hdr-inventory')}
             >
@@ -285,7 +387,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         {(hasPermission('manufacturing.manage') || hasPermission('work_order.manage')) && (
           <>
             <div
-              style={sectionHdrStyle(hovered === 'hdr-engineering')}
+              style={hdrStyle(hovered === 'hdr-engineering')}
               onClick={() => setEngineeringExpanded(!engineeringExpanded)}
               {...H('hdr-engineering')}
             >
@@ -316,7 +418,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         {hasPermission('manufacturing.manage') && (
           <>
             <div
-              style={sectionHdrStyle(hovered === 'hdr-dyeing')}
+              style={hdrStyle(hovered === 'hdr-dyeing')}
               onClick={() => setDyeingExpanded(!dyeingExpanded)}
               {...H('hdr-dyeing')}
             >
@@ -336,7 +438,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         {hasPermission('reports.view') && (
           <>
             <div
-              style={sectionHdrStyle(hovered === 'hdr-reports')}
+              style={hdrStyle(hovered === 'hdr-reports')}
               onClick={() => setReportsExpanded(!reportsExpanded)}
               {...H('hdr-reports')}
             >
@@ -361,16 +463,21 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
       </div>
 
       {/* ── Footer ── */}
-      <div style={{
+      <div style={classic ? {
         background: '#c0cade',
         borderTop: '1px solid #9098b8',
         padding: '7px 8px',
+        flexShrink: 0,
+      } : {
+        background: '#ffffff',
+        borderTop: `1px solid ${M_BORDER}`,
+        padding: '10px 12px',
         flexShrink: 0,
       }}>
         <button
           onClick={logout}
           {...H('logout')}
-          style={{
+          style={classic ? {
             width: '100%',
             padding: '4px 0',
             background: hovered === 'logout'
@@ -389,12 +496,28 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
             alignItems: 'center',
             justifyContent: 'center',
             gap: 6,
+          } : {
+            width: '100%',
+            padding: '8px 0',
+            background: hovered === 'logout' ? '#fef2f2' : 'transparent',
+            border: `1px solid ${hovered === 'logout' ? '#fecaca' : M_BORDER}`,
+            borderRadius: 8,
+            color: '#dc2626',
+            fontFamily: modernFont,
+            fontSize: 12.5,
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 7,
+            transition: 'all 0.12s',
           }}
         >
           <i className="bi bi-box-arrow-right" /> {t('logout') || 'Logout'}
         </button>
         <div style={{ marginTop: 5, textAlign: 'center' }}>
-          <small style={{ fontSize: 9, color: '#6070a0', fontFamily: xpFont }}>
+          <small style={{ fontSize: 9, color: classic ? '#6070a0' : '#94a3b8', fontFamily: classic ? xpFont : modernFont }}>
             {t('powered_by') || 'Powered by'} Teras ERP
           </small>
         </div>

@@ -435,10 +435,8 @@ export default function SettingsView({
                               value={style}
                               onChange={e => setStyle(e.target.value)}
                           >
-                              <option value="default">Default (Corporate)</option>
-                              <option value="modern">Modern (Rounded)</option>
-                              <option value="compact">Compact (High Density)</option>
                               <option value="classic">Classic (Windows XP)</option>
+                              <option value="modern">Modern (Clean)</option>
                           </select>
                       </div>
                   </div>

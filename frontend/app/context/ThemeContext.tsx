@@ -9,17 +9,27 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
+// Only two interface styles are supported. Legacy values ('default', 'compact')
+// from older builds collapse onto 'modern' so no one gets stranded on a dead style.
+const VALID_STYLES = ['classic', 'modern'];
+const normalizeStyle = (s: string | null): string =>
+    s && VALID_STYLES.includes(s) ? s : (s ? 'modern' : 'classic');
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const [uiStyle, setUiStyleState] = useState('classic');
 
     useEffect(() => {
         const saved = localStorage.getItem('ui_style');
-        if (saved) setUiStyleState(saved);
+        const normalized = normalizeStyle(saved);
+        setUiStyleState(normalized);
+        // Heal a stale stored value so it stops re-applying on every load.
+        if (saved && saved !== normalized) localStorage.setItem('ui_style', normalized);
     }, []);
 
     const setUiStyle = (style: string) => {
-        setUiStyleState(style);
-        localStorage.setItem('ui_style', style);
+        const normalized = normalizeStyle(style);
+        setUiStyleState(normalized);
+        localStorage.setItem('ui_style', normalized);
     };
 
     return (
