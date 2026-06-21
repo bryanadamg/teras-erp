@@ -173,12 +173,15 @@ const Donut = ({ segments, size = 132, stroke = 20, centerLabel, centerSub, aria
     );
 };
 
-export default function DashboardView({ items, locations, stockBalance, workOrders, stockEntries, samples, salesOrders, kpis, summary, itemIndex }: any) {
+export default function DashboardView({ items, locations, locationCategories, stockBalance, workOrders, stockEntries, samples, salesOrders, kpis, summary, itemIndex }: any) {
     const { t } = useLanguage();
     const { uiStyle: currentStyle } = useTheme();
     const classic = currentStyle === 'classic';
     const router = useRouter();
     const [drill, setDrill] = useState<'lowstock' | 'short' | null>(null);
+    const [hoveredAction, setHoveredAction] = useState<number | null>(null);
+    const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+    const toggleGroup = (id: string) => setExpandedGroups(p => ({ ...p, [id]: !p[id] }));
 
     // Resolve item name across the FULL catalog (itemIndex), falling back to the
     // paginated items array, then the raw id. Fixes UUID-instead-of-name on the
@@ -230,14 +233,37 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
             .slice(0, 5)
             .map((e: any, i: number) => ({ key: i, itemName: resolveName(e.item_id), qty_change: e.qty_change, created_at: e.created_at, location_name: (locations || []).find((l: any) => String(l.id) === String(e.location_id))?.name || '—' }));
 
-    // locationStats: [{id, name, totalQty}]
+    // locationStats: [{id, name, totalQty, catId, catName}]
+    const catNameById: Record<string, string> = {};
+    (locationCategories || []).forEach((c: any) => { catNameById[String(c.id)] = c.name; });
     const locationStats: any[] = hasSummary
-        ? (summary.warehouse_distribution || []).map((w: any) => ({ id: w.location_id, name: w.location_name, totalQty: w.total_qty }))
+        ? (summary.warehouse_distribution || []).map((w: any) => ({
+            id: w.location_id, name: w.location_name, totalQty: w.total_qty,
+            catId: w.location_category_id ? String(w.location_category_id) : 'uncat',
+            catName: w.location_category_name || 'Uncategorized',
+        }))
         : (locations || []).map((loc: any) => ({
-            ...loc,
+            id: loc.id, name: loc.name,
             totalQty: (stockBalance || []).filter((b: any) => String(b.location_id) === String(loc.id)).reduce((s: number, b: any) => s + parseFloat(b.qty), 0),
+            catId: loc.category_id ? String(loc.category_id) : 'uncat',
+            catName: catNameById[String(loc.category_id)] || 'Uncategorized',
         })).filter((l: any) => l.totalQty > 0).sort((a: any, b: any) => b.totalQty - a.totalQty);
     const totalStockQty = locationStats.reduce((s: number, l: any) => s + l.totalQty, 0);
+
+    // Group warehouse distribution by Location group (category); each group is
+    // expandable to the specific locations within it.
+    const groupedStats = useMemo(() => {
+        const g: Record<string, { catId: string; name: string; total: number; locations: any[] }> = {};
+        for (const l of locationStats) {
+            if (!g[l.catId]) g[l.catId] = { catId: l.catId, name: l.catName, total: 0, locations: [] };
+            g[l.catId].total += l.totalQty;
+            g[l.catId].locations.push(l);
+        }
+        return Object.values(g)
+            .sort((a, b) => b.total - a.total)
+            .map(grp => ({ ...grp, locations: grp.locations.sort((a: any, b: any) => b.totalQty - a.totalQty) }));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [summary, locations, stockBalance, locationCategories]);
 
     // ── Overdue WOs (from the MO list, which IS loaded on the dashboard) ───────
     const today = new Date();
@@ -248,21 +274,36 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
 
     // ── Action items list ────────────────────────────────────────────────────
     const actionItems = useMemo(() => {
-        const list: { sev: 'crit' | 'warn' | 'info'; title: string; sub: string }[] = [];
+        const list: { sev: 'crit' | 'warn' | 'info'; title: string; sub: string; detail: string }[] = [];
         namedLowStock.forEach((i: any) => {
-            list.push({ sev: 'crit', title: `${i.name} — OUT`, sub: `Total stock: ${i.totalStock} units` });
+            list.push({
+                sev: 'crit', title: `${i.name} — OUT`, sub: `Total stock: ${i.totalStock} units`,
+                detail: `On-hand stock for "${i.name}" across all locations is ${i.totalStock} (zero or below). Work orders and sales orders that consume it will stall until it is replenished — raise a Purchase Order or a Production Run.`,
+            });
         });
         if (metrics.lowStock > namedLowStock.length) {
-            list.push({ sev: 'crit', title: `${metrics.lowStock - namedLowStock.length} more items low`, sub: 'Check inventory for details' });
+            list.push({
+                sev: 'crit', title: `${metrics.lowStock - namedLowStock.length} more items low`, sub: 'Check inventory for details',
+                detail: `${metrics.lowStock - namedLowStock.length} additional item(s) have total on-hand stock below the low-stock threshold (10 units). Open Inventory to see exactly which items need reordering.`,
+            });
         }
         overdueWOs.slice(0, 3).forEach((w: any) => {
-            list.push({ sev: 'warn', title: `${w.code} — Overdue`, sub: `${resolveName(w.item_id)} · due ${w.target_end_date?.slice(0, 10) || '?'}` });
+            list.push({
+                sev: 'warn', title: `${w.code} — Overdue`, sub: `${resolveName(w.item_id)} · due ${w.target_end_date?.slice(0, 10) || '?'}`,
+                detail: `Work order ${w.code} (${resolveName(w.item_id)}) had a planned end date of ${w.target_end_date?.slice(0, 10) || '?'} which has passed, but it is not yet COMPLETED. Check floor progress or reschedule the target date.`,
+            });
         });
         shortSOs.slice(0, 2).forEach((so: any) => {
-            list.push({ sev: 'warn', title: `${so.code} — Material Gap`, sub: `${so.short_lines} of ${so.total_lines} lines unfulfilled` });
+            list.push({
+                sev: 'warn', title: `${so.code} — Material Gap`, sub: `${so.short_lines} of ${so.total_lines} lines unfulfilled`,
+                detail: `Sales order ${so.code} has ${so.short_lines} of ${so.total_lines} line(s) whose ordered quantity exceeds available stock. Those lines cannot be shipped until the stock is received or produced.`,
+            });
         });
         if (metrics.pendingWO > 0) {
-            list.push({ sev: 'info', title: `${metrics.pendingWO} WO${metrics.pendingWO > 1 ? 's' : ''} ready to release`, sub: 'Review and start production' });
+            list.push({
+                sev: 'info', title: `${metrics.pendingWO} WO${metrics.pendingWO > 1 ? 's' : ''} ready to release`, sub: 'Review and start production',
+                detail: `${metrics.pendingWO} work order(s) are PENDING and waiting to be started. Review them and release to begin production.`,
+            });
         }
         return list;
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -435,26 +476,45 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                         <div className="card h-100 shadow-sm border-0">
                             <div className="card-header bg-white"><h5 className="card-title mb-0">{t('warehouse_distribution')}</h5></div>
                             <div className="card-body">
-                                {locationStats.length === 0 ? (
+                                {groupedStats.length === 0 ? (
                                     <div className="text-center py-5"><i className="bi bi-pie-chart text-muted opacity-25 display-1" aria-hidden="true"></i><p className="text-muted small mt-2">{t('no_inventory_recorded')}</p></div>
                                 ) : (
                                     <div className="d-flex align-items-center gap-3 flex-wrap">
                                         <Donut
-                                            segments={locationStats.slice(0, 7).map((l: any) => ({ label: l.name, value: l.totalQty }))}
+                                            segments={groupedStats.slice(0, 7).map((g: any) => ({ label: g.name, value: g.total }))}
                                             centerLabel={totalStockQty.toLocaleString()}
                                             centerSub="units"
-                                            ariaLabel={`${t('warehouse_distribution')}: ${locationStats.map((l: any) => `${l.name} ${l.totalQty}`).join(', ')}`}
+                                            ariaLabel={`${t('warehouse_distribution')}: ${groupedStats.map((g: any) => `${g.name} ${g.total}`).join(', ')}`}
                                         />
-                                        <div className="flex-grow-1" style={{ minWidth: 120 }}>
-                                            {locationStats.slice(0, 7).map((loc: any, idx: number) => {
-                                                const pct = totalStockQty > 0 ? (loc.totalQty / totalStockQty) * 100 : 0;
+                                        <div className="flex-grow-1" style={{ minWidth: 150 }}>
+                                            {groupedStats.slice(0, 7).map((g: any, idx: number) => {
+                                                const pct = totalStockQty > 0 ? (g.total / totalStockQty) * 100 : 0;
+                                                const open = !!expandedGroups[g.catId];
                                                 return (
-                                                    <div key={loc.id} className="d-flex align-items-center justify-content-between mb-1 small">
-                                                        <span className="d-flex align-items-center gap-2 text-truncate">
-                                                            <span style={{ width: 10, height: 10, borderRadius: 2, background: DONUT_COLORS[idx % DONUT_COLORS.length], display: 'inline-block', flexShrink: 0 }}></span>
-                                                            <span className="text-truncate">{loc.name}</span>
-                                                        </span>
-                                                        <span className="text-muted ms-2">{pct.toFixed(0)}%</span>
+                                                    <div key={g.catId} className="mb-1">
+                                                        <button type="button" onClick={() => toggleGroup(g.catId)}
+                                                            className="btn btn-link p-0 text-decoration-none d-flex align-items-center justify-content-between w-100 small"
+                                                            style={{ color: 'inherit' }} aria-expanded={open}>
+                                                            <span className="d-flex align-items-center gap-2 text-truncate">
+                                                                <i className={`bi ${open ? 'bi-chevron-down' : 'bi-chevron-right'}`} style={{ fontSize: '0.6rem' }} aria-hidden="true"></i>
+                                                                <span style={{ width: 10, height: 10, borderRadius: 2, background: DONUT_COLORS[idx % DONUT_COLORS.length], display: 'inline-block', flexShrink: 0 }}></span>
+                                                                <span className="text-truncate fw-medium">{g.name}</span>
+                                                            </span>
+                                                            <span className="text-muted ms-2 text-nowrap">{g.total.toLocaleString()} · {pct.toFixed(0)}%</span>
+                                                        </button>
+                                                        {open && (
+                                                            <div className="ps-4 mt-1">
+                                                                {g.locations.map((loc: any) => {
+                                                                    const lpct = g.total > 0 ? (loc.totalQty / g.total) * 100 : 0;
+                                                                    return (
+                                                                        <div key={loc.id} className="d-flex justify-content-between small text-muted mb-1">
+                                                                            <span className="text-truncate">{loc.name}</span>
+                                                                            <span className="ms-2 text-nowrap">{loc.totalQty.toLocaleString()} · {lpct.toFixed(0)}%</span>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 );
                                             })}
@@ -717,18 +777,32 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                             </div>
                         ) : (
                             actionItems.map((item, i) => (
-                                <div key={i} style={alertRowStyle(item.sev)}>
+                                <div key={i}
+                                    style={{ ...alertRowStyle(item.sev), position: 'relative', cursor: 'help' }}
+                                    onMouseEnter={() => setHoveredAction(i)}
+                                    onMouseLeave={() => setHoveredAction(null)}
+                                >
                                     <span style={{
                                         width: 9, height: 9, marginTop: '3px', flexShrink: 0, display: 'inline-block',
                                         background: item.sev === 'crit' ? '#cc0000' : item.sev === 'warn' ? '#e0c000' : '#228822',
                                         border: '1px solid rgba(0,0,0,0.35)',
                                     }} />
-                                    <div>
+                                    <div style={{ minWidth: 0 }}>
                                         <div style={{ fontWeight: 'bold', color: item.sev === 'crit' ? '#880000' : item.sev === 'warn' ? '#665500' : '#226622', fontSize: '10px' }}>
                                             {item.title}
+                                            <i className="bi bi-question-circle" style={{ marginLeft: 4, color: '#999', fontSize: 9 }} aria-hidden="true" />
                                         </div>
                                         <div style={{ fontSize: '9px', color: '#666' }}>{item.sub}</div>
                                     </div>
+                                    {hoveredAction === i && (
+                                        <div role="tooltip" style={{
+                                            position: 'absolute', left: '100%', top: 0, marginLeft: 6, width: 230, zIndex: 1000,
+                                            background: '#ffffe1', border: '1px solid #808080', boxShadow: '2px 2px 5px rgba(0,0,0,0.3)',
+                                            padding: '6px 8px', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#222', lineHeight: 1.4,
+                                        }}>
+                                            {item.detail}
+                                        </div>
+                                    )}
                                 </div>
                             ))
                         )}
@@ -840,27 +914,51 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                         <span><i className="bi bi-building" style={{ marginRight: 4 }} aria-hidden="true" />{t('warehouse_distribution')}</span>
                     </div>
                     <div style={{ padding: '6px 8px', background: '#f0efe8' }}>
-                        {locationStats.length === 0 ? (
+                        {groupedStats.length === 0 ? (
                             <div style={{ textAlign: 'center', padding: '12px', color: '#888', fontStyle: 'italic', fontSize: '10px' }}>{t('no_inventory_recorded')}</div>
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                {locationStats.slice(0, 5).map((loc: any, idx: number) => {
-                                    const pct = totalStockQty > 0 ? (loc.totalQty / totalStockQty) * 100 : 0;
+                                {groupedStats.map((g: any, idx: number) => {
+                                    const pct = totalStockQty > 0 ? (g.total / totalStockQty) * 100 : 0;
                                     const colors: Array<'blue' | 'green' | 'orange' | 'red'> = ['blue', 'green', 'orange', 'red', 'blue'];
+                                    const open = !!expandedGroups[g.catId];
                                     return (
-                                        <div key={loc.id}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginBottom: '2px' }}>
-                                                <span style={{ fontWeight: 'bold', color: '#000' }}>{loc.name}</span>
-                                                <span style={{ color: '#555' }}>{loc.totalQty.toLocaleString()} · {pct.toFixed(0)}%</span>
+                                        <div key={g.catId}>
+                                            <div onClick={() => toggleGroup(g.catId)} style={{ cursor: 'pointer' }} title={open ? 'Collapse' : 'Expand locations'}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginBottom: '2px' }}>
+                                                    <span style={{ fontWeight: 'bold', color: '#000' }}>
+                                                        <i className={`bi ${open ? 'bi-chevron-down' : 'bi-chevron-right'}`} style={{ fontSize: 8, marginRight: 3 }} aria-hidden="true" />
+                                                        {g.name}
+                                                    </span>
+                                                    <span style={{ color: '#555' }}>{g.total.toLocaleString()} · {pct.toFixed(0)}%</span>
+                                                </div>
+                                                <div style={xpProgTrack} role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label={g.name}>
+                                                    <div style={{ ...xpProgFill(colors[idx % colors.length]), width: `${pct}%` }}></div>
+                                                </div>
                                             </div>
-                                            <div style={xpProgTrack} role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label={loc.name}>
-                                                <div style={{ ...xpProgFill(colors[idx % colors.length]), width: `${pct}%` }}></div>
-                                            </div>
+                                            {open && (
+                                                <div style={{ paddingLeft: 12, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                    {g.locations.map((loc: any) => {
+                                                        const lpct = g.total > 0 ? (loc.totalQty / g.total) * 100 : 0;
+                                                        return (
+                                                            <div key={loc.id}>
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', marginBottom: '1px', color: '#333' }}>
+                                                                    <span>{loc.name}</span>
+                                                                    <span style={{ color: '#666' }}>{loc.totalQty.toLocaleString()} · {lpct.toFixed(0)}%</span>
+                                                                </div>
+                                                                <div style={{ ...xpProgTrack, height: 7 }} role="progressbar" aria-valuenow={Math.round(lpct)} aria-valuemin={0} aria-valuemax={100} aria-label={loc.name}>
+                                                                    <div style={{ ...xpProgFill('blue'), width: `${lpct}%` }}></div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })}
                                 <div style={{ fontSize: '9px', color: '#666', marginTop: '2px', borderTop: '1px solid #ccc', paddingTop: '4px' }}>
-                                    Total: {totalStockQty.toLocaleString()} units across {locationStats.length} location{locationStats.length !== 1 ? 's' : ''}
+                                    Total: {totalStockQty.toLocaleString()} units · {groupedStats.length} group{groupedStats.length !== 1 ? 's' : ''} · {locationStats.length} location{locationStats.length !== 1 ? 's' : ''}
                                 </div>
                             </div>
                         )}
