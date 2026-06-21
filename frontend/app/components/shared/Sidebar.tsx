@@ -98,9 +98,9 @@ function navItemStyleModern(
 ): React.CSSProperties {
   const bg = isActive ? M_SOFT : isHovered ? M_HOVER_BG : 'transparent';
   return {
-    padding: isDeepSub ? '7px 12px 7px 42px'
-           : isSub     ? '7px 12px 7px 34px'
-           : '8px 12px 8px 15px',
+    padding: isDeepSub ? '5px 12px 5px 38px'
+           : isSub     ? '5px 12px 5px 30px'
+           : '6px 12px 6px 14px',
     color: isActive ? M_PRIMARY : M_TEXT,
     background: bg,
     fontWeight: isActive ? 600 : 500,
@@ -108,7 +108,7 @@ function navItemStyleModern(
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
-    gap: 9,
+    gap: 8,
     fontSize: isSub ? 12.5 : 13,
     fontFamily: modernFont,
     userSelect: 'none' as const,
@@ -124,7 +124,9 @@ function sectionHdrStyleModern(isHovered: boolean): React.CSSProperties {
     color: isHovered ? M_PRIMARY : M_SECTION,
     fontWeight: 700,
     fontSize: 10.5,
-    padding: '14px 14px 5px',
+    padding: '10px 14px 3px',
+    marginTop: 4,
+    borderTop: `1px solid ${M_BORDER}`,
     letterSpacing: '0.6px',
     textTransform: 'uppercase' as const,
     display: 'flex',
