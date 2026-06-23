@@ -39,6 +39,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
       return out;
   };
   const getLocationName = (bal: any) => bal.location_name || locations.find((l: any) => l.id === bal.location_id)?.name || bal.location_id;
+  const getWarehouseName = (bal: any) => locations.find((l: any) => l.id === bal.location_id)?.parent_name || '';
   const getAttributeValueName = (valId: string) => {
       for (const attr of attributes) {
           const val = attr.values.find((v: any) => v.id === valId);
@@ -58,8 +59,9 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
       const name = getItemName(bal).toLowerCase();
       const code = getItemCode(bal).toLowerCase();
       const loc = getLocationName(bal).toLowerCase();
+      const wh = getWarehouseName(bal).toLowerCase();
       const s = balanceSearch.toLowerCase();
-      return name.includes(s) || code.includes(s) || loc.includes(s);
+      return name.includes(s) || code.includes(s) || loc.includes(s) || wh.includes(s);
   });
 
   // ── XP inline styles ─────────────────────────────────────────────────────
@@ -111,7 +113,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
       return (
           <div className="row g-3 fade-in">
               {/* LEFT: Stock Entry Form */}
-              <div className="col-md-5">
+              <div className="col-md-4">
                   <div style={{ ...xpBevel, display: 'flex', flexDirection: 'column' }}>
                       <div style={xpTitleBar({ background: 'linear-gradient(to right, #6a3a8e 0%, #a06ac8 100%)', borderBottom: '1px solid #3d1a5e' })}>
                           <span><i className="bi bi-box-seam" style={{ marginRight: 6 }}></i>{t('stock_adjustment')}</span>
@@ -183,7 +185,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
               </div>
 
               {/* RIGHT: Stock Balance */}
-              <div className="col-md-7">
+              <div className="col-md-8">
                   <div style={{ ...xpBevel, display: 'flex', flexDirection: 'column' }}>
                       <div style={xpTitleBar()}>
                           <span><i className="bi bi-table" style={{ marginRight: 6 }}></i>{t('stock_ledger')} (Live)</span>
@@ -231,7 +233,14 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                                                   )}
                                               </div>
                                           </td>
-                                          <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#000' }}>{getLocationName(bal)}</td>
+                                          <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px' }}>
+                                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                                                  {getWarehouseName(bal) && (
+                                                      <span style={{ background: '#eef0e4', border: '1px solid #b7bb8f', padding: '0 5px', fontSize: '10px', color: '#4a4a2a' }}>{getWarehouseName(bal)}</span>
+                                                  )}
+                                                  <span style={{ background: '#e8e1f0', border: '1px solid #a890c0', padding: '0 5px', fontSize: '10px', color: '#3a2a4a' }}>{getLocationName(bal)}</span>
+                                              </div>
+                                          </td>
                                           <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', fontWeight: 'bold', color: bal.qty < 0 ? '#c00000' : '#00008b', whiteSpace: 'nowrap' }}>
                                               {bal.qty}
                                           </td>
@@ -275,7 +284,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
   // ── Modern (Bootstrap) mode ───────────────────────────────────────────────
   return (
       <div className="row g-4 fade-in">
-          <div className="col-md-5">
+          <div className="col-md-4">
               <div className="card h-100 shadow-sm border-0">
                   <div className="card-header bg-primary bg-opacity-10 text-primary-emphasis py-3">
                       <h5 className="card-title mb-0"><i className="bi bi-box-seam me-2"></i>{t('stock_adjustment')}</h5>
@@ -330,7 +339,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                   </div>
               </div>
           </div>
-          <div className="col-md-7">
+          <div className="col-md-8">
               <div className="card h-100 shadow-sm border-0">
                   <div className="card-header bg-white py-3 border-bottom-0 d-flex justify-content-between align-items-center">
                       <h5 className="card-title mb-0">{t('stock_ledger')} (Live)</h5>
@@ -371,7 +380,14 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                                                   )}
                                               </div>
                                           </td>
-                                          <td><span className="small">{getLocationName(bal)}</span></td>
+                                          <td>
+                                              <div className="d-flex flex-wrap gap-1">
+                                                  {getWarehouseName(bal) && (
+                                                      <span className="badge bg-secondary-subtle text-secondary-emphasis">{getWarehouseName(bal)}</span>
+                                                  )}
+                                                  <span className="badge bg-primary-subtle text-primary-emphasis">{getLocationName(bal)}</span>
+                                              </div>
+                                          </td>
                                           <td className="text-end">
                                               <span className={`fw-bold font-monospace ${bal.qty < 0 ? 'text-danger' : 'text-primary'}`}>{bal.qty}</span>
                                           </td>
