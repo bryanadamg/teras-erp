@@ -30,7 +30,9 @@ body {
 }
 
 /* ============================================================
-   UI Style: Modern — clean SaaS design system (corporate blue)
+   UI Style: Modern — "Blueprint" engineering-drafting design system
+   Cool drafting paper, faint grid, drafting-blue accent, mono display
+   type + uppercase tracked labels, hairline borders, near-zero radius.
    Scoped entirely under .ui-style-modern so Classic is never touched.
    Setting the CSS custom props here cascades into the base component
    rules (.btn-primary, .form-control:focus, etc.), so accent colour
@@ -38,30 +40,44 @@ body {
    ============================================================ */
 .ui-style-modern {
   --sidebar-width: 200px;     /* match classic exactly → identical content width, tables fit the same */
-  --primary-color: #2563eb;   /* blue-600  */
-  --primary-light: #3b82f6;   /* blue-500  */
-  --primary-dark:  #1d4ed8;   /* blue-700  */
-  --primary-soft:  #eff6ff;   /* blue-50   */
-  --bg-color:      #e8ebf1;   /* grey canvas — white cards/sidebar read as panels */
-  --surface:       #ffffff;
-  --border:        #dbe1ea;   /* slate-ish, visible against white */
-  --border-strong: #cbd3df;
-  --row-line:      #e6eaf1;   /* table row separators */
-  --stripe:        #f4f6f9;   /* zebra band */
-  --text:          #1e293b;   /* slate-800 */
-  --text-muted:    #64748b;   /* slate-500 */
-  --radius:        9px;
-  --radius-sm:     7px;
-  --shadow-sm: 0 1px 2px rgba(15,23,42,0.06), 0 1px 3px rgba(15,23,42,0.10);
-  --shadow-md: 0 4px 14px rgba(15,23,42,0.10);
+  --primary-color: #1f5b8a;   /* drafting blue */
+  --primary-light: #2f6ea3;   /* lighter draft blue */
+  --primary-dark:  #174a73;   /* deep draft blue */
+  --primary-soft:  #e1ecf5;   /* pale blueprint wash */
+  --bg-color:      #eef2f7;   /* cool drafting paper */
+  --surface:       #fafcff;   /* near-white panel, faint cool cast */
+  --border:        #c5d1de;   /* blue-grey hairline */
+  --border-strong: #a9bacb;
+  --row-line:      #d2dde8;   /* table row separators */
+  --stripe:        #eef3f8;   /* zebra band */
+  --text:          #1d2733;   /* ink */
+  --text-muted:    #5d6e80;   /* blue-grey muted */
+  --grid-line:     rgba(31,91,138,0.05);  /* drafting grid */
+  --radius:        3px;       /* sharp drafting corners */
+  --radius-sm:     2px;
+  --font-mono: "Consolas", "Cascadia Mono", "SFMono-Regular", "Menlo", "Courier New", monospace;
+  /* Hairline, low-spread shadows — drawn lines, not floating cards */
+  --shadow-sm: 0 1px 0 rgba(31,91,138,0.10);
+  --shadow-md: 0 2px 6px rgba(31,91,138,0.12);
 
   background-color: var(--bg-color);
   color: var(--text);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
+/* Mono display type — headings & titles read as drafting annotations */
+.ui-style-modern h1, .ui-style-modern h2, .ui-style-modern h3,
+.ui-style-modern h4, .ui-style-modern h5, .ui-style-modern h6,
+.ui-style-modern .card-title, .ui-style-modern .modal-title {
+  font-family: var(--font-mono);
+  letter-spacing: 0.01em;
+}
+
 .ui-style-modern .main-content {
-  background: var(--bg-color) !important;
+  background:
+    linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0 / 100% 24px,
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0 / 24px 100%,
+    var(--bg-color) !important;
 }
 
 /* Match Classic's 10px horizontal content gutter so tables get the same width */
@@ -91,7 +107,7 @@ body {
    cluster onto the modern system (kills the cyan-gear + grey + pill mismatch). */
 .ui-style-modern .app-header .btn {
   height: 34px;
-  border-radius: 8px !important;
+  border-radius: 2px !important;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -120,9 +136,9 @@ body {
 }
 /* Language selector → same chip treatment, overrides the pill/bg-light utilities */
 .ui-style-modern .app-header .form-select {
-  background-color: #fff !important;
+  background-color: var(--surface) !important;
   border: 1px solid var(--border) !important;
-  border-radius: 8px !important;
+  border-radius: 2px !important;
   height: 34px !important;
   color: #475569;
 }
@@ -151,8 +167,8 @@ body {
   box-shadow: var(--shadow-md);
 }
 .ui-style-modern .card-header {
-  background: #f7f9fc;
-  border-bottom: 1px solid var(--border);
+  background: #e8eef5;
+  border-bottom: 1px solid var(--border-strong);
   padding: 9px 14px;
   border-radius: var(--radius) var(--radius) 0 0 !important;
 }
@@ -197,9 +213,11 @@ body {
 
 /* Forms — tighter */
 .ui-style-modern .form-label {
-  font-weight: 600;
-  color: #374151;
-  font-size: 0.8rem;
+  font-weight: 700;
+  color: #3a4a5c;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   margin-bottom: 0.3rem;
 }
 .ui-style-modern .form-control,
@@ -212,22 +230,23 @@ body {
 .ui-style-modern .form-control:focus,
 .ui-style-modern .form-select:focus {
   border-color: var(--primary-light);
-  box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+  box-shadow: 0 0 0 3px rgba(31,91,138,0.14);
 }
 
 /* Tables — dense rows, clear separators, zebra striping, blue hover */
 .ui-style-modern .table {
   --bs-table-bg: transparent;
 }
-/* Dimensions mirror Classic exactly (padding 4px 8px, 11px head / 12px body,
-   no uppercase or letter-spacing that would widen columns) so any table that
-   fits without sideways scroll in Classic fits identically here. Only the
-   colours/stripes/borders are modern. */
+/* Body dimensions mirror Classic (padding 4px 8px, 11px head / 12px body) so
+   row width stays close. Headers go UPPERCASE tracked — the Blueprint look —
+   so a very wide table may gain a little header width vs Classic; spacing is
+   kept tight (.03em) to minimise it. */
 .ui-style-modern .table th {
-  text-transform: none;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
   font-size: 11px;
-  color: #475569;
-  background: #eef1f6;
+  color: #4a5d70;
+  background: #e4ebf3;
   border-bottom: 1.5px solid var(--border-strong);
   font-weight: 700;
   padding: 4px 8px;
@@ -242,20 +261,20 @@ body {
   background-color: var(--stripe);
 }
 .ui-style-modern .table-hover > tbody > tr:hover > * {
-  background-color: #e7eefc;
+  background-color: #dce8f3;
 }
 
 /* Badges */
 .ui-style-modern .badge {
-  border-radius: 6px;
+  border-radius: var(--radius);
   font-weight: 600;
 }
 
 /* Modals */
 .ui-style-modern .modal-content {
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: 0 20px 50px rgba(15,23,42,0.18);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  box-shadow: 0 18px 44px rgba(20,40,60,0.20);
 }
 .ui-style-modern .modal-header,
 .ui-style-modern .modal-footer {
@@ -264,13 +283,13 @@ body {
 
 /* Dropdown menus */
 .ui-style-modern .dropdown-menu {
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
   box-shadow: var(--shadow-md);
-  padding: 6px;
+  padding: 5px;
 }
 .ui-style-modern .dropdown-item {
-  border-radius: 6px;
+  border-radius: 2px;
   padding: 8px 10px;
 }
 .ui-style-modern .dropdown-item:hover,
@@ -279,19 +298,19 @@ body {
   color: var(--primary-dark);
 }
 
-/* Slim, rounded scrollbars */
+/* Slim, squared scrollbars */
 .ui-style-modern ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 .ui-style-modern ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 8px;
+  background: #aebfce;
+  border-radius: 2px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 .ui-style-modern ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #8499ad;
   background-clip: content-box;
 }
 .ui-style-modern ::-webkit-scrollbar-track {
@@ -1341,9 +1360,9 @@ body {
 
 /* Modern Theme Toasts */
 .ui-style-modern .toast {
-    border-radius: 16px;
+    border-radius: 3px;
     backdrop-filter: blur(8px);
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(250, 252, 255, 0.96);
 }
 
 /* Classic Theme Toasts */
