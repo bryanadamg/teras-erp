@@ -155,6 +155,7 @@ async def create_stock_entry(
         reference_type=payload.reference_type,
         reference_id=payload.reference_id,
         attribute_value_ids=attribute_value_ids,
+        batch_id=payload.batch_id,
         cones_change=payload.qty_cones or 0,
         boxes_change=payload.qty_boxes or 0,
         drums_change=payload.qty_drums or 0,
@@ -166,7 +167,13 @@ async def create_stock_entry(
         action="create",
         entity_type="stock_entry",
         entity_id=str(item.id),
-        changes={"item": payload.item_code, "location": payload.location_code, "qty": payload.qty},
+        changes={
+            "item": payload.item_code,
+            "location": payload.location_code,
+            "qty": payload.qty,
+            "reason": payload.reference_id,
+            "batch_id": str(payload.batch_id) if payload.batch_id else None,
+        },
     )
 
     try:

@@ -40,6 +40,18 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
     const [transferDrums, setTransferDrums] = useState('');
     const [transferring, setTransferring] = useState(false);
 
+    // Adjust modal state
+    const ADJUST_REASONS = ['Cycle count', 'Damaged / Loss', 'Correction', 'Found stock', 'Scrap', 'Other'];
+    const [adjustTarget, setAdjustTarget] = useState<any>(null);
+    const [adjustMode, setAdjustMode] = useState<'set' | 'delta'>('set');
+    const [adjustQty, setAdjustQty] = useState('');
+    const [adjustCones, setAdjustCones] = useState('');
+    const [adjustBoxes, setAdjustBoxes] = useState('');
+    const [adjustDrums, setAdjustDrums] = useState('');
+    const [adjustReason, setAdjustReason] = useState(ADJUST_REASONS[0]);
+    const [adjustNote, setAdjustNote] = useState('');
+    const [adjusting, setAdjusting] = useState(false);
+
     const [rebuilding, setRebuilding] = useState(false);
     const handleRebuild = async () => {
         if (rebuilding) return;
@@ -95,6 +107,84 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
             showToast(err.message, 'danger');
         } finally {
             setTransferring(false);
+        }
+    };
+
+    // Prefill the adjust modal. 'set' mode shows current values (operator overwrites
+    // with the counted figure); 'delta' mode starts blank (operator enters +/- change).
+    const fillAdjust = (bal: any, mode: 'set' | 'delta') => {
+        setAdjustMode(mode);
+        if (mode === 'set') {
+            setAdjustQty(String(bal.qty));
+            setAdjustCones(bal.qty_cones != null ? String(bal.qty_cones) : '');
+            setAdjustBoxes(bal.qty_boxes != null ? String(bal.qty_boxes) : '');
+            setAdjustDrums(bal.qty_drums != null ? String(bal.qty_drums) : '');
+        } else {
+            setAdjustQty('');
+            setAdjustCones(''); setAdjustBoxes(''); setAdjustDrums('');
+        }
+    };
+    const openAdjust = (bal: any) => {
+        setAdjustTarget(bal);
+        setAdjustReason(ADJUST_REASONS[0]);
+        setAdjustNote('');
+        fillAdjust(bal, 'set');
+    };
+
+    const num = (s: string, d = 0) => { const n = parseFloat(s); return isNaN(n) ? d : n; };
+    const int = (s: string, d = 0) => { const n = parseInt(s, 10); return isNaN(n) ? d : n; };
+
+    const handleAdjust = async () => {
+        if (!adjustTarget) return;
+        const t = adjustTarget;
+        const curCones = t.qty_cones || 0, curBoxes = t.qty_boxes || 0, curDrums = t.qty_drums || 0;
+        let qtyDelta: number, coneDelta: number, boxDelta: number, drumDelta: number;
+        if (adjustMode === 'set') {
+            qtyDelta = num(adjustQty, t.qty) - t.qty;
+            coneDelta = int(adjustCones, curCones) - curCones;
+            boxDelta = int(adjustBoxes, curBoxes) - curBoxes;
+            drumDelta = int(adjustDrums, curDrums) - curDrums;
+        } else {
+            qtyDelta = num(adjustQty, 0);
+            coneDelta = int(adjustCones, 0);
+            boxDelta = int(adjustBoxes, 0);
+            drumDelta = int(adjustDrums, 0);
+        }
+        if (!qtyDelta && !coneDelta && !boxDelta && !drumDelta) {
+            showToast('Nothing to adjust — no change entered', 'danger'); return;
+        }
+        if (!adjustReason) { showToast('Select a reason', 'danger'); return; }
+        const locationCode = locMap[t.location_id]?.code;
+        if (!locationCode) { showToast('Cannot resolve location code', 'danger'); return; }
+        setAdjusting(true);
+        try {
+            const res = await authFetch(`${apiBase}/stock`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    item_code: t.item_code,
+                    location_code: locationCode,
+                    attribute_value_ids: t.attribute_value_ids || [],
+                    qty: qtyDelta,
+                    qty_cones: coneDelta || null,
+                    qty_boxes: boxDelta || null,
+                    qty_drums: drumDelta || null,
+                    reference_type: 'adjustment',
+                    reference_id: adjustNote.trim() ? `${adjustReason}: ${adjustNote.trim()}` : adjustReason,
+                    batch_id: t.batch_key || null,
+                }),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || 'Adjustment failed');
+            }
+            showToast('Stock adjusted', 'success');
+            setAdjustTarget(null);
+            onRefresh();
+        } catch (err: any) {
+            showToast(err.message, 'danger');
+        } finally {
+            setAdjusting(false);
         }
     };
 
@@ -378,11 +468,16 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         {bal.item_ends != null ? bal.item_ends : ''}
                     </td>
                     <td style={{ padding: '2px 6px', whiteSpace: 'nowrap' }}>
-                        {bal.qty > 0 && (
-                            <button style={xpBtn({ fontSize: '10px', padding: '1px 6px' })} onClick={() => openTransfer(bal)} title="Transfer to another location">
-                                Move
+                        <div style={{ display: 'flex', gap: 4 }}>
+                            <button style={xpBtn({ fontSize: '10px', padding: '1px 6px', background: 'linear-gradient(to bottom,#fff0d0,#e8c068)' })} onClick={() => openAdjust(bal)} title="Adjust quantity (cycle count / correction)">
+                                Adjust
                             </button>
-                        )}
+                            {bal.qty > 0 && (
+                                <button style={xpBtn({ fontSize: '10px', padding: '1px 6px' })} onClick={() => openTransfer(bal)} title="Transfer to another location">
+                                    Move
+                                </button>
+                            )}
+                        </div>
                     </td>
                 </tr>
             );
@@ -438,11 +533,16 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                 </td>
                 <td className="text-end small" style={{ whiteSpace: 'nowrap' }}>{bal.item_ends != null ? bal.item_ends : ''}</td>
                 <td>
-                    {bal.qty > 0 && (
-                        <button className="btn btn-sm btn-outline-primary py-0" onClick={() => openTransfer(bal)} title="Transfer to another location">
-                            Move
+                    <div className="d-flex gap-1">
+                        <button className="btn btn-sm btn-outline-warning py-0" onClick={() => openAdjust(bal)} title="Adjust quantity (cycle count / correction)">
+                            Adjust
                         </button>
-                    )}
+                        {bal.qty > 0 && (
+                            <button className="btn btn-sm btn-outline-primary py-0" onClick={() => openTransfer(bal)} title="Transfer to another location">
+                                Move
+                            </button>
+                        )}
+                    </div>
                 </td>
             </tr>
         );
@@ -533,6 +633,124 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
         </div>
     );
 
+    const adjustModal = adjustTarget && (() => {
+        const t = adjustTarget;
+        const newQty = adjustMode === 'set' ? num(adjustQty, t.qty) : t.qty + num(adjustQty, 0);
+        const delta = newQty - t.qty;
+        const modeBtn = (m: 'set' | 'delta', label: string) => {
+            const active = adjustMode === m;
+            if (classic) {
+                return (
+                    <button key={m} style={xpBtn({ fontSize: '11px', flex: 1, fontWeight: active ? 'bold' : 'normal', background: active ? 'linear-gradient(to bottom,#cfe3ff,#a9c9f0)' : undefined })}
+                        onClick={() => fillAdjust(t, m)}>{label}</button>
+                );
+            }
+            return (
+                <button key={m} className={`btn btn-sm flex-fill ${active ? 'btn-warning' : 'btn-outline-secondary'}`} onClick={() => fillAdjust(t, m)}>{label}</button>
+            );
+        };
+        const pkgLabel = adjustMode === 'set' ? 'Counted packaging' : 'Packaging change (+/-)';
+        return (
+            <div className="modal show d-block" style={{ background: 'rgba(0,0,0,0.4)', zIndex: 20200 }}>
+                <div className="modal-dialog modal-dialog-centered modal-sm">
+                    <div className="modal-content" style={classic ? { ...xpBevel, borderRadius: 0 } : {}}>
+                        {classic ? (
+                            <div style={xpTitleBar}>
+                                <span>Adjust Stock</span>
+                                <span style={{ cursor: 'pointer', fontWeight: 'bold' }} onClick={() => setAdjustTarget(null)}>X</span>
+                            </div>
+                        ) : (
+                            <div className="modal-header">
+                                <h6 className="modal-title">Adjust Stock</h6>
+                                <button className="btn-close" onClick={() => setAdjustTarget(null)} />
+                            </div>
+                        )}
+                        <div style={{ padding: 12, fontFamily: classic ? xpFont : undefined, fontSize: classic ? 11 : undefined }}>
+                            <div style={{ marginBottom: 8 }}>
+                                <strong>{t.item_name}</strong>
+                                <div style={{ fontSize: 10, color: '#666' }}>
+                                    {t.location_name || getLocationName(t.location_id)}
+                                    {t.batch_key ? ` · Lot: ${batchMap[t.batch_key] || t.batch_key}` : ''}
+                                    {' · '}On hand: {t.qty} {t.item_uom || ''}
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                                {modeBtn('set', 'Set to (count)')}
+                                {modeBtn('delta', 'Adjust by (+/-)')}
+                            </div>
+                            <div style={{ marginBottom: 8 }}>
+                                <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>
+                                    {adjustMode === 'set' ? 'Counted quantity' : 'Quantity change (+/-)'}
+                                </label>
+                                <input
+                                    type="number" step="any"
+                                    style={classic ? { ...xpInput, width: '100%' } : undefined}
+                                    className={classic ? '' : 'form-control form-control-sm'}
+                                    value={adjustQty}
+                                    onChange={e => setAdjustQty(e.target.value)}
+                                />
+                                <div style={{ fontSize: 10, color: delta < 0 ? '#c00000' : '#2d7a2d', marginTop: 2 }}>
+                                    New on hand: <b>{newQty}</b> {t.item_uom || ''} ({delta >= 0 ? '+' : ''}{delta})
+                                </div>
+                            </div>
+                            <div style={{ marginBottom: 8 }}>
+                                <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>
+                                    {pkgLabel} <span style={{ color: '#888', fontWeight: 'normal' }}>(optional)</span>
+                                </label>
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                    {([
+                                        ['Cones', adjustCones, setAdjustCones],
+                                        ['Boxes', adjustBoxes, setAdjustBoxes],
+                                        ['Drums', adjustDrums, setAdjustDrums],
+                                    ] as [string, string, (v: string) => void][]).map(([lbl, val, set]) => (
+                                        <div key={lbl} style={{ flex: 1 }}>
+                                            <input
+                                                type="number" step="1" placeholder={lbl} title={lbl}
+                                                style={classic ? { ...xpInput, width: '100%' } : undefined}
+                                                className={classic ? '' : 'form-control form-control-sm'}
+                                                value={val}
+                                                onChange={e => set(e.target.value)}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <div style={{ marginBottom: 8 }}>
+                                <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Reason</label>
+                                <select
+                                    style={classic ? { ...xpSelect, width: '100%' } : undefined}
+                                    className={classic ? '' : 'form-select form-select-sm'}
+                                    value={adjustReason}
+                                    onChange={e => setAdjustReason(e.target.value)}
+                                >
+                                    {ADJUST_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+                                </select>
+                            </div>
+                            <div style={{ marginBottom: 4 }}>
+                                <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>
+                                    Note <span style={{ color: '#888', fontWeight: 'normal' }}>(optional)</span>
+                                </label>
+                                <input
+                                    type="text" placeholder="e.g. spoiled in transit"
+                                    style={classic ? { ...xpInput, width: '100%' } : undefined}
+                                    className={classic ? '' : 'form-control form-control-sm'}
+                                    value={adjustNote}
+                                    onChange={e => setAdjustNote(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                        <div style={{ padding: '6px 12px', display: 'flex', gap: 6, justifyContent: 'flex-end', borderTop: '1px solid #c0c0c0' }}>
+                            <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setAdjustTarget(null)}>Cancel</button>
+                            <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-warning'} onClick={handleAdjust} disabled={adjusting}>
+                                {adjusting ? 'Saving...' : 'Save Adjustment'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    })();
+
     if (classic) {
         return (
             <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -618,6 +836,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                     </div>
                 </div>
                 {transferModal}
+                {adjustModal}
             </div>
         );
     }
@@ -717,6 +936,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                 </div>
             </div>
             {transferModal}
+            {adjustModal}
         </div>
     );
 }
