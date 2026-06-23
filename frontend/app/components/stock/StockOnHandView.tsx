@@ -8,6 +8,7 @@ interface StockOnHandViewProps {
     locations: any[];
     stockBalance: any[];
     attributes: any[];
+    categories: any[];
     onRefresh: () => void;
     authFetch: (url: string, opts?: RequestInit) => Promise<Response>;
     apiBase: string;
@@ -15,7 +16,7 @@ interface StockOnHandViewProps {
 
 const UNCAT = '__uncat__';
 
-export default function StockOnHandView({ locations, stockBalance, attributes, onRefresh, authFetch, apiBase }: StockOnHandViewProps) {
+export default function StockOnHandView({ locations, stockBalance, attributes, categories, onRefresh, authFetch, apiBase }: StockOnHandViewProps) {
     const { uiStyle } = useTheme();
     const { t } = useLanguage();
     const { showToast } = useToast();
@@ -25,6 +26,9 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
     const [search, setSearch] = useState('');
     const [locationFilter, setLocationFilter] = useState('');
     const [warehouseFilter, setWarehouseFilter] = useState('');
+    const [catL1, setCatL1] = useState('');
+    const [catL2, setCatL2] = useState('');
+    const [catL3, setCatL3] = useState('');
     const [itemFilter, setItemFilter] = useState('');
 
     // Transfer modal state
@@ -160,6 +164,35 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
     };
     const pkgTotal = (bal: any) => Math.abs(bal.qty_cones || 0) + Math.abs(bal.qty_boxes || 0) + Math.abs(bal.qty_drums || 0);
 
+    // ── 3-level category filter (mirrors Item Inventory) ─────────────────────
+    const cats = categories || [];
+    const l1Options = useMemo(() => cats.filter((c: any) => c.level === 1), [cats]);
+    const l2Options = useMemo(() => (catL1 ? cats.filter((c: any) => c.parent_id === catL1) : []), [cats, catL1]);
+    const l3Options = useMemo(() => (catL2 ? cats.filter((c: any) => c.parent_id === catL2) : []), [cats, catL2]);
+    const effectiveCat = catL3 || catL2 || catL1;
+
+    // A row matches when its item_category_id is the selected category or any
+    // descendant of it. Precompute the descendant-inclusive id set once.
+    const catMatchSet = useMemo(() => {
+        if (!effectiveCat) return null;
+        const childrenOf: Record<string, string[]> = {};
+        for (const c of cats) {
+            if (!c.parent_id) continue;
+            (childrenOf[c.parent_id] ||= []).push(c.id);
+        }
+        const set = new Set<string>();
+        const stack = [effectiveCat];
+        while (stack.length) {
+            const id = stack.pop()!;
+            if (set.has(id)) continue;
+            set.add(id);
+            for (const child of (childrenOf[id] || [])) stack.push(child);
+        }
+        return set;
+    }, [cats, effectiveCat]);
+
+    const clearCats = () => { setCatL1(''); setCatL2(''); setCatL3(''); };
+
     const filtered = useMemo(() => {
         const s = search.toLowerCase();
         return (stockBalance || []).filter((bal: any) => {
@@ -169,6 +202,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
                 if (warehouseFilter === UNCAT) { if (wid) return false; }
                 else if (wid !== warehouseFilter) return false;
             }
+            if (catMatchSet && !(bal.item_category_id && catMatchSet.has(bal.item_category_id))) return false;
             if (itemFilter && bal.item_id !== itemFilter) return false;
             if (!s) return true;
             const name = (bal.item_name || '').toLowerCase();
@@ -180,7 +214,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
             return name.includes(s) || code.includes(s) || itemCat.includes(s) || loc.includes(s) || wh.includes(s) || batch.includes(s);
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [stockBalance, search, locationFilter, warehouseFilter, itemFilter, batchMap, locMap]);
+    }, [stockBalance, search, locationFilter, warehouseFilter, catMatchSet, itemFilter, batchMap, locMap]);
 
     const negativeCount = filtered.filter((b: any) => b.qty < 0).length;
 
@@ -499,6 +533,19 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
                             <option value="">All Locations</option>
                             {locationOptions.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
                         </select>
+                        <select style={{ ...xpSelect, width: 140 }} value={catL1} onChange={e => { setCatL1(e.target.value); setCatL2(''); setCatL3(''); }} title="Category">
+                            <option value="">All Categories</option>
+                            {l1Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                        <select style={{ ...xpSelect, width: 130 }} value={catL2} onChange={e => { setCatL2(e.target.value); setCatL3(''); }} disabled={!catL1} title="Subcategory">
+                            <option value="">All Sub</option>
+                            {l2Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                        <select style={{ ...xpSelect, width: 130 }} value={catL3} onChange={e => setCatL3(e.target.value)} disabled={!catL2} title="Sub-subcategory">
+                            <option value="">All Sub</option>
+                            {l3Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                        {effectiveCat && <button style={xpBtn()} onClick={clearCats} title="Clear category filter">Clear</button>}
                         <select style={{ ...xpSelect, width: 180 }} value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
                             <option value="">All Items</option>
                             {balanceItems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
@@ -586,11 +633,32 @@ export default function StockOnHandView({ locations, stockBalance, attributes, o
                                 {locationOptions.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
                             </select>
                         </div>
+                        <div className="col-md-2">
+                            <select className="form-select form-select-sm" value={catL1} onChange={e => { setCatL1(e.target.value); setCatL2(''); setCatL3(''); }}>
+                                <option value="">All Categories</option>
+                                {l1Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                        </div>
+                        <div className="col-md-2">
+                            <select className="form-select form-select-sm" value={catL2} onChange={e => { setCatL2(e.target.value); setCatL3(''); }} disabled={!catL1}>
+                                <option value="">All Subcategories</option>
+                                {l2Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                        </div>
+                        <div className="col-md-2">
+                            <select className="form-select form-select-sm" value={catL3} onChange={e => setCatL3(e.target.value)} disabled={!catL2}>
+                                <option value="">All Subcategories</option>
+                                {l3Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                        </div>
                         <div className="col-md-3">
                             <select className="form-select form-select-sm" value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
                                 <option value="">All Items</option>
                                 {balanceItems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                             </select>
+                        </div>
+                        <div className="col-md-1">
+                            <button className="btn btn-outline-secondary btn-sm w-100" onClick={clearCats} disabled={!effectiveCat} title="Clear category filter">Clear</button>
                         </div>
                         <div className="col-md-2">
                             <button className="btn btn-outline-secondary btn-sm w-100" onClick={onRefresh}>
