@@ -3,12 +3,15 @@ import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useSortable, SortMark } from '../shared/xpTheme';
 import { useToast } from '../shared/Toast';
+import SearchableSelect from '../shared/SearchableSelect';
 
 interface StockOnHandViewProps {
     locations: any[];
     stockBalance: any[];
     attributes: any[];
     categories: any[];
+    items?: any[];
+    onSearchItems?: (term: string) => void;
     onRefresh: () => void;
     authFetch: (url: string, opts?: RequestInit) => Promise<Response>;
     apiBase: string;
@@ -16,7 +19,7 @@ interface StockOnHandViewProps {
 
 const UNCAT = '__uncat__';
 
-export default function StockOnHandView({ locations, stockBalance, attributes, categories, onRefresh, authFetch, apiBase }: StockOnHandViewProps) {
+export default function StockOnHandView({ locations, stockBalance, attributes, categories, items = [], onSearchItems, onRefresh, authFetch, apiBase }: StockOnHandViewProps) {
     const { uiStyle } = useTheme();
     const { t } = useLanguage();
     const { showToast } = useToast();
@@ -29,7 +32,6 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
     const [catL1, setCatL1] = useState('');
     const [catL2, setCatL2] = useState('');
     const [catL3, setCatL3] = useState('');
-    const [itemFilter, setItemFilter] = useState('');
 
     // Transfer modal state
     const [transferTarget, setTransferTarget] = useState<any>(null);
@@ -51,6 +53,20 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
     const [adjustReason, setAdjustReason] = useState(ADJUST_REASONS[0]);
     const [adjustNote, setAdjustNote] = useState('');
     const [adjusting, setAdjusting] = useState(false);
+
+    // New manual entry modal state (covers items with no existing balance row)
+    const NEW_REASONS = ['Opening balance', 'Manual entry', 'Correction', 'Found stock', 'Other'];
+    const [newOpen, setNewOpen] = useState(false);
+    const [newItemCode, setNewItemCode] = useState('');
+    const [newLocCode, setNewLocCode] = useState('');
+    const [newAttrIds, setNewAttrIds] = useState<string[]>([]);
+    const [newQty, setNewQty] = useState('');
+    const [newCones, setNewCones] = useState('');
+    const [newBoxes, setNewBoxes] = useState('');
+    const [newDrums, setNewDrums] = useState('');
+    const [newReason, setNewReason] = useState(NEW_REASONS[0]);
+    const [newNote, setNewNote] = useState('');
+    const [savingNew, setSavingNew] = useState(false);
 
     const [rebuilding, setRebuilding] = useState(false);
     const handleRebuild = async () => {
@@ -188,6 +204,62 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
         }
     };
 
+    // Attributes bound to the selected item (mirrors Stock Entry form).
+    const newItem = useMemo(() => items.find((i: any) => i.code === newItemCode), [items, newItemCode]);
+    const newBoundAttrs = useMemo(() => {
+        if (!newItem?.attribute_ids) return [];
+        return attributes.filter((a: any) => newItem.attribute_ids.includes(a.id));
+    }, [newItem, attributes]);
+
+    const openNew = () => {
+        setNewItemCode(''); setNewLocCode(''); setNewAttrIds([]);
+        setNewQty(''); setNewCones(''); setNewBoxes(''); setNewDrums('');
+        setNewReason(NEW_REASONS[0]); setNewNote('');
+        setNewOpen(true);
+    };
+    const setNewAttrValue = (valId: string, attrId: string) => {
+        const attr = attributes.find((a: any) => a.id === attrId);
+        if (!attr) return;
+        const others = newAttrIds.filter(vid => !attr.values.some((v: any) => v.id === vid));
+        setNewAttrIds(valId ? [...others, valId] : others);
+    };
+
+    const handleNewEntry = async () => {
+        if (!newItemCode) { showToast('Select an item', 'danger'); return; }
+        if (!newLocCode) { showToast('Select a location', 'danger'); return; }
+        const qty = num(newQty, NaN);
+        if (isNaN(qty) || qty === 0) { showToast('Enter a non-zero quantity', 'danger'); return; }
+        setSavingNew(true);
+        try {
+            const res = await authFetch(`${apiBase}/stock`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    item_code: newItemCode,
+                    location_code: newLocCode,
+                    attribute_value_ids: newAttrIds,
+                    qty,
+                    qty_cones: int(newCones, 0) || null,
+                    qty_boxes: int(newBoxes, 0) || null,
+                    qty_drums: int(newDrums, 0) || null,
+                    reference_type: 'manual',
+                    reference_id: newNote.trim() ? `${newReason}: ${newNote.trim()}` : newReason,
+                }),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || 'Entry failed');
+            }
+            showToast('Stock entry recorded', 'success');
+            setNewOpen(false);
+            onRefresh();
+        } catch (err: any) {
+            showToast(err.message, 'danger');
+        } finally {
+            setSavingNew(false);
+        }
+    };
+
     useEffect(() => {
         authFetch(`${apiBase}/batches?limit=500`)
             .then(r => r.ok ? r.json() : [])
@@ -319,7 +391,6 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                 else if (wid !== warehouseFilter) return false;
             }
             if (catMatchSet && !(bal.item_category_id && catMatchSet.has(bal.item_category_id))) return false;
-            if (itemFilter && bal.item_id !== itemFilter) return false;
             if (!s) return true;
             const name = (bal.item_name || '').toLowerCase();
             const code = (bal.item_code || '').toLowerCase();
@@ -330,7 +401,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
             return name.includes(s) || code.includes(s) || itemCat.includes(s) || loc.includes(s) || wh.includes(s) || batch.includes(s);
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [stockBalance, search, locationFilter, warehouseFilter, catMatchSet, itemFilter, batchMap, locMap]);
+    }, [stockBalance, search, locationFilter, warehouseFilter, catMatchSet, batchMap, locMap]);
 
     const negativeCount = filtered.filter((b: any) => b.qty < 0).length;
 
@@ -345,18 +416,6 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }), [batchMap, locations, locMap]);
     const { sorted: sortedRows, sort, toggle: toggleSort } = useSortable(filtered, sortCols);
-
-    const balanceItems = useMemo(() => {
-        const seen = new Set<string>();
-        const result: { id: string; name: string }[] = [];
-        for (const bal of (stockBalance || [])) {
-            if (!seen.has(bal.item_id)) {
-                seen.add(bal.item_id);
-                result.push({ id: bal.item_id, name: bal.item_name || bal.item_id });
-            }
-        }
-        return result.sort((a, b) => a.name.localeCompare(b.name));
-    }, [stockBalance]);
 
     // ── XP style helpers ─────────────────────────────────────────────────────
     const xpFont = 'Tahoma, "Segoe UI", sans-serif';
@@ -751,6 +810,126 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
         );
     })();
 
+    const newEntryModal = newOpen && (
+        <div className="modal show d-block" style={{ background: 'rgba(0,0,0,0.4)', zIndex: 20200 }}>
+            <div className="modal-dialog modal-dialog-centered modal-sm">
+                <div className="modal-content" style={classic ? { ...xpBevel, borderRadius: 0 } : {}}>
+                    {classic ? (
+                        <div style={xpTitleBar}>
+                            <span>New Stock Entry</span>
+                            <span style={{ cursor: 'pointer', fontWeight: 'bold' }} onClick={() => setNewOpen(false)}>X</span>
+                        </div>
+                    ) : (
+                        <div className="modal-header">
+                            <h6 className="modal-title">New Stock Entry</h6>
+                            <button className="btn-close" onClick={() => setNewOpen(false)} />
+                        </div>
+                    )}
+                    <div style={{ padding: 12, fontFamily: classic ? xpFont : undefined, fontSize: classic ? 11 : undefined }}>
+                        <div style={{ marginBottom: 8 }}>
+                            <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Item</label>
+                            <SearchableSelect
+                                options={items.map((it: any) => ({ value: it.code, label: it.name, subLabel: it.code }))}
+                                onSearch={onSearchItems}
+                                value={newItemCode}
+                                onChange={(code: string) => { setNewItemCode(code); setNewAttrIds([]); }}
+                                placeholder="Search item..."
+                                size="sm"
+                            />
+                        </div>
+                        {newBoundAttrs.map((attr: any) => (
+                            <div key={attr.id} style={{ marginBottom: 6 }}>
+                                <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>{attr.name}</label>
+                                <select
+                                    style={classic ? { ...xpSelect, width: '100%' } : undefined}
+                                    className={classic ? '' : 'form-select form-select-sm'}
+                                    value={newAttrIds.find(vid => attr.values.some((v: any) => v.id === vid)) || ''}
+                                    onChange={e => setNewAttrValue(e.target.value, attr.id)}
+                                >
+                                    <option value="">Select {attr.name}...</option>
+                                    {attr.values.map((v: any) => <option key={v.id} value={v.id}>{v.value}</option>)}
+                                </select>
+                            </div>
+                        ))}
+                        <div style={{ marginBottom: 8 }}>
+                            <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Location</label>
+                            <select
+                                style={classic ? { ...xpSelect, width: '100%' } : undefined}
+                                className={classic ? '' : 'form-select form-select-sm'}
+                                value={newLocCode}
+                                onChange={e => setNewLocCode(e.target.value)}
+                            >
+                                <option value="">— select location —</option>
+                                {locations.filter((l: any) => !l.has_children).map((l: any) => (
+                                    <option key={l.id} value={l.code}>{l.parent_name ? `${l.parent_name} / ${l.name}` : l.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div style={{ marginBottom: 8 }}>
+                            <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Quantity <span style={{ color: '#888', fontWeight: 'normal' }}>(negative to subtract)</span></label>
+                            <input
+                                type="number" step="any"
+                                style={classic ? { ...xpInput, width: '100%' } : undefined}
+                                className={classic ? '' : 'form-control form-control-sm'}
+                                value={newQty}
+                                onChange={e => setNewQty(e.target.value)}
+                            />
+                        </div>
+                        <div style={{ marginBottom: 8 }}>
+                            <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>
+                                Packaging <span style={{ color: '#888', fontWeight: 'normal' }}>(optional)</span>
+                            </label>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                                {([
+                                    ['Cones', newCones, setNewCones],
+                                    ['Boxes', newBoxes, setNewBoxes],
+                                    ['Drums', newDrums, setNewDrums],
+                                ] as [string, string, (v: string) => void][]).map(([lbl, val, set]) => (
+                                    <div key={lbl} style={{ flex: 1 }}>
+                                        <input
+                                            type="number" step="1" placeholder={lbl} title={lbl}
+                                            style={classic ? { ...xpInput, width: '100%' } : undefined}
+                                            className={classic ? '' : 'form-control form-control-sm'}
+                                            value={val}
+                                            onChange={e => set(e.target.value)}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div style={{ marginBottom: 8 }}>
+                            <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Reason</label>
+                            <select
+                                style={classic ? { ...xpSelect, width: '100%' } : undefined}
+                                className={classic ? '' : 'form-select form-select-sm'}
+                                value={newReason}
+                                onChange={e => setNewReason(e.target.value)}
+                            >
+                                {NEW_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+                            </select>
+                        </div>
+                        <div style={{ marginBottom: 4 }}>
+                            <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Note <span style={{ color: '#888', fontWeight: 'normal' }}>(optional)</span></label>
+                            <input
+                                type="text"
+                                style={classic ? { ...xpInput, width: '100%' } : undefined}
+                                className={classic ? '' : 'form-control form-control-sm'}
+                                value={newNote}
+                                onChange={e => setNewNote(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    <div style={{ padding: '6px 12px', display: 'flex', gap: 6, justifyContent: 'flex-end', borderTop: '1px solid #c0c0c0' }}>
+                        <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setNewOpen(false)}>Cancel</button>
+                        <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-success'} onClick={handleNewEntry} disabled={savingNew}>
+                            {savingNew ? 'Saving...' : 'Save Entry'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+
     if (classic) {
         return (
             <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -785,16 +964,15 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         <select style={{ ...xpSelect, width: 200 }} value={locSelectValue} onChange={e => onLocSelect(e.target.value)} title="Warehouse / Location">
                             {locDropdownOptions}
                         </select>
-                        <select style={{ ...xpSelect, width: 180 }} value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
-                            <option value="">All Items</option>
-                            {balanceItems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                        </select>
                         <div style={xpSep} />
                         <button style={xpBtn()} onClick={onRefresh} title="Refresh">
                             <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh
                         </button>
                         <button style={xpBtn()} onClick={handleRebuild} disabled={rebuilding} title="Recompute stock balances from the ledger (use if balances look stale)">
                             <i className="bi bi-arrow-repeat" style={{ marginRight: 4 }} />{rebuilding ? 'Rebuilding...' : 'Rebuild'}
+                        </button>
+                        <button style={xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold' })} onClick={openNew} title="Add stock for an item (new manual entry)">
+                            <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />New Entry
                         </button>
                     </div>
                     <div style={{ flex: 1, overflowY: 'auto', background: '#ffffff', maxHeight: 'calc(100vh - 200px)' }}>
@@ -837,6 +1015,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                 </div>
                 {transferModal}
                 {adjustModal}
+                {newEntryModal}
             </div>
         );
     }
@@ -885,12 +1064,6 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                                 {locDropdownOptions}
                             </select>
                         </div>
-                        <div className="col-md-3">
-                            <select className="form-select form-select-sm" value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
-                                <option value="">All Items</option>
-                                {balanceItems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                            </select>
-                        </div>
                         <div className="col-md-2">
                             <button className="btn btn-outline-secondary btn-sm w-100" onClick={onRefresh}>
                                 <i className="bi bi-arrow-clockwise me-1" />Refresh
@@ -899,6 +1072,11 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         <div className="col-md-2">
                             <button className="btn btn-outline-secondary btn-sm w-100" onClick={handleRebuild} disabled={rebuilding} title="Recompute stock balances from the ledger (use if balances look stale)">
                                 <i className="bi bi-arrow-repeat me-1" />{rebuilding ? 'Rebuilding...' : 'Rebuild'}
+                            </button>
+                        </div>
+                        <div className="col-md-2">
+                            <button className="btn btn-success btn-sm w-100" onClick={openNew} title="Add stock for an item (new manual entry)">
+                                <i className="bi bi-plus-lg me-1" />New Entry
                             </button>
                         </div>
                     </div>
@@ -937,6 +1115,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
             </div>
             {transferModal}
             {adjustModal}
+            {newEntryModal}
         </div>
     );
 }
