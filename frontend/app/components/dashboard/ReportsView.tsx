@@ -122,6 +122,13 @@ export default function ReportsView(_props: any) {
     const getItemName = (e: any) => e.item_name || itemIndex?.[String(e.item_id)]?.name || e.item_id;
     const getItemCode = (e: any) => e.item_code || itemIndex?.[String(e.item_id)]?.code || '';
     const getLocName = (e: any) => e.location_name || locations.find((l: any) => l.id === e.location_id)?.name || e.location_id;
+    // A location's parent warehouse name (locations carry parent_name; matches Stock On-Hand).
+    const locMap = useMemo(() => {
+        const m: Record<string, any> = {};
+        for (const l of (locations || [])) m[l.id] = l;
+        return m;
+    }, [locations]);
+    const getWarehouseName = (e: any): string => locMap[e.location_id]?.parent_name || '';
     const getAttrName = (valId: string) => {
         for (const attr of attributes) {
             const v = attr.values?.find((x: any) => x.id === valId);
@@ -188,7 +195,18 @@ export default function ReportsView(_props: any) {
                         </div>
                     )}
                 </td>
-                <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', color: '#000' }}>{getLocName(e)}</td>
+                <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                        {getWarehouseName(e) && (
+                            <span style={{ background: '#eef0e4', border: '1px solid #b7bb8f', padding: '0 5px', fontSize: '10px', color: '#4a4a2a' }}>
+                                {getWarehouseName(e)}
+                            </span>
+                        )}
+                        <span style={{ background: '#e8e1f0', border: '1px solid #a890c0', padding: '0 5px', fontSize: '10px', color: '#3a2a4a' }}>
+                            {getLocName(e)}
+                        </span>
+                    </div>
+                </td>
                 <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px' }}>
                     {e.batch_number
                         ? <span style={{ background: '#fff8dc', border: '1px solid #c8a000', padding: '0 5px', fontSize: '10px', color: '#5a3c00' }}>{e.batch_number}</span>
@@ -481,7 +499,14 @@ export default function ReportsView(_props: any) {
                                                     </div>
                                                 )}
                                             </td>
-                                            <td>{getLocName(e)}</td>
+                                            <td>
+                                                <div className="d-flex flex-wrap gap-1">
+                                                    {getWarehouseName(e) && (
+                                                        <span className="badge bg-secondary-subtle text-secondary-emphasis">{getWarehouseName(e)}</span>
+                                                    )}
+                                                    <span className="badge bg-primary-subtle text-primary-emphasis">{getLocName(e)}</span>
+                                                </div>
+                                            </td>
                                             <td>{e.batch_number ? <span className="badge bg-warning text-dark">{e.batch_number}</span> : <span className="text-muted">-</span>}</td>
                                             <td className="text-end" style={{ whiteSpace: 'nowrap' }}>
                                                 <span className={`fw-bold ${up ? 'text-success' : 'text-danger'}`}>
