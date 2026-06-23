@@ -739,6 +739,12 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   };
 
   const customers = partners.filter((p: any) => p.type === 'CUSTOMER' && p.active);
+  // SO lines can only order Finished Goods — raw/WIP/sample/chemical items are not orderable.
+  // Items expose category_path (root-first list of names), not a flat category string.
+  const finishedGoodsItems = useMemo(
+      () => items.filter((i: any) => (i.category_path || []).includes('Finished Goods')),
+      [items]
+  );
   const STATUS_FILTERS = ['ALL', 'PENDING', 'READY', 'SENT', 'DELIVERED'];
 
   const filteredOrders = salesOrders.filter((so: any) => {
@@ -927,9 +933,22 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                    {/* Item selector — full width */}
                    <div className="row g-2 mb-2">
                        <div className="col-12">
-                           <label style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2} : undefined} className={classic ? '' : 'form-label small text-muted mb-1'}>Item</label>
+                           <label style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'flex',alignItems:'center',gap:6,marginBottom:2} : undefined} className={classic ? '' : 'form-label small text-muted mb-1 d-flex align-items-center gap-2'}>
+                               Item
+                               <span
+                                   title="Only items in the Finished Goods category can be ordered"
+                                   style={{
+                                       fontFamily: 'Tahoma, Arial, sans-serif', fontSize: classic ? '9px' : '10px',
+                                       fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.4px',
+                                       background: classic ? '#e8f5e9' : '#e8f5e9', border: '1px solid #2e7d32',
+                                       color: '#1b4620', padding: '0 5px', borderRadius: classic ? 0 : 3, whiteSpace: 'nowrap',
+                                   }}
+                               >
+                                   Finished Goods only
+                               </span>
+                           </label>
                            <SearchableSelect
-                               options={items.map((item: any) => ({ value: item.id, label: item.name, subLabel: `${item.code}${item.category === 'Sample' ? ' [SAMPLE]' : ''}` }))}
+                               options={finishedGoodsItems.map((item: any) => ({ value: item.id, label: item.name, subLabel: item.code }))}
                                value={newLine.item_id}
                                onChange={handleLineItemChange}
                                placeholder="Select Item…"
