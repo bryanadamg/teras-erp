@@ -144,7 +144,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                                   <label style={xpLabel}>{t('locations')}</label>
                                   <div style={{ marginBottom: 6 }}>
                                       <SearchableSelect
-                                          options={locations.map((loc: any) => ({ value: loc.code, label: loc.name, subLabel: loc.code }))}
+                                          options={locations.filter((loc: any) => !loc.has_children).map((loc: any) => ({ value: loc.code, label: loc.parent_name ? `${loc.parent_name} / ${loc.name}` : loc.name, subLabel: loc.code }))}
                                           value={stockEntry.location_code}
                                           onChange={(code: string) => setStockEntry({ ...stockEntry, location_code: code })}
                                           required
@@ -294,7 +294,7 @@ export default function StockEntryView({ items, selectItems, onSearchItems, loca
                               <div className="row g-2">
                                   <div className="col-8">
                                       <SearchableSelect
-                                          options={locations.map((loc: any) => ({ value: loc.code, label: loc.name, subLabel: loc.code }))}
+                                          options={locations.filter((loc: any) => !loc.has_children).map((loc: any) => ({ value: loc.code, label: loc.parent_name ? `${loc.parent_name} / ${loc.name}` : loc.name, subLabel: loc.code }))}
                                           value={stockEntry.location_code}
                                           onChange={(code: string) => setStockEntry({ ...stockEntry, location_code: code })}
                                           required

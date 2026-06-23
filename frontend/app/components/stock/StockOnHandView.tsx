@@ -6,7 +6,6 @@ import { useToast } from '../shared/Toast';
 
 interface StockOnHandViewProps {
     locations: any[];
-    locationCategories: any[];
     stockBalance: any[];
     attributes: any[];
     onRefresh: () => void;
@@ -16,7 +15,7 @@ interface StockOnHandViewProps {
 
 const UNCAT = '__uncat__';
 
-export default function StockOnHandView({ locations, locationCategories = [], stockBalance, attributes, onRefresh, authFetch, apiBase }: StockOnHandViewProps) {
+export default function StockOnHandView({ locations, stockBalance, attributes, onRefresh, authFetch, apiBase }: StockOnHandViewProps) {
     const { uiStyle } = useTheme();
     const { t } = useLanguage();
     const { showToast } = useToast();
@@ -25,7 +24,7 @@ export default function StockOnHandView({ locations, locationCategories = [], st
     const [batches, setBatches] = useState<any[]>([]);
     const [search, setSearch] = useState('');
     const [locationFilter, setLocationFilter] = useState('');
-    const [categoryFilter, setCategoryFilter] = useState('');
+    const [warehouseFilter, setWarehouseFilter] = useState('');
     const [itemFilter, setItemFilter] = useState('');
 
     // Transfer modal state
@@ -115,37 +114,29 @@ export default function StockOnHandView({ locations, locationCategories = [], st
         for (const l of (locations || [])) m[l.id] = l;
         return m;
     }, [locations]);
-    const catById = useMemo(() => {
-        const m: Record<string, string> = {};
-        for (const c of (locationCategories || [])) m[c.id] = c.name;
-        return m;
-    }, [locationCategories]);
-    const getLocCategoryId = (locId: string): string | null => locMap[locId]?.category_id || null;
-    const getLocCategoryName = (locId: string): string => {
-        const loc = locMap[locId];
-        if (!loc) return '';
-        if (loc.category_name) return loc.category_name;
-        return loc.category_id ? (catById[loc.category_id] || '') : '';
-    };
+    // A location's parent warehouse.
+    const getWarehouseId = (locId: string): string | null => locMap[locId]?.parent_id || null;
+    const getWarehouseName = (locId: string): string => locMap[locId]?.parent_name || '';
 
-    const sortedCategories = useMemo(
-        () => [...(locationCategories || [])].sort((a: any, b: any) => a.name.localeCompare(b.name)),
-        [locationCategories]
+    // Top-level locations (warehouses/areas) for the filter dropdown.
+    const warehouses = useMemo(
+        () => (locations || []).filter((l: any) => !l.parent_id).sort((a: any, b: any) => a.name.localeCompare(b.name)),
+        [locations]
     );
 
-    // Location dropdown narrows to the chosen category.
+    // Location dropdown narrows to the chosen warehouse.
     const locationOptions = useMemo(() => {
         const ls = [...(locations || [])].sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
-        if (!categoryFilter) return ls;
-        if (categoryFilter === UNCAT) return ls.filter((l: any) => !l.category_id);
-        return ls.filter((l: any) => l.category_id === categoryFilter);
-    }, [locations, categoryFilter]);
+        if (!warehouseFilter) return ls;
+        if (warehouseFilter === UNCAT) return ls.filter((l: any) => !l.parent_id);
+        return ls.filter((l: any) => l.parent_id === warehouseFilter);
+    }, [locations, warehouseFilter]);
 
-    const onCategoryChange = (val: string) => {
-        setCategoryFilter(val);
+    const onWarehouseChange = (val: string) => {
+        setWarehouseFilter(val);
         if (val && locationFilter) {
-            const cid = getLocCategoryId(locationFilter);
-            const matches = val === UNCAT ? !cid : cid === val;
+            const wid = getWarehouseId(locationFilter);
+            const matches = val === UNCAT ? !wid : wid === val;
             if (!matches) setLocationFilter('');
         }
     };
@@ -173,10 +164,10 @@ export default function StockOnHandView({ locations, locationCategories = [], st
         const s = search.toLowerCase();
         return (stockBalance || []).filter((bal: any) => {
             if (locationFilter && bal.location_id !== locationFilter) return false;
-            if (categoryFilter) {
-                const cid = getLocCategoryId(bal.location_id);
-                if (categoryFilter === UNCAT) { if (cid) return false; }
-                else if (cid !== categoryFilter) return false;
+            if (warehouseFilter) {
+                const wid = getWarehouseId(bal.location_id);
+                if (warehouseFilter === UNCAT) { if (wid) return false; }
+                else if (wid !== warehouseFilter) return false;
             }
             if (itemFilter && bal.item_id !== itemFilter) return false;
             if (!s) return true;
@@ -184,12 +175,12 @@ export default function StockOnHandView({ locations, locationCategories = [], st
             const code = (bal.item_code || '').toLowerCase();
             const itemCat = (bal.item_category_name || '').toLowerCase();
             const loc = (bal.location_name || getLocationName(bal.location_id)).toLowerCase();
-            const cat = getLocCategoryName(bal.location_id).toLowerCase();
+            const wh = getWarehouseName(bal.location_id).toLowerCase();
             const batch = bal.batch_key ? (batchMap[bal.batch_key] || bal.batch_key).toLowerCase() : '';
-            return name.includes(s) || code.includes(s) || itemCat.includes(s) || loc.includes(s) || cat.includes(s) || batch.includes(s);
+            return name.includes(s) || code.includes(s) || itemCat.includes(s) || loc.includes(s) || wh.includes(s) || batch.includes(s);
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [stockBalance, search, locationFilter, categoryFilter, itemFilter, batchMap, locMap, catById]);
+    }, [stockBalance, search, locationFilter, warehouseFilter, itemFilter, batchMap, locMap]);
 
     const negativeCount = filtered.filter((b: any) => b.qty < 0).length;
 
@@ -197,12 +188,12 @@ export default function StockOnHandView({ locations, locationCategories = [], st
         item:        (b: any) => b.item_name || b.item_code,
         itemCategory: (b: any) => b.item_category_name || '',
         location: (b: any) => b.location_name || getLocationName(b.location_id),
-        category: (b: any) => getLocCategoryName(b.location_id) || '',
+        warehouse: (b: any) => getWarehouseName(b.location_id) || '',
         batch:    (b: any) => b.batch_key ? (batchMap[b.batch_key] || b.batch_key) : null,
         qty:      (b: any) => b.qty,
         packaging: (b: any) => pkgTotal(b),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }), [batchMap, locations, locMap, catById]);
+    }), [batchMap, locations, locMap]);
     const { sorted: sortedRows, sort, toggle: toggleSort } = useSortable(filtered, sortCols);
 
     const balanceItems = useMemo(() => {
@@ -278,9 +269,9 @@ export default function StockOnHandView({ locations, locationCategories = [], st
                         {bal.location_name || getLocationName(bal.location_id)}
                     </td>
                     <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px' }}>
-                        {getLocCategoryName(bal.location_id) ? (
+                        {getWarehouseName(bal.location_id) ? (
                             <span style={{ background: '#eef0e4', border: '1px solid #b7bb8f', padding: '0 5px', fontSize: '10px', color: '#4a4a2a' }}>
-                                {getLocCategoryName(bal.location_id)}
+                                {getWarehouseName(bal.location_id)}
                             </span>
                         ) : (
                             <span style={{ fontSize: '10px', color: '#999', fontStyle: 'italic' }}>—</span>
@@ -352,8 +343,8 @@ export default function StockOnHandView({ locations, locationCategories = [], st
                 </td>
                 <td>{bal.location_name || getLocationName(bal.location_id)}</td>
                 <td>
-                    {getLocCategoryName(bal.location_id) ? (
-                        <span className="badge bg-secondary-subtle text-secondary-emphasis">{getLocCategoryName(bal.location_id)}</span>
+                    {getWarehouseName(bal.location_id) ? (
+                        <span className="badge bg-secondary-subtle text-secondary-emphasis">{getWarehouseName(bal.location_id)}</span>
                     ) : (
                         <span className="text-muted">—</span>
                     )}
@@ -430,9 +421,11 @@ export default function StockOnHandView({ locations, locationCategories = [], st
                                 onChange={e => setTransferToLoc(e.target.value)}
                             >
                                 <option value="">— select location —</option>
-                                {locations.filter((l: any) => l.id !== transferTarget.location_id).map((l: any) => (
-                                    <option key={l.id} value={l.id}>{l.name}</option>
-                                ))}
+                                {locations
+                                    .filter((l: any) => l.id !== transferTarget.location_id && !l.has_children)
+                                    .map((l: any) => (
+                                        <option key={l.id} value={l.id}>{l.parent_name ? `${l.parent_name} / ${l.name}` : l.name}</option>
+                                    ))}
                             </select>
                         </div>
                         <div style={{ marginBottom: 8 }}>
@@ -497,10 +490,10 @@ export default function StockOnHandView({ locations, locationCategories = [], st
                             onChange={e => setSearch(e.target.value)}
                         />
                         <div style={xpSep} />
-                        <select style={{ ...xpSelect, width: 160 }} value={categoryFilter} onChange={e => onCategoryChange(e.target.value)}>
-                            <option value="">All Location Categories</option>
-                            {sortedCategories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            <option value={UNCAT}>Uncategorized</option>
+                        <select style={{ ...xpSelect, width: 160 }} value={warehouseFilter} onChange={e => onWarehouseChange(e.target.value)}>
+                            <option value="">All Warehouses</option>
+                            {warehouses.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            <option value={UNCAT}>No Warehouse</option>
                         </select>
                         <select style={{ ...xpSelect, width: 150 }} value={locationFilter} onChange={e => setLocationFilter(e.target.value)}>
                             <option value="">All Locations</option>
@@ -525,7 +518,7 @@ export default function StockOnHandView({ locations, locationCategories = [], st
                                     <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
                                     <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('itemCategory')} title="Sort">Item Category<SortMark sort={sort} colKey="itemCategory" /></th>
                                     <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('category')} title="Sort">Location Category<SortMark sort={sort} colKey="category" /></th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('warehouse')} title="Sort">Warehouse<SortMark sort={sort} colKey="warehouse" /></th>
                                     <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('batch')} title="Sort">Lot<SortMark sort={sort} colKey="batch" /></th>
                                     <th style={xpTableHeader}>{t('attributes') || 'Attributes'}</th>
                                     <th style={{ ...xpTableHeader, textAlign: 'right', cursor: 'pointer' }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
@@ -581,10 +574,10 @@ export default function StockOnHandView({ locations, locationCategories = [], st
                             />
                         </div>
                         <div className="col-md-2">
-                            <select className="form-select form-select-sm" value={categoryFilter} onChange={e => onCategoryChange(e.target.value)}>
-                                <option value="">All Location Categories</option>
-                                {sortedCategories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                <option value={UNCAT}>Uncategorized</option>
+                            <select className="form-select form-select-sm" value={warehouseFilter} onChange={e => onWarehouseChange(e.target.value)}>
+                                <option value="">All Warehouses</option>
+                                {warehouses.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                <option value={UNCAT}>No Warehouse</option>
                             </select>
                         </div>
                         <div className="col-md-2">
@@ -618,7 +611,7 @@ export default function StockOnHandView({ locations, locationCategories = [], st
                                 <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
                                 <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('itemCategory')} title="Sort">Item Category<SortMark sort={sort} colKey="itemCategory" /></th>
                                 <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
-                                <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('category')} title="Sort">Location Category<SortMark sort={sort} colKey="category" /></th>
+                                <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('warehouse')} title="Sort">Warehouse<SortMark sort={sort} colKey="warehouse" /></th>
                                 <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('batch')} title="Sort">Lot<SortMark sort={sort} colKey="batch" /></th>
                                 <th>{t('attributes') || 'Attributes'}</th>
                                 <th className="text-end" style={{ cursor: 'pointer' }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>

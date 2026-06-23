@@ -10,7 +10,6 @@ const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 interface DataContextType {
     items: any[];
     locations: any[];
-    locationCategories: any[];
     attributes: any[];
     categories: any[];
     uoms: any[];
@@ -67,7 +66,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     // Data State
     const [items, setItems] = useState([]);
     const [locations, setLocations] = useState([]);
-    const [locationCategories, setLocationCategories] = useState([]);
     const [attributes, setAttributes] = useState([]);
     const [categories, setCategories] = useState([]);
     const [uoms, setUoms] = useState([]);
@@ -162,7 +160,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 const parsed = JSON.parse(savedCache);
                 if (Date.now() - parsed.timestamp < CACHE_TTL) {
                     const data = parsed.data;
-                    setLocations(data.locations || []); setLocationCategories(data.locationCategories || []); setAttributes(data.attributes || []); setCategories(data.categories || []);
+                    setLocations(data.locations || []); setAttributes(data.attributes || []); setCategories(data.categories || []);
                     setUoms(data.uoms || []); setSizes(data.sizes || []); setWorkCenters(data.workCenters || []); setOperations(data.operations || []);
                     setPartners(data.partners || []);
                     setItemIndex(data.itemIndex || {});
@@ -177,7 +175,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             // Fetch if initial load OR explicitly targeted OR on Settings/Locations page
             if ((isInitialLoad && !masterFetched) || fetchTarget === 'settings' || fetchTarget === 'locations' || fetchTarget === 'item-metadata' || fetchTarget === 'routing') {
                 requests.push(fetch(`${API_BASE}/locations`, { headers })); requestTypes.push('locations');
-                requests.push(fetch(`${API_BASE}/location-categories`, { headers })); requestTypes.push('location-categories');
                 requests.push(fetch(`${API_BASE}/attributes`, { headers })); requestTypes.push('attributes');
                 requests.push(fetch(`${API_BASE}/categories`, { headers })); requestTypes.push('categories');
                 requests.push(fetch(`${API_BASE}/uoms`, { headers })); requestTypes.push('uoms');
@@ -293,7 +290,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 const data = await res.json();
                 switch(type) {
                     case 'locations': setLocations(data); newMasterData.locations = data; break;
-                    case 'location-categories': setLocationCategories(data); newMasterData.locationCategories = data; break;
                     case 'attributes': setAttributes(data); newMasterData.attributes = data; break;
                     case 'categories': setCategories(data); newMasterData.categories = data; break;
                     case 'uoms': setUoms(data); newMasterData.uoms = data; break;
@@ -413,14 +409,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }, [currentUser]);
 
     const value = React.useMemo(() => ({
-        items, locations, locationCategories, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
+        items, locations, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
         partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, itemIndex, companyProfile,
         pagination: { itemPage, setItemPage, itemTotal, woPage, setWoPage, woTotal, prPage, setPrPage, prTotal, auditPage, setAuditPage, auditTotal, reportPage, setReportPage, reportTotal, moSearch, setMoSearch: handleSetMoSearch, prSearch, setPrSearch: handleSetPrSearch, pageSize },
         filters: { itemSearch, setItemSearch, categoryL1, setCategoryL1: handleSetCategoryL1, categoryL2, setCategoryL2: handleSetCategoryL2, categoryL3, setCategoryL3, auditType, setAuditType },
         fetchData, handleTabHover, authFetch
     }), [
-        items, locations, locationCategories, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
+        items, locations, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
         partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, itemIndex, companyProfile,
         itemPage, itemTotal, woPage, woTotal, prPage, prTotal, auditPage, auditTotal, reportPage, reportTotal, pageSize,

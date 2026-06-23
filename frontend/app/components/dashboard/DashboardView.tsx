@@ -211,7 +211,7 @@ const TREND_METRICS = [
     { key: 'open_sos', color: '#2a7a2a' },
 ];
 
-export default function DashboardView({ items, locations, locationCategories, stockBalance, workOrders, stockEntries, samples, salesOrders, kpis, summary, itemIndex, kpiHistory }: any) {
+export default function DashboardView({ items, locations, stockBalance, workOrders, stockEntries, samples, salesOrders, kpis, summary, itemIndex, kpiHistory }: any) {
     const { t } = useLanguage();
     const { uiStyle: currentStyle } = useTheme();
     const classic = currentStyle === 'classic';
@@ -272,20 +272,20 @@ export default function DashboardView({ items, locations, locationCategories, st
             .slice(0, 5)
             .map((e: any, i: number) => ({ key: i, itemName: resolveName(e.item_id), qty_change: e.qty_change, created_at: e.created_at, location_name: (locations || []).find((l: any) => String(l.id) === String(e.location_id))?.name || '—' }));
 
-    // locationStats: [{id, name, totalQty, catId, catName}]
-    const catNameById: Record<string, string> = {};
-    (locationCategories || []).forEach((c: any) => { catNameById[String(c.id)] = c.name; });
+    // locationStats grouped by parent warehouse: [{id, name, totalQty, catId, catName}]
+    const whNameById: Record<string, string> = {};
+    (locations || []).forEach((l: any) => { if (!l.parent_id) whNameById[String(l.id)] = l.name; });
     const locationStats: any[] = hasSummary
         ? (summary.warehouse_distribution || []).map((w: any) => ({
             id: w.location_id, name: w.location_name, totalQty: w.total_qty,
             catId: w.location_category_id ? String(w.location_category_id) : 'uncat',
-            catName: w.location_category_name || 'Uncategorized',
+            catName: w.location_category_name || 'No Warehouse',
         }))
         : (locations || []).map((loc: any) => ({
             id: loc.id, name: loc.name,
             totalQty: (stockBalance || []).filter((b: any) => String(b.location_id) === String(loc.id)).reduce((s: number, b: any) => s + parseFloat(b.qty), 0),
-            catId: loc.category_id ? String(loc.category_id) : 'uncat',
-            catName: catNameById[String(loc.category_id)] || 'Uncategorized',
+            catId: loc.parent_id ? String(loc.parent_id) : 'uncat',
+            catName: whNameById[String(loc.parent_id)] || 'No Warehouse',
         })).filter((l: any) => l.totalQty > 0).sort((a: any, b: any) => b.totalQty - a.totalQty);
     const totalStockQty = locationStats.reduce((s: number, l: any) => s + l.totalQty, 0);
 
@@ -302,7 +302,7 @@ export default function DashboardView({ items, locations, locationCategories, st
             .sort((a, b) => b.total - a.total)
             .map(grp => ({ ...grp, locations: grp.locations.sort((a: any, b: any) => b.totalQty - a.totalQty) }));
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [summary, locations, stockBalance, locationCategories]);
+    }, [summary, locations, stockBalance]);
 
     // ── Overdue WOs (from the MO list, which IS loaded on the dashboard) ───────
     const today = new Date();

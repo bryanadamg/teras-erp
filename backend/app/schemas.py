@@ -429,31 +429,22 @@ class PRMaterialRequirementItem(BaseModel):
     shortfall: float
     mo_contributions: list[PRMOContribution]
 
-class LocationCategoryCreate(BaseModel):
-    name: str
-
-class LocationCategoryResponse(BaseModel):
-    id: UUID
-    name: str
-
-    class Config:
-        from_attributes = True
-
 class LocationCreate(BaseModel):
     code: str
     name: str
-    category_id: UUID | None = None
+    parent_id: UUID | None = None        # null = top-level warehouse/area
 
 class LocationUpdate(BaseModel):
     name: str | None = None
-    category_id: UUID | None = None      # explicit null = uncategorize
+    parent_id: UUID | None = None        # explicit null = move to top level
 
 class LocationResponse(BaseModel):
     id: UUID
     code: str
     name: str
-    category_id: UUID | None = None
-    category_name: str | None = None
+    parent_id: UUID | None = None
+    parent_name: str | None = None
+    has_children: bool = False
 
     class Config:
         from_attributes = True

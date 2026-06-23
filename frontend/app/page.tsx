@@ -7,7 +7,7 @@ import { useIsMobile } from './hooks/useIsMobile';
 
 export default function RootPage() {
     const {
-        items, locations, locationCategories, stockBalance, manufacturingOrders,
+        items, locations, stockBalance, manufacturingOrders,
         stockEntries, samples, salesOrders, dashboardKPIs,
         dashboardSummary, dashboardKpiHistory, itemIndex,
     } = useData();
@@ -31,7 +31,6 @@ export default function RootPage() {
             <DashboardView
                 items={items}
                 locations={locations}
-                locationCategories={locationCategories}
                 stockBalance={stockBalance}
                 workOrders={manufacturingOrders}
                 stockEntries={stockEntries}

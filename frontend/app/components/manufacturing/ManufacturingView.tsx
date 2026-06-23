@@ -1323,14 +1323,14 @@ export default function ManufacturingView({
                           <label className="form-label extra-small fw-bold text-muted uppercase mb-1">Output Target</label>
                           <select className="form-select form-select-sm" value={newWO.location_code} onChange={e => setNewWO({...newWO, location_code: e.target.value})} required>
                               <option value="">Select...</option>
-                              {locations.map((loc: any) => <option key={loc.id} value={loc.code}>{loc.name}</option>)}
+                              {locations.filter((loc: any) => !loc.has_children).map((loc: any) => <option key={loc.id} value={loc.code}>{loc.parent_name ? `${loc.parent_name} / ${loc.name}` : loc.name}</option>)}
                           </select>
                       </div>
                       <div className="mb-2">
                           <label className="form-label extra-small fw-bold text-muted uppercase mb-1">Material Source</label>
                           <select className="form-select form-select-sm" value={newWO.source_location_code} onChange={e => setNewWO({...newWO, source_location_code: e.target.value})}>
                               <option value="">Same as Production</option>
-                              {locations.map((loc: any) => <option key={loc.id} value={loc.code}>{loc.name}</option>)}
+                              {locations.filter((loc: any) => !loc.has_children).map((loc: any) => <option key={loc.id} value={loc.code}>{loc.parent_name ? `${loc.parent_name} / ${loc.name}` : loc.name}</option>)}
                           </select>
                       </div>
 

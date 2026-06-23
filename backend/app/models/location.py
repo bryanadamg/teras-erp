@@ -5,15 +5,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 
-class LocationCategory(Base):
-    __tablename__ = "location_categories"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    name: Mapped[str] = mapped_column(String(128), unique=True, index=True)
-
-
 class Location(Base):
     __tablename__ = "locations"
 
@@ -24,15 +15,23 @@ class Location(Base):
     code: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(255))
 
-    # Optional organizing category (pure label; SET NULL on category delete).
-    category_id: Mapped[uuid.UUID | None] = mapped_column(
+    # Self-referential 2-level hierarchy:
+    #   top-level (parent_id is NULL) = warehouse / area
+    #   child (parent_id set)         = spot / bin where stock actually sits
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("location_categories.id", ondelete="SET NULL"),
+        ForeignKey("locations.id", ondelete="RESTRICT"),
         nullable=True,
         index=True,
     )
-    category = relationship("LocationCategory", lazy="joined")
+    parent = relationship(
+        "Location", remote_side="Location.id", backref="children", lazy="joined"
+    )
 
     @property
-    def category_name(self) -> str | None:
-        return self.category.name if self.category else None
+    def parent_name(self) -> str | None:
+        return self.parent.name if self.parent else None
+
+    @property
+    def has_children(self) -> bool:
+        return len(self.children) > 0

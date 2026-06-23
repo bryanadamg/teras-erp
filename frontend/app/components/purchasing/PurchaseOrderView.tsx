@@ -425,7 +425,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                    </div>
                    <div className="col-md-12">
                        <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Receiving Warehouse</label>
-                       <SearchableSelect options={locations.map((l: any) => ({ value: l.id, label: l.name, subLabel: l.code }))} value={newPO.target_location_id} onChange={(val) => setNewPO({...newPO, target_location_id: val})} placeholder="Select receiving location…" required />
+                       <SearchableSelect options={locations.filter((l: any) => !l.has_children).map((l: any) => ({ value: l.id, label: l.parent_name ? `${l.parent_name} / ${l.name}` : l.name, subLabel: l.code }))} value={newPO.target_location_id} onChange={(val) => setNewPO({...newPO, target_location_id: val})} placeholder="Select receiving location…" required />
                    </div>
                </div>
 
@@ -585,7 +585,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                        </div>
                        <div className="col-md-4">
                            <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Receiving Warehouse</label>
-                           <SearchableSelect options={locations.map((l: any) => ({ value: l.id, label: l.name, subLabel: l.code }))} value={receiptLocationId} onChange={(val) => setReceiptLocationId(val)} placeholder="Select warehouse…" required />
+                           <SearchableSelect options={locations.filter((l: any) => !l.has_children).map((l: any) => ({ value: l.id, label: l.parent_name ? `${l.parent_name} / ${l.name}` : l.name, subLabel: l.code }))} value={receiptLocationId} onChange={(val) => setReceiptLocationId(val)} placeholder="Select warehouse…" required />
                        </div>
                        <div className="col-md-5">
                            <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Notes</label>

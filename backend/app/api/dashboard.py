@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from app.db.session import get_db, get_async_db
@@ -9,7 +9,7 @@ from app.models.auth import User
 from app.models.stock_balance import StockBalance
 from app.models.stock_ledger import StockLedger
 from app.models.item import Item
-from app.models.location import Location, LocationCategory
+from app.models.location import Location
 from app.models.sales import SalesOrder, SalesOrderLine
 from app.models.manufacturing import ManufacturingOrder
 
@@ -41,19 +41,20 @@ async def get_dashboard_summary(
     Replaces the previous frontend approach of shipping the entire stock-balance
     table and all sales orders to the browser. Uses SQL aggregation throughout.
     """
-    # --- Warehouse distribution: sum qty per location (qty > 0 only), tagged
-    #     with the location's group (LocationCategory) for grouped display ---
+    # --- Warehouse distribution: sum qty per location (qty > 0 only), grouped by
+    #     the location's parent warehouse (spots roll up to their warehouse) ---
+    Warehouse = aliased(Location)
     wd_result = await db.execute(
         select(
             StockBalance.location_id,
             Location.name,
-            Location.category_id,
-            LocationCategory.name.label("category_name"),
+            Location.parent_id,
+            Warehouse.name.label("warehouse_name"),
             func.sum(StockBalance.qty).label("total_qty"),
         )
         .join(Location, Location.id == StockBalance.location_id)
-        .outerjoin(LocationCategory, LocationCategory.id == Location.category_id)
-        .group_by(StockBalance.location_id, Location.name, Location.category_id, LocationCategory.name)
+        .outerjoin(Warehouse, Warehouse.id == Location.parent_id)
+        .group_by(StockBalance.location_id, Location.name, Location.parent_id, Warehouse.name)
         .having(func.sum(StockBalance.qty) > 0)
         .order_by(func.sum(StockBalance.qty).desc())
     )
@@ -61,8 +62,9 @@ async def get_dashboard_summary(
         {
             "location_id": str(row.location_id),
             "location_name": row.name,
-            "location_category_id": str(row.category_id) if row.category_id else None,
-            "location_category_name": row.category_name or "Uncategorized",
+            # keys kept for the dashboard's grouped display; now carry the parent warehouse
+            "location_category_id": str(row.parent_id) if row.parent_id else None,
+            "location_category_name": row.warehouse_name or "No Warehouse",
             "total_qty": float(row.total_qty or 0),
         }
         for row in wd_result.all()
