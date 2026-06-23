@@ -1,7 +1,7 @@
 import uuid
-from sqlalchemy import String, ForeignKey
+from sqlalchemy import String, ForeignKey, inspect as sa_inspect
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, backref
 from app.db.base import Base
 
 
@@ -24,14 +24,28 @@ class Location(Base):
         nullable=True,
         index=True,
     )
+    # parent: joined (to-one) so parent_name is always available.
+    # children: selectin so has_children is safe to read in async routes
+    #   (Location is serialized inside async MO/PR trees via input/output_location).
     parent = relationship(
-        "Location", remote_side="Location.id", backref="children", lazy="joined"
+        "Location",
+        remote_side="Location.id",
+        backref=backref("children", lazy="selectin"),
+        lazy="joined",
     )
 
+    # These properties must NEVER trigger lazy IO — Location is serialized inside
+    # async routes (MO/PR trees) where the relationships may not be eager-loaded.
+    # If a relationship isn't already loaded, return a safe default instead of
+    # forcing a DB hit (which raises MissingGreenlet under AsyncSession).
     @property
     def parent_name(self) -> str | None:
+        if "parent" in sa_inspect(self).unloaded:
+            return None
         return self.parent.name if self.parent else None
 
     @property
     def has_children(self) -> bool:
+        if "children" in sa_inspect(self).unloaded:
+            return False
         return len(self.children) > 0

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from app.db.session import get_db
 from app.models.location import Location
 from app.models.auth import User
@@ -39,7 +39,23 @@ def create_location(payload: LocationCreate, db: Session = Depends(get_db), curr
 
 @router.get("/locations", response_model=list[LocationResponse])
 def get_locations(skip: int = 0, limit: int = 1000, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return db.query(Location).offset(skip).limit(limit).all()
+    rows = db.query(Location).offset(skip).limit(limit).all()
+    # Resolve parent_name / has_children from the flat list (no relationship IO —
+    # the model's relationship-backed properties are kept async-safe for nested
+    # serialization and intentionally return defaults when unloaded).
+    name_by_id = {r.id: r.name for r in rows}
+    parents_with_children = {r.parent_id for r in rows if r.parent_id}
+    return [
+        LocationResponse(
+            id=r.id,
+            code=r.code,
+            name=r.name,
+            parent_id=r.parent_id,
+            parent_name=name_by_id.get(r.parent_id),
+            has_children=r.id in parents_with_children,
+        )
+        for r in rows
+    ]
 
 
 @router.patch("/locations/{location_id}", response_model=LocationResponse)
