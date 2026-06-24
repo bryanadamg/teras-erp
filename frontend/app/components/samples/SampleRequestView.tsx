@@ -502,14 +502,6 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       return map[status] || map['PENDING'];
   };
 
-  // Approved fraction numerator color: grey (0) → XP blue (partial) → green (complete)
-  const fracNumColor = (approved: number, total: number): string => {
-      if (total === 0) return '#777';
-      if (approved === 0) return '#777';
-      if (approved === total) return '#1a6e1a';
-      return '#0047c8';
-  };
-
   const createItemFromColor = (sample: any, color: any) => {
       const suggestedCode = encodeURIComponent(`${sample.code}-${color.name}`);
       router.push(
@@ -1369,25 +1361,31 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                            <span className={`badge ${getStatusBadge(s.status)}`}>{s.status}</span>
                                        )}
                                    </td>
-                                   {/* Colors — approved fraction */}
+                                   {/* Colors — status count badges */}
                                    <td style={classic ? tdBase : undefined}>
                                        {s.colors && s.colors.length > 0 ? (() => {
-                                           const approved = s.colors.filter((c: any) => c.status === 'APPROVED').length;
-                                           const total = s.colors.length;
-                                           const numColor = fracNumColor(approved, total);
-                                           return classic ? (
-                                               <div style={{ display: 'flex', alignItems: 'baseline', gap: 1, whiteSpace: 'nowrap' as const }}>
-                                                   <span style={{ fontSize: 13, fontWeight: 'bold', color: numColor, fontFamily: 'Tahoma, Arial, sans-serif' }}>{approved}</span>
-                                                   <span style={{ fontSize: 11, color: '#777', fontFamily: 'Tahoma, Arial, sans-serif', margin: '0 1px' }}>/</span>
-                                                   <span style={{ fontSize: 13, fontWeight: 'bold', color: '#888', fontFamily: 'Tahoma, Arial, sans-serif' }}>{total}</span>
-                                                   <span style={{ fontSize: 9, color: '#555', marginLeft: 3, fontFamily: 'Tahoma, Arial, sans-serif' }}>approved</span>
+                                           const counts: Record<string, number> = { APPROVED: 0, IN_PRODUCTION: 0, REJECTED: 0, PENDING: 0 };
+                                           s.colors.forEach((c: any) => { const st = c.status || 'PENDING'; counts[st] = (counts[st] || 0) + 1; });
+                                           const META = [
+                                               { key: 'APPROVED',      label: 'approved',      cls: 'bg-success' },
+                                               { key: 'IN_PRODUCTION', label: 'in production', cls: 'bg-warning text-dark' },
+                                               { key: 'REJECTED',      label: 'rejected',      cls: 'bg-danger' },
+                                               { key: 'PENDING',       label: 'pending',       cls: 'bg-secondary' },
+                                           ];
+                                           const shown = META.filter(m => counts[m.key] > 0);
+                                           return (
+                                               <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' as const, alignItems: 'center' }}>
+                                                   {shown.map(m => classic ? (
+                                                       <span key={m.key} title={`${counts[m.key]} ${m.label}`}
+                                                             style={{ ...getColorStatusStyle(m.key), minWidth: 14, textAlign: 'center' as const }}>
+                                                           {counts[m.key]}
+                                                       </span>
+                                                   ) : (
+                                                       <span key={m.key} className={`badge ${m.cls}`} title={`${counts[m.key]} ${m.label}`}>
+                                                           {counts[m.key]}
+                                                       </span>
+                                                   ))}
                                                </div>
-                                           ) : (
-                                               <span className="small">
-                                                   <span style={{ fontWeight: 'bold', color: numColor }}>{approved}</span>
-                                                   <span className="text-muted">/{total}</span>
-                                                   <span className="text-muted ms-1" style={{ fontSize: 10 }}>approved</span>
-                                               </span>
                                            );
                                        })() : (
                                            <span style={classic ? { fontSize: '9px', color: '#888', fontStyle: 'italic', fontFamily: 'Tahoma, Arial, sans-serif' } : undefined}
