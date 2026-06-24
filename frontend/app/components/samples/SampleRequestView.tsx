@@ -79,6 +79,69 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
   const { uiStyle: currentStyle } = useTheme();
   const classic = currentStyle === 'classic';
 
+  // ── Reject confirmation (reason + notes) ────────────────────────────────
+  const REJECT_REASONS = [
+      'Color mismatch',
+      'Shade too dark',
+      'Shade too light',
+      'Quality defect',
+      'Wrong material',
+      'Measurement out of spec',
+      'Hand-feel / texture',
+      'Customer changed requirement',
+      'Other',
+  ];
+  const [rejectTarget, setRejectTarget] = useState<{ sampleId: string; colorId: string; colorName: string } | null>(null);
+  const [rejectReason, setRejectReason] = useState(REJECT_REASONS[0]);
+  const [rejectNotes, setRejectNotes] = useState('');
+
+  const openRejectModal = (sampleId: string, colorId: string, colorName: string) => {
+      setRejectTarget({ sampleId, colorId, colorName });
+      setRejectReason(REJECT_REASONS[0]);
+      setRejectNotes('');
+  };
+  const confirmReject = () => {
+      if (!rejectTarget) return;
+      onUpdateColorStatus(rejectTarget.sampleId, rejectTarget.colorId, 'REJECTED', rejectReason, rejectNotes);
+      setRejectTarget(null);
+  };
+
+  // Clone a rejected color into a brand-new sample request (carry over all specs)
+  const createNewFromRejected = (sample: any, color: any) => {
+      setEditingSample(null);
+      setNewSample({
+          code: suggestSampleCode(),
+          request_date: today,
+          customer_id: sample.customer_id || '',
+          project: sample.project || '',
+          customer_article_code: sample.customer_article_code || '',
+          internal_article_code: sample.internal_article_code || '',
+          width: sample.width || '',
+          variant_type: (sample.variant_type || 'color') as 'color' | 'combo',
+          colors: [{ name: color.name, is_repeat: true }],
+          main_material: sample.main_material || '',
+          middle_material: sample.middle_material || '',
+          bottom_material: sample.bottom_material || '',
+          weft: sample.weft || '',
+          warp: sample.warp || '',
+          original_weight: sample.original_weight != null ? String(sample.original_weight) : '',
+          original_weight_unit: sample.original_weight_unit || 'g/y',
+          production_weight: sample.production_weight != null ? String(sample.production_weight) : '',
+          production_weight_unit: sample.production_weight_unit || 'g/y',
+          additional_info: sample.additional_info || '',
+          quantity: sample.quantity || '',
+          sample_size: sample.sample_size || '',
+          estimated_completion_date: '',
+          completion_description: '',
+          notes: `Redo of rejected sample ${sample.code} — color "${color.name}"` + (color.rejection_reason ? ` (rejected: ${color.rejection_reason})` : ''),
+      });
+      setPendingColorName('');
+      setPendingColorIsRepeat(false);
+      setCompletionImageFile(null);
+      setDesignPdfFile(null);
+      setIsCreateOpen(true);
+  };
+
   useEffect(() => {
       if (!completionImageFile) { setCompletionImagePreviewUrl(null); return; }
       const url = URL.createObjectURL(completionImageFile);
@@ -546,6 +609,45 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
            initialConfig={codeConfig}
            attributes={[]}
        />
+
+       {/* Reject Color Modal — reason + optional notes */}
+       <ModalWrapper
+           isOpen={!!rejectTarget}
+           onClose={() => setRejectTarget(null)}
+           title={<><i className="bi bi-x-octagon me-2"></i>Reject Color{rejectTarget ? ` — ${rejectTarget.colorName}` : ''}</>}
+           variant="danger"
+           size="md"
+           footer={
+               <>
+                   <button type="button"
+                       style={classic ? xpBtn() : undefined}
+                       className={classic ? '' : 'btn btn-sm btn-link text-muted'}
+                       onClick={() => setRejectTarget(null)}>{t('cancel')}</button>
+                   <button type="button"
+                       style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #d32f2f, #8b0000)', borderColor: '#7f0000 #4a0000 #4a0000 #7f0000', color: '#fff', fontWeight: 'bold' }) : undefined}
+                       className={classic ? '' : 'btn btn-sm btn-danger px-4 fw-bold'}
+                       onClick={confirmReject}>Reject Color</button>
+               </>
+           }
+       >
+           <div style={{ fontSize: 12 }}>
+               <p className="text-muted small mb-3">
+                   Rejecting locks this color — its status cannot be changed afterwards. Pick a reason below.
+               </p>
+               <div className="mb-3">
+                   <label className="form-label small fw-bold">Rejection Reason <span className="text-danger">*</span></label>
+                   <select className="form-select form-select-sm" value={rejectReason} onChange={e => setRejectReason(e.target.value)}>
+                       {REJECT_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+                   </select>
+               </div>
+               <div>
+                   <label className="form-label small fw-bold">Notes <span className="fw-normal text-muted">(optional)</span></label>
+                   <textarea className="form-control form-control-sm" rows={3} value={rejectNotes}
+                       onChange={e => setRejectNotes(e.target.value)}
+                       placeholder="Extra detail for this rejection…" />
+               </div>
+           </div>
+       </ModalWrapper>
 
        {/* Create / Edit Modal */}
        <ModalWrapper
@@ -1562,12 +1664,25 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                                                    <td style={{ ...tdStyle, textAlign: 'center' as const }}>
                                                                                        {isApproved ? (
                                                                                            <span style={{ fontSize: 10, color: '#1b5e20', fontWeight: 'bold', fontFamily: 'Tahoma, Arial, sans-serif' }}>Approved</span>
+                                                                                       ) : isRejected ? (
+                                                                                           <div style={{ textAlign: 'left' as const }}>
+                                                                                               <div style={{ fontSize: 10, color: '#a01a1a', fontWeight: 'bold', fontFamily: 'Tahoma, Arial, sans-serif' }}>
+                                                                                                   Rejected{c.rejection_reason ? `: ${c.rejection_reason}` : ''}
+                                                                                               </div>
+                                                                                               {c.rejection_notes && (
+                                                                                                   <div style={{ fontSize: 9, color: '#555', fontFamily: 'Tahoma, Arial, sans-serif', fontStyle: 'italic', marginTop: 1 }}>{c.rejection_notes}</div>
+                                                                                               )}
+                                                                                               <button type="button"
+                                                                                                   style={xpBtn({ background: 'linear-gradient(to bottom, #5a8fd8, #2a5faa)', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', color: '#fff', fontSize: 10, padding: '1px 6px', marginTop: 3 })}
+                                                                                                   onClick={() => createNewFromRejected(s, c)}
+                                                                                                   title="Create a new sample request based on this rejected color">+ New Sample</button>
+                                                                                           </div>
                                                                                        ) : (
                                                                                            <div style={{ display: 'inline-flex' }}>
                                                                                                <button type="button" style={cbInprod(isInProd)} onClick={() => onUpdateColorStatus(s.id, c.id, isInProd ? 'PENDING' : 'IN_PRODUCTION')} title={isInProd ? 'Reset to Pending' : 'Set In Production'}>&#9881; In Prod</button>
                                                                                                <button type="button" style={cbSend(isSent)} onClick={() => onUpdateColorStatus(s.id, c.id, isSent ? 'PENDING' : 'SENT')} title={isSent ? 'Reset to Pending' : 'Mark Sent to Customer'}>&#187; Sent</button>
                                                                                                <button type="button" style={cbApprove(false)} onClick={() => handleApproveColor(s.id, c.id, c.name)} title="Approve">&#10003; Approve</button>
-                                                                                               <button type="button" style={cbReject(isRejected)} onClick={() => onUpdateColorStatus(s.id, c.id, isRejected ? 'PENDING' : 'REJECTED')} title={isRejected ? 'Reset to Pending' : 'Reject'}>&#10007; Reject</button>
+                                                                                               <button type="button" style={cbReject(false)} onClick={() => openRejectModal(s.id, c.id, c.name)} title="Reject">&#10007; Reject</button>
                                                                                            </div>
                                                                                        )}
                                                                                    </td>
@@ -1740,12 +1855,22 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                                                <td style={{ padding: '3px 6px', borderBottom: '1px solid #e9ecef', textAlign: 'center' as const }}>
                                                                                    {isApproved ? (
                                                                                        <span className="badge bg-success" style={{ fontSize: 10 }}>Approved</span>
+                                                                                   ) : isRejected ? (
+                                                                                       <div className="text-start">
+                                                                                           <div className="fw-bold text-danger" style={{ fontSize: 10 }}>
+                                                                                               Rejected{c.rejection_reason ? `: ${c.rejection_reason}` : ''}
+                                                                                           </div>
+                                                                                           {c.rejection_notes && (
+                                                                                               <div className="text-muted fst-italic" style={{ fontSize: 9 }}>{c.rejection_notes}</div>
+                                                                                           )}
+                                                                                           <button type="button" className="btn btn-sm btn-primary mt-1" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => createNewFromRejected(s, c)} title="Create a new sample request based on this rejected color">+ New Sample</button>
+                                                                                       </div>
                                                                                    ) : (
                                                                                        <div className="btn-group btn-group-sm" role="group">
                                                                                            <button type="button" className={`btn ${isInProd ? 'btn-warning' : 'btn-outline-warning'}`} style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => onUpdateColorStatus(s.id, c.id, isInProd ? 'PENDING' : 'IN_PRODUCTION')}>&#9881; In Prod</button>
                                                                                            <button type="button" className={`btn ${isSent ? 'btn-info' : 'btn-outline-info'}`} style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => onUpdateColorStatus(s.id, c.id, isSent ? 'PENDING' : 'SENT')}>&#187; Sent</button>
                                                                                            <button type="button" className="btn btn-outline-success" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => handleApproveColor(s.id, c.id, c.name)}>&#10003; Approve</button>
-                                                                                           <button type="button" className={`btn ${isRejected ? 'btn-danger' : 'btn-outline-danger'}`} style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => onUpdateColorStatus(s.id, c.id, isRejected ? 'PENDING' : 'REJECTED')}>&#10007; Reject</button>
+                                                                                           <button type="button" className="btn btn-outline-danger" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => openRejectModal(s.id, c.id, c.name)}>&#10007; Reject</button>
                                                                                        </div>
                                                                                    )}
                                                                                </td>

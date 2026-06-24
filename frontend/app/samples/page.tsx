@@ -37,8 +37,11 @@ export default function SamplesPage() {
         if (res.ok) fetchData();
     };
 
-    const handleUpdateColorStatus = async (sampleId: string, colorId: string, status: string) => {
-        const res = await authFetch(`${API_BASE}/samples/${sampleId}/colors/${colorId}/status?status=${status}`, { method: 'PUT' });
+    const handleUpdateColorStatus = async (sampleId: string, colorId: string, status: string, reason?: string, notes?: string) => {
+        let url = `${API_BASE}/samples/${sampleId}/colors/${colorId}/status?status=${status}`;
+        if (reason) url += `&reason=${encodeURIComponent(reason)}`;
+        if (notes) url += `&notes=${encodeURIComponent(notes)}`;
+        const res = await authFetch(url, { method: 'PUT' });
         if (res.ok) fetchData();
     };
 

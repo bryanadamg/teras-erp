@@ -283,6 +283,8 @@ async def update_color_status(
     sample_id: str,
     color_id: str,
     status: str,
+    reason: str | None = None,
+    notes: str | None = None,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -297,11 +299,17 @@ async def update_color_status(
     if status not in valid_statuses:
         raise HTTPException(status_code=400, detail="Invalid status")
 
-    if color.status == "APPROVED":
-        raise HTTPException(status_code=400, detail="Approved color status cannot be changed")
+    if color.status in ("APPROVED", "REJECTED"):
+        raise HTTPException(status_code=400, detail=f"{color.status.capitalize()} color status is locked and cannot be changed")
 
     previous_status = color.status
     color.status = status
+    if status == "REJECTED":
+        color.rejection_reason = (reason or "").strip() or None
+        color.rejection_notes = (notes or "").strip() or None
+    else:
+        color.rejection_reason = None
+        color.rejection_notes = None
 
     # Bump parent sample's updated_at so all users see it as unread
     parent_result = await db.execute(select(SampleRequest).filter(SampleRequest.id == sample_id))

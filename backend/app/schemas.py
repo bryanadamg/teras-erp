@@ -900,6 +900,8 @@ class SampleColorResponse(BaseModel):
     is_repeat: bool = False
     order: int = 0
     status: str = "PENDING"
+    rejection_reason: str | None = None
+    rejection_notes: str | None = None
     item_id: UUID | None = None
     item_code: str | None = None
     class Config:

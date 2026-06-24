@@ -25,6 +25,8 @@ class SampleColor(Base):
     is_repeat: Mapped[bool] = mapped_column(Boolean, default=False)
     order: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(32), default="PENDING")
+    rejection_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    rejection_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class SampleRequest(Base):
