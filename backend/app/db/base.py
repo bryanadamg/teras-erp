@@ -38,3 +38,4 @@ from app.models.settings import CompanyProfile
 from app.models.batch import Batch, BatchConsumption
 from app.models.dyeing_setting import DyeRecipe, DyeRecipeLine, DyeRecipeWashBath, DyeRecipeFinishing, DyeingRun, DyeingRunChemical, SettingRun
 from app.models.lab_dip import LabDipRequest, LabDipLine
+from app.models.packing import PackingOrder, PackingLine, PackingPackage, PackingPackageItem

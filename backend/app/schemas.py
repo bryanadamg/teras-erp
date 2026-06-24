@@ -1456,3 +1456,103 @@ class POLineBatchAssignment(BaseModel):
 
 class POReceiveWithBatchesPayload(BaseModel):
     batch_assignments: list[POLineBatchAssignment] = []
+
+# --- Packing / Dispatch (outbound Surat Jalan) Schemas ---
+
+class PackingPackageItemPayload(BaseModel):
+    # Reference the SO line (stable across line rebuilds); server resolves to packing_line.
+    sales_order_line_id: UUID
+    qty: float = 0
+
+class PackingPackagePayload(BaseModel):
+    package_no: int = 1
+    label: str | None = None
+    weight_kg: float | None = None
+    notes: str | None = None
+    contents: list[PackingPackageItemPayload] = []
+
+class PackingLinePayload(BaseModel):
+    sales_order_line_id: UUID
+    item_id: UUID
+    qty_packed: float = 0
+    source_location_id: UUID | None = None
+    batch_id: UUID | None = None
+
+class PackingOrderCreate(BaseModel):
+    sales_order_id: UUID
+    source_location_id: UUID | None = None
+    lines: list[PackingLinePayload] = []  # empty -> server seeds from SO remaining
+
+class PackingOrderUpdate(BaseModel):
+    source_location_id: UUID | None = None
+    qc_passed: bool | None = None
+    qc_inspector: str | None = None
+    delivery_note_number: str | None = None
+    delivery_date: datetime | None = None
+    carrier: str | None = None
+    vehicle_plate: str | None = None
+    driver: str | None = None
+    notes: str | None = None
+    lines: list[PackingLinePayload] | None = None
+    packages: list[PackingPackagePayload] | None = None
+
+class PackingPackageItemResponse(BaseModel):
+    id: UUID
+    packing_line_id: UUID
+    qty: float
+    class Config:
+        from_attributes = True
+
+class PackingPackageResponse(BaseModel):
+    id: UUID
+    package_no: int
+    label: str | None = None
+    weight_kg: float | None = None
+    notes: str | None = None
+    contents: list[PackingPackageItemResponse] = []
+    class Config:
+        from_attributes = True
+
+class PackingLineResponse(BaseModel):
+    id: UUID
+    sales_order_line_id: UUID
+    item_id: UUID
+    item_name: str | None = None
+    item_code: str | None = None
+    item_uom: str | None = None
+    qty_packed: float
+    source_location_id: UUID | None = None
+    batch_id: UUID | None = None
+    batch_number: str | None = None
+    class Config:
+        from_attributes = True
+
+class PackingOrderResponse(BaseModel):
+    id: UUID
+    code: str
+    sales_order_id: UUID
+    sales_order_code: str | None = None
+    customer_name: str | None = None
+    source_location_id: UUID | None = None
+    status: str
+    qc_passed: bool
+    qc_inspector: str | None = None
+    qc_at: datetime | None = None
+    delivery_note_number: str | None = None
+    delivery_date: datetime | None = None
+    carrier: str | None = None
+    vehicle_plate: str | None = None
+    driver: str | None = None
+    notes: str | None = None
+    dispatched_at: datetime | None = None
+    created_at: datetime
+    lines: list[PackingLineResponse] = []
+    packages: list[PackingPackageResponse] = []
+    class Config:
+        from_attributes = True
+
+class PackingOrderListResponse(BaseModel):
+    items: list[PackingOrderResponse]
+    total: int
+    page: int
+    size: int
