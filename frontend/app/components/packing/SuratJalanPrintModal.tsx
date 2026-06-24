@@ -177,33 +177,36 @@ export default function SuratJalanPrintModal({ po, salesOrders, items, attribute
         window.print();
     };
 
-    const btnGrey: React.CSSProperties = { fontFamily: font, fontSize: 11, padding: '3px 12px', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', color: '#000' };
-    const btnGreen: React.CSSProperties = { fontFamily: font, fontSize: 11, padding: '3px 14px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', cursor: 'pointer', fontWeight: 'bold' };
+    const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({ fontFamily: font, fontSize: 11, padding: '2px 10px', cursor: 'pointer', background: 'linear-gradient(to bottom,#ffffff 0%,#d4d0c8 100%)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000', borderRadius: 0, ...extra });
+    const btnGreen = xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold' });
+    const xpBevel: React.CSSProperties = { border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', boxShadow: '2px 2px 4px rgba(0,0,0,0.3)', background: '#ece9d8', borderRadius: 0 };
+    const xpTitleBar: React.CSSProperties = { background: 'linear-gradient(to right,#0058e6 0%,#08a5ff 100%)', color: '#fff', fontFamily: font, fontWeight: 'bold', fontSize: 12, padding: '4px 8px', borderBottom: '1px solid #003080', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 26 };
+    const xpInput: React.CSSProperties = { fontFamily: font, fontSize: 11, border: '1px solid #7f9db9', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px', background: '#fff', color: '#000', height: 20, width: '100%', boxSizing: 'border-box', outline: 'none' };
 
     const doc = <SJDocument po={po} so={so} items={items} attributes={attributes} companyProfile={companyProfile} customerAddr={customerAddr} preparedBy={preparedBy} />;
 
     return (
         <>
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 2100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
-                <div style={{ background: '#fff', width: '92vw', maxWidth: 900, height: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }} onClick={e => e.stopPropagation()}>
-                    <div style={{ background: 'linear-gradient(to right,#0058e6,#08a5ff)', color: '#fff', fontFamily: font, fontWeight: 'bold', fontSize: 12, padding: '5px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
+                <div style={{ ...xpBevel, width: '92vw', maxWidth: 900, height: '90vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+                    <div style={xpTitleBar}>
                         <span>Surat Jalan — {po.code}</span>
-                        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 15, cursor: 'pointer', fontWeight: 'bold' }}>X</button>
+                        <button onClick={onClose} style={xpBtn({ padding: '0 6px', fontWeight: 'bold' })}>X</button>
                     </div>
                     <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-                        <div style={{ width: 200, borderRight: '1px solid #dee2e6', background: '#f8f9fa', padding: 14 }}>
+                        <div style={{ width: 200, borderRight: '1px solid #b0a898', background: '#f4f3ee', padding: 14 }}>
                             <div style={{ fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase', color: '#111', marginBottom: 6 }}>Prepared By</div>
-                            <input style={{ width: '100%', fontSize: 11, padding: '3px 6px', border: '1px solid #ced4da', boxSizing: 'border-box' }} value={preparedBy} onChange={e => setPreparedBy(e.target.value)} placeholder="Name" />
+                            <input style={xpInput} value={preparedBy} onChange={e => setPreparedBy(e.target.value)} placeholder="Name" />
                             <div style={{ fontSize: 10, color: '#555', marginTop: 14 }}>Paper size &amp; margins set in browser print dialog.</div>
                         </div>
-                        <div style={{ flex: 1, background: '#e0e0e0', overflowY: 'auto', padding: 16, display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
+                        <div style={{ flex: 1, background: '#808080', overflowY: 'auto', padding: 16, display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
                             <div className="so-print-paper" style={{ background: '#fff', width: '100%', maxWidth: 680, padding: '20px 24px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)' }}>
                                 {doc}
                             </div>
                         </div>
                     </div>
-                    <div style={{ padding: '8px 12px', borderTop: '1px solid #dee2e6', background: '#f8f9fa', display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
-                        <button style={btnGrey} onClick={onClose}>Close</button>
+                    <div style={{ padding: '8px 12px', borderTop: '1px solid #b0a898', background: 'linear-gradient(to bottom,#f4f2ea,#e3e1d6)', display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+                        <button style={xpBtn()} onClick={onClose}>Close</button>
                         <button style={btnGreen} onClick={handlePrint}>Print</button>
                     </div>
                 </div>

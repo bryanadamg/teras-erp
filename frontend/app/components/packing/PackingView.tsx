@@ -5,36 +5,69 @@ import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
+import { XPStatusBar, XPEmptyState } from '../shared/xpTheme';
 import SuratJalanPrintModal from './SuratJalanPrintModal';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
 
-// --- shared XP-ish styles --------------------------------------------------
-const font = 'Tahoma, "Segoe UI", sans-serif';
-const card: React.CSSProperties = { background: '#fff', border: '1px solid #c0ccee', borderTop: '3px solid #316ac5' };
-const th: React.CSSProperties = { background: '#eef2fb', borderBottom: '1px solid #c0ccee', padding: '5px 8px', textAlign: 'left', fontWeight: 'bold', color: '#00309c', whiteSpace: 'nowrap' };
-const td: React.CSSProperties = { borderBottom: '1px solid #e6e6e6', padding: '4px 8px', verticalAlign: 'middle' };
-const input: React.CSSProperties = { fontFamily: font, fontSize: 11, padding: '2px 5px', border: '1px solid #7f9db9', boxSizing: 'border-box', width: '100%' };
-const btnGrey: React.CSSProperties = { fontFamily: font, fontSize: 11, padding: '3px 12px', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', color: '#000' };
-const btnBlue: React.CSSProperties = { fontFamily: font, fontSize: 11, padding: '3px 12px', background: 'linear-gradient(to bottom,#4a90e2,#1f5fc0)', border: '1px solid', borderColor: '#1a4e9a #0a2e6a #0a2e6a #1a4e9a', color: '#fff', cursor: 'pointer', fontWeight: 'bold' };
-const btnGreen: React.CSSProperties = { fontFamily: font, fontSize: 11, padding: '3px 14px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', cursor: 'pointer', fontWeight: 'bold' };
+// ── Classic XP theme primitives (match StockOnHandView / LocationsView) ──────
+const xpFont = 'Tahoma, "Segoe UI", sans-serif';
+const xpBevel: React.CSSProperties = {
+    border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
+    boxShadow: '2px 2px 4px rgba(0,0,0,0.3)', background: '#ece9d8', borderRadius: 0,
+};
+const xpTitleBar: React.CSSProperties = {
+    background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#ffffff',
+    fontFamily: xpFont, fontSize: 12, fontWeight: 'bold', padding: '4px 8px',
+    borderBottom: '1px solid #003080', display: 'flex', justifyContent: 'space-between',
+    alignItems: 'center', minHeight: 26,
+};
+const xpToolbar: React.CSSProperties = {
+    background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898',
+    padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+};
+const xpInput: React.CSSProperties = {
+    fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
+    boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px',
+    background: '#fff', color: '#000', height: 20, outline: 'none', boxSizing: 'border-box',
+};
+const xpSelect: React.CSSProperties = { ...xpInput, height: 22 };
+const xpTableHeader: React.CSSProperties = {
+    background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080',
+    fontSize: 10, fontWeight: 'bold', color: '#000', fontFamily: xpFont, textAlign: 'left',
+    padding: '3px 8px', position: 'sticky', top: 0, whiteSpace: 'nowrap',
+};
+const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
+    fontFamily: xpFont, fontSize: 11, padding: '2px 10px', cursor: 'pointer',
+    background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)', border: '1px solid',
+    borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000', borderRadius: 0, ...extra,
+});
+const xpBtnGreen = (extra: React.CSSProperties = {}) => xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold', ...extra });
+const xpSep: React.CSSProperties = { width: 1, height: 20, background: '#a0988c', margin: '0 2px', flexShrink: 0 };
+const td: React.CSSProperties = { borderBottom: '1px solid #e6e6e6', padding: '3px 8px', fontFamily: xpFont, fontSize: 11, verticalAlign: 'middle' };
+const xpLabel: React.CSSProperties = { fontFamily: xpFont, fontSize: 10, color: '#444', display: 'block', marginBottom: 2 };
 
-const STATUS_COLORS: Record<string, { bg: string; bd: string; fg: string }> = {
-    DRAFT: { bg: '#fff3cd', bd: '#c77800', fg: '#4a3000' },
-    DISPATCHED: { bg: '#d6f5d6', bd: '#2d7a2d', fg: '#0a3e0a' },
-    CANCELLED: { bg: '#f0f0f0', bd: '#999', fg: '#555' },
+// Status chip (classic), per statusChipStyle look
+const chipStyle = (bg: string, bd: string, fg: string): React.CSSProperties => ({
+    display: 'inline-block', fontSize: 9, fontWeight: 'bold', padding: '1px 6px', borderRadius: 0,
+    border: `1px solid ${bd}`, background: bg, color: fg, fontFamily: xpFont, whiteSpace: 'nowrap',
+});
+const PKG_CHIP: Record<string, React.CSSProperties> = {
+    DRAFT: chipStyle('#d4d0c8', '#808080', '#333'),
+    DISPATCHED: chipStyle('#2d7a2d', '#1a5e1a', '#fff'),
+    CANCELLED: chipStyle('#c00000', '#800000', '#fff'),
+};
+const SO_CHIP: Record<string, React.CSSProperties> = {
+    PENDING: chipStyle('#d4d0c8', '#808080', '#333'),
+    READY: chipStyle('#0058e6', '#003080', '#fff'),
+    PARTIAL: chipStyle('#f0c419', '#b8860b', '#3a2e00'),
 };
 
-function StatusBadge({ status }: { status: string }) {
-    const c = STATUS_COLORS[status] || STATUS_COLORS.DRAFT;
-    return (
-        <span style={{ fontSize: 9, fontWeight: 'bold', background: c.bg, border: `1px solid ${c.bd}`, color: c.fg, padding: '1px 6px' }}>
-            {status}
-        </span>
-    );
-}
-
 const num = (v: any) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+
+function StatusChip({ status, map }: { status: string; map: Record<string, React.CSSProperties> }) {
+    return <span style={map[status] || PKG_CHIP.DRAFT}>{status}</span>;
+}
 
 export default function PackingView() {
     // partners/locations/attributes/companyProfile come from DataContext master data
@@ -50,8 +83,8 @@ export default function PackingView() {
     const [salesOrders, setSalesOrders] = useState<any[]>([]);
     const [items, setItems] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
-    const [picking, setPicking] = useState(false);          // SO picker modal
-    const [editing, setEditing] = useState<any | null>(null); // PO being edited
+    const [picking, setPicking] = useState(false);
+    const [editing, setEditing] = useState<any | null>(null);
     const [printPO, setPrintPO] = useState<any | null>(null);
 
     const itemById = useMemo(() => {
@@ -60,7 +93,6 @@ export default function PackingView() {
         return m;
     }, [items]);
 
-    // Leaf locations only (stock lives in leaves)
     const leafLocations = useMemo(
         () => (locations || []).filter((l: any) => !(locations || []).some((c: any) => String(c.parent_id) === String(l.id))),
         [locations]
@@ -90,7 +122,6 @@ export default function PackingView() {
 
     useEffect(() => { loadAll(); }, [loadAll]);
 
-    // On-hand available by (item|location|variant). Variant key = sorted attr value ids.
     const availMap = useMemo(() => {
         const m: Record<string, number> = {};
         for (const b of balances) {
@@ -102,18 +133,16 @@ export default function PackingView() {
     }, [balances]);
 
     const availableFor = useCallback((itemId: string, locId: string, attrIds: string[]) => {
-        if (!locId) return null; // unknown until a warehouse is chosen
+        if (!locId) return null;
         const attrs = [...(attrIds || [])].map(String).sort().join(',');
         return availMap[`${itemId}|${locId}|${attrs}`] || 0;
     }, [availMap]);
 
-    // Packable = anything not already shipped out / cancelled
     const packableSOs = useMemo(
         () => (salesOrders || []).filter((so: any) => ['PENDING', 'READY', 'PARTIAL'].includes(so.status)),
         [salesOrders]
     );
 
-    // qty already packed (non-cancelled) per SO line across ALL packing orders
     const packedByOthers = useCallback((soLineId: string, excludePoId?: string) => {
         let sum = 0;
         for (const po of packingOrders) {
@@ -152,59 +181,72 @@ export default function PackingView() {
 
     const customerAddr = (name: string) => (partners || []).find((p: any) => p.name === name)?.address || '';
 
-    return (
-        <div style={{ padding: '18px 22px', fontFamily: font }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <i className="bi bi-box2" style={{ fontSize: 20, color: '#316ac5' }} />
-                    <span style={{ fontSize: 16, fontWeight: 'bold', color: '#00309c' }}>Packing &amp; Dispatch</span>
-                </div>
-                <button style={btnBlue} onClick={() => setPicking(true)}>+ New Packing Order</button>
-            </div>
+    const drafts = packingOrders.filter((p: any) => p.status === 'DRAFT').length;
+    const dispatched = packingOrders.filter((p: any) => p.status === 'DISPATCHED').length;
 
-            <div style={card}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-                    <thead>
-                        <tr>
-                            <th style={th}>Code</th>
-                            <th style={th}>Sales Order</th>
-                            <th style={th}>Customer</th>
-                            <th style={th}>Status</th>
-                            <th style={th}>Packages</th>
-                            <th style={th}>Delivery Note</th>
-                            <th style={th}>Dispatched</th>
-                            <th style={{ ...th, textAlign: 'right' }}>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {packingOrders.length === 0 && (
-                            <tr><td style={{ ...td, textAlign: 'center', color: '#888', padding: 18 }} colSpan={8}>
-                                {loading ? 'Loading...' : 'No packing orders yet. Click “New Packing Order” to pack an order — including partially-produced ones.'}
-                            </td></tr>
-                        )}
-                        {packingOrders.map((po: any) => (
-                            <tr key={po.id}>
-                                <td style={{ ...td, fontWeight: 'bold', color: '#00309c' }}>{po.code}</td>
-                                <td style={td}>{po.sales_order_code || '-'}</td>
-                                <td style={td}>{po.customer_name || '-'}</td>
-                                <td style={td}><StatusBadge status={po.status} /></td>
-                                <td style={td}>{(po.packages || []).length}</td>
-                                <td style={td}>{po.delivery_note_number || '-'}</td>
-                                <td style={td}>{po.dispatched_at ? new Date(po.dispatched_at).toLocaleDateString() : '-'}</td>
-                                <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                    <button style={{ ...btnGrey, marginRight: 4 }} onClick={() => setEditing(po)}>
-                                        {po.status === 'DRAFT' ? 'Edit' : 'View'}
-                                    </button>
-                                    <button style={{ ...btnGrey, marginRight: 4 }} onClick={() => setPrintPO(po)}>Surat Jalan</button>
-                                    {po.status !== 'DISPATCHED' && (
-                                        <button style={{ ...btnGrey, color: '#a00' }} onClick={() => deletePO(po)}>Delete</button>
-                                    )}
-                                </td>
+    return (
+        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: '100%', fontFamily: xpFont }}>
+            <div style={{ ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+                <div style={xpTitleBar}>
+                    <span><i className="bi bi-box2" style={{ marginRight: 6 }} />Packing &amp; Dispatch</span>
+                    <span style={{ fontSize: 10, opacity: 0.85 }}>{packingOrders.length} orders</span>
+                </div>
+                <div style={xpToolbar}>
+                    <button style={xpBtnGreen()} onClick={() => setPicking(true)} title="Create a packing order for a sales order">
+                        <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />New Packing Order
+                    </button>
+                    <div style={xpSep} />
+                    <button style={xpBtn()} onClick={loadAll} title="Refresh">
+                        <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh
+                    </button>
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto', background: '#fff', minHeight: 0 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                            <tr>
+                                <th style={xpTableHeader}>Code</th>
+                                <th style={xpTableHeader}>Sales Order</th>
+                                <th style={xpTableHeader}>Customer</th>
+                                <th style={xpTableHeader}>Status</th>
+                                <th style={{ ...xpTableHeader, textAlign: 'right' }}>Packages</th>
+                                <th style={xpTableHeader}>Delivery Note</th>
+                                <th style={xpTableHeader}>Dispatched</th>
+                                <th style={{ ...xpTableHeader, textAlign: 'right' }}>Actions</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {packingOrders.length === 0 && (
+                                <tr><td colSpan={8} style={{ padding: 0 }}>
+                                    <XPEmptyState icon="bi-box2" message={loading ? 'Loading...' : 'No packing orders yet. Click “New Packing Order” to pack an order — including partially-produced ones.'} />
+                                </td></tr>
+                            )}
+                            {packingOrders.map((po: any) => (
+                                <tr key={po.id}>
+                                    <td style={{ ...td, fontWeight: 'bold', color: '#00309c' }}>{po.code}</td>
+                                    <td style={td}>{po.sales_order_code || '-'}</td>
+                                    <td style={td}>{po.customer_name || '-'}</td>
+                                    <td style={td}><StatusChip status={po.status} map={PKG_CHIP} /></td>
+                                    <td style={{ ...td, textAlign: 'right' }}>{(po.packages || []).length}</td>
+                                    <td style={td}>{po.delivery_note_number || '-'}</td>
+                                    <td style={td}>{po.dispatched_at ? new Date(po.dispatched_at).toLocaleDateString() : '-'}</td>
+                                    <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                        <button style={{ ...xpBtn(), marginRight: 4 }} onClick={() => setEditing(po)}>
+                                            {po.status === 'DRAFT' ? 'Edit' : 'View'}
+                                        </button>
+                                        <button style={{ ...xpBtn(), marginRight: 4 }} onClick={() => setPrintPO(po)}>Surat Jalan</button>
+                                        {po.status !== 'DISPATCHED' && (
+                                            <button style={xpBtn({ color: '#a00' })} onClick={() => deletePO(po)}>Delete</button>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
+            <XPStatusBar right={`${drafts} draft · ${dispatched} dispatched`}>
+                {loading ? 'Loading...' : `${packingOrders.length} packing order(s)`}
+            </XPStatusBar>
 
             {picking && (
                 <SOPickerModal
@@ -247,48 +289,55 @@ export default function PackingView() {
     );
 }
 
-// --- SO picker -------------------------------------------------------------
+// ── SO picker ────────────────────────────────────────────────────────────────
 function SOPickerModal({ packableSOs, packingOrders, onClose, onPick }: any) {
     const hasOpenDraft = (soId: string) => packingOrders.some((p: any) => String(p.sales_order_id) === String(soId) && p.status === 'DRAFT');
-    const soBadge = (s: string) => {
-        const c: Record<string, string> = { PENDING: '#888', READY: '#0a58ca', PARTIAL: '#c77800' };
-        return <span style={{ fontSize: 9, fontWeight: 'bold', border: `1px solid ${c[s] || '#888'}`, color: c[s] || '#888', padding: '0 5px' }}>{s}</span>;
-    };
     return (
         <Overlay onClose={onClose} title="Select an Order to Pack" width={660}>
-            <div style={{ padding: 14, fontFamily: font }}>
+            <div style={{ padding: 12, fontFamily: xpFont, overflowY: 'auto', background: '#fff' }}>
                 <div style={{ fontSize: 10, color: '#666', marginBottom: 8 }}>
                     Partially-produced orders can be packed too — ship whatever finished stock is on hand now.
                 </div>
-                {packableSOs.length === 0 && <div style={{ color: '#888', padding: 12 }}>No packable sales orders.</div>}
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-                    <tbody>
-                        {packableSOs.map((so: any) => (
-                            <tr key={so.id} style={{ borderBottom: '1px solid #eee' }}>
-                                <td style={{ padding: '6px 8px', fontWeight: 'bold', color: '#00309c' }}>{so.po_number}</td>
-                                <td style={{ padding: '6px 8px' }}>{soBadge(so.status)}</td>
-                                <td style={{ padding: '6px 8px' }}>{so.customer_name}</td>
-                                <td style={{ padding: '6px 8px', color: '#666' }}>{(so.lines || []).length} line(s)</td>
-                                <td style={{ padding: '6px 8px', textAlign: 'right' }}>
-                                    {hasOpenDraft(so.id) && <span style={{ fontSize: 9, color: '#c77800', marginRight: 8 }}>has draft</span>}
-                                    <button style={btnBlue} onClick={() => onPick(so)}>Pack</button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+                {packableSOs.length === 0
+                    ? <XPEmptyState icon="bi-inbox" message="No packable sales orders." />
+                    : (
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr>
+                                    <th style={xpTableHeader}>Sales Order</th>
+                                    <th style={xpTableHeader}>Status</th>
+                                    <th style={xpTableHeader}>Customer</th>
+                                    <th style={xpTableHeader}>Lines</th>
+                                    <th style={{ ...xpTableHeader, textAlign: 'right' }}></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {packableSOs.map((so: any) => (
+                                    <tr key={so.id}>
+                                        <td style={{ ...td, fontWeight: 'bold', color: '#00309c' }}>{so.po_number}</td>
+                                        <td style={td}><StatusChip status={so.status} map={SO_CHIP} /></td>
+                                        <td style={td}>{so.customer_name}</td>
+                                        <td style={{ ...td, color: '#666' }}>{(so.lines || []).length}</td>
+                                        <td style={{ ...td, textAlign: 'right' }}>
+                                            {hasOpenDraft(so.id) && <span style={{ fontSize: 9, color: '#b8860b', marginRight: 8 }}>has draft</span>}
+                                            <button style={xpBtnGreen()} onClick={() => onPick(so)}>Pack</button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
             </div>
         </Overlay>
     );
 }
 
-// --- editor ----------------------------------------------------------------
+// ── editor ───────────────────────────────────────────────────────────────────
 function PackingEditor({ po, salesOrders, itemById, leafLocations, packedByOthers, availableFor, authFetch, onClose, onSaved, onPrint, showToast }: any) {
     const readOnly = po.status !== 'DRAFT';
     const so = useMemo(() => (salesOrders || []).find((s: any) => String(s.id) === String(po.sales_order_id)), [salesOrders, po]);
     const soLines: any[] = so?.lines || [];
 
-    // editor line state keyed by sales_order_line_id
     const initLines = () => {
         const map: Record<string, any> = {};
         for (const l of (po.lines || [])) {
@@ -313,7 +362,6 @@ function PackingEditor({ po, salesOrders, itemById, leafLocations, packedByOther
     const [packages, setPackages] = useState<any[]>(() =>
         (po.packages || []).map((p: any) => ({
             package_no: p.package_no, label: p.label || 'Carton', weight_kg: p.weight_kg ?? '',
-            // contents keyed by sales_order_line_id (resolve via packing_line_id -> existing line)
             contents: (() => {
                 const byLineId: Record<string, string> = {};
                 (po.lines || []).forEach((l: any) => { byLineId[String(l.id)] = String(l.sales_order_line_id); });
@@ -326,7 +374,6 @@ function PackingEditor({ po, salesOrders, itemById, leafLocations, packedByOther
     const [batchOptions, setBatchOptions] = useState<Record<string, any[]>>({});
     const [saving, setSaving] = useState(false);
 
-    // Fetch lots for lot-tracked items
     useEffect(() => {
         const lotItems = soLines.map(l => itemById[String(l.item_id)]).filter(it => it && it.lot_tracked);
         const uniq = Array.from(new Set(lotItems.map((it: any) => String(it.id))));
@@ -341,12 +388,10 @@ function PackingEditor({ po, salesOrders, itemById, leafLocations, packedByOther
     }, [soLines]);
 
     const setLine = (solId: string, patch: any) => setLineState(prev => ({ ...prev, [solId]: { ...prev[solId], ...patch } }));
-
     const remainingFor = (l: any) => Math.max(0, num(l.qty) - packedByOthers(String(l.id), po.id));
     const effLoc = (l: any) => (lineState[String(l.id)]?.source_location_id) || sourceLoc || '';
     const availFor = (l: any) => availableFor(String(l.item_id), effLoc(l), l.attribute_value_ids || []);
 
-    // Fill each line's packed qty with what's shippable now = min(remaining, on-hand).
     const fillFromAvailable = () => {
         setLineState(prev => {
             const next = { ...prev };
@@ -417,14 +462,13 @@ function PackingEditor({ po, salesOrders, itemById, leafLocations, packedByOther
     const packedLines = soLines.filter(l => num(lineState[String(l.id)]?.qty_packed) > 0);
     const totalPackaged = (solId: string) => packages.reduce((s, p) => s + num(p.contents?.[solId]), 0);
 
-    const sectionTitle: React.CSSProperties = { fontSize: 11, fontWeight: 'bold', color: '#00309c', margin: '14px 0 6px' };
-    const lbl: React.CSSProperties = { fontSize: 10, color: '#555', display: 'block', marginBottom: 2 };
+    const sectionTitle: React.CSSProperties = { fontSize: 11, fontWeight: 'bold', color: '#00309c', margin: '14px 0 6px', borderBottom: '1px solid #c8c4b8', paddingBottom: 3 };
 
     return (
-        <Overlay onClose={onClose} title={`Packing Order ${po.code} — SO ${po.sales_order_code || so?.po_number || ''}`} width={920} tall>
-            <div style={{ padding: 16, fontFamily: font, overflowY: 'auto', flex: 1 }}>
+        <Overlay onClose={onClose} title={`Packing Order ${po.code} — SO ${po.sales_order_code || so?.po_number || ''}`} width={940} tall>
+            <div style={{ padding: 14, fontFamily: xpFont, overflowY: 'auto', flex: 1, background: '#f4f3ee' }}>
                 {readOnly && (
-                    <div style={{ background: '#eef7ee', border: '1px solid #2d7a2d', color: '#0a3e0a', padding: '6px 10px', fontSize: 11, marginBottom: 10 }}>
+                    <div style={{ background: '#eef7ee', border: '1px solid #2d7a2d', color: '#0a3e0a', padding: '5px 10px', fontSize: 11, marginBottom: 10 }}>
                         This packing order is {po.status} and read-only.
                     </div>
                 )}
@@ -432,49 +476,49 @@ function PackingEditor({ po, salesOrders, itemById, leafLocations, packedByOther
                 {/* Header fields */}
                 <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
                     <div style={{ minWidth: 200 }}>
-                        <label style={lbl}>Default ship-from warehouse</label>
-                        <select style={input} value={sourceLoc} disabled={readOnly} onChange={e => setSourceLoc(e.target.value)}>
+                        <label style={xpLabel}>Default ship-from warehouse</label>
+                        <select style={{ ...xpSelect, width: '100%' }} value={sourceLoc} disabled={readOnly} onChange={e => setSourceLoc(e.target.value)}>
                             <option value="">— select —</option>
                             {leafLocations.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
                         </select>
                     </div>
                     <div style={{ minWidth: 160 }}>
-                        <label style={lbl}>Delivery Note No.</label>
-                        <input style={input} value={dn} disabled={readOnly} onChange={e => setDn(e.target.value)} />
+                        <label style={xpLabel}>Delivery Note No.</label>
+                        <input style={{ ...xpInput, width: '100%' }} value={dn} disabled={readOnly} onChange={e => setDn(e.target.value)} />
                     </div>
                     <div style={{ minWidth: 150 }}>
-                        <label style={lbl}>Carrier</label>
-                        <input style={input} value={carrier} disabled={readOnly} onChange={e => setCarrier(e.target.value)} />
+                        <label style={xpLabel}>Carrier</label>
+                        <input style={{ ...xpInput, width: '100%' }} value={carrier} disabled={readOnly} onChange={e => setCarrier(e.target.value)} />
                     </div>
                     <div style={{ minWidth: 120 }}>
-                        <label style={lbl}>Vehicle Plate</label>
-                        <input style={input} value={vehicle} disabled={readOnly} onChange={e => setVehicle(e.target.value)} />
+                        <label style={xpLabel}>Vehicle Plate</label>
+                        <input style={{ ...xpInput, width: '100%' }} value={vehicle} disabled={readOnly} onChange={e => setVehicle(e.target.value)} />
                     </div>
                     <div style={{ minWidth: 140 }}>
-                        <label style={lbl}>Driver</label>
-                        <input style={input} value={driver} disabled={readOnly} onChange={e => setDriver(e.target.value)} />
+                        <label style={xpLabel}>Driver</label>
+                        <input style={{ ...xpInput, width: '100%' }} value={driver} disabled={readOnly} onChange={e => setDriver(e.target.value)} />
                     </div>
                 </div>
 
                 {/* Lines */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={sectionTitle}>Items to Pack</div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                    <div style={{ ...sectionTitle, flex: 1 }}>Items to Pack</div>
                     {!readOnly && (
-                        <button style={btnGrey} title="Set packed = min(remaining, on-hand) for each line" onClick={fillFromAvailable}>
+                        <button style={{ ...xpBtn(), marginBottom: 6 }} title="Set packed = min(remaining, on-hand) for each line" onClick={fillFromAvailable}>
                             Fill from available
                         </button>
                     )}
                 </div>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', border: '1px solid #c8c4b8' }}>
                     <thead>
                         <tr>
-                            <th style={th}>Item</th>
-                            <th style={{ ...th, textAlign: 'right' }}>Ordered</th>
-                            <th style={{ ...th, textAlign: 'right' }}>Remaining</th>
-                            <th style={{ ...th, textAlign: 'right' }}>Available</th>
-                            <th style={{ ...th, width: 110, textAlign: 'right' }}>Packed</th>
-                            <th style={{ ...th, width: 160 }}>Ship-from override</th>
-                            <th style={{ ...th, width: 170 }}>Lot</th>
+                            <th style={xpTableHeader}>Item</th>
+                            <th style={{ ...xpTableHeader, textAlign: 'right' }}>Ordered</th>
+                            <th style={{ ...xpTableHeader, textAlign: 'right' }}>Remaining</th>
+                            <th style={{ ...xpTableHeader, textAlign: 'right' }}>Available</th>
+                            <th style={{ ...xpTableHeader, width: 110, textAlign: 'right' }}>Packed</th>
+                            <th style={{ ...xpTableHeader, width: 160 }}>Ship-from override</th>
+                            <th style={{ ...xpTableHeader, width: 170 }}>Lot</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -498,18 +542,18 @@ function PackingEditor({ po, salesOrders, itemById, leafLocations, packedByOther
                                     </td>
                                     <td style={{ ...td, textAlign: 'right' }}>
                                         <input type="number" min={0} title={over ? 'Exceeds on-hand — dispatch will be blocked' : undefined}
-                                            style={{ ...input, textAlign: 'right', ...(over ? { borderColor: '#c77800', background: '#fff8e1' } : {}) }} disabled={readOnly}
+                                            style={{ ...xpInput, width: '100%', textAlign: 'right', ...(over ? { borderColor: '#c77800', background: '#fff8e1' } : {}) }} disabled={readOnly}
                                             value={ls.qty_packed ?? ''} onChange={e => setLine(String(l.id), { qty_packed: e.target.value })} />
                                     </td>
                                     <td style={td}>
-                                        <select style={input} disabled={readOnly} value={ls.source_location_id || ''} onChange={e => setLine(String(l.id), { source_location_id: e.target.value })}>
+                                        <select style={{ ...xpSelect, width: '100%' }} disabled={readOnly} value={ls.source_location_id || ''} onChange={e => setLine(String(l.id), { source_location_id: e.target.value })}>
                                             <option value="">(default)</option>
                                             {leafLocations.map((loc: any) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
                                         </select>
                                     </td>
                                     <td style={td}>
                                         {it?.lot_tracked ? (
-                                            <select style={input} disabled={readOnly} value={ls.batch_id || ''} onChange={e => setLine(String(l.id), { batch_id: e.target.value })}>
+                                            <select style={{ ...xpSelect, width: '100%' }} disabled={readOnly} value={ls.batch_id || ''} onChange={e => setLine(String(l.id), { batch_id: e.target.value })}>
                                                 <option value="">— select lot —</option>
                                                 {(batchOptions[String(l.item_id)] || []).map((b: any) => <option key={b.id} value={b.id}>{b.batch_number}</option>)}
                                             </select>
@@ -521,20 +565,20 @@ function PackingEditor({ po, salesOrders, itemById, leafLocations, packedByOther
                     </tbody>
                 </table>
 
-                {/* Packages / packing list */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={sectionTitle}>Packing List (Cartons)</div>
-                    {!readOnly && <button style={btnGrey} onClick={addPackage}>+ Add Carton</button>}
+                {/* Packages */}
+                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                    <div style={{ ...sectionTitle, flex: 1 }}>Packing List (Cartons)</div>
+                    {!readOnly && <button style={{ ...xpBtn(), marginBottom: 6 }} onClick={addPackage}>+ Add Carton</button>}
                 </div>
                 {packages.length === 0 && <div style={{ fontSize: 10, color: '#999', padding: '4px 0' }}>No cartons added.</div>}
                 {packages.map((p, idx) => (
-                    <div key={idx} style={{ border: '1px solid #c0ccee', marginBottom: 8 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#eef2fb', padding: '4px 8px' }}>
+                    <div key={idx} style={{ border: '1px solid #c8c4b8', marginBottom: 8, background: '#fff' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'linear-gradient(to bottom,#f5f4ef,#e0dfd8)', padding: '4px 8px', borderBottom: '1px solid #c8c4b8' }}>
                             <strong style={{ color: '#00309c', fontSize: 11 }}>#{p.package_no}</strong>
-                            <input style={{ ...input, width: 90 }} placeholder="Label" disabled={readOnly} value={p.label} onChange={e => setPkg(idx, { label: e.target.value })} />
+                            <input style={{ ...xpInput, width: 90 }} placeholder="Label" disabled={readOnly} value={p.label} onChange={e => setPkg(idx, { label: e.target.value })} />
                             <span style={{ fontSize: 10, color: '#555' }}>Weight (kg):</span>
-                            <input type="number" min={0} style={{ ...input, width: 80, textAlign: 'right' }} disabled={readOnly} value={p.weight_kg} onChange={e => setPkg(idx, { weight_kg: e.target.value })} />
-                            {!readOnly && <button style={{ ...btnGrey, color: '#a00', marginLeft: 'auto' }} onClick={() => removePackage(idx)}>Remove</button>}
+                            <input type="number" min={0} style={{ ...xpInput, width: 80, textAlign: 'right' }} disabled={readOnly} value={p.weight_kg} onChange={e => setPkg(idx, { weight_kg: e.target.value })} />
+                            {!readOnly && <button style={{ ...xpBtn({ color: '#a00' }), marginLeft: 'auto' }} onClick={() => removePackage(idx)}>Remove</button>}
                         </div>
                         <div style={{ padding: '6px 8px' }}>
                             {packedLines.length === 0 && <div style={{ fontSize: 10, color: '#999' }}>Set packed quantities above first.</div>}
@@ -543,7 +587,7 @@ function PackingEditor({ po, salesOrders, itemById, leafLocations, packedByOther
                                 return (
                                     <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
                                         <span style={{ flex: 1, fontSize: 10 }}>{it?.name || l.item_name}</span>
-                                        <input type="number" min={0} style={{ ...input, width: 90, textAlign: 'right' }} disabled={readOnly}
+                                        <input type="number" min={0} style={{ ...xpInput, width: 90, textAlign: 'right' }} disabled={readOnly}
                                             value={p.contents?.[String(l.id)] ?? ''} onChange={e => setPkgContent(idx, String(l.id), e.target.value)} />
                                         <span style={{ fontSize: 9, color: '#888', width: 40 }}>{it?.uom}</span>
                                     </div>
@@ -552,7 +596,6 @@ function PackingEditor({ po, salesOrders, itemById, leafLocations, packedByOther
                         </div>
                     </div>
                 ))}
-                {/* Carton total vs packed sanity hint */}
                 {packedLines.map((l: any) => {
                     const it = itemById[String(l.item_id)];
                     const packaged = totalPackaged(String(l.id));
@@ -574,29 +617,28 @@ function PackingEditor({ po, salesOrders, itemById, leafLocations, packedByOther
                         QC passed
                     </label>
                     <div>
-                        <label style={lbl}>Inspector</label>
-                        <input style={{ ...input, width: 200 }} disabled={readOnly} value={qcInspector} onChange={e => setQcInspector(e.target.value)} />
+                        <label style={xpLabel}>Inspector</label>
+                        <input style={{ ...xpInput, width: 200 }} disabled={readOnly} value={qcInspector} onChange={e => setQcInspector(e.target.value)} />
                     </div>
                 </div>
 
                 <div style={sectionTitle}>Notes</div>
-                <textarea style={{ ...input, height: 50, resize: 'vertical' }} disabled={readOnly} value={notes} onChange={e => setNotes(e.target.value)} />
+                <textarea style={{ ...xpInput, height: 50, width: '100%', resize: 'vertical' }} disabled={readOnly} value={notes} onChange={e => setNotes(e.target.value)} />
             </div>
 
             {/* Footer */}
-            <div style={{ padding: '8px 14px', borderTop: '1px solid #c0ccee', background: '#f5f8ff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <button style={btnGrey} onClick={onClose}>Close</button>
+            <div style={{ padding: '8px 12px', borderTop: '1px solid #b0a898', background: 'linear-gradient(to bottom,#f4f2ea,#e3e1d6)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <button style={xpBtn()} onClick={onClose}>Close</button>
                 <div style={{ display: 'flex', gap: 6 }}>
-                    <button style={btnGrey} onClick={() => onPrint(buildDraftForPrint(po, so, buildPayload()))}>Surat Jalan</button>
-                    {!readOnly && <button style={btnBlue} disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Save'}</button>}
-                    {!readOnly && <button style={btnGreen} onClick={dispatch}>Confirm Dispatch</button>}
+                    <button style={xpBtn()} onClick={() => onPrint(buildDraftForPrint(po, so, buildPayload()))}>Surat Jalan</button>
+                    {!readOnly && <button style={xpBtn()} disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Save'}</button>}
+                    {!readOnly && <button style={xpBtnGreen()} onClick={dispatch}>Confirm Dispatch</button>}
                 </div>
             </div>
         </Overlay>
     );
 }
 
-// Build a print-ready PO object from current draft (so preview reflects unsaved edits)
 function buildDraftForPrint(po: any, so: any, payload: any) {
     const lineMeta: Record<string, any> = {};
     (so?.lines || []).forEach((l: any) => { lineMeta[String(l.id)] = l; });
@@ -614,14 +656,14 @@ function buildDraftForPrint(po: any, so: any, payload: any) {
     };
 }
 
-// --- generic overlay -------------------------------------------------------
+// ── generic XP dialog ────────────────────────────────────────────────────────
 function Overlay({ children, onClose, title, width = 600, tall = false }: any) {
     return (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
-            <div onClick={e => e.stopPropagation()} style={{ background: '#fff', width: '94vw', maxWidth: width, maxHeight: '92vh', height: tall ? '92vh' : undefined, display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.4)', border: '1px solid #003080' }}>
-                <div style={{ background: 'linear-gradient(to right,#0058e6,#08a5ff)', color: '#fff', fontFamily: font, fontWeight: 'bold', fontSize: 12, padding: '5px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
+            <div onClick={e => e.stopPropagation()} style={{ ...xpBevel, width: '94vw', maxWidth: width, maxHeight: '92vh', height: tall ? '92vh' : undefined, display: 'flex', flexDirection: 'column' }}>
+                <div style={xpTitleBar}>
                     <span>{title}</span>
-                    <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 15, cursor: 'pointer', fontWeight: 'bold' }}>X</button>
+                    <button onClick={onClose} style={{ ...xpBtn({ padding: '0 6px', fontWeight: 'bold' }) }}>X</button>
                 </div>
                 {children}
             </div>
