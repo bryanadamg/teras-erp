@@ -688,6 +688,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const getStatusBadge = (status: string) => {
       switch(status) {
           case 'READY': return 'bg-info text-white';
+          case 'PARTIAL': return 'bg-warning text-dark';
           case 'SENT': return 'bg-warning text-dark';
           case 'DELIVERED': return 'bg-success';
           case 'CANCELLED': return 'bg-danger';
@@ -699,6 +700,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       const map: Record<string, { bg: string; border: string; color: string }> = {
           PENDING:   { bg: '#e8e8e8', border: '#6a6a6a', color: '#222' },
           READY:     { bg: '#e8f5e9', border: '#2e7d32', color: '#1b4620' },
+          PARTIAL:   { bg: '#fff3cd', border: '#c77800', color: '#7a4f00' },
           SENT:      { bg: '#fff8e1', border: '#c77800', color: '#4a3000' },
           DELIVERED: { bg: '#e8f5e9', border: '#1a5e1a', color: '#0a3e0a' },
           CANCELLED: { bg: '#fce4ec', border: '#b71c1c', color: '#6b0000' },
@@ -760,7 +762,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       () => items.filter((i: any) => (i.category_path || []).includes('Finished Goods')),
       [items]
   );
-  const STATUS_FILTERS = ['ALL', 'PENDING', 'READY', 'SENT', 'DELIVERED'];
+  const STATUS_FILTERS = ['ALL', 'PENDING', 'READY', 'PARTIAL', 'SENT', 'DELIVERED'];
 
   const filteredOrders = salesOrders.filter((so: any) => {
       const matchPO = !searchTerm ||
@@ -1561,7 +1563,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                            </div>
                                        )}
                                        <div style={classic ? { display:'flex', gap:2, justifyContent:'flex-end', alignItems:'center' } : undefined} className={classic ? '' : 'd-flex justify-content-end align-items-center gap-1'}>
-                                       {so.status === 'READY' && (
+                                       {(so.status === 'READY' || so.status === 'PARTIAL') && (
                                            classic ? (
                                                <button style={xpBtn({ padding:'1px 5px' })} title="Mark as Sent" onClick={() => onUpdateSOStatus(so.id, 'SENT')}>
                                                    <i className="bi bi-send"></i>

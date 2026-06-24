@@ -37,12 +37,18 @@ function StatusBadge({ status }: { status: string }) {
 const num = (v: any) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
 
 export default function PackingView() {
-    const { salesOrders, items, partners, locations, attributes, companyProfile, authFetch } = useData();
+    // partners/locations/attributes/companyProfile come from DataContext master data
+    // (loaded on initial app load). salesOrders + full items are NOT loaded on the
+    // packaging route, so this view self-fetches them.
+    const { partners, locations, attributes, companyProfile, authFetch } = useData();
     const { uiStyle } = useTheme();
     const { showToast } = useToast();
     const { confirm } = useConfirm();
 
     const [packingOrders, setPackingOrders] = useState<any[]>([]);
+    const [balances, setBalances] = useState<any[]>([]);
+    const [salesOrders, setSalesOrders] = useState<any[]>([]);
+    const [items, setItems] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [picking, setPicking] = useState(false);          // SO picker modal
     const [editing, setEditing] = useState<any | null>(null); // PO being edited
@@ -61,19 +67,51 @@ export default function PackingView() {
     );
 
     const loadPacking = useCallback(async () => {
-        setLoading(true);
-        try {
-            const res = await authFetch(`${API_BASE}/packing?size=500`);
-            if (res.ok) {
-                const data = await res.json();
-                setPackingOrders(data.items || []);
-            }
-        } finally { setLoading(false); }
+        const [poRes, balRes] = await Promise.all([
+            authFetch(`${API_BASE}/packing?size=500`),
+            authFetch(`${API_BASE}/stock/balance`),
+        ]);
+        if (poRes.ok) { const d = await poRes.json(); setPackingOrders(d.items || []); }
+        if (balRes.ok) { const b = await balRes.json(); setBalances(Array.isArray(b) ? b : (b.items || [])); }
     }, [authFetch]);
 
-    useEffect(() => { loadPacking(); }, [loadPacking]);
+    const loadAll = useCallback(async () => {
+        setLoading(true);
+        try {
+            const [so, it] = await Promise.all([
+                authFetch(`${API_BASE}/sales-orders`),
+                authFetch(`${API_BASE}/items?limit=10000`),
+            ]);
+            if (so.ok) { const d = await so.json(); setSalesOrders(Array.isArray(d) ? d : (d.items || [])); }
+            if (it.ok) { const d = await it.json(); setItems(Array.isArray(d) ? d : (d.items || [])); }
+            await loadPacking();
+        } finally { setLoading(false); }
+    }, [authFetch, loadPacking]);
 
-    const readySOs = useMemo(() => (salesOrders || []).filter((so: any) => so.status === 'READY'), [salesOrders]);
+    useEffect(() => { loadAll(); }, [loadAll]);
+
+    // On-hand available by (item|location|variant). Variant key = sorted attr value ids.
+    const availMap = useMemo(() => {
+        const m: Record<string, number> = {};
+        for (const b of balances) {
+            const attrs = [...(b.attribute_value_ids || [])].map(String).sort().join(',');
+            const key = `${b.item_id}|${b.location_id}|${attrs}`;
+            m[key] = (m[key] || 0) + num(b.qty);
+        }
+        return m;
+    }, [balances]);
+
+    const availableFor = useCallback((itemId: string, locId: string, attrIds: string[]) => {
+        if (!locId) return null; // unknown until a warehouse is chosen
+        const attrs = [...(attrIds || [])].map(String).sort().join(',');
+        return availMap[`${itemId}|${locId}|${attrs}`] || 0;
+    }, [availMap]);
+
+    // Packable = anything not already shipped out / cancelled
+    const packableSOs = useMemo(
+        () => (salesOrders || []).filter((so: any) => ['PENDING', 'READY', 'PARTIAL'].includes(so.status)),
+        [salesOrders]
+    );
 
     // qty already packed (non-cancelled) per SO line across ALL packing orders
     const packedByOthers = useCallback((soLineId: string, excludePoId?: string) => {
@@ -95,9 +133,9 @@ export default function PackingView() {
         });
         if (res.ok) {
             const po = await res.json();
-            await loadPacking();
+            await loadAll();
             setPicking(false);
-            setEditing(po);
+            setEditing({ ...po, __justCreated: true });
         } else {
             const err = await res.json().catch(() => ({}));
             showToast(`Error: ${err.detail || 'could not create'}`, 'danger');
@@ -108,7 +146,7 @@ export default function PackingView() {
         const ok = await confirm({ title: 'Delete Packing Order', message: `Delete ${po.code}?`, confirmText: 'Delete', variant: 'danger' });
         if (!ok) return;
         const res = await authFetch(`${API_BASE}/packing/${po.id}`, { method: 'DELETE' });
-        if (res.ok) { showToast('Packing order deleted', 'success'); loadPacking(); }
+        if (res.ok) { showToast('Packing order deleted', 'success'); loadAll(); }
         else { const e = await res.json().catch(() => ({})); showToast(`Error: ${e.detail || 'failed'}`, 'danger'); }
     };
 
@@ -141,7 +179,7 @@ export default function PackingView() {
                     <tbody>
                         {packingOrders.length === 0 && (
                             <tr><td style={{ ...td, textAlign: 'center', color: '#888', padding: 18 }} colSpan={8}>
-                                {loading ? 'Loading...' : 'No packing orders yet. Click “New Packing Order” to pack a READY sales order.'}
+                                {loading ? 'Loading...' : 'No packing orders yet. Click “New Packing Order” to pack an order — including partially-produced ones.'}
                             </td></tr>
                         )}
                         {packingOrders.map((po: any) => (
@@ -170,7 +208,7 @@ export default function PackingView() {
 
             {picking && (
                 <SOPickerModal
-                    readySOs={readySOs}
+                    packableSOs={packableSOs}
                     packingOrders={packingOrders}
                     onClose={() => setPicking(false)}
                     onPick={createForSO}
@@ -184,9 +222,10 @@ export default function PackingView() {
                     itemById={itemById}
                     leafLocations={leafLocations}
                     packedByOthers={packedByOthers}
+                    availableFor={availableFor}
                     authFetch={authFetch}
                     onClose={() => setEditing(null)}
-                    onSaved={async () => { await loadPacking(); }}
+                    onSaved={async () => { await loadAll(); }}
                     onPrint={(draft: any) => setPrintPO(draft)}
                     showToast={showToast}
                 />
@@ -209,17 +248,25 @@ export default function PackingView() {
 }
 
 // --- SO picker -------------------------------------------------------------
-function SOPickerModal({ readySOs, packingOrders, onClose, onPick }: any) {
+function SOPickerModal({ packableSOs, packingOrders, onClose, onPick }: any) {
     const hasOpenDraft = (soId: string) => packingOrders.some((p: any) => String(p.sales_order_id) === String(soId) && p.status === 'DRAFT');
+    const soBadge = (s: string) => {
+        const c: Record<string, string> = { PENDING: '#888', READY: '#0a58ca', PARTIAL: '#c77800' };
+        return <span style={{ fontSize: 9, fontWeight: 'bold', border: `1px solid ${c[s] || '#888'}`, color: c[s] || '#888', padding: '0 5px' }}>{s}</span>;
+    };
     return (
-        <Overlay onClose={onClose} title="Select a READY Sales Order" width={640}>
+        <Overlay onClose={onClose} title="Select an Order to Pack" width={660}>
             <div style={{ padding: 14, fontFamily: font }}>
-                {readySOs.length === 0 && <div style={{ color: '#888', padding: 12 }}>No sales orders in READY status.</div>}
+                <div style={{ fontSize: 10, color: '#666', marginBottom: 8 }}>
+                    Partially-produced orders can be packed too — ship whatever finished stock is on hand now.
+                </div>
+                {packableSOs.length === 0 && <div style={{ color: '#888', padding: 12 }}>No packable sales orders.</div>}
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
                     <tbody>
-                        {readySOs.map((so: any) => (
+                        {packableSOs.map((so: any) => (
                             <tr key={so.id} style={{ borderBottom: '1px solid #eee' }}>
                                 <td style={{ padding: '6px 8px', fontWeight: 'bold', color: '#00309c' }}>{so.po_number}</td>
+                                <td style={{ padding: '6px 8px' }}>{soBadge(so.status)}</td>
                                 <td style={{ padding: '6px 8px' }}>{so.customer_name}</td>
                                 <td style={{ padding: '6px 8px', color: '#666' }}>{(so.lines || []).length} line(s)</td>
                                 <td style={{ padding: '6px 8px', textAlign: 'right' }}>
@@ -236,7 +283,7 @@ function SOPickerModal({ readySOs, packingOrders, onClose, onPick }: any) {
 }
 
 // --- editor ----------------------------------------------------------------
-function PackingEditor({ po, salesOrders, itemById, leafLocations, packedByOthers, authFetch, onClose, onSaved, onPrint, showToast }: any) {
+function PackingEditor({ po, salesOrders, itemById, leafLocations, packedByOthers, availableFor, authFetch, onClose, onSaved, onPrint, showToast }: any) {
     const readOnly = po.status !== 'DRAFT';
     const so = useMemo(() => (salesOrders || []).find((s: any) => String(s.id) === String(po.sales_order_id)), [salesOrders, po]);
     const soLines: any[] = so?.lines || [];
@@ -296,6 +343,22 @@ function PackingEditor({ po, salesOrders, itemById, leafLocations, packedByOther
     const setLine = (solId: string, patch: any) => setLineState(prev => ({ ...prev, [solId]: { ...prev[solId], ...patch } }));
 
     const remainingFor = (l: any) => Math.max(0, num(l.qty) - packedByOthers(String(l.id), po.id));
+    const effLoc = (l: any) => (lineState[String(l.id)]?.source_location_id) || sourceLoc || '';
+    const availFor = (l: any) => availableFor(String(l.item_id), effLoc(l), l.attribute_value_ids || []);
+
+    // Fill each line's packed qty with what's shippable now = min(remaining, on-hand).
+    const fillFromAvailable = () => {
+        setLineState(prev => {
+            const next = { ...prev };
+            for (const l of soLines) {
+                const avail = availFor(l);
+                if (avail == null) continue;
+                const cap = Math.min(remainingFor(l), avail);
+                next[String(l.id)] = { ...next[String(l.id)], qty_packed: cap > 0 ? cap : 0 };
+            }
+            return next;
+        });
+    };
 
     const buildPayload = () => {
         const lines = soLines
@@ -394,13 +457,21 @@ function PackingEditor({ po, salesOrders, itemById, leafLocations, packedByOther
                 </div>
 
                 {/* Lines */}
-                <div style={sectionTitle}>Items to Pack</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={sectionTitle}>Items to Pack</div>
+                    {!readOnly && (
+                        <button style={btnGrey} title="Set packed = min(remaining, on-hand) for each line" onClick={fillFromAvailable}>
+                            Fill from available
+                        </button>
+                    )}
+                </div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
                     <thead>
                         <tr>
                             <th style={th}>Item</th>
                             <th style={{ ...th, textAlign: 'right' }}>Ordered</th>
                             <th style={{ ...th, textAlign: 'right' }}>Remaining</th>
+                            <th style={{ ...th, textAlign: 'right' }}>Available</th>
                             <th style={{ ...th, width: 110, textAlign: 'right' }}>Packed</th>
                             <th style={{ ...th, width: 160 }}>Ship-from override</th>
                             <th style={{ ...th, width: 170 }}>Lot</th>
@@ -411,6 +482,8 @@ function PackingEditor({ po, salesOrders, itemById, leafLocations, packedByOther
                             const it = itemById[String(l.item_id)];
                             const ls = lineState[String(l.id)] || {};
                             const rem = remainingFor(l);
+                            const avail = availFor(l);
+                            const over = avail != null && num(ls.qty_packed) > avail + 1e-6;
                             return (
                                 <tr key={l.id}>
                                     <td style={td}>
@@ -419,8 +492,13 @@ function PackingEditor({ po, salesOrders, itemById, leafLocations, packedByOther
                                     </td>
                                     <td style={{ ...td, textAlign: 'right' }}>{num(l.qty).toLocaleString()} {it?.uom}</td>
                                     <td style={{ ...td, textAlign: 'right', color: rem > 0 ? '#0a3e0a' : '#999' }}>{rem.toLocaleString()}</td>
+                                    <td style={{ ...td, textAlign: 'right', color: avail == null ? '#bbb' : (avail > 0 ? '#0a3e0a' : '#c00') }}
+                                        title={avail == null ? 'Pick a ship-from warehouse to see on-hand' : 'On-hand at ship-from'}>
+                                        {avail == null ? '—' : avail.toLocaleString()}
+                                    </td>
                                     <td style={{ ...td, textAlign: 'right' }}>
-                                        <input type="number" min={0} style={{ ...input, textAlign: 'right' }} disabled={readOnly}
+                                        <input type="number" min={0} title={over ? 'Exceeds on-hand — dispatch will be blocked' : undefined}
+                                            style={{ ...input, textAlign: 'right', ...(over ? { borderColor: '#c77800', background: '#fff8e1' } : {}) }} disabled={readOnly}
                                             value={ls.qty_packed ?? ''} onChange={e => setLine(String(l.id), { qty_packed: e.target.value })} />
                                     </td>
                                     <td style={td}>

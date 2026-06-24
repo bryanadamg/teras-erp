@@ -131,8 +131,11 @@ async def create_packing_order(
     so = so_result.scalars().first()
     if not so:
         raise HTTPException(status_code=404, detail="Sales order not found")
-    if so.status != "READY":
-        raise HTTPException(status_code=400, detail=f"SO must be READY to pack (current: {so.status})")
+    # Allow packing partially-produced orders: ship whatever finished stock exists
+    # now, even before the whole order target is met. Stock availability (enforced
+    # at dispatch) is the real guard, not SO completion status.
+    if so.status in ("SENT", "DELIVERED", "CANCELLED"):
+        raise HTTPException(status_code=400, detail=f"Cannot pack a {so.status} order")
 
     code = await _next_code(db)
     po = PackingOrder(
@@ -342,12 +345,13 @@ async def dispatch_packing_order(
     so_id = po.sales_order_id
     await db.commit()
 
-    # Recompute SO fulfilment: SENT only when every line fully shipped
+    # Recompute SO fulfilment: SENT when every line fully shipped, PARTIAL when
+    # some (but not all) shipped. Leaves terminal/edited states untouched.
     so_result = await db.execute(
         select(SalesOrder).options(selectinload(SalesOrder.lines)).filter(SalesOrder.id == so_id)
     )
     so = so_result.scalars().first()
-    if so and so.status == "READY":
+    if so and so.status in ("PENDING", "READY", "PARTIAL"):
         dispatched = await db.execute(
             select(PackingLine.sales_order_line_id, func.coalesce(func.sum(PackingLine.qty_packed), 0))
             .join(PackingOrder, PackingLine.packing_order_id == PackingOrder.id)
@@ -356,8 +360,10 @@ async def dispatch_packing_order(
         )
         shipped_map = {str(sol_id): float(qty) for sol_id, qty in dispatched.all()}
         fully = all(shipped_map.get(str(line.id), 0.0) >= float(line.qty) - 1e-6 for line in so.lines)
-        if fully:
-            so.status = "SENT"
+        any_shipped = any(v > 1e-6 for v in shipped_map.values())
+        new_status = "SENT" if fully else ("PARTIAL" if any_shipped else so.status)
+        if new_status != so.status:
+            so.status = new_status
             await db.commit()
 
     await audit_service.log_activity(

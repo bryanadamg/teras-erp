@@ -27,7 +27,7 @@ class SalesOrder(Base):
     customer_po_ref: Mapped[str | None] = mapped_column(String(64), nullable=True)
     customer_name: Mapped[str] = mapped_column(String(255))
     order_date: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    status: Mapped[str] = mapped_column(String(32), default="PENDING", index=True) # PENDING, READY, SENT, DELIVERED, CANCELLED
+    status: Mapped[str] = mapped_column(String(32), default="PENDING", index=True) # PENDING, READY, PARTIAL, SENT, DELIVERED, CANCELLED
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

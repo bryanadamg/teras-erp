@@ -223,7 +223,7 @@ async def update_sales_order_status(so_id: uuid.UUID, status: str, db: AsyncSess
         raise HTTPException(status_code=404, detail="SO not found")
 
     prev_status = so.status
-    valid_statuses = ["PENDING", "READY", "SENT", "DELIVERED", "CANCELLED"]
+    valid_statuses = ["PENDING", "READY", "PARTIAL", "SENT", "DELIVERED", "CANCELLED"]
     if status not in valid_statuses:
         raise HTTPException(status_code=400, detail="Invalid status")
 
