@@ -94,6 +94,26 @@ const statusStyle = (status: string, classic: boolean): React.CSSProperties => {
     return { display: 'inline-block', background: s.bg, border: `1px solid ${s.border}`, color: s.color, borderRadius: 6, padding: '2px 8px', fontSize: 11, fontFamily: modernFont, fontWeight: 600, whiteSpace: 'nowrap' as const };
 };
 
+// Left-border + row background per dip status (mirrors SampleRequest colorRowStyle)
+const dipRowStyle = (status: string, classic: boolean): { borderLeftColor: string; background: string } => {
+    if (classic) {
+        const map: Record<string, { borderLeftColor: string; background: string }> = {
+            PENDING:  { borderLeftColor: '#9e9e9e', background: '#fdfdfd' },
+            RESUBMIT: { borderLeftColor: '#c77800', background: '#fffdf8' },
+            APPROVED: { borderLeftColor: '#27713a', background: '#f8fff8' },
+            REJECTED: { borderLeftColor: '#a01a1a', background: '#fff8f8' },
+        };
+        return map[status] || map['PENDING'];
+    }
+    const map: Record<string, { borderLeftColor: string; background: string }> = {
+        PENDING:  { borderLeftColor: '#cbd5e1', background: '#ffffff' },
+        RESUBMIT: { borderLeftColor: '#f59e0b', background: '#fffbeb' },
+        APPROVED: { borderLeftColor: '#22c55e', background: '#f0fdf4' },
+        REJECTED: { borderLeftColor: '#ef4444', background: '#fef2f2' },
+    };
+    return map[status] || map['PENDING'];
+};
+
 const today = () => new Date().toISOString().split('T')[0];
 
 const emptyForm = () => ({
@@ -362,81 +382,125 @@ export default function LabDipRequestView({
                                             </div>
                                         </td>
                                     </tr>
-                                    {expandedIds.has(r.id) && (
+                                    {expandedIds.has(r.id) && (() => {
+                                        const fmt = (d: any) => d ? new Date(d).toLocaleDateString() : '—';
+                                        const recipeLabel = recipeOptions.find((o: any) => o.value === r.approved_recipe_id)?.label;
+                                        const itemLabel = itemOptions.find((o: any) => o.value === r.base_item_id)?.label;
+                                        const detailLbl: React.CSSProperties = classic
+                                            ? { fontFamily: xpFont, fontSize: 10, color: '#333', fontWeight: 'bold', minWidth: 92, flexShrink: 0 }
+                                            : { fontFamily: modernFont, fontSize: 11, color: '#475569', fontWeight: 600, minWidth: 92, flexShrink: 0 };
+                                        const detailVal: React.CSSProperties = classic
+                                            ? { fontFamily: xpFont, fontSize: 11, color: '#000' }
+                                            : { fontFamily: modernFont, fontSize: 12.5, color: '#1e293b' };
+                                        const sections: { title: string; fields: any[][] }[] = [
+                                            { title: '① Identity & Specs', fields: [
+                                                ['Customer', r.customer_id ? getCustomerName(r.customer_id) : 'Internal'],
+                                                ['Season / Project', r.season || '—'],
+                                                ['Request Type', r.request_type || '—'],
+                                                ['Customer Art.', r.customer_article_code || '—'],
+                                                ['Internal Art.', r.internal_article_code || '—'],
+                                                ['Request Date', fmt(r.request_date)],
+                                            ]},
+                                            { title: '② Target & Substrate', fields: [
+                                                ['Color Standard', r.color_standard || '—'],
+                                                ['Substrate', r.substrate || '—'],
+                                                ['Substrate Item', itemLabel || '—', true],
+                                                ['Due Date', fmt(r.due_date)],
+                                                ['Est. Completion', fmt(r.estimated_completion_date)],
+                                            ]},
+                                            { title: '③ Recipe & Notes', fields: [
+                                                ['Approved Recipe', recipeLabel || '—', true],
+                                                ['Notes', r.notes || '—', true],
+                                            ]},
+                                        ];
+                                        return (
                                         <tr>
                                             <td colSpan={7} style={classic ? { padding: 0, borderBottom: '2px solid #9a9690' } : { padding: 0, borderBottom: '1px solid #dbe1ea' }}>
                                                 <div style={classic
-                                                    ? { background: '#ece9d8', borderTop: '2px solid #0058e6', padding: 10, display: 'flex', gap: 12, flexWrap: 'wrap' as const }
-                                                    : { background: '#f8fafc', borderTop: '2px solid #2563eb', padding: 10, display: 'flex', gap: 12, flexWrap: 'wrap' as const }}>
-                                                    {/* Request status control */}
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', marginBottom: 6 }}>
-                                                        <span style={{ fontSize: classic ? 10 : 12, fontWeight: classic ? 'bold' : 600, color: classic ? '#111' : '#475569' }}>Request Status:</span>
-                                                        <select style={{ ...xpInput(classic), width: 130 }} value={r.status} onChange={e => onUpdateStatus(r.id, e.target.value)}>
-                                                            {REQUEST_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                                                        </select>
-                                                        {r.substrate && <span style={{ fontSize: classic ? 10 : 12, color: classic ? '#444' : '#334155' }}>Substrate: <b>{r.substrate}</b></span>}
-                                                        {r.approved_recipe_id && (
-                                                            <span style={{ fontSize: classic ? 10 : 12, color: classic ? '#1b5e20' : '#15803d' }}>
-                                                                Recipe: <b>{recipeOptions.find((o: any) => o.value === r.approved_recipe_id)?.label || 'linked'}</b>
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    {/* Dips table */}
-                                                    <div style={classic
-                                                        ? { width: '100%', background: '#fff', border: '1px solid #b0a898' }
-                                                        : { width: '100%', background: '#fff', border: '1px solid #dbe1ea', borderRadius: 9, overflow: 'hidden' }}>
+                                                    ? { background: '#ece9d8', borderTop: '2px solid #0058e6', display: 'flex', minHeight: 170 }
+                                                    : { background: '#f8fafc', borderTop: '2px solid #2563eb', display: 'flex', minHeight: 170 }}>
+                                                    {/* LEFT — Dips table */}
+                                                    <div style={{ width: '48%', borderRight: classic ? '1px solid #a0988c' : '1px solid #dbe1ea', display: 'flex', flexDirection: 'column' }}>
                                                         <div style={classic
-                                                            ? { background: 'linear-gradient(to bottom, #e4e1d8, #d5d2c8)', borderBottom: '1px solid #9a9690', padding: '2px 8px', fontSize: 10, fontWeight: 'bold', color: '#111' }
-                                                            : { background: '#eef1f6', borderBottom: '1px solid #dbe1ea', padding: '7px 12px', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase' as const, letterSpacing: '0.04em' }}>
+                                                            ? { background: 'linear-gradient(to bottom, #e4e1d8, #d5d2c8)', borderBottom: '1px solid #9a9690', padding: '2px 8px', fontSize: 10, fontWeight: 'bold', color: '#111', display: 'flex', alignItems: 'center', gap: 6, fontFamily: xpFont, flexShrink: 0 }
+                                                            : { background: '#eef1f6', borderBottom: '1px solid #dbe1ea', padding: '7px 12px', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase' as const, letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                                                             <i className="bi bi-palette" /> Dips — {total} total · {approved} approved
                                                         </div>
                                                         {total > 0 ? (
-                                                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                                                <thead>
-                                                                    <tr>
-                                                                        <th style={{ ...xpThCell(classic), fontSize: classic ? 9 : 11 }}>Color / Shade</th>
-                                                                        <th style={{ ...xpThCell(classic), fontSize: classic ? 9 : 11, width: 80 }}>Round</th>
-                                                                        <th style={{ ...xpThCell(classic), fontSize: classic ? 9 : 11, width: 140 }}>Recipe Ref</th>
-                                                                        <th style={{ ...xpThCell(classic), fontSize: classic ? 9 : 11, width: 90 }}>Status</th>
-                                                                        <th style={{ ...xpThCell(classic), fontSize: classic ? 9 : 11, textAlign: 'center' as const, borderRight: 'none', width: 230 }}>Update Status</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    {(r.dips || []).map((d: any, dipIdx: number) => {
-                                                                        const st = d.status || 'PENDING';
-                                                                        const isApproved = st === 'APPROVED';
-                                                                        return (
-                                                                            <tr key={d.id} style={classic
-                                                                                ? { borderBottom: '1px solid #e8e5e0' }
-                                                                                : { borderBottom: '1px solid #e6eaf1', background: dipIdx % 2 === 0 ? '#fff' : '#f8fafc' }}>
-                                                                                <td style={{ ...tdBase(classic), fontWeight: 'bold' }}>{d.color_name}</td>
-                                                                                <td style={tdBase(classic)}>#{d.submission_round}</td>
-                                                                                <td style={tdBase(classic)}>{d.recipe_ref || <span style={{ color: classic ? '#aaa' : '#94a3b8' }}>—</span>}</td>
-                                                                                <td style={tdBase(classic)}><span style={statusStyle(st, classic)}>{st}</span></td>
-                                                                                <td style={{ ...tdBase(classic), borderRight: 'none', textAlign: 'center' as const }}>
-                                                                                    {isApproved ? (
-                                                                                        <span style={{ fontSize: classic ? 10 : 12, color: classic ? '#1b5e20' : '#15803d', fontWeight: classic ? 'bold' : 600 }}>Approved</span>
-                                                                                    ) : (
-                                                                                        <div style={{ display: 'inline-flex' }}>
-                                                                                            <button type="button" style={dipBtn(st === 'RESUBMIT', 'resubmit')} onClick={() => onUpdateDipStatus(r.id, d.id, st === 'RESUBMIT' ? 'PENDING' : 'RESUBMIT')}>Resubmit</button>
-                                                                                            <button type="button" style={{ ...approveBtn(), borderRight: 'none' }} onClick={() => handleApproveDip(r.id, d.id, d.color_name)}>Approve</button>
-                                                                                            <button type="button" style={dipBtn(st === 'REJECTED', 'reject')} onClick={() => onUpdateDipStatus(r.id, d.id, st === 'REJECTED' ? 'PENDING' : 'REJECTED')}>Reject</button>
-                                                                                        </div>
-                                                                                    )}
-                                                                                </td>
-                                                                            </tr>
-                                                                        );
-                                                                    })}
-                                                                </tbody>
-                                                            </table>
+                                                            <div style={{ overflowY: 'auto', flex: 1 }}>
+                                                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                                                    <thead>
+                                                                        <tr>
+                                                                            <th style={{ ...xpThCell(classic), fontSize: classic ? 9 : 11 }}>Color / Shade</th>
+                                                                            <th style={{ ...xpThCell(classic), fontSize: classic ? 9 : 11, width: 56 }}>Round</th>
+                                                                            <th style={{ ...xpThCell(classic), fontSize: classic ? 9 : 11, width: 84 }}>Status</th>
+                                                                            <th style={{ ...xpThCell(classic), fontSize: classic ? 9 : 11, textAlign: 'center' as const, borderRight: 'none', width: 210 }}>Update Status</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        {(r.dips || []).map((d: any, dipIdx: number) => {
+                                                                            const st = d.status || 'PENDING';
+                                                                            const isApproved = st === 'APPROVED';
+                                                                            const rs = dipRowStyle(st, classic);
+                                                                            const isLast = dipIdx === (r.dips || []).length - 1;
+                                                                            const rowTd: React.CSSProperties = { ...tdBase(classic), background: rs.background, borderBottom: isLast ? 'none' : tdBase(classic).borderBottom };
+                                                                            return (
+                                                                                <tr key={d.id} style={{ background: rs.background }}>
+                                                                                    <td style={{ ...rowTd, borderLeft: `4px solid ${rs.borderLeftColor}`, fontWeight: 'bold' }}>
+                                                                                        {d.color_name}
+                                                                                        {d.recipe_ref && <div style={{ fontSize: classic ? 9 : 11, fontWeight: 'normal', color: classic ? '#555' : '#64748b' }}>{d.recipe_ref}</div>}
+                                                                                    </td>
+                                                                                    <td style={rowTd}>#{d.submission_round}</td>
+                                                                                    <td style={rowTd}><span style={statusStyle(st, classic)}>{st}</span></td>
+                                                                                    <td style={{ ...rowTd, borderRight: 'none', textAlign: 'center' as const }}>
+                                                                                        {isApproved ? (
+                                                                                            <span style={{ fontSize: classic ? 10 : 12, color: classic ? '#1b5e20' : '#15803d', fontWeight: classic ? 'bold' : 600 }}>Approved</span>
+                                                                                        ) : (
+                                                                                            <div style={{ display: 'inline-flex' }}>
+                                                                                                <button type="button" style={dipBtn(st === 'RESUBMIT', 'resubmit')} onClick={() => onUpdateDipStatus(r.id, d.id, st === 'RESUBMIT' ? 'PENDING' : 'RESUBMIT')}>Resubmit</button>
+                                                                                                <button type="button" style={{ ...approveBtn(), borderRight: 'none' }} onClick={() => handleApproveDip(r.id, d.id, d.color_name)}>Approve</button>
+                                                                                                <button type="button" style={dipBtn(st === 'REJECTED', 'reject')} onClick={() => onUpdateDipStatus(r.id, d.id, st === 'REJECTED' ? 'PENDING' : 'REJECTED')}>Reject</button>
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </td>
+                                                                                </tr>
+                                                                            );
+                                                                        })}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
                                                         ) : (
                                                             <div style={{ padding: 10, fontSize: classic ? 11 : 13, color: classic ? '#888' : '#64748b', fontStyle: 'italic' }}>No dips on this request.</div>
                                                         )}
                                                     </div>
+                                                    {/* RIGHT — Request details */}
+                                                    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+                                                        {/* Request status control */}
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', flexWrap: 'wrap' as const, borderBottom: classic ? '1px solid #d0cdc8' : '1px solid #e6eaf1', background: '#fff' }}>
+                                                            <span style={{ fontSize: classic ? 10 : 12, fontWeight: classic ? 'bold' : 600, color: classic ? '#111' : '#475569' }}>Request Status:</span>
+                                                            <select style={{ ...xpInput(classic), width: 140 }} value={r.status} onChange={e => onUpdateStatus(r.id, e.target.value)}>
+                                                                {REQUEST_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                                                            </select>
+                                                        </div>
+                                                        {sections.map(({ title, fields }) => (
+                                                            <div key={title}>
+                                                                <div style={xpGroupHeader(classic)}>{title}</div>
+                                                                <div style={{ padding: '6px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 16px', background: '#fff', borderBottom: classic ? '1px solid #d0cdc8' : '1px solid #e6eaf1' }}>
+                                                                    {fields.map(([label, value, full]: any) => (
+                                                                        <div key={label} style={{ display: 'flex', gap: 6, alignItems: 'flex-start', ...(full ? { gridColumn: '1 / -1' } : {}) }}>
+                                                                            <span style={detailLbl}>{label}</span>
+                                                                            <span style={{ ...detailVal, whiteSpace: full ? 'pre-wrap' as const : undefined }}>{value}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             </td>
                                         </tr>
-                                    )}
+                                        );
+                                    })()}
                                 </React.Fragment>
                             );
                         })}
