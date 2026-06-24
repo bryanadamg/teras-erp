@@ -106,11 +106,30 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       setRejectTarget(null);
   };
 
+  // Build a revision-indexed code from a parent: ROOT-R1, ROOT-R2, …
+  // Strips an existing -R<n> suffix so revisions chain off the original root,
+  // and bumps to one past the highest revision already in the system.
+  const buildRevisionCode = (parentCode: string): string => {
+      const m = (parentCode || '').match(/^(.*)-R(\d+)$/);
+      const root = m ? m[1] : (parentCode || '');
+      let maxRev = 0;
+      (samples || []).forEach((s: any) => {
+          const rm = (s.code || '').match(/^(.*)-R(\d+)$/);
+          if (rm && rm[1] === root) maxRev = Math.max(maxRev, parseInt(rm[2], 10));
+      });
+      let next = maxRev + 1;
+      let code = `${root}-R${next}`;
+      while ((samples || []).some((s: any) => s.code === code)) { next++; code = `${root}-R${next}`; }
+      return code;
+  };
+
   // Clone a rejected color into a brand-new sample request (carry over all specs)
   const createNewFromRejected = (sample: any, color: any) => {
       setEditingSample(null);
+      const revCode = buildRevisionCode(sample.code);
+      const revNum = revCode.match(/-R(\d+)$/)?.[1] ?? '1';
       setNewSample({
-          code: suggestSampleCode(),
+          code: revCode,
           request_date: today,
           customer_id: sample.customer_id || '',
           project: sample.project || '',
@@ -133,7 +152,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
           sample_size: sample.sample_size || '',
           estimated_completion_date: '',
           completion_description: '',
-          notes: `Redo of rejected sample ${sample.code} — color "${color.name}"` + (color.rejection_reason ? ` (rejected: ${color.rejection_reason})` : ''),
+          notes: `Revision #${revNum} of ${sample.code} — color "${color.name}"` + (color.rejection_reason ? ` (rejected: ${color.rejection_reason})` : ''),
       });
       setPendingColorName('');
       setPendingColorIsRepeat(false);
@@ -1615,7 +1634,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                /* ── XP 2-pane detail panel ── */
                                                <div style={{ background: '#ece9d8', borderTop: '2px solid #0058e6', display: 'flex', minHeight: 160 }}>
                                                    {/* LEFT — Color table */}
-                                                   <div style={{ width: '48%', borderRight: '1px solid #a0988c', display: 'flex', flexDirection: 'column' }}>
+                                                   <div style={{ width: '56%', borderRight: '1px solid #a0988c', display: 'flex', flexDirection: 'column' }}>
                                                        <div style={{ background: 'linear-gradient(to bottom, #e4e1d8, #d5d2c8)', borderBottom: '1px solid #9a9690', padding: '2px 8px', fontSize: 10, fontWeight: 'bold', color: '#111', letterSpacing: '0.3px', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'Tahoma, Arial, sans-serif', flexShrink: 0 }}>
                                                            <i className="bi bi-palette" style={{ marginRight: 2 }} />Colors — {s.colors?.length ?? 0} total · {s.colors?.filter((c: any) => c.status === 'APPROVED').length ?? 0} approved
                                                        </div>
@@ -1623,19 +1642,17 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                            <div style={{ overflowY: 'auto', flex: 1 }}>
                                                                <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' as const }}>
                                                                    <colgroup>
-                                                                       <col style={{ width: 110 }} />
-                                                                       <col style={{ width: 58 }} />
-                                                                       <col style={{ width: 100 }} />
+                                                                       <col style={{ width: 104 }} />
+                                                                       <col style={{ width: 54 }} />
+                                                                       <col style={{ width: 96 }} />
                                                                        <col />
-                                                                       <col style={{ width: 236 }} />
-                                                                       <col style={{ width: 68 }} />
+                                                                       <col style={{ width: 116 }} />
                                                                    </colgroup>
                                                                    <thead>
                                                                        <tr>
                                                                            <th style={colorThCell}>Color Name</th>
                                                                            <th style={colorThCell}>Type</th>
                                                                            <th style={colorThCell}>Status</th>
-                                                                           <th style={{ ...colorThCell, borderRight: 'none' }}></th>
                                                                            <th style={{ ...colorThCell, textAlign: 'center' as const }}>Update Status</th>
                                                                            <th style={{ ...colorThCell, borderRight: 'none', textAlign: 'center' as const }}>Item</th>
                                                                        </tr>
@@ -1660,22 +1677,17 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                                                    <td style={tdStyle}>
                                                                                        <span style={getColorStatusStyle(c.status || 'PENDING')}>{c.status || 'PENDING'}</span>
                                                                                    </td>
-                                                                                   <td style={{ ...tdStyle, borderRight: 'none' }}></td>
                                                                                    <td style={{ ...tdStyle, textAlign: 'center' as const }}>
                                                                                        {isApproved ? (
                                                                                            <span style={{ fontSize: 10, color: '#1b5e20', fontWeight: 'bold', fontFamily: 'Tahoma, Arial, sans-serif' }}>Approved</span>
                                                                                        ) : isRejected ? (
-                                                                                           <div style={{ textAlign: 'left' as const }}>
+                                                                                           <div style={{ textAlign: 'center' as const }}>
                                                                                                <div style={{ fontSize: 10, color: '#a01a1a', fontWeight: 'bold', fontFamily: 'Tahoma, Arial, sans-serif' }}>
                                                                                                    Rejected{c.rejection_reason ? `: ${c.rejection_reason}` : ''}
                                                                                                </div>
                                                                                                {c.rejection_notes && (
                                                                                                    <div style={{ fontSize: 9, color: '#555', fontFamily: 'Tahoma, Arial, sans-serif', fontStyle: 'italic', marginTop: 1 }}>{c.rejection_notes}</div>
                                                                                                )}
-                                                                                               <button type="button"
-                                                                                                   style={xpBtn({ background: 'linear-gradient(to bottom, #5a8fd8, #2a5faa)', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', color: '#fff', fontSize: 10, padding: '1px 6px', marginTop: 3 })}
-                                                                                                   onClick={() => createNewFromRejected(s, c)}
-                                                                                                   title="Create a new sample request based on this rejected color">+ New Sample</button>
                                                                                            </div>
                                                                                        ) : (
                                                                                            <div style={{ display: 'inline-flex' }}>
@@ -1687,7 +1699,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                                                        )}
                                                                                    </td>
                                                                                    <td style={{ ...tdStyle, borderRight: 'none', textAlign: 'center' as const }}>
-                                                                                       {isApproved && (
+                                                                                       {isApproved ? (
                                                                                            c.item_id ? (
                                                                                                <span style={{ fontSize: 10, color: '#1b5e20', fontWeight: 'bold', fontFamily: 'Tahoma, Arial, sans-serif' }}>Item: {c.item_code}</span>
                                                                                            ) : (
@@ -1697,7 +1709,13 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                                                                    title="Create Item from this approved color"
                                                                                                >+ Item</button>
                                                                                            )
-                                                                                       )}
+                                                                                       ) : isRejected ? (
+                                                                                           <button
+                                                                                               style={xpBtn({ background: 'linear-gradient(to bottom, #5a8fd8, #2a5faa)', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', color: '#fff', fontSize: 10, padding: '1px 6px' })}
+                                                                                               onClick={() => createNewFromRejected(s, c)}
+                                                                                               title="Create a new sample request based on this rejected color"
+                                                                                           >+ New Sample</button>
+                                                                                       ) : null}
                                                                                    </td>
                                                                                </tr>
                                                                            );
@@ -1816,22 +1834,21 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                /* ── Modern Bootstrap 2-pane detail panel ── */
                                                <div style={{ display: 'flex', background: '#f8f9fa', borderTop: '2px solid #0d6efd' }}>
                                                    {/* LEFT — Colors */}
-                                                   <div style={{ width: '48%', borderRight: '1px solid #dee2e6' }}>
+                                                   <div style={{ width: '56%', borderRight: '1px solid #dee2e6' }}>
                                                        <div className="px-2 py-1 fw-semibold small text-muted" style={{ borderBottom: '1px solid #dee2e6', fontSize: 10, background: '#f1f3f5' }}>
                                                            Colors — {s.colors?.length ?? 0} total · {s.colors?.filter((c: any) => c.status === 'APPROVED').length ?? 0} approved
                                                        </div>
                                                        {s.colors && s.colors.length > 0 ? (
                                                            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' as const }}>
                                                                <colgroup>
-                                                                   <col style={{ width: 110 }} /><col style={{ width: 62 }} /><col style={{ width: 106 }} />
-                                                                   <col /><col style={{ width: 240 }} /><col style={{ width: 68 }} />
+                                                                   <col style={{ width: 104 }} /><col style={{ width: 56 }} /><col style={{ width: 100 }} />
+                                                                   <col /><col style={{ width: 116 }} />
                                                                </colgroup>
                                                                <thead>
                                                                    <tr>
                                                                        <th className="small fw-semibold" style={{ padding: '2px 6px', borderBottom: '1px solid #dee2e6', fontSize: 10, color: '#333' }}>Color</th>
                                                                        <th className="small fw-semibold" style={{ padding: '2px 6px', borderBottom: '1px solid #dee2e6', fontSize: 10, color: '#333' }}>Type</th>
                                                                        <th className="small fw-semibold" style={{ padding: '2px 6px', borderBottom: '1px solid #dee2e6', fontSize: 10, color: '#333' }}>Status</th>
-                                                                       <th style={{ borderBottom: '1px solid #dee2e6' }}></th>
                                                                        <th className="small fw-semibold text-center" style={{ padding: '2px 6px', borderBottom: '1px solid #dee2e6', fontSize: 10, color: '#333' }}>Update Status</th>
                                                                        <th className="small fw-semibold text-center" style={{ padding: '2px 6px', borderBottom: '1px solid #dee2e6', fontSize: 10, color: '#333' }}>Item</th>
                                                                    </tr>
@@ -1851,19 +1868,17 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                                                <td style={{ padding: '4px 6px', borderBottom: '1px solid #e9ecef' }}>
                                                                                    <span className={`badge ${getColorStatusBadgeClass(c.status || 'PENDING')}`} style={{ fontSize: 10 }}>{c.status || 'PENDING'}</span>
                                                                                </td>
-                                                                               <td style={{ borderBottom: '1px solid #e9ecef' }}></td>
                                                                                <td style={{ padding: '3px 6px', borderBottom: '1px solid #e9ecef', textAlign: 'center' as const }}>
                                                                                    {isApproved ? (
                                                                                        <span className="badge bg-success" style={{ fontSize: 10 }}>Approved</span>
                                                                                    ) : isRejected ? (
-                                                                                       <div className="text-start">
+                                                                                       <div className="text-center">
                                                                                            <div className="fw-bold text-danger" style={{ fontSize: 10 }}>
                                                                                                Rejected{c.rejection_reason ? `: ${c.rejection_reason}` : ''}
                                                                                            </div>
                                                                                            {c.rejection_notes && (
                                                                                                <div className="text-muted fst-italic" style={{ fontSize: 9 }}>{c.rejection_notes}</div>
                                                                                            )}
-                                                                                           <button type="button" className="btn btn-sm btn-primary mt-1" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => createNewFromRejected(s, c)} title="Create a new sample request based on this rejected color">+ New Sample</button>
                                                                                        </div>
                                                                                    ) : (
                                                                                        <div className="btn-group btn-group-sm" role="group">
@@ -1875,13 +1890,15 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                                                    )}
                                                                                </td>
                                                                                <td style={{ padding: '3px 6px', borderBottom: '1px solid #e9ecef', textAlign: 'center' as const }}>
-                                                                                   {isApproved && (
+                                                                                   {isApproved ? (
                                                                                        c.item_id ? (
                                                                                            <span className="badge bg-success bg-opacity-10 text-success border" style={{ fontSize: 10 }}>Item: {c.item_code}</span>
                                                                                        ) : (
                                                                                            <button className="btn btn-sm btn-success" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => createItemFromColor(s, c)}>+ Item</button>
                                                                                        )
-                                                                                   )}
+                                                                                   ) : isRejected ? (
+                                                                                       <button className="btn btn-sm btn-primary" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => createNewFromRejected(s, c)} title="Create a new sample request based on this rejected color">+ New Sample</button>
+                                                                                   ) : null}
                                                                                </td>
                                                                            </tr>
                                                                        );
