@@ -356,6 +356,21 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       setNewSO({ ...newSO, lines: newSO.lines.filter((_, i) => i !== index) });
   };
 
+  // Edit an already-added line's qty in place (no remove + re-add). Recomputes
+  // the same length/weight derivatives Add Line would have produced.
+  const handleLineQtyChange = (index: number, ydStr: string) => {
+      const yd = parseFloat(ydStr) || 0;
+      setNewSO(prev => ({
+          ...prev,
+          lines: prev.lines.map((l: any, i: number) => {
+              if (i !== index) return l;
+              const m = yd > 0 ? Math.round(yd * 0.9144 * 100) / 100 : 0;
+              const kg = calcKgAuto(l.item_id, yd, m);
+              return { ...l, qty: yd, qty_kg: kg !== null ? kg : l.qty_kg };
+          }),
+      }));
+  };
+
   const handleValueChange = (valId: string, attrId: string) => {
       const attr = attributes.find((a: any) => a.id === attrId);
       if (!attr) return;
@@ -1308,8 +1323,16 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                    {(line.attribute_value_ids || []).length > 0 && <div style={{color:classic?'#666':'',fontSize:classic?'10px':'',fontStyle:'italic'}} className={classic?'':'small text-muted fst-italic'}>{(line.attribute_value_ids || []).map(getAttributeValueName).join(', ')}</div>}
                                    {line.bom_size_id && <div style={{color:classic?'#005':'',fontSize:classic?'10px':'',fontWeight:'bold'}} className={classic?'':'small text-primary fw-semibold'}><i className="bi bi-rulers me-1"></i>{getBomSizeLabelById(line.bom_size_id)}</div>}
                                </div>
-                               <div style={{display:'flex',alignItems:'center',gap:12}}>
-                                   <span style={{fontWeight:'bold'}}>×{line.qty}</span>
+                               <div style={{display:'flex',alignItems:'center',gap:classic?6:10}}>
+                                   <span style={{fontWeight:'bold'}}>×</span>
+                                   <input type="number" min="0" step="any"
+                                       style={classic ? {...xpInput, width:70, textAlign:'right'} : {width:80,textAlign:'right'}}
+                                       className={classic?'':'form-control form-control-sm'}
+                                       value={line.qty || ''}
+                                       onChange={e => handleLineQtyChange(idx, e.target.value)}
+                                       title="Quantity ordered (Yd)"
+                                   />
+                                   <span style={{color:classic?'#777':'',fontSize:classic?'10px':'',fontWeight:'normal'}} className={classic?'':'text-muted small'}>Yd</span>
                                    <button type="button" style={classic?{...xpBtn(),border:'1px solid transparent',background:'transparent',padding:'1px 5px'}:undefined} className={classic?'':'btn btn-sm btn-link text-danger p-0'} onClick={() => handleRemoveLine(idx)}>
                                        <i className="bi bi-x-circle" style={{color:classic?'#c00000':''}}></i>
                                    </button>

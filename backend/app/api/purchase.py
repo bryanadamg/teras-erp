@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete as sa_delete
 from sqlalchemy.orm import selectinload
 from pathlib import Path
 import shutil
 from app.db.session import get_async_db
 from app.schemas import PurchaseOrderCreate, PurchaseOrderResponse, GoodsReceiptCreate, GoodsReceiptResponse
-from app.models.purchase import PurchaseOrder, PurchaseOrderLine
+from app.models.purchase import PurchaseOrder, PurchaseOrderLine, purchase_order_line_values
 from app.models.goods_receipt import GoodsReceipt, GoodsReceiptLine
 from app.models.attribute import AttributeValue
 from app.models.item import Item
@@ -29,6 +29,16 @@ def _po_query():
             selectinload(PurchaseOrder.receipts).selectinload(GoodsReceipt.lines).selectinload(GoodsReceiptLine.item),
         )
     )
+
+
+def _populate_line_attrs(po):
+    """Surface each line's variant value ids (the model only has the relationship).
+    Without this the response defaults attribute_value_ids to [] and an edit
+    round-trip would silently drop the line's variants."""
+    if po:
+        for line in po.lines:
+            line.attribute_value_ids = [v.id for v in line.attribute_values]
+    return po
 
 
 @router.post("", response_model=PurchaseOrderResponse)
@@ -78,7 +88,88 @@ async def create_purchase_order(
     await db.commit()
 
     final = await db.execute(_po_query().filter(PurchaseOrder.id == po.id))
-    return final.scalars().first()
+    return _populate_line_attrs(final.scalars().first())
+
+
+@router.put("/{po_id}", response_model=PurchaseOrderResponse)
+async def update_purchase_order(
+    po_id: uuid.UUID,
+    payload: PurchaseOrderCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(PurchaseOrder).options(selectinload(PurchaseOrder.lines)).filter(PurchaseOrder.id == po_id)
+    )
+    po = result.scalars().first()
+    if not po:
+        raise HTTPException(status_code=404, detail="PO not found")
+
+    # Once goods are received, lines are referenced by goods-receipt lines — editing
+    # would orphan those records. Only a DRAFT PO (no receipts) can be edited.
+    if po.status != "DRAFT":
+        raise HTTPException(status_code=400, detail=f"Cannot edit PO with status '{po.status}' — only DRAFT orders can be edited")
+
+    if payload.po_number != po.po_number:
+        dup = await db.execute(select(PurchaseOrder).filter(PurchaseOrder.po_number == payload.po_number))
+        if dup.scalars().first():
+            raise HTTPException(status_code=400, detail=f"PO Number '{payload.po_number}' already exists")
+
+    po.po_number = payload.po_number
+    po.supplier_id = payload.supplier_id
+    po.target_location_id = payload.target_location_id
+    po.order_date = payload.order_date or po.order_date
+    po.ssn = payload.ssn
+    po.rate_mode = payload.rate_mode
+    po.kurs_pajak = payload.kurs_pajak
+    po.ktbi = payload.ktbi
+    po.code = payload.code
+    po.payment_term = payload.payment_term
+    po.category = payload.category
+    po.vat_percent = payload.vat_percent
+    po.discount = payload.discount
+    po.notes = payload.notes
+
+    # Replace all lines (drop association rows first, then the lines themselves)
+    line_ids_result = await db.execute(
+        select(PurchaseOrderLine.id).where(PurchaseOrderLine.purchase_order_id == po_id)
+    )
+    line_ids = line_ids_result.scalars().all()
+    if line_ids:
+        await db.execute(sa_delete(purchase_order_line_values).where(
+            purchase_order_line_values.c.purchase_order_line_id.in_(line_ids)
+        ))
+    await db.execute(sa_delete(PurchaseOrderLine).where(PurchaseOrderLine.purchase_order_id == po_id))
+    await db.flush()
+
+    for line in payload.lines:
+        db_line = PurchaseOrderLine(
+            purchase_order_id=po.id,
+            item_id=line.item_id,
+            qty=line.qty,
+            unit_price=line.unit_price,
+            due_date=line.due_date,
+        )
+        if line.attribute_value_ids:
+            attr_result = await db.execute(
+                select(AttributeValue).filter(AttributeValue.id.in_(line.attribute_value_ids))
+            )
+            db_line.attribute_values = attr_result.scalars().all()
+        db.add(db_line)
+
+    await db.commit()
+
+    await audit_service.log_activity(
+        db,
+        user_id=current_user.id,
+        action="UPDATE",
+        entity_type="purchase_order",
+        entity_id=str(po.id),
+        details=f"Updated PO {po.po_number}",
+    )
+
+    final = await db.execute(_po_query().filter(PurchaseOrder.id == po.id))
+    return _populate_line_attrs(final.scalars().first())
 
 
 @router.post("/{po_id}/receipts", response_model=GoodsReceiptResponse)
@@ -265,7 +356,10 @@ async def get_purchase_orders(
     result = await db.execute(
         _po_query().order_by(PurchaseOrder.created_at.desc())
     )
-    return result.scalars().all()
+    pos = result.scalars().all()
+    for po in pos:
+        _populate_line_attrs(po)
+    return pos
 
 
 @router.patch("/{po_id}/close", response_model=PurchaseOrderResponse)
@@ -297,7 +391,7 @@ async def close_purchase_order(
     )
 
     result = await db.execute(_po_query().filter(PurchaseOrder.id == po_id))
-    return result.scalars().first()
+    return _populate_line_attrs(result.scalars().first())
 
 
 @router.delete("/{po_id}")

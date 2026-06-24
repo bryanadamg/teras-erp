@@ -9,11 +9,12 @@ import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useSortable, SortMark } from '../shared/xpTheme';
 
-export default function PurchaseOrderView({ items, attributes, purchaseOrders, partners, locations, onCreatePO, onDeletePO, onCreateReceipt, onClosePO, companyProfile }: any) {
+export default function PurchaseOrderView({ items, attributes, purchaseOrders, partners, locations, onCreatePO, onEditPO, onDeletePO, onCreateReceipt, onClosePO, companyProfile }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
   const { itemIndex } = useData();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingPOId, setEditingPOId] = useState<string | null>(null);
   const [printingPO, setPrintingPO] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -266,6 +267,15 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
       setNewPO({ ...newPO, lines: newPO.lines.filter((_, i) => i !== index) });
   };
 
+  // Edit an already-added line's qty in place (no remove + re-add).
+  const handleLineQtyChange = (index: number, val: string) => {
+      const qty = parseFloat(val) || 0;
+      setNewPO(prev => ({
+          ...prev,
+          lines: prev.lines.map((l: any, i: number) => (i === index ? { ...l, qty } : l)),
+      }));
+  };
+
   const handleValueChange = (valId: string, attrId: string) => {
       const attr = attributes.find((a: any) => a.id === attrId);
       if (!attr) return;
@@ -273,19 +283,72 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
       setNewLine({...newLine, attribute_value_ids: valId ? [...otherValues, valId] : otherValues});
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleEditOpen = (po: any) => {
+      setEditingPOId(po.id);
+      setNewPO({
+          po_number: po.po_number,
+          supplier_id: po.supplier_id || '',
+          target_location_id: po.target_location_id || '',
+          order_date: po.order_date ? po.order_date.split('T')[0] : new Date().toISOString().split('T')[0],
+          ssn: po.ssn || '',
+          rate_mode: po.rate_mode || 'kurs_pajak',
+          kurs_pajak: po.kurs_pajak || '',
+          ktbi: po.ktbi || '',
+          code: po.code || '',
+          payment_term: po.payment_term || '',
+          category: po.category || '',
+          vat_percent: po.vat_percent != null ? Number(po.vat_percent) : 11,
+          discount: po.discount != null ? Number(po.discount) : 0,
+          notes: po.notes || '',
+          lines: (po.lines || []).map((l: any) => ({
+              item_id: l.item_id,
+              qty: Number(l.qty),
+              unit_price: l.unit_price != null ? Number(l.unit_price) : '',
+              due_date: l.due_date ? l.due_date.split('T')[0] : '',
+              attribute_value_ids: l.attribute_value_ids || [],
+          })),
+      });
+      setIsCreateOpen(true);
+  };
+
+  const closeModal = () => { setIsCreateOpen(false); setEditingPOId(null); setNewPO(freshPO()); };
+
+  const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
-      onCreatePO({
+      const payload = {
           ...newPO,
           supplier_id: newPO.supplier_id || null,
           target_location_id: newPO.target_location_id || null,
           order_date: newPO.order_date || null,
           vat_percent: Number(newPO.vat_percent) || 0,
           discount: Number(newPO.discount) || 0,
-          lines: newPO.lines.map((line: any) => ({ ...line, due_date: line.due_date || null }))
-      });
-      setNewPO(freshPO());
-      setIsCreateOpen(false);
+          lines: newPO.lines.map((line: any) => ({
+              ...line,
+              unit_price: line.unit_price === '' ? null : Number(line.unit_price),
+              due_date: line.due_date || null,
+          })),
+      };
+
+      if (editingPOId) {
+          const res = await onEditPO(editingPOId, payload);
+          if (res && res.ok) {
+              closeModal();
+              showToast('Purchase Order updated', 'success');
+          } else if (res) {
+              const err = await res.json().catch(() => ({}));
+              showToast(err.detail || 'Failed to update PO', 'error');
+          }
+          return;
+      }
+
+      const res = await onCreatePO(payload);
+      if (res && res.ok) {
+          closeModal();
+          showToast('Purchase Order created', 'success');
+      } else if (res) {
+          const err = await res.json().catch(() => ({}));
+          showToast(err.detail || 'Failed to create PO', 'error');
+      }
   };
 
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || itemIndex?.[String(id)]?.name || id;
@@ -390,19 +453,19 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
        <ModalWrapper
            isOpen={isCreateOpen}
            modeless
-           onClose={() => { setIsCreateOpen(false); setNewPO(freshPO()); }}
-           title={<><i className="bi bi-cart-plus" style={classic?{marginRight:6}:{marginRight:8}}></i>Create Purchase Order</>}
+           onClose={closeModal}
+           title={<><i className={`bi ${editingPOId ? 'bi-pencil' : 'bi-cart-plus'}`} style={classic?{marginRight:6}:{marginRight:8}}></i>{editingPOId ? 'Edit Purchase Order' : 'Create Purchase Order'}</>}
            variant="success"
            size="xl"
            footer={classic ? (
                <>
-                   <button type="button" style={xpBtn()} onClick={() => setIsCreateOpen(false)}>{t('cancel')}</button>
-                   <button type="button" style={xpBtn({background:'linear-gradient(to bottom,#5ec85e,#2d7a2d)',borderColor:'#1a5e1a #0a3e0a #0a3e0a #1a5e1a',color:'#ffffff',fontWeight:'bold',padding:'2px 16px'})} onClick={handleSubmit as any}><i className="bi bi-floppy" style={{marginRight:4}}></i>{t('save')} PO</button>
+                   <button type="button" style={xpBtn()} onClick={closeModal}>{t('cancel')}</button>
+                   <button type="button" style={xpBtn({background:'linear-gradient(to bottom,#5ec85e,#2d7a2d)',borderColor:'#1a5e1a #0a3e0a #0a3e0a #1a5e1a',color:'#ffffff',fontWeight:'bold',padding:'2px 16px'})} onClick={handleSubmit as any}><i className="bi bi-floppy" style={{marginRight:4}}></i>{editingPOId ? 'Update' : t('save')} PO</button>
                </>
            ) : (
                <>
-                   <button type="button" className="btn btn-sm btn-link text-muted" onClick={() => setIsCreateOpen(false)}>{t('cancel')}</button>
-                   <button type="button" className="btn btn-sm btn-success px-4 fw-bold" onClick={handleSubmit as any}>{t('save')} PO</button>
+                   <button type="button" className="btn btn-sm btn-link text-muted" onClick={closeModal}>{t('cancel')}</button>
+                   <button type="button" className="btn btn-sm btn-success px-4 fw-bold" onClick={handleSubmit as any}>{editingPOId ? 'Update' : t('save')} PO</button>
                </>
            )}
        >
@@ -541,9 +604,17 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                    {line.due_date && <span style={{color:classic?'#666':'',marginLeft:8,fontSize:classic?'10px':''}}><i className="bi bi-calendar2" style={{marginRight:3}}></i>{new Date(line.due_date).toLocaleDateString()}</span>}
                                    {(line.attribute_value_ids||[]).length>0 && <div style={{color:classic?'#666':'',fontSize:classic?'10px':'',fontStyle:'italic'}}>{(line.attribute_value_ids||[]).map(getAttributeValueName).join(', ')}</div>}
                                </div>
-                               <div style={{display:'flex',alignItems:'center',gap:12}}>
-                                   {line.unit_price != null && <span style={{color:classic?'#555':'',fontSize:classic?'10px':''}}>@ Rp {Number(line.unit_price).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>}
-                                   <span style={{fontWeight:'bold'}}>×{line.qty}</span>
+                               <div style={{display:'flex',alignItems:'center',gap:classic?6:10}}>
+                                   {line.unit_price != null && line.unit_price !== '' && <span style={{color:classic?'#555':'',fontSize:classic?'10px':''}}>@ Rp {Number(line.unit_price).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>}
+                                   <span style={{fontWeight:'bold'}}>×</span>
+                                   <input type="number" min="0" step="any"
+                                       style={classic ? {...xpInput, width:70, textAlign:'right'} : {width:80,textAlign:'right'}}
+                                       className={classic?'':'form-control form-control-sm'}
+                                       value={line.qty || ''}
+                                       onChange={e => handleLineQtyChange(idx, e.target.value)}
+                                       title="Quantity ordered"
+                                   />
+                                   {getItemUom(line.item_id) && <span style={{color:classic?'#777':'',fontSize:classic?'9px':'',fontWeight:'bold',textTransform:'uppercase'}} className={classic?'':'text-muted small'}>{getItemUom(line.item_id)}</span>}
                                    <button type="button" style={classic?{...xpBtn(),border:'1px solid transparent',background:'transparent',padding:'1px 5px'}:undefined} className={classic?'':'btn btn-sm btn-link text-danger p-0'} onClick={() => handleRemoveLine(idx)}>
                                        <i className="bi bi-x-circle" style={{color:classic?'#c00000':''}}></i>
                                    </button>
@@ -900,6 +971,17 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                            )}
                                            {classic ? (
                                                <>
+                                                   {po.status === 'DRAFT' && (
+                                                       <button
+                                                           title="Edit"
+                                                           onClick={() => handleEditOpen(po)}
+                                                           style={{ background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', padding: '1px 4px', color: '#555', fontSize: '13px' }}
+                                                           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
+                                                           onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+                                                       >
+                                                           <i className="bi bi-pencil"></i>
+                                                       </button>
+                                                   )}
                                                    <button
                                                        title="Print"
                                                        onClick={() => handlePrintPO(po)}
@@ -921,6 +1003,11 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                </>
                                            ) : (
                                                <>
+                                                   {po.status === 'DRAFT' && (
+                                                       <button className="btn btn-sm btn-link text-muted p-0" title="Edit" onClick={() => handleEditOpen(po)}>
+                                                           <i className="bi bi-pencil fs-6"></i>
+                                                       </button>
+                                                   )}
                                                    <button className="btn btn-sm btn-link text-muted p-0" title="Print" onClick={() => handlePrintPO(po)}>
                                                        <i className="bi bi-printer fs-6"></i>
                                                    </button>

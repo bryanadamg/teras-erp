@@ -15,6 +15,13 @@ export default function PurchaseOrdersPage() {
     const handleCreatePO = async (p: any) => {
         const res = await authFetch(`${API_BASE}/purchase-orders`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
         if (res.ok) fetchData();
+        return res;
+    };
+
+    const handleEditPO = async (id: string, p: any) => {
+        const res = await authFetch(`${API_BASE}/purchase-orders/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+        if (res.ok) fetchData();
+        return res;
     };
 
     const handleCreateReceipt = async (poId: string, receiptPayload: any, dnFile?: File | null) => {
@@ -83,6 +90,7 @@ export default function PurchaseOrdersPage() {
                 partners={partners}
                 locations={locations}
                 onCreatePO={handleCreatePO}
+                onEditPO={handleEditPO}
                 onCreateReceipt={handleCreateReceipt}
                 onClosePO={handleClosePO}
                 onDeletePO={handleDeletePO}
