@@ -293,7 +293,7 @@ async def update_color_status(
     if not color:
         raise HTTPException(status_code=404, detail="Color not found")
 
-    valid_statuses = ["PENDING", "IN_PRODUCTION", "APPROVED", "REJECTED"]
+    valid_statuses = ["PENDING", "IN_PRODUCTION", "SENT", "APPROVED", "REJECTED"]
     if status not in valid_statuses:
         raise HTTPException(status_code=400, detail="Invalid status")
 

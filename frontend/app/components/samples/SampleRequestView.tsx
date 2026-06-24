@@ -413,6 +413,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
           APPROVED:      { bg: '#d4edda', border: '#27713a', color: '#0c3a1a' },
           REJECTED:      { bg: '#f8d7da', border: '#a01a1a', color: '#4a0000' },
           IN_PRODUCTION: { bg: '#fff3cd', border: '#b8860b', color: '#3e2000' },
+          SENT:          { bg: '#dce4f5', border: '#3a5faa', color: '#0d2a6e' },
           PENDING:       { bg: '#e8e8e8', border: '#7a7a7a', color: '#111' },
       };
       const s = map[status] || map['PENDING'];
@@ -428,6 +429,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
           APPROVED: 'bg-success',
           REJECTED: 'bg-danger',
           IN_PRODUCTION: 'bg-warning text-dark',
+          SENT: 'bg-info text-dark',
           PENDING: 'bg-secondary',
       };
       return map[status] || 'bg-secondary';
@@ -475,6 +477,14 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       fontWeight: active ? 'bold' : 'normal',
       borderRight: 'none',
   });
+  const cbSend = (active: boolean): React.CSSProperties => ({
+      ...cbBase,
+      background: active ? 'linear-gradient(to bottom, #5a8fd8, #2a5faa)' : 'linear-gradient(to bottom, #f5f5f5, #e0dfd8)',
+      borderColor: active ? '#1a3a7a #0a1a4a #0a1a4a #1a3a7a' : '#d0cfc8 #a0a09a #a0a09a #d0cfc8',
+      color: active ? '#fff' : '#666',
+      fontWeight: active ? 'bold' : 'normal',
+      borderRight: 'none',
+  });
   const cbApprove = (active: boolean): React.CSSProperties => ({
       ...cbBase,
       background: active ? 'linear-gradient(to bottom, #4cae4c, #2d7a2d)' : 'linear-gradient(to bottom, #f5f5f5, #e0dfd8)',
@@ -496,6 +506,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       const map: Record<string, { borderLeftColor: string; background: string }> = {
           PENDING:       { borderLeftColor: '#9e9e9e', background: '#fdfdfd' },
           IN_PRODUCTION: { borderLeftColor: '#c77800', background: '#fffdf8' },
+          SENT:          { borderLeftColor: '#3a5faa', background: '#f8faff' },
           APPROVED:      { borderLeftColor: '#27713a', background: '#f8fff8' },
           REJECTED:      { borderLeftColor: '#a01a1a', background: '#fff8f8' },
       };
@@ -1364,10 +1375,11 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                    {/* Colors — status count badges */}
                                    <td style={classic ? tdBase : undefined}>
                                        {s.colors && s.colors.length > 0 ? (() => {
-                                           const counts: Record<string, number> = { APPROVED: 0, IN_PRODUCTION: 0, REJECTED: 0, PENDING: 0 };
+                                           const counts: Record<string, number> = { APPROVED: 0, SENT: 0, IN_PRODUCTION: 0, REJECTED: 0, PENDING: 0 };
                                            s.colors.forEach((c: any) => { const st = c.status || 'PENDING'; counts[st] = (counts[st] || 0) + 1; });
                                            const META = [
                                                { key: 'APPROVED',      label: 'approved',      cls: 'bg-success' },
+                                               { key: 'SENT',          label: 'sent',          cls: 'bg-info text-dark' },
                                                { key: 'IN_PRODUCTION', label: 'in production', cls: 'bg-warning text-dark' },
                                                { key: 'REJECTED',      label: 'rejected',      cls: 'bg-danger' },
                                                { key: 'PENDING',       label: 'pending',       cls: 'bg-secondary' },
@@ -1534,6 +1546,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                                            const isInProd = (c.status || 'PENDING') === 'IN_PRODUCTION';
                                                                            const isApproved = (c.status || 'PENDING') === 'APPROVED';
                                                                            const isRejected = (c.status || 'PENDING') === 'REJECTED';
+                                                                           const isSent = (c.status || 'PENDING') === 'SENT';
                                                                            return (
                                                                                <tr key={c.id} style={{ background: cst.background }}>
                                                                                    <td style={{ ...tdStyle, borderLeft: `4px solid ${cst.borderLeftColor}`, fontWeight: 'bold' }}>{c.name}</td>
@@ -1552,6 +1565,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                                                        ) : (
                                                                                            <div style={{ display: 'inline-flex' }}>
                                                                                                <button type="button" style={cbInprod(isInProd)} onClick={() => onUpdateColorStatus(s.id, c.id, isInProd ? 'PENDING' : 'IN_PRODUCTION')} title={isInProd ? 'Reset to Pending' : 'Set In Production'}>&#9881; In Prod</button>
+                                                                                               <button type="button" style={cbSend(isSent)} onClick={() => onUpdateColorStatus(s.id, c.id, isSent ? 'PENDING' : 'SENT')} title={isSent ? 'Reset to Pending' : 'Mark Sent to Customer'}>&#187; Sent</button>
                                                                                                <button type="button" style={cbApprove(false)} onClick={() => handleApproveColor(s.id, c.id, c.name)} title="Approve">&#10003; Approve</button>
                                                                                                <button type="button" style={cbReject(isRejected)} onClick={() => onUpdateColorStatus(s.id, c.id, isRejected ? 'PENDING' : 'REJECTED')} title={isRejected ? 'Reset to Pending' : 'Reject'}>&#10007; Reject</button>
                                                                                            </div>
@@ -1712,6 +1726,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                                        const isInProd = (c.status || 'PENDING') === 'IN_PRODUCTION';
                                                                        const isApproved = (c.status || 'PENDING') === 'APPROVED';
                                                                        const isRejected = (c.status || 'PENDING') === 'REJECTED';
+                                                                       const isSent = (c.status || 'PENDING') === 'SENT';
                                                                        return (
                                                                            <tr key={c.id}>
                                                                                <td style={{ padding: '4px 6px', borderBottom: '1px solid #e9ecef', fontSize: 11, fontWeight: 500, color: '#111' }}>{c.name}</td>
@@ -1728,6 +1743,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                                                    ) : (
                                                                                        <div className="btn-group btn-group-sm" role="group">
                                                                                            <button type="button" className={`btn ${isInProd ? 'btn-warning' : 'btn-outline-warning'}`} style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => onUpdateColorStatus(s.id, c.id, isInProd ? 'PENDING' : 'IN_PRODUCTION')}>&#9881; In Prod</button>
+                                                                                           <button type="button" className={`btn ${isSent ? 'btn-info' : 'btn-outline-info'}`} style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => onUpdateColorStatus(s.id, c.id, isSent ? 'PENDING' : 'SENT')}>&#187; Sent</button>
                                                                                            <button type="button" className="btn btn-outline-success" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => handleApproveColor(s.id, c.id, c.name)}>&#10003; Approve</button>
                                                                                            <button type="button" className={`btn ${isRejected ? 'btn-danger' : 'btn-outline-danger'}`} style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => onUpdateColorStatus(s.id, c.id, isRejected ? 'PENDING' : 'REJECTED')}>&#10007; Reject</button>
                                                                                        </div>
