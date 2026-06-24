@@ -20,7 +20,7 @@ const xpBtn: React.CSSProperties = {
     cursor: 'pointer',
 };
 const xpSectionHeader: React.CSSProperties = {
-    background: 'linear-gradient(to right, #3060b8, #1a3d90)',
+    background: 'linear-gradient(to right, #3a6fc4 0%, #6a9fd8 60%, #a8c8f0 100%)',
     color: 'white', padding: '3px 8px',
     fontFamily: xpFont, fontSize: 11, fontWeight: 'bold',
 };
@@ -148,7 +148,7 @@ export default function DyeingSettingView() {
         }}>
             {/* Title bar */}
             <div style={classic ? {
-                background: 'linear-gradient(to right, #001060, #111133)',
+                background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)',
                 color: 'white',
                 padding: '6px 12px',
                 fontFamily: xpFont,

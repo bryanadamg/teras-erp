@@ -39,7 +39,7 @@ const xpBtnPrimary = (classic: boolean): React.CSSProperties => classic ? {
 };
 
 const xpSectionHeader = (classic: boolean): React.CSSProperties => classic ? {
-    background: 'linear-gradient(to right, #3060b8, #1a3d90)',
+    background: 'linear-gradient(to right, #3a6fc4 0%, #6a9fd8 60%, #a8c8f0 100%)',
     color: 'white', padding: '3px 8px',
     fontFamily: xpFont, fontSize: 11, fontWeight: 'bold',
 } : {

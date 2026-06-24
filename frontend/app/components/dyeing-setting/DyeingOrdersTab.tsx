@@ -36,7 +36,7 @@ const makePrimaryBtn = (classic: boolean): React.CSSProperties => classic ? {
     borderRadius: 7, cursor: 'pointer',
 };
 const makeSectionHeader = (classic: boolean): React.CSSProperties => classic ? {
-    background: 'linear-gradient(to right, #3060b8, #1a3d90)',
+    background: 'linear-gradient(to right, #3a6fc4 0%, #6a9fd8 60%, #a8c8f0 100%)',
     color: 'white', padding: '3px 8px',
     fontFamily: xpFont, fontSize: 11, fontWeight: 'bold',
 } : {
@@ -49,7 +49,12 @@ const makePanel = (classic: boolean): React.CSSProperties => classic ? {
 } : {
     background: '#fff', border: '1px solid #dbe1ea', borderRadius: 9,
 };
-const makeThCell = (classic: boolean): React.CSSProperties => classic ? {} : {
+const makeThCell = (classic: boolean): React.CSSProperties => classic ? {
+    background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
+    borderBottom: '2px solid #808080', borderRight: '1px solid #b0aaa0',
+    padding: '3px 6px', textAlign: 'left', whiteSpace: 'nowrap',
+    fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#000',
+} : {
     background: '#eef1f6', color: '#475569', textTransform: 'uppercase',
     fontSize: 11, fontWeight: 700, borderBottom: '1.5px solid #cbd3df',
     fontFamily: modernFont,
@@ -426,13 +431,13 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                     ? { background: '#ece9d8', borderBottom: '1px solid #7f9db9' }
                                     : {}}>
                                     <th style={classic
-                                        ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold', whiteSpace: 'nowrap' }
+                                        ? { ...xpThCell, whiteSpace: 'nowrap' }
                                         : { ...xpThCell, padding: '6px 10px', textAlign: 'left', whiteSpace: 'nowrap' }}>WO Name</th>
                                     <th style={classic
-                                        ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' }
+                                        ? { ...xpThCell }
                                         : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Status</th>
                                     <th style={classic
-                                        ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' }
+                                        ? { ...xpThCell }
                                         : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>MO Ref</th>
                                 </tr>
                             </thead>
@@ -698,15 +703,15 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                         <tr style={classic
                                             ? { background: '#ece9d8', borderBottom: '1px solid #7f9db9' }
                                             : {}}>
-                                            <th style={classic ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left', whiteSpace: 'nowrap' }}>Run #</th>
-                                            <th style={classic ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Recipe</th>
-                                            <th style={classic ? { padding: '2px 6px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Substrate Qty</th>
-                                            <th style={classic ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Machine</th>
-                                            <th style={classic ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Status</th>
-                                            <th style={classic ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left', whiteSpace: 'nowrap' }}>Shade Result</th>
-                                            <th style={classic ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Started</th>
-                                            <th style={classic ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Completed</th>
-                                            <th style={classic ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Actions</th>
+                                            <th style={classic ? { ...xpThCell, whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left', whiteSpace: 'nowrap' }}>Run #</th>
+                                            <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Recipe</th>
+                                            <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Substrate Qty</th>
+                                            <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Machine</th>
+                                            <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Status</th>
+                                            <th style={classic ? { ...xpThCell, whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left', whiteSpace: 'nowrap' }}>Shade Result</th>
+                                            <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Started</th>
+                                            <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Completed</th>
+                                            <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -718,7 +723,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                             const shadeColors = run.shade_result ? SHADE_COLORS[run.shade_result] : null;
                                             return (
                                                 <tr key={run.id} style={classic
-                                                    ? { borderBottom: '1px solid #e0e0e0', background: idx % 2 === 0 ? 'white' : '#f9f8f4' }
+                                                    ? { borderBottom: '1px solid #e0e0e0', background: idx % 2 === 0 ? 'white' : '#f5f3ee' }
                                                     : { borderBottom: '1px solid #e6eaf1', background: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
                                                     <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap', fontWeight: 'bold' } : { padding: '6px 10px', whiteSpace: 'nowrap', fontWeight: 700, color: '#1e293b', fontFamily: modernFont }}>{runLabel}</td>
                                                     <td style={classic ? { padding: '2px 6px' } : { padding: '6px 10px', color: '#334155', fontFamily: modernFont }}>{recipeName}</td>
@@ -949,17 +954,17 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                             <tr style={classic
                                                 ? { background: '#ece9d8', borderBottom: '1px solid #7f9db9' }
                                                 : {}}>
-                                                <th style={classic ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Item</th>
-                                                <th style={classic ? { padding: '2px 6px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Planned Qty</th>
-                                                <th style={classic ? { padding: '2px 6px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Actual Qty</th>
-                                                <th style={classic ? { padding: '2px 6px', textAlign: 'left', fontWeight: 'bold' } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>UOM</th>
-                                                <th style={classic ? { padding: '2px 6px' } : { ...xpThCell, padding: '6px 10px' }}></th>
+                                                <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>Item</th>
+                                                <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Planned Qty</th>
+                                                <th style={classic ? { ...xpThCell, textAlign: 'right', whiteSpace: 'nowrap' } : { ...xpThCell, padding: '6px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Actual Qty</th>
+                                                <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px', textAlign: 'left' }}>UOM</th>
+                                                <th style={classic ? { ...xpThCell } : { ...xpThCell, padding: '6px 10px' }}></th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {completeForm.chemicals.map((row, idx) => (
                                                 <tr key={idx} style={classic
-                                                    ? { borderBottom: '1px solid #e0e0e0', background: idx % 2 === 0 ? 'white' : '#f9f8f4' }
+                                                    ? { borderBottom: '1px solid #e0e0e0', background: idx % 2 === 0 ? 'white' : '#f5f3ee' }
                                                     : { borderBottom: '1px solid #e6eaf1', background: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
                                                     <td style={{ padding: classic ? '2px 4px' : '5px 6px' }}>
                                                         <select

@@ -31,7 +31,7 @@ const modernBtn: React.CSSProperties = {
     borderRadius: 7, cursor: 'pointer',
 };
 const xpSectionHeader: React.CSSProperties = {
-    background: 'linear-gradient(to right, #3060b8, #1a3d90)',
+    background: 'linear-gradient(to right, #3a6fc4 0%, #6a9fd8 60%, #a8c8f0 100%)',
     color: 'white', padding: '3px 8px',
     fontFamily: xpFont, fontSize: 11, fontWeight: 'bold',
 };
@@ -349,7 +349,13 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
 
     // Shared cell border / header styles for tables (theme-aware)
     const thStyle = (extra?: React.CSSProperties): React.CSSProperties => classic
-        ? { padding: '2px 4px', borderBottom: '1px solid #c0d4e8', textAlign: 'left', ...extra }
+        ? {
+            background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
+            borderBottom: '2px solid #808080', borderRight: '1px solid #b0aaa0',
+            padding: '3px 6px', textAlign: 'left', whiteSpace: 'nowrap',
+            fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#000',
+            ...extra,
+        }
         : {
             background: '#eef1f6', color: '#475569', textTransform: 'uppercase',
             fontSize: 11, fontWeight: 700, padding: '6px 10px',
