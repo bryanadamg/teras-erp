@@ -149,7 +149,32 @@ export default function MobileScannerView({
 
         const timer = setTimeout(() => {
             if (!document.getElementById('mobile-reader')) return;
-            const scanner = new Html5QrcodeScanner('mobile-reader', { fps: 10, qrbox: { width: 220, height: 220 } }, false);
+            // Responsive box: fill ~70% of the smaller viewfinder side (min 180px) so the
+            // target stays large on narrow phone screens — small fixed boxes are hard to fill.
+            const qrbox = (vw: number, vh: number) => {
+                const size = Math.max(180, Math.floor(Math.min(vw, vh) * 0.7));
+                return { width: size, height: size };
+            };
+            const scanner = new Html5QrcodeScanner('mobile-reader', {
+                fps: 10,
+                qrbox,
+                // Use the native BarcodeDetector where available (Android Chrome) — far more
+                // reliable at locking onto a QR than the JS fallback decoder.
+                useBarCodeDetectorIfSupported: true,
+                // Factory floor: dark dye-houses need the torch.
+                showTorchButtonIfSupported: true,
+                // Rear camera + continuous autofocus + a sharp frame. Without these the
+                // library starts a default low-res, fixed/hunting-focus stream → blurry
+                // preview the decoder never reads. focusMode isn't in the TS MediaTrack
+                // types but the lib only bans audio keys, so it's passed through verbatim.
+                videoConstraints: {
+                    facingMode: { ideal: 'environment' },
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    focusMode: 'continuous',
+                    advanced: [{ focusMode: 'continuous' } as any],
+                } as MediaTrackConstraints,
+            }, false);
             scannerRef.current = scanner;
             scanner.render(
                 (decodedText: string) => {
