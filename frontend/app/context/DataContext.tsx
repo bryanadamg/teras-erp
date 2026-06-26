@@ -53,6 +53,7 @@ interface DataContextType {
     };
 
     fetchData: (targetTab?: string) => Promise<void>;
+    refreshManufacturing: () => Promise<void>;
     handleTabHover: (tab: string) => void;
     authFetch: (url: string, options?: any) => Promise<Response>;
 }
@@ -341,6 +342,29 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         return p;
     }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, itemSearch, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, isInitialLoad, pageSize, showToast]);
 
+    // Targeted refresh for the Manufacturing Orders page: re-pull ONLY the MO
+    // (root-only) + PR lists. Used after WO/MO/PR mutations instead of the broad
+    // fetchData(), which also re-fetched items + the full nested /boms + the whole
+    // stock-balance table — none of which a WO/MO create changes. Cuts a WO create
+    // from ~5 heavy calls down to 2 light ones.
+    const refreshManufacturing = useCallback(async () => {
+        if (!currentUser) return;
+        try {
+            const token = localStorage.getItem('access_token');
+            const headers = { 'Authorization': `Bearer ${token}` };
+            const moSkip = (woPage - 1) * pageSize;
+            const moSearchParam = moSearch ? `&search=${encodeURIComponent(moSearch)}` : '';
+            const prSkip = (prPage - 1) * pageSize;
+            const prSearchParam = prSearch ? `&search=${encodeURIComponent(prSearch)}` : '';
+            const [moRes, prRes] = await Promise.all([
+                fetch(`${API_BASE}/manufacturing-orders?skip=${moSkip}&limit=${pageSize}${moSearchParam}`, { headers }),
+                fetch(`${API_BASE}/production-runs?skip=${prSkip}&limit=${pageSize}${prSearchParam}`, { headers }),
+            ]);
+            if (moRes.ok) { const d = await moRes.json(); setManufacturingOrders(d.items); setWoTotal(d.total); }
+            if (prRes.ok) { const d = await prRes.json(); setProductionRuns(d.items); setPrTotal(d.total); }
+        } catch (e) { console.error('refreshManufacturing error', e); }
+    }, [currentUser, woPage, prPage, moSearch, prSearch, pageSize]);
+
     const handleTabHover = (tab: string) => fetchData(tab);
 
     useEffect(() => { if (currentUser) fetchData(); }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, itemSearch, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData]);
@@ -422,13 +446,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, itemIndex, companyProfile,
         pagination: { itemPage, setItemPage, itemTotal, woPage, setWoPage, woTotal, prPage, setPrPage, prTotal, auditPage, setAuditPage, auditTotal, reportPage, setReportPage, reportTotal, moSearch, setMoSearch: handleSetMoSearch, prSearch, setPrSearch: handleSetPrSearch, pageSize },
         filters: { itemSearch, setItemSearch, categoryL1, setCategoryL1: handleSetCategoryL1, categoryL2, setCategoryL2: handleSetCategoryL2, categoryL3, setCategoryL3, auditType, setAuditType },
-        fetchData, handleTabHover, authFetch
+        fetchData, refreshManufacturing, handleTabHover, authFetch
     }), [
         items, locations, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
         partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, itemIndex, companyProfile,
         itemPage, itemTotal, woPage, woTotal, prPage, prTotal, auditPage, auditTotal, reportPage, reportTotal, pageSize,
-        itemSearch, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData, handleTabHover, authFetch,
+        itemSearch, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData, refreshManufacturing, handleTabHover, authFetch,
         handleSetCategoryL1, handleSetCategoryL2, handleSetMoSearch, handleSetPrSearch
     ]);
 

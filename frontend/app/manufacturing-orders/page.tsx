@@ -4,7 +4,7 @@ import ManufacturingView from '../components/manufacturing/ManufacturingView';
 import MobileManufacturingView from '../components/mobile/ManufacturingView';
 import { useData } from '../context/DataContext';
 import { useToast } from '../components/shared/Toast';
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useConfirm } from '../context/ConfirmContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -16,9 +16,19 @@ export default function ManufacturingOrdersPage() {
         productionRuns,
         operations, workCenters, partners,
         locations, stockBalance, companyProfile,
-        fetchData, authFetch,
+        fetchData, refreshManufacturing, authFetch,
         pagination,
     } = useData();
+
+    // Guard against the wrong-MO flash: the global manufacturingOrders is SHARED
+    // with the Work Orders page (which loads ALL levels via all_levels=true) and is
+    // also repopulated with all-levels data by the WS handler's fetchData('work-orders').
+    // The MO page only ever shows root MOs, so filter to roots here — this is a no-op
+    // on correct (root-only) data and corrects any stale all-levels data instantly.
+    const rootMOs = useMemo(
+        () => (manufacturingOrders || []).filter((m: any) => !m.parent_mo_id && !m.is_shared_component),
+        [manufacturingOrders]
+    );
     const { woPage, woTotal, prPage, prTotal, setPrPage, setWoPage, pageSize } = pagination;
     const { showToast } = useToast();
     const { confirm } = useConfirm();
@@ -61,13 +71,13 @@ export default function ManufacturingOrdersPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        fetchData();
+        refreshManufacturing();
         return res;
     };
 
     const handleUpdateMOStatus = async (moId: string, status: string) => {
         const res = await authFetch(`${API_BASE}/manufacturing-orders/${moId}/status?status=${status}`, { method: 'PUT' });
-        if (res.ok) { fetchData(); return true; }
+        if (res.ok) { refreshManufacturing(); return true; }
         else { const err = await res.json(); showToast(`Error: ${err.detail}`, 'danger'); return false; }
     };
 
@@ -81,7 +91,7 @@ export default function ManufacturingOrdersPage() {
         if (!confirmed) return;
 
         const res = await authFetch(`${API_BASE}/manufacturing-orders/${moId}`, { method: 'DELETE' });
-        if (res.ok) { showToast('Manufacturing Order deleted', 'success'); fetchData(); }
+        if (res.ok) { showToast('Manufacturing Order deleted', 'success'); refreshManufacturing(); }
     };
 
     // Production Run handlers
@@ -89,18 +99,18 @@ export default function ManufacturingOrdersPage() {
         const res = await authFetch(`${API_BASE}/production-runs`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p)
         });
-        if (res.ok) fetchData();
+        if (res.ok) refreshManufacturing();
         return res;
     };
 
     const handleDeleteProductionRun = async (id: string) => {
         const res = await authFetch(`${API_BASE}/production-runs/${id}`, { method: 'DELETE' });
-        if (res.ok) fetchData();
+        if (res.ok) refreshManufacturing();
     };
 
     const handleUpdatePRStatus = async (id: string, status: string) => {
         const res = await authFetch(`${API_BASE}/production-runs/${id}/status?status=${encodeURIComponent(status)}`, { method: 'PUT' });
-        if (res.ok) fetchData();
+        if (res.ok) refreshManufacturing();
         return res;
     };
 
@@ -109,7 +119,7 @@ export default function ManufacturingOrdersPage() {
         const res = await authFetch(`${API_BASE}/work-orders`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
         });
-        if (res.ok) fetchData();
+        if (res.ok) refreshManufacturing();
         return res;
     };
 
@@ -117,25 +127,25 @@ export default function ManufacturingOrdersPage() {
         const res = await authFetch(`${API_BASE}/work-orders/${id}`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
         });
-        if (res.ok) fetchData();
+        if (res.ok) refreshManufacturing();
         return res;
     };
 
     const handleUpdateWOStatus = async (id: string, status: string) => {
         const res = await authFetch(`${API_BASE}/work-orders/${id}/status?status=${encodeURIComponent(status)}`, { method: 'PUT' });
-        if (res.ok) fetchData();
+        if (res.ok) refreshManufacturing();
         return res;
     };
 
     const handleDeleteWO = async (id: string) => {
         const res = await authFetch(`${API_BASE}/work-orders/${id}`, { method: 'DELETE' });
-        if (res.ok) fetchData();
+        if (res.ok) refreshManufacturing();
     };
 
     if (isMobile) {
         return (
             <MobileManufacturingView
-                manufacturingOrders={manufacturingOrders}
+                manufacturingOrders={rootMOs}
                 items={items}
                 workCenters={workCenters}
                 boms={boms}
@@ -153,7 +163,7 @@ export default function ManufacturingOrdersPage() {
             boms={boms}
             locations={locations}
             attributes={attributes}
-            manufacturingOrders={manufacturingOrders}
+            manufacturingOrders={rootMOs}
             productionRuns={productionRuns}
             stockBalance={stockBalance}
             workCenters={workCenters}
