@@ -97,6 +97,47 @@ export default function MobileScannerView({
 
     const scannerRef = useRef<Html5QrcodeScanner | null>(null);
     const terminalId = useRef(Math.random().toString(36).substr(2, 6).toUpperCase());
+    const audioCtxRef = useRef<AudioContext | null>(null);
+    const scanLockRef = useRef(false);   // one beep / one transition per successful scan
+
+    // Mobile autoplay policy: an AudioContext must be created/resumed inside a user
+    // gesture before it can make sound. Unlock on the first tap (camera-permission tap
+    // counts) so the scan beep is audible afterwards.
+    useEffect(() => {
+        const unlock = () => {
+            try {
+                const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
+                if (!audioCtxRef.current && Ctx) audioCtxRef.current = new Ctx();
+                audioCtxRef.current?.resume?.();
+            } catch { /* audio unavailable — silent */ }
+        };
+        window.addEventListener('pointerdown', unlock);
+        window.addEventListener('touchstart', unlock);
+        return () => {
+            window.removeEventListener('pointerdown', unlock);
+            window.removeEventListener('touchstart', unlock);
+        };
+    }, []);
+
+    const playBeep = () => {
+        try {
+            const ctx = audioCtxRef.current;
+            if (ctx) {
+                if (ctx.state === 'suspended') ctx.resume();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.value = 880;
+                gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + 0.01);
+                gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
+                osc.connect(gain).connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.2);
+            }
+        } catch { /* ignore */ }
+        try { (navigator as any).vibrate?.(120); } catch { /* iOS: no-op */ }
+    };
 
     // The MO list endpoint returns ROOT MOs only, with component/sub-assembly MOs nested
     // under `child_mos`. WO QR codes are printed for steps on every MO in the tree (e.g.
@@ -182,14 +223,18 @@ export default function MobileScannerView({
                 } as MediaTrackConstraints,
             }, false);
             scannerRef.current = scanner;
+            scanLockRef.current = false;
             scanner.render(
                 (decodedText: string) => {
+                    if (scanLockRef.current) return;   // ignore extra frames after a match
                     if (!isUUID(decodedText)) {
                         setError('Not a valid Work Order QR code.');
                         return;
                     }
                     const found = allWOs.find((wo: any) => wo.id === decodedText);
                     if (found) {
+                        scanLockRef.current = true;
+                        playBeep();
                         setScannedWOId(found.id);
                         setError(null);
                         scanner.clear().catch(() => {});
@@ -247,6 +292,7 @@ export default function MobileScannerView({
     }, [logQty]);
 
     const handleReset = () => {
+        scanLockRef.current = false;
         setScannedWOId(null);
         setError(null);
         setLogSuccess('');
