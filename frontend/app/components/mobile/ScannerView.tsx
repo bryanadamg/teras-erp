@@ -98,7 +98,13 @@ export default function MobileScannerView({
     const scannerRef = useRef<Html5QrcodeScanner | null>(null);
     const terminalId = useRef(Math.random().toString(36).substr(2, 6).toUpperCase());
 
-    const allWOs = manufacturingOrders.flatMap((mo: any) =>
+    // The MO list endpoint returns ROOT MOs only, with component/sub-assembly MOs nested
+    // under `child_mos`. WO QR codes are printed for steps on every MO in the tree (e.g.
+    // BEAMING/WEAVING/DYEING often live on consolidated component MOs), so flatten the whole
+    // tree — otherwise only root-MO WO codes match and every other scan is silently rejected.
+    const flattenMOs = (mos: any[]): any[] =>
+        (mos || []).flatMap((mo: any) => [mo, ...flattenMOs(mo.child_mos || [])]);
+    const allWOs = flattenMOs(manufacturingOrders).flatMap((mo: any) =>
         (mo.work_orders || []).map((wo: any) => ({ ...wo, _mo: mo }))
     );
     const scannedWO = scannedWOId
