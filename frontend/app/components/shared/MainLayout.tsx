@@ -44,6 +44,31 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         }
     }, [currentUser, loading, pathname, router, mounted]);
 
+    // Route prefetch — nav uses router.push on <div>s (not <Link>), so Next never
+    // prefetched the target route's JS chunk; every click paid the chunk+RSC load
+    // before the page could paint. Warm the chunk ahead of the click:
+    //  (a) on hover, alongside the existing data prefetch (handleTabHover);
+    //  (b) once after mount for the common routes, so a fast click with no hover
+    //      pause is still warm. Deferred so it doesn't compete with the first paint.
+    const prefetchRoute = (tab: string) => (tab === 'dashboard' ? '/dashboard' : `/${tab}`);
+    const handleTabHoverPrefetch = React.useCallback((tab: string) => {
+        try { router.prefetch(prefetchRoute(tab)); } catch {}
+        handleTabHover(tab);
+    }, [router, handleTabHover]);
+
+    useEffect(() => {
+        if (!mounted || loading || !currentUser || isMobile) return;
+        const routes = [
+            '/dashboard', '/inventory', '/item-metadata', '/batches', '/stock-on-hand',
+            '/booking-stock', '/locations', '/bom', '/routing', '/production-runs',
+            '/manufacturing-orders', '/work-orders', '/dyeing-setting', '/lab-dips',
+            '/sales-orders', '/packaging', '/customers', '/samples', '/purchase-orders',
+            '/suppliers', '/reports',
+        ];
+        const id = setTimeout(() => { routes.forEach(r => { try { router.prefetch(r); } catch {} }); }, 1500);
+        return () => clearTimeout(id);
+    }, [mounted, loading, currentUser, isMobile, router]);
+
     // SSR / Initial Loading State
     if (!mounted || loading) {
         return <XPLoading label="Starting Teras ERP..." fullScreen />;
@@ -80,7 +105,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             <Sidebar 
                 activeTab={activeTab} 
                 setActiveTab={handleSetActiveTab} 
-                onTabHover={handleTabHover} 
+                onTabHover={handleTabHoverPrefetch}
                 appName={appName} 
                 isOpen={isMobileSidebarOpen} 
             />
