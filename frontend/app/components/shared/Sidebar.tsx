@@ -374,6 +374,9 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
                 {hasPermission('inventory.manage') && (
                   <NavItem tab="stock-on-hand" label={t('stock_on_hand') || 'Stock On-Hand'} icon="bi-boxes" isSub />
                 )}
+                {hasPermission('inventory.manage') && (
+                  <NavItem tab="booking-stock" label={t('booking_stock') || 'Booking Stock'} icon="bi-bookmark-check" isSub />
+                )}
                 {hasPermission('locations.manage') && (
                   <NavItem tab="locations" label={t('locations') || 'Locations'}     icon="bi-geo-alt" isSub />
                 )}

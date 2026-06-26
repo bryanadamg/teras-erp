@@ -429,6 +429,36 @@ class PRMaterialRequirementItem(BaseModel):
     shortfall: float
     mo_contributions: list[PRMOContribution]
 
+# ── Booking Stock (material availability across all ongoing MOs) ──────────────
+class BookingDemandMO(BaseModel):
+    """One ongoing MO's outstanding demand for a component item."""
+    mo_id: UUID
+    mo_code: str
+    mo_qty: float
+    required_qty: float
+
+class BookingSupplyMO(BaseModel):
+    """One ongoing MO whose outstanding output will supply (produce) this item."""
+    mo_id: UUID
+    mo_code: str
+    mo_qty: float
+    incoming_qty: float
+
+class BookingStockRow(BaseModel):
+    item_id: UUID
+    item_code: str
+    item_name: str
+    uom: str
+    attribute_value_ids: list[UUID]
+    location_id: UUID
+    location_name: str
+    qty_on_hand: float       # current physical balance
+    qty_required: float      # outstanding demand from ongoing MOs
+    qty_incoming: float       # scheduled receipts from in-flight production MOs
+    qty_net_free: float      # on_hand + incoming - required  (negative = shortfall)
+    demand_mos: list[BookingDemandMO]
+    supply_mos: list[BookingSupplyMO]
+
 class LocationCreate(BaseModel):
     code: str
     name: str

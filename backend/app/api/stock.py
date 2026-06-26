@@ -5,7 +5,7 @@ from sqlalchemy import select, func
 from app.db.session import get_async_db, get_db
 from app.services import stock_service, audit_service, kpi_service
 from app.core.ws_manager import manager
-from app.schemas import StockLedgerResponse, StockBalanceResponse, PaginatedStockLedgerResponse, StockEntryCreate, StockTransferCreate
+from app.schemas import StockLedgerResponse, StockBalanceResponse, PaginatedStockLedgerResponse, StockEntryCreate, StockTransferCreate, BookingStockRow, BookingDemandMO, BookingSupplyMO
 from app.models.auth import User
 from app.api.auth import get_current_user
 from app.models.item import Item
@@ -253,6 +253,139 @@ async def transfer_stock(
 @router.get("/stock/balance", response_model=list[StockBalanceResponse])
 async def get_stock_balance_api(db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
     return await stock_service.get_all_stock_balances(db, user=current_user)
+
+
+@router.get("/stock/availability", response_model=list[BookingStockRow])
+async def get_stock_availability(
+    location_id: Optional[str] = Query(None, description="Restrict to a single location"),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Booking-stock / material-availability view.
+
+    For every component demanded by an ONGOING manufacturing order (PENDING or
+    IN_PROGRESS), nets physical on-hand against outstanding demand and against
+    incoming scheduled receipts (the outstanding output of in-flight production
+    MOs that produce the item):
+
+        net_free = on_hand + incoming - required
+
+    Demand is OUTSTANDING-based: a component is scaled by the MO's remaining
+    output (MO.qty - completed), so already-produced quantity stops counting.
+    Rows are keyed by (item, variant, location), mirroring the per-Production-Run
+    material-requirements endpoint but spanning the whole shop floor.
+    """
+    from collections import defaultdict
+    from uuid import UUID
+    from sqlalchemy.orm import selectinload, joinedload
+    from app.models.manufacturing import ManufacturingOrder
+
+    ONGOING = ("PENDING", "IN_PROGRESS")
+    mo_rows = (await db.execute(
+        select(ManufacturingOrder)
+        .where(ManufacturingOrder.status.in_(ONGOING))
+        .options(
+            selectinload(ManufacturingOrder.planned_components),
+            selectinload(ManufacturingOrder.completions),
+            selectinload(ManufacturingOrder.attribute_values),
+            joinedload(ManufacturingOrder.bom),
+        )
+    )).unique().scalars().all()
+
+    # demand keyed (item_id, attr_key, location_id); supply same key space.
+    demand: dict[tuple, dict] = defaultdict(lambda: {"total_required": 0.0, "contributions": []})
+    supply: dict[tuple, dict] = defaultdict(lambda: {"total_incoming": 0.0, "contributions": []})
+
+    for mo in mo_rows:
+        completed = sum(float(c.qty_completed) for c in mo.completions)
+        outstanding = float(mo.qty) - completed
+        if outstanding <= 0:
+            continue  # nothing left to make → no remaining demand, no incoming
+
+        tol = float(mo.bom.tolerance_percentage or 0) if mo.bom else 0.0
+
+        # ── Demand: components this MO will still consume ──
+        for comp in mo.planned_components:
+            if not comp.percentage and not comp.qty:
+                continue
+            req = (outstanding * float(comp.percentage)) / 100 if comp.percentage else outstanding * float(comp.qty)
+            if tol > 0:
+                req *= (1 + tol / 100)
+            loc = comp.source_location_id or mo.source_location_id or mo.location_id
+            if location_id and str(loc) != str(location_id):
+                continue
+            attr_ids = sorted(str(a) for a in (comp.attribute_value_ids or []))
+            key = (str(comp.item_id), ",".join(attr_ids), str(loc))
+            d = demand[key]
+            d["item_id"] = comp.item_id
+            d["attr_ids"] = attr_ids
+            d["location_id"] = loc
+            d["total_required"] += req
+            d["contributions"].append(BookingDemandMO(
+                mo_id=mo.id, mo_code=mo.code, mo_qty=float(mo.qty), required_qty=req,
+            ))
+
+        # ── Supply: this MO's own outstanding output is a scheduled receipt ──
+        out_loc = mo.location_id
+        if not (location_id and str(out_loc) != str(location_id)):
+            out_attr = sorted(str(v.id) for v in mo.attribute_values)
+            skey = (str(mo.item_id), ",".join(out_attr), str(out_loc))
+            s = supply[skey]
+            s["total_incoming"] += outstanding
+            s["contributions"].append(BookingSupplyMO(
+                mo_id=mo.id, mo_code=mo.code, mo_qty=float(mo.qty), incoming_qty=outstanding,
+            ))
+
+    if not demand:
+        return []
+
+    # Display lookups: item code/name/uom + location name.
+    item_ids = {v["item_id"] for v in demand.values()}
+    item_map = {i.id: i for i in (await db.execute(
+        select(Item).filter(Item.id.in_(item_ids))
+    )).scalars().all()}
+
+    loc_ids = {v["location_id"] for v in demand.values()}
+    loc_map = {}
+    if loc_ids:
+        for lid, nm in (await db.execute(
+            select(Location.id, Location.name).where(Location.id.in_(loc_ids))
+        )).all():
+            loc_map[lid] = nm
+
+    # Batch on-hand lookup (same shape the PR material-requirements endpoint uses).
+    requirements = [
+        {"item_id": v["item_id"], "location_id": v["location_id"], "attribute_value_ids": v["attr_ids"]}
+        for v in demand.values()
+    ]
+    balances_map = await stock_service.get_batch_stock_balances(db, requirements)
+
+    rows: list[BookingStockRow] = []
+    for (item_id_str, attr_key, loc_id_str), data in demand.items():
+        item = item_map.get(data["item_id"])
+        on_hand = balances_map.get((item_id_str, loc_id_str, attr_key), 0.0)
+        sup = supply.get((item_id_str, attr_key, loc_id_str))
+        incoming = sup["total_incoming"] if sup else 0.0
+        required = data["total_required"]
+        rows.append(BookingStockRow(
+            item_id=data["item_id"],
+            item_code=item.code if item else str(data["item_id"]),
+            item_name=item.name if item else str(data["item_id"]),
+            uom=item.uom if item else "",
+            attribute_value_ids=[UUID(a) for a in data["attr_ids"]],
+            location_id=data["location_id"],
+            location_name=loc_map.get(data["location_id"], ""),
+            qty_on_hand=on_hand,
+            qty_required=required,
+            qty_incoming=incoming,
+            qty_net_free=on_hand + incoming - required,
+            demand_mos=data["contributions"],
+            supply_mos=sup["contributions"] if sup else [],
+        ))
+
+    # Shortfalls first (most actionable), then by item code.
+    rows.sort(key=lambda r: (r.qty_net_free >= 0, r.item_code))
+    return rows
 
 
 @router.post("/stock/balances/rebuild")
