@@ -1,17 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload, joinedload
 from pathlib import Path
 import shutil, os
 from app.db.session import get_async_db
-from app.models.bom import BOM, BOMLine, BOMOperation, BOMSize
+from app.models.bom import BOM, BOMLine, BOMOperation, BOMSize, bom_values, bom_line_values
 from app.models.size import Size
 from app.models.item import Item
 from app.models.location import Location
 from app.models.routing import WorkCenter, Operation
-from app.schemas import BOMCreate, BOMUpdate, BOMResponse, BOMTreeResponse, SizeResponse, BOMAutomatorProfileCreate, BOMAutomatorProfileResponse
+from app.schemas import BOMCreate, BOMUpdate, BOMResponse, BOMSummaryResponse, BOMTreeResponse, SizeResponse, BOMAutomatorProfileCreate, BOMAutomatorProfileResponse
 from app.models.auth import User, BOMAutomatorProfile
 from app.api.auth import get_current_user
 from app.services import audit_service
@@ -237,6 +237,66 @@ async def get_boms(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(g
         for bl in item.lines:
             bl.attribute_value_ids = [v.id for v in bl.attribute_values]
     return items_list
+
+@router.get("/boms/summary", response_model=list[BOMSummaryResponse])
+async def get_boms_summary(skip: int = 0, limit: int = 5000, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+    """Lightweight BOM list for the BOM page.
+
+    Returns full headers + lines + sizes, but collapses `operations` to a count
+    and pulls attribute ids straight from the association tables instead of
+    hydrating AttributeValue / BOMOperation ORM rows — far less work per request
+    than the full `/boms` endpoint.
+
+    NOT meaningfully paginated (high default limit): the BOM page resolves its
+    recursive sub-BOM tree client-side, so every BOM's lines must be present in
+    one payload. Other domains (manufacturing/MES/sales) still use `/boms`.
+    """
+    query = select(BOM).options(
+        joinedload(BOM.item),
+        joinedload(BOM.customer),
+        joinedload(BOM.work_center),
+        selectinload(BOM.lines).joinedload(BOMLine.item),
+        selectinload(BOM.sizes).joinedload(BOMSize.size),
+    )
+    result = await db.execute(query.order_by(BOM.created_at.desc()).offset(skip).limit(limit))
+    boms = result.unique().scalars().all()
+    if not boms:
+        return []
+
+    bom_ids = [b.id for b in boms]
+    line_ids = [l.id for b in boms for l in b.lines]
+
+    # Attribute ids straight from the M2M tables (composite-PK leftmost column,
+    # so these are index-covered) — avoids loading AttributeValue rows just to
+    # read their ids.
+    bom_attr_map: dict = {}
+    rows = await db.execute(
+        select(bom_values.c.bom_id, bom_values.c.attribute_value_id).where(bom_values.c.bom_id.in_(bom_ids))
+    )
+    for bid, vid in rows.all():
+        bom_attr_map.setdefault(bid, []).append(vid)
+
+    line_attr_map: dict = {}
+    if line_ids:
+        rows = await db.execute(
+            select(bom_line_values.c.bom_line_id, bom_line_values.c.attribute_value_id).where(bom_line_values.c.bom_line_id.in_(line_ids))
+        )
+        for lid, vid in rows.all():
+            line_attr_map.setdefault(lid, []).append(vid)
+
+    op_counts: dict = {}
+    rows = await db.execute(
+        select(BOMOperation.bom_id, func.count(BOMOperation.id)).where(BOMOperation.bom_id.in_(bom_ids)).group_by(BOMOperation.bom_id)
+    )
+    for bid, cnt in rows.all():
+        op_counts[bid] = cnt
+
+    for b in boms:
+        b.attribute_value_ids = bom_attr_map.get(b.id, [])
+        b.operation_count = op_counts.get(b.id, 0)
+        for bl in b.lines:
+            bl.attribute_value_ids = line_attr_map.get(bl.id, [])
+    return boms
 
 @router.get("/boms/{bom_id}", response_model=BOMResponse)
 async def get_bom(bom_id: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):

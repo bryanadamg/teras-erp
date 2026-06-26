@@ -927,9 +927,11 @@ export default function BOMView({
                                                             <span title="Components" style={{ background: '#e6eeff', border: '1px solid #0058e6', color: '#003080', fontSize: 10, padding: '1px 6px', whiteSpace: 'nowrap' }}>
                                                                 <i className="bi bi-gear-fill" style={{ marginRight: 3 }} />{bom.lines?.length ?? 0} mat{bom.lines?.length !== 1 ? 's' : ''}
                                                             </span>
+                                                            {(() => { const opCount = bom.operation_count ?? bom.operations?.length ?? 0; return (
                                                             <span title="Operations" style={{ background: '#e8f5e8', border: '1px solid #2d7a2d', color: '#1a4d1a', fontSize: 10, padding: '1px 6px', whiteSpace: 'nowrap' }}>
-                                                                <i className="bi bi-wrench" style={{ marginRight: 3 }} />{bom.operations?.length ?? 0} op{bom.operations?.length !== 1 ? 's' : ''}
+                                                                <i className="bi bi-wrench" style={{ marginRight: 3 }} />{opCount} op{opCount !== 1 ? 's' : ''}
                                                             </span>
+                                                            ); })()}
                                                             {getItemEnds(bom.item_id) != null ? (
                                                                 <span title="Warp ends (utas)" style={{ background: '#e6f4ea', border: '1px solid #4caf50', color: '#1a6e2e', fontWeight: 'bold', fontSize: 10, padding: '1px 6px', whiteSpace: 'nowrap' }}>
                                                                     <i className="bi bi-bezier2" style={{ marginRight: 3 }} />{Math.round(Number(bom.qty ?? 1))} ends

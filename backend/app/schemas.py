@@ -196,6 +196,52 @@ class BOMResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class BOMSummaryResponse(BaseModel):
+    """Lightweight BOM list payload for the BOM page. Identical to BOMResponse
+    except `operations` (an array) is collapsed to `operation_count` — the list
+    only shows an op count, never the routing rows. Line/size shapes are
+    unchanged so every consumer reads the same fields."""
+    id: UUID
+    code: str
+    description: str | None
+    item_id: UUID
+    item_code: str | None = None
+    item_name: str | None = None
+    attribute_value_ids: list[UUID] = []
+    qty: float
+    tolerance_percentage: float = 0.0
+    size_mode: str = 'sized'
+    active: bool
+    lines: list[BOMLineResponse]
+    operation_count: int = 0
+    sizes: list[BOMSizeResponse] = []
+    kerapatan_picks: float | None = None
+    kerapatan_unit: str | None = None
+    sisir_no: int | None = None
+    pemakaian_obat: str | None = None
+    pembuatan_sample_oleh: str | None = None
+    sample_photo_url: str | None = None
+    design_file_url: str | None = None
+    customer_id: Optional[UUID] = None
+    customer_name: Optional[str] = None
+    work_center_id: Optional[UUID] = None
+    work_center_name: Optional[str] = None
+    berat_bahan_mateng: float | None = None
+    berat_bahan_mentah_pelesan: float | None = None
+    mesin_lebar: float | None = None
+    mesin_panjang_tulisan: float | None = None
+    mesin_panjang_tarikan: float | None = None
+    mesin_panjang_tarikan_bandul_1kg: float | None = None
+    mesin_panjang_tarikan_bandul_9kg: float | None = None
+    celup_lebar: float | None = None
+    celup_panjang_tulisan: float | None = None
+    celup_panjang_tarikan: float | None = None
+    celup_panjang_tarikan_bandul_1kg: float | None = None
+    celup_panjang_tarikan_bandul_9kg: float | None = None
+
+    class Config:
+        from_attributes = True
+
 class BOMLineTreeResponse(BOMLineResponse):
     sub_bom: Optional["BOMTreeResponse"] = None
 
