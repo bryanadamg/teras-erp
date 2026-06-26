@@ -198,7 +198,6 @@ async def load_mo_tree(db: AsyncSession, root_ids: list) -> dict:
             selectinload(ManufacturingOrder.sales_order),
             selectinload(ManufacturingOrder.required_dependencies),
             selectinload(ManufacturingOrder.work_orders).selectinload(WorkOrderModel.work_center),
-            selectinload(ManufacturingOrder.work_orders).selectinload(WorkOrderModel.completions),
             selectinload(ManufacturingOrder.bom).selectinload(BOM.item),
             selectinload(ManufacturingOrder.bom).selectinload(BOM.attribute_values),
             selectinload(ManufacturingOrder.bom).selectinload(BOM.operations).joinedload(BOMOperation.operation),
@@ -225,6 +224,20 @@ async def load_mo_tree(db: AsyncSession, root_ids: list) -> dict:
     # Mark child_mos as committed on every node so Pydantic won't trigger a lazy-load
     for mo in mo_map.values():
         sa_attributes.set_committed_value(mo, "child_mos", children_by_parent.get(mo.id, []))
+
+    # Reconstruct each WorkOrder.completions from the MO-level completions already
+    # loaded, instead of a second selectinload that re-queries + re-hydrates the same
+    # mo_completions rows (they carry both mo_id and work_order_id). Cuts one query and
+    # halves completion-row hydration per tree — the heaviest growing cost on the Pi.
+    # WorkOrder.qty_completed_total (a property summing self.completions) and the
+    # frontend completion history both keep working off the committed value.
+    for mo in mo_map.values():
+        comps_by_wo: dict = defaultdict(list)
+        for c in mo.completions:
+            if c.work_order_id is not None:
+                comps_by_wo[c.work_order_id].append(c)
+        for wo in mo.work_orders:
+            sa_attributes.set_committed_value(wo, "completions", comps_by_wo.get(wo.id, []))
 
     return mo_map
 
