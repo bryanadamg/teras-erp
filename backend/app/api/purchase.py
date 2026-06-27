@@ -176,7 +176,9 @@ async def update_purchase_order(
     # MissingGreenlet in async context (HTTP 500). Expire first so the eager-loaded
     # re-fetch repopulates from the DB.
     db.expire_all()
-    final = await db.execute(_po_query().filter(PurchaseOrder.id == po.id))
+    # Use the `po_id` path param, not `po.id` — expire_all() expired `po`, so reading
+    # any attribute off it now would lazy-load (MissingGreenlet in async).
+    final = await db.execute(_po_query().filter(PurchaseOrder.id == po_id))
     return _populate_line_attrs(final.scalars().first())
 
 
