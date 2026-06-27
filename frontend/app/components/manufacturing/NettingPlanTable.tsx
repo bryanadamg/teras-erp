@@ -1,0 +1,176 @@
+'use client';
+import React from 'react';
+import { useTheme } from '../../context/ThemeContext';
+import { useData } from '../../context/DataContext';
+
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
+    .replace(/\/api$/, '') + '/api';
+
+export interface NettingNode {
+    level: number;
+    is_root: boolean;
+    item_id: string;
+    item_code: string;
+    item_name: string;
+    uom: string;
+    net_from_location_id: string | null;
+    net_from_location_name: string;
+    gross_required: number;
+    on_hand: number;
+    incoming: number;
+    required_other: number;
+    net_free: number;
+    net_qty: number;
+    decision: string; // MAKE_ROOT | MAKE | RESIZE | SKIP
+}
+
+// Fetches the dry-run netting plan from the backend (debounced). Both the MO
+// panel and the PR modal use this so the preview is always what creation will do.
+export function useNettingPreview(path: string, body: any, enabled: boolean) {
+    const { authFetch } = useData();
+    const [nodes, setNodes] = React.useState<NettingNode[]>([]);
+    const [loading, setLoading] = React.useState(false);
+    const [error, setError] = React.useState<string | null>(null);
+    const bodyKey = JSON.stringify(body);
+
+    React.useEffect(() => {
+        if (!enabled) { setNodes([]); setError(null); setLoading(false); return; }
+        let cancelled = false;
+        setLoading(true); setError(null);
+        const t = setTimeout(async () => {
+            try {
+                const res = await authFetch(`${API_BASE}${path}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: bodyKey,
+                });
+                if (cancelled) return;
+                if (!res.ok) { setError('Could not compute the plan.'); setNodes([]); }
+                else setNodes(await res.json());
+            } catch {
+                if (!cancelled) { setError('Could not compute the plan.'); setNodes([]); }
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        }, 400);
+        return () => { cancelled = true; clearTimeout(t); };
+    }, [path, bodyKey, enabled, authFetch]);
+
+    return { nodes, loading, error };
+}
+
+const DECISION: Record<string, { label: string; bg: string; fg: string; bd: string }> = {
+    MAKE_ROOT: { label: 'Make (FG)', bg: '#eff6ff', fg: '#1d4ed8', bd: '#bfdbfe' },
+    MAKE: { label: 'Make', bg: '#dcfce7', fg: '#15803d', bd: '#86efac' },
+    RESIZE: { label: 'Resize', bg: '#fef3c7', fg: '#92400e', bd: '#fbbf24' },
+    SKIP: { label: 'In stock', bg: '#f1f5f9', fg: '#64748b', bd: '#cbd5e1' },
+};
+
+const num = (v: number) => (Math.round((v || 0) * 100) / 100).toLocaleString();
+
+export default function NettingPlanTable({
+    nodes, loading, error,
+}: { nodes: NettingNode[]; loading?: boolean; error?: string | null }) {
+    const { uiStyle } = useTheme();
+    const classic = uiStyle === 'classic';
+
+    const box: React.CSSProperties = {
+        border: classic ? '1px solid #808080' : '1px solid #e2e8f0',
+        borderRadius: classic ? 0 : 6, overflow: 'hidden', background: '#fff',
+    };
+
+    if (loading) return <div style={{ ...box, padding: 14, fontSize: 12, color: '#64748b' }}>Calculating net requirements…</div>;
+    if (error) return <div style={{ ...box, padding: 14, fontSize: 12, color: '#dc2626' }}>{error}</div>;
+    if (!nodes || nodes.length === 0)
+        return <div style={{ ...box, padding: 14, fontSize: 12, color: '#94a3b8' }}>Pick a recipe and quantity to preview the plan.</div>;
+
+    const made = nodes.filter(n => n.decision !== 'SKIP').length;
+    const skipped = nodes.filter(n => n.decision === 'SKIP').length;
+
+    const th = (align: 'left' | 'right'): React.CSSProperties => ({
+        padding: '4px 6px', fontSize: 10, fontWeight: 600, textAlign: align, whiteSpace: 'nowrap',
+        color: classic ? '#444' : '#94a3b8',
+    });
+    const tdNum: React.CSSProperties = {
+        padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace', color: classic ? '#000' : '#1e293b',
+    };
+
+    return (
+        <div style={box}>
+            <div style={{
+                display: 'flex', gap: 8, alignItems: 'center', padding: '6px 10px',
+                background: classic ? '#e8e6df' : '#f8fafc',
+                borderBottom: classic ? '1px solid #808080' : '1px solid #e2e8f0', fontSize: 11,
+            }}>
+                <strong style={{ fontSize: 11 }}>Creation plan</strong>
+                <span style={{ marginLeft: 'auto', color: '#15803d', fontWeight: 600 }}>{made} to make</span>
+                {skipped > 0 && <span style={{ color: '#64748b' }}>· {skipped} covered by stock</span>}
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                    <thead>
+                        <tr style={{ borderBottom: classic ? '1px solid #808080' : '1.5px solid #e2e8f0' }}>
+                            <th style={th('left')}>Component</th>
+                            <th style={th('left')}>Decision</th>
+                            <th style={th('left')}>Net from</th>
+                            <th style={th('right')}>Required</th>
+                            <th style={th('right')}>On hand</th>
+                            <th style={th('right')}>Net free</th>
+                            <th style={th('right')}>Make</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {nodes.map((n, i) => {
+                            const d = DECISION[n.decision] || DECISION.MAKE;
+                            const dim = n.decision === 'SKIP';
+                            return (
+                                <tr key={i} style={{
+                                    borderBottom: `1px solid ${classic ? '#c0bdb5' : '#f1f5f9'}`,
+                                    background: i % 2 ? (classic ? '#f5f3ee' : '#fafbfc') : 'transparent',
+                                    opacity: dim ? 0.65 : 1,
+                                }}>
+                                    <td style={{ padding: `4px 6px 4px ${8 + n.level * 16}px` }}>
+                                        <div style={{
+                                            fontWeight: n.is_root ? 700 : 500,
+                                            color: classic ? '#000' : '#1e293b',
+                                            textDecoration: dim ? 'line-through' : 'none',
+                                        }}>
+                                            {n.level > 0 && <span style={{ color: '#cbd5e1' }}>└ </span>}{n.item_name}
+                                        </div>
+                                        <div style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'monospace' }}>{n.item_code}</div>
+                                    </td>
+                                    <td style={{ padding: '4px 6px' }}>
+                                        <span style={{
+                                            fontSize: 9, fontWeight: 600, background: d.bg, color: d.fg,
+                                            border: `1px solid ${d.bd}`, padding: '1px 6px',
+                                            borderRadius: classic ? 0 : 10, whiteSpace: 'nowrap',
+                                        }}>{d.label}</span>
+                                    </td>
+                                    <td style={{ padding: '4px 6px', color: '#475569', whiteSpace: 'nowrap' }}>
+                                        {n.net_from_location_name || '—'}
+                                    </td>
+                                    <td style={tdNum}>{num(n.gross_required)}</td>
+                                    <td style={tdNum}>{n.is_root ? '—' : num(n.on_hand)}</td>
+                                    <td style={{ ...tdNum, color: n.is_root ? '#94a3b8' : (n.net_free > 0 ? '#15803d' : '#94a3b8') }}>
+                                        {n.is_root ? '—' : num(n.net_free)}
+                                    </td>
+                                    <td style={{ ...tdNum, fontWeight: 700, color: n.net_qty > 0 ? (classic ? '#000' : '#0f172a') : '#cbd5e1' }}>
+                                        {num(n.net_qty)}
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+
+            <div style={{
+                padding: '5px 10px', fontSize: 9, color: '#94a3b8',
+                borderTop: classic ? '1px solid #c0bdb5' : '1px solid #f1f5f9',
+            }}>
+                Net free = on hand + incoming − demand from other open orders, at the source location (rolled up across its spots). Components covered by stock are not produced.
+            </div>
+        </div>
+    );
+}

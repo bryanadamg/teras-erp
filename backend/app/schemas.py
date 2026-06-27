@@ -505,6 +505,42 @@ class BookingStockRow(BaseModel):
     demand_mos: list[BookingDemandMO]
     supply_mos: list[BookingSupplyMO]
 
+# ── Creation netting preview (dry-run; shows where each component nets from) ───
+class NettingPreviewNode(BaseModel):
+    """One node in the dry-run explosion of a PR/MO about to be created.
+
+    Root nodes (is_root=True) are the finished goods — always produced at full
+    qty (decision MAKE_ROOT), no netting. Component nodes carry the net-free
+    breakdown and the resolved location the net was calculated FROM."""
+    level: int                          # 0 = root FG, 1 = direct component, ...
+    is_root: bool
+    item_id: UUID
+    item_code: str
+    item_name: str
+    uom: str
+    net_from_location_id: UUID | None = None
+    net_from_location_name: str
+    gross_required: float               # qty x percentage / 100 (no netting)
+    on_hand: float                      # leaf-rolled physical stock at the location
+    incoming: float                     # other open MOs' scheduled output
+    required_other: float               # other open MOs' demand (excl. this unit)
+    net_free: float                     # on_hand + incoming - required_other
+    net_qty: float                      # qty actually made after netting
+    decision: str                       # MAKE_ROOT | MAKE | RESIZE | SKIP
+
+class ProductionRunPreviewRequest(BaseModel):
+    bom_entries: list[PRBomEntryCreate]
+    location_code: str
+    source_location_code: str | None = None
+    exclude_pr_id: UUID | None = None   # set when re-previewing an existing PR
+
+class MOPreviewRequest(BaseModel):
+    bom_id: UUID
+    qty: float
+    location_code: str
+    source_location_code: str | None = None
+    create_nested: bool = True
+
 class LocationCreate(BaseModel):
     code: str
     name: str

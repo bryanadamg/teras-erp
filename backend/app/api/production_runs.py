@@ -14,12 +14,13 @@ from app.schemas import (
     ProductionRunCreate, ProductionRunResponse,
     PaginatedProductionRunResponse, ManufacturingOrderCreate,
     PRMaterialRequirementItem, PRMOContribution,
+    ProductionRunPreviewRequest, NettingPreviewNode,
 )
 from app.models.production_run import PRBomEntry, PRBomEntrySize
 from app.models.item import Item
 from app.models.attribute import AttributeValue
 from app.services import stock_service
-from app.services.netting_service import Availability
+from app.services.netting_service import Availability, preview_production_run
 from app.api.manufacturing import create_mo_recursive
 from collections import defaultdict
 from app.models.auth import User
@@ -370,6 +371,29 @@ async def get_production_run_material_requirements(
 
     results.sort(key=lambda r: (r.shortfall > 0, r.item_code))
     return results
+
+
+@router.post("/production-runs/preview", response_model=list[NettingPreviewNode])
+async def preview_production_run_plan(
+    payload: ProductionRunPreviewRequest,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Dry-run: shows the netting plan (per component: net-from location, gross,
+    net-free, net qty, decision) for a PR before it is created. Creates nothing."""
+    if not payload.bom_entries:
+        return []
+    loc_result = await db.execute(select(Location).filter(Location.code == payload.location_code))
+    location = loc_result.scalars().first()
+    if not location:
+        raise HTTPException(status_code=404, detail=f"Location '{payload.location_code}' not found")
+    source_location = None
+    if payload.source_location_code:
+        src_result = await db.execute(select(Location).filter(Location.code == payload.source_location_code))
+        source_location = src_result.scalars().first()
+    return await preview_production_run(
+        db, payload.bom_entries, location, source_location, exclude_pr_id=payload.exclude_pr_id
+    )
 
 
 @router.post("/production-runs", response_model=ProductionRunResponse)

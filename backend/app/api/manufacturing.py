@@ -11,7 +11,7 @@ from app.models.routing import Operation as OperationModel, WorkCenter
 from app.models.location import Location
 from app.models.sales import SalesOrder
 from app.services import stock_service, audit_service, kpi_service
-from app.services.netting_service import Availability
+from app.services.netting_service import Availability, preview_mo
 from app.schemas import (
     ManufacturingOrderCreate, ManufacturingOrderResponse,
     PaginatedManufacturingOrderResponse,
@@ -19,6 +19,7 @@ from app.schemas import (
     BatchConsumptionInMO,
     MOCompletionCreate, MOCompletionResponse, MOCompletionItemCreate,
     MOAttributeUpdate,
+    MOPreviewRequest, NettingPreviewNode,
 )
 from app.models.attribute import AttributeValue
 from app.models.auth import User
@@ -386,6 +387,23 @@ async def create_mo_recursive(
                 )
 
     return mo
+
+@router.post("/manufacturing-orders/preview", response_model=list[NettingPreviewNode])
+async def preview_manufacturing_order(payload: MOPreviewRequest, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+    """Dry-run: netting plan for a nested MO before creation (root always made,
+    components netted against net-free stock). Creates nothing."""
+    result = await db.execute(select(Location).filter(Location.code == payload.location_code))
+    location = result.scalars().first()
+    if not location:
+        raise HTTPException(status_code=404, detail="Location not found")
+    source_location = None
+    if payload.source_location_code:
+        src = await db.execute(select(Location).filter(Location.code == payload.source_location_code))
+        source_location = src.scalars().first()
+    return await preview_mo(
+        db, payload.bom_id, payload.qty, location, source_location, create_nested=payload.create_nested
+    )
+
 
 @router.post("/manufacturing-orders", response_model=ManufacturingOrderResponse)
 async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):

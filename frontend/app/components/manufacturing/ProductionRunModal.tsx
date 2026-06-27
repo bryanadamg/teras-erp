@@ -1,6 +1,7 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import NettingPlanTable, { useNettingPreview } from './NettingPlanTable';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -302,6 +303,34 @@ export default function ProductionRunModal({
         }));
     };
 
+    // ── Dry-run netting preview: same plan the backend will create ──
+    const previewBody = useMemo(() => {
+        const bom_entries = bomEntries
+            .filter(e => e.bomId)
+            .map(entry => {
+                const selectedBom = boms.find((b: any) => b.id === entry.bomId);
+                const sizes = selectedBom?.sizes || [];
+                if (sizes.length > 0) {
+                    const sizeEntries = sizes
+                        .filter((s: any) => parseFloat(entry.sizeQtys[s.id] || '0') > 0)
+                        .map((s: any) => ({ bom_size_id: s.id, qty: parseFloat(entry.sizeQtys[s.id]) }));
+                    return { bom_id: entry.bomId, sizes: sizeEntries };
+                }
+                const qty = parseFloat(entry.totalQty || '0');
+                return { bom_id: entry.bomId, total_qty: qty > 0 ? qty : undefined };
+            })
+            .filter((e: any) => (e.sizes && e.sizes.length > 0) || e.total_qty);
+        return {
+            bom_entries,
+            location_code: locationCode,
+            source_location_code: sourceLocationCode || null,
+        };
+    }, [bomEntries, locationCode, sourceLocationCode, boms]);
+
+    const previewEnabled = !!locationCode && previewBody.bom_entries.length > 0;
+    const { nodes: previewNodes, loading: previewLoading, error: previewError } =
+        useNettingPreview('/production-runs/preview', previewBody, previewEnabled);
+
     const addEntry = () => setBomEntries(prev => [...prev, { bomId: '', sizeQtys: {}, totalQty: '', attributeValueIds: [] }]);
     const removeEntry = (i: number) => setBomEntries(prev => prev.filter((_, idx) => idx !== i));
     const updateEntry = (i: number, updated: BomEntryState) =>
@@ -457,6 +486,15 @@ export default function ProductionRunModal({
                     >
                         + Add BOM
                     </button>
+
+                    {previewEnabled && (
+                        <div>
+                            <div style={{ fontSize: 11, fontWeight: 'bold', color: '#000080', margin: '4px 0 4px' }}>
+                                Net requirement preview
+                            </div>
+                            <NettingPlanTable nodes={previewNodes} loading={previewLoading} error={previewError} />
+                        </div>
+                    )}
 
                     {error && <div style={{ fontSize: 10, color: '#a00', background: '#fff0f0', border: '1px solid #f0a0a0', padding: '4px 8px' }}>{error}</div>}
                 </div>
