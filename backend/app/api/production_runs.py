@@ -19,6 +19,7 @@ from app.models.production_run import PRBomEntry, PRBomEntrySize
 from app.models.item import Item
 from app.models.attribute import AttributeValue
 from app.services import stock_service
+from app.services.netting_service import Availability
 from app.api.manufacturing import create_mo_recursive
 from collections import defaultdict
 from app.models.auth import User
@@ -59,13 +60,19 @@ async def _create_consolidated_component_mos(
     target_start_date,
     target_end_date,
     user_id,
+    availability=None,
 ):
     """Pass 2 of PR creation: walk all BOMs in the run, aggregate component demand across
     ALL root MOs from ALL BOM entries, create ONE consolidated component MO per unique
     sub-assembly (keyed on item_id + sub_bom_id + src_loc), and write MODependency
-    pegging records. This consolidates shared greige/base items across color variants."""
+    pegging records. This consolidates shared greige/base items across color variants.
 
-    # Aggregate demand: (item_id, sub_bom_id, src_loc_id) → {sub_bom_id, total_qty, contributions}
+    When ``availability`` is supplied, each consolidated demand is netted against
+    net-free stock first: a component fully covered by stock gets no MO (and no
+    sub-tree); a partially-covered one is resized to the shortfall and its pegging
+    qty is scaled down proportionally. Deeper levels net via create_mo_recursive."""
+
+    # Aggregate demand: (item_id, sub_bom_id, src_loc_id) → {sub_bom_id, item_id, sub_attrs, total_qty, contributions}
     demand: dict[tuple, dict] = {}
 
     for bom, root_mos in bom_ro_pairs:
@@ -80,7 +87,8 @@ async def _create_consolidated_component_mos(
             if not line.percentage:
                 continue
             sub_bom_result = await db.execute(
-                select(BOM).filter(BOM.item_id == line.item_id, BOM.active == True).limit(1)
+                select(BOM).options(selectinload(BOM.attribute_values))
+                .filter(BOM.item_id == line.item_id, BOM.active == True).limit(1)
             )
             sub_bom = sub_bom_result.scalars().first()
             if not sub_bom:
@@ -90,7 +98,14 @@ async def _create_consolidated_component_mos(
             key = (str(line.item_id), str(sub_bom.id), str(src_loc_id))
 
             if key not in demand:
-                demand[key] = {"sub_bom_id": sub_bom.id, "total_qty": 0.0, "src_loc_id": src_loc_id, "contributions": {}}
+                demand[key] = {
+                    "sub_bom_id": sub_bom.id,
+                    "item_id": line.item_id,
+                    "sub_attrs": [str(v.id) for v in sub_bom.attribute_values],
+                    "total_qty": 0.0,
+                    "src_loc_id": src_loc_id,
+                    "contributions": {},
+                }
 
             for root_mo in root_mos:
                 contrib_qty = (float(root_mo.qty) * float(line.percentage)) / 100
@@ -99,10 +114,23 @@ async def _create_consolidated_component_mos(
 
     # Create one consolidated component MO per unique sub-assembly, write pegging records
     for data in demand.values():
+        total = data["total_qty"]
+        if total <= 0:
+            continue
+
+        # Net consolidated demand against net-free stock at the planned source location.
+        net_qty = total
+        if availability is not None:
+            net_qty = await availability.consume(
+                data["item_id"], data["sub_attrs"], data["src_loc_id"], total
+            )
+        if net_qty <= 0:
+            continue  # fully covered by stock -> no component MO, no pegging, no sub-tree
+
         component_mo = await create_mo_recursive(
             db,
             data["sub_bom_id"],
-            data["total_qty"],
+            net_qty,
             location.id,
             user_id,
             parent_mo_id=None,
@@ -112,15 +140,18 @@ async def _create_consolidated_component_mos(
             target_start_date=target_start_date,
             target_end_date=target_end_date,
             create_children=True,
+            availability=availability,
         )
         component_mo.is_shared_component = True
         await db.flush()
 
+        # Scale pegging to what this MO actually supplies (remainder is pegged to stock).
+        factor = net_qty / total
         for root_mo_id, contrib_qty in data["contributions"].items():
             db.add(MODependency(
                 dependent_mo_id=root_mo_id,
                 required_mo_id=component_mo.id,
-                qty=contrib_qty,
+                qty=contrib_qty * factor,
             ))
 
     await db.flush()
@@ -474,11 +505,15 @@ async def create_production_run(
 
     # ── Pass 2: Aggregate demand across ALL BOM entries, create consolidated shared MOs ──
     if bom_ro_pairs:
+        # Net-free ledger excludes this PR's own root MOs (their demand IS the
+        # gross we net); components covered by stock are skipped/resized.
+        availability = await Availability.create(db, exclude_pr_id=pr.id)
         await _create_consolidated_component_mos(
             db, bom_ro_pairs, location, source_location,
             payload.sales_order_id, pr.id,
             payload.target_start_date, payload.target_end_date,
             current_user.id,
+            availability=availability,
         )
 
     await db.commit()

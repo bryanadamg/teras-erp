@@ -11,6 +11,7 @@ from app.models.routing import Operation as OperationModel, WorkCenter
 from app.models.location import Location
 from app.models.sales import SalesOrder
 from app.services import stock_service, audit_service, kpi_service
+from app.services.netting_service import Availability
 from app.schemas import (
     ManufacturingOrderCreate, ManufacturingOrderResponse,
     PaginatedManufacturingOrderResponse,
@@ -286,9 +287,16 @@ async def create_mo_recursive(
     target_end_date: Optional[datetime] = None,
     bom_size_id: Optional[uuid.UUID] = None,
     create_children: bool = True,
+    availability=None,
 ) -> ManufacturingOrder:
     """Recursively creates manufacturing orders for sub-assemblies.
-    Pass create_children=False to create only the root MO (used in two-pass PR creation)."""
+    Pass create_children=False to create only the root MO (used in two-pass PR creation).
+
+    When ``availability`` (a netting_service.Availability ledger) is supplied,
+    each sub-assembly's gross requirement is netted against net-free stock before
+    its MO is created: fully-covered children are skipped (no MO, no sub-tree),
+    partially-covered children are resized to the shortfall. The root MO itself
+    is never netted — only its children/descendants."""
     # 1. Fetch BOM with lines and operations
     result = await db.execute(
         select(BOM)
@@ -347,12 +355,21 @@ async def create_mo_recursive(
             if not line.percentage:
                 continue  # 0% or null = not needed
             sub_bom_result = await db.execute(
-                select(BOM).filter(BOM.item_id == line.item_id, BOM.active == True).limit(1)
+                select(BOM).options(selectinload(BOM.attribute_values))
+                .filter(BOM.item_id == line.item_id, BOM.active == True).limit(1)
             )
             sub_bom = sub_bom_result.scalars().first()
 
             if sub_bom:
                 sub_qty = (qty * float(line.percentage)) / 100
+                if availability is not None:
+                    # Net this sub-assembly against net-free stock at the planned
+                    # source location, using the produced item's own variant.
+                    sub_attrs = [str(v.id) for v in sub_bom.attribute_values]
+                    sub_loc = source_location_id or location_id
+                    sub_qty = await availability.consume(sub_bom.item_id, sub_attrs, sub_loc, sub_qty)
+                    if sub_qty <= 0:
+                        continue  # covered by stock -> skip MO and its sub-tree
                 await create_mo_recursive(
                     db,
                     sub_bom.id,
@@ -365,6 +382,7 @@ async def create_mo_recursive(
                     production_run_id=production_run_id,
                     target_start_date=target_start_date,
                     target_end_date=target_end_date,
+                    availability=availability,
                 )
 
     return mo
@@ -390,6 +408,9 @@ async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: Asyn
     # 2. Logic: Regular or Nested
     if payload.create_nested:
         try:
+            # Build the net-free ledger BEFORE the root MO exists, so this MO's
+            # own demand isn't scanned. Root is made full; children are netted.
+            availability = await Availability.create(db)
             mo = await create_mo_recursive(
                 db,
                 payload.bom_id,
@@ -401,6 +422,7 @@ async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: Asyn
                 target_start_date=payload.target_start_date,
                 target_end_date=payload.target_end_date,
                 bom_size_id=payload.bom_size_id,
+                availability=availability,
             )
             # Overwrite code if specified for root
             if payload.code:
