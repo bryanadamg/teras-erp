@@ -23,7 +23,10 @@ export default function ScannerPage() {
 
     const reload = useCallback(async () => {
         const [moRes, bomsRes, balanceRes] = await Promise.all([
-            authFetch(`${API_BASE}/manufacturing-orders?skip=0&limit=9999`),
+            // all_levels=true so consolidated shared-component MOs (parent_mo_id=None,
+            // is_shared_component=True, linked via MODependency) are returned too — their
+            // WO QR codes are scanned on the floor but they're absent from the root tree.
+            authFetch(`${API_BASE}/manufacturing-orders?skip=0&limit=9999&all_levels=true`),
             authFetch(`${API_BASE}/boms`),
             authFetch(`${API_BASE}/stock/balance`),
         ]);
