@@ -33,8 +33,15 @@ class Color(Base):
     attribute_value_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("attribute_values.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # PLM lineage: the approved LabDip dip line this shade was spawned from (mirrors
+    # Item.source_color_id). Note lab_dip_lines also has color_id -> colors, so the two
+    # tables reference each other; both nullable, FKs disambiguated via foreign_keys=.
+    source_lab_dip_line_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("lab_dip_lines.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     customer = relationship("Partner", foreign_keys=[customer_id])
     attribute_value = relationship("AttributeValue", foreign_keys=[attribute_value_id])
+    source_lab_dip_line = relationship("LabDipLine", foreign_keys=[source_lab_dip_line_id])
     recipes: Mapped[List["DyeRecipe"]] = relationship("DyeRecipe", back_populates="color")

@@ -130,6 +130,25 @@ async def create_color(
         await db.flush()
         color.attribute_value_id = av.id
 
+    # Spawned from an approved LabDip dip line: back-link the dip to this new shade
+    # (hides the "+ Color" button) and, if the request has an approved recipe with no
+    # color yet, wire that recipe to this shade. Same transaction.
+    if payload.source_lab_dip_line_id:
+        dip = (await db.execute(
+            select(LabDipLine).filter(LabDipLine.id == payload.source_lab_dip_line_id)
+        )).scalars().first()
+        if dip:
+            dip.color_id = color.id
+            req = (await db.execute(
+                select(LabDipRequest).filter(LabDipRequest.id == dip.lab_dip_request_id)
+            )).scalars().first()
+            if req and req.approved_recipe_id:
+                recipe = (await db.execute(
+                    select(DyeRecipe).filter(DyeRecipe.id == req.approved_recipe_id)
+                )).scalars().first()
+                if recipe and recipe.color_id is None:
+                    recipe.color_id = color.id
+
     await db.commit()
     result = await db.execute(
         select(Color).options(joinedload(Color.customer)).filter(Color.id == color.id)

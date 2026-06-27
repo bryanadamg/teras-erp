@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -141,6 +142,22 @@ export default function LabDipRequestView({
     useToast();
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
+    const router = useRouter();
+
+    // Spawn a Color Library record from an approved dip — mirrors the sample "+ Item"
+    // flow: route to /colors with prefill params; the page opens the create modal filled.
+    const createColorFromDip = (r: any, d: any) => {
+        const params = new URLSearchParams();
+        params.set('source_lab_dip_line_id', d.id);
+        params.set('name', d.color_name || '');
+        params.set('suggested_code', `${r.code}-${d.color_name || ''}`.replace(/\s+/g, '-').toUpperCase());
+        if (r.customer_id) params.set('customer_id', r.customer_id);
+        if (r.substrate) params.set('substrate', r.substrate);
+        if (r.color_standard) params.set('pantone', r.color_standard);
+        if (r.customer_article_code) params.set('customer_color_code', r.customer_article_code);
+        params.set('notes', `From Lab Dip ${r.code}, round ${d.submission_round}`);
+        router.push(`/colors?${params.toString()}`);
+    };
 
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('ALL');
@@ -469,7 +486,14 @@ export default function LabDipRequestView({
                                                                                     <td style={rowTd}><span style={statusStyle(st, classic)}>{st}</span></td>
                                                                                     <td style={{ ...rowTd, borderRight: 'none', textAlign: 'center' as const }}>
                                                                                         {isApproved ? (
-                                                                                            <span style={{ fontSize: classic ? 10 : 12, color: classic ? '#1b5e20' : '#15803d', fontWeight: classic ? 'bold' : 600 }}>Approved</span>
+                                                                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                                                                                <span style={{ fontSize: classic ? 10 : 12, color: classic ? '#1b5e20' : '#15803d', fontWeight: classic ? 'bold' : 600 }}>Approved</span>
+                                                                                                {d.color_id ? (
+                                                                                                    <span title="Added to Color Library" style={{ fontSize: classic ? 9 : 11, color: classic ? '#555' : '#64748b', display: 'inline-flex', alignItems: 'center', gap: 2 }}><i className="bi bi-check-circle-fill" /> In Library</span>
+                                                                                                ) : (
+                                                                                                    <button type="button" title="Create a Color Library record from this shade" style={approveBtn()} onClick={() => createColorFromDip(r, d)}><i className="bi bi-plus-lg" /> Color</button>
+                                                                                                )}
+                                                                                            </div>
                                                                                         ) : (
                                                                                             <div style={{ display: 'inline-flex' }}>
                                                                                                 <button type="button" style={dipBtn(st === 'RESUBMIT', 'resubmit')} onClick={() => onUpdateDipStatus(r.id, d.id, st === 'RESUBMIT' ? 'PENDING' : 'RESUBMIT')}>Resubmit</button>

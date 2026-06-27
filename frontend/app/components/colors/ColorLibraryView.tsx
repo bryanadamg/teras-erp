@@ -61,6 +61,7 @@ interface Props {
     onCreate: (payload: any) => void;
     onEdit: (id: string, payload: any) => void;
     onDelete: (id: string) => void;
+    prefill?: { source_lab_dip_line_id: string; values: Record<string, string> } | null;
 }
 
 const emptyForm = () => ({
@@ -71,7 +72,7 @@ const emptyForm = () => ({
 
 export default function ColorLibraryView({
     colors, total, page, size, search, statusFilter, customers, loading,
-    onSearchChange, onStatusChange, onPageChange, onCreate, onEdit, onDelete,
+    onSearchChange, onStatusChange, onPageChange, onCreate, onEdit, onDelete, prefill,
 }: Props) {
     const { confirm } = useConfirm();
     const { uiStyle } = useTheme();
@@ -80,7 +81,19 @@ export default function ColorLibraryView({
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editing, setEditing] = useState<any>(null);
     const [form, setForm] = useState(emptyForm());
+    const [sourceLineId, setSourceLineId] = useState<string | null>(null);
     const [searchInput, setSearchInput] = useState(search);
+
+    // Arriving from a LabDip "+ Color" deep-link: open the create modal pre-filled and
+    // remember the source dip line so the backend can wire lineage on save.
+    useEffect(() => {
+        if (prefill?.source_lab_dip_line_id) {
+            setEditing(null);
+            setForm({ ...emptyForm(), ...prefill.values });
+            setSourceLineId(prefill.source_lab_dip_line_id);
+            setIsModalOpen(true);
+        }
+    }, [prefill?.source_lab_dip_line_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Debounce the search box so each keystroke does not fire a request against 30k rows.
     useEffect(() => {
@@ -93,7 +106,7 @@ export default function ColorLibraryView({
          ...(customers || []).map((c: any) => ({ value: c.id, label: c.name }))],
     [customers]);
 
-    const openCreate = () => { setEditing(null); setForm(emptyForm()); setIsModalOpen(true); };
+    const openCreate = () => { setEditing(null); setForm(emptyForm()); setSourceLineId(null); setIsModalOpen(true); };
     const openEdit = (c: any) => {
         setEditing(c);
         setForm({
@@ -108,11 +121,17 @@ export default function ColorLibraryView({
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!form.code.trim() || !form.name.trim()) return;
-        const payload = { ...form, customer_id: form.customer_id || null };
-        if (editing) onEdit(editing.id, payload); else onCreate(payload);
+        const payload: any = { ...form, customer_id: form.customer_id || null };
+        if (editing) {
+            onEdit(editing.id, payload);
+        } else {
+            if (sourceLineId) payload.source_lab_dip_line_id = sourceLineId;
+            onCreate(payload);
+        }
         setIsModalOpen(false);
         setEditing(null);
         setForm(emptyForm());
+        setSourceLineId(null);
     };
 
     const handleDelete = async (c: any) => {

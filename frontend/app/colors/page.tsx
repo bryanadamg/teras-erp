@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import ColorLibraryView from '../components/colors/ColorLibraryView';
 import { useData } from '../context/DataContext';
 import { useToast } from '../components/shared/Toast';
@@ -11,8 +12,25 @@ export default function ColorsPage() {
     const { partners, authFetch } = useData();
     const customers = (partners || []).filter((p: any) => p.type === 'CUSTOMER');
     const { showToast } = useToast();
+    const searchParams = useSearchParams();
+    const router = useRouter();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
+
+    // Deep-link prefill from a LabDip "+ Color" action (mirrors sample -> item routing).
+    const sourceLineId = searchParams.get('source_lab_dip_line_id');
+    const prefill = useMemo(() => sourceLineId ? {
+        source_lab_dip_line_id: sourceLineId,
+        values: {
+            code: searchParams.get('suggested_code') || '',
+            name: searchParams.get('name') || '',
+            pantone_ref: searchParams.get('pantone') || '',
+            substrate: searchParams.get('substrate') || '',
+            customer_id: searchParams.get('customer_id') || '',
+            customer_color_code: searchParams.get('customer_color_code') || '',
+            notes: searchParams.get('notes') || '',
+        },
+    } : null, [sourceLineId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const [colors, setColors] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
@@ -45,7 +63,12 @@ export default function ColorsPage() {
 
     const handleCreate = async (payload: any) => {
         const res = await authFetch(`${API_BASE}/colors`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        if (res.ok) { fetchColors(); showToast('Color created', 'success'); }
+        if (res.ok) {
+            fetchColors();
+            showToast(payload.source_lab_dip_line_id ? 'Color created from lab dip' : 'Color created', 'success');
+            // Strip deep-link params so a refresh doesn't reopen the prefilled modal.
+            if (sourceLineId) router.replace('/colors');
+        }
         else { const e = await res.json().catch(() => ({})); showToast(e.detail || 'Failed to create color', 'danger'); }
     };
 
@@ -80,6 +103,7 @@ export default function ColorsPage() {
             onCreate={handleCreate}
             onEdit={handleEdit}
             onDelete={handleDelete}
+            prefill={prefill}
         />
     );
 }

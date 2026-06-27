@@ -1090,6 +1090,7 @@ class ColorCreate(BaseModel):
     spectro_notes: Optional[str] = None
     notes: Optional[str] = None
     status: str = "active"
+    source_lab_dip_line_id: Optional[UUID] = None
 
 class ColorUpdate(BaseModel):
     code: Optional[str] = None
@@ -1119,6 +1120,7 @@ class ColorResponse(BaseModel):
     notes: Optional[str] = None
     status: str = "active"
     attribute_value_id: Optional[UUID] = None
+    source_lab_dip_line_id: Optional[UUID] = None
     recipe_count: int = 0
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
