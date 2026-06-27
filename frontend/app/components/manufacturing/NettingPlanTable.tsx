@@ -86,6 +86,12 @@ export default function NettingPlanTable({
 
     const made = nodes.filter(n => n.decision !== 'SKIP').length;
     const skipped = nodes.filter(n => n.decision === 'SKIP').length;
+    // With >1 finished good the component pool is consolidated/shared across them,
+    // so it can't hang under a single root — section it and drop the misleading
+    // "child of the last root" indent (component indent baselines at level 1).
+    const multiRoot = nodes.filter(n => n.is_root).length > 1;
+    const indentOf = (n: NettingNode) => (n.is_root ? 0 : (multiRoot ? n.level - 1 : n.level));
+    const firstComponentIdx = nodes.findIndex(n => !n.is_root);
 
     const th = (align: 'left' | 'right'): React.CSSProperties => ({
         padding: '4px 6px', fontSize: 10, fontWeight: 600, textAlign: align, whiteSpace: 'nowrap',
@@ -124,19 +130,35 @@ export default function NettingPlanTable({
                         {nodes.map((n, i) => {
                             const d = DECISION[n.decision] || DECISION.MAKE;
                             const dim = n.decision === 'SKIP';
+                            const divider = multiRoot && i === firstComponentIdx ? (
+                                <tr key={`div-${i}`}>
+                                    <td colSpan={7} style={{
+                                        padding: '4px 10px', fontSize: 9, fontWeight: 700,
+                                        letterSpacing: '0.06em', textTransform: 'uppercase',
+                                        color: classic ? '#666' : '#94a3b8',
+                                        background: classic ? '#e8e6df' : '#f1f5f9',
+                                        borderTop: classic ? '1px solid #808080' : '1px solid #e2e8f0',
+                                        borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #e2e8f0',
+                                    }}>
+                                        Shared components — consolidated across all finished goods above
+                                    </td>
+                                </tr>
+                            ) : null;
                             return (
-                                <tr key={i} style={{
+                                <React.Fragment key={i}>
+                                {divider}
+                                <tr style={{
                                     borderBottom: `1px solid ${classic ? '#c0bdb5' : '#f1f5f9'}`,
                                     background: i % 2 ? (classic ? '#f5f3ee' : '#fafbfc') : 'transparent',
                                     opacity: dim ? 0.65 : 1,
                                 }}>
-                                    <td style={{ padding: `4px 6px 4px ${8 + n.level * 16}px` }}>
+                                    <td style={{ padding: `4px 6px 4px ${8 + indentOf(n) * 16}px` }}>
                                         <div style={{
                                             fontWeight: n.is_root ? 700 : 500,
                                             color: classic ? '#000' : '#1e293b',
                                             textDecoration: dim ? 'line-through' : 'none',
                                         }}>
-                                            {n.level > 0 && <span style={{ color: '#cbd5e1' }}>└ </span>}{n.item_name}
+                                            {indentOf(n) > 0 && <span style={{ color: '#cbd5e1' }}>└ </span>}{n.item_name}
                                         </div>
                                         <div style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'monospace' }}>{n.item_code}</div>
                                     </td>
@@ -159,6 +181,7 @@ export default function NettingPlanTable({
                                         {num(n.net_qty)}
                                     </td>
                                 </tr>
+                                </React.Fragment>
                             );
                         })}
                     </tbody>
