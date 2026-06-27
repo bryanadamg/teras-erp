@@ -168,6 +168,14 @@ async def update_purchase_order(
         details=f"Updated PO {po.po_number}",
     )
 
+    # `po` was loaded with its `lines` collection eager-loaded (line 102), then we
+    # bulk-deleted + recreated those lines. With expire_on_commit=False the cached
+    # `po.lines` collection survives the commit, and selectinload will NOT overwrite
+    # an already-loaded collection — so the re-fetch below would return the stale
+    # (deleted) line objects and lazy-load their `.attribute_values`, raising
+    # MissingGreenlet in async context (HTTP 500). Expire first so the eager-loaded
+    # re-fetch repopulates from the DB.
+    db.expire_all()
     final = await db.execute(_po_query().filter(PurchaseOrder.id == po.id))
     return _populate_line_attrs(final.scalars().first())
 
