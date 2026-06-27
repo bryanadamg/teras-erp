@@ -155,6 +155,8 @@ class Availability:
         """
         if gross_req <= 0:
             return 0.0
+        if item_id is None or location_id is None:
+            return gross_req  # no scoped item/location -> cannot net, make full
         item_s = str(item_id)
         vkey = _generate_variant_key([str(a) for a in (attribute_value_ids or [])])
         loc_s = str(location_id)
