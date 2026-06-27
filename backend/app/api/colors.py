@@ -1,0 +1,219 @@
+import uuid
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func, or_
+from sqlalchemy.orm import joinedload
+
+from app.db.session import get_async_db
+from app.models.color import Color
+from app.models.attribute import Attribute, AttributeValue
+from app.models.dyeing_setting import DyeRecipe
+from app.models.lab_dip import LabDipRequest, LabDipLine
+from app.models.auth import User
+from app.api.auth import get_current_user
+from app.services import audit_service
+from app.core.ws_manager import manager
+from app.schemas import ColorCreate, ColorUpdate, ColorResponse, ColorListResponse
+
+router = APIRouter()
+
+
+async def _color_code_attribute_id(db: AsyncSession) -> uuid.UUID | None:
+    """Return the id of the seeded `Color Code` system attribute (system_role='labdip_color').
+    This is the legacy color-code list the LabDip dropdown reads; mirroring keeps it
+    working during the transition to the Color library. The variant `Colors` attribute
+    (system_role='color') is deliberately left untouched to avoid polluting product
+    variants / recipe-matching with reference-library codes."""
+    result = await db.execute(
+        select(Attribute.id).filter(Attribute.system_role == "labdip_color")
+    )
+    return result.scalars().first()
+
+
+async def _recipe_counts(db: AsyncSession, color_ids: list[uuid.UUID]) -> dict:
+    if not color_ids:
+        return {}
+    result = await db.execute(
+        select(DyeRecipe.color_id, func.count(DyeRecipe.id))
+        .filter(DyeRecipe.color_id.in_(color_ids))
+        .group_by(DyeRecipe.color_id)
+    )
+    return {row[0]: row[1] for row in result.all()}
+
+
+def _serialize(c: Color, recipe_count: int = 0) -> dict:
+    d = {col.name: getattr(c, col.name) for col in c.__table__.columns}
+    d["customer_name"] = c.customer.name if c.customer else None
+    d["recipe_count"] = recipe_count
+    return d
+
+
+@router.get("/colors", response_model=ColorListResponse)
+async def list_colors(
+    search: str | None = Query(None),
+    status: str | None = Query(None),
+    customer_id: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    size: int = Query(50, ge=1, le=500),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    q = select(Color).options(joinedload(Color.customer))
+    count_q = select(func.count(Color.id))
+
+    if search:
+        like = f"%{search}%"
+        cond = or_(
+            Color.code.ilike(like),
+            Color.name.ilike(like),
+            Color.pantone_ref.ilike(like),
+            Color.customer_color_code.ilike(like),
+        )
+        q = q.filter(cond)
+        count_q = count_q.filter(cond)
+    if status:
+        q = q.filter(Color.status == status)
+        count_q = count_q.filter(Color.status == status)
+    if customer_id:
+        q = q.filter(Color.customer_id == customer_id)
+        count_q = count_q.filter(Color.customer_id == customer_id)
+
+    total = (await db.execute(count_q)).scalar_one()
+    q = q.order_by(Color.code).offset((page - 1) * size).limit(size)
+    colors = (await db.execute(q)).scalars().all()
+
+    counts = await _recipe_counts(db, [c.id for c in colors])
+    return {
+        "items": [_serialize(c, counts.get(c.id, 0)) for c in colors],
+        "total": total,
+        "page": page,
+        "size": size,
+    }
+
+
+@router.get("/colors/{color_id}", response_model=ColorResponse)
+async def get_color(
+    color_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Color).options(joinedload(Color.customer)).filter(Color.id == color_id)
+    )
+    c = result.scalars().first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Color not found")
+    counts = await _recipe_counts(db, [c.id])
+    return _serialize(c, counts.get(c.id, 0))
+
+
+@router.post("/colors", response_model=ColorResponse)
+async def create_color(
+    payload: ColorCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    existing = await db.execute(select(Color).filter(Color.code == payload.code))
+    if existing.scalars().first():
+        raise HTTPException(status_code=400, detail="Color code already exists")
+
+    color = Color(**payload.model_dump())
+    db.add(color)
+    await db.flush()
+
+    # Option-A mirror: create + link a `Color Code` (labdip_color) AttributeValue so the
+    # legacy LabDip color dropdown keeps resolving during the transition to the library.
+    attr_id = await _color_code_attribute_id(db)
+    if attr_id is not None:
+        av = AttributeValue(attribute_id=attr_id, value=payload.name)
+        db.add(av)
+        await db.flush()
+        color.attribute_value_id = av.id
+
+    await db.commit()
+    result = await db.execute(
+        select(Color).options(joinedload(Color.customer)).filter(Color.id == color.id)
+    )
+    c = result.scalars().first()
+    await audit_service.log_activity(
+        db, str(current_user.id), "CREATE", "Color", str(c.id),
+        details=f"Created color {c.code} - {c.name}", changes={}
+    )
+    await manager.broadcast({"type": "COLOR_UPDATE", "id": str(c.id)})
+    return _serialize(c)
+
+
+@router.put("/colors/{color_id}", response_model=ColorResponse)
+async def update_color(
+    color_id: str,
+    payload: ColorUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Color).options(joinedload(Color.attribute_value)).filter(Color.id == color_id)
+    )
+    c = result.scalars().first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Color not found")
+
+    if payload.code is not None and payload.code != c.code:
+        dup = await db.execute(
+            select(Color).filter(Color.code == payload.code, Color.id != color_id)
+        )
+        if dup.scalars().first():
+            raise HTTPException(status_code=400, detail="Color code already exists")
+
+    data = payload.model_dump(exclude_unset=True)
+    for field, val in data.items():
+        setattr(c, field, val)
+
+    # Keep the mirrored AttributeValue label in sync with the color name.
+    if "name" in data and c.attribute_value is not None:
+        c.attribute_value.value = c.name
+
+    await db.commit()
+    result = await db.execute(
+        select(Color).options(joinedload(Color.customer)).filter(Color.id == color_id)
+    )
+    c = result.scalars().first()
+    counts = await _recipe_counts(db, [c.id])
+    await audit_service.log_activity(
+        db, str(current_user.id), "UPDATE", "Color", str(c.id),
+        details=f"Updated color {c.code}", changes=data
+    )
+    await manager.broadcast({"type": "COLOR_UPDATE", "id": str(c.id)})
+    return _serialize(c, counts.get(c.id, 0))
+
+
+@router.delete("/colors/{color_id}")
+async def delete_color(
+    color_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(Color).filter(Color.id == color_id))
+    c = result.scalars().first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Color not found")
+
+    # Hard delete only if no references exist; otherwise soft-archive.
+    refs = 0
+    for model, fk in ((DyeRecipe, DyeRecipe.color_id), (LabDipRequest, LabDipRequest.color_id), (LabDipLine, LabDipLine.color_id)):
+        n = (await db.execute(select(func.count()).select_from(model).filter(fk == color_id))).scalar_one()
+        refs += n
+
+    if refs > 0:
+        c.status = "archived"
+        action, detail = "ARCHIVE", f"Archived color {c.code} (referenced by {refs} record(s))"
+        await db.commit()
+    else:
+        action, detail = "DELETE", f"Deleted color {c.code}"
+        await db.delete(c)
+        await db.commit()
+
+    await audit_service.log_activity(
+        db, str(current_user.id), action, "Color", str(color_id), details=detail, changes={}
+    )
+    await manager.broadcast({"type": "COLOR_UPDATE", "id": str(color_id)})
+    return {"status": "ok", "action": action.lower()}

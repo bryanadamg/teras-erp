@@ -72,6 +72,7 @@ interface RecipeForm {
     code: string;
     name: string;
     color_standard: string;
+    color_id: string;
     substrate_type: string;
     notes: string;
     is_active: boolean;
@@ -83,6 +84,7 @@ const emptyForm = (): RecipeForm => ({
     code: '',
     name: '',
     color_standard: '',
+    color_id: '',
     substrate_type: '',
     notes: '',
     is_active: true,
@@ -114,8 +116,22 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
     const [showCodeConfig, setShowCodeConfig] = useState(false);
     const [codeConfig, setCodeConfig] = useState<CodeConfig | null>(null);
     const [allChemicalItems, setAllChemicalItems] = useState<any[]>([]);
+    const [colors, setColors] = useState<any[]>([]);
     const { showToast } = useToast();
     const { confirm } = useConfirm();
+
+    useEffect(() => {
+        // Active colors for the recipe's shade picker (capped; future: server typeahead at 30k).
+        authFetch('/api/colors?status=active&size=500')
+            .then((res: Response) => res.ok ? res.json() : null)
+            .then((data: any) => { if (data) setColors(data.items ?? []); })
+            .catch(() => {});
+    }, [authFetch]);
+
+    const colorOptions = React.useMemo(() =>
+        [{ value: '', label: 'No library color' },
+         ...colors.map((c: any) => ({ value: c.id, label: c.code ? `${c.code} — ${c.name}` : c.name }))],
+    [colors]);
 
     useEffect(() => {
         authFetch('/api/preferences/code_config_DYE')
@@ -208,6 +224,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
             code: recipe.code || '',
             name: recipe.name || '',
             color_standard: recipe.color_standard || '',
+            color_id: recipe.color_id || '',
             substrate_type: recipe.substrate_type || '',
             notes: recipe.notes || '',
             is_active: recipe.is_active !== false,
@@ -250,6 +267,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
         try {
             const payload = {
                 ...form,
+                color_id: form.color_id || null,
                 lines: form.lines.map((l, idx) => ({
                     ...l,
                     qty_per_100kg: parseFloat(String(l.qty_per_100kg)) || 0,
@@ -504,6 +522,15 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                                         value={form.name}
                                         onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                                         placeholder="Recipe name"
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: 2, color: classic ? '#333' : '#475569', fontSize: classic ? undefined : 12, fontWeight: classic ? undefined : 600 }}>Library Color</label>
+                                    <SearchableSelect
+                                        options={colorOptions}
+                                        value={form.color_id}
+                                        onChange={(v: string) => setForm(f => ({ ...f, color_id: v }))}
+                                        placeholder="Link to Color Library…"
                                     />
                                 </div>
                                 <div>

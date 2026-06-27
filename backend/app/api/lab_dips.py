@@ -35,6 +35,7 @@ async def create_lab_dip_request(
         customer_id=payload.customer_id,
         base_item_id=payload.base_item_id,
         approved_recipe_id=payload.approved_recipe_id,
+        color_id=payload.color_id,
         request_date=_parse_date(payload.request_date, date.today()),
         season=payload.season,
         customer_article_code=payload.customer_article_code,
@@ -56,6 +57,7 @@ async def create_lab_dip_request(
             db.add(LabDipLine(
                 lab_dip_request_id=req.id,
                 color_name=dip.color_name.strip(),
+                color_id=dip.color_id,
                 submission_round=dip.submission_round,
                 recipe_ref=dip.recipe_ref,
                 order=i,
@@ -129,6 +131,7 @@ async def update_lab_dip_request(
     req.customer_id = payload.customer_id
     req.base_item_id = payload.base_item_id
     req.approved_recipe_id = payload.approved_recipe_id
+    req.color_id = payload.color_id
     req.request_date = _parse_date(payload.request_date, date.today())
     req.season = payload.season
     req.customer_article_code = payload.customer_article_code
@@ -155,6 +158,7 @@ async def update_lab_dip_request(
             existing = line_result.scalars().first()
             if existing:
                 existing.color_name = dip.color_name.strip()
+                existing.color_id = dip.color_id
                 existing.submission_round = dip.submission_round
                 existing.recipe_ref = dip.recipe_ref
                 existing.order = i
@@ -162,6 +166,7 @@ async def update_lab_dip_request(
             db.add(LabDipLine(
                 lab_dip_request_id=req.id,
                 color_name=dip.color_name.strip(),
+                color_id=dip.color_id,
                 submission_round=dip.submission_round,
                 recipe_ref=dip.recipe_ref,
                 order=i,

@@ -23,11 +23,15 @@ class DyeRecipe(Base):
     code: Mapped[str] = mapped_column(String(32), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(128))
     color_standard: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    color_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("colors.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     substrate_type: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    color = relationship("Color", foreign_keys=[color_id], back_populates="recipes")
     lines: Mapped[List["DyeRecipeLine"]] = relationship("DyeRecipeLine", back_populates="recipe", cascade="all, delete-orphan")
     wash_baths: Mapped[List["DyeRecipeWashBath"]] = relationship(
         "DyeRecipeWashBath", back_populates="recipe", cascade="all, delete-orphan",

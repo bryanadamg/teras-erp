@@ -40,6 +40,7 @@ def _recipe_opts():
         selectinload(DyeRecipe.wash_baths),
         selectinload(DyeRecipe.finishing_steps),
         selectinload(DyeRecipe.attribute_values),
+        joinedload(DyeRecipe.color),
     ]
 
 
@@ -61,6 +62,7 @@ def _serialize_recipe(r: DyeRecipe) -> dict:
         for fs in r.finishing_steps
     ]
     rd["attribute_value_ids"] = [str(v.id) for v in r.attribute_values]
+    rd["color_name"] = r.color.name if r.color else None
     return rd
 
 
@@ -141,6 +143,7 @@ async def create_dye_recipe(
         code=payload.code,
         name=payload.name,
         color_standard=payload.color_standard,
+        color_id=payload.color_id,
         substrate_type=payload.substrate_type,
         notes=payload.notes,
         is_active=payload.is_active,
@@ -263,7 +266,7 @@ async def update_dye_recipe(
     if not r:
         raise HTTPException(status_code=404, detail="Recipe not found")
 
-    for field in ("code", "name", "color_standard", "substrate_type", "notes", "is_active"):
+    for field in ("code", "name", "color_standard", "color_id", "substrate_type", "notes", "is_active"):
         val = getattr(payload, field)
         if val is not None:
             setattr(r, field, val)

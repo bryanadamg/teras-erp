@@ -16,6 +16,7 @@ export default function LabDipsPage() {
 
     const [labDips, setLabDips] = useState<any[]>([]);
     const [recipes, setRecipes] = useState<any[]>([]);
+    const [colors, setColors] = useState<any[]>([]);
 
     const fetchLabDips = useCallback(async () => {
         try {
@@ -37,7 +38,19 @@ export default function LabDipsPage() {
         } catch { /* silent */ }
     }, [authFetch, API_BASE]);
 
-    useEffect(() => { fetchLabDips(); fetchRecipes(); }, [fetchLabDips, fetchRecipes]);
+    const fetchColors = useCallback(async () => {
+        try {
+            // Active colors for the dip picker. Capped; a true 30k library needs a
+            // server-side typeahead (future), but this covers current volumes.
+            const res = await authFetch(`${API_BASE}/colors?status=active&size=500`);
+            if (res.ok) {
+                const data = await res.json();
+                setColors(Array.isArray(data) ? data : (data.items ?? []));
+            }
+        } catch { /* silent */ }
+    }, [authFetch, API_BASE]);
+
+    useEffect(() => { fetchLabDips(); fetchRecipes(); fetchColors(); }, [fetchLabDips, fetchRecipes, fetchColors]);
 
     const handleCreate = async (payload: any) => {
         const res = await authFetch(`${API_BASE}/lab-dips`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -81,6 +94,7 @@ export default function LabDipsPage() {
             items={items}
             recipes={recipes}
             attributes={attributes || []}
+            colors={colors}
             onCreate={handleCreate}
             onEdit={handleEdit}
             onUpdateStatus={handleUpdateStatus}

@@ -1076,8 +1076,63 @@ class SampleRequestResponse(BaseModel):
 
 # --- Lab Dip Request Schemas ---
 
+# --- Color Library Schemas ---
+
+class ColorCreate(BaseModel):
+    code: str
+    name: str
+    pantone_ref: Optional[str] = None
+    colour_index: Optional[str] = None
+    hex: Optional[str] = None
+    substrate: Optional[str] = None
+    customer_id: Optional[UUID] = None
+    customer_color_code: Optional[str] = None
+    spectro_notes: Optional[str] = None
+    notes: Optional[str] = None
+    status: str = "active"
+
+class ColorUpdate(BaseModel):
+    code: Optional[str] = None
+    name: Optional[str] = None
+    pantone_ref: Optional[str] = None
+    colour_index: Optional[str] = None
+    hex: Optional[str] = None
+    substrate: Optional[str] = None
+    customer_id: Optional[UUID] = None
+    customer_color_code: Optional[str] = None
+    spectro_notes: Optional[str] = None
+    notes: Optional[str] = None
+    status: Optional[str] = None
+
+class ColorResponse(BaseModel):
+    id: UUID
+    code: str
+    name: str
+    pantone_ref: Optional[str] = None
+    colour_index: Optional[str] = None
+    hex: Optional[str] = None
+    substrate: Optional[str] = None
+    customer_id: Optional[UUID] = None
+    customer_name: Optional[str] = None
+    customer_color_code: Optional[str] = None
+    spectro_notes: Optional[str] = None
+    notes: Optional[str] = None
+    status: str = "active"
+    attribute_value_id: Optional[UUID] = None
+    recipe_count: int = 0
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class ColorListResponse(BaseModel):
+    items: list[ColorResponse] = []
+    total: int = 0
+    page: int = 1
+    size: int = 50
+
+
 class LabDipLineCreate(BaseModel):
     color_name: str
+    color_id: Optional[UUID] = None
     submission_round: int = 1
     recipe_ref: Optional[str] = None
     order: int = 0
@@ -1085,6 +1140,7 @@ class LabDipLineCreate(BaseModel):
 class LabDipLineUpdate(BaseModel):
     id: Optional[UUID] = None
     color_name: str
+    color_id: Optional[UUID] = None
     submission_round: int = 1
     recipe_ref: Optional[str] = None
     order: int = 0
@@ -1092,6 +1148,7 @@ class LabDipLineUpdate(BaseModel):
 class LabDipLineResponse(BaseModel):
     id: UUID
     color_name: str
+    color_id: Optional[UUID] = None
     submission_round: int = 1
     recipe_ref: Optional[str] = None
     status: str = "PENDING"
@@ -1103,6 +1160,7 @@ class LabDipRequestCreate(BaseModel):
     customer_id: Optional[UUID] = None
     base_item_id: Optional[UUID] = None
     approved_recipe_id: Optional[UUID] = None
+    color_id: Optional[UUID] = None
     request_date: Optional[str] = None
     season: Optional[str] = None
     customer_article_code: Optional[str] = None
@@ -1119,6 +1177,7 @@ class LabDipRequestUpdate(BaseModel):
     customer_id: Optional[UUID] = None
     base_item_id: Optional[UUID] = None
     approved_recipe_id: Optional[UUID] = None
+    color_id: Optional[UUID] = None
     request_date: Optional[str] = None
     season: Optional[str] = None
     customer_article_code: Optional[str] = None
@@ -1140,6 +1199,7 @@ class LabDipRequestResponse(BaseModel):
     customer_id: Optional[UUID] = None
     base_item_id: Optional[UUID] = None
     approved_recipe_id: Optional[UUID] = None
+    color_id: Optional[UUID] = None
     request_date: Optional[date] = None
     season: Optional[str] = None
     customer_article_code: Optional[str] = None
@@ -1291,6 +1351,7 @@ class DyeRecipeCreate(BaseModel):
     name: str
     attribute_value_ids: list[UUID] = []
     color_standard: str | None = None
+    color_id: UUID | None = None
     substrate_type: str | None = None
     notes: str | None = None
     is_active: bool = True
@@ -1302,6 +1363,7 @@ class DyeRecipeUpdate(BaseModel):
     code: str | None = None
     name: str | None = None
     color_standard: str | None = None
+    color_id: UUID | None = None
     substrate_type: str | None = None
     notes: str | None = None
     is_active: bool | None = None
@@ -1315,6 +1377,8 @@ class DyeRecipeResponse(BaseModel):
     code: str
     name: str
     color_standard: str | None = None
+    color_id: UUID | None = None
+    color_name: str | None = None
     substrate_type: str | None = None
     notes: str | None = None
     is_active: bool

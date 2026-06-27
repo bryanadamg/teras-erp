@@ -21,6 +21,9 @@ class LabDipRequest(Base):
     approved_recipe_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("dye_recipes.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    color_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("colors.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     request_date: Mapped[date] = mapped_column(Date, default=date.today)
     season: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -51,6 +54,9 @@ class LabDipLine(Base):
         UUID(as_uuid=True), ForeignKey("lab_dip_requests.id", ondelete="CASCADE"), index=True
     )
     color_name: Mapped[str] = mapped_column(String(255))
+    color_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("colors.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     submission_round: Mapped[int] = mapped_column(Integer, default=1)
     recipe_ref: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="PENDING")

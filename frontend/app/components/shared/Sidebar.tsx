@@ -431,6 +431,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
               <>
                 <NavItem tab="dyeing-setting" label="Dyeing & Setting" icon="bi-palette" isSub />
                 <NavItem tab="lab-dips" label="Lab Dip Requests" icon="bi-droplet" isSub />
+                <NavItem tab="colors" label="Color Library" icon="bi-palette2" isSub />
               </>
             )}
           </>

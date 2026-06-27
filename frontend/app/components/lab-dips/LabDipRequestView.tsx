@@ -130,11 +130,11 @@ const emptyForm = () => ({
     due_date: '',
     estimated_completion_date: '',
     notes: '',
-    dips: [] as { id?: string; color_name: string; submission_round: number; recipe_ref?: string }[],
+    dips: [] as { id?: string; color_name: string; color_id?: string | null; submission_round: number; recipe_ref?: string }[],
 });
 
 export default function LabDipRequestView({
-    labDips, customers, items, recipes, attributes,
+    labDips, customers, items, recipes, attributes, colors,
     onCreate, onEdit, onUpdateStatus, onUpdateDipStatus, onDelete,
 }: any) {
     const { confirm } = useConfirm();
@@ -151,10 +151,21 @@ export default function LabDipRequestView({
     const [pendingColor, setPendingColor] = useState('');
     const [pendingRound, setPendingRound] = useState(1);
 
+    // Colors now come from the Color Library (color_id). Fall back to the legacy
+    // `labdip_color` attribute values only if the library has not been populated yet.
     const colorOptions = useMemo(() => {
+        if (colors && colors.length) {
+            return colors.map((c: any) => ({ value: c.id, label: c.code ? `${c.code} — ${c.name}` : c.name }));
+        }
         const attr = (attributes as any[]).find((a: any) => a.system_role === 'labdip_color');
         return (attr?.values ?? []).map((v: any) => ({ value: v.value, label: v.value }));
-    }, [attributes]);
+    }, [colors, attributes]);
+
+    const colorNameById = useMemo(() => {
+        const m: Record<string, string> = {};
+        (colors || []).forEach((c: any) => { m[c.id] = c.code ? `${c.code} — ${c.name}` : c.name; });
+        return m;
+    }, [colors]);
 
     const itemOptions = useMemo(() =>
         (items || []).map((it: any) => ({ value: it.id, label: it.code ? `${it.code} — ${it.name}` : it.name })),
@@ -191,7 +202,7 @@ export default function LabDipRequestView({
             due_date: r.due_date || '',
             estimated_completion_date: r.estimated_completion_date || '',
             notes: r.notes || '',
-            dips: (r.dips || []).map((d: any) => ({ id: d.id, color_name: d.color_name, submission_round: d.submission_round, recipe_ref: d.recipe_ref || '' })),
+            dips: (r.dips || []).map((d: any) => ({ id: d.id, color_name: d.color_name, color_id: d.color_id || null, submission_round: d.submission_round, recipe_ref: d.recipe_ref || '' })),
         });
         setPendingColor(''); setPendingRound(1);
         setIsModalOpen(true);
@@ -199,7 +210,11 @@ export default function LabDipRequestView({
 
     const addPendingDip = () => {
         if (!pendingColor.trim()) return;
-        setForm(prev => ({ ...prev, dips: [...prev.dips, { color_name: pendingColor.trim(), submission_round: pendingRound, recipe_ref: '' }] }));
+        // Library selection => pendingColor is a color_id; resolve its display name.
+        // Legacy fallback => the value itself is the color name.
+        const isLibrary = !!colorNameById[pendingColor];
+        const name = isLibrary ? colorNameById[pendingColor] : pendingColor.trim();
+        setForm(prev => ({ ...prev, dips: [...prev.dips, { color_name: name, color_id: isLibrary ? pendingColor : null, submission_round: pendingRound, recipe_ref: '' }] }));
         setPendingColor('');
     };
     const removeDip = (idx: number) => setForm(prev => ({ ...prev, dips: prev.dips.filter((_, i) => i !== idx) }));

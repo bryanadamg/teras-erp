@@ -61,7 +61,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         const routes = [
             '/dashboard', '/inventory', '/item-metadata', '/batches', '/stock-on-hand',
             '/booking-stock', '/locations', '/bom', '/routing', '/production-runs',
-            '/manufacturing-orders', '/work-orders', '/dyeing-setting', '/lab-dips',
+            '/manufacturing-orders', '/work-orders', '/dyeing-setting', '/lab-dips', '/colors',
             '/sales-orders', '/packaging', '/customers', '/samples', '/purchase-orders',
             '/suppliers', '/reports',
         ];
