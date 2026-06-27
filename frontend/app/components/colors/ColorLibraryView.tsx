@@ -10,12 +10,12 @@ const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 const inp = (classic: boolean): React.CSSProperties => classic ? {
     fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
-    background: 'white', padding: '1px 6px', outline: 'none', height: 20, width: '100%',
+    background: 'white', padding: '1px 6px', outline: 'none', height: 20, width: '100%', boxSizing: 'border-box',
 } : {
     fontFamily: modernFont, fontSize: 13, border: '1px solid #cbd3df', borderRadius: 7,
-    padding: '4px 8px', background: '#fff', color: '#1e293b', outline: 'none', width: '100%',
+    padding: '4px 8px', background: '#fff', color: '#1e293b', outline: 'none', width: '100%', boxSizing: 'border-box',
 };
-const btn = (classic: boolean, extra: React.CSSProperties = {}): React.CSSProperties => classic ? {
+const xpBtn = (classic: boolean, extra: React.CSSProperties = {}): React.CSSProperties => classic ? {
     fontFamily: xpFont, fontSize: 11, padding: '2px 10px', cursor: 'pointer',
     background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
     border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000', ...extra,
@@ -23,25 +23,26 @@ const btn = (classic: boolean, extra: React.CSSProperties = {}): React.CSSProper
     fontFamily: modernFont, fontSize: 12.5, fontWeight: 500, padding: '5px 12px', cursor: 'pointer',
     background: '#fff', color: '#334155', border: '1px solid #cbd3df', borderRadius: 7, ...extra,
 };
-const primaryBtn: React.CSSProperties = { fontWeight: 600, background: '#2563eb', color: '#fff', border: 'none' };
+const modernPrimaryBtn: React.CSSProperties = { fontWeight: 600, background: '#2563eb', color: '#fff', border: 'none' };
 const lbl = (classic: boolean): React.CSSProperties => classic
     ? { fontFamily: xpFont, fontSize: 11, color: '#000', display: 'block', marginBottom: 2 }
     : { fontFamily: modernFont, fontSize: 12, color: '#475569', fontWeight: 600, display: 'block', marginBottom: 3 };
-const th = (classic: boolean): React.CSSProperties => classic ? {
-    padding: '3px 6px', borderRight: '1px solid #b0aaa0', textAlign: 'left',
-    whiteSpace: 'nowrap', fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#000',
+const xpThCell = (classic: boolean): React.CSSProperties => classic ? {
+    padding: '3px 6px', borderRight: '1px solid #b0aaa0', textAlign: 'left', whiteSpace: 'nowrap',
+    fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#000',
 } : {
     padding: '6px 10px', textAlign: 'left', whiteSpace: 'nowrap',
     fontFamily: modernFont, fontSize: 11, fontWeight: 700, color: '#475569',
     textTransform: 'uppercase', background: '#eef1f6', borderBottom: '1.5px solid #cbd3df',
 };
-const td = (classic: boolean): React.CSSProperties => classic ? {
-    padding: '4px 6px', borderRight: '1px solid #c0bdb5', borderBottom: '1px solid #d0cdc8',
-    verticalAlign: 'middle', fontFamily: xpFont, fontSize: 11,
+const tdBase = (classic: boolean): React.CSSProperties => classic ? {
+    padding: '4px 6px', borderRight: '1px solid #c0bdb5', verticalAlign: 'middle',
+    fontFamily: xpFont, fontSize: 11,
 } : {
-    padding: '6px 10px', borderBottom: '1px solid #e6eaf1',
-    verticalAlign: 'middle', fontFamily: modernFont, fontSize: 13, color: '#334155',
+    padding: '6px 10px', verticalAlign: 'middle', fontFamily: modernFont, fontSize: 13, color: '#334155',
 };
+const sep = (classic: boolean): React.CSSProperties =>
+    classic ? { width: 1, height: 20, background: '#a0988c', margin: '0 2px' } : { width: 1, height: 20, background: '#dbe1ea', margin: '0 2px' };
 
 const STATUS_FILTERS = ['ALL', 'active', 'archived'];
 
@@ -128,6 +129,10 @@ export default function ColorLibraryView({
 
     const totalPages = Math.max(1, Math.ceil(total / size));
 
+    const primaryToolbarBtn = classic
+        ? xpBtn(true, { background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', color: '#fff', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', fontWeight: 'bold' })
+        : xpBtn(false, modernPrimaryBtn);
+
     const swatch = (hex?: string) => (
         <span style={{
             display: 'inline-block', width: 18, height: 18, borderRadius: classic ? 2 : 4,
@@ -140,7 +145,7 @@ export default function ColorLibraryView({
     const statusChip = (status: string) => (
         <span style={{
             fontFamily: classic ? xpFont : modernFont, fontSize: classic ? 10 : 11,
-            padding: '1px 7px', borderRadius: 10, fontWeight: 600,
+            padding: classic ? '0 6px' : '1px 7px', borderRadius: classic ? 2 : 10, fontWeight: 'bold',
             background: status === 'archived' ? '#fde8e8' : '#e6f4ea',
             color: status === 'archived' ? '#b42318' : '#1a7f37',
             border: `1px solid ${status === 'archived' ? '#f3c2c2' : '#abdbb6'}`,
@@ -148,67 +153,96 @@ export default function ColorLibraryView({
     );
 
     return (
-        <div style={{ padding: classic ? 8 : 14, fontFamily: classic ? xpFont : modernFont }}>
-            {/* toolbar */}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
-                <h2 style={{ fontSize: classic ? 15 : 18, fontWeight: 700, margin: 0, color: classic ? '#00309c' : '#1e293b' }}>
-                    Color Library
-                </h2>
-                <span style={{ fontSize: 12, color: '#64748b' }}>{total.toLocaleString()} colors</span>
-                <div style={{ flex: 1 }} />
-                <input
-                    value={searchInput}
-                    onChange={e => setSearchInput(e.target.value)}
-                    placeholder="Search code, name, Pantone, customer code..."
-                    style={{ ...inp(classic), width: 280 }}
-                />
-                <select value={statusFilter} onChange={e => onStatusChange(e.target.value)} style={{ ...inp(classic), width: 120 }}>
-                    {STATUS_FILTERS.map(s => <option key={s} value={s}>{s === 'ALL' ? 'All status' : s}</option>)}
-                </select>
-                <button style={btn(classic, classic ? {} : primaryBtn)} onClick={openCreate}>+ New Color</button>
+        <div style={classic
+            ? { display: 'flex', flexDirection: 'column', height: '100%', fontFamily: xpFont, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
+            : { display: 'flex', flexDirection: 'column', height: '100%', fontFamily: modernFont, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
+
+            {/* Title bar */}
+            <div style={classic
+                ? { background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff', padding: '6px 12px', fontSize: 13, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }
+                : { background: '#f7f9fc', color: '#1e293b', borderBottom: '1px solid #dbe1ea', padding: '8px 12px', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                <i className="bi bi-palette2" style={classic ? { fontSize: 14 } : { fontSize: 14, color: '#2563eb' }} />
+                Color Library
             </div>
 
-            {/* table */}
-            <div style={{ overflowX: 'auto', border: classic ? '1px solid #b0aaa0' : '1px solid #e2e8f0', borderRadius: classic ? 0 : 9 }}>
+            {/* Toolbar */}
+            <div style={classic
+                ? { background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }
+                : { background: '#fff', borderBottom: '1px solid #dbe1ea', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
+                <button style={primaryToolbarBtn} onClick={openCreate}>
+                    <i className="bi bi-plus-lg" /> New Color
+                </button>
+                <span style={sep(classic)} />
+                <input
+                    style={{ ...inp(classic), width: 240, flexBasis: 240 }}
+                    placeholder="Search code, name, Pantone, customer code…"
+                    value={searchInput}
+                    onChange={e => setSearchInput(e.target.value)}
+                />
+                <span style={sep(classic)} />
+                {STATUS_FILTERS.map(s => (
+                    <button key={s} style={statusFilter === s ? primaryToolbarBtn : xpBtn(classic)} onClick={() => onStatusChange(s)}>
+                        {s === 'ALL' ? 'All' : s}
+                    </button>
+                ))}
+                <span style={classic ? { marginLeft: 'auto', fontSize: 11, color: '#333' } : { marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>
+                    {total.toLocaleString()} color{total !== 1 ? 's' : ''}
+                </span>
+            </div>
+
+            {/* Table */}
+            <div style={{ flex: 1, background: '#fff', overflow: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
-                    <thead>
+                    <thead style={classic
+                        ? { background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080' }
+                        : { background: '#eef1f6' }}>
                         <tr>
-                            <th style={th(classic)}></th>
-                            <th style={th(classic)}>Code</th>
-                            <th style={th(classic)}>Name</th>
-                            <th style={th(classic)}>Pantone</th>
-                            <th style={th(classic)}>Colour Index</th>
-                            <th style={th(classic)}>Substrate</th>
-                            <th style={th(classic)}>Customer</th>
-                            <th style={th(classic)}>Cust. Code</th>
-                            <th style={th(classic)}>Recipes</th>
-                            <th style={th(classic)}>Status</th>
-                            <th style={th(classic)}>Actions</th>
+                            <th style={{ ...xpThCell(classic), width: 34 }}></th>
+                            <th style={{ ...xpThCell(classic), width: 130 }}>Code</th>
+                            <th style={xpThCell(classic)}>Name</th>
+                            <th style={{ ...xpThCell(classic), width: 110 }}>Pantone</th>
+                            <th style={{ ...xpThCell(classic), width: 150 }}>Colour Index</th>
+                            <th style={{ ...xpThCell(classic), width: 90 }}>Substrate</th>
+                            <th style={{ ...xpThCell(classic), width: 120 }}>Customer</th>
+                            <th style={{ ...xpThCell(classic), width: 90 }}>Cust. Code</th>
+                            <th style={{ ...xpThCell(classic), width: 60, textAlign: 'center' }}>Recipes</th>
+                            <th style={{ ...xpThCell(classic), width: 80 }}>Status</th>
+                            <th style={{ ...xpThCell(classic), width: 120, textAlign: 'right', borderRight: 'none' }}>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {colors.length === 0 && (
-                            <tr><td style={{ ...td(classic), textAlign: 'center', color: '#94a3b8' }} colSpan={11}>
-                                {loading ? 'Loading...' : 'No colors found'}
+                            <tr><td colSpan={11} style={{ ...tdBase(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
+                                {loading ? 'Loading…' : 'No colors found.'}
                             </td></tr>
                         )}
-                        {colors.map(c => (
-                            <tr key={c.id}>
-                                <td style={td(classic)}>{swatch(c.hex)}</td>
-                                <td style={{ ...td(classic), fontWeight: 600 }}>{c.code}</td>
-                                <td style={td(classic)}>{c.name}</td>
-                                <td style={td(classic)}>{c.pantone_ref || '—'}</td>
-                                <td style={td(classic)}>{c.colour_index || '—'}</td>
-                                <td style={td(classic)}>{c.substrate || '—'}</td>
-                                <td style={td(classic)}>{c.customer_name || '—'}</td>
-                                <td style={td(classic)}>{c.customer_color_code || '—'}</td>
-                                <td style={{ ...td(classic), textAlign: 'center' }}>{c.recipe_count || 0}</td>
-                                <td style={td(classic)}>{statusChip(c.status)}</td>
-                                <td style={td(classic)}>
-                                    <button style={btn(classic, { marginRight: 4 })} onClick={() => openEdit(c)}>Edit</button>
-                                    <button style={btn(classic, classic ? {} : { color: '#dc2626', borderColor: '#fecaca' })} onClick={() => handleDelete(c)}>
-                                        {c.recipe_count > 0 ? 'Archive' : 'Delete'}
-                                    </button>
+                        {colors.map((c, idx) => (
+                            <tr key={c.id} style={classic
+                                ? { background: idx % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' }
+                                : { background: idx % 2 === 0 ? '#fff' : '#f8fafc', borderBottom: '1px solid #e6eaf1' }}>
+                                <td style={{ ...tdBase(classic), textAlign: 'center' }}>{swatch(c.hex)}</td>
+                                <td style={tdBase(classic)}>
+                                    <span style={classic
+                                        ? { fontFamily: "'Courier New', monospace", fontWeight: 'bold', color: '#0047c8', fontSize: 11 }
+                                        : { fontFamily: "'Courier New', monospace", fontWeight: 700, color: '#2563eb', fontSize: 12 }}>{c.code}</span>
+                                </td>
+                                <td style={tdBase(classic)}>{c.name}</td>
+                                <td style={tdBase(classic)}>{c.pantone_ref || <span style={{ color: '#aaa' }}>—</span>}</td>
+                                <td style={tdBase(classic)}>{c.colour_index || <span style={{ color: '#aaa' }}>—</span>}</td>
+                                <td style={tdBase(classic)}>{c.substrate || <span style={{ color: '#aaa' }}>—</span>}</td>
+                                <td style={tdBase(classic)}>{c.customer_name || <span style={{ color: '#aaa', fontStyle: 'italic' }}>House</span>}</td>
+                                <td style={tdBase(classic)}>{c.customer_color_code || <span style={{ color: '#aaa' }}>—</span>}</td>
+                                <td style={{ ...tdBase(classic), textAlign: 'center' }}>{c.recipe_count || 0}</td>
+                                <td style={tdBase(classic)}>{statusChip(c.status)}</td>
+                                <td style={{ ...tdBase(classic), borderRight: 'none', textAlign: 'right' }}>
+                                    <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end', alignItems: 'center' }}>
+                                        <button title="Edit" onClick={() => openEdit(c)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#555' : '#64748b', fontSize: 13 }}>
+                                            <i className="bi bi-pencil" />
+                                        </button>
+                                        <button title={c.recipe_count > 0 ? 'Archive' : 'Delete'} onClick={() => handleDelete(c)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#a00' : '#dc2626', fontSize: 13 }}>
+                                            <i className={c.recipe_count > 0 ? 'bi bi-archive' : 'bi bi-trash'} />
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         ))}
@@ -216,11 +250,14 @@ export default function ColorLibraryView({
                 </table>
             </div>
 
-            {/* pagination */}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end', marginTop: 10 }}>
-                <button style={btn(classic)} disabled={page <= 1} onClick={() => onPageChange(page - 1)}>Prev</button>
-                <span style={{ fontSize: 12, color: '#475569' }}>Page {page} / {totalPages}</span>
-                <button style={btn(classic)} disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>Next</button>
+            {/* Status bar / pagination */}
+            <div style={classic
+                ? { background: '#ece9d8', borderTop: '1px solid #b0a898', padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, fontSize: 11, color: '#333' }
+                : { background: '#fff', borderTop: '1px solid #dbe1ea', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, fontSize: 12, color: '#475569' }}>
+                <span style={{ marginLeft: 'auto' }} />
+                <button style={xpBtn(classic)} disabled={page <= 1} onClick={() => onPageChange(page - 1)}>◀ Prev</button>
+                <span>Page {page} / {totalPages}</span>
+                <button style={xpBtn(classic)} disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>Next ▶</button>
             </div>
 
             <ModalWrapper
@@ -230,8 +267,8 @@ export default function ColorLibraryView({
                 size="lg"
                 footer={
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                        <button type="button" style={btn(classic)} onClick={() => setIsModalOpen(false)}>Cancel</button>
-                        <button type="submit" form="color-form" style={btn(classic, classic ? {} : primaryBtn)}>
+                        <button type="button" style={xpBtn(classic)} onClick={() => setIsModalOpen(false)}>Cancel</button>
+                        <button type="submit" form="color-form" style={xpBtn(classic, classic ? { background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', color: '#fff', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', fontWeight: 'bold' } : modernPrimaryBtn)}>
                             {editing ? 'Save' : 'Create'}
                         </button>
                     </div>
@@ -276,7 +313,7 @@ export default function ColorLibraryView({
                         </div>
                         <div style={{ gridColumn: '1 / -1' }}>
                             <label style={lbl(classic)}>Spectrophotometer Notes</label>
-                            <textarea value={form.spectro_notes} onChange={e => setForm({ ...form, spectro_notes: e.target.value })} rows={2} placeholder="Lab readings (L*a*b*), illuminant, tolerance..." style={{ ...inp(classic), height: 'auto', resize: 'vertical' }} />
+                            <textarea value={form.spectro_notes} onChange={e => setForm({ ...form, spectro_notes: e.target.value })} rows={2} placeholder="Lab readings (L*a*b*), illuminant, tolerance…" style={{ ...inp(classic), height: 'auto', resize: 'vertical' }} />
                         </div>
                         <div style={{ gridColumn: '1 / -1' }}>
                             <label style={lbl(classic)}>Notes</label>
