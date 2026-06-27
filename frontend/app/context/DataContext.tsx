@@ -54,6 +54,7 @@ interface DataContextType {
 
     fetchData: (targetTab?: string) => Promise<void>;
     refreshManufacturing: () => Promise<void>;
+    refreshPurchaseOrders: () => Promise<void>;
     handleTabHover: (tab: string) => void;
     authFetch: (url: string, options?: any) => Promise<Response>;
 }
@@ -365,6 +366,23 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         } catch (e) { console.error('refreshManufacturing error', e); }
     }, [currentUser, woPage, prPage, moSearch, prSearch, pageSize]);
 
+    // Targeted refresh for the Purchase Orders page after a PO mutation. Goes
+    // straight to /purchase-orders instead of the broad fetchData(): fetchData
+    // dedupes by target, so a fire-and-forget fetchData() right after a save can
+    // attach to a still-in-flight pre-edit GET of the (heavy, unpaginated) PO list
+    // and re-render the list with stale data — the edit only appeared after a full
+    // page reload. A direct, awaited, no-store fetch bypasses the dedup and the
+    // HTTP cache, so the list always reflects the just-saved change.
+    const refreshPurchaseOrders = useCallback(async () => {
+        if (!currentUser) return;
+        try {
+            const token = localStorage.getItem('access_token');
+            const headers = { 'Authorization': `Bearer ${token}` };
+            const res = await fetch(`${API_BASE}/purchase-orders`, { headers, cache: 'no-store' });
+            if (res.ok) { const d = await res.json(); setPurchaseOrders(d); }
+        } catch (e) { console.error('refreshPurchaseOrders error', e); }
+    }, [currentUser]);
+
     const handleTabHover = (tab: string) => fetchData(tab);
 
     useEffect(() => { if (currentUser) fetchData(); }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, itemSearch, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData]);
@@ -446,13 +464,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, itemIndex, companyProfile,
         pagination: { itemPage, setItemPage, itemTotal, woPage, setWoPage, woTotal, prPage, setPrPage, prTotal, auditPage, setAuditPage, auditTotal, reportPage, setReportPage, reportTotal, moSearch, setMoSearch: handleSetMoSearch, prSearch, setPrSearch: handleSetPrSearch, pageSize },
         filters: { itemSearch, setItemSearch, categoryL1, setCategoryL1: handleSetCategoryL1, categoryL2, setCategoryL2: handleSetCategoryL2, categoryL3, setCategoryL3, auditType, setAuditType },
-        fetchData, refreshManufacturing, handleTabHover, authFetch
+        fetchData, refreshManufacturing, refreshPurchaseOrders, handleTabHover, authFetch
     }), [
         items, locations, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
         partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, itemIndex, companyProfile,
         itemPage, itemTotal, woPage, woTotal, prPage, prTotal, auditPage, auditTotal, reportPage, reportTotal, pageSize,
-        itemSearch, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData, refreshManufacturing, handleTabHover, authFetch,
+        itemSearch, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData, refreshManufacturing, refreshPurchaseOrders, handleTabHover, authFetch,
         handleSetCategoryL1, handleSetCategoryL2, handleSetMoSearch, handleSetPrSearch
     ]);
 

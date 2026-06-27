@@ -6,7 +6,7 @@ import { useToast } from '../components/shared/Toast';
 import { useConfirm } from '../context/ConfirmContext';
 
 export default function PurchaseOrdersPage() {
-    const { items, attributes, purchaseOrders, partners, locations, companyProfile, fetchData, authFetch } = useData();
+    const { items, attributes, purchaseOrders, partners, locations, companyProfile, refreshPurchaseOrders, authFetch } = useData();
     const { showToast } = useToast();
     const { confirm } = useConfirm();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
@@ -14,13 +14,13 @@ export default function PurchaseOrdersPage() {
 
     const handleCreatePO = async (p: any) => {
         const res = await authFetch(`${API_BASE}/purchase-orders`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
-        if (res.ok) fetchData();
+        if (res.ok) await refreshPurchaseOrders();
         return res;
     };
 
     const handleEditPO = async (id: string, p: any) => {
         const res = await authFetch(`${API_BASE}/purchase-orders/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
-        if (res.ok) fetchData();
+        if (res.ok) await refreshPurchaseOrders();
         return res;
     };
 
@@ -49,7 +49,7 @@ export default function PurchaseOrdersPage() {
             }
         }
         showToast('Goods received into stock', 'success');
-        fetchData();
+        await refreshPurchaseOrders();
     };
 
     const handleClosePO = async (id: string) => {
@@ -63,7 +63,7 @@ export default function PurchaseOrdersPage() {
         const res = await authFetch(`${API_BASE}/purchase-orders/${id}/close`, { method: 'PATCH' });
         if (res.ok) {
             showToast('PO closed as received', 'success');
-            fetchData();
+            await refreshPurchaseOrders();
         } else {
             const err = await res.json().catch(() => ({}));
             showToast(err.detail || 'Failed to close PO', 'error');
@@ -79,7 +79,7 @@ export default function PurchaseOrdersPage() {
         });
         if (!confirmed) return;
         const res = await authFetch(`${API_BASE}/purchase-orders/${id}`, { method: 'DELETE' });
-        if (res.ok) fetchData();
+        if (res.ok) await refreshPurchaseOrders();
     };
 
     return (
