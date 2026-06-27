@@ -1,12 +1,16 @@
 'use client';
-import React, { useState, useEffect, useMemo } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import ModalWrapper from '../shared/ModalWrapper';
+import { useData } from '../../context/DataContext';
 import NettingPlanTable, { useNettingPreview } from './NettingPlanTable';
+
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
+    .replace(/\/api$/, '') + '/api';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
-    background: 'white', height: 20, padding: '0 4px', outline: 'none', width: '100%',
+    background: 'white', height: 22, padding: '0 4px', outline: 'none', width: '100%',
     borderRadius: 0, boxSizing: 'border-box',
 };
 const xpLabel: React.CSSProperties = {
@@ -129,7 +133,7 @@ function BomEntryRow({
             <div style={{ marginBottom: 6 }}>
                 <label style={xpLabel}>Product Recipe (BOM)</label>
                 <select
-                    style={{ ...xpInput, height: 20 }}
+                    style={{ ...xpInput, height: 22 }}
                     value={entry.bomId}
                     onChange={e => onChange({ ...entry, bomId: e.target.value, sizeQtys: {}, totalQty: '', attributeValueIds: [] })}
                     disabled={entry.locked}
@@ -149,7 +153,7 @@ function BomEntryRow({
                     <div key={attr.id} style={{ marginBottom: 6 }}>
                         <label style={xpLabel}>{attr.name}</label>
                         <select
-                            style={{ ...xpInput, height: 20 }}
+                            style={{ ...xpInput, height: 22 }}
                             value={selectedValId}
                             onChange={e => handleAttrChange(attr, e.target.value)}
                         >
@@ -205,7 +209,9 @@ export default function ProductionRunModal({
     boms, items, attributes, locations, onSave, onClose,
     initialBomId, initialSizes, initialTotalQty, initialBomEntries, salesOrderId, salesOrderCode, productionRuns,
 }: Props) {
+    const { authFetch } = useData();
     const [code, setCode] = useState('');
+    const codeEdited = useRef(false);
     const [locationCode, setLocationCode] = useState('');
     const [sourceLocationCode, setSourceLocationCode] = useState('');
     const [targetStart, setTargetStart] = useState('');
@@ -213,6 +219,14 @@ export default function ProductionRunModal({
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState('');
     const [tolerance, setTolerance] = useState<number>(0);
+
+    // Leaf locations only (stock sits in leaves), labelled "Warehouse / Spot" —
+    // matches the MO creation panel's dropdowns.
+    const leafLocations = useMemo(
+        () => locations.filter((l: any) => !l.has_children),
+        [locations]
+    );
+    const locLabel = (l: any) => (l.parent_name ? `${l.parent_name} / ${l.name}` : l.name);
 
     const [bomEntries, setBomEntries] = useState<BomEntryState[]>(() => {
         if (initialBomEntries && initialBomEntries.length > 0) {
@@ -264,11 +278,13 @@ export default function ProductionRunModal({
         }
     }, [initialBomEntries, initialBomId, initialSizes, initialTotalQty]);
 
+    // Auto-generate the PR code via the backend (reliable, server-side dedup),
+    // even when not created from a Sales Order. Base derives from the SO code,
+    // else the first BOM's item, else a plain "PR". Skipped once the user edits.
     useEffect(() => {
-        // When created from a Sales Order, derive the PR code from the SO code; otherwise fall back to the BOM item.
-        let base: string | null = null;
+        if (codeEdited.current) return;
+        let base = 'PR';
         if (salesOrderCode) {
-            // Strip a leading "SO-"/"SO" so SO-123 becomes PR-123 (not PR-SO-123).
             const soSuffix = salesOrderCode.toUpperCase().replace(/\s+/g, '-').replace(/^SO-?/, '');
             base = `PR-${soSuffix}`;
         } else {
@@ -278,17 +294,18 @@ export default function ProductionRunModal({
                 base = `PR-${item.toUpperCase().replace(/\s+/g, '-').slice(0, 12)}`;
             }
         }
-        if (base) {
-            const existingCodes = new Set((productionRuns || []).map((pr: any) => String(pr.code)));
-            let n = 1;
-            let candidate = `${base}-${String(n).padStart(3, '0')}`;
-            while (existingCodes.has(candidate)) {
-                n++;
-                candidate = `${base}-${String(n).padStart(3, '0')}`;
-            }
-            setCode(candidate);
-        }
-    }, [bomEntries[0]?.bomId, salesOrderCode]);
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await authFetch(`${API_BASE}/production-runs/available-code?base=${encodeURIComponent(base)}`);
+                if (!cancelled && res.ok && !codeEdited.current) {
+                    const d = await res.json();
+                    if (d?.code) setCode(d.code);
+                }
+            } catch { /* keep whatever is there */ }
+        })();
+        return () => { cancelled = true; };
+    }, [bomEntries[0]?.bomId, salesOrderCode, boms, authFetch]);
 
     const showFormulaSection = bomEntries.some(e =>
         e.rawSoQtys && e.locked && e.bomId && hasStandardSizes(boms.find((b: any) => b.id === e.bomId))
@@ -388,42 +405,56 @@ export default function ProductionRunModal({
         }
     };
 
-    return createPortal(
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ width: 560, background: '#ece9d8', border: '2px solid #0a246a', fontFamily: xpFont, borderRadius: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ background: 'linear-gradient(to right, #0a246a, #a6caf0, #0a246a)', padding: '3px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 12, textShadow: '1px 1px 2px rgba(0,0,0,0.6)' }}>
-                        New Production Run
-                    </span>
-                    <button onClick={onClose} style={{ width: 21, height: 21, background: 'linear-gradient(to bottom, #e06060, #b03030)', border: '1px solid #800', borderRadius: 2, cursor: 'pointer', color: '#fff', fontSize: 12, fontWeight: 'bold' }}>x</button>
-                </div>
+    return (
+        <ModalWrapper
+            isOpen
+            modeless
+            onClose={onClose}
+            title={<><i className="bi bi-collection-play me-1"></i> NEW PRODUCTION RUN</>}
+            variant="success"
+            size="xxl"
+            footer={
+                <>
+                    <button onClick={onClose} className="btn btn-sm btn-link text-muted text-decoration-none">Cancel</button>
+                    <button onClick={handleSave} disabled={isSaving} className="btn btn-sm btn-success px-4 fw-bold shadow-sm">
+                        {isSaving ? 'Creating...' : 'CREATE PRODUCTION RUN'}
+                    </button>
+                </>
+            }
+        >
+            {/* Two-panel layout: left = form, right = live netting preview */}
+            <div style={{ display: 'flex', gap: 0, alignItems: 'flex-start', fontFamily: xpFont }}>
 
-                <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', maxHeight: '80vh' }}>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                        <div style={{ flex: 1 }}>
-                            <label style={xpLabel}>Run Code</label>
-                            <input style={xpInput} value={code} onChange={e => setCode(e.target.value)} />
-                        </div>
+                {/* ── LEFT: form ── */}
+                <div style={{ width: 420, minWidth: 420, flexShrink: 0, paddingRight: 18, borderRight: '1px solid #aca899' }}>
+                    <div style={{ marginBottom: 8 }}>
+                        <label style={xpLabel}>Run Code</label>
+                        <input
+                            style={xpInput}
+                            value={code}
+                            placeholder="Auto-generated"
+                            onChange={e => { codeEdited.current = true; setCode(e.target.value); }}
+                        />
                     </div>
 
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                         <div style={{ flex: 1 }}>
                             <label style={xpLabel}>Output Location</label>
-                            <select style={{ ...xpInput, height: 20 }} value={locationCode} onChange={e => setLocationCode(e.target.value)}>
+                            <select style={{ ...xpInput, height: 22 }} value={locationCode} onChange={e => setLocationCode(e.target.value)}>
                                 <option value="">Select...</option>
-                                {locations.map((l: any) => <option key={l.id} value={l.code}>{l.name}</option>)}
+                                {leafLocations.map((l: any) => <option key={l.id} value={l.code}>{locLabel(l)}</option>)}
                             </select>
                         </div>
                         <div style={{ flex: 1 }}>
                             <label style={xpLabel}>Source Location</label>
-                            <select style={{ ...xpInput, height: 20 }} value={sourceLocationCode} onChange={e => setSourceLocationCode(e.target.value)}>
+                            <select style={{ ...xpInput, height: 22 }} value={sourceLocationCode} onChange={e => setSourceLocationCode(e.target.value)}>
                                 <option value="">Same as output</option>
-                                {locations.map((l: any) => <option key={l.id} value={l.code}>{l.name}</option>)}
+                                {leafLocations.map((l: any) => <option key={l.id} value={l.code}>{locLabel(l)}</option>)}
                             </select>
                         </div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                         <div style={{ flex: 1 }}>
                             <label style={xpLabel}>Target Start</label>
                             <input type="date" style={xpInput} value={targetStart} onChange={e => setTargetStart(e.target.value)} />
@@ -434,32 +465,31 @@ export default function ProductionRunModal({
                         </div>
                     </div>
 
-                    {bomEntries.map((entry, i) => (
-                        <BomEntryRow
-                            key={i}
-                            entry={entry}
-                            index={i}
-                            boms={boms}
-                            items={items}
-                            attributes={attributes}
-                            onChange={updated => updateEntry(i, updated)}
-                            onRemove={() => removeEntry(i)}
-                            canRemove={bomEntries.length > 1 && !entry.locked}
-                        />
-                    ))}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {bomEntries.map((entry, i) => (
+                            <BomEntryRow
+                                key={i}
+                                entry={entry}
+                                index={i}
+                                boms={boms}
+                                items={items}
+                                attributes={attributes}
+                                onChange={updated => updateEntry(i, updated)}
+                                onRemove={() => removeEntry(i)}
+                                canRemove={bomEntries.length > 1 && !entry.locked}
+                            />
+                        ))}
+                    </div>
 
                     {showFormulaSection && (
-                        <div style={{ border: '1px solid #b0a890', borderRadius: 3, padding: '6px 8px', background: '#faf9f0' }}>
+                        <div style={{ border: '1px solid #b0a890', borderRadius: 3, padding: '6px 8px', background: '#faf9f0', marginTop: 8 }}>
                             <div style={{ fontSize: 10, fontWeight: 'bold', color: '#5a4a00', marginBottom: 4 }}>
                                 Size Absorption Formula (S absorbed into M/L)
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                 <label style={{ ...xpLabel, marginBottom: 0, whiteSpace: 'nowrap' }}>Tolerance %</label>
                                 <input
-                                    type="number"
-                                    min={0}
-                                    max={10}
-                                    step={0.5}
+                                    type="number" min={0} max={10} step={0.5}
                                     style={{ ...xpInput, width: 60 }}
                                     value={tolerance}
                                     onChange={e => {
@@ -482,34 +512,34 @@ export default function ProductionRunModal({
 
                     <button
                         onClick={addEntry}
-                        style={{ fontFamily: xpFont, fontSize: 11, padding: '2px 10px', background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', alignSelf: 'flex-start' }}
+                        style={{ marginTop: 8, fontFamily: xpFont, fontSize: 11, padding: '2px 10px', background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', alignSelf: 'flex-start' }}
                     >
                         + Add BOM
                     </button>
 
-                    {previewEnabled && (
-                        <div>
-                            <div style={{ fontSize: 11, fontWeight: 'bold', color: '#000080', margin: '4px 0 4px' }}>
-                                Net requirement preview
+                    {error && <div style={{ marginTop: 8, fontSize: 10, color: '#a00', background: '#fff0f0', border: '1px solid #f0a0a0', padding: '4px 8px' }}>{error}</div>}
+                </div>
+
+                {/* ── RIGHT: live netting preview ── */}
+                <div style={{ flex: 1, paddingLeft: 18, minWidth: 360 }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#888', marginBottom: 8 }}>
+                        Net requirement preview
+                    </div>
+                    {previewEnabled ? (
+                        <NettingPlanTable nodes={previewNodes} loading={previewLoading} error={previewError} />
+                    ) : (
+                        <div style={{
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                            minHeight: 240, gap: 10, color: '#94a3b8', textAlign: 'center',
+                        }}>
+                            <i className="bi bi-diagram-3" style={{ fontSize: 40, opacity: 0.35 }}></i>
+                            <div style={{ fontSize: 12, maxWidth: 220 }}>
+                                Pick an output location, a recipe, and quantity to preview what will be made vs covered by stock.
                             </div>
-                            <NettingPlanTable nodes={previewNodes} loading={previewLoading} error={previewError} />
                         </div>
                     )}
-
-                    {error && <div style={{ fontSize: 10, color: '#a00', background: '#fff0f0', border: '1px solid #f0a0a0', padding: '4px 8px' }}>{error}</div>}
-                </div>
-
-                <div style={{ borderTop: '1px solid #aca899', padding: '6px 10px', display: 'flex', justifyContent: 'flex-end', gap: 6, background: '#ece9d8' }}>
-                    <button onClick={onClose} style={{ fontFamily: xpFont, fontSize: 11, padding: '2px 10px', background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer' }}>
-                        Cancel
-                    </button>
-                    <button onClick={handleSave} disabled={isSaving}
-                        style={{ fontFamily: xpFont, fontSize: 11, padding: '2px 12px', background: 'linear-gradient(to bottom, #b0e8b0, #70c870)', border: '1px solid', borderColor: '#d0f0d0 #0a3e0a #0a3e0a #1a5e1a', cursor: 'pointer', fontWeight: 'bold', color: '#004000', opacity: isSaving ? 0.6 : 1 }}>
-                        {isSaving ? 'Creating...' : 'Create Production Run'}
-                    </button>
                 </div>
             </div>
-        </div>,
-        document.body
+        </ModalWrapper>
     );
 }
