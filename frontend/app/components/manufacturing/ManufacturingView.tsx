@@ -480,6 +480,7 @@ export default function ManufacturingView({
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || itemIndex?.[String(id)]?.name || id;
   const getItemCode = (id: string) => items.find((i: any) => i.id === id)?.code || itemIndex?.[String(id)]?.code || id;
   const getItemUom = (id: string) => items.find((i: any) => i.id === id)?.uom || '';
+  const getItemEnds = (id: string) => { const v = items.find((i: any) => i.id === id)?.ends; return v != null ? v : null; };
   const uomBadgeStyle: React.CSSProperties = { background: '#dde8f5', border: '1px solid #7f9db9', color: '#336', fontSize: 9, padding: '0 4px', whiteSpace: 'nowrap', fontWeight: 'normal' };
   const getBOMCode = (id: string) => boms.find((b: any) => b.id === id)?.code || id;
   const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
@@ -638,6 +639,17 @@ export default function ManufacturingView({
       });
       const available = matchingEntries.reduce((sum: number, e: any) => sum + parseFloat(e.qty), 0);
       return { available, isEnough: available >= required_qty };
+  };
+
+  const getBeamBatchCount = (item_id: string) => {
+      const keys = new Set<string>();
+      for (const s of (stockBalance as any[])) {
+          if (String(s.item_id) !== String(item_id)) continue;
+          if (!s.batch_key) continue;
+          if (parseFloat(s.qty) <= 0) continue;
+          keys.add(s.batch_key);
+      }
+      return keys.size;
   };
 
   const getStockAcrossLocations = (item_id: string, attribute_value_ids: string[] = [], required_qty: number) => {
@@ -1069,6 +1081,7 @@ export default function ManufacturingView({
                                                       <span style={{ display: 'inline-block', width: 8, height: 8, background: dc.dot, border: `1px solid ${dc.border}`, flexShrink: 0 }} />
                                                       {stockLevel === 'low' && <span style={{ fontSize: 8, background: '#886600', color: '#fff', padding: '0 3px', fontWeight: 'bold' }}>Low</span>}
                                                       {stockLevel === 'out' && <span style={{ fontSize: 8, background: '#880000', color: '#fff', padding: '0 3px', fontWeight: 'bold' }}>Out</span>}
+                                                      {getItemUom(line.item_id) && <span style={uomBadgeStyle}>{getItemUom(line.item_id)}</span>}
                                                   </div>
                                               </td>
                                               <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px' }}>
@@ -1136,6 +1149,46 @@ export default function ManufacturingView({
                       <div style={{ fontSize: '10px', color: '#000', fontWeight: 'bold' }}>{getLocationName(selectedNode.location_id)}</div>
                       <div style={{ fontSize: '10px', color: '#444' }}>Qty: <strong style={{ color: '#000' }}>{selectedNode.qty}</strong>{getItemUom(selectedNode.item_id) && <span style={{ ...uomBadgeStyle, marginLeft: 4 }}>{getItemUom(selectedNode.item_id)}</span>}{selectedNode.item_ends != null && <span style={{ marginLeft: 8, color: '#1a6e2e', fontWeight: 'bold' }}>Ends: {selectedNode.item_ends}</span>}</div>
                   </div>
+
+                  {/* Beams in Stock */}
+                  {(() => {
+                      const beamLines: { item_id: string; item_name: string; ends: number }[] = [];
+                      // MO output is a beam
+                      if (selectedNode.item_ends != null) {
+                          beamLines.push({ item_id: selectedNode.item_id, item_name: selectedNode.item_name, ends: selectedNode.item_ends });
+                      }
+                      // BOM component lines that are beams
+                      if (bom) {
+                          for (const line of (bom.lines || [])) {
+                              const ends = getItemEnds(line.item_id);
+                              if (ends != null && !beamLines.some(b => b.item_id === line.item_id)) {
+                                  beamLines.push({ item_id: line.item_id, item_name: line.item_name || getItemName(line.item_id), ends });
+                              }
+                          }
+                      }
+                      if (beamLines.length === 0) return null;
+                      return (
+                          <div style={{ borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '6px 8px' }}>
+                              <div style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                                  Beams in Stock
+                              </div>
+                              {beamLines.map(b => {
+                                  const { total } = getStockAcrossLocations(b.item_id, [], 0);
+                                  const bc = getBeamBatchCount(b.item_id);
+                                  return (
+                                      <div key={b.item_id} style={{ marginBottom: '4px' }}>
+                                          <div style={{ fontSize: '9px', color: '#444', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={b.item_name}>{b.item_name}</div>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                              <span style={{ fontFamily: 'monospace', fontSize: '10px', fontWeight: 'bold', color: total > 0 ? '#004400' : '#880000' }}>{total.toFixed(2)}</span>
+                                              {getItemUom(b.item_id) && <span style={uomBadgeStyle}>{getItemUom(b.item_id)}</span>}
+                                              <span style={{ fontSize: 9, background: '#e8d8ff', border: '1px solid #c4a8ee', color: '#440099', padding: '0 4px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{bc} beam{bc !== 1 ? 's' : ''}</span>
+                                          </div>
+                                      </div>
+                                  );
+                              })}
+                          </div>
+                      );
+                  })()}
 
                   {/* Batch Trace */}
                   <div style={{ borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '6px 8px' }}>
