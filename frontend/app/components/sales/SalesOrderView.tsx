@@ -371,11 +371,21 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       }));
   };
 
+  const comboAttr = (attributes || []).find((a: any) => a.system_role === 'combo');
+
   const handleValueChange = (valId: string, attrId: string) => {
       const attr = attributes.find((a: any) => a.id === attrId);
       if (!attr) return;
       const otherValues = newLine.attribute_value_ids.filter(vid => !attr.values.some((v: any) => v.id === vid));
-      setNewLine({...newLine, attribute_value_ids: valId ? [...otherValues, valId] : otherValues});
+      const newAttrValues = valId ? [...otherValues, valId] : otherValues;
+      // Changing Combo invalidates the current BOM selection; auto-pick if only one matches
+      const comboChanged = comboAttr && comboAttr.id === attrId;
+      let bomOverride: { bom_id?: string; bom_size_id?: string } = {};
+      if (comboChanged) {
+          const filteredBoms = getItemBoms(newLine.item_id, newAttrValues);
+          bomOverride = { bom_id: filteredBoms.length === 1 ? filteredBoms[0].id : '', bom_size_id: '' };
+      }
+      setNewLine({ ...newLine, attribute_value_ids: newAttrValues, ...bomOverride });
   };
 
   const getItemWeight = (id: string) => items.find((i: any) => i.id === id)?.weight_per_unit ?? null;
@@ -418,6 +428,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const handleLineItemChange = (val: string) => {
       const m = parseFloat(qtyMeter) || 0;
       const kg = kgAuto ? calcKgAuto(val, newLine.qty, m) : null;
+      // Item change resets attributes, so no Combo filter yet — show all BOMs for item
       const itemBoms = (boms || []).filter((b: any) => b.item_id === val);
       const autoBomId = itemBoms.length === 1 ? itemBoms[0].id : '';
       setNewLine({ ...newLine, item_id: val, attribute_value_ids: [], bom_id: autoBomId, bom_size_id: '', qty_kg: kg !== null ? kg : newLine.qty_kg });
@@ -431,16 +442,20 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       setPicFactor(picF ? parseFloat(picF.value) : null);
   };
 
-  // BOM matching is item-level only. Variants no longer dictate which BOM is used
-  // (variants are a note on the SO line). If an item has multiple BOMs, the user
-  // picks one explicitly; sizes come from the selected BOM.
-  const getItemBoms = (itemId: string) => {
+  // Combo (system_role='combo') gates BOM selection: if a Combo value is chosen on
+  // the SO line, only BOMs that carry that same Combo attribute value are shown.
+  // All other attributes (e.g. Colors) remain annotations and do not filter BOMs.
+  const getItemBoms = (itemId: string, attrValueIds: string[] = []) => {
       if (!boms || !itemId) return [];
-      return boms.filter((b: any) => b.item_id === itemId);
+      const forItem = boms.filter((b: any) => b.item_id === itemId);
+      if (!comboAttr) return forItem;
+      const comboValueId = attrValueIds.find(vid => comboAttr.values?.some((v: any) => v.id === vid));
+      if (!comboValueId) return forItem;
+      return forItem.filter((b: any) => (b.attribute_value_ids || []).map(String).includes(String(comboValueId)));
   };
 
-  const getSelectedBom = (itemId: string, bomId: string) => {
-      const itemBoms = getItemBoms(itemId);
+  const getSelectedBom = (itemId: string, bomId: string, attrValueIds: string[] = []) => {
+      const itemBoms = getItemBoms(itemId, attrValueIds);
       if (itemBoms.length === 1) return itemBoms[0];
       return itemBoms.find((b: any) => b.id === bomId) || null;
   };
@@ -1240,11 +1255,11 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                            </div>
                        )}
 
-                       {/* BOM + Size / Measurement (item-level; variants do not gate this) */}
+                       {/* BOM + Size / Measurement (Combo gates BOM list; other variants are annotations) */}
                        {(() => {
-                           const itemBoms = getItemBoms(newLine.item_id);
+                           const itemBoms = getItemBoms(newLine.item_id, newLine.attribute_value_ids);
                            if (!itemBoms.length) return null;
-                           const selectedBom = getSelectedBom(newLine.item_id, newLine.bom_id);
+                           const selectedBom = getSelectedBom(newLine.item_id, newLine.bom_id, newLine.attribute_value_ids);
                            const bomSizes = selectedBom?.sizes || [];
                            return (
                                <>
