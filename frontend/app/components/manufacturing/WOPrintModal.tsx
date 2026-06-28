@@ -350,23 +350,6 @@ export default function WOPrintModal({
             {/* ── Child MOs ── */}
             {showChildMOs && renderChildWOsPrint(wo.child_mos || [], { getItemName, getLocationName, formatDate })}
 
-            {/* ── Fill-in fields ── */}
-            {showFillFields && (
-                <>
-                    <div style={{ borderTop: '1px solid #ccc', paddingTop: '6px', marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        {[
-                            'Status Material',
-                            'Tanggal Selesai',
-                            'Bahan dari Mesin',
-                        ].map(label => (
-                            <div key={label} style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
-                                <span style={{ fontSize: '8px', fontWeight: 'bold', whiteSpace: 'nowrap', minWidth: '110px' }}>{label}:</span>
-                                <div style={{ flex: 1, borderBottom: '1px solid #333', height: '14px' }} />
-                            </div>
-                        ))}
-                    </div>
-                </>
-            )}
 
             {/* ── Sample photo ── */}
             {showSamplePhoto && hasSamplePhoto && (
@@ -443,10 +426,6 @@ export default function WOPrintModal({
                                     <label style={toggleLabelStyle}>
                                         <input type="checkbox" checked={showTimeline} onChange={e => update({ showTimeline: e.target.checked })} />
                                         Actual Timeline
-                                    </label>
-                                    <label style={toggleLabelStyle}>
-                                        <input type="checkbox" checked={showFillFields} onChange={e => update({ showFillFields: e.target.checked })} />
-                                        Fill-in Fields
                                     </label>
                                     <label style={{ ...toggleLabelStyle, opacity: hasSamplePhoto ? 1 : 0.4 }}>
                                         <input type="checkbox" checked={showSamplePhoto} disabled={!hasSamplePhoto} onChange={e => update({ showSamplePhoto: e.target.checked })} />

@@ -131,10 +131,6 @@ export default function WOBulkPrintModal({
                                         Step Materials
                                     </label>
                                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#212529', cursor: 'pointer' }}>
-                                        <input type="checkbox" checked={settings.showFillFields} onChange={e => update({ showFillFields: e.target.checked })} />
-                                        Fill-in Fields
-                                    </label>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#212529', cursor: 'pointer' }}>
                                         <input type="checkbox" checked={settings.showSignature} onChange={e => update({ showSignature: e.target.checked })} />
                                         Signature Line
                                     </label>

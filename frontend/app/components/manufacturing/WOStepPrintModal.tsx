@@ -110,10 +110,6 @@ export default function WOStepPrintModal({
                                         Materials Table
                                     </label>
                                     <label style={toggleLabelStyle}>
-                                        <input type="checkbox" checked={settings.showFillFields} onChange={e => update({ showFillFields: e.target.checked })} />
-                                        Fill-in Fields
-                                    </label>
-                                    <label style={toggleLabelStyle}>
                                         <input type="checkbox" checked={settings.showSignature} onChange={e => update({ showSignature: e.target.checked })} />
                                         Signature Line
                                     </label>

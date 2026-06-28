@@ -174,20 +174,8 @@ export default function KartuKerjaCard({
                 </>
             )}
 
-            {/* Spacer — pushes fill-in + signature to the bottom of the card */}
+            {/* Spacer — pushes signature to the bottom of the card */}
             <div style={{ flexGrow: 1, minHeight: '6px' }} />
-
-            {/* Fill-in fields */}
-            {settings.showFillFields && (
-                <div style={{ borderTop: '1px solid #ccc', paddingTop: '6px', display: 'flex', flexDirection: 'column', gap: '11px', marginBottom: '6px' }}>
-                    {['Output Aktual', 'Operator', 'Tgl Selesai'].map(label => (
-                        <div key={label} style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
-                            <span style={{ fontSize: '9px', fontWeight: 'bold', whiteSpace: 'nowrap', minWidth: '78px' }}>{label}:</span>
-                            <div style={{ flex: 1, borderBottom: '1px solid #333', height: '15px' }} />
-                        </div>
-                    ))}
-                </div>
-            )}
 
             {/* Signature + footer */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderTop: '1px solid #ccc', paddingTop: '6px' }}>
