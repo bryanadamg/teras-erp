@@ -302,6 +302,53 @@ async def get_production_run(
     _post_process_pr(pr)
     return pr
 
+def _bom_traversal_order(pr) -> dict[tuple, int]:
+    """DFS from root MOs → component MOs via required_dependencies.
+    Components within each MO are ordered by BOMOperation.sequence.
+    Returns {(item_id_str, attr_key): rank} for top-down BOM ordering."""
+    mo_map = {mo.id: mo for mo in pr.manufacturing_orders}
+
+    op_seq: dict = {}
+    for mo in pr.manufacturing_orders:
+        if mo.bom and mo.bom.operations:
+            op_seq[mo.bom_id] = {op.id: int(op.sequence) for op in mo.bom.operations}
+
+    visited_keys: set = set()
+    visited_mo_ids: set = set()
+    order: list = []
+
+    def visit_mo(mo):
+        if mo.id in visited_mo_ids:
+            return
+        visited_mo_ids.add(mo.id)
+
+        seq_map = op_seq.get(mo.bom_id, {})
+
+        def comp_key(c):
+            return seq_map.get(c.bom_operation_id, 9999) if c.bom_operation_id else 9999
+
+        for comp in sorted(mo.planned_components, key=comp_key):
+            attr_ids = sorted(str(a) for a in (comp.attribute_value_ids or []))
+            key = (str(comp.item_id), ",".join(attr_ids))
+            if key not in visited_keys:
+                visited_keys.add(key)
+                order.append(key)
+
+        for dep in (mo.required_dependencies or []):
+            child_mo = mo_map.get(dep.required_mo_id)
+            if child_mo:
+                visit_mo(child_mo)
+
+    for mo in pr.manufacturing_orders:
+        if not mo.is_shared_component:
+            visit_mo(mo)
+    # Safety net: catch MOs not reachable from roots
+    for mo in pr.manufacturing_orders:
+        visit_mo(mo)
+
+    return {key: i for i, key in enumerate(order)}
+
+
 @router.get("/production-runs/{pr_id}/material-requirements", response_model=list[PRMaterialRequirementItem])
 async def get_production_run_material_requirements(
     pr_id: str,
@@ -378,7 +425,14 @@ async def get_production_run_material_requirements(
             mo_contributions=data["mo_contributions"],
         ))
 
-    results.sort(key=lambda r: (r.shortfall > 0, r.item_code))
+    bom_order = _bom_traversal_order(pr)
+    results.sort(key=lambda r: (
+        bom_order.get(
+            (str(r.item_id), ",".join(sorted(str(a) for a in r.attribute_value_ids))),
+            9999,
+        ),
+        r.item_code,
+    ))
     return results
 
 

@@ -69,9 +69,7 @@ function sectionHdrStyle(isHovered: boolean): React.CSSProperties {
     borderTop: '1px solid #7090cc',
     borderBottom: `1px solid ${HDR_BORDER_B}`,
     display: 'flex',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    cursor: 'pointer',
     userSelect: 'none' as const,
     fontFamily: xpFont,
     transition: 'background 0.08s',
@@ -130,9 +128,7 @@ function sectionHdrStyleModern(isHovered: boolean): React.CSSProperties {
     letterSpacing: '0.6px',
     textTransform: 'uppercase' as const,
     display: 'flex',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    cursor: 'pointer',
     userSelect: 'none' as const,
     fontFamily: modernFont,
     transition: 'color 0.12s',
@@ -162,13 +158,6 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
     }
   };
 
-  const [inventoryExpanded,   setInventoryExpanded]   = useState(true);
-  const [salesExpanded,       setSalesExpanded]       = useState(true);
-  const [procurementExpanded, setProcurementExpanded] = useState(true);
-  const [engineeringExpanded, setEngineeringExpanded] = useState(true);
-  const [dyeingExpanded,      setDyeingExpanded]      = useState(true);
-  const [reportsExpanded,     setReportsExpanded]     = useState(true);
-
   const [hovered, setHovered] = useState<string | null>(null);
   const prefetchTimer = useRef<any>(null);
   // Hover handlers: set hover styling, and (debounced) prefetch that tab's data so the
@@ -194,10 +183,6 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
     setActiveTab(tab);
     if (onTabHover) onTabHover(tab);
   };
-
-  const chevron = (expanded: boolean) => (
-    <span style={{ fontSize: 10, opacity: classic ? 0.85 : 0.6 }}>{expanded ? '▾' : '▸'}</span>
-  );
 
   // Shorthand: a nav link row
   const NavItem = ({
@@ -316,71 +301,44 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         <NavItem tab="dashboard" label={t('dashboard') || 'Dashboard'} icon="bi-house-door" />
 
         {/* ── Sales ── */}
-        <div
-          style={hdrStyle(hovered === 'hdr-sales')}
-          onClick={() => setSalesExpanded(!salesExpanded)}
-          {...H('hdr-sales')}
-        >
+        <div style={hdrStyle(false)} {...H('hdr-sales')}>
           <span><i className="bi bi-graph-up" /> {t('sales') || 'Sales'}</span>
-          {chevron(salesExpanded)}
         </div>
-        {salesExpanded && (
-          <>
-            <NavItem tab="sales-orders" label={t('sales_orders') || 'Sales Orders'} icon="bi-file-text" isSub />
-            <NavItem tab="packaging"    label="Packaging"                             icon="bi-box2"    isSub />
-            <NavItem tab="customers"    label={t('customers') || 'Customers'}        icon="bi-people" isSub />
-            <NavItem tab="samples"      label={t('sample_requests') || 'Sample Requests'} icon="bi-flask" isSub />
-          </>
-        )}
+        <NavItem tab="sales-orders" label={t('sales_orders') || 'Sales Orders'} icon="bi-file-text" isSub />
+        <NavItem tab="packaging"    label="Packaging"                             icon="bi-box2"    isSub />
+        <NavItem tab="customers"    label={t('customers') || 'Customers'}        icon="bi-people" isSub />
+        <NavItem tab="samples"      label={t('sample_requests') || 'Sample Requests'} icon="bi-flask" isSub />
 
         {/* ── Procurement ── */}
-        <div
-          style={hdrStyle(hovered === 'hdr-procurement')}
-          onClick={() => setProcurementExpanded(!procurementExpanded)}
-          {...H('hdr-procurement')}
-        >
+        <div style={hdrStyle(false)} {...H('hdr-procurement')}>
           <span><i className="bi bi-cart3" /> {t('procurement') || 'Procurement'}</span>
-          {chevron(procurementExpanded)}
         </div>
-        {procurementExpanded && (
-          <>
-            <NavItem tab="purchase-orders" label={t('purchase_orders') || 'Purchase Orders'} icon="bi-bag" isSub />
-            <NavItem tab="suppliers"        label={t('suppliers') || 'Suppliers'}              icon="bi-truck" isSub />
-          </>
-        )}
+        <NavItem tab="purchase-orders" label={t('purchase_orders') || 'Purchase Orders'} icon="bi-bag" isSub />
+        <NavItem tab="suppliers"        label={t('suppliers') || 'Suppliers'}              icon="bi-truck" isSub />
 
         {/* ── Inventory ── */}
         {(hasPermission('inventory.manage') || hasPermission('stock.entry') || hasPermission('locations.manage')) && (
           <>
-            <div
-              style={hdrStyle(hovered === 'hdr-inventory')}
-              onClick={() => setInventoryExpanded(!inventoryExpanded)}
-              {...H('hdr-inventory')}
-            >
+            <div style={hdrStyle(false)} {...H('hdr-inventory')}>
               <span><i className="bi bi-box-seam" /> {t('inventory') || 'Inventory'}</span>
-              {chevron(inventoryExpanded)}
             </div>
-            {inventoryExpanded && (
+            {hasPermission('inventory.manage') && (
               <>
-                {hasPermission('inventory.manage') && (
-                  <>
-                    <NavItem tab="inventory"     label={t('item_inventory') || 'Item Inventory'} icon="bi-list-check" isSub />
-                    <NavItem tab="item-metadata" label={t('attributes') || 'Attributes'} icon="bi-tag" isSub />
-                  </>
-                )}
-                {hasPermission('inventory.manage') && (
-                  <NavItem tab="batches" label="Batch / Lot" icon="bi-upc-scan" isSub />
-                )}
-                {hasPermission('inventory.manage') && (
-                  <NavItem tab="stock-on-hand" label={t('stock_on_hand') || 'Stock On-Hand'} icon="bi-boxes" isSub />
-                )}
-                {hasPermission('inventory.manage') && (
-                  <NavItem tab="booking-stock" label={t('booking_stock') || 'Booking Stock'} icon="bi-bookmark-check" isSub />
-                )}
-                {hasPermission('locations.manage') && (
-                  <NavItem tab="locations" label={t('locations') || 'Locations'}     icon="bi-geo-alt" isSub />
-                )}
+                <NavItem tab="inventory"     label={t('item_inventory') || 'Item Inventory'} icon="bi-list-check" isSub />
+                <NavItem tab="item-metadata" label={t('attributes') || 'Attributes'} icon="bi-tag" isSub />
               </>
+            )}
+            {hasPermission('inventory.manage') && (
+              <NavItem tab="batches" label="Batch / Lot" icon="bi-upc-scan" isSub />
+            )}
+            {hasPermission('inventory.manage') && (
+              <NavItem tab="stock-on-hand" label={t('stock_on_hand') || 'Stock On-Hand'} icon="bi-boxes" isSub />
+            )}
+            {hasPermission('inventory.manage') && (
+              <NavItem tab="booking-stock" label={t('booking_stock') || 'Booking Stock'} icon="bi-bookmark-check" isSub />
+            )}
+            {hasPermission('locations.manage') && (
+              <NavItem tab="locations" label={t('locations') || 'Locations'}     icon="bi-geo-alt" isSub />
             )}
           </>
         )}
@@ -388,30 +346,21 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         {/* ── Engineering ── */}
         {(hasPermission('manufacturing.manage') || hasPermission('work_order.manage')) && (
           <>
-            <div
-              style={hdrStyle(hovered === 'hdr-engineering')}
-              onClick={() => setEngineeringExpanded(!engineeringExpanded)}
-              {...H('hdr-engineering')}
-            >
+            <div style={hdrStyle(false)} {...H('hdr-engineering')}>
               <span><i className="bi bi-gear" /> {t('engineering') || 'Engineering'}</span>
-              {chevron(engineeringExpanded)}
             </div>
-            {engineeringExpanded && (
+            {hasPermission('manufacturing.manage') && (
               <>
-                {hasPermission('manufacturing.manage') && (
-                  <>
-                    <NavItem tab="bom"     label={t('bom') || 'BOM'}     icon="bi-diagram-3" isSub />
-                    <NavItem tab="routing" label={t('routing') || 'Routing'} icon="bi-shuffle" isSub />
-                  </>
-                )}
-                {hasPermission('work_order.manage') && (
-                  <>
-                    <NavItem tab="production-runs"      label="Production Runs"                                        icon="bi-collection-play" isSub />
-                    <NavItem tab="manufacturing-orders" label={t('manufacturing_orders') || 'Manufacturing Orders'} icon="bi-list-task" isSub />
-                    <NavItem tab="work-orders"          label={t('work_orders') || 'Work Orders'}                   icon="bi-tools" isSub />
-                    <NavItem tab="weaving-monitor"      label={t('weaving_monitor') || 'Weaving Monitor'}           icon="bi-speedometer2" isSub />
-                  </>
-                )}
+                <NavItem tab="bom"     label={t('bom') || 'BOM'}     icon="bi-diagram-3" isSub />
+                <NavItem tab="routing" label={t('routing') || 'Routing'} icon="bi-shuffle" isSub />
+              </>
+            )}
+            {hasPermission('work_order.manage') && (
+              <>
+                <NavItem tab="production-runs"      label="Production Runs"                                        icon="bi-collection-play" isSub />
+                <NavItem tab="manufacturing-orders" label={t('manufacturing_orders') || 'Manufacturing Orders'} icon="bi-list-task" isSub />
+                <NavItem tab="work-orders"          label={t('work_orders') || 'Work Orders'}                   icon="bi-tools" isSub />
+                <NavItem tab="weaving-monitor"      label={t('weaving_monitor') || 'Weaving Monitor'}           icon="bi-speedometer2" isSub />
               </>
             )}
           </>
@@ -420,42 +369,24 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         {/* ── Dyeing & Setting ── */}
         {hasPermission('manufacturing.manage') && (
           <>
-            <div
-              style={hdrStyle(hovered === 'hdr-dyeing')}
-              onClick={() => setDyeingExpanded(!dyeingExpanded)}
-              {...H('hdr-dyeing')}
-            >
+            <div style={hdrStyle(false)} {...H('hdr-dyeing')}>
               <span><i className="bi bi-droplet-half" /> Dyeing &amp; Setting</span>
-              {chevron(dyeingExpanded)}
             </div>
-            {dyeingExpanded && (
-              <>
-                <NavItem tab="dyeing-setting" label="Dyeing & Setting" icon="bi-palette" isSub />
-                <NavItem tab="lab-dips" label="Lab Dip Requests" icon="bi-droplet" isSub />
-                <NavItem tab="colors" label="Color Library" icon="bi-palette2" isSub />
-              </>
-            )}
+            <NavItem tab="dyeing-setting" label="Dyeing & Setting" icon="bi-palette" isSub />
+            <NavItem tab="lab-dips" label="Lab Dip Requests" icon="bi-droplet" isSub />
+            <NavItem tab="colors" label="Color Library" icon="bi-palette2" isSub />
           </>
         )}
 
         {/* ── Reports ── */}
         {hasPermission('reports.view') && (
           <>
-            <div
-              style={hdrStyle(hovered === 'hdr-reports')}
-              onClick={() => setReportsExpanded(!reportsExpanded)}
-              {...H('hdr-reports')}
-            >
+            <div style={hdrStyle(false)} {...H('hdr-reports')}>
               <span><i className="bi bi-bar-chart" /> {t('reports') || 'Reports'}</span>
-              {chevron(reportsExpanded)}
             </div>
-            {reportsExpanded && (
-              <>
-                <NavItem tab="reports"    label={t('stock_ledger') || 'Stock Ledger'} icon="bi-journal-text" isSub />
-                {hasPermission('admin.access') && (
-                  <NavItem tab="audit-logs" label="Audit Logs" icon="bi-clipboard-check" isSub />
-                )}
-              </>
+            <NavItem tab="reports"    label={t('stock_ledger') || 'Stock Ledger'} icon="bi-journal-text" isSub />
+            {hasPermission('admin.access') && (
+              <NavItem tab="audit-logs" label="Audit Logs" icon="bi-clipboard-check" isSub />
             )}
           </>
         )}
