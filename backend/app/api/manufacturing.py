@@ -25,6 +25,7 @@ from app.models.attribute import AttributeValue
 from app.models.auth import User
 from app.api.auth import get_current_user
 from app.models.item import Item
+from app.models.stock_balance import StockBalance
 from app.models.batch import Batch, BatchConsumption
 from app.api.batches import generate_batch_number
 from datetime import datetime
@@ -567,20 +568,23 @@ async def get_manufacturing_orders(
     mo_map = await load_mo_tree(db, root_ids)
     items_list = [mo_map[rid] for rid in root_ids if rid in mo_map]
 
-    requirements = []
+    # Plant-level material availability: sum on-hand across ALL locations per
+    # (item, variant), matching the location-agnostic netting model.
+    needed_item_ids = set()
     for item in items_list:
         populate_mo_ids(item)
-
         if item.status == "PENDING" and item.planned_components:
             for comp in item.planned_components:
-                check_loc_id = comp.source_location_id or item.source_location_id or item.location_id
-                requirements.append({
-                    "item_id": comp.item_id,
-                    "location_id": check_loc_id,
-                    "attribute_value_ids": comp.attribute_value_ids,
-                })
+                needed_item_ids.add(comp.item_id)
 
-    balances_map = await stock_service.get_batch_stock_balances(db, requirements) if requirements else {}
+    onhand_map: dict[tuple, float] = {}
+    if needed_item_ids:
+        for iid, vk, q in (await db.execute(
+            select(StockBalance.item_id, StockBalance.variant_key, func.sum(StockBalance.qty))
+            .where(StockBalance.item_id.in_(needed_item_ids))
+            .group_by(StockBalance.item_id, StockBalance.variant_key)
+        )).all():
+            onhand_map[(str(iid), vk or "")] = float(q or 0)
 
     for item in items_list:
         item.is_material_available = True
@@ -592,10 +596,8 @@ async def get_manufacturing_orders(
                 tol = float(item.bom.tolerance_percentage or 0) if item.bom else 0
                 if tol > 0: req *= (1 + (tol / 100))
 
-                check_loc_id = comp.source_location_id or item.source_location_id or item.location_id
                 v_key = ",".join(sorted(comp.attribute_value_ids))
-                key = (str(comp.item_id), str(check_loc_id), v_key)
-                if balances_map.get(key, 0) < req:
+                if onhand_map.get((str(comp.item_id), v_key), 0) < req:
                     item.is_material_available = False
                     break
 
@@ -623,20 +625,9 @@ async def update_manufacturing_order_status(mo_id: str, status: str, db: AsyncSe
         raise HTTPException(status_code=400, detail="Invalid status")
 
     if status == "IN_PROGRESS" and previous_status != "IN_PROGRESS":
-        for comp in mo.planned_components:
-            if not comp.percentage:
-                continue
-            check_loc_id = comp.source_location_id or mo.source_location_id
-            if not check_loc_id:
-                continue  # no explicit source location — skip; WO-level locations handle per-step tracking
-            req = (float(mo.qty) * float(comp.percentage)) / 100
-            tol = float(mo.bom.tolerance_percentage or 0) if mo.bom else 0
-            if tol > 0: req *= (1 + (tol / 100))
-
-            stock = await stock_service.get_stock_balance(db, comp.item_id, check_loc_id, [uuid.UUID(s) for s in comp.attribute_value_ids])
-            if stock < req:
-                raise HTTPException(status_code=400, detail=f"Insufficient stock for component {comp.item_id}")
-
+        # No stock gate at start. Material availability is decided at PR/MO creation
+        # (plant-level netting) and enforced physically at staging + completion
+        # (negative-stock guard). Starting an MO never requires stock to be on hand.
         mo.actual_start_date = datetime.utcnow()
 
     if status == "COMPLETED" and previous_status != "COMPLETED":

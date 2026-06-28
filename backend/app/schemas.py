@@ -496,8 +496,8 @@ class BookingStockRow(BaseModel):
     item_name: str
     uom: str
     attribute_value_ids: list[UUID]
-    location_id: UUID
-    location_name: str
+    location_id: UUID | None = None        # null = plant-wide (location-agnostic netting)
+    location_name: str = "Plant-wide"
     qty_on_hand: float       # current physical balance
     qty_required: float      # outstanding demand from ongoing MOs
     qty_incoming: float       # scheduled receipts from in-flight production MOs

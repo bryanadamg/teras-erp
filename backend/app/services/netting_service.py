@@ -58,43 +58,23 @@ class Availability:
         self.db = db
         self.exclude_pr_id = str(exclude_pr_id) if exclude_pr_id else None
         self.exclude_mo_ids = {str(m) for m in (exclude_mo_ids or [])}
-        self._demand: dict[tuple, float] = defaultdict(float)   # (item, vkey, loc) -> required
-        self._supply: dict[tuple, float] = defaultdict(float)   # (item, vkey, loc) -> incoming
-        self._leaves: dict[str, list[str]] = {}                 # loc_id -> [leaf loc ids]
+        self._demand: dict[tuple, float] = defaultdict(float)   # (item, vkey) -> required
+        self._supply: dict[tuple, float] = defaultdict(float)   # (item, vkey) -> incoming
         self._remaining: dict[tuple, float] = {}                # running free-stock ledger
 
     @classmethod
     async def create(cls, db: AsyncSession, exclude_pr_id=None, exclude_mo_ids=None) -> "Availability":
         self = cls(db, exclude_pr_id, exclude_mo_ids)
-        await self._load_locations()
         await self._load_open_demand()
         return self
 
-    async def _load_locations(self):
-        """Build a location -> leaf-descendants map (stock sits only in leaves)."""
-        rows = (await self.db.execute(select(Location.id, Location.parent_id))).all()
-        children: dict[str, list[str]] = defaultdict(list)
-        all_ids: list[str] = []
-        for lid, pid in rows:
-            sid = str(lid)
-            all_ids.append(sid)
-            if pid:
-                children[str(pid)].append(sid)
-
-        def leaves(loc: str) -> list[str]:
-            kids = children.get(loc)
-            if not kids:
-                return [loc]               # leaf (or unknown) -> itself
-            out: list[str] = []
-            for k in kids:
-                out.extend(leaves(k))
-            return out
-
-        self._leaves = {lid: leaves(lid) for lid in all_ids}
-
     async def _load_open_demand(self):
         """Aggregate outstanding component demand + own-output supply from every
-        open MO, EXCLUDING the unit being planned."""
+        open MO, EXCLUDING the unit being planned.
+
+        Plant-level (location-agnostic) netting: supply and demand are keyed by
+        (item, variant) only. Where the stock physically sits is irrelevant to the
+        make-vs-stock decision — that is an execution/staging concern."""
         mos = (await self.db.execute(
             select(ManufacturingOrder)
             .where(ManufacturingOrder.status.in_(ONGOING))
@@ -120,34 +100,33 @@ class Availability:
                 if not comp.percentage and not comp.qty:
                     continue
                 req = (outstanding * float(comp.percentage)) / 100 if comp.percentage else outstanding * float(comp.qty)
-                loc = comp.source_location_id or mo.source_location_id or mo.location_id
                 vkey = _generate_variant_key([str(a) for a in (comp.attribute_value_ids or [])])
-                self._demand[(str(comp.item_id), vkey, str(loc))] += req
+                self._demand[(str(comp.item_id), vkey)] += req
 
             # Supply: this MO's own outstanding output is a scheduled receipt.
-            out_loc = mo.location_id
             out_vkey = _generate_variant_key([str(v.id) for v in mo.attribute_values])
-            self._supply[(str(mo.item_id), out_vkey, str(out_loc))] += outstanding
+            self._supply[(str(mo.item_id), out_vkey)] += outstanding
 
-    async def _on_hand(self, item_id: str, vkey: str, loc_id: str) -> float:
-        """Physical on-hand of (item, variant), summed across the location's leaf spots."""
-        leaf_ids = self._leaves.get(loc_id, [loc_id])
+    async def _on_hand(self, item_id: str, vkey: str) -> float:
+        """Physical on-hand of (item, variant), summed across ALL stock locations
+        (single-plant scope)."""
         total = (await self.db.execute(
             select(func.sum(StockBalance.qty)).where(
                 StockBalance.item_id == item_id,
-                StockBalance.location_id.in_(leaf_ids),
                 StockBalance.variant_key == vkey,
             )
         )).scalar()
         return float(total or 0.0)
 
-    async def _net_free(self, item_id: str, vkey: str, loc_id: str) -> float:
-        on_hand = await self._on_hand(item_id, vkey, loc_id)
-        key = (item_id, vkey, loc_id)
+    async def _net_free(self, item_id: str, vkey: str) -> float:
+        on_hand = await self._on_hand(item_id, vkey)
+        key = (item_id, vkey)
         return on_hand + self._supply.get(key, 0.0) - self._demand.get(key, 0.0)
 
     async def consume_detailed(self, item_id, attribute_value_ids, location_id, gross_req: float):
-        """Dry-run variant of consume() for the creation preview.
+        """Dry-run variant of consume() for the creation preview. ``location_id``
+        is accepted for caller compatibility / display only — it is NOT part of the
+        netting key (plant-level netting).
 
         Returns (net_qty, detail). ``detail`` carries the figures the UI shows:
         on_hand, incoming, required_other, net_free (original for the key),
@@ -158,13 +137,12 @@ class Availability:
                  "net_free": 0.0, "free_before": 0.0, "covered": 0.0}
         if gross_req <= 0:
             return 0.0, empty
-        if item_id is None or location_id is None:
+        if item_id is None:
             return gross_req, empty
         item_s = str(item_id)
         vkey = _generate_variant_key([str(a) for a in (attribute_value_ids or [])])
-        loc_s = str(location_id)
-        key = (item_s, vkey, loc_s)
-        on_hand = await self._on_hand(item_s, vkey, loc_s)
+        key = (item_s, vkey)
+        on_hand = await self._on_hand(item_s, vkey)
         incoming = self._supply.get(key, 0.0)
         required = self._demand.get(key, 0.0)
         net_free = on_hand + incoming - required
@@ -180,6 +158,8 @@ class Availability:
 
     async def consume(self, item_id, attribute_value_ids, location_id, gross_req: float) -> float:
         """Net ``gross_req`` against the running free-stock balance for this node.
+        ``location_id`` is accepted for caller compatibility only — plant-level
+        netting ignores it.
 
         Returns the qty to actually MAKE: 0.0 means fully covered by stock (the
         caller should skip the MO and its sub-tree); a smaller-than-gross value
@@ -188,14 +168,13 @@ class Availability:
         """
         if gross_req <= 0:
             return 0.0
-        if item_id is None or location_id is None:
-            return gross_req  # no scoped item/location -> cannot net, make full
+        if item_id is None:
+            return gross_req  # no scoped item -> cannot net, make full
         item_s = str(item_id)
         vkey = _generate_variant_key([str(a) for a in (attribute_value_ids or [])])
-        loc_s = str(location_id)
-        key = (item_s, vkey, loc_s)
+        key = (item_s, vkey)
         if key not in self._remaining:
-            self._remaining[key] = await self._net_free(item_s, vkey, loc_s)
+            self._remaining[key] = await self._net_free(item_s, vkey)
         free = self._remaining[key]
         if free <= 0:
             return gross_req
@@ -320,8 +299,10 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
             sub_bom = await _active_sub_bom(db, line.item_id)
             if not sub_bom:
                 continue
-            src = line.source_location_id or (source_location.id if source_location else location.id)
-            key = (str(line.item_id), str(sub_bom.id), str(src))
+            src = line.source_location_id or (source_location.id if source_location else (location.id if location else None))
+            # Plant-level netting: consolidate by (item, sub_bom) only — location is
+            # not part of the key. src is kept just for the display label.
+            key = (str(line.item_id), str(sub_bom.id))
             if key not in demand:
                 demand[key] = {"sub_bom": sub_bom, "src": src, "total": 0.0,
                                "attrs": [str(v.id) for v in sub_bom.attribute_values]}

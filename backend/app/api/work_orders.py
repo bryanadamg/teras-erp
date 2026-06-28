@@ -10,6 +10,7 @@ from app.models.routing import WorkCenter
 from app.models.item import Item
 from app.models.location import Location
 from app.models.stock_ledger import StockLedger
+from app.models.stock_balance import StockBalance
 from app.models.dyeing_setting import DyeRecipe, DyeingRun, dye_recipe_attribute_values
 from app.schemas import WorkOrderCreate, WorkOrderResponse, WORequiredMaterial, WOStagePayload
 from app.models.auth import User
@@ -539,6 +540,20 @@ async def _wo_required_rows(db: AsyncSession, wo: WorkOrder, mo: ManufacturingOr
         on_hand = await stock_service.get_stock_balance(db, c.item_id, src, attrs) if src else 0.0
         staged = staged_by_item.get(str(c.item_id), 0.0)
         it = items.get(str(c.item_id))
+        # "Needs a batch pick" = the item is lot_tracked OR it physically sits as
+        # batch stock at the source (e.g. a beam — batch-tracked but lot_tracked=false).
+        # Staging such an item without a batch would corrupt the batch_key="" balance.
+        batch_required = bool(it and it.lot_tracked)
+        if not batch_required and src:
+            bcount = await db.execute(
+                select(func.count()).select_from(StockBalance).where(
+                    StockBalance.item_id == c.item_id,
+                    StockBalance.location_id == src,
+                    StockBalance.batch_key != "",
+                    StockBalance.qty > 0,
+                )
+            )
+            batch_required = (bcount.scalar() or 0) > 0
         rows.append(WORequiredMaterial(
             item_id=c.item_id,
             item_code=it.code if it else None,
@@ -550,7 +565,7 @@ async def _wo_required_rows(db: AsyncSession, wo: WorkOrder, mo: ManufacturingOr
             on_hand=float(on_hand),
             staged=staged,
             shortfall=max(0.0, req - staged),
-            lot_tracked=bool(it and it.lot_tracked),
+            lot_tracked=batch_required,
         ))
     return rows
 
@@ -609,6 +624,13 @@ async def stage_wo_materials(
         src = line.source_location_id or rr.source_location_id
         if not src:
             raise HTTPException(status_code=422, detail=f"No source location for {rr.item_code or line.item_id}")
+        # Batch-tracked material (lot or beam) must be staged against a specific batch,
+        # else the transfer hits the batch_key="" balance and corrupts batch stock.
+        if rr.lot_tracked and not line.batch_id:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Select a lot/beam for {rr.item_code or line.item_id} — it is batch-tracked",
+            )
         attrs = [str(a) for a in (line.attribute_value_ids or rr.attribute_value_ids or [])]
 
         # Two-sided transfer: out of source store, into the WO's input location.

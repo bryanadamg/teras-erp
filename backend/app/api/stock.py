@@ -10,6 +10,7 @@ from app.models.auth import User
 from app.api.auth import get_current_user
 from app.models.item import Item
 from app.models.location import Location
+from app.models.stock_balance import StockBalance
 from datetime import datetime
 from typing import Optional
 
@@ -272,8 +273,10 @@ async def get_stock_availability(
 
     Demand is OUTSTANDING-based: a component is scaled by the MO's remaining
     output (MO.qty - completed), so already-produced quantity stops counting.
-    Rows are keyed by (item, variant, location), mirroring the per-Production-Run
-    material-requirements endpoint but spanning the whole shop floor.
+
+    Plant-level (location-agnostic) netting: rows are keyed by (item, variant);
+    on-hand is summed across ALL stock locations. The ``location_id`` query param
+    is retained for API compatibility but no longer scopes the result.
     """
     from collections import defaultdict
     from uuid import UUID
@@ -292,7 +295,7 @@ async def get_stock_availability(
         )
     )).unique().scalars().all()
 
-    # demand keyed (item_id, attr_key, location_id); supply same key space.
+    # demand + supply keyed by (item_id, attr_key) only — no location.
     demand: dict[tuple, dict] = defaultdict(lambda: {"total_required": 0.0, "contributions": []})
     supply: dict[tuple, dict] = defaultdict(lambda: {"total_incoming": 0.0, "contributions": []})
 
@@ -311,60 +314,48 @@ async def get_stock_availability(
             req = (outstanding * float(comp.percentage)) / 100 if comp.percentage else outstanding * float(comp.qty)
             if tol > 0:
                 req *= (1 + tol / 100)
-            loc = comp.source_location_id or mo.source_location_id or mo.location_id
-            if location_id and str(loc) != str(location_id):
-                continue
             attr_ids = sorted(str(a) for a in (comp.attribute_value_ids or []))
-            key = (str(comp.item_id), ",".join(attr_ids), str(loc))
+            key = (str(comp.item_id), ",".join(attr_ids))
             d = demand[key]
             d["item_id"] = comp.item_id
             d["attr_ids"] = attr_ids
-            d["location_id"] = loc
             d["total_required"] += req
             d["contributions"].append(BookingDemandMO(
                 mo_id=mo.id, mo_code=mo.code, mo_qty=float(mo.qty), required_qty=req,
             ))
 
         # ── Supply: this MO's own outstanding output is a scheduled receipt ──
-        out_loc = mo.location_id
-        if not (location_id and str(out_loc) != str(location_id)):
-            out_attr = sorted(str(v.id) for v in mo.attribute_values)
-            skey = (str(mo.item_id), ",".join(out_attr), str(out_loc))
-            s = supply[skey]
-            s["total_incoming"] += outstanding
-            s["contributions"].append(BookingSupplyMO(
-                mo_id=mo.id, mo_code=mo.code, mo_qty=float(mo.qty), incoming_qty=outstanding,
-            ))
+        out_attr = sorted(str(v.id) for v in mo.attribute_values)
+        skey = (str(mo.item_id), ",".join(out_attr))
+        s = supply[skey]
+        s["total_incoming"] += outstanding
+        s["contributions"].append(BookingSupplyMO(
+            mo_id=mo.id, mo_code=mo.code, mo_qty=float(mo.qty), incoming_qty=outstanding,
+        ))
 
     if not demand:
         return []
 
-    # Display lookups: item code/name/uom + location name.
+    # Display lookups: item code/name/uom.
     item_ids = {v["item_id"] for v in demand.values()}
     item_map = {i.id: i for i in (await db.execute(
         select(Item).filter(Item.id.in_(item_ids))
     )).scalars().all()}
 
-    loc_ids = {v["location_id"] for v in demand.values()}
-    loc_map = {}
-    if loc_ids:
-        for lid, nm in (await db.execute(
-            select(Location.id, Location.name).where(Location.id.in_(loc_ids))
-        )).all():
-            loc_map[lid] = nm
-
-    # Batch on-hand lookup (same shape the PR material-requirements endpoint uses).
-    requirements = [
-        {"item_id": v["item_id"], "location_id": v["location_id"], "attribute_value_ids": v["attr_ids"]}
-        for v in demand.values()
-    ]
-    balances_map = await stock_service.get_batch_stock_balances(db, requirements)
+    # Plant-wide on-hand: sum StockBalance across ALL locations per (item, variant_key).
+    onhand_map: dict[tuple, float] = {}
+    for iid, vk, q in (await db.execute(
+        select(StockBalance.item_id, StockBalance.variant_key, func.sum(StockBalance.qty))
+        .where(StockBalance.item_id.in_(item_ids))
+        .group_by(StockBalance.item_id, StockBalance.variant_key)
+    )).all():
+        onhand_map[(str(iid), vk or "")] = float(q or 0)
 
     rows: list[BookingStockRow] = []
-    for (item_id_str, attr_key, loc_id_str), data in demand.items():
+    for (item_id_str, attr_key), data in demand.items():
         item = item_map.get(data["item_id"])
-        on_hand = balances_map.get((item_id_str, loc_id_str, attr_key), 0.0)
-        sup = supply.get((item_id_str, attr_key, loc_id_str))
+        on_hand = onhand_map.get((item_id_str, attr_key), 0.0)
+        sup = supply.get((item_id_str, attr_key))
         incoming = sup["total_incoming"] if sup else 0.0
         required = data["total_required"]
         rows.append(BookingStockRow(
@@ -373,8 +364,8 @@ async def get_stock_availability(
             item_name=item.name if item else str(data["item_id"]),
             uom=item.uom if item else "",
             attribute_value_ids=[UUID(a) for a in data["attr_ids"]],
-            location_id=data["location_id"],
-            location_name=loc_map.get(data["location_id"], ""),
+            location_id=None,
+            location_name="Plant-wide",
             qty_on_hand=on_hand,
             qty_required=required,
             qty_incoming=incoming,

@@ -95,11 +95,11 @@ async def _create_consolidated_component_mos(
             if not sub_bom:
                 continue
 
-            # Resolve to the output location when no explicit source — mirrors how
-            # MO.source_location_id resolves (source_location_id or location_id), so
-            # netting scopes to the same location the MO will actually use.
-            src_loc_id = line.source_location_id or (source_location.id if source_location else location.id)
-            key = (str(line.item_id), str(sub_bom.id), str(src_loc_id))
+            # Source kept only as the component MO's default source (and staging
+            # cascade). Plant-level netting consolidates by (item, sub_bom) alone —
+            # location is not part of the key.
+            src_loc_id = line.source_location_id or (source_location.id if source_location else (location.id if location else None))
+            key = (str(line.item_id), str(sub_bom.id))
 
             if key not in demand:
                 demand[key] = {
