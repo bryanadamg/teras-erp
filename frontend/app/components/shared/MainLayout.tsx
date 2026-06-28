@@ -64,6 +64,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             '/manufacturing-orders', '/work-orders', '/dyeing-setting', '/lab-dips', '/colors',
             '/sales-orders', '/packaging', '/customers', '/samples', '/purchase-orders',
             '/suppliers', '/reports',
+            '/sections/sales', '/sections/procurement', '/sections/inventory',
+            '/sections/engineering', '/sections/dyeing', '/sections/reports',
         ];
         const id = setTimeout(() => { routes.forEach(r => { try { router.prefetch(r); } catch {} }); }, 1500);
         return () => clearTimeout(id);
@@ -90,9 +92,16 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     // Map pathname to activeTab for Sidebar highlighting
     const activeTab = !pathname || pathname === '/' ? 'dashboard' : pathname.substring(1).replace(/\//g, '-');
 
-    // Page title: prefer i18n label, fall back to the URL slug
+    // Page title: prefer i18n label, fall back to the URL slug.
+    // Section-home routes (/sections/<key>) have no i18n key — map them explicitly.
+    const SECTION_LABELS: Record<string, string> = {
+        sales: 'Sales', procurement: 'Procurement', inventory: 'Inventory',
+        engineering: 'Engineering', dyeing: 'Dyeing & Setting', reports: 'Reports',
+    };
     const tabKey = activeTab.replace(/-/g, '_');
-    const pageTitle = t(tabKey) !== tabKey ? t(tabKey) : activeTab.replace(/-/g, ' ');
+    const pageTitle = activeTab.startsWith('sections-')
+        ? (SECTION_LABELS[activeTab.slice('sections-'.length)] || activeTab.replace(/-/g, ' '))
+        : (t(tabKey) !== tabKey ? t(tabKey) : activeTab.replace(/-/g, ' '));
 
     const handleSetActiveTab = (tab: string) => {
         const route = tab === 'dashboard' ? '/' : `/${tab}`;

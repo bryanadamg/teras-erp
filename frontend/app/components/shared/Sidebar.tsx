@@ -69,7 +69,9 @@ function sectionHdrStyle(isHovered: boolean): React.CSSProperties {
     borderTop: '1px solid #7090cc',
     borderBottom: `1px solid ${HDR_BORDER_B}`,
     display: 'flex',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    cursor: 'pointer',
     userSelect: 'none' as const,
     fontFamily: xpFont,
     transition: 'background 0.08s',
@@ -128,7 +130,9 @@ function sectionHdrStyleModern(isHovered: boolean): React.CSSProperties {
     letterSpacing: '0.6px',
     textTransform: 'uppercase' as const,
     display: 'flex',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    cursor: 'pointer',
     userSelect: 'none' as const,
     fontFamily: modernFont,
     transition: 'color 0.12s',
@@ -197,6 +201,18 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
       <span>{label}</span>
     </div>
   );
+
+  // Section header — clickable, navigates to that section's home mini-dashboard.
+  const SectionHeader = ({ sectionKey, icon, label }: { sectionKey: string; icon: string; label: string }) => {
+    const navKey = `sections/${sectionKey}`;
+    const active = activeTab === `sections-${sectionKey}`;
+    return (
+      <div style={hdrStyle(hovered === navKey || active)} onClick={() => setActiveTab(navKey)} {...H(navKey)}>
+        <span><i className={`bi ${icon}`} /> {label}</span>
+        <i className="bi bi-chevron-right" style={{ fontSize: 9, opacity: classic ? 0.7 : 0.45 }} aria-hidden="true" />
+      </div>
+    );
+  };
 
   return (
     <div
@@ -301,27 +317,21 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         <NavItem tab="dashboard" label={t('dashboard') || 'Dashboard'} icon="bi-house-door" />
 
         {/* ── Sales ── */}
-        <div style={hdrStyle(false)} {...H('hdr-sales')}>
-          <span><i className="bi bi-graph-up" /> {t('sales') || 'Sales'}</span>
-        </div>
+        <SectionHeader sectionKey="sales" icon="bi-graph-up" label={t('sales') || 'Sales'} />
         <NavItem tab="sales-orders" label={t('sales_orders') || 'Sales Orders'} icon="bi-file-text" isSub />
         <NavItem tab="packaging"    label="Packaging"                             icon="bi-box2"    isSub />
         <NavItem tab="customers"    label={t('customers') || 'Customers'}        icon="bi-people" isSub />
         <NavItem tab="samples"      label={t('sample_requests') || 'Sample Requests'} icon="bi-flask" isSub />
 
         {/* ── Procurement ── */}
-        <div style={hdrStyle(false)} {...H('hdr-procurement')}>
-          <span><i className="bi bi-cart3" /> {t('procurement') || 'Procurement'}</span>
-        </div>
+        <SectionHeader sectionKey="procurement" icon="bi-cart3" label={t('procurement') || 'Procurement'} />
         <NavItem tab="purchase-orders" label={t('purchase_orders') || 'Purchase Orders'} icon="bi-bag" isSub />
         <NavItem tab="suppliers"        label={t('suppliers') || 'Suppliers'}              icon="bi-truck" isSub />
 
         {/* ── Inventory ── */}
         {(hasPermission('inventory.manage') || hasPermission('stock.entry') || hasPermission('locations.manage')) && (
           <>
-            <div style={hdrStyle(false)} {...H('hdr-inventory')}>
-              <span><i className="bi bi-box-seam" /> {t('inventory') || 'Inventory'}</span>
-            </div>
+            <SectionHeader sectionKey="inventory" icon="bi-box-seam" label={t('inventory') || 'Inventory'} />
             {hasPermission('inventory.manage') && (
               <>
                 <NavItem tab="inventory"     label={t('item_inventory') || 'Item Inventory'} icon="bi-list-check" isSub />
@@ -346,9 +356,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         {/* ── Engineering ── */}
         {(hasPermission('manufacturing.manage') || hasPermission('work_order.manage')) && (
           <>
-            <div style={hdrStyle(false)} {...H('hdr-engineering')}>
-              <span><i className="bi bi-gear" /> {t('engineering') || 'Engineering'}</span>
-            </div>
+            <SectionHeader sectionKey="engineering" icon="bi-gear" label={t('engineering') || 'Engineering'} />
             {hasPermission('manufacturing.manage') && (
               <>
                 <NavItem tab="bom"     label={t('bom') || 'BOM'}     icon="bi-diagram-3" isSub />
@@ -369,9 +377,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         {/* ── Dyeing & Setting ── */}
         {hasPermission('manufacturing.manage') && (
           <>
-            <div style={hdrStyle(false)} {...H('hdr-dyeing')}>
-              <span><i className="bi bi-droplet-half" /> Dyeing &amp; Setting</span>
-            </div>
+            <SectionHeader sectionKey="dyeing" icon="bi-droplet-half" label="Dyeing & Setting" />
             <NavItem tab="dyeing-setting" label="Dyeing & Setting" icon="bi-palette" isSub />
             <NavItem tab="lab-dips" label="Lab Dip Requests" icon="bi-droplet" isSub />
             <NavItem tab="colors" label="Color Library" icon="bi-palette2" isSub />
@@ -381,9 +387,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         {/* ── Reports ── */}
         {hasPermission('reports.view') && (
           <>
-            <div style={hdrStyle(false)} {...H('hdr-reports')}>
-              <span><i className="bi bi-bar-chart" /> {t('reports') || 'Reports'}</span>
-            </div>
+            <SectionHeader sectionKey="reports" icon="bi-bar-chart" label={t('reports') || 'Reports'} />
             <NavItem tab="reports"    label={t('stock_ledger') || 'Stock Ledger'} icon="bi-journal-text" isSub />
             {hasPermission('admin.access') && (
               <NavItem tab="audit-logs" label="Audit Logs" icon="bi-clipboard-check" isSub />
