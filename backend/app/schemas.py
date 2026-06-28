@@ -360,6 +360,7 @@ class ManufacturingOrderResponse(BaseModel):
     parent_mo_id: UUID | None = None
     production_run_id: UUID | None = None
     bom_size_id: UUID | None = None
+    bom_size_snapshot: dict | None = None
     is_shared_component: bool = False
     attribute_value_ids: list[UUID] = []
     location_id: UUID | None = None

@@ -99,8 +99,9 @@ class ManufacturingOrder(Base):
         UUID(as_uuid=True), ForeignKey("production_runs.id"), nullable=True, index=True
     )
     bom_size_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("bom_sizes.id"), nullable=True
+        UUID(as_uuid=True), ForeignKey("bom_sizes.id", ondelete="SET NULL"), nullable=True
     )
+    bom_size_snapshot: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     # Relationships
     bom = relationship("BOM", back_populates="manufacturing_orders")

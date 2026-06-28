@@ -11,6 +11,7 @@ from app.models.size import Size
 from app.models.item import Item
 from app.models.location import Location
 from app.models.routing import WorkCenter, Operation
+from app.models.production_run import PRBomEntrySize
 from app.schemas import BOMCreate, BOMUpdate, BOMResponse, BOMSummaryResponse, BOMTreeResponse, SizeResponse, BOMAutomatorProfileCreate, BOMAutomatorProfileResponse
 from app.models.auth import User, BOMAutomatorProfile
 from app.api.auth import get_current_user
@@ -538,22 +539,43 @@ async def update_bom(
                 bom_line.attribute_values = av_result.scalars().all()
             db.add(bom_line)
 
-    # Replace sizes if provided
+    # Upsert sizes: update in-place to preserve IDs referenced by MOs/PRs/SOs
     if payload.sizes is not None:
-        for sz in list(bom.sizes):
-            await db.delete(sz)
-        await db.flush()
+        existing_by_key: dict = {}
+        for sz in bom.sizes:
+            key = str(sz.size_id) if sz.size_id else (sz.label or "")
+            existing_by_key[key] = sz
+
+        payload_keys: set = set()
         for sc in payload.sizes:
             if sc.target_measurement is None and sc.measurement_min is None and sc.measurement_max is None:
                 continue
-            db.add(BOMSize(
-                bom_id=bom.id,
-                size_id=sc.size_id,
-                label=sc.label,
-                target_measurement=sc.target_measurement,
-                measurement_min=sc.measurement_min,
-                measurement_max=sc.measurement_max,
-            ))
+            key = str(sc.size_id) if sc.size_id else (sc.label or "")
+            payload_keys.add(key)
+            if key in existing_by_key:
+                sz = existing_by_key[key]
+                sz.target_measurement = sc.target_measurement
+                sz.measurement_min = sc.measurement_min
+                sz.measurement_max = sc.measurement_max
+                sz.label = sc.label
+            else:
+                db.add(BOMSize(
+                    bom_id=bom.id,
+                    size_id=sc.size_id,
+                    label=sc.label,
+                    target_measurement=sc.target_measurement,
+                    measurement_min=sc.measurement_min,
+                    measurement_max=sc.measurement_max,
+                ))
+
+        for key, sz in existing_by_key.items():
+            if key in payload_keys:
+                continue
+            # PRBomEntrySize has no cascade/SET NULL — skip delete if referenced
+            ref_pr = await db.execute(select(PRBomEntrySize.id).filter(PRBomEntrySize.bom_size_id == sz.id).limit(1))
+            if ref_pr.first():
+                continue
+            await db.delete(sz)
 
     await db.commit()
 

@@ -561,19 +561,20 @@ export default function ManufacturingView({
       }
   };
 
-  const getBomSizeLabel = (bomId: string, bomSizeId: string): string => {
-      const bom = boms.find((b: any) => b.id === bomId);
-      if (!bom) return '';
-      const bs = (bom.sizes || []).find((s: any) => s.id === bomSizeId);
-      if (!bs) return '';
+  const getBomSizeLabel = (bomId: string, bomSizeId: string, snapshot?: any): string => {
+      const src = snapshot || (() => {
+          const bom = boms.find((b: any) => b.id === bomId);
+          return bom ? (bom.sizes || []).find((s: any) => s.id === bomSizeId) : null;
+      })();
+      if (!src) return '';
       const parts: string[] = [];
-      const sizeName = bs.size_name || bs.size?.name;
+      const sizeName = src.size_name || src.size?.name;
       if (sizeName) parts.push(sizeName);
-      if (bs.label) parts.push(bs.label);
-      if (bs.target_measurement != null) {
-          let meas = `${parseFloat(bs.target_measurement)}`;
-          if (bs.measurement_min != null && bs.measurement_max != null) {
-              meas += ` (${parseFloat(bs.measurement_min)}–${parseFloat(bs.measurement_max)})`;
+      if (src.label) parts.push(src.label);
+      if (src.target_measurement != null) {
+          let meas = `${parseFloat(src.target_measurement)}`;
+          if (src.measurement_min != null && src.measurement_max != null) {
+              meas += ` (${parseFloat(src.measurement_min)}–${parseFloat(src.measurement_max)})`;
           }
           parts.push(meas + ' cm');
       }
@@ -875,8 +876,8 @@ export default function ManufacturingView({
                                                       {getAttributeValueName(id)}
                                                   </span>
                                               ))}
-                                              {node.bom_size_id && (() => {
-                                                  const label = getBomSizeLabel(node.bom_id, node.bom_size_id);
+                                              {(node.bom_size_id || node.bom_size_snapshot) && (() => {
+                                                  const label = getBomSizeLabel(node.bom_id, node.bom_size_id, node.bom_size_snapshot);
                                                   return label ? (
                                                       <span style={{ fontSize: '8px', padding: '0 4px', background: isActive ? 'rgba(220,252,231,0.25)' : '#dcfce7', color: isActive ? '#bbf7d0' : '#15803d', borderRadius: 2, fontWeight: 700, lineHeight: '14px' }}>
                                                           <i className="bi bi-rulers me-1" style={{ fontSize: '7px' }}></i>{label}
@@ -919,8 +920,8 @@ export default function ManufacturingView({
                               <i className="bi bi-pencil"></i>
                           </button>
                       )}
-                      {selectedNode.bom_size_id && (() => {
-                          const label = getBomSizeLabel(selectedNode.bom_id, selectedNode.bom_size_id);
+                      {(selectedNode.bom_size_id || selectedNode.bom_size_snapshot) && (() => {
+                          const label = getBomSizeLabel(selectedNode.bom_id, selectedNode.bom_size_id, selectedNode.bom_size_snapshot);
                           return label ? (
                               <span style={{ fontSize: '9px', padding: '1px 6px', background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: 2, fontWeight: 700 }}>
                                   <i className="bi bi-rulers me-1"></i>{label}

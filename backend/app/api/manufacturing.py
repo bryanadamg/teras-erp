@@ -350,6 +350,22 @@ async def create_mo_recursive(
     db.add(mo)
     await db.flush()
 
+    # Snapshot BOM size spec at creation time
+    if bom_size_id and parent_mo_id is None:
+        from app.models.size import Size
+        sz_result = await db.execute(
+            select(BOMSize).options(joinedload(BOMSize.size)).filter(BOMSize.id == bom_size_id)
+        )
+        bom_sz = sz_result.unique().scalars().first()
+        if bom_sz:
+            mo.bom_size_snapshot = {
+                "size_name": bom_sz.size.name if bom_sz.size else None,
+                "label": bom_sz.label,
+                "target_measurement": float(bom_sz.target_measurement) if bom_sz.target_measurement is not None else None,
+                "measurement_min": float(bom_sz.measurement_min) if bom_sz.measurement_min is not None else None,
+                "measurement_max": float(bom_sz.measurement_max) if bom_sz.measurement_max is not None else None,
+            }
+
     # Snapshot BOM lines at creation time so future BOM edits don't affect this MO
     await _snapshot_bom_lines(db, mo, bom)
 
