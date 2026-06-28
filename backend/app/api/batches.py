@@ -10,6 +10,8 @@ from app.models.work_order import WorkOrder
 from app.models.manufacturing import ManufacturingOrder
 from app.models.production_run import ProductionRun
 from app.models.sales import SalesOrder
+from app.models.goods_receipt import GoodsReceipt, GoodsReceiptLine
+from app.models.purchase import PurchaseOrder
 from app.schemas import BatchCreate, BatchResponse, BatchTraceResponse, BatchConsumptionResponse, BatchTraceBackNode
 from app.api.auth import get_current_user
 from app.models.auth import User
@@ -18,6 +20,28 @@ from datetime import datetime, timezone
 import uuid
 
 router = APIRouter(prefix="/batches", tags=["batches"])
+
+
+async def _resolve_gr_origins(db: AsyncSession, batches: list[Batch]) -> None:
+    """Populate po_id / po_number on GR-received batches (source_wo_id is None, batch_number starts GR-)."""
+    gr_batches = [b for b in batches if not b.source_wo_id and b.batch_number.startswith("GR-")]
+    if not gr_batches:
+        return
+    batch_ids = [b.id for b in gr_batches]
+    rows = await db.execute(
+        select(GoodsReceiptLine.batch_id, PurchaseOrder.id, PurchaseOrder.po_number)
+        .join(GoodsReceipt, GoodsReceipt.id == GoodsReceiptLine.receipt_id)
+        .join(PurchaseOrder, PurchaseOrder.id == GoodsReceipt.po_id)
+        .filter(GoodsReceiptLine.batch_id.in_(batch_ids))
+    )
+    po_map: dict = {}
+    for batch_id, po_id, po_number in rows.all():
+        po_map[batch_id] = {"po_id": po_id, "po_number": po_number}
+    for b in gr_batches:
+        info = po_map.get(b.id)
+        if info:
+            for k, v in info.items():
+                setattr(b, k, v)
 
 
 async def _resolve_batch_origins(db: AsyncSession, batches: list[Batch]) -> None:
@@ -151,6 +175,7 @@ async def list_batches(
         b.remaining = remaining_map.get(str(b.id), 0.0)
         b.item_code = b.item.code if b.item else None
         b.item_name = b.item.name if b.item else None
+    await _resolve_gr_origins(db, list(batches))
     await _resolve_batch_origins(db, list(batches))
     return batches
 
@@ -167,6 +192,7 @@ async def get_batch(
         raise HTTPException(status_code=404, detail="Lot not found")
     batch.item_code = batch.item.code if batch.item else None
     batch.item_name = batch.item.name if batch.item else None
+    await _resolve_gr_origins(db, [batch])
     await _resolve_batch_origins(db, [batch])
     return batch
 
@@ -210,9 +236,37 @@ async def trace_batch_forward(
     )
     consumptions = consumptions_result.scalars().all()
 
+    # Resolve MO codes and output batch numbers
+    mo_ids = [c.manufacturing_order_id for c in consumptions]
+    out_batch_ids = [c.output_batch_id for c in consumptions if c.output_batch_id]
+
+    mo_code_map: dict = {}
+    if mo_ids:
+        mo_rows = await db.execute(
+            select(ManufacturingOrder.id, ManufacturingOrder.code)
+            .filter(ManufacturingOrder.id.in_(mo_ids))
+        )
+        mo_code_map = {str(r[0]): r[1] for r in mo_rows.all()}
+
+    out_batch_map: dict = {}
+    if out_batch_ids:
+        out_rows = await db.execute(
+            select(Batch.id, Batch.batch_number)
+            .filter(Batch.id.in_(out_batch_ids))
+        )
+        out_batch_map = {str(r[0]): r[1] for r in out_rows.all()}
+
+    enriched = []
+    for c in consumptions:
+        resp = BatchConsumptionResponse.model_validate(c)
+        resp.mo_code = mo_code_map.get(str(c.manufacturing_order_id))
+        if c.output_batch_id:
+            resp.output_batch_number = out_batch_map.get(str(c.output_batch_id))
+        enriched.append(resp)
+
     return BatchTraceResponse(
         batch=BatchResponse.model_validate(batch),
-        consumptions=[BatchConsumptionResponse.model_validate(c) for c in consumptions],
+        consumptions=enriched,
     )
 
 

@@ -8,6 +8,7 @@ import { useConfirm } from '../../context/ConfirmContext';
 interface Batch {
   id: string;
   batch_number: string;
+  vendor_lot: string | null;
   item_id: string;
   item_code: string | null;
   item_name: string | null;
@@ -17,17 +18,22 @@ interface Batch {
   ends: number | null;
   source_wo_id: string | null;
   remaining: number | null;
-  // Origin lineage (beam batches): resolved from source_wo_id → WO → MO → PR/SO
+  // Production origin (beam batches)
   mo_code: string | null;
   production_run_code: string | null;
   sales_order_code: string | null;
+  // GR origin
+  po_id: string | null;
+  po_number: string | null;
 }
 
 interface BatchConsumption {
   id: string;
   manufacturing_order_id: string;
+  mo_code: string | null;
   input_batch_id: string;
   output_batch_id: string | null;
+  output_batch_number: string | null;
   qty_consumed: number;
   created_at: string;
 }
@@ -41,6 +47,12 @@ interface Item {
   id: string;
   code: string;
   name: string;
+}
+
+interface RowTraceState {
+  trace: BatchTrace | null;
+  traceBack: any | null;
+  loading: boolean;
 }
 
 interface BatchesViewProps {
@@ -66,13 +78,9 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
   const [createNotes, setCreateNotes] = useState('');
   const [creating, setCreating] = useState(false);
 
-  // Trace modal
-  const [traceData, setTraceData] = useState<BatchTrace | null>(null);
-  const [traceLoading, setTraceLoading] = useState(false);
-
-  // Trace-back (genealogy) modal
-  const [traceBackData, setTraceBackData] = useState<any | null>(null);
-  const [traceBackLoading, setTraceBackLoading] = useState(false);
+  // Expandable row trace state
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+  const [rowTraceData, setRowTraceData] = useState<Record<string, RowTraceState>>({});
 
   const fetchBatches = async () => {
     setLoading(true);
@@ -128,27 +136,18 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
     else showToast('Delete failed', 'danger');
   };
 
-  const handleTrace = async (batch: Batch) => {
-    setTraceLoading(true);
-    setTraceData(null);
-    try {
-      const res = await authFetch(`${apiBase}/batches/${batch.id}/trace`);
-      if (res.ok) setTraceData(await res.json());
-      else showToast('Failed to load trace', 'danger');
-    } finally {
-      setTraceLoading(false);
-    }
-  };
-
-  const handleTraceBack = async (batch: Batch) => {
-    setTraceBackLoading(true);
-    setTraceBackData(null);
-    try {
-      const res = await authFetch(`${apiBase}/batches/${batch.id}/trace-back`);
-      if (res.ok) setTraceBackData(await res.json());
-      else showToast('Failed to load genealogy', 'danger');
-    } finally {
-      setTraceBackLoading(false);
+  const toggleExpand = async (b: Batch) => {
+    const wasOpen = !!expandedRows[b.id];
+    setExpandedRows(prev => ({ ...prev, [b.id]: !wasOpen }));
+    if (!wasOpen && !rowTraceData[b.id]) {
+      setRowTraceData(prev => ({ ...prev, [b.id]: { trace: null, traceBack: null, loading: true } }));
+      const [traceRes, traceBackRes] = await Promise.all([
+        authFetch(`${apiBase}/batches/${b.id}/trace`),
+        authFetch(`${apiBase}/batches/${b.id}/trace-back`),
+      ]);
+      const trace = traceRes.ok ? await traceRes.json() : null;
+      const traceBack = traceBackRes.ok ? await traceBackRes.json() : null;
+      setRowTraceData(prev => ({ ...prev, [b.id]: { trace, traceBack, loading: false } }));
     }
   };
 
@@ -157,8 +156,21 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
   const batchItemCode = (b: Batch) => b.item_code || itemMap[b.item_id]?.code || '-';
   const batchItemName = (b: Batch) => b.item_name || itemMap[b.item_id]?.name || '-';
 
-  // Origin lineage cell — only beam batches carry SO/PR/MO references
   const originCell = (b: Batch) => {
+    if (b.po_number) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, lineHeight: 1.2 }}>
+          <span style={{ fontWeight: 'bold', color: classic ? '#7a4500' : '#856404', fontSize: classic ? 10 : undefined }}>
+            PO: {b.po_number}
+          </span>
+          {b.vendor_lot && (
+            <span style={{ color: '#666', fontFamily: 'monospace', fontSize: classic ? 9 : 11 }}>
+              Supplier Lot: {b.vendor_lot}
+            </span>
+          )}
+        </div>
+      );
+    }
     if (!b.sales_order_code && !b.production_run_code && !b.mo_code) {
       return <span style={{ color: '#ccc' }}>—</span>;
     }
@@ -181,12 +193,109 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
     );
   };
 
+  const renderExpandedPanel = (b: Batch) => {
+    const state = rowTraceData[b.id];
+    const fnt: React.CSSProperties = classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11 } : { fontSize: 13 };
+    const label: React.CSSProperties = { ...fnt, fontWeight: 'bold', color: '#444', textTransform: 'uppercase' as const, fontSize: classic ? 9 : 11, marginBottom: 4 };
+    const section: React.CSSProperties = { flex: 1, minWidth: 180, padding: '0 12px', borderRight: classic ? '1px solid #c8c8c8' : '1px solid #dee2e6' };
+    const lastSection: React.CSSProperties = { flex: 1, minWidth: 180, padding: '0 12px' };
+
+    const renderNode = (node: any, depth: number): React.ReactNode => (
+      <div key={`${node.batch.id}-${depth}`}>
+        <div style={{ paddingLeft: depth * 16, ...fnt }}>
+          {depth > 0 && <span style={{ color: '#aaa' }}>{'+ '}</span>}
+          <strong>{node.batch.batch_number}</strong>
+          {node.batch.vendor_lot && <span style={{ color: '#888' }}> [{node.batch.vendor_lot}]</span>}
+          <span style={{ color: '#666' }}> ({node.batch.item_code || itemMap[node.batch.item_id]?.code || '?'})</span>
+          {node.qty_consumed != null && (
+            <span style={{ color: '#444' }}> — {node.qty_consumed} used{node.mo_code ? ` in ${node.mo_code}` : ''}</span>
+          )}
+          {node.batch.po_number && <span style={{ color: classic ? '#7a4500' : '#856404', marginLeft: 6 }}>PO: {node.batch.po_number}</span>}
+        </div>
+        {(node.inputs || []).map((c: any) => renderNode(c, depth + 1))}
+      </div>
+    );
+
+    return (
+      <div style={{
+        background: classic ? '#f0ede4' : '#f8f9fa',
+        borderTop: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6',
+        padding: '8px 12px',
+        display: 'flex',
+        gap: 0,
+        ...fnt,
+      }}>
+        {/* Origin */}
+        <div style={section}>
+          <div style={label}>Origin</div>
+          {b.po_number ? (
+            <div>
+              <div><span style={{ color: '#888' }}>PO:</span> <strong>{b.po_number}</strong></div>
+              {b.vendor_lot
+                ? <div><span style={{ color: '#888' }}>Supplier Lot:</span> <strong>{b.vendor_lot}</strong></div>
+                : <div style={{ color: '#bbb', fontStyle: 'italic' }}>No supplier lot recorded</div>
+              }
+            </div>
+          ) : b.mo_code || b.sales_order_code ? (
+            <div>
+              {b.sales_order_code && <div><span style={{ color: '#888' }}>SO:</span> <strong style={{ color: classic ? '#0058e6' : '#0d6efd' }}>{b.sales_order_code}</strong></div>}
+              {b.production_run_code && <div><span style={{ color: '#888' }}>PR:</span> {b.production_run_code}</div>}
+              {b.mo_code && <div><span style={{ color: '#888' }}>MO:</span> {b.mo_code}</div>}
+            </div>
+          ) : (
+            <div style={{ color: '#bbb', fontStyle: 'italic' }}>No origin recorded</div>
+          )}
+        </div>
+
+        {/* Used In (forward trace) */}
+        <div style={section}>
+          <div style={label}>Used In</div>
+          {state?.loading && <div style={{ color: '#888' }}>Loading...</div>}
+          {state && !state.loading && (!state.trace || state.trace.consumptions.length === 0) && (
+            <div style={{ color: '#bbb', fontStyle: 'italic' }}>Not consumed yet</div>
+          )}
+          {state?.trace && state.trace.consumptions.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {state.trace.consumptions.map(c => (
+                <div key={c.id}>
+                  <span style={{ fontFamily: 'monospace', color: classic ? '#0058e6' : '#0d6efd' }}>
+                    {c.mo_code || c.manufacturing_order_id.slice(0, 8)}
+                  </span>
+                  <span style={{ color: '#888', marginLeft: 6 }}>{c.qty_consumed} used</span>
+                  {c.output_batch_number && (
+                    <span style={{ color: '#555', marginLeft: 6 }}>
+                      {'→ '}<span style={{ fontFamily: 'monospace' }}>{c.output_batch_number}</span>
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Made From (backward trace) */}
+        <div style={lastSection}>
+          <div style={label}>Made From</div>
+          {state?.loading && <div style={{ color: '#888' }}>Loading...</div>}
+          {state && !state.loading && (!state.traceBack || state.traceBack.inputs.length === 0) && (
+            <div style={{ color: '#bbb', fontStyle: 'italic' }}>No input lots recorded</div>
+          )}
+          {state?.traceBack && state.traceBack.inputs.length > 0 && (
+            <div>{state.traceBack.inputs.map((n: any) => renderNode(n, 0))}</div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const filtered = batches.filter(b => {
     if (!searchTerm) return true;
     const s = searchTerm.toLowerCase();
     return b.batch_number.toLowerCase().includes(s) ||
       batchItemCode(b).toLowerCase().includes(s) ||
-      batchItemName(b).toLowerCase().includes(s);
+      batchItemName(b).toLowerCase().includes(s) ||
+      (b.vendor_lot || '').toLowerCase().includes(s) ||
+      (b.po_number || '').toLowerCase().includes(s);
   });
 
   // ── Styles ────────────────────────────────────────────────────────────────
@@ -227,6 +336,8 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
     border: '1px solid #c8c8c8', padding: '2px 6px',
     background: alt ? '#f0f0f8' : '#ffffff', verticalAlign: 'middle',
   } : { verticalAlign: 'middle' };
+
+  const colSpan = 10; // Lot Number, Item Code, Item Name, Origin, Remaining, Ends, Notes, Created By, Created At, Actions
 
   return (
     <div className="p-3">
@@ -288,34 +399,51 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={10} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>Loading...</td></tr>
+                <tr><td colSpan={colSpan} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>Loading...</td></tr>
               )}
               {!loading && filtered.length === 0 && (
-                <tr><td colSpan={10} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>No lots found.</td></tr>
+                <tr><td colSpan={colSpan} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>No lots found.</td></tr>
               )}
               {filtered.map((b, i) => (
-                <tr key={b.id}>
-                  <td style={xpTd(i % 2 === 1)}><strong>{b.batch_number}</strong></td>
-                  <td style={xpTd(i % 2 === 1)}>{batchItemCode(b)}</td>
-                  <td style={xpTd(i % 2 === 1)}>{batchItemName(b)}</td>
-                  <td style={xpTd(i % 2 === 1)}>{originCell(b)}</td>
-                  <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right' }}>{b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}</td>
-                  <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right' }}>{b.ends ?? '-'}</td>
-                  <td style={xpTd(i % 2 === 1)}>{b.notes || '-'}</td>
-                  <td style={xpTd(i % 2 === 1)}>{b.created_by || '-'}</td>
-                  <td style={xpTd(i % 2 === 1)}>{new Date(b.created_at).toLocaleDateString()}</td>
-                  <td style={{ ...xpTd(i % 2 === 1), whiteSpace: 'nowrap' }}>
-                    <button style={xpBtn({ marginRight: 4 })} onClick={() => handleTrace(b)} title="Trace forward">
-                      <i className="bi bi-diagram-3" /> Trace
-                    </button>
-                    <button style={xpBtn({ marginRight: 4 })} onClick={() => handleTraceBack(b)} title="Backward genealogy — what this lot was made from">
-                      <i className="bi bi-diagram-3" style={{ transform: 'scaleX(-1)', display: 'inline-block' }} /> Origin
-                    </button>
-                    <button style={xpBtn({ background: 'linear-gradient(to bottom, #ffd0d0, #e08080)' })} onClick={() => handleDelete(b)}>
-                      <i className="bi bi-trash" />
-                    </button>
-                  </td>
-                </tr>
+                <>
+                  <tr key={b.id} style={{ background: expandedRows[b.id] ? '#d6e4f7' : i % 2 === 1 ? '#f0f0f8' : '#ffffff' }}>
+                    <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}><strong>{b.batch_number}</strong></td>
+                    <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{batchItemCode(b)}</td>
+                    <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{batchItemName(b)}</td>
+                    <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{originCell(b)}</td>
+                    <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right', background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}</td>
+                    <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right', background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.ends ?? '-'}</td>
+                    <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.notes || '-'}</td>
+                    <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.created_by || '-'}</td>
+                    <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{new Date(b.created_at).toLocaleDateString()}</td>
+                    <td style={{ ...xpTd(i % 2 === 1), whiteSpace: 'nowrap', background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>
+                      <button
+                        style={{
+                          ...xpBtn(), marginRight: 4, fontSize: 10, padding: '2px 7px',
+                          background: expandedRows[b.id]
+                            ? 'linear-gradient(to bottom,#d4d0c8,#fff)'
+                            : 'linear-gradient(to bottom,#fff,#d4d0c8)',
+                          borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
+                        }}
+                        onClick={() => toggleExpand(b)}
+                        title="Show lot details, trace and genealogy"
+                      >
+                        <i className={`bi ${expandedRows[b.id] ? 'bi-chevron-up' : 'bi-diagram-3'}`} style={{ marginRight: 3 }} />
+                        {expandedRows[b.id] ? 'Hide' : 'Details'}
+                      </button>
+                      <button style={xpBtn({ background: 'linear-gradient(to bottom, #ffd0d0, #e08080)', fontSize: 10, padding: '2px 7px' })} onClick={() => handleDelete(b)}>
+                        <i className="bi bi-trash" />
+                      </button>
+                    </td>
+                  </tr>
+                  {expandedRows[b.id] && (
+                    <tr key={`${b.id}-detail`}>
+                      <td colSpan={colSpan} style={{ padding: 0, border: '1px solid #c0bdb5' }}>
+                        {renderExpandedPanel(b)}
+                      </td>
+                    </tr>
+                  )}
+                </>
               ))}
             </tbody>
           </table>
@@ -338,31 +466,42 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
               </tr>
             </thead>
             <tbody>
-              {loading && <tr><td colSpan={10} className="text-center">Loading...</td></tr>}
-              {!loading && filtered.length === 0 && <tr><td colSpan={10} className="text-center text-muted">No lots found.</td></tr>}
+              {loading && <tr><td colSpan={colSpan} className="text-center">Loading...</td></tr>}
+              {!loading && filtered.length === 0 && <tr><td colSpan={colSpan} className="text-center text-muted">No lots found.</td></tr>}
               {filtered.map(b => (
-                <tr key={b.id}>
-                  <td><strong>{b.batch_number}</strong></td>
-                  <td>{batchItemCode(b)}</td>
-                  <td>{batchItemName(b)}</td>
-                  <td>{originCell(b)}</td>
-                  <td className="text-end">{b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}</td>
-                  <td className="text-end">{b.ends ?? '-'}</td>
-                  <td>{b.notes || '-'}</td>
-                  <td>{b.created_by || '-'}</td>
-                  <td>{new Date(b.created_at).toLocaleDateString()}</td>
-                  <td>
-                    <button className="btn btn-sm btn-outline-info me-1" onClick={() => handleTrace(b)} title="Trace forward">
-                      <i className="bi bi-diagram-3" />
-                    </button>
-                    <button className="btn btn-sm btn-outline-secondary me-1" onClick={() => handleTraceBack(b)} title="Backward genealogy — what this lot was made from">
-                      <i className="bi bi-diagram-3" style={{ transform: 'scaleX(-1)', display: 'inline-block' }} />
-                    </button>
-                    <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(b)}>
-                      <i className="bi bi-trash" />
-                    </button>
-                  </td>
-                </tr>
+                <>
+                  <tr key={b.id} className={expandedRows[b.id] ? 'table-primary bg-opacity-10' : ''}>
+                    <td><strong>{b.batch_number}</strong></td>
+                    <td>{batchItemCode(b)}</td>
+                    <td>{batchItemName(b)}</td>
+                    <td>{originCell(b)}</td>
+                    <td className="text-end">{b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}</td>
+                    <td className="text-end">{b.ends ?? '-'}</td>
+                    <td>{b.notes || '-'}</td>
+                    <td>{b.created_by || '-'}</td>
+                    <td>{new Date(b.created_at).toLocaleDateString()}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <button
+                        className={`btn btn-sm me-1 ${expandedRows[b.id] ? 'btn-secondary' : 'btn-outline-secondary'}`}
+                        onClick={() => toggleExpand(b)}
+                        title="Show lot details, trace and genealogy"
+                      >
+                        <i className={`bi ${expandedRows[b.id] ? 'bi-chevron-up' : 'bi-diagram-3'}`} />
+                        {' '}Details
+                      </button>
+                      <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(b)}>
+                        <i className="bi bi-trash" />
+                      </button>
+                    </td>
+                  </tr>
+                  {expandedRows[b.id] && (
+                    <tr key={`${b.id}-detail`}>
+                      <td colSpan={colSpan} style={{ padding: 0 }}>
+                        {renderExpandedPanel(b)}
+                      </td>
+                    </tr>
+                  )}
+                </>
               ))}
             </tbody>
           </table>
@@ -417,119 +556,6 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                 <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-primary'} onClick={handleCreate} disabled={creating}>
                   {creating ? 'Creating...' : 'Create Lot'}
                 </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Trace Modal ── */}
-      {(traceData || traceLoading) && (
-        <div className="modal show d-block" style={{ background: 'rgba(0,0,0,0.4)' }}>
-          <div className="modal-dialog modal-dialog-centered modal-lg">
-            <div className="modal-content" style={classic ? { ...xpBevel, borderRadius: 0 } : {}}>
-              {classic ? (
-                <div style={xpTitleBar}>
-                  <span>Forward Trace — {traceData?.batch.batch_number}</span>
-                  <span style={{ cursor: 'pointer', fontWeight: 'bold' }} onClick={() => setTraceData(null)}>X</span>
-                </div>
-              ) : (
-                <div className="modal-header">
-                  <h5 className="modal-title">Forward Trace — {traceData?.batch.batch_number}</h5>
-                  <button className="btn-close" onClick={() => setTraceData(null)} />
-                </div>
-              )}
-              <div style={classic ? { padding: 12 } : { padding: 16 }}>
-                {traceLoading && <p style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>Loading trace...</p>}
-                {traceData && traceData.consumptions.length === 0 && (
-                  <p style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : { color: '#666' }}>
-                    No manufacturing consumption recorded for this lot.
-                  </p>
-                )}
-                {traceData && traceData.consumptions.length > 0 && (
-                  <>
-                    <p style={classic ? { fontFamily: 'Tahoma', fontSize: 11, marginBottom: 8 } : { marginBottom: 8, fontSize: 13 }}>
-                      This lot was consumed in {traceData.consumptions.length} manufacturing operation(s):
-                    </p>
-                    <table style={classic ? xpTable : { width: '100%' }} className={classic ? '' : 'table table-sm table-bordered'}>
-                      <thead>
-                        <tr>
-                          <th style={classic ? xpTh : {}}>Manufacturing Order</th>
-                          <th style={classic ? xpTh : {}}>Qty Consumed</th>
-                          <th style={classic ? xpTh : {}}>Output Lot</th>
-                          <th style={classic ? xpTh : {}}>Date</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {traceData.consumptions.map((c, i) => (
-                          <tr key={c.id}>
-                            <td style={classic ? xpTd(i % 2 === 1) : {}}>{c.manufacturing_order_id}</td>
-                            <td style={classic ? xpTd(i % 2 === 1) : {}}>{c.qty_consumed}</td>
-                            <td style={classic ? xpTd(i % 2 === 1) : {}}>{c.output_batch_id || '-'}</td>
-                            <td style={classic ? xpTd(i % 2 === 1) : {}}>{new Date(c.created_at).toLocaleDateString()}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </>
-                )}
-              </div>
-              <div style={classic ? { padding: '6px 12px', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #c0c0c0' } : { padding: '8px 16px', borderTop: '1px solid #dee2e6' }}>
-                <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setTraceData(null)}>Close</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Trace Back (Genealogy) Modal ── */}
-      {(traceBackData || traceBackLoading) && (
-        <div className="modal show d-block" style={{ background: 'rgba(0,0,0,0.4)' }}>
-          <div className="modal-dialog modal-dialog-centered modal-lg">
-            <div className="modal-content" style={classic ? { ...xpBevel, borderRadius: 0 } : {}}>
-              {classic ? (
-                <div style={xpTitleBar}>
-                  <span>Lot Genealogy — {traceBackData?.batch.batch_number}</span>
-                  <span style={{ cursor: 'pointer', fontWeight: 'bold' }} onClick={() => setTraceBackData(null)}>X</span>
-                </div>
-              ) : (
-                <div className="modal-header">
-                  <h5 className="modal-title">Lot Genealogy — {traceBackData?.batch.batch_number}</h5>
-                  <button className="btn-close" onClick={() => setTraceBackData(null)} />
-                </div>
-              )}
-              <div style={classic ? { padding: 12 } : { padding: 16 }}>
-                {traceBackLoading && <p style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>Loading genealogy...</p>}
-                {traceBackData && traceBackData.inputs.length === 0 && (
-                  <p style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : { color: '#666' }}>
-                    No input lots recorded for this lot.
-                  </p>
-                )}
-                {traceBackData && traceBackData.inputs.length > 0 && (
-                  <div style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : { fontSize: 13 }}>
-                    {(function renderNode(node: any, depth: number): React.ReactNode {
-                      return (
-                        <div key={`${node.batch.id}-${depth}`}>
-                          <div style={{ paddingLeft: depth * 20, padding: `2px 0 2px ${depth * 20}px` }}>
-                            {depth > 0 && <span style={{ color: '#888' }}>{'└ '}</span>}
-                            <strong>{node.batch.batch_number}</strong>
-                            <span style={{ color: '#666' }}> ({node.batch.item_code || itemMap[node.batch.item_id]?.code || 'unknown item'})</span>
-                            {node.qty_consumed != null && (
-                              <span style={{ color: '#444' }}> — {node.qty_consumed} consumed{node.mo_code ? ` in ${node.mo_code}` : ''}</span>
-                            )}
-                            {node.sales_order_code && (
-                              <span style={{ marginLeft: 6, fontWeight: 'bold', color: classic ? '#0058e6' : '#0d6efd' }}>SO: {node.sales_order_code}</span>
-                            )}
-                          </div>
-                          {(node.inputs || []).map((c: any) => renderNode(c, depth + 1))}
-                        </div>
-                      );
-                    })(traceBackData, 0)}
-                  </div>
-                )}
-              </div>
-              <div style={classic ? { padding: '6px 12px', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #c0c0c0' } : { padding: '8px 16px', borderTop: '1px solid #dee2e6' }}>
-                <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setTraceBackData(null)}>Close</button>
               </div>
             </div>
           </div>

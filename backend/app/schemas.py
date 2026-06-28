@@ -1635,6 +1635,9 @@ class BatchResponse(BaseModel):
     production_run_code: Optional[str] = None
     sales_order_id: Optional[UUID] = None
     sales_order_code: Optional[str] = None
+    # GR origin — resolved from GoodsReceiptLine → GoodsReceipt → PurchaseOrder
+    po_id: Optional[UUID] = None
+    po_number: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -1642,8 +1645,10 @@ class BatchResponse(BaseModel):
 class BatchConsumptionResponse(BaseModel):
     id: UUID
     manufacturing_order_id: UUID
+    mo_code: Optional[str] = None          # resolved from MO
     input_batch_id: UUID
     output_batch_id: Optional[UUID] = None
+    output_batch_number: Optional[str] = None  # resolved from output Batch
     qty_consumed: float
     created_at: datetime
 
