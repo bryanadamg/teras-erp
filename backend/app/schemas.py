@@ -572,6 +572,8 @@ class WorkOrderCreate(BaseModel):
     bom_operation_id: UUID | None = None
     input_location_id: UUID | None = None
     output_location_id: UUID | None = None
+    next_destination_location_id: UUID | None = None
+    next_destination_work_center_id: UUID | None = None
     qty: float | None = None
     ends: int | None = None
     planned_duration_hours: float | None = None
@@ -596,6 +598,10 @@ class WorkOrderResponse(BaseModel):
     output_location_id: UUID | None = None
     input_location: LocationResponse | None = None
     output_location: LocationResponse | None = None
+    next_destination_location_id: UUID | None = None
+    next_destination_work_center_id: UUID | None = None
+    next_destination_location_name: str | None = None
+    next_destination_work_center_name: str | None = None
     qty: float | None = None
     ends: int | None = None
     qty_completed_total: float = 0.0

@@ -58,7 +58,7 @@ interface WO {
     created_at?: string;
 }
 
-const emptyForm = { group_id: '', work_center_id: '', bom_operation_id: '', input_location_id: '', output_location_id: '', planned_duration_hours: '', qty: '', target_start_date: '', target_end_date: '' };
+const emptyForm = { group_id: '', work_center_id: '', bom_operation_id: '', input_location_id: '', output_location_id: '', next_destination_work_center_id: '', next_destination_location_id: '', planned_duration_hours: '', qty: '', target_start_date: '', target_end_date: '' };
 
 interface Props {
     manufacturingOrderId: string;
@@ -165,6 +165,8 @@ export default function WorkOrderPanel({
                 bom_operation_id: form.bom_operation_id || undefined,
                 input_location_id: form.input_location_id || undefined,
                 output_location_id: form.output_location_id || undefined,
+                next_destination_work_center_id: form.next_destination_work_center_id || undefined,
+                next_destination_location_id: form.next_destination_location_id || undefined,
                 planned_duration_hours: form.planned_duration_hours ? parseFloat(form.planned_duration_hours) : undefined,
                 qty: form.qty ? parseFloat(form.qty) : undefined,
                 target_start_date: form.target_start_date || null,
@@ -202,6 +204,8 @@ export default function WorkOrderPanel({
                 bom_operation_id: form.bom_operation_id || undefined,
                 input_location_id: form.input_location_id || undefined,
                 output_location_id: form.output_location_id || undefined,
+                next_destination_work_center_id: form.next_destination_work_center_id || undefined,
+                next_destination_location_id: form.next_destination_location_id || undefined,
                 planned_duration_hours: form.planned_duration_hours ? parseFloat(form.planned_duration_hours) : undefined,
                 qty: form.qty ? parseFloat(form.qty) : undefined,
                 target_start_date: form.target_start_date || null,
@@ -228,6 +232,8 @@ export default function WorkOrderPanel({
             bom_operation_id: wo.bom_operation_id || '',
             input_location_id: wo.input_location_id || '',
             output_location_id: wo.output_location_id || '',
+            next_destination_work_center_id: (wo as any).next_destination_work_center_id || '',
+            next_destination_location_id: (wo as any).next_destination_location_id || '',
             planned_duration_hours: wo.planned_duration_hours != null ? String(wo.planned_duration_hours) : '',
             qty: wo.qty != null ? String(wo.qty) : '',
             target_start_date: wo.target_start_date ? wo.target_start_date.slice(0, 10) : '',
@@ -453,6 +459,19 @@ export default function WorkOrderPanel({
                                             <select style={{ ...xpInput, minWidth: 120 }} value={form.output_location_id} onChange={e => setForm(f => ({ ...f, output_location_id: e.target.value }))}>
                                                 <option value="">Out: —</option>
                                                 {locationList.map((l: any) => <option key={l.id} value={l.id}>Out: {l.code}</option>)}
+                                            </select>
+                                            <span style={{ fontSize: 9, color: '#444', fontWeight: 'bold', alignSelf: 'center' }}>Tujuan:</span>
+                                            <select style={{ ...xpInput, minWidth: 110, fontSize: 10 }} value={form.next_destination_work_center_id} onChange={e => setForm(f => ({ ...f, next_destination_work_center_id: e.target.value }))}>
+                                                <option value="">— Mesin —</option>
+                                                {workCenters.filter((wc: any) => wc.parent_id).map((wc: any) => (
+                                                    <option key={wc.id} value={wc.id}>{wc.name}</option>
+                                                ))}
+                                            </select>
+                                            <select style={{ ...xpInput, minWidth: 100, fontSize: 10 }} value={form.next_destination_location_id} onChange={e => setForm(f => ({ ...f, next_destination_location_id: e.target.value }))}>
+                                                <option value="">— Lokasi —</option>
+                                                {locationList.map((l: any) => (
+                                                    <option key={l.id} value={l.id}>{l.code || l.name}</option>
+                                                ))}
                                             </select>
                                         </div>
                                     )}
@@ -768,6 +787,31 @@ export default function WorkOrderPanel({
                                     <span style={{ color: '#aaa' }}>(from work center)</span>
                                 </div>
                             )}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: '#555', paddingLeft: 4, marginTop: 2 }}>
+                                <span style={{ color: '#444', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Tujuan Berikutnya:</span>
+                                <select
+                                    style={{ ...xpInput, minWidth: 110, fontSize: 10 }}
+                                    value={form.next_destination_work_center_id}
+                                    onChange={e => setForm(f => ({ ...f, next_destination_work_center_id: e.target.value }))}
+                                    title="Next work center this WO's output goes to"
+                                >
+                                    <option value="">— Mesin —</option>
+                                    {workCenters.filter((wc: any) => wc.parent_id).map((wc: any) => (
+                                        <option key={wc.id} value={wc.id}>{wc.name}</option>
+                                    ))}
+                                </select>
+                                <select
+                                    style={{ ...xpInput, minWidth: 100, fontSize: 10 }}
+                                    value={form.next_destination_location_id}
+                                    onChange={e => setForm(f => ({ ...f, next_destination_location_id: e.target.value }))}
+                                    title="Next destination location"
+                                >
+                                    <option value="">— Lokasi —</option>
+                                    {locationList.map((l: any) => (
+                                        <option key={l.id} value={l.id}>{l.code || l.name}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -805,6 +849,8 @@ export default function WorkOrderPanel({
                         code: l.item_code,
                         ends: l.qty != null ? Number(l.qty) : null,
                     }))}
+                    locations={locationList.map((l: any) => ({ id: l.id, code: l.code, name: l.name }))}
+                    nextWorkCenters={workCenters.filter((wc: any) => wc.parent_id).map((wc: any) => ({ id: wc.id, name: wc.name }))}
                     onClose={() => setBeamPlanOpen(false)}
                 />
             )}

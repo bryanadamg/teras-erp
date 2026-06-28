@@ -69,6 +69,18 @@ class WorkOrder(Base):
     output_location: Mapped[Optional["Location"]] = relationship(
         "Location", foreign_keys=[output_location_id], lazy="joined"
     )
+    next_destination_location_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True
+    )
+    next_destination_work_center_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("work_centers.id", ondelete="SET NULL"), nullable=True
+    )
+    next_destination_location: Mapped[Optional["Location"]] = relationship(
+        "Location", foreign_keys=[next_destination_location_id], lazy="joined"
+    )
+    next_destination_work_center: Mapped[Optional["WorkCenter"]] = relationship(
+        "WorkCenter", foreign_keys=[next_destination_work_center_id], lazy="joined"
+    )
     completions: Mapped[List["MOCompletion"]] = relationship(
         "MOCompletion", back_populates="work_order", lazy="select"
     )
@@ -80,6 +92,14 @@ class WorkOrder(Base):
     @property
     def work_center_type(self) -> Optional[str]:
         return self.work_center.center_type if self.work_center else None
+
+    @property
+    def next_destination_location_name(self) -> Optional[str]:
+        return self.next_destination_location.name if self.next_destination_location else None
+
+    @property
+    def next_destination_work_center_name(self) -> Optional[str]:
+        return self.next_destination_work_center.name if self.next_destination_work_center else None
 
     @property
     def qty_completed_total(self) -> float:

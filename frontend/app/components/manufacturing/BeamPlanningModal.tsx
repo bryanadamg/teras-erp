@@ -15,6 +15,8 @@ interface BeamRow {
     ends: string;
     notes: string;
     repeat: string;
+    next_destination_work_center_id: string;
+    next_destination_location_id: string;
 }
 
 interface Props {
@@ -22,15 +24,17 @@ interface Props {
     machines: Array<{ id: string; name: string }>;
     components?: Array<{ name: string; code?: string; ends: number | null }>;
     centerLabel?: string;
+    locations?: Array<{ id: string; code?: string; name: string }>;
+    nextWorkCenters?: Array<{ id: string; name: string }>;
     onClose: () => void;
 }
 
 let _rowId = 0;
 function makeRow(defaultWcId = '', defaultEnds = ''): BeamRow {
-    return { localId: `beam-${++_rowId}`, work_center_id: defaultWcId, qty: '', ends: defaultEnds, notes: '', repeat: '1' };
+    return { localId: `beam-${++_rowId}`, work_center_id: defaultWcId, qty: '', ends: defaultEnds, notes: '', repeat: '1', next_destination_work_center_id: '', next_destination_location_id: '' };
 }
 
-export default function BeamPlanningModal({ mo, machines, components = [], centerLabel = 'Beaming', onClose }: Props) {
+export default function BeamPlanningModal({ mo, machines, components = [], centerLabel = 'Beaming', locations = [], nextWorkCenters = [], onClose }: Props) {
     const { authFetch, fetchData } = useData();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
@@ -70,6 +74,8 @@ export default function BeamPlanningModal({ mo, machines, components = [], cente
                     ends: r.ends ? parseInt(r.ends) : undefined,
                     notes: r.notes || undefined,
                     sequence: 1,
+                    next_destination_work_center_id: r.next_destination_work_center_id || undefined,
+                    next_destination_location_id: r.next_destination_location_id || undefined,
                 }));
             });
             const res = await authFetch(`${API_BASE}/work-orders/bulk`, {
@@ -96,7 +102,7 @@ export default function BeamPlanningModal({ mo, machines, components = [], cente
             display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
             <div style={{
-                width: 660, fontFamily: xpFont, fontSize: 11,
+                width: 820, fontFamily: xpFont, fontSize: 11,
                 border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
                 boxShadow: '3px 3px 8px rgba(0,0,0,0.45)',
                 background: '#ece9d8',
@@ -174,6 +180,7 @@ export default function BeamPlanningModal({ mo, machines, components = [], cente
                                 <th style={{ ...thStyle('Ends'), width: 100 }}>Qty / Ends (Utas)</th>
                                 <th style={{ ...thStyle('Repeat'), width: 56 }}>Repeat</th>
                                 <th style={thStyle('Notes / Beam ID')}>Notes / Beam ID</th>
+                                <th style={{ ...thStyle('Tujuan Berikutnya'), width: 150 }}>Tujuan Berikutnya</th>
                                 <th style={{ ...thStyle(''), width: 26 }}></th>
                             </tr>
                         </thead>
@@ -230,6 +237,36 @@ export default function BeamPlanningModal({ mo, machines, components = [], cente
                                             placeholder="e.g. Beam #A-01, 60&quot; wide"
                                             onChange={e => update(row.localId, 'notes', e.target.value)}
                                         />
+                                    </td>
+                                    <td style={tdStyle({ width: 150 })}>
+                                        {(nextWorkCenters.length > 0 || locations.length > 0) ? (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                {nextWorkCenters.length > 0 && (
+                                                    <select
+                                                        style={{ ...xpInput, width: '100%', fontSize: 10 }}
+                                                        value={row.next_destination_work_center_id}
+                                                        onChange={e => update(row.localId, 'next_destination_work_center_id', e.target.value)}
+                                                    >
+                                                        <option value="">— Mesin —</option>
+                                                        {nextWorkCenters.map(wc => (
+                                                            <option key={wc.id} value={wc.id}>{wc.name}</option>
+                                                        ))}
+                                                    </select>
+                                                )}
+                                                {locations.length > 0 && (
+                                                    <select
+                                                        style={{ ...xpInput, width: '100%', fontSize: 10 }}
+                                                        value={row.next_destination_location_id}
+                                                        onChange={e => update(row.localId, 'next_destination_location_id', e.target.value)}
+                                                    >
+                                                        <option value="">— Lokasi —</option>
+                                                        {locations.map(l => (
+                                                            <option key={l.id} value={l.id}>{l.code || l.name}</option>
+                                                        ))}
+                                                    </select>
+                                                )}
+                                            </div>
+                                        ) : <span style={{ color: '#aaa', fontSize: 9 }}>—</span>}
                                     </td>
                                     <td style={tdStyle({ textAlign: 'center' })}>
                                         <button

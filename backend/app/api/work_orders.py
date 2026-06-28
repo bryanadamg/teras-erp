@@ -140,6 +140,8 @@ async def create_work_order(
         planned_recipe_id=planned_recipe_id,
         input_location_id=input_location_id,
         output_location_id=output_location_id,
+        next_destination_location_id=payload.next_destination_location_id,
+        next_destination_work_center_id=payload.next_destination_work_center_id,
         qty=payload.qty,
         planned_duration_hours=payload.planned_duration_hours,
         notes=payload.notes,
@@ -238,6 +240,8 @@ async def update_work_order(
         wo.name = payload.name
     wo.work_center_id = payload.work_center_id
     wo.bom_operation_id = payload.bom_operation_id
+    wo.next_destination_location_id = payload.next_destination_location_id
+    wo.next_destination_work_center_id = payload.next_destination_work_center_id
     wo.qty = payload.qty
     wo.planned_duration_hours = payload.planned_duration_hours
     wo.notes = payload.notes

@@ -65,7 +65,6 @@ export default function KartuKerjaCard({
             {/* Header: title + identity fill the top-left; QR right */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #000', paddingBottom: '5px', marginBottom: '6px', gap: '8px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', minWidth: 0 }}>
-                    <div style={{ fontSize: '18px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', lineHeight: 1.05 }}>KARTU KERJA</div>
                     <div style={{ fontSize: '12px', fontFamily: 'monospace', fontWeight: 'bold' }}>{parentMO?.code || workOrder.mo_code || '—'}</div>
                     {displayCompany && <div style={{ fontSize: '8px', color: '#555', fontWeight: 'bold' }}>{displayCompany}</div>}
                     <div style={{ fontSize: '8px', color: '#666' }}>
@@ -112,7 +111,7 @@ export default function KartuKerjaCard({
                 </div>
             </div>
 
-            {/* Identity grid — Produk / Status / Progress */}
+            {/* Identity grid — Produk / Status / Next Destination */}
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '6px' }}>
                 <tbody>
                     <tr>
@@ -122,15 +121,31 @@ export default function KartuKerjaCard({
                     <tr>
                         <td style={{ ...gridLbl, width: '24%' }}>Status</td>
                         <td style={{ ...gridVal, width: '26%' }}>{workOrder.status}</td>
-                        <td style={{ ...gridLbl, width: '22%' }}>Progress</td>
-                        <td style={gridVal}>
-                            {woQty > 0 ? (
-                                <span>{doneQty.toFixed(2)} / {woQty} <span style={{ color: '#888' }}>({pct}%)</span></span>
-                            ) : '—'}
-                        </td>
+                        <td style={{ ...gridLbl, width: '22%' }}>Target Selesai</td>
+                        <td style={gridVal}>{workOrder.target_end_date ? new Date(workOrder.target_end_date).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—'}</td>
                     </tr>
+                    {(workOrder.next_destination_work_center_name || workOrder.next_destination_location_name) && (
+                        <tr>
+                            <td style={gridLbl}>Tujuan</td>
+                            <td colSpan={3} style={{ ...gridVal, fontWeight: 'bold' }}>
+                                {[workOrder.next_destination_work_center_name, workOrder.next_destination_location_name].filter(Boolean).join(' — ')}
+                            </td>
+                        </tr>
+                    )}
                 </tbody>
             </table>
+
+            {/* Cek/10 mnt grid */}
+            <div style={{ marginBottom: '6px' }}>
+                <div style={{ fontSize: '8px', fontWeight: 'bold', color: '#555', marginBottom: '2px' }}>Cek / 10 mnt</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '2px' }}>
+                    {Array.from({ length: 12 }, (_, i) => (
+                        <div key={i} style={{ border: '1px solid #aaa', padding: '3px 4px', fontSize: '8px', color: '#555', minHeight: '22px' }}>
+                            {i + 1}:
+                        </div>
+                    ))}
+                </div>
+            </div>
 
             {/* Materials — components processed/needed for this WO */}
             {settings.showMaterials && bomLines.length > 0 && (
