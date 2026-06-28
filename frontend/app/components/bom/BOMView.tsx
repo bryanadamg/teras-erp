@@ -349,7 +349,7 @@ export default function BOMView({
                     onMouseEnter={e => { if (!isSelected && isSelectable) (e.currentTarget as HTMLElement).style.background = '#d0e4f8'; }}
                     onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                 >
-                    <i className="bi bi-gear-fill" style={{ fontSize: 11, flexShrink: 0 }} />
+                    <i className={`bi ${isSelectable ? 'bi-layers' : 'bi-box'}`} style={{ fontSize: 11, flexShrink: 0, color: isSelected ? 'inherit' : (isSelectable ? '#316ac5' : '#6b4e00') }} />
                     <span title={line.item_name || line.item_code} style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {line.item_name || line.item_code}
                     </span>
@@ -429,7 +429,7 @@ export default function BOMView({
                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                             {/* Node header strip */}
                             <div style={{ background: 'linear-gradient(to bottom, #e8e4d8, #dddad0)', borderBottom: '1px solid #aca899', padding: '4px 10px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <i className={`bi ${isRootSelected ? 'bi-box-seam' : 'bi-gear-fill'}`} style={{ fontSize: 16, flexShrink: 0 }} />
+                                <i className={`bi ${isRootSelected ? 'bi-box-seam' : 'bi-layers'}`} style={{ fontSize: 16, flexShrink: 0 }} />
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontWeight: 'bold', fontSize: 12, color: '#000080', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                         {displayBOM.item_name || displayBOM.item_code}
