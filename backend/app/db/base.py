@@ -40,3 +40,4 @@ from app.models.dyeing_setting import DyeRecipe, DyeRecipeLine, DyeRecipeWashBat
 from app.models.lab_dip import LabDipRequest, LabDipLine
 from app.models.color import Color
 from app.models.packing import PackingOrder, PackingLine, PackingPackage, PackingPackageItem
+from app.models.weaving import WeavingRun, WorkCenterHoliday

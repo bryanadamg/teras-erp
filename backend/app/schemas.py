@@ -811,6 +811,7 @@ class WorkCenterResponse(BaseModel):
     parent_id: UUID | None = None
     input_location: LocationResponse | None = None
     output_location: LocationResponse | None = None
+    working_weekdays: list[int] | None = None
 
     class Config:
         from_attributes = True
@@ -1736,3 +1737,52 @@ class PackingOrderListResponse(BaseModel):
     total: int
     page: int
     size: int
+
+# ── Work-Center Performance Monitoring (weaving runs + production calendar) ──
+
+class WeavingRunCreate(BaseModel):
+    work_center_id: UUID
+    mo_id: UUID
+    lines: int = 1
+    rate_per_line_g_min: float = 5
+    target_efficiency_pct: float = 50
+    start_date: date
+    notes: str | None = None
+
+class WeavingRunUpdate(BaseModel):
+    lines: int | None = None
+    rate_per_line_g_min: float | None = None
+    target_efficiency_pct: float | None = None
+    actual_qty_override: float | None = None
+    status: str | None = None
+    end_date: date | None = None
+    notes: str | None = None
+
+class WeavingRunResponse(BaseModel):
+    id: UUID
+    work_center_id: UUID
+    mo_id: UUID
+    lines: int
+    rate_per_line_g_min: float
+    target_efficiency_pct: float
+    start_date: date
+    end_date: date | None = None
+    status: str
+    actual_qty_override: float | None = None
+    notes: str | None = None
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class WorkCenterHolidayCreate(BaseModel):
+    holiday_date: date
+    note: str | None = None
+
+class WorkCenterHolidayResponse(BaseModel):
+    id: UUID
+    work_center_id: UUID
+    holiday_date: date
+    note: str | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+class WorkCenterCalendarUpdate(BaseModel):
+    working_weekdays: list[int]  # 0=Mon .. 6=Sun

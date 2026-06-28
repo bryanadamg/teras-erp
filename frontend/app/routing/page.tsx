@@ -4,7 +4,7 @@ import RoutingView from '../components/settings/RoutingView';
 import { useData } from '../context/DataContext';
 
 export default function RoutingPage() {
-    const { workCenters, operations, locations, fetchData, authFetch } = useData();
+    const { workCenters, operations, locations, manufacturingOrders, fetchData, authFetch } = useData();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
@@ -38,6 +38,9 @@ export default function RoutingPage() {
             workCenters={workCenters}
             operations={operations}
             locations={locations}
+            manufacturingOrders={manufacturingOrders}
+            authFetch={authFetch}
+            apiBase={API_BASE}
             onCreateWorkCenter={handleCreateWorkCenter}
             onUpdateWorkCenter={handleUpdateWorkCenter}
             onDeleteWorkCenter={handleDeleteWorkCenter}
