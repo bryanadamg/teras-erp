@@ -59,7 +59,7 @@ export default function BOMPage() {
     const handleDeleteBOM = async (id: string) => {
         const confirmed = await confirm({
             title: 'Delete BOM',
-            message: 'Are you sure you want to delete this BOM? This action cannot be undone.',
+            message: 'Delete this BOM and all sub-BOMs beneath it? This action cannot be undone.',
             confirmText: 'Delete',
             variant: 'danger'
         });

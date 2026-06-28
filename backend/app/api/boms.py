@@ -4,7 +4,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload, joinedload
 from pathlib import Path
-import shutil, os
+import shutil, os, uuid as _uuid
 from app.db.session import get_async_db
 from app.models.bom import BOM, BOMLine, BOMOperation, BOMSize, bom_values, bom_line_values
 from app.models.size import Size
@@ -607,25 +607,54 @@ async def update_bom(
     return updated_bom
 
 
+async def _collect_bom_tree_ids(db: AsyncSession, bom_id: _uuid.UUID, visited: set) -> list[_uuid.UUID]:
+    """DFS collect all sub-BOM IDs reachable from bom_id via BOMLine.item_id → BOM.item_id.
+    Returns IDs in deepest-first order (children before parents)."""
+    if bom_id in visited:
+        return []
+    visited.add(bom_id)
+    item_ids_result = await db.execute(
+        select(BOMLine.item_id).filter(BOMLine.bom_id == bom_id)
+    )
+    item_ids = [r[0] for r in item_ids_result.all()]
+    ordered: list[_uuid.UUID] = []
+    if item_ids:
+        sub_boms_result = await db.execute(
+            select(BOM.id).filter(BOM.item_id.in_(item_ids))
+        )
+        for (sub_id,) in sub_boms_result.all():
+            ordered.extend(await _collect_bom_tree_ids(db, sub_id, visited))
+            ordered.append(sub_id)
+    return ordered
+
+
 @router.delete("/boms/{bom_id}")
 async def delete_bom(bom_id: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(select(BOM).filter(BOM.id == bom_id))
     bom = result.scalars().first()
     if not bom:
         raise HTTPException(status_code=404, detail="BOM not found")
-    
-    details = f"Deleted BOM {bom.code}"
-    
+
+    # Collect all descendant BOM IDs (deepest first), then append root
+    sub_ids = await _collect_bom_tree_ids(db, bom.id, {bom.id})
+    all_ids = sub_ids + [bom.id]  # children deleted before parent
+
+    details = f"Deleted BOM {bom.code} and {len(sub_ids)} sub-BOM(s)"
+
     try:
-        await db.delete(bom)
+        for bid in all_ids:
+            r = await db.execute(select(BOM).filter(BOM.id == bid))
+            b = r.scalars().first()
+            if b:
+                await db.delete(b)
         await db.commit()
     except IntegrityError:
         await db.rollback()
         raise HTTPException(
-            status_code=400, 
-            detail="Cannot delete BOM because it is currently used by one or more Work Orders. Please delete or complete the associated Work Orders first."
+            status_code=400,
+            detail="Cannot delete BOM tree because one or more BOMs are referenced by active Work Orders or Manufacturing Orders. Please complete or delete those first."
         )
-    
+
     await audit_service.log_activity(
         db,
         user_id=current_user.id,
@@ -634,8 +663,8 @@ async def delete_bom(bom_id: str, db: AsyncSession = Depends(get_async_db), curr
         entity_id=bom_id,
         details=details
     )
-    
-    return {"status": "success", "message": "BOM deleted"}
+
+    return {"status": "success", "message": f"BOM and {len(sub_ids)} sub-BOM(s) deleted"}
 
 
 # --- BOM Automator Profiles ---
