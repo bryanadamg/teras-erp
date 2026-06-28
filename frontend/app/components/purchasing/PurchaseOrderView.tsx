@@ -70,7 +70,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
           qty_boxes: numOrNull(receiptLineBoxes[po_line_id]),
           qty_cones: catType === 'raw' ? numOrNull(receiptLineCones[po_line_id]) : null,
           qty_drums: (catType === 'chemical' || catType === 'dye') ? numOrNull(receiptLineDrums[po_line_id]) : null,
-          batch_number: (receiptLineLots[po_line_id] || '').trim() || null,
+          vendor_lot: (receiptLineLots[po_line_id] || '').trim() || null,
         };
       });
     if (lines.length === 0) { showToast('Enter qty for at least one line', 'error'); return; }
@@ -1035,6 +1035,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                        const hasBoxes = rlines.some((l: any) => l.qty_boxes != null);
                                                        const hasCones = rlines.some((l: any) => l.qty_cones != null);
                                                        const hasDrums = rlines.some((l: any) => l.qty_drums != null);
+                                                       const hasLots = rlines.some((l: any) => l.vendor_lot);
                                                        const thXp: React.CSSProperties = { padding: '2px 8px', fontSize: '10px', fontWeight: 'bold', color: '#1a3d6b', background: '#e4e0d4', borderBottom: '1px solid #b0a898', textAlign: 'left' };
                                                        const tdXp: React.CSSProperties = { padding: '2px 8px', fontSize: '10px', color: '#333', borderTop: '1px solid #e6e3da' };
                                                        const numR = { textAlign: 'right' as const };
@@ -1068,6 +1069,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                                            {hasBoxes && <th style={classic ? { ...thXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>Boxes</th>}
                                                                            {hasCones && <th style={classic ? { ...thXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>Cones</th>}
                                                                            {hasDrums && <th style={classic ? { ...thXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>Drums</th>}
+                                                                           {hasLots && <th style={classic ? thXp : undefined}>Supplier Lot</th>}
                                                                        </tr>
                                                                    </thead>
                                                                    <tbody>
@@ -1081,6 +1083,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                                                {hasBoxes && <td style={classic ? { ...tdXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>{rl.qty_boxes != null ? rl.qty_boxes : <span style={{ color: '#bbb' }}>—</span>}</td>}
                                                                                {hasCones && <td style={classic ? { ...tdXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>{rl.qty_cones != null ? rl.qty_cones : <span style={{ color: '#bbb' }}>—</span>}</td>}
                                                                                {hasDrums && <td style={classic ? { ...tdXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>{rl.qty_drums != null ? rl.qty_drums : <span style={{ color: '#bbb' }}>—</span>}</td>}
+                                                                               {hasLots && <td style={classic ? tdXp : undefined}>{rl.vendor_lot || <span style={{ color: '#bbb' }}>—</span>}</td>}
                                                                            </tr>
                                                                        ))}
                                                                    </tbody>

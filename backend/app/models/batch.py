@@ -12,6 +12,7 @@ class Batch(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     batch_number: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    vendor_lot: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     item_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("items.id"), index=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # Beam fields: set when the batch represents a physical warp beam

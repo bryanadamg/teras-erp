@@ -40,6 +40,7 @@ class GoodsReceiptLine(Base):
     batch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("batches.id"), nullable=True)
 
     item = relationship("Item")
+    batch = relationship("Batch")
 
     @property
     def item_name(self):
@@ -52,3 +53,11 @@ class GoodsReceiptLine(Base):
     @property
     def item_uom(self):
         return self.item.uom if self.item else None
+
+    @property
+    def vendor_lot(self):
+        return self.batch.vendor_lot if self.batch else None
+
+    @property
+    def internal_lot(self):
+        return self.batch.batch_number if self.batch else None

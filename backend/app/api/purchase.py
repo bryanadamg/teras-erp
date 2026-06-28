@@ -27,6 +27,7 @@ def _po_query():
             selectinload(PurchaseOrder.lines).selectinload(PurchaseOrderLine.attribute_values),
             selectinload(PurchaseOrder.lines).selectinload(PurchaseOrderLine.item),
             selectinload(PurchaseOrder.receipts).selectinload(GoodsReceipt.lines).selectinload(GoodsReceiptLine.item),
+            selectinload(PurchaseOrder.receipts).selectinload(GoodsReceipt.lines).selectinload(GoodsReceiptLine.batch),
         )
     )
 
@@ -230,23 +231,18 @@ async def create_goods_receipt(
         if rl.qty_received <= 0:
             raise HTTPException(status_code=400, detail="qty_received must be greater than 0")
 
-        # Resolve supplier lot number to a batch (create if new)
+        # Resolve lot: auto-generate unique internal batch_number; store supplier's vendor_lot as reference
         batch_id = rl.batch_id
-        lot_no = (rl.batch_number or "").strip()
-        if not batch_id and lot_no:
-            existing = await db.execute(select(Batch).filter(Batch.batch_number == lot_no))
-            b = existing.scalars().first()
-            if b:
-                if str(b.item_id) != str(po_line.item_id):
-                    raise HTTPException(status_code=400, detail=f"Lot '{lot_no}' already belongs to a different item")
-                batch_id = b.id
-            else:
-                b = Batch(batch_number=lot_no, item_id=po_line.item_id, created_by=current_user.username)
-                db.add(b)
-                await db.flush()
-                batch_id = b.id
-        if str(po_line.item_id) in lot_tracked_ids and not batch_id:
-            raise HTTPException(status_code=400, detail="Item is lot-tracked — enter a lot number for this receipt line")
+        vendor_lot = (rl.vendor_lot or "").strip() or None
+        is_lot_tracked = str(po_line.item_id) in lot_tracked_ids
+        if not batch_id and (vendor_lot or is_lot_tracked):
+            if is_lot_tracked and not vendor_lot:
+                raise HTTPException(status_code=400, detail="Item is lot-tracked — enter a supplier lot number for this receipt line")
+            internal_no = f"GR-{datetime.utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+            b = Batch(batch_number=internal_no, vendor_lot=vendor_lot, item_id=po_line.item_id, created_by=current_user.username)
+            db.add(b)
+            await db.flush()
+            batch_id = b.id
 
         gr_line = GoodsReceiptLine(
             receipt_id=gr.id,
@@ -293,7 +289,10 @@ async def create_goods_receipt(
 
     final = await db.execute(
         select(GoodsReceipt)
-        .options(selectinload(GoodsReceipt.lines).selectinload(GoodsReceiptLine.item))
+        .options(
+            selectinload(GoodsReceipt.lines).selectinload(GoodsReceiptLine.item),
+            selectinload(GoodsReceipt.lines).selectinload(GoodsReceiptLine.batch),
+        )
         .filter(GoodsReceipt.id == gr.id)
     )
     return final.scalars().first()
@@ -337,7 +336,10 @@ async def upload_delivery_note(
 
     final = await db.execute(
         select(GoodsReceipt)
-        .options(selectinload(GoodsReceipt.lines).selectinload(GoodsReceiptLine.item))
+        .options(
+            selectinload(GoodsReceipt.lines).selectinload(GoodsReceiptLine.item),
+            selectinload(GoodsReceipt.lines).selectinload(GoodsReceiptLine.batch),
+        )
         .filter(GoodsReceipt.id == receipt_id)
     )
     return final.scalars().first()
@@ -351,7 +353,10 @@ async def get_goods_receipts(
 ):
     result = await db.execute(
         select(GoodsReceipt)
-        .options(selectinload(GoodsReceipt.lines).selectinload(GoodsReceiptLine.item))
+        .options(
+            selectinload(GoodsReceipt.lines).selectinload(GoodsReceiptLine.item),
+            selectinload(GoodsReceipt.lines).selectinload(GoodsReceiptLine.batch),
+        )
         .filter(GoodsReceipt.po_id == po_id)
         .order_by(GoodsReceipt.receipt_date.desc())
     )

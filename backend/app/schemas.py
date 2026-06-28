@@ -940,7 +940,7 @@ class GoodsReceiptLineCreate(BaseModel):
     qty_cones: int | None = None  # raw material packaging
     qty_drums: int | None = None  # chemical/dye packaging
     batch_id: UUID | None = None
-    batch_number: str | None = None  # supplier lot no. — resolved/created server-side
+    vendor_lot: str | None = None  # supplier's lot number — stored as reference; internal lot auto-generated
 
 class GoodsReceiptCreate(BaseModel):
     receipt_date: datetime | None = None
@@ -962,6 +962,8 @@ class GoodsReceiptLineResponse(BaseModel):
     qty_cones: int | None = None
     qty_drums: int | None = None
     batch_id: UUID | None = None
+    vendor_lot: str | None = None    # supplier's lot reference
+    internal_lot: str | None = None  # system-generated internal batch number
     class Config:
         from_attributes = True
 
@@ -1616,6 +1618,7 @@ class BatchCreate(BaseModel):
 class BatchResponse(BaseModel):
     id: UUID
     batch_number: str
+    vendor_lot: Optional[str] = None  # supplier's lot reference (non-unique)
     item_id: UUID
     item_code: Optional[str] = None   # populated by batches endpoints (eager-loaded item)
     item_name: Optional[str] = None
