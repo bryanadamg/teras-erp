@@ -24,6 +24,7 @@ interface BomEntryState {
     attributeValueIds: string[];
     locked?: boolean;
     rawSoQtys?: Record<string, number>;
+    rawTotalQty?: number;
 }
 
 interface Props {
@@ -237,6 +238,7 @@ export default function ProductionRunModal({
                 rawSoQtys: Object.fromEntries(
                     Object.entries(e.sizeQtys).map(([k, v]) => [k, parseFloat(v) || 0])
                 ),
+                rawTotalQty: parseFloat(e.totalQty) || 0,
             }));
         }
         if (initialBomId) {
@@ -249,6 +251,7 @@ export default function ProductionRunModal({
                 rawSoQtys: initialSizes
                     ? Object.fromEntries(Object.entries(initialSizes).map(([k, v]) => [k, parseFloat(v) || 0]))
                     : undefined,
+                rawTotalQty: !initialSizes ? (parseFloat(initialTotalQty || '0') || 0) : undefined,
             }];
         }
         return [{ bomId: '', sizeQtys: {}, totalQty: '', attributeValueIds: [] }];
@@ -263,6 +266,7 @@ export default function ProductionRunModal({
                 rawSoQtys: Object.fromEntries(
                     Object.entries(e.sizeQtys).map(([k, v]) => [k, parseFloat(v) || 0])
                 ),
+                rawTotalQty: parseFloat(e.totalQty) || 0,
             })));
         } else if (initialBomId) {
             setBomEntries([{
@@ -274,6 +278,7 @@ export default function ProductionRunModal({
                 rawSoQtys: initialSizes
                     ? Object.fromEntries(Object.entries(initialSizes).map(([k, v]) => [k, parseFloat(v) || 0]))
                     : undefined,
+                rawTotalQty: !initialSizes ? (parseFloat(initialTotalQty || '0') || 0) : undefined,
             }]);
         }
     }, [initialBomEntries, initialBomId, initialSizes, initialTotalQty]);
@@ -307,16 +312,28 @@ export default function ProductionRunModal({
         return () => { cancelled = true; };
     }, [bomEntries[0]?.bomId, salesOrderCode, boms, authFetch]);
 
-    const showFormulaSection = bomEntries.some(e =>
-        e.rawSoQtys && e.locked && e.bomId && hasStandardSizes(boms.find((b: any) => b.id === e.bomId))
-    );
+    const showFormulaSection = bomEntries.some(e => {
+        if (!e.locked || !e.bomId) return false;
+        const bom = boms.find((b: any) => b.id === e.bomId);
+        if (!bom) return false;
+        const sized = hasStandardSizes(bom);
+        const nonSized = !sized && (bom.sizes || []).length === 0 && (e.rawTotalQty ?? 0) > 0;
+        return (sized && !!e.rawSoQtys) || nonSized;
+    });
 
     const handleApplyFormula = () => {
         setBomEntries(prev => prev.map(entry => {
-            if (!entry.rawSoQtys || !entry.locked || !entry.bomId) return entry;
+            if (!entry.locked || !entry.bomId) return entry;
             const bom = boms.find((b: any) => b.id === entry.bomId);
-            if (!bom || !hasStandardSizes(bom)) return entry;
-            return { ...entry, sizeQtys: applyFormula(bom.sizes, entry.rawSoQtys, tolerance) };
+            if (!bom) return entry;
+            if (hasStandardSizes(bom) && entry.rawSoQtys) {
+                return { ...entry, sizeQtys: applyFormula(bom.sizes, entry.rawSoQtys, tolerance) };
+            }
+            if ((bom.sizes || []).length === 0 && (entry.rawTotalQty ?? 0) > 0) {
+                const newQty = Math.ceil(entry.rawTotalQty! * (1 + tolerance / 100));
+                return { ...entry, totalQty: String(newQty) };
+            }
+            return entry;
         }));
     };
 
@@ -469,27 +486,27 @@ export default function ProductionRunModal({
                     {showFormulaSection && (
                         <div style={{ border: '1px solid #b0a890', borderRadius: 3, padding: '6px 8px', background: '#faf9f0', marginTop: 8 }}>
                             <div style={{ fontSize: 10, fontWeight: 'bold', color: '#5a4a00', marginBottom: 4 }}>
-                                Size Absorption Formula (S absorbed into M/L)
+                                Quantity Tolerance
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                 <label style={{ ...xpLabel, marginBottom: 0, whiteSpace: 'nowrap' }}>Tolerance %</label>
                                 <input
-                                    type="number" min={0} max={10} step={0.5}
+                                    type="number" min={0} max={100} step={0.5}
                                     style={{ ...xpInput, width: 60 }}
                                     value={tolerance}
                                     onChange={e => {
                                         const v = parseFloat(e.target.value);
-                                        setTolerance(isNaN(v) ? 0 : Math.min(10, Math.max(0, v)));
+                                        setTolerance(isNaN(v) ? 0 : Math.min(100, Math.max(0, v)));
                                     }}
                                 />
                                 <button
                                     onClick={handleApplyFormula}
                                     style={{ fontFamily: xpFont, fontSize: 11, padding: '2px 10px', background: 'linear-gradient(to bottom, #e8f0ff, #c0d0f0)', border: '1px solid', borderColor: '#d0d8f0 #4060a0 #4060a0 #d0d8f0', cursor: 'pointer', whiteSpace: 'nowrap' }}
                                 >
-                                    Apply Formula
+                                    Apply
                                 </button>
                                 <span style={{ fontSize: 9, color: '#666', lineHeight: 1.2 }}>
-                                    S=0 | M=(S+M)/2 | L=(S+M)/2+L | XL+=ordered
+                                    Sized: S=0 | M=(S+M)/2 | L=(S+M)/2+L | XL+=ordered{'  '}|{'  '}Non-sized: qty × (1 + %)
                                 </span>
                             </div>
                         </div>
