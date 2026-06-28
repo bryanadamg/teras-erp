@@ -409,6 +409,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
                     <NavItem tab="production-runs"      label="Production Runs"                                        icon="bi-collection-play" isSub />
                     <NavItem tab="manufacturing-orders" label={t('manufacturing_orders') || 'Manufacturing Orders'} icon="bi-list-task" isSub />
                     <NavItem tab="work-orders"          label={t('work_orders') || 'Work Orders'}                   icon="bi-tools" isSub />
+                    <NavItem tab="weaving-monitor"      label={t('weaving_monitor') || 'Weaving Monitor'}           icon="bi-speedometer2" isSub />
                   </>
                 )}
               </>

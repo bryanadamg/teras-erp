@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -17,7 +17,7 @@ from app.schemas import (
     WeavingRunCreate, WeavingRunUpdate, WeavingRunResponse,
     WorkCenterHolidayCreate, WorkCenterHolidayResponse, WorkCenterCalendarUpdate,
 )
-from app.services import audit_service, weaving_service
+from app.services import audit_service, weaving_service, id_holidays
 from app.core.ws_manager import manager
 
 router = APIRouter()
@@ -154,6 +154,66 @@ async def delete_weaving_run(
     )
     await manager.broadcast({"type": "weaving_run", "action": "delete", "work_center_id": wc_id})
     return {"status": "success"}
+
+
+# ── Monitor grid (all weaving machines, at a glance) ────────────────────────
+
+async def _machine_monitor(db: AsyncSession, wc: WorkCenter, today: date) -> dict:
+    weekdays, holidays = await _load_calendar(db, wc)
+    res = await db.execute(
+        select(WeavingRun)
+        .options(selectinload(WeavingRun.mo).selectinload(ManufacturingOrder.item))
+        .where(WeavingRun.work_center_id == wc.id)
+        .where(WeavingRun.status == "RUNNING")
+        .order_by(WeavingRun.created_at.desc())
+    )
+    run = res.scalars().first()
+    payload = {"id": str(wc.id), "code": wc.code, "name": wc.name, "center_type": wc.center_type, "active_run": None}
+    if run:
+        actual = await _run_actual_kg(db, run)
+        m = weaving_service.compute_run_metrics(run, actual, weekdays, holidays, today)
+        mo = run.mo
+        payload["active_run"] = {
+            "id": str(run.id),
+            "mo_code": mo.code if mo else None,
+            "item_code": mo.item_code if mo else None,
+            "item_name": mo.item_name if mo else None,
+            "target_qty": float(mo.qty) if mo else None,
+            "status": run.status,
+            **{k: m[k] for k in (
+                "efficiency_pct", "target_efficiency_pct", "on_target", "actual_kg",
+                "theoretical_100_kg", "actual_daily_rate_kg", "elapsed_working_days", "lines",
+            )},
+        }
+    return payload
+
+
+@router.get("/weaving/monitor")
+async def weaving_monitor(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    today = date.today()
+    res = await db.execute(
+        select(WorkCenter)
+        .where(WorkCenter.center_type == "WEAVING")
+        .where(WorkCenter.parent_id.isnot(None))
+        .order_by(WorkCenter.code)
+    )
+    machines = res.scalars().all()
+    out = [await _machine_monitor(db, wc, today) for wc in machines]
+    running = sum(1 for m in out if m["active_run"])
+    effs = [m["active_run"]["efficiency_pct"] for m in out if m["active_run"] and m["active_run"]["efficiency_pct"] is not None]
+    avg_eff = round(sum(effs) / len(effs), 1) if effs else None
+    return {"machines": out, "total": len(out), "running": running, "avg_efficiency_pct": avg_eff}
+
+
+@router.get("/weaving/id-holidays")
+async def id_national_holidays(
+    year: int = Query(...),
+    current_user: User = Depends(get_current_user),
+):
+    return {"year": year, "holidays": id_holidays.holidays_for_year(year)}
 
 
 # ── Performance report ───────────────────────────────────────────────────────
@@ -344,6 +404,35 @@ async def add_holiday(
     )
     await manager.broadcast({"type": "weaving_run", "action": "calendar", "work_center_id": str(wc.id)})
     return hol
+
+
+@router.post("/work-centers/{wc_id}/holidays/import-national")
+async def import_national_holidays(
+    wc_id: str,
+    year: int = Query(...),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    wc = await _get_wc(db, wc_id)
+    existing = await db.execute(
+        select(WorkCenterHoliday.holiday_date).where(WorkCenterHoliday.work_center_id == wc.id)
+    )
+    have = {r[0] for r in existing.all()}
+    added = 0
+    for h in id_holidays.holidays_for_year(year):
+        hd = date.fromisoformat(h["date"])
+        if hd in have:
+            continue
+        db.add(WorkCenterHoliday(work_center_id=wc.id, holiday_date=hd, note=h["name"]))
+        have.add(hd)
+        added += 1
+    await db.commit()
+    await audit_service.log_activity(
+        db, current_user.id, "CREATE", "work_center_holiday", str(wc.id),
+        details=f"Imported {added} national holidays ({year}) for {wc.code}",
+    )
+    await manager.broadcast({"type": "weaving_run", "action": "calendar", "work_center_id": str(wc.id)})
+    return {"added": added}
 
 
 @router.delete("/work-center-holidays/{holiday_id}")

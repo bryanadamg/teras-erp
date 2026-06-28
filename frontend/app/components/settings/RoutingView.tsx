@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
-import WorkCenterMonitorModal from '../manufacturing/WorkCenterMonitorModal';
 
 // ── XP inline styles ─────────────────────────────────────────────────────
 const xpBevel: React.CSSProperties = {
@@ -102,7 +101,7 @@ function buildTree(wcs: any[]): { wc: any; isGroup: boolean; indent: boolean }[]
     return rows;
 }
 
-export default function RoutingView({ workCenters, operations, locations, manufacturingOrders, authFetch, apiBase, onCreateWorkCenter, onUpdateWorkCenter, onDeleteWorkCenter, onCreateOperation, onDeleteOperation, onRefresh }: any) {
+export default function RoutingView({ workCenters, operations, locations, onCreateWorkCenter, onUpdateWorkCenter, onDeleteWorkCenter, onCreateOperation, onDeleteOperation, onRefresh }: any) {
   const { t } = useLanguage();
   const [newWorkCenter, setNewWorkCenter] = useState({ ...emptyWC });
   const [newOperation, setNewOperation] = useState({ code: '', name: '' });
@@ -112,18 +111,6 @@ export default function RoutingView({ workCenters, operations, locations, manufa
   const classic = currentStyle === 'classic';
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [editingWC, setEditingWC] = useState<any | null>(null);
-  const [monitorWC, setMonitorWC] = useState<any | null>(null);
-
-  const monitorModal = (authFetch && apiBase) ? (
-      <WorkCenterMonitorModal
-          isOpen={!!monitorWC}
-          onClose={() => setMonitorWC(null)}
-          workCenter={monitorWC}
-          manufacturingOrders={manufacturingOrders || []}
-          authFetch={authFetch}
-          apiBase={apiBase}
-      />
-  ) : null;
 
   const locationList = locations || [];
   const wcList = workCenters || [];
@@ -306,7 +293,6 @@ export default function RoutingView({ workCenters, operations, locations, manufa
   if (classic) {
       return (
           <div className="row g-3 fade-in">
-              {monitorModal}
               <div className="col-md-6">
                   <XPPanel
                       icon="bi-cpu-fill"
@@ -403,7 +389,6 @@ export default function RoutingView({ workCenters, operations, locations, manufa
                                                   <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#444' }}>{!isGroup ? getLocName(wc.input_location_id) : ''}</td>
                                                   <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#444' }}>{!isGroup ? getLocName(wc.output_location_id) : ''}</td>
                                                   <td style={{ padding: '2px 4px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                                      {!isGroup && monitorModal && <button style={{ ...xpBtn(), border: hoveredId === `wc-mon-${wc.id}` ? '1px solid #808080' : '1px solid transparent', background: 'transparent', padding: '1px 5px' }} onMouseEnter={() => setHoveredId(`wc-mon-${wc.id}`)} onMouseLeave={() => setHoveredId(null)} onClick={() => setMonitorWC(wc)} title={t('performance_monitor') || 'Performance Monitor'}><i className="bi bi-speedometer2" style={{ color: '#006e8e', fontSize: '11px' }}></i></button>}
                                                       <button style={{ ...xpBtn(), border: hoveredId === `wc-edit-${wc.id}` ? '1px solid #808080' : '1px solid transparent', background: 'transparent', padding: '1px 5px' }} onMouseEnter={() => setHoveredId(`wc-edit-${wc.id}`)} onMouseLeave={() => setHoveredId(null)} onClick={() => setEditingWC({ ...wc })} title="Edit"><i className="bi bi-pencil" style={{ fontSize: '11px' }}></i></button>
                                                       <button style={{ ...xpBtn(), border: hoveredId === `wc-${wc.id}` ? '1px solid #808080' : '1px solid transparent', background: 'transparent', padding: '1px 5px' }} onMouseEnter={() => setHoveredId(`wc-${wc.id}`)} onMouseLeave={() => setHoveredId(null)} onClick={() => onDeleteWorkCenter && onDeleteWorkCenter(wc.id)} title="Delete"><i className="bi bi-trash" style={{ color: '#c00000', fontSize: '11px' }}></i></button>
                                                   </td>
@@ -480,7 +465,6 @@ export default function RoutingView({ workCenters, operations, locations, manufa
   // ── Modern (Bootstrap) mode ───────────────────────────────────────────────
   return (
       <div className="row g-4 fade-in">
-          {monitorModal}
           <div className="col-md-6">
               <div className="card h-100 shadow-sm border-0">
                   <div className="card-header bg-white d-flex justify-content-between align-items-center">
@@ -575,7 +559,6 @@ export default function RoutingView({ workCenters, operations, locations, manufa
                                                   <td className="small text-muted">{!isGroup ? getLocName(wc.input_location_id) : ''}</td>
                                                   <td className="small text-muted">{!isGroup ? getLocName(wc.output_location_id) : ''}</td>
                                                   <td>
-                                                      {!isGroup && monitorModal && <button className="btn btn-sm text-info me-1" onClick={() => setMonitorWC(wc)} title={t('performance_monitor') || 'Performance Monitor'}><i className="bi bi-speedometer2"></i></button>}
                                                       <button className="btn btn-sm text-primary me-1" onClick={() => setEditingWC({ ...wc })} title="Edit"><i className="bi bi-pencil"></i></button>
                                                       <button className="btn btn-sm text-danger" onClick={() => onDeleteWorkCenter && onDeleteWorkCenter(wc.id)}><i className="bi bi-trash"></i></button>
                                                   </td>
