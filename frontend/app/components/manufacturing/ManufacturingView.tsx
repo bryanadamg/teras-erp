@@ -16,7 +16,7 @@ import ProductionRunModal from './ProductionRunModal';
 import WorkOrderPanel from './WorkOrderPanel';
 import WOCompletionModal from './WOCompletionModal';
 import MOCreationPreview from './MOCreationPreview';
-import { STATUS_COLORS, statusChipStyle } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, xpFont, xpInput, xpLabel } from '../shared/xpTheme';
 
 export default function ManufacturingView({
     items,
@@ -1249,7 +1249,7 @@ export default function ManufacturingView({
                           if (!attrNames.length && !sizeLabel) return null;
                           return (
                               <div className="mb-2 px-2 py-1 rounded" style={{ background: '#f6f8ff', border: '1px solid #c8d8f8' }}>
-                                  <div className="extra-small fw-bold text-muted mb-1" style={{ letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                                  <div style={{ fontFamily: xpFont, fontSize: 9, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#888', marginBottom: 4 }}>
                                       <i className="bi bi-tag-fill me-1 text-primary opacity-75"></i>Product Variant
                                   </div>
                                   <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -1270,14 +1270,14 @@ export default function ManufacturingView({
                       <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: '#888', borderBottom: `1px solid ${currentStyle === 'classic' ? '#c0bdb5' : '#e2e8f0'}`, paddingBottom: 2, marginBottom: 8 }}>MO Details</div>
 
                       <div className="mb-2">
-                          <label className="form-label extra-small fw-bold text-muted uppercase mb-1">MO Reference Code</label>
+                          <label style={xpLabel()}>MO Reference Code</label>
                           <div style={{ display: 'flex' }}>
                               <input
                                   placeholder="Auto-generated"
                                   value={newWO.code}
                                   onChange={e => setNewWO({...newWO, code: e.target.value})}
                                   required
-                                  style={{ flex: 1, fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11, border: '1px solid #7f9db9', borderRight: 'none', background: 'white', height: 24, padding: '0 4px', outline: 'none', borderRadius: 0, boxSizing: 'border-box' as const }}
+                                  style={xpInput({ flex: 1, borderRight: 'none', height: '22px', borderRadius: 0 })}
                               />
                               <button
                                   type="button"
@@ -1289,12 +1289,12 @@ export default function ManufacturingView({
                       </div>
 
                       <div className="mb-2">
-                          <label className="form-label extra-small fw-bold text-muted uppercase mb-1">Target Quantity</label>
-                          <input type="number" className="form-control form-control-sm" value={newWO.qty} onChange={e => setNewWO({...newWO, qty: parseFloat(e.target.value)})} required />
+                          <label style={xpLabel()}>Target Quantity</label>
+                          <input type="number" style={xpInput({ width: '100%', height: '22px', borderRadius: 0 })} value={newWO.qty} onChange={e => setNewWO({...newWO, qty: parseFloat(e.target.value)})} required />
                       </div>
 
                       <div className="mb-2">
-                          <label className="form-label extra-small fw-bold text-muted uppercase mb-1">Product Recipe (BOM)</label>
+                          <label style={xpLabel()}>Product Recipe (BOM)</label>
                           <SearchableSelect
                               options={boms.map((b: any) => ({ value: b.id, label: `[${b.code}]  ${getItemName(b.item_id)}` }))}
                               value={newWO.bom_id}
@@ -1308,12 +1308,12 @@ export default function ManufacturingView({
                       <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: '#888', borderBottom: `1px solid ${currentStyle === 'classic' ? '#c0bdb5' : '#e2e8f0'}`, paddingBottom: 2, marginBottom: 8, marginTop: 14 }}>Schedule</div>
                       <div className="row g-2 mb-2">
                           <div className="col-6">
-                              <label className="form-label extra-small fw-bold text-muted uppercase mb-1">Start Date</label>
-                              <input type="date" className="form-control form-control-sm" value={newWO.target_start_date} onChange={e => setNewWO({...newWO, target_start_date: e.target.value})} />
+                              <label style={xpLabel()}>Start Date</label>
+                              <input type="date" style={xpInput({ width: '100%', height: '22px', borderRadius: 0 })} value={newWO.target_start_date} onChange={e => setNewWO({...newWO, target_start_date: e.target.value})} />
                           </div>
                           <div className="col-6">
-                              <label className="form-label extra-small fw-bold text-muted uppercase mb-1">End Date</label>
-                              <input type="date" className="form-control form-control-sm" value={newWO.target_end_date} onChange={e => setNewWO({...newWO, target_end_date: e.target.value})} />
+                              <label style={xpLabel()}>End Date</label>
+                              <input type="date" style={xpInput({ width: '100%', height: '22px', borderRadius: 0 })} value={newWO.target_end_date} onChange={e => setNewWO({...newWO, target_end_date: e.target.value})} />
                           </div>
                       </div>
 

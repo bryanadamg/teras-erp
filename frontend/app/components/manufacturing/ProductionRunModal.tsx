@@ -3,19 +3,15 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ModalWrapper from '../shared/ModalWrapper';
 import { useData } from '../../context/DataContext';
 import NettingPlanTable, { useNettingPreview } from './NettingPlanTable';
+import { xpFont, xpInput as _xpInput, xpLabel as _xpLabel } from '../shared/xpTheme';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
 
-const xpFont = 'Tahoma, "Segoe UI", sans-serif';
-const xpInput: React.CSSProperties = {
-    fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
-    background: 'white', height: 22, padding: '0 4px', outline: 'none', width: '100%',
-    borderRadius: 0, boxSizing: 'border-box',
-};
-const xpLabel: React.CSSProperties = {
-    fontFamily: xpFont, fontSize: 11, display: 'block', marginBottom: 2,
-};
+const fi = (extra: React.CSSProperties = {}): React.CSSProperties =>
+    _xpInput({ width: '100%', height: '22px', borderRadius: 0, boxSizing: 'border-box', padding: '0 4px', ...extra });
+const xpInput = fi;
+const xpLabel = (extra: React.CSSProperties = {}): React.CSSProperties => _xpLabel(extra);
 
 interface BomEntryState {
     bomId: string;
@@ -132,9 +128,9 @@ function BomEntryRow({
                 </button>
             )}
             <div style={{ marginBottom: 6 }}>
-                <label style={xpLabel}>Product Recipe (BOM)</label>
+                <label style={xpLabel()}>Product Recipe (BOM)</label>
                 <select
-                    style={{ ...xpInput, height: 22 }}
+                    style={xpInput({ height: '22px' })}
                     value={entry.bomId}
                     onChange={e => onChange({ ...entry, bomId: e.target.value, sizeQtys: {}, totalQty: '', attributeValueIds: [] })}
                     disabled={entry.locked}
@@ -152,9 +148,9 @@ function BomEntryRow({
                 ) || '';
                 return (
                     <div key={attr.id} style={{ marginBottom: 6 }}>
-                        <label style={xpLabel}>{attr.name}</label>
+                        <label style={xpLabel()}>{attr.name}</label>
                         <select
-                            style={{ ...xpInput, height: 22 }}
+                            style={xpInput({ height: '22px' })}
                             value={selectedValId}
                             onChange={e => handleAttrChange(attr, e.target.value)}
                         >
@@ -169,17 +165,17 @@ function BomEntryRow({
 
             {selectedBom && sizes.length > 0 && (
                 <div>
-                    <label style={{ ...xpLabel, fontWeight: 'bold', marginBottom: 4 }}>
+                    <label style={xpLabel({ fontWeight: 'bold', marginBottom: 4 })}>
                         Qty per Size{itemUom ? <span style={{ fontWeight: 'normal', marginLeft: 4, fontSize: 10, background: '#dde8f5', border: '1px solid #7f9db9', padding: '0 4px', color: '#336' }}>{itemUom}</span> : null}
                     </label>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 4 }}>
                         {sizes.map((s: any) => (
                             <div key={s.id}>
-                                <label style={{ ...xpLabel, fontWeight: 'bold', fontSize: 10 }}>
+                                <label style={xpLabel({ fontWeight: 'bold', fontSize: 10 })}>
                                     {s.label || s.size?.name || s.size_name || (s.target_measurement ? String(s.target_measurement) : `S${s.id.slice(0, 4)}`)}
                                 </label>
                                 <input
-                                    type="number" min="0" style={xpInput} placeholder="0"
+                                    type="number" min="0" style={xpInput()} placeholder="0"
                                     value={entry.sizeQtys[s.id] || ''}
                                     onChange={e => onChange({ ...entry, sizeQtys: { ...entry.sizeQtys, [s.id]: e.target.value } })}
                                 />
@@ -191,9 +187,9 @@ function BomEntryRow({
 
             {selectedBom && sizes.length === 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <label style={xpLabel}>Total Quantity</label>
+                    <label style={xpLabel()}>Total Quantity</label>
                     <input
-                        type="number" min="0" style={{ ...xpInput, width: 100 }} placeholder="0"
+                        type="number" min="0" style={xpInput({ width: 100 })} placeholder="0"
                         value={entry.totalQty}
                         onChange={e => onChange({ ...entry, totalQty: e.target.value })}
                     />
@@ -443,9 +439,9 @@ export default function ProductionRunModal({
                 {/* ── LEFT: form ── */}
                 <div style={{ width: 420, minWidth: 420, flexShrink: 0, paddingRight: 18, borderRight: '1px solid #aca899' }}>
                     <div style={{ marginBottom: 8 }}>
-                        <label style={xpLabel}>Run Code</label>
+                        <label style={xpLabel()}>Run Code</label>
                         <input
-                            style={xpInput}
+                            style={xpInput()}
                             value={code}
                             placeholder="Auto-generated"
                             onChange={e => { codeEdited.current = true; setCode(e.target.value); }}
@@ -458,12 +454,12 @@ export default function ProductionRunModal({
 
                     <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                         <div style={{ flex: 1 }}>
-                            <label style={xpLabel}>Target Start</label>
-                            <input type="date" style={xpInput} value={targetStart} onChange={e => setTargetStart(e.target.value)} />
+                            <label style={xpLabel()}>Target Start</label>
+                            <input type="date" style={xpInput()} value={targetStart} onChange={e => setTargetStart(e.target.value)} />
                         </div>
                         <div style={{ flex: 1 }}>
-                            <label style={xpLabel}>Target End</label>
-                            <input type="date" style={xpInput} value={targetEnd} onChange={e => setTargetEnd(e.target.value)} />
+                            <label style={xpLabel()}>Target End</label>
+                            <input type="date" style={xpInput()} value={targetEnd} onChange={e => setTargetEnd(e.target.value)} />
                         </div>
                     </div>
 
@@ -489,10 +485,10 @@ export default function ProductionRunModal({
                                 Quantity Tolerance
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                <label style={{ ...xpLabel, marginBottom: 0, whiteSpace: 'nowrap' }}>Tolerance %</label>
+                                <label style={xpLabel({ marginBottom: 0, whiteSpace: 'nowrap' })}>Tolerance %</label>
                                 <input
                                     type="number" min={0} max={100} step={0.5}
-                                    style={{ ...xpInput, width: 60 }}
+                                    style={xpInput({ width: 60 })}
                                     value={tolerance}
                                     onChange={e => {
                                         const v = parseFloat(e.target.value);

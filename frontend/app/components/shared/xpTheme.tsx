@@ -71,6 +71,11 @@ export const xpInput = (extra: React.CSSProperties = {}): React.CSSProperties =>
     ...extra,
 });
 
+export const xpLabel = (extra: React.CSSProperties = {}): React.CSSProperties => ({
+    fontFamily: xpFont, fontSize: '11px', display: 'block', marginBottom: 2,
+    ...extra,
+});
+
 export const xpSelect = (extra: React.CSSProperties = {}): React.CSSProperties =>
     xpInput({ height: '22px', ...extra });
 
