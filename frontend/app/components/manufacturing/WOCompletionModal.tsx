@@ -103,10 +103,16 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
         });
     }, [JSON.stringify(materialItemIds), workOrder?.id]);
 
-    // Build material rows from BOM lines when in WO mode
+    // Build material rows from BOM lines when in WO mode.
+    // L2: a WO only consumes the materials allocated to its routing step
+    // (line.bom_operation_id == workOrder.bom_operation_id). Legacy WOs with no
+    // step fall back to the whole recipe.
     useEffect(() => {
         if (!workOrder || !mo.bom?.lines?.length) return;
-        const bomLines: any[] = mo.bom.lines;
+        const allLines: any[] = mo.bom.lines;
+        const bomLines: any[] = workOrder?.bom_operation_id
+            ? allLines.filter((l: any) => l.bom_operation_id && String(l.bom_operation_id) === String(workOrder.bom_operation_id))
+            : allLines;
         setMaterialRows(bomLines.map((line: any) => ({
             item_id: line.item_id,
             item_name: line.item_name || '',

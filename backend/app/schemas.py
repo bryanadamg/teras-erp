@@ -568,6 +568,7 @@ class WorkOrderCreate(BaseModel):
     sequence: int = 1
     name: str | None = None
     work_center_id: UUID | None = None
+    bom_operation_id: UUID | None = None
     input_location_id: UUID | None = None
     output_location_id: UUID | None = None
     qty: float | None = None
@@ -587,6 +588,8 @@ class WorkOrderResponse(BaseModel):
     work_center_id: UUID | None = None
     work_center_name: str | None = None
     work_center_type: str | None = None
+    bom_operation_id: UUID | None = None
+    staging_status: str = "NOT_STAGED"
     planned_recipe_id: UUID | None = None
     input_location_id: UUID | None = None
     output_location_id: UUID | None = None
@@ -608,6 +611,34 @@ class WorkOrderResponse(BaseModel):
     actual_start_date: datetime | None = None
     actual_end_date: datetime | None = None
     created_at: datetime
+
+
+class WORequiredMaterial(BaseModel):
+    """One material a WO must stage to its input location (its step's share)."""
+    item_id: UUID
+    item_code: str | None = None
+    item_name: str | None = None
+    attribute_value_ids: list[UUID] = []
+    required_qty: float
+    source_location_id: UUID | None = None
+    source_location_name: str | None = None
+    on_hand: float = 0.0        # available at source location (rolled up across leaf spots)
+    staged: float = 0.0         # already staged to this WO's input location
+    shortfall: float = 0.0      # max(0, required - staged)
+    lot_tracked: bool = False
+
+
+class WOStageLine(BaseModel):
+    item_id: UUID
+    qty: float
+    source_location_id: UUID | None = None      # defaults to the line's resolved source
+    batch_id: UUID | None = None                # required for lot-tracked materials
+    attribute_value_ids: list[UUID] = []
+
+
+class WOStagePayload(BaseModel):
+    lines: list[WOStageLine]
+
 
 # Resolve forward references now that all referenced schemas are defined
 ManufacturingOrderResponse.update_forward_refs()

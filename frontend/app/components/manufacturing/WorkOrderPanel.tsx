@@ -1,8 +1,10 @@
 'use client';
 import React, { useState, useMemo } from 'react';
 import WOStepPrintModal from './WOStepPrintModal';
+import WOStagingModal from './WOStagingModal';
 import BeamPlanningModal from './BeamPlanningModal';
 import { useToast } from '../shared/Toast';
+import { useData } from '../../context/DataContext';
 import { STATUS_COLORS as STATUS_BORDER } from '../shared/xpTheme';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
@@ -43,6 +45,8 @@ interface WO {
     output_location_id?: string;
     input_location?: { id: string; code: string; name: string } | null;
     output_location?: { id: string; code: string; name: string } | null;
+    bom_operation_id?: string;
+    staging_status?: string;
     status: string;
     planned_duration_hours?: number;
     actual_duration_hours?: number;
@@ -54,7 +58,7 @@ interface WO {
     created_at?: string;
 }
 
-const emptyForm = { group_id: '', work_center_id: '', input_location_id: '', output_location_id: '', planned_duration_hours: '', qty: '', target_start_date: '', target_end_date: '' };
+const emptyForm = { group_id: '', work_center_id: '', bom_operation_id: '', input_location_id: '', output_location_id: '', planned_duration_hours: '', qty: '', target_start_date: '', target_end_date: '' };
 
 interface Props {
     manufacturingOrderId: string;
@@ -74,11 +78,13 @@ export default function WorkOrderPanel({
     onAdd, onUpdate, onUpdateStatus, onDelete, onLogWO, parentMO,
 }: Props) {
     const { showToast } = useToast();
+    const { operations: opMaster } = useData() as any;
     const [addingRow, setAddingRow] = useState(false);
     const [editId, setEditId] = useState<string | null>(null);
     const [form, setForm] = useState({ ...emptyForm });
     const [isSaving, setIsSaving] = useState(false);
     const [printWO, setPrintWO] = useState<WO | null>(null);
+    const [stageWO, setStageWO] = useState<WO | null>(null);
     const [overAssignWarning, setOverAssignWarning] = useState<{ totalAssigned: number; moQty: number } | null>(null);
     const [beamPlanOpen, setBeamPlanOpen] = useState(false);
 
@@ -101,6 +107,19 @@ export default function WorkOrderPanel({
     const lockedGroupId: string | null = parentMO?.bom?.work_center_id
         ? String(parentMO.bom.work_center_id)
         : null;
+
+    // Routing steps defined on this MO's BOM. A WO must declare which step it runs
+    // (L2) so staging/consumption only touch that step's materials.
+    const bomOperations = useMemo(() => {
+        const ops = parentMO?.bom?.operations || [];
+        return [...ops].sort((a: any, b: any) => (a.sequence ?? 0) - (b.sequence ?? 0));
+    }, [parentMO]);
+    const stepLabel = (op: any) => {
+        const name = op.operation_name
+            || (opMaster || []).find((o: any) => String(o.id) === String(op.operation_id))?.name
+            || op.work_center_type || 'Step';
+        return `${op.sequence != null ? op.sequence + '. ' : ''}${name}`;
+    };
 
     const availableGroups = useMemo(() =>
         workCenters.filter((wc: any) => !wc.parent_id),
@@ -134,11 +153,16 @@ export default function WorkOrderPanel({
     };
 
     const handleAdd = async () => {
+        if (bomOperations.length > 0 && !form.bom_operation_id) {
+            showToast('Select the routing step this work order runs.', 'danger');
+            return;
+        }
         setIsSaving(true);
         try {
             const res = await onAdd({
                 manufacturing_order_id: manufacturingOrderId,
                 work_center_id: form.work_center_id || undefined,
+                bom_operation_id: form.bom_operation_id || undefined,
                 input_location_id: form.input_location_id || undefined,
                 output_location_id: form.output_location_id || undefined,
                 planned_duration_hours: form.planned_duration_hours ? parseFloat(form.planned_duration_hours) : undefined,
@@ -175,6 +199,7 @@ export default function WorkOrderPanel({
                 sequence: wo.sequence,
                 name: wo.name,
                 work_center_id: form.work_center_id || undefined,
+                bom_operation_id: form.bom_operation_id || undefined,
                 input_location_id: form.input_location_id || undefined,
                 output_location_id: form.output_location_id || undefined,
                 planned_duration_hours: form.planned_duration_hours ? parseFloat(form.planned_duration_hours) : undefined,
@@ -200,6 +225,7 @@ export default function WorkOrderPanel({
         setForm({
             group_id: machine?.parent_id ? String(machine.parent_id) : '',
             work_center_id: wo.work_center_id || '',
+            bom_operation_id: wo.bom_operation_id || '',
             input_location_id: wo.input_location_id || '',
             output_location_id: wo.output_location_id || '',
             planned_duration_hours: wo.planned_duration_hours != null ? String(wo.planned_duration_hours) : '',
@@ -320,6 +346,19 @@ export default function WorkOrderPanel({
                                         <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#666', minWidth: 90 }}>
                                             {wo.code || `Step ${wo.sequence}`}
                                         </span>
+                                        {bomOperations.length > 0 && (
+                                            <select
+                                                style={{ ...xpInput, minWidth: 130 }}
+                                                value={form.bom_operation_id}
+                                                onChange={e => setForm(f => ({ ...f, bom_operation_id: e.target.value }))}
+                                                title="Routing step this work order runs"
+                                            >
+                                                <option value="">— Step —</option>
+                                                {bomOperations.map((op: any) => (
+                                                    <option key={op.id} value={op.id}>{stepLabel(op)}</option>
+                                                ))}
+                                            </select>
+                                        )}
                                         {lockedGroupId && (
                                             <span style={{
                                                 fontFamily: xpFont, fontSize: 10, padding: '0 7px', height: 20,
@@ -471,6 +510,22 @@ export default function WorkOrderPanel({
                                         </span>
                                     )}
 
+                                    {/* Staging status badge (only when this WO has a routing step) */}
+                                    {wo.bom_operation_id && (
+                                        <span style={{
+                                            padding: '0 5px', fontSize: 9, fontWeight: 'bold', whiteSpace: 'nowrap',
+                                            border: '1px solid',
+                                            ...(wo.staging_status === 'STAGED'
+                                                ? { background: '#d4f0d4', color: '#005500', borderColor: '#99cc99' }
+                                                : wo.staging_status === 'PARTIAL'
+                                                    ? { background: '#fff3cc', color: '#664400', borderColor: '#f0d888' }
+                                                    : { background: '#f0e0e0', color: '#883333', borderColor: '#d8b0b0' }),
+                                        }}>
+                                            {wo.staging_status === 'STAGED' ? 'STAGED'
+                                                : wo.staging_status === 'PARTIAL' ? 'PART. STAGED' : 'NOT STAGED'}
+                                        </span>
+                                    )}
+
                                     {/* Flex spacer */}
                                     <span style={{ flex: 1 }} />
 
@@ -522,6 +577,19 @@ export default function WorkOrderPanel({
 
                                     {/* Actions */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+                                        {wo.bom_operation_id && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
+                                            <button
+                                                onClick={() => setStageWO(wo)}
+                                                title="Issue this step's materials to the line"
+                                                style={{
+                                                    fontFamily: xpFont, fontSize: 10, padding: '0px 6px',
+                                                    background: 'linear-gradient(to bottom, #cfe0ff, #8fb3e8)',
+                                                    border: '1px solid #335599', cursor: 'pointer', color: '#0a2a66',
+                                                }}
+                                            >
+                                                Stage
+                                            </button>
+                                        )}
                                         {onLogWO && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
                                             <button
                                                 onClick={() => onLogWO(wo)}
@@ -573,6 +641,20 @@ export default function WorkOrderPanel({
                                 New work order — code assigned on save
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
+                                {/* Routing step — required when the BOM defines operations */}
+                                {bomOperations.length > 0 && (
+                                    <select
+                                        style={{ ...xpInput, minWidth: 130 }}
+                                        value={form.bom_operation_id}
+                                        onChange={e => setForm(f => ({ ...f, bom_operation_id: e.target.value }))}
+                                        title="Routing step this work order runs"
+                                    >
+                                        <option value="">— Step —</option>
+                                        {bomOperations.map((op: any) => (
+                                            <option key={op.id} value={op.id}>{stepLabel(op)}</option>
+                                        ))}
+                                    </select>
+                                )}
                                 {/* Group locked badge — BOM defines work_center_id */}
                                 {lockedGroupId && (
                                     <span style={{
@@ -696,6 +778,14 @@ export default function WorkOrderPanel({
                     workOrder={printWO}
                     parentMO={parentMO}
                     onClose={() => setPrintWO(null)}
+                />
+            )}
+
+            {stageWO && (
+                <WOStagingModal
+                    wo={stageWO}
+                    onClose={() => setStageWO(null)}
+                    onStaged={() => { /* WO list refreshes via the WORK_ORDER_UPDATE broadcast */ }}
                 />
             )}
 

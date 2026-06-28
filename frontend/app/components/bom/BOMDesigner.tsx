@@ -612,10 +612,32 @@ export default function BOMDesigner({
         return null;
     };
 
+    // L2: when a node defines routing operations, every material must be assigned
+    // to a step. Mirrors the backend block so the user gets feedback before saving.
+    const validateSteps = (node: BOMNodeData): string | null => {
+        if (node.operations.length > 0 && node.lines.length > 0) {
+            const validSeqs = new Set(node.operations.map((o: any) => o.sequence));
+            const bad = node.lines.some(l => l.bom_operation_sequence == null || !validSeqs.has(l.bom_operation_sequence));
+            if (bad) return node.item_code || node.code || 'root';
+        }
+        for (const line of node.lines) {
+            if (line.subBOM) {
+                const err = validateSteps(line.subBOM);
+                if (err) return err;
+            }
+        }
+        return null;
+    };
+
     const handleGlobalSave = async () => {
         const pctErr = validatePercentages(rootBOM);
         if (pctErr) {
             setPctError(`Components under "${pctErr}" must all have percentages set and sum to 100%.`);
+            return;
+        }
+        const stepErr = validateSteps(rootBOM);
+        if (stepErr) {
+            setPctError(`Every material under "${stepErr}" must be assigned a routing step (the BOM has operations).`);
             return;
         }
         setPctError(null);

@@ -61,6 +61,26 @@ def _validate_line_percentages(lines: list) -> None:
         raise HTTPException(status_code=422, detail=f"BOM line percentages must sum to 100% (got {total:.2f}%).")
 
 
+def _validate_steps_assigned(operations: list, lines: list) -> None:
+    """L2 rule: when a BOM defines routing operations, every material line must be
+    allocated to a step (bom_operation_sequence). Per-operation staging/consumption
+    depends on it, so an unassigned line is blocked."""
+    if not operations or not lines:
+        return
+    valid_seqs = {op.sequence for op in operations if (op.operation_id is not None or op.work_center_id is not None)}
+    if not valid_seqs:
+        return
+    missing = [
+        (l.item_code or "?") for l in lines
+        if l.bom_operation_sequence is None or l.bom_operation_sequence not in valid_seqs
+    ]
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Every material must be assigned to a routing step when the BOM has operations. Unassigned: {', '.join(missing)}",
+        )
+
+
 @router.get("/sizes", response_model=list[SizeResponse])
 async def get_sizes(db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(select(Size).order_by(Size.sort_order))
@@ -69,6 +89,7 @@ async def get_sizes(db: AsyncSession = Depends(get_async_db), current_user: User
 @router.post("/boms", response_model=BOMResponse)
 async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
     _validate_line_percentages(payload.lines)
+    _validate_steps_assigned(payload.operations, payload.lines)
 
     # 1. Resolve Produced Item
     result = await db.execute(select(Item).filter(Item.code == payload.item_code))
@@ -492,6 +513,8 @@ async def update_bom(
     # Replace lines if provided
     if payload.lines is not None:
         _validate_line_percentages(payload.lines)
+        if payload.operations is not None:
+            _validate_steps_assigned(payload.operations, payload.lines)
         for bl in list(bom.lines):
             await db.delete(bl)
         await db.flush()

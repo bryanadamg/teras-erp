@@ -25,6 +25,14 @@ class WorkOrder(Base):
     work_center_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("work_centers.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # Which routing step (BOM operation) this WO executes. Drives per-operation
+    # material staging/consumption: a WO only handles materials allocated to its step.
+    bom_operation_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("bom_operations.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # Line-side staging state: NOT_STAGED / PARTIAL / STAGED. Recomputed on each
+    # stage action from the "Staging" ledger rows booked to this WO's input loc.
+    staging_status: Mapped[str] = mapped_column(String(16), default="NOT_STAGED", server_default="NOT_STAGED")
     planned_recipe_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("dye_recipes.id", ondelete="SET NULL"), nullable=True
     )

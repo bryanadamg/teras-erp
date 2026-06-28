@@ -807,12 +807,24 @@ async def add_mo_completion(
             batch_by_item[str(b.item_id)] = b
     consumed_by_batch: dict[str, float] = {}
 
+    # Per-operation consumption: a WO only consumes the materials allocated to its
+    # routing step (planned_component.bom_operation_id == wo.bom_operation_id).
+    # If the WO has no step (legacy BOM with no operations), fall back to the whole
+    # recipe so older data keeps working.
+    if wo and wo.bom_operation_id:
+        step_comps = [
+            c for c in mo.planned_components
+            if c.bom_operation_id and str(c.bom_operation_id) == str(wo.bom_operation_id)
+        ]
+    else:
+        step_comps = list(mo.planned_components)
+
     # Lot enforcement: every deducted lot-tracked material must have a batch selected
     if wo_input_loc:
         if payload.actual_items:
             deducted_ids = {str(ai.item_id) for ai in payload.actual_items if float(ai.qty_used) > 0}
         else:
-            deducted_ids = {str(c.item_id) for c in mo.planned_components if c.percentage}
+            deducted_ids = {str(c.item_id) for c in step_comps if c.percentage}
         missing = [i for i in deducted_ids if i not in batch_by_item]
         if missing:
             lt_res = await db.execute(
@@ -867,8 +879,8 @@ async def add_mo_completion(
                 )
                 if in_batch:
                     consumed_by_batch[str(in_batch.id)] = consumed_by_batch.get(str(in_batch.id), 0.0) + float(ai.qty_used)
-        elif mo.planned_components:
-            for comp in mo.planned_components:
+        elif step_comps:
+            for comp in step_comps:
                 if not comp.percentage:
                     continue
                 deduct_loc_id = comp.source_location_id or wo_input_loc
