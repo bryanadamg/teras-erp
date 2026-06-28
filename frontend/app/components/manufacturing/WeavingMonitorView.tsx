@@ -42,9 +42,7 @@ export default function WeavingMonitorView() {
 
     useEffect(() => { load(); }, [load]);
 
-    // refresh grid when the detail modal closes (a run may have started/stopped)
     const closeModal = () => { setSelected(null); load(); };
-
     const machines: any[] = data?.machines || [];
 
     const EffBar = ({ eff, target }: { eff: number; target: number }) => {
@@ -57,29 +55,128 @@ export default function WeavingMonitorView() {
         );
     };
 
-    const Card = ({ m }: { m: any }) => {
+    const openCard = (m: any) => setSelected({ id: m.id, code: m.code, name: m.name, center_type: m.center_type });
+
+    const modal = (
+        <WorkCenterMonitorModal
+            isOpen={!!selected}
+            onClose={closeModal}
+            workCenter={selected}
+            manufacturingOrders={manufacturingOrders || []}
+            authFetch={authFetch}
+            apiBase={API_BASE}
+        />
+    );
+
+    const summaryText = data ? (
+        <>
+            <span><b>{data.total}</b> {t('machines')}</span>
+            <span style={{ marginLeft: 12 }}><b style={{ color: cls ? '#9effa0' : GREEN }}>{data.running}</b> {t('running')}</span>
+            {data.avg_efficiency_pct !== null && data.avg_efficiency_pct !== undefined && (
+                <span style={{ marginLeft: 12 }}>{t('avg_efficiency')}: <b>{fmt(data.avg_efficiency_pct, 1)}%</b></span>
+            )}
+        </>
+    ) : null;
+
+    // ── Classic (XP) ─────────────────────────────────────────────────────────
+    if (cls) {
+        const xpWin: React.CSSProperties = {
+            border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
+            background: '#ece9d8', boxShadow: '2px 2px 4px rgba(0,0,0,0.3)',
+        };
+        const xpTitle: React.CSSProperties = {
+            background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff',
+            fontFamily: xpFont, fontSize: 12, fontWeight: 'bold', padding: '4px 8px',
+            borderBottom: '1px solid #003080', display: 'flex', justifyContent: 'space-between',
+            alignItems: 'center', gap: 8,
+        };
+        const xpCardWrap: React.CSSProperties = {
+            border: '2px solid', borderColor: '#ffffff #808080 #808080 #ffffff',
+            background: '#ece9d8', cursor: 'pointer',
+        };
+
+        const card = (m: any) => {
+            const run = m.active_run;
+            const on = run?.on_target;
+            const effColor = on ? GREEN : RED;
+            const strip: React.CSSProperties = {
+                background: run ? 'linear-gradient(to right, #1a6e1a, #3ab83a)' : 'linear-gradient(to right, #808080, #a8a8a8)',
+                color: '#fff', fontFamily: xpFont, fontSize: 11, fontWeight: 'bold',
+                padding: '2px 7px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6,
+                borderBottom: '1px solid #00000033',
+            };
+            return (
+                <div key={m.id} style={xpCardWrap} onClick={() => openCard(m)} title={t('click_for_detail')}>
+                    <div style={strip}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.code} — {m.name}</span>
+                        <span style={{ fontSize: 9, flexShrink: 0 }}>{run ? t('running').toUpperCase() : t('idle').toUpperCase()}</span>
+                    </div>
+                    <div style={{ padding: '6px 8px', background: '#fff', fontFamily: xpFont }}>
+                        {run ? (
+                            <>
+                                <div style={{ fontSize: 10, color: '#555', marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    <b>{run.mo_code}</b>{run.item_code ? ` · ${run.item_code}` : ''}
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                                    <span style={{ fontSize: 24, fontWeight: 'bold', color: effColor, lineHeight: 1 }}>{fmt(run.efficiency_pct, 1)}<span style={{ fontSize: 12 }}>%</span></span>
+                                    <span style={{ fontSize: 10, color: '#888' }}>{t('target')} {fmt(run.target_efficiency_pct, 0)}%</span>
+                                </div>
+                                <div style={{ margin: '4px 0' }}><EffBar eff={run.efficiency_pct} target={run.target_efficiency_pct} /></div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                                    <span><span style={{ color: '#888' }}>{t('actual')}:</span> <b>{fmt(run.actual_kg, 1)}</b>/{fmt(run.target_qty, 0)} kg</span>
+                                    <span style={{ color: '#666' }}>{fmt(run.actual_daily_rate_kg, 1)} kg/d</span>
+                                </div>
+                            </>
+                        ) : (
+                            <div style={{ fontSize: 11, color: '#888', display: 'flex', gap: 6, alignItems: 'center', minHeight: 64 }}>
+                                <i className="bi bi-pause-circle" style={{ fontSize: 16 }} />{t('no_active_run')}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        return (
+            <div className="fade-in" style={{ fontFamily: xpFont }}>
+                <div style={xpWin}>
+                    <div style={xpTitle}>
+                        <span><i className="bi bi-speedometer2" style={{ marginRight: 6 }} />{t('weaving_monitor')}</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 'normal', fontSize: 11 }}>
+                            <span>{summaryText}</span>
+                            <button style={{ ...xpBtn() }} onClick={load}><i className="bi bi-arrow-clockwise" /></button>
+                        </span>
+                    </div>
+                    <div style={{ padding: 8, background: '#ece9d8' }}>
+                        {loading ? (
+                            <XPLoading label={t('loading')} />
+                        ) : machines.length === 0 ? (
+                            <XPEmptyState icon="bi-cpu" message={t('no_weaving_machines')} />
+                        ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>
+                                {machines.map(card)}
+                            </div>
+                        )}
+                    </div>
+                </div>
+                {modal}
+            </div>
+        );
+    }
+
+    // ── Modern (Bootstrap) ─────────────────────────────────────────────────────
+    const card = (m: any) => {
         const run = m.active_run;
         const on = run?.on_target;
         const effColor = on ? GREEN : RED;
-        const cardStyle: React.CSSProperties = cls
-            ? { background: '#fff', border: '1px solid', borderColor: '#808080 #fff #fff #808080', padding: 10, cursor: 'pointer', fontFamily: xpFont }
-            : { cursor: 'pointer' };
         return (
-            <div
-                onClick={() => setSelected({ id: m.id, code: m.code, name: m.name, center_type: m.center_type })}
-                className={cls ? '' : 'card h-100 shadow-sm border-0 monitor-card'}
-                style={cardStyle}
-                title={t('click_for_detail') || 'Click for detail'}
-            >
-                <div className={cls ? '' : 'card-body p-3'}>
+            <div key={m.id} onClick={() => openCard(m)} className="card h-100 shadow-sm border-0" style={{ cursor: 'pointer' }} title={t('click_for_detail')}>
+                <div className="card-body p-3">
                     <div className="d-flex align-items-center gap-2 mb-2">
-                        <span style={{ fontWeight: 'bold', fontSize: cls ? 13 : 15 }}>{m.code}</span>
+                        <span style={{ fontWeight: 'bold', fontSize: 15 }}>{m.code}</span>
                         <span className="text-muted small text-truncate" style={{ flex: 1 }}>{m.name}</span>
-                        {cls
-                            ? <StatusChip status={run ? 'IN_PROGRESS' : 'DRAFT'} label={run ? t('running') : t('idle')} />
-                            : <span className={`badge ${run ? 'bg-success-subtle text-success-emphasis' : 'bg-secondary-subtle text-secondary-emphasis'}`}>{run ? t('running') : t('idle')}</span>}
+                        <span className={`badge ${run ? 'bg-success-subtle text-success-emphasis' : 'bg-secondary-subtle text-secondary-emphasis'}`}>{run ? t('running') : t('idle')}</span>
                     </div>
-
                     {run ? (
                         <>
                             <div className="small mb-1" style={{ minHeight: 18 }}>
@@ -109,43 +206,21 @@ export default function WeavingMonitorView() {
 
     return (
         <div className="fade-in">
-            {/* Header / summary */}
             <div className="d-flex align-items-center flex-wrap gap-3 mb-3">
-                <h4 className="mb-0" style={cls ? { fontFamily: xpFont, fontSize: 16, color: BLUE } : undefined}>
-                    <i className="bi bi-speedometer2 me-2" />{t('weaving_monitor') || 'Weaving Monitor'}
-                </h4>
-                {data && (
-                    <div className="d-flex gap-3 small text-muted">
-                        <span><strong>{data.total}</strong> {t('machines')}</span>
-                        <span><strong style={{ color: GREEN }}>{data.running}</strong> {t('running')}</span>
-                        {data.avg_efficiency_pct !== null && data.avg_efficiency_pct !== undefined && (
-                            <span>{t('avg_efficiency')}: <strong>{fmt(data.avg_efficiency_pct, 1)}%</strong></span>
-                        )}
-                    </div>
-                )}
-                {cls
-                    ? <button onClick={load} style={{ ...xpBtn(), marginLeft: 'auto' }}><i className="bi bi-arrow-clockwise me-1" />{t('refresh') || 'Refresh'}</button>
-                    : <button className="btn btn-sm btn-outline-secondary ms-auto" onClick={load}><i className="bi bi-arrow-clockwise me-1" />{t('refresh') || 'Refresh'}</button>}
+                <h4 className="mb-0"><i className="bi bi-speedometer2 me-2" />{t('weaving_monitor')}</h4>
+                {data && <div className="d-flex small text-muted">{summaryText}</div>}
+                <button className="btn btn-sm btn-outline-secondary ms-auto" onClick={load}><i className="bi bi-arrow-clockwise me-1" />{t('refresh')}</button>
             </div>
-
             {loading ? (
-                <XPLoading label={t('loading') || 'Loading...'} />
+                <XPLoading label={t('loading')} />
             ) : machines.length === 0 ? (
-                <XPEmptyState icon="bi-cpu" message={t('no_weaving_machines') || 'No weaving machines defined. Add machines with type WEAVING in Routing.'} />
+                <XPEmptyState icon="bi-cpu" message={t('no_weaving_machines')} />
             ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 12 }}>
-                    {machines.map(m => <Card key={m.id} m={m} />)}
+                    {machines.map(card)}
                 </div>
             )}
-
-            <WorkCenterMonitorModal
-                isOpen={!!selected}
-                onClose={closeModal}
-                workCenter={selected}
-                manufacturingOrders={manufacturingOrders || []}
-                authFetch={authFetch}
-                apiBase={API_BASE}
-            />
+            {modal}
         </div>
     );
 }

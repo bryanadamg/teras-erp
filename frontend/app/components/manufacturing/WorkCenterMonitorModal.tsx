@@ -305,7 +305,10 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, ma
                                 <span className="text-muted small">
                                     {t('target')}: <strong>{fmt(run.target_qty, 2)} kg</strong> · {t('start_date')} {fmtDate(run.start_date)}
                                 </span>
-                                <button className="btn btn-sm btn-outline-danger ms-auto" onClick={() => stopRun(run.id)}>
+                                <button
+                                    className={cls ? '' : 'btn btn-sm btn-outline-danger ms-auto'}
+                                    style={cls ? xpBtn({ marginLeft: 'auto', color: RED, fontWeight: 'bold' }) : undefined}
+                                    onClick={() => stopRun(run.id)}>
                                     <i className="bi bi-stop-fill me-1" />{t('stop_run')}
                                 </button>
                             </div>
@@ -464,12 +467,12 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, ma
 
                     {/* Month nav */}
                     <div className="d-flex align-items-center gap-2 mb-2">
-                        <button className="btn btn-sm btn-outline-secondary" onClick={() => setCalRef(new Date(calRef.getFullYear(), calRef.getMonth() - 1, 1))}><i className="bi bi-chevron-left" /></button>
+                        <button className={cls ? '' : 'btn btn-sm btn-outline-secondary'} style={cls ? xpBtn({ padding: '2px 10px' }) : undefined} onClick={() => setCalRef(new Date(calRef.getFullYear(), calRef.getMonth() - 1, 1))}><i className="bi bi-chevron-left" /></button>
                         <span style={{ minWidth: 150, textAlign: 'center', fontWeight: 'bold', fontFamily: cls ? xpFont : undefined }}>
                             {calRef.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
                         </span>
-                        <button className="btn btn-sm btn-outline-secondary" onClick={() => setCalRef(new Date(calRef.getFullYear(), calRef.getMonth() + 1, 1))}><i className="bi bi-chevron-right" /></button>
-                        <button className="btn btn-sm btn-outline-secondary" onClick={() => setCalRef(new Date())}>{t('today')}</button>
+                        <button className={cls ? '' : 'btn btn-sm btn-outline-secondary'} style={cls ? xpBtn({ padding: '2px 10px' }) : undefined} onClick={() => setCalRef(new Date(calRef.getFullYear(), calRef.getMonth() + 1, 1))}><i className="bi bi-chevron-right" /></button>
+                        <button className={cls ? '' : 'btn btn-sm btn-outline-secondary'} style={cls ? xpBtn({ padding: '2px 10px' }) : undefined} onClick={() => setCalRef(new Date())}>{t('today')}</button>
                     </div>
 
                     {/* Month grid */}
