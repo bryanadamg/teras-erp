@@ -20,13 +20,13 @@ interface MOCreationPreviewProps {
 export default function MOCreationPreview({
     bomId, qty, locationCode, sourceLocationCode, createNested,
 }: MOCreationPreviewProps) {
-    const enabled = !!bomId && qty > 0 && !!locationCode;
+    const enabled = !!bomId && qty > 0;
     const { nodes, loading, error } = useNettingPreview(
         '/manufacturing-orders/preview',
         {
             bom_id: bomId,
             qty,
-            location_code: locationCode,
+            location_code: locationCode || null,
             source_location_code: sourceLocationCode || null,
             create_nested: createNested,
         },
