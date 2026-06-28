@@ -46,6 +46,7 @@ async def create_item(
     ends: int | None = None,
     lot_tracked: bool = False,
     min_stock_level: float | None = None,
+    default_source_location_id: uuid.UUID | None = None,
 ) -> Item:
     item = Item(
         code=code,
@@ -59,6 +60,7 @@ async def create_item(
         ends=ends,
         lot_tracked=lot_tracked,
         min_stock_level=min_stock_level,
+        default_source_location_id=default_source_location_id,
     )
 
     if attribute_ids:

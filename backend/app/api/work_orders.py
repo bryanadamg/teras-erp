@@ -535,11 +535,14 @@ async def _wo_required_rows(db: AsyncSession, wo: WorkOrder, mo: ManufacturingOr
             req = wo_qty * float(c.qty)
         else:
             continue
-        src = c.source_location_id or mo.source_location_id or mo.location_id
+        it = items.get(str(c.item_id))
+        # Source resolution (industry chain): BOM-line override -> item-master
+        # default issue location -> MO source (legacy fallback). The staging modal
+        # can still override per row when none resolves.
+        src = c.source_location_id or (it.default_source_location_id if it else None) or mo.source_location_id
         attrs = list(c.attribute_value_ids or [])
         on_hand = await stock_service.get_stock_balance(db, c.item_id, src, attrs) if src else 0.0
         staged = staged_by_item.get(str(c.item_id), 0.0)
-        it = items.get(str(c.item_id))
         # "Needs a batch pick" = the item is lot_tracked OR it physically sits as
         # batch stock at the source (e.g. a beam — batch-tracked but lot_tracked=false).
         # Staging such an item without a batch would corrupt the batch_key="" balance.

@@ -227,7 +227,7 @@ export default function InventoryView({
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const { categories, filters: { categoryL1, setCategoryL1, categoryL2, setCategoryL2, categoryL3, setCategoryL3, itemSearch, setItemSearch } } = useData();
+  const { categories, locations, filters: { categoryL1, setCategoryL1, categoryL2, setCategoryL2, categoryL3, setCategoryL3, itemSearch, setItemSearch } } = useData();
   // UI State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -252,7 +252,7 @@ export default function InventoryView({
   });
 
   // Creation State
-  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [] as string[], weight_per_unit: '' as string | number, weight_unit: 'g/y', packaging_factor_ids: [] as string[], ends: '' as string | number, lot_tracked: false, min_stock_level: '' as string | number });
+  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [] as string[], weight_per_unit: '' as string | number, weight_unit: 'g/y', packaging_factor_ids: [] as string[], ends: '' as string | number, lot_tracked: false, min_stock_level: '' as string | number, default_source_location_id: '' as string });
   const [nameManuallyEdited, setNameManuallyEdited] = useState(false);
 
   // Beam item creation state
@@ -386,6 +386,7 @@ export default function InventoryView({
       if (payload.weight_per_unit === '' || payload.weight_per_unit === null) { delete payload.weight_per_unit; delete payload.weight_unit; }
       if (payload.ends === '' || payload.ends === null) { delete payload.ends; } else { payload.ends = parseInt(payload.ends); }
       if (payload.min_stock_level === '' || payload.min_stock_level === null || payload.min_stock_level === undefined) { delete payload.min_stock_level; } else { payload.min_stock_level = parseFloat(payload.min_stock_level); }
+      if (!payload.default_source_location_id) { delete payload.default_source_location_id; }
 
       const res = await onCreateItem(payload);
 
@@ -425,7 +426,7 @@ export default function InventoryView({
           } else {
               showToast('Item created successfully', 'success');
           }
-          setNewItem({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [], weight_per_unit: '', weight_unit: 'g/y', packaging_factor_ids: [], ends: '', lot_tracked: false, min_stock_level: '' });
+          setNewItem({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [], weight_per_unit: '', weight_unit: 'g/y', packaging_factor_ids: [], ends: '', lot_tracked: false, min_stock_level: '', default_source_location_id: '' });
           setFormCatL1(''); setFormCatL2(''); setFormCatL3('');
           setNameManuallyEdited(false);
           setCreateBeam(false); setBeamName(''); setBeamUom(''); setBeamEnds('');
@@ -453,6 +454,7 @@ export default function InventoryView({
           weight_unit: editingItem.weight_per_unit ? (editingItem.weight_unit || 'gsm') : null,
           lot_tracked: !!editingItem.lot_tracked,
           min_stock_level: (editingItem.min_stock_level === '' || editingItem.min_stock_level === null || editingItem.min_stock_level === undefined) ? null : parseFloat(editingItem.min_stock_level),
+          default_source_location_id: editingItem.default_source_location_id || null,
       };
 
       onUpdateItem(editingItem.id, payload);
@@ -901,6 +903,24 @@ export default function InventoryView({
                       onChange={e => setNewItem({ ...newItem, min_stock_level: e.target.value })}
                       placeholder="10"
                   />
+              </div>
+
+              <div className="mb-3">
+                  <label
+                      style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
+                      className={classic ? '' : 'form-label small text-muted'}
+                  >Default source location — where this item is normally pulled from when staging to production</label>
+                  <select
+                      style={classic ? { ...xpSelect, height: 'auto', padding: '2px 4px', width: '100%' } : undefined}
+                      className={classic ? '' : 'form-select'}
+                      value={newItem.default_source_location_id}
+                      onChange={e => setNewItem({ ...newItem, default_source_location_id: e.target.value })}
+                  >
+                      <option value="">— None —</option>
+                      {(locations || []).filter((l: any) => !l.has_children).map((l: any) => (
+                        <option key={l.id} value={l.id}>{l.parent_name ? `${l.parent_name} / ${l.name}` : l.name}</option>
+                      ))}
+                  </select>
               </div>
 
               <div className="mb-3">
@@ -1609,6 +1629,24 @@ export default function InventoryView({
                           onChange={e => setEditingItem({ ...editingItem, min_stock_level: e.target.value })}
                           placeholder="10"
                         />
+                    </div>
+
+                    <div className="mb-3">
+                        <label
+                          className={classic ? '' : 'form-label small text-muted'}
+                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#333333', display: 'block', marginBottom: '2px' } : undefined}
+                        >Default source location — where this item is normally pulled from when staging to production</label>
+                        <select
+                          className={classic ? '' : 'form-select'}
+                          style={classic ? { ...xpSelect, width: '100%', boxSizing: 'border-box', height: '22px' } : undefined}
+                          value={editingItem.default_source_location_id ?? ''}
+                          onChange={e => setEditingItem({ ...editingItem, default_source_location_id: e.target.value || null })}
+                        >
+                          <option value="">— None —</option>
+                          {(locations || []).filter((l: any) => !l.has_children).map((l: any) => (
+                            <option key={l.id} value={l.id}>{l.parent_name ? `${l.parent_name} / ${l.name}` : l.name}</option>
+                          ))}
+                        </select>
                     </div>
 
                     <div className="mb-3">

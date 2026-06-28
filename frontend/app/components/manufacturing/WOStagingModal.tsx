@@ -43,13 +43,14 @@ interface Props {
 }
 
 export default function WOStagingModal({ wo, onClose, onStaged }: Props) {
-    const { authFetch } = useData() as any;
+    const { authFetch, locations } = useData() as any;
     const { showToast } = useToast();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
     const [rows, setRows] = useState<RequiredMaterial[]>([]);
     const [qtyToStage, setQtyToStage] = useState<Record<string, string>>({});
+    const [sourceByItem, setSourceByItem] = useState<Record<string, string>>({});
     const [batchByItem, setBatchByItem] = useState<Record<string, string>>({});
     const [batchesByItem, setBatchesByItem] = useState<Record<string, any[]>>({});
     const [loading, setLoading] = useState(true);
@@ -90,11 +91,16 @@ export default function WOStagingModal({ wo, onClose, onStaged }: Props) {
             .map(({ r, qty }) => ({
                 item_id: r.item_id,
                 qty,
-                source_location_id: r.source_location_id,
+                source_location_id: r.source_location_id || sourceByItem[r.item_id] || null,
                 batch_id: batchByItem[r.item_id] || null,
                 attribute_value_ids: r.attribute_value_ids || [],
             }));
         if (!lines.length) { showToast('Enter a quantity to stage.', 'danger'); return; }
+        const missingSrc = lines.find(l => !l.source_location_id);
+        if (missingSrc) {
+            const r = rows.find(x => x.item_id === missingSrc.item_id);
+            showToast(`Pick a source location for ${r?.item_code || r?.item_name}.`, 'danger'); return;
+        }
         // lot-tracked rows being staged must have a lot selected
         const missingLot = rows.find(r =>
             r.lot_tracked && parseFloat(qtyToStage[r.item_id] || '0') > 0 && !batchByItem[r.item_id]
@@ -175,7 +181,20 @@ export default function WOStagingModal({ wo, onClose, onStaged }: Props) {
                                                     <div style={{ fontWeight: 'bold' }}>{r.item_code || '—'}</div>
                                                     <div style={{ color: '#777' }}>{r.item_name}</div>
                                                 </td>
-                                                <td style={{ padding: '3px 5px' }}>{r.source_location_name || '—'}</td>
+                                                <td style={{ padding: '3px 5px' }}>
+                                                    {r.source_location_id ? (r.source_location_name || '—') : (
+                                                        <select
+                                                            style={{ ...xpInput, minWidth: 110 }}
+                                                            value={sourceByItem[r.item_id] || ''}
+                                                            onChange={e => setSourceByItem(p => ({ ...p, [r.item_id]: e.target.value }))}
+                                                        >
+                                                            <option value="">— pick source —</option>
+                                                            {(locations || []).filter((l: any) => !l.has_children).map((l: any) => (
+                                                                <option key={l.id} value={l.id}>{l.parent_name ? `${l.parent_name} / ${l.name}` : l.name}</option>
+                                                            ))}
+                                                        </select>
+                                                    )}
+                                                </td>
                                                 <td style={{ padding: '3px 5px', textAlign: 'right' }}>{r.required_qty.toFixed(2)}</td>
                                                 <td style={{ padding: '3px 5px', textAlign: 'right', color: short ? '#b00' : '#333' }}>
                                                     {r.on_hand.toFixed(2)}

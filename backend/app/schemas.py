@@ -326,7 +326,7 @@ class MOCompletionResponse(BaseModel):
 class ManufacturingOrderCreate(BaseModel):
     code: str
     bom_id: UUID
-    location_code: str
+    location_code: str | None = None
     source_location_code: str | None = None
     sales_order_id: UUID | None = None
     qty: float
@@ -362,7 +362,7 @@ class ManufacturingOrderResponse(BaseModel):
     bom_size_id: UUID | None = None
     is_shared_component: bool = False
     attribute_value_ids: list[UUID] = []
-    location_id: UUID
+    location_id: UUID | None = None
     source_location_id: UUID | None = None
     qty: float
     status: str
@@ -424,7 +424,7 @@ class ProductionRunSizeEntry(BaseModel):
 class ProductionRunCreate(BaseModel):
     code: str
     bom_entries: list[PRBomEntryCreate]
-    location_code: str
+    location_code: str | None = None
     source_location_code: str | None = None
     sales_order_id: UUID | None = None
     target_start_date: datetime | None = None
@@ -438,7 +438,7 @@ class ProductionRunResponse(BaseModel):
     bom_id: UUID | None = None
     sales_order_id: UUID | None = None
     sales_order_code: str | None = None
-    location_id: UUID
+    location_id: UUID | None = None
     source_location_id: UUID | None = None
     status: str
     notes: str | None = None
@@ -469,7 +469,7 @@ class PRMaterialRequirementItem(BaseModel):
     item_name: str
     uom: str
     attribute_value_ids: list[UUID]
-    location_id: UUID
+    location_id: UUID | None = None        # null = plant-wide (location-agnostic netting)
     total_required: float
     qty_available: float
     shortfall: float
@@ -530,14 +530,14 @@ class NettingPreviewNode(BaseModel):
 
 class ProductionRunPreviewRequest(BaseModel):
     bom_entries: list[PRBomEntryCreate]
-    location_code: str
+    location_code: str | None = None
     source_location_code: str | None = None
     exclude_pr_id: UUID | None = None   # set when re-previewing an existing PR
 
 class MOPreviewRequest(BaseModel):
     bom_id: UUID
     qty: float
-    location_code: str
+    location_code: str | None = None
     source_location_code: str | None = None
     create_nested: bool = True
 
@@ -657,6 +657,7 @@ class ItemCreate(BaseModel):
     ends: int | None = None
     lot_tracked: bool = False
     min_stock_level: float | None = None
+    default_source_location_id: UUID | None = None
 
 
 class ItemUpdate(BaseModel):
@@ -674,6 +675,7 @@ class ItemUpdate(BaseModel):
     ends: int | None = None
     lot_tracked: bool | None = None
     min_stock_level: float | None = None
+    default_source_location_id: UUID | None = None
 
 
 class ItemResponse(BaseModel):
@@ -695,6 +697,7 @@ class ItemResponse(BaseModel):
     ends: int | None = None
     lot_tracked: bool = False
     min_stock_level: float | None = None
+    default_source_location_id: UUID | None = None
 
     class Config:
         from_attributes = True

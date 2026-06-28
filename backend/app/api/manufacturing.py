@@ -334,7 +334,9 @@ async def create_mo_recursive(
         bom_id=bom.id,
         item_id=bom.item_id,
         location_id=location_id,
-        source_location_id=source_location_id or location_id,
+        # MO source defaults to the item-master default issue location when no
+        # explicit source is passed (industry chain; staging can still override).
+        source_location_id=source_location_id or (item.default_source_location_id if item else None),
         sales_order_id=sales_order_id,
         production_run_id=production_run_id,
         parent_mo_id=parent_mo_id,
@@ -393,10 +395,10 @@ async def create_mo_recursive(
 async def preview_manufacturing_order(payload: MOPreviewRequest, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
     """Dry-run: netting plan for a nested MO before creation (root always made,
     components netted against net-free stock). Creates nothing."""
-    result = await db.execute(select(Location).filter(Location.code == payload.location_code))
-    location = result.scalars().first()
-    if not location:
-        raise HTTPException(status_code=404, detail="Location not found")
+    location = None
+    if payload.location_code:
+        result = await db.execute(select(Location).filter(Location.code == payload.location_code))
+        location = result.scalars().first()
     source_location = None
     if payload.source_location_code:
         src = await db.execute(select(Location).filter(Location.code == payload.source_location_code))
@@ -414,10 +416,12 @@ async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: Asyn
     if not bom:
         raise HTTPException(status_code=404, detail="BOM not found")
 
-    result = await db.execute(select(Location).filter(Location.code == payload.location_code))
-    location = result.scalars().first()
-    if not location:
-        raise HTTPException(status_code=404, detail="Location not found")
+    location = None
+    if payload.location_code:
+        result = await db.execute(select(Location).filter(Location.code == payload.location_code))
+        location = result.scalars().first()
+        if not location:
+            raise HTTPException(status_code=404, detail="Location not found")
 
     source_location = None
     if payload.source_location_code:
@@ -434,7 +438,7 @@ async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: Asyn
                 db,
                 payload.bom_id,
                 payload.qty,
-                location.id,
+                location.id if location else None,
                 current_user.id,
                 source_location_id=source_location.id if source_location else None,
                 sales_order_id=payload.sales_order_id,
@@ -460,8 +464,8 @@ async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: Asyn
             code=payload.code,
             bom_id=bom.id,
             item_id=bom.item_id,
-            location_id=location.id,
-            source_location_id=location.id,
+            location_id=location.id if location else None,
+            source_location_id=(source_location.id if source_location else None),
             sales_order_id=payload.sales_order_id,
             bom_size_id=payload.bom_size_id,
             qty=payload.qty,

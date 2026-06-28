@@ -49,7 +49,7 @@ class ProductionRun(Base):
     code: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     bom_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("boms.id"), nullable=True)
     sales_order_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("sales_orders.id"), nullable=True)
-    location_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("locations.id"))
+    location_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True)
     source_location_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="PENDING", index=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

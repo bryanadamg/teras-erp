@@ -433,7 +433,6 @@ export default function ManufacturingView({
       e.preventDefault();
       if (isSubmitting) return;
       if (!newWO.bom_id) { showToast('Select a product recipe (BOM).', 'danger'); return; }
-      if (!newWO.location_code) { showToast('Select an output location.', 'danger'); return; }
       if (!newWO.code) { showToast('Enter an MO code.', 'danger'); return; }
       if (!newWO.qty || newWO.qty <= 0) { showToast('Quantity must be greater than 0.', 'danger'); return; }
       setIsSubmitting(true);
@@ -1317,22 +1316,9 @@ export default function ManufacturingView({
                           </div>
                       </div>
 
-                      {/* Locations */}
-                      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: '#888', borderBottom: `1px solid ${currentStyle === 'classic' ? '#c0bdb5' : '#e2e8f0'}`, paddingBottom: 2, marginBottom: 8, marginTop: 14 }}>Locations</div>
-                      <div className="mb-2">
-                          <label className="form-label extra-small fw-bold text-muted uppercase mb-1">Output Target</label>
-                          <select className="form-select form-select-sm" value={newWO.location_code} onChange={e => setNewWO({...newWO, location_code: e.target.value})} required>
-                              <option value="">Select...</option>
-                              {locations.filter((loc: any) => !loc.has_children).map((loc: any) => <option key={loc.id} value={loc.code}>{loc.parent_name ? `${loc.parent_name} / ${loc.name}` : loc.name}</option>)}
-                          </select>
-                      </div>
-                      <div className="mb-2">
-                          <label className="form-label extra-small fw-bold text-muted uppercase mb-1">Material Source</label>
-                          <select className="form-select form-select-sm" value={newWO.source_location_code} onChange={e => setNewWO({...newWO, source_location_code: e.target.value})}>
-                              <option value="">Same as Production</option>
-                              {locations.filter((loc: any) => !loc.has_children).map((loc: any) => <option key={loc.id} value={loc.code}>{loc.parent_name ? `${loc.parent_name} / ${loc.name}` : loc.name}</option>)}
-                          </select>
-                      </div>
+                      {/* Locations are no longer set on the order. Output follows the
+                          final work-order's output location; material source follows the
+                          item master default / BOM-line override, resolved at staging. */}
 
                       {/* Nested toggle — clean */}
                       <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${currentStyle === 'classic' ? '#aca899' : '#e2e8f0'}` }}>

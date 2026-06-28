@@ -57,9 +57,10 @@ class ManufacturingOrder(Base):
         UUID(as_uuid=True), ForeignKey("items.id"), index=True
     )
 
-    # Destination Warehouse
-    location_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("locations.id"), index=True
+    # Destination Warehouse — optional. FG lands at the WO output location; the MO
+    # no longer needs a planning location (industry: receipt loc follows routing).
+    location_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True, index=True
     )
 
     # Raw Material Source

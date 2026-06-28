@@ -61,6 +61,7 @@ async def create_item_api(payload: ItemCreate, db: AsyncSession = Depends(get_as
         ends=payload.ends,
         lot_tracked=payload.lot_tracked,
         min_stock_level=payload.min_stock_level,
+        default_source_location_id=payload.default_source_location_id,
     )
 
     await audit_service.log_activity(

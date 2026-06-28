@@ -204,8 +204,8 @@ def _root_node(bom, qty: float, location, loc_names: dict) -> dict:
     return {
         "level": 0, "is_root": True,
         "item_id": item.id, "item_code": item.code, "item_name": item.name, "uom": item.uom or "",
-        "net_from_location_id": location.id,
-        "net_from_location_name": loc_names.get(str(location.id), location.code or ""),
+        "net_from_location_id": location.id if location else None,
+        "net_from_location_name": (loc_names.get(str(location.id), location.code or "") if location else ""),
         "gross_required": qty, "on_hand": 0.0, "incoming": 0.0, "required_other": 0.0,
         "net_free": 0.0, "net_qty": qty, "decision": "MAKE_ROOT",
     }
@@ -316,7 +316,7 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
         net, detail = await avail.consume_detailed(data["sub_bom"].item_id, data["attrs"], data["src"], total)
         nodes.append(_component_node(data["sub_bom"], 1, data["src"], total, net, detail, loc_names))
         if net > 0:
-            await _preview_children(db, avail, data["sub_bom"].id, net, data["src"], location.id, 2, nodes, loc_names)
+            await _preview_children(db, avail, data["sub_bom"].id, net, data["src"], (location.id if location else None), 2, nodes, loc_names)
 
     return nodes
 
@@ -332,6 +332,7 @@ async def preview_mo(db, bom_id, qty, location, source_location, create_nested=T
         return []
     nodes = [_root_node(bom, float(qty), location, loc_names)]
     if create_nested:
-        src = source_location.id if source_location else location.id
-        await _preview_children(db, avail, bom_id, float(qty), src, location.id, 1, nodes, loc_names)
+        loc_id = location.id if location else None
+        src = source_location.id if source_location else loc_id
+        await _preview_children(db, avail, bom_id, float(qty), src, loc_id, 1, nodes, loc_names)
     return nodes

@@ -46,6 +46,12 @@ class Item(Base):
         UUID(as_uuid=True), ForeignKey("sample_colors.id", ondelete="SET NULL"), nullable=True
     )
 
+    # Material-master default issue (source) location — where this item is normally
+    # pulled from when staging it to a work order. Per-BOM-line source overrides it.
+    default_source_location_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True
+    )
+
     weight_per_unit: Mapped[float | None] = mapped_column(Float, nullable=True)
     weight_unit: Mapped[str | None] = mapped_column(String(16), nullable=True)  # e.g. gsm, g/m², oz/yd²
     ends: Mapped[int | None] = mapped_column(nullable=True)  # warp ends count for beam items

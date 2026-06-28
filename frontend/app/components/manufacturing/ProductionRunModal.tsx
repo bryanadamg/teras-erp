@@ -339,12 +339,12 @@ export default function ProductionRunModal({
             .filter((e: any) => (e.sizes && e.sizes.length > 0) || e.total_qty);
         return {
             bom_entries,
-            location_code: locationCode,
-            source_location_code: sourceLocationCode || null,
+            location_code: null,
+            source_location_code: null,
         };
-    }, [bomEntries, locationCode, sourceLocationCode, boms]);
+    }, [bomEntries, boms]);
 
-    const previewEnabled = !!locationCode && previewBody.bom_entries.length > 0;
+    const previewEnabled = previewBody.bom_entries.length > 0;
     const { nodes: previewNodes, loading: previewLoading, error: previewError } =
         useNettingPreview('/production-runs/preview', previewBody, previewEnabled);
 
@@ -354,8 +354,8 @@ export default function ProductionRunModal({
         setBomEntries(prev => prev.map((e, idx) => idx === i ? updated : e));
 
     const handleSave = async () => {
-        if (!code || !locationCode) {
-            setError('Code and Location are required.');
+        if (!code) {
+            setError('Code is required.');
             return;
         }
         const validEntries = bomEntries.filter(e => e.bomId);
@@ -386,8 +386,6 @@ export default function ProductionRunModal({
             const res = await onSave({
                 code,
                 bom_entries,
-                location_code: locationCode,
-                source_location_code: sourceLocationCode || undefined,
                 target_start_date: targetStart || undefined,
                 target_end_date: targetEnd || undefined,
                 sales_order_id: salesOrderId || undefined,
@@ -437,22 +435,9 @@ export default function ProductionRunModal({
                         />
                     </div>
 
-                    <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                        <div style={{ flex: 1 }}>
-                            <label style={xpLabel}>Output Location</label>
-                            <select style={{ ...xpInput, height: 22 }} value={locationCode} onChange={e => setLocationCode(e.target.value)}>
-                                <option value="">Select...</option>
-                                {leafLocations.map((l: any) => <option key={l.id} value={l.code}>{locLabel(l)}</option>)}
-                            </select>
-                        </div>
-                        <div style={{ flex: 1 }}>
-                            <label style={xpLabel}>Source Location</label>
-                            <select style={{ ...xpInput, height: 22 }} value={sourceLocationCode} onChange={e => setSourceLocationCode(e.target.value)}>
-                                <option value="">Same as output</option>
-                                {leafLocations.map((l: any) => <option key={l.id} value={l.code}>{locLabel(l)}</option>)}
-                            </select>
-                        </div>
-                    </div>
+                    {/* Output location follows the final WO output; material source
+                        follows item-master default / BOM-line override (resolved at
+                        staging). No order-level location needed. */}
 
                     <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                         <div style={{ flex: 1 }}>

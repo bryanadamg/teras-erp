@@ -18,6 +18,7 @@ from app.schemas import (
 )
 from app.models.production_run import PRBomEntry, PRBomEntrySize
 from app.models.item import Item
+from app.models.stock_balance import StockBalance
 from app.models.attribute import AttributeValue
 from app.services import stock_service
 from app.services.netting_service import Availability, preview_production_run
@@ -95,10 +96,18 @@ async def _create_consolidated_component_mos(
             if not sub_bom:
                 continue
 
-            # Source kept only as the component MO's default source (and staging
-            # cascade). Plant-level netting consolidates by (item, sub_bom) alone —
-            # location is not part of the key.
-            src_loc_id = line.source_location_id or (source_location.id if source_location else (location.id if location else None))
+            # Source kept only as the component MO's default source (staging
+            # cascade). Industry chain: BOM-line override -> item-master default ->
+            # PR source (legacy). Plant-level netting consolidates by (item, sub_bom)
+            # alone — location is not part of the key.
+            item_default_src = (await db.execute(
+                select(Item.default_source_location_id).filter(Item.id == line.item_id)
+            )).scalar()
+            src_loc_id = (
+                line.source_location_id
+                or item_default_src
+                or (source_location.id if source_location else None)
+            )
             key = (str(line.item_id), str(sub_bom.id))
 
             if key not in demand:
@@ -135,7 +144,7 @@ async def _create_consolidated_component_mos(
             db,
             data["sub_bom_id"],
             net_qty,
-            location.id,
+            location.id if location else None,
             user_id,
             parent_mo_id=None,
             source_location_id=data["src_loc_id"],
@@ -306,8 +315,8 @@ async def get_production_run_material_requirements(
     if not pr:
         raise HTTPException(status_code=404, detail="Production Run not found")
 
-    # Aggregate requirements: key = (item_id, attr_key, location_id)
-    # value = { total_required, location_id, mo_contributions }
+    # Aggregate requirements plant-wide: key = (item_id, attr_key). Location is not
+    # part of the key (location-agnostic netting); on-hand sums across all locations.
     agg: dict[tuple, dict] = defaultdict(lambda: {"total_required": 0.0, "mo_contributions": []})
 
     for mo in pr.manufacturing_orders:
@@ -321,12 +330,10 @@ async def get_production_run_material_requirements(
 
             attr_ids = sorted(comp.attribute_value_ids)
             attr_key = ",".join(attr_ids)
-            loc_id = comp.source_location_id or mo.source_location_id or mo.location_id or pr.source_location_id or pr.location_id
-            key = (str(comp.item_id), attr_key, str(loc_id))
+            key = (str(comp.item_id), attr_key)
 
             agg[key]["item_id"] = comp.item_id
             agg[key]["attr_ids"] = attr_ids
-            agg[key]["location_id"] = loc_id
             agg[key]["total_required"] += req
             agg[key]["mo_contributions"].append(PRMOContribution(
                 mo_id=mo.id,
@@ -343,18 +350,20 @@ async def get_production_run_material_requirements(
     item_result = await db.execute(select(Item).filter(Item.id.in_(item_ids)))
     item_map = {i.id: i for i in item_result.scalars().all()}
 
-    # Batch-fetch stock balances
-    requirements = [
-        {"item_id": v["item_id"], "location_id": v["location_id"], "attribute_value_ids": v["attr_ids"]}
-        for v in agg.values()
-    ]
-    balances_map = await stock_service.get_batch_stock_balances(db, requirements)
+    # Plant-wide on-hand: sum StockBalance across ALL locations per (item, variant_key).
+    onhand_map: dict[tuple, float] = {}
+    for iid, vk, q in (await db.execute(
+        select(StockBalance.item_id, StockBalance.variant_key, func.sum(StockBalance.qty))
+        .where(StockBalance.item_id.in_(item_ids))
+        .group_by(StockBalance.item_id, StockBalance.variant_key)
+    )).all():
+        onhand_map[(str(iid), vk or "")] = float(q or 0)
 
     results = []
-    for (item_id_str, attr_key, loc_id_str), data in agg.items():
+    for (item_id_str, attr_key), data in agg.items():
         item = item_map.get(data["item_id"])
         v_key = ",".join(sorted(data["attr_ids"]))
-        available = balances_map.get((item_id_str, loc_id_str, v_key), 0.0)
+        available = onhand_map.get((item_id_str, v_key), 0.0)
         total = data["total_required"]
         results.append(PRMaterialRequirementItem(
             item_id=data["item_id"],
@@ -362,7 +371,7 @@ async def get_production_run_material_requirements(
             item_name=item.name if item else str(data["item_id"]),
             uom=item.uom if item else "",
             attribute_value_ids=[UUID(a) for a in data["attr_ids"]],
-            location_id=data["location_id"],
+            location_id=None,
             total_required=total,
             qty_available=available,
             shortfall=max(0.0, total - available),
@@ -383,10 +392,10 @@ async def preview_production_run_plan(
     net-free, net qty, decision) for a PR before it is created. Creates nothing."""
     if not payload.bom_entries:
         return []
-    loc_result = await db.execute(select(Location).filter(Location.code == payload.location_code))
-    location = loc_result.scalars().first()
-    if not location:
-        raise HTTPException(status_code=404, detail=f"Location '{payload.location_code}' not found")
+    location = None
+    if payload.location_code:
+        loc_result = await db.execute(select(Location).filter(Location.code == payload.location_code))
+        location = loc_result.scalars().first()
     source_location = None
     if payload.source_location_code:
         src_result = await db.execute(select(Location).filter(Location.code == payload.source_location_code))
@@ -405,11 +414,14 @@ async def create_production_run(
     if not payload.bom_entries:
         raise HTTPException(status_code=400, detail="At least one BOM entry is required")
 
-    # Validate locations
-    loc_result = await db.execute(select(Location).filter(Location.code == payload.location_code))
-    location = loc_result.scalars().first()
-    if not location:
-        raise HTTPException(status_code=404, detail=f"Location '{payload.location_code}' not found")
+    # Locations are optional. Output follows the WO output location; source follows
+    # the item-master default / BOM-line override (resolved at staging).
+    location = None
+    if payload.location_code:
+        loc_result = await db.execute(select(Location).filter(Location.code == payload.location_code))
+        location = loc_result.scalars().first()
+        if not location:
+            raise HTTPException(status_code=404, detail=f"Location '{payload.location_code}' not found")
 
     source_location = None
     if payload.source_location_code:
@@ -425,7 +437,7 @@ async def create_production_run(
         code=payload.code,
         bom_id=None,
         sales_order_id=payload.sales_order_id,
-        location_id=location.id,
+        location_id=location.id if location else None,
         source_location_id=source_location.id if source_location else None,
         status="PENDING",
         notes=payload.notes,
@@ -476,7 +488,7 @@ async def create_production_run(
 
                 size_label = bom_size.label or (bom_size.size.name if bom_size.size else f"S{total_root_mo_count+1}")
                 root_mo = await create_mo_recursive(
-                    db, bom.id, float(size_entry.qty), location.id, current_user.id,
+                    db, bom.id, float(size_entry.qty), (location.id if location else None), current_user.id,
                     source_location_id=source_location.id if source_location else None,
                     sales_order_id=payload.sales_order_id,
                     production_run_id=pr.id,
@@ -497,7 +509,7 @@ async def create_production_run(
 
         elif bom_entry.total_qty and bom_entry.total_qty > 0:
             root_mo = await create_mo_recursive(
-                db, bom.id, float(bom_entry.total_qty), location.id, current_user.id,
+                db, bom.id, float(bom_entry.total_qty), (location.id if location else None), current_user.id,
                 source_location_id=source_location.id if source_location else None,
                 sales_order_id=payload.sales_order_id,
                 production_run_id=pr.id,
