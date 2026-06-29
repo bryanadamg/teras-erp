@@ -174,6 +174,46 @@ def seed_operations(db):
         logger.warning(f"Operation seeding skipped: {e}")
 
 
+SYSTEM_WAREHOUSES = [
+    {"code": "RM",       "name": "Raw Material Store",   "system_code": "RM"},
+    {"code": "CHEM",     "name": "Chemical Store",        "system_code": "CHEM"},
+    {"code": "WIP",      "name": "WIP Store",             "system_code": "WIP"},
+    {"code": "FG",       "name": "Finished Goods Store",  "system_code": "FG"},
+    {"code": "QC",       "name": "Quarantine",            "system_code": "QC"},
+    {"code": "DISPATCH", "name": "Dispatch Staging",      "system_code": "DISPATCH"},
+]
+
+
+def seed_system_locations(db):
+    try:
+        from app.models.location import Location
+        created = 0
+        for w in SYSTEM_WAREHOUSES:
+            existing = db.query(Location).filter(Location.system_code == w["system_code"]).first()
+            if existing:
+                continue
+            # Adopt an existing row with the same code rather than creating a duplicate
+            by_code = db.query(Location).filter(Location.code == w["code"]).first()
+            if by_code:
+                by_code.system_code = w["system_code"]
+                by_code.location_type = 'warehouse'
+                db.commit()
+            else:
+                db.add(Location(
+                    code=w["code"],
+                    name=w["name"],
+                    location_type='warehouse',
+                    system_code=w["system_code"],
+                    parent_id=None,
+                ))
+                db.commit()
+                created += 1
+        if created:
+            logger.info(f"Seeded {created} system warehouse locations")
+    except Exception as e:
+        logger.warning(f"System location seeding skipped: {e}")
+
+
 def seed_rbac(db):
     try:
         perms_data = [
@@ -343,6 +383,7 @@ def init_db() -> None:
         seed_rbac(db)
         seed_system_attributes(db)
         seed_sizes(db)
+        seed_system_locations(db)
         backfill_mo_planned_components(db)
         sync_stock_balances(db)
     finally:

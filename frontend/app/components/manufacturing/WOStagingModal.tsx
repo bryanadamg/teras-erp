@@ -189,8 +189,8 @@ export default function WOStagingModal({ wo, onClose, onStaged }: Props) {
                                                             onChange={e => setSourceByItem(p => ({ ...p, [r.item_id]: e.target.value }))}
                                                         >
                                                             <option value="">— pick source —</option>
-                                                            {(locations || []).filter((l: any) => !l.has_children).map((l: any) => (
-                                                                <option key={l.id} value={l.id}>{l.parent_name ? `${l.parent_name} / ${l.name}` : l.name}</option>
+                                                            {(locations || []).filter((l: any) => !l.has_children && l.location_type !== 'warehouse').map((l: any) => (
+                                                                <option key={l.id} value={l.id}>{l.full_path || (l.parent_name ? `${l.parent_name} / ${l.name}` : l.name)}</option>
                                                             ))}
                                                         </select>
                                                     )}

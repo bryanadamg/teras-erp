@@ -15,9 +15,16 @@ class Location(Base):
     code: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(255))
 
-    # Self-referential 2-level hierarchy:
-    #   top-level (parent_id is NULL) = warehouse / area
-    #   child (parent_id set)         = spot / bin where stock actually sits
+    # 'warehouse' | 'zone' | 'bin'  (inferred from parent on create, never changes)
+    location_type: Mapped[str] = mapped_column(String(10), nullable=False, default='bin')
+
+    # Non-null = system-seeded row; cannot be renamed or deleted
+    system_code: Mapped[str | None] = mapped_column(String(32), nullable=True, unique=True)
+
+    # Self-referential 3-level hierarchy:
+    #   warehouse (parent_id IS NULL)
+    #   zone      (parent_id → warehouse)
+    #   bin       (parent_id → zone)
     parent_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("locations.id", ondelete="RESTRICT"),
@@ -36,8 +43,6 @@ class Location(Base):
 
     # These properties must NEVER trigger lazy IO — Location is serialized inside
     # async routes (MO/PR trees) where the relationships may not be eager-loaded.
-    # If a relationship isn't already loaded, return a safe default instead of
-    # forcing a DB hit (which raises MissingGreenlet under AsyncSession).
     @property
     def parent_name(self) -> str | None:
         if "parent" in sa_inspect(self).unloaded:

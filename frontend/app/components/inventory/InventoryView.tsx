@@ -917,8 +917,8 @@ export default function InventoryView({
                       onChange={e => setNewItem({ ...newItem, default_source_location_id: e.target.value })}
                   >
                       <option value="">— None —</option>
-                      {(locations || []).filter((l: any) => !l.has_children).map((l: any) => (
-                        <option key={l.id} value={l.id}>{l.parent_name ? `${l.parent_name} / ${l.name}` : l.name}</option>
+                      {(locations || []).filter((l: any) => !l.has_children && l.location_type !== 'warehouse').map((l: any) => (
+                        <option key={l.id} value={l.id}>{l.full_path || (l.parent_name ? `${l.parent_name} / ${l.name}` : l.name)}</option>
                       ))}
                   </select>
               </div>
@@ -1643,8 +1643,8 @@ export default function InventoryView({
                           onChange={e => setEditingItem({ ...editingItem, default_source_location_id: e.target.value || null })}
                         >
                           <option value="">— None —</option>
-                          {(locations || []).filter((l: any) => !l.has_children).map((l: any) => (
-                            <option key={l.id} value={l.id}>{l.parent_name ? `${l.parent_name} / ${l.name}` : l.name}</option>
+                          {(locations || []).filter((l: any) => !l.has_children && l.location_type !== 'warehouse').map((l: any) => (
+                            <option key={l.id} value={l.id}>{l.full_path || (l.parent_name ? `${l.parent_name} / ${l.name}` : l.name)}</option>
                           ))}
                         </select>
                     </div>

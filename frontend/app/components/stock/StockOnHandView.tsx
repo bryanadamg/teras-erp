@@ -280,9 +280,18 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
         for (const l of (locations || [])) m[l.id] = l;
         return m;
     }, [locations]);
-    // A location's parent warehouse.
-    const getWarehouseId = (locId: string): string | null => locMap[locId]?.parent_id || null;
-    const getWarehouseName = (locId: string): string => locMap[locId]?.parent_name || '';
+    // Walk up to the root warehouse (handles 2-level zone and 3-level bin).
+    const getWarehouseId = (locId: string): string | null => {
+        const loc = locMap[locId];
+        if (!loc?.parent_id) return null;
+        const parent = locMap[String(loc.parent_id)];
+        if (!parent?.parent_id) return String(loc.parent_id); // parent is warehouse
+        return String(parent.parent_id); // grandparent is warehouse (bin case)
+    };
+    const getWarehouseName = (locId: string): string => {
+        const wid = getWarehouseId(locId);
+        return wid ? (locMap[wid]?.name || '') : '';
+    };
 
     // Combined Warehouse → Location dropdown. Top-level locations with children
     // are warehouse groups; childless top-level locations hold stock directly and
@@ -320,9 +329,17 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
             {warehouseGroups.map((w: any) => (
                 <optgroup key={w.id} label={w.name}>
                     <option value={`wh:${w.id}`}>All of {w.name}</option>
-                    {(childrenByWh[w.id] || []).map((l: any) => (
-                        <option key={l.id} value={`loc:${l.id}`}>&nbsp;&nbsp;{l.name}</option>
-                    ))}
+                    {(childrenByWh[w.id] || []).map((zone: any) => {
+                        const bins = childrenByWh[zone.id] || [];
+                        return bins.length > 0 ? [
+                            <option key={`z-${zone.id}`} value={`loc:${zone.id}`}>&nbsp;&nbsp;{zone.name}</option>,
+                            ...bins.map((b: any) => (
+                                <option key={b.id} value={`loc:${b.id}`}>&nbsp;&nbsp;&nbsp;&nbsp;{b.name}</option>
+                            ))
+                        ] : (
+                            <option key={zone.id} value={`loc:${zone.id}`}>&nbsp;&nbsp;{zone.name}</option>
+                        );
+                    })}
                 </optgroup>
             ))}
             {standaloneLocs.length > 0 && (
@@ -384,7 +401,13 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
     const filtered = useMemo(() => {
         const s = search.toLowerCase();
         return (stockBalance || []).filter((bal: any) => {
-            if (locationFilter && bal.location_id !== locationFilter) return false;
+            if (locationFilter) {
+                if (bal.location_id !== locationFilter) {
+                    // Also match bins under a selected zone
+                    const childIds = new Set((childrenByWh[locationFilter] || []).map((c: any) => String(c.id)));
+                    if (!childIds.has(String(bal.location_id))) return false;
+                }
+            }
             if (warehouseFilter) {
                 const wid = getWarehouseId(bal.location_id);
                 if (warehouseFilter === UNCAT) { if (wid) return false; }
@@ -641,9 +664,9 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             >
                                 <option value="">— select location —</option>
                                 {locations
-                                    .filter((l: any) => l.id !== transferTarget.location_id && !l.has_children)
+                                    .filter((l: any) => l.id !== transferTarget.location_id && !l.has_children && l.location_type !== 'warehouse')
                                     .map((l: any) => (
-                                        <option key={l.id} value={l.id}>{l.parent_name ? `${l.parent_name} / ${l.name}` : l.name}</option>
+                                        <option key={l.id} value={l.id}>{l.full_path || (l.parent_name ? `${l.parent_name} / ${l.name}` : l.name)}</option>
                                     ))}
                             </select>
                         </div>
@@ -860,8 +883,8 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                                 onChange={e => setNewLocCode(e.target.value)}
                             >
                                 <option value="">— select location —</option>
-                                {locations.filter((l: any) => !l.has_children).map((l: any) => (
-                                    <option key={l.id} value={l.code}>{l.parent_name ? `${l.parent_name} / ${l.name}` : l.name}</option>
+                                {locations.filter((l: any) => !l.has_children && l.location_type !== 'warehouse').map((l: any) => (
+                                    <option key={l.id} value={l.code}>{l.full_path || (l.parent_name ? `${l.parent_name} / ${l.name}` : l.name)}</option>
                                 ))}
                             </select>
                         </div>

@@ -94,7 +94,7 @@ export default function PackingView() {
     }, [items]);
 
     const leafLocations = useMemo(
-        () => (locations || []).filter((l: any) => !(locations || []).some((c: any) => String(c.parent_id) === String(l.id))),
+        () => (locations || []).filter((l: any) => !l.has_children && l.location_type !== 'warehouse'),
         [locations]
     );
 

@@ -558,6 +558,9 @@ class LocationResponse(BaseModel):
     parent_id: UUID | None = None
     parent_name: str | None = None
     has_children: bool = False
+    location_type: str = 'bin'
+    system_code: str | None = None
+    full_path: str = ''
 
     class Config:
         from_attributes = True
