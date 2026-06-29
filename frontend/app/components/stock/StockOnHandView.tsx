@@ -505,8 +505,8 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             )}
                         </div>
                     </td>
-                    <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', fontWeight: 'bold', color: qtyColor, whiteSpace: 'nowrap' }}>
-                        {bal.qty}
+                    <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: '"Courier New", Courier, monospace', fontSize: '11px', fontWeight: 'bold', color: qtyColor, whiteSpace: 'nowrap' }}>
+                        {Number(bal.qty).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
                     </td>
                     <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', color: '#666', whiteSpace: 'nowrap' }}>
                         {bal.item_uom || ''}
@@ -576,7 +576,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         <span className="text-muted small">Standard</span>
                     )}
                 </td>
-                <td className="text-end fw-bold" style={{ color: qtyColor, whiteSpace: 'nowrap' }}>{bal.qty}</td>
+                <td className="text-end fw-bold" style={{ color: qtyColor, whiteSpace: 'nowrap', fontFamily: '"Courier New", Courier, monospace' }}>{Number(bal.qty).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}</td>
                 <td className="text-muted small" style={{ whiteSpace: 'nowrap' }}>{bal.item_uom || ''}</td>
                 <td className="small" style={{ whiteSpace: 'nowrap' }}>
                     {pkgParts(bal).length === 0
