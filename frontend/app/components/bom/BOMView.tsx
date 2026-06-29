@@ -793,7 +793,7 @@ export default function BOMView({
             {/* BOM List */}
             <div className="col-12">
                 <div
-                    style={classic ? { border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', boxShadow: '2px 2px 4px rgba(0,0,0,0.3)', background: '#ece9d8', borderRadius: 0 } : undefined}
+                    style={classic ? { border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', boxShadow: '2px 2px 4px rgba(0,0,0,0.3)', background: '#ece9d8', borderRadius: 0, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)' } : undefined}
                     className={classic ? '' : 'card h-100 shadow-sm border-0'}
                 >
                     {/* Toolbar */}
@@ -850,8 +850,8 @@ export default function BOMView({
                         </div>
                     )}
 
-                    {/* Table body */}
-                    <div className={classic ? '' : 'card-body p-0'} style={{ maxHeight: 'calc(100vh - 150px)', overflowY: 'auto' }}>
+                    {/* Table body — flex:1 fills space between toolbar and pager */}
+                    <div className={classic ? '' : 'card-body p-0'} style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
                         <div className={classic ? '' : 'table-responsive'}>
                             <table
                                 className={classic ? '' : 'table table-hover align-middle mb-0'}
@@ -990,27 +990,27 @@ export default function BOMView({
                                 </tbody>
                             </table>
                         </div>
-                        {/* Pager footer */}
-                        {bomTotal > 0 && (() => {
-                            const pages = Math.max(1, Math.ceil(bomTotal / bomPageSize));
-                            const from = (bomPage - 1) * bomPageSize + 1;
-                            const to = Math.min(bomPage * bomPageSize, bomTotal);
-                            const btn = (label: React.ReactNode, target: number, disabled: boolean) => (
-                                <button
-                                    disabled={disabled}
-                                    onClick={() => setBomPage?.(target)}
-                                    style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, padding: '1px 10px', background: disabled ? '#dcdacc' : 'linear-gradient(to bottom,#f0efe6,#dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: disabled ? '#999' : '#000', cursor: disabled ? 'default' : 'pointer' }}
-                                >{label}</button>
-                            );
-                            return (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', borderTop: '1px solid #808080', background: '#ece9d8', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11 }}>
-                                    {btn(<><i className="bi bi-chevron-left me-1" />Prev</>, bomPage - 1, bomPage <= 1)}
-                                    <span style={{ color: '#444' }}>{from}-{to} of {bomTotal} &nbsp;·&nbsp; Page {bomPage} / {pages}</span>
-                                    {btn(<>Next<i className="bi bi-chevron-right ms-1" /></>, bomPage + 1, bomPage >= pages)}
-                                </div>
-                            );
-                        })()}
                     </div>
+                    {/* Pager footer — outside scroll container so always visible */}
+                    {bomTotal > 0 && (() => {
+                        const pages = Math.max(1, Math.ceil(bomTotal / bomPageSize));
+                        const from = (bomPage - 1) * bomPageSize + 1;
+                        const to = Math.min(bomPage * bomPageSize, bomTotal);
+                        const btn = (label: React.ReactNode, target: number, disabled: boolean) => (
+                            <button
+                                disabled={disabled}
+                                onClick={() => setBomPage?.(target)}
+                                style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, padding: '1px 10px', background: disabled ? '#dcdacc' : 'linear-gradient(to bottom,#f0efe6,#dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: disabled ? '#999' : '#000', cursor: disabled ? 'default' : 'pointer' }}
+                            >{label}</button>
+                        );
+                        return (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', borderTop: '1px solid #808080', background: '#ece9d8', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, flexShrink: 0 }}>
+                                {btn(<><i className="bi bi-chevron-left me-1" />Prev</>, bomPage - 1, bomPage <= 1)}
+                                <span style={{ color: '#444' }}>{from}-{to} of {bomTotal} &nbsp;·&nbsp; Page {bomPage} / {pages}</span>
+                                {btn(<>Next<i className="bi bi-chevron-right ms-1" /></>, bomPage + 1, bomPage >= pages)}
+                            </div>
+                        );
+                    })()}
                 </div>
             </div>
         </div>

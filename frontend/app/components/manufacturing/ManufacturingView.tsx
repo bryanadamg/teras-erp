@@ -1476,6 +1476,8 @@ export default function ManufacturingView({
                   borderRadius: 0,
                   boxShadow: currentStyle === 'classic' ? '2px 2px 4px rgba(0,0,0,0.3)' : undefined,
                   background: currentStyle === 'classic' ? '#ece9d8' : undefined,
+                  display: 'flex', flexDirection: 'column',
+                  height: 'calc(100vh - 80px)',
               }} className={currentStyle === 'classic' ? '' : 'card h-100 border-0 shadow-sm'}>
 
                   {/* ── Title bar / toolbar ── */}
@@ -1654,18 +1656,18 @@ export default function ManufacturingView({
                   </div>}
 
                   {/* ── Body ── */}
-                  <div style={{ background: currentStyle === 'classic' ? '#ece9d8' : undefined }} className={currentStyle === 'classic' ? '' : 'card-body p-0'}>
+                  <div style={{ background: currentStyle === 'classic' ? '#ece9d8' : undefined, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }} className={currentStyle === 'classic' ? '' : 'card-body p-0'}>
 
                       {/* Production Runs tab content */}
                       {activeTab === 'production-runs' && (
-                          <div>
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                               {((productionRuns && productionRuns.length > 0) || prSearch) && renderSearchBar(
                                   prSearch, setPrSearch,
                                   'Search by code, style, or BOM...',
                                   prTotal,
                               )}
                               {productionRuns && productionRuns.length > 0 ? (
-                                  <div className="table-responsive">
+                                  <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
                                       <table style={{
                                           width: '100%', borderCollapse: 'collapse',
                                           fontFamily: currentStyle === 'classic' ? 'Tahoma, Arial, sans-serif' : undefined,
@@ -1912,12 +1914,13 @@ export default function ManufacturingView({
                       {activeTab === 'manufacturing-orders' && viewMode === 'calendar' ? (
                           <div className="p-3"><CalendarView workOrders={manufacturingOrders} items={items} /></div>
                       ) : activeTab === 'manufacturing-orders' && (
-                          <div className="table-responsive">
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                               {renderSearchBar(
                                   moCodeFilter, setMoCodeFilter,
                                   'Search by MO code, product, or BOM...',
                                   totalItems,
                               )}
+                              <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
                               <table style={{
                                   width: '100%',
                                   tableLayout: 'fixed',
@@ -2157,6 +2160,7 @@ export default function ManufacturingView({
                                       })}
                                   </tbody>
                               </table>
+                              </div>
                               {renderPager(currentPage, totalItems, onPageChange)}
                           </div>
                       )}
