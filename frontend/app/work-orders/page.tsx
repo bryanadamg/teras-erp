@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import WorkOrderListView from '../components/manufacturing/WorkOrderListView';
 import { useData } from '../context/DataContext';
 
@@ -12,7 +12,8 @@ export default function WorkOrdersPage() {
         fetchData, authFetch,
     } = useData();
 
-    useEffect(() => { fetchData('work-orders'); }, []);
+    const [ready, setReady] = useState(false);
+    useEffect(() => { fetchData('work-orders').then(() => setReady(true)); }, []);
 
     // Include shared component MOs (is_shared_component=true) that are filtered out of
     // the root manufacturingOrders list but appear under productionRuns.
@@ -48,6 +49,8 @@ export default function WorkOrdersPage() {
         const res = await authFetch(`${API_BASE}/work-orders/${id}`, { method: 'DELETE' });
         if (res.ok) fetchData();
     };
+
+    if (!ready) return null;
 
     return (
         <WorkOrderListView
