@@ -231,7 +231,7 @@ export default function WorkOrderListView({
         const completions: any[] = wo.completions || [];
 
         const panelStyle: React.CSSProperties = {
-            display: 'grid', gridTemplateColumns: '110px 192px 1fr',
+            display: 'grid', gridTemplateColumns: '110px 280px minmax(260px, 420px)',
             border: classic ? '1px solid #7f9db9' : '1px solid #dee2e6',
             fontFamily: xpFont, fontSize: 10,
         };
@@ -242,7 +242,7 @@ export default function WorkOrderListView({
         const infoRow = (label: string, val: string) => (
             <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 1, fontSize: 9 }}>
                 <span style={{ color: '#888' }}>{label}</span>
-                <span style={{ fontWeight: 'bold', color: '#222', textAlign: 'right', maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{val}</span>
+                <span style={{ fontWeight: 'bold', color: '#222', textAlign: 'right', maxWidth: 170, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{val}</span>
             </div>
         );
 
