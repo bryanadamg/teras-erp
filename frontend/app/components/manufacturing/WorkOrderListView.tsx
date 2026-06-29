@@ -26,11 +26,25 @@ const fmtDateTime = (v: any) => {
 };
 
 interface Props {
-    manufacturingOrders: any[];
+    workOrders: any[];
+    total: number;
+    page: number;
+    pageSize: number;
+    onPageChange: (page: number) => void;
     workCenters: any[];
+    filterStatus: string;
+    filterGroup: string;
+    filterWC: string;
+    woSearch: string;
+    onFilterStatus: (v: string) => void;
+    onFilterGroup: (v: string) => void;
+    onFilterWC: (v: string) => void;
+    onSearch: (v: string) => void;
+    onClearFilters: () => void;
     onUpdate: (id: string, payload: any) => Promise<any>;
     onUpdateStatus: (id: string, status: string) => Promise<any>;
     onDelete: (id: string) => Promise<any>;
+    onFetchMO: (moId: string) => Promise<any>;
 }
 
 interface FlatWO {
@@ -56,12 +70,18 @@ interface FlatWO {
     qty_completed_total?: number;
     notes?: string;
     completions?: any[];
+    bom_line_item_ids?: string[];
     mo_id: string;
     mo_code: string;
     item_name: string;
 }
 
-export default function WorkOrderListView({ manufacturingOrders, workCenters, onUpdate, onUpdateStatus, onDelete }: Props) {
+export default function WorkOrderListView({
+    workOrders, total, page, pageSize, onPageChange,
+    workCenters, filterStatus, filterGroup, filterWC, woSearch,
+    onFilterStatus, onFilterGroup, onFilterWC, onSearch, onClearFilters,
+    onUpdate, onUpdateStatus, onDelete, onFetchMO,
+}: Props) {
     const router = useRouter();
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
@@ -79,12 +99,7 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
     const [bulkPrintOpen, setBulkPrintOpen] = useState(false);
     const [form, setForm] = useState({ sequence: '', name: '', work_center_id: '', planned_duration_hours: '' });
     const [isSaving, setIsSaving] = useState(false);
-    const [filterStatus, setFilterStatus] = useState('');
-    const [filterGroup, setFilterGroup] = useState('');
-    const [filterWC, setFilterWC] = useState('');
     const [filterMO, setFilterMO] = useState('');
-    const [woPage, setWoPage] = useState(1);
-    const WO_PAGE_SIZE = 50;
     const [expandedWOId, setExpandedWOId] = useState<string | null>(null);
     const [woQrUrls, setWoQrUrls] = useState<Record<string, string>>({});
 
@@ -100,43 +115,20 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
             .catch(() => {});
     }, [expandedWOId]);
 
-    const flatWOs = useMemo<FlatWO[]>(() => {
-        const result: FlatWO[] = [];
-        for (const mo of manufacturingOrders) {
-            for (const wo of (mo.work_orders || [])) {
-                result.push({
-                    ...wo,
-                    mo_id: mo.id,
-                    mo_code: mo.code,
-                    item_name: mo.item_name || '',
-                });
-            }
-        }
-        result.sort((a, b) => {
-            const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-            const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-            return dateB - dateA || a.sequence - b.sequence;
-        });
-        return result;
-    }, [manufacturingOrders]);
+    const flatWOs: FlatWO[] = workOrders;
 
     const groups = useMemo(() => workCenters.filter((wc: any) => !wc.parent_id), [workCenters]);
-    const wcById = useMemo(() => new Map(workCenters.map((wc: any) => [wc.id, wc])), [workCenters]);
     const filteredWCOptions = useMemo(() =>
         filterGroup ? workCenters.filter((wc: any) => wc.parent_id === filterGroup) : workCenters,
         [workCenters, filterGroup]
     );
 
-    const filtered = useMemo(() => flatWOs.filter(wo => {
-        if (filterStatus && wo.status !== filterStatus) return false;
-        if (filterGroup) {
-            const wc = wo.work_center_id ? wcById.get(wo.work_center_id) : null;
-            if (!wc || wc.parent_id !== filterGroup) return false;
-        }
-        if (filterWC && wo.work_center_id !== filterWC) return false;
-        if (filterMO && wo.mo_id !== filterMO) return false;
-        return true;
-    }), [flatWOs, filterStatus, filterGroup, filterWC, filterMO, wcById]);
+    // Filtering is server-side; client-side MO filter is the only remaining local filter
+    const filtered = useMemo(() => filterMO
+        ? flatWOs.filter(wo => wo.mo_id === filterMO)
+        : flatWOs,
+        [flatWOs, filterMO]
+    );
 
     const sortCols = useMemo(() => ({
         sequence: (wo: FlatWO) => wo.sequence,
@@ -151,9 +143,6 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
         status:   (wo: FlatWO) => wo.status,
     }), []);
     const { sorted: sortedWOs, sort, toggle: toggleSort } = useSortable(filtered, sortCols);
-    const pagedWOs = useMemo(() => sortedWOs.slice((woPage - 1) * WO_PAGE_SIZE, woPage * WO_PAGE_SIZE), [sortedWOs, woPage]);
-
-    useEffect(() => setWoPage(1), [filterStatus, filterGroup, filterWC, filterMO]);
 
     useEffect(() => {
         if (!highlightWOId || flatWOs.length === 0) return;
@@ -193,8 +182,8 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
 
     const canComplete = (wo: FlatWO) => !wo.qty || (wo.qty_completed_total ?? 0) >= wo.qty;
 
-    const openLog = (wo: FlatWO) => {
-        const mo = manufacturingOrders.find(m => m.id === wo.mo_id);
+    const openLog = async (wo: FlatWO) => {
+        const mo = await onFetchMO(wo.mo_id);
         setCompletionMO(mo ?? null);
         setCompletionWO(wo);
     };
@@ -215,10 +204,12 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
         return <span style={statusChipStyle(status)}>{(status || 'PENDING').replace('_', ' ')}</span>;
     };
 
-    const moOptions = useMemo(() =>
-        manufacturingOrders.map(mo => ({ id: mo.id, label: `${mo.code} — ${mo.item_name || ''}` })),
-        [manufacturingOrders]
-    );
+    const moOptions = useMemo(() => {
+        const seen = new Set<string>();
+        return flatWOs
+            .filter(wo => { if (seen.has(wo.mo_id)) return false; seen.add(wo.mo_id); return true; })
+            .map(wo => ({ id: wo.mo_id, label: `${wo.mo_code} — ${wo.item_name || ''}` }));
+    }, [flatWOs]);
 
     const allFilteredSelected = filtered.length > 0 && filtered.every(wo => selectedWOIds.has(wo.id));
     const someSelected = filtered.some(wo => selectedWOIds.has(wo.id));
@@ -233,11 +224,8 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
     const COLS = 14; // checkbox + chevron + 11 data cols + actions
 
     const renderDetailPanel = (wo: FlatWO) => {
-        const parentMO = manufacturingOrders.find(m => m.id === wo.mo_id);
-        const bomItemIds = new Set<string>((parentMO?.bom?.lines || []).map((l: any) => l.item_id as string));
-        const completions: any[] = (parentMO?.completions || [])
-            .filter((c: any) => c.work_order_id === wo.id)
-            .reverse();
+        const bomItemIds = new Set<string>(wo.bom_line_item_ids || []);
+        const completions: any[] = wo.completions || [];
 
         const panelStyle: React.CSSProperties = {
             display: 'grid', gridTemplateColumns: '110px 192px 1fr',
@@ -434,19 +422,25 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                     {/* Filter bar */}
                     <div style={filterBarStyle}>
                         <label style={{ fontSize: classic ? 10 : 11, color: classic ? '#000' : '#555', whiteSpace: 'nowrap' }}>Filter:</label>
-                        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+                        <input
+                            type="text" value={woSearch} onChange={e => onSearch(e.target.value)}
+                            placeholder="Search WO / MO..."
+                            style={classic ? { ...xpInput, width: 140 } : { width: 160 }}
+                            className={classic ? '' : 'form-control form-control-sm'}
+                        />
+                        <select value={filterStatus} onChange={e => onFilterStatus(e.target.value)}
                             style={classic ? { ...xpInput, width: 110 } : { width: 130 }}
                             className={classic ? '' : 'form-select form-select-sm'}>
                             <option value="">All Statuses</option>
                             {STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
                         </select>
-                        <select value={filterGroup} onChange={e => { setFilterGroup(e.target.value); setFilterWC(''); }}
+                        <select value={filterGroup} onChange={e => onFilterGroup(e.target.value)}
                             style={classic ? { ...xpInput, width: 120 } : { width: 140 }}
                             className={classic ? '' : 'form-select form-select-sm'}>
                             <option value="">All Groups</option>
                             {groups.map((wc: any) => <option key={wc.id} value={wc.id}>{wc.name}</option>)}
                         </select>
-                        <select value={filterWC} onChange={e => setFilterWC(e.target.value)}
+                        <select value={filterWC} onChange={e => onFilterWC(e.target.value)}
                             style={classic ? { ...xpInput, width: 130 } : { width: 150 }}
                             className={classic ? '' : 'form-select form-select-sm'}>
                             <option value="">All Work Centers</option>
@@ -455,11 +449,11 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                         <select value={filterMO} onChange={e => setFilterMO(e.target.value)}
                             style={classic ? { ...xpInput, width: 160 } : { width: 180 }}
                             className={classic ? '' : 'form-select form-select-sm'}>
-                            <option value="">All MOs</option>
+                            <option value="">All MOs (this page)</option>
                             {moOptions.map(mo => <option key={mo.id} value={mo.id}>{mo.label}</option>)}
                         </select>
-                        {(filterStatus || filterGroup || filterWC || filterMO) && (
-                            <button onClick={() => { setFilterStatus(''); setFilterGroup(''); setFilterWC(''); setFilterMO(''); }}
+                        {(filterStatus || filterGroup || filterWC || filterMO || woSearch) && (
+                            <button onClick={() => { onClearFilters(); setFilterMO(''); }}
                                 style={classic ? { ...xpInput, width: 'auto', cursor: 'pointer', height: 20 } : undefined}
                                 className={classic ? '' : 'btn btn-sm btn-outline-secondary'}>
                                 Clear
@@ -505,7 +499,7 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                                         </td>
                                     </tr>
                                 )}
-                                {pagedWOs.map((wo, idx) => {
+                                {sortedWOs.map((wo, idx) => {
                                     const rowBg = classic ? (idx % 2 === 0 ? '#fff' : '#f5f3ee') : undefined;
                                     const isEditing = editId === wo.id;
                                     const isExpanded = expandedWOId === wo.id;
@@ -674,7 +668,7 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                                                                     Log
                                                                 </button>
                                                             )}
-                                                            <button onClick={() => { const mo = manufacturingOrders.find(m => m.id === wo.mo_id); setPrintWO(wo); setPrintMO(mo ?? null); }}
+                                                            <button onClick={() => { onFetchMO(wo.mo_id).then(mo => { setPrintWO(wo); setPrintMO(mo ?? null); }); }}
                                                                 style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#555', marginRight: 4 }}
                                                                 title="Print Kartu Kerja">
                                                                 <i className="bi bi-printer" />
@@ -700,7 +694,7 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                                                                     onClick={() => onUpdateStatus(wo.id, 'COMPLETED')}>Finish</button>
                                                             )}
                                                             <button className="btn btn-sm btn-link text-secondary p-0 me-1"
-                                                                onClick={() => { const mo = manufacturingOrders.find(m => m.id === wo.mo_id); setPrintWO(wo); setPrintMO(mo ?? null); }}
+                                                                onClick={() => { onFetchMO(wo.mo_id).then(mo => { setPrintWO(wo); setPrintMO(mo ?? null); }); }}
                                                                 title="Print Kartu Kerja"><i className="bi bi-printer fs-6" /></button>
                                                             <button className="btn btn-sm btn-link text-primary p-0 me-1" onClick={() => startEdit(wo)}><i className="bi bi-pencil fs-6" /></button>
                                                             <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDelete(wo.id)}><i className="bi bi-trash fs-6" /></button>
@@ -716,10 +710,10 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                         </table>
                     </div>
 
-                    {sortedWOs.length > 0 && (() => {
-                        const pages = Math.max(1, Math.ceil(sortedWOs.length / WO_PAGE_SIZE));
-                        const from = (woPage - 1) * WO_PAGE_SIZE + 1;
-                        const to = Math.min(woPage * WO_PAGE_SIZE, sortedWOs.length);
+                    {total > 0 && (() => {
+                        const pages = Math.max(1, Math.ceil(total / pageSize));
+                        const from = (page - 1) * pageSize + 1;
+                        const to = Math.min(page * pageSize, total);
                         const btnStyle: React.CSSProperties = classic ? {
                             fontFamily: xpFont, fontSize: 10, padding: '1px 8px',
                             background: 'linear-gradient(to bottom,#f0efe6,#dddbd0)',
@@ -736,11 +730,11 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                                 fontSize: classic ? 10 : 11,
                                 flexShrink: 0,
                             }}>
-                                <button disabled={woPage === 1} onClick={() => setWoPage(p => p - 1)} style={btnStyle}>
+                                <button disabled={page === 1} onClick={() => onPageChange(page - 1)} style={btnStyle}>
                                     <i className="bi bi-chevron-left" style={{ fontSize: 9 }} /> Prev
                                 </button>
-                                <span style={{ color: '#555' }}>{from}&ndash;{to} of {sortedWOs.length} &middot; Page {woPage}/{pages}</span>
-                                <button disabled={woPage === pages} onClick={() => setWoPage(p => p + 1)} style={btnStyle}>
+                                <span style={{ color: '#555' }}>{from}&ndash;{to} of {total} &middot; Page {page}/{pages}</span>
+                                <button disabled={page === pages} onClick={() => onPageChange(page + 1)} style={btnStyle}>
                                     Next <i className="bi bi-chevron-right" style={{ fontSize: 9 }} />
                                 </button>
                             </div>
@@ -748,9 +742,7 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                     })()}
                     {classic && (
                         <XPStatusBar right={<span>{selectedWOIds.size > 0 ? `${selectedWOIds.size} selected` : ''}</span>}>
-                            {filtered.length === flatWOs.length
-                                ? `${flatWOs.length} work order${flatWOs.length !== 1 ? 's' : ''}`
-                                : `${filtered.length} of ${flatWOs.length} work orders shown`}
+                            {`${total} work order${total !== 1 ? 's' : ''} total`}
                         </XPStatusBar>
                     )}
                 </div>
@@ -775,7 +767,16 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
         {bulkPrintOpen && (
             <WOBulkPrintModal
                 selectedWOs={flatWOs.filter(wo => selectedWOIds.has(wo.id))}
-                manufacturingOrders={manufacturingOrders}
+                manufacturingOrders={flatWOs
+                    .filter(wo => selectedWOIds.has(wo.id))
+                    .map(wo => ({
+                        id: wo.mo_id,
+                        code: wo.mo_code,
+                        item_name: wo.item_name,
+                        completions: (wo as any).completions || [],
+                        bom: null,
+                    }))
+                }
                 onClose={() => setBulkPrintOpen(false)}
             />
         )}

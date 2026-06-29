@@ -20,6 +20,8 @@ from app.schemas import (
     MOCompletionCreate, MOCompletionResponse, MOCompletionItemCreate,
     MOAttributeUpdate,
     MOPreviewRequest, NettingPreviewNode,
+    WorkOrderFlatPageResponse, WorkOrderFlatResponse,
+    WorkOrderCompletionFlat, WorkOrderCompletionItemFlat,
 )
 from app.models.attribute import AttributeValue
 from app.models.auth import User
@@ -627,6 +629,144 @@ async def get_manufacturing_orders(
         "page": (skip // limit) + 1,
         "size": len(items_list)
     }
+
+
+@router.get("/manufacturing-orders/{mo_id}", response_model=ManufacturingOrderResponse)
+async def get_manufacturing_order(
+    mo_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    mo_map = await load_mo_tree(db, [mo_id])
+    if not mo_map:
+        raise HTTPException(status_code=404, detail="Manufacturing order not found")
+    mo = mo_map[list(mo_map.keys())[0]]
+    populate_mo_ids(mo)
+    return mo
+
+
+@router.get("/work-orders", response_model=WorkOrderFlatPageResponse)
+async def list_work_orders_flat(
+    skip: int = 0,
+    limit: int = 50,
+    status: str = Query(""),
+    work_center_id: str = Query(""),
+    group_id: str = Query(""),
+    search: str = Query(""),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    from sqlalchemy import and_
+
+    conditions = []
+    if status:
+        conditions.append(WorkOrderModel.status == status)
+    if work_center_id:
+        conditions.append(WorkOrderModel.work_center_id == work_center_id)
+    if group_id:
+        wc_subq = select(WorkCenter.id).where(WorkCenter.parent_id == group_id).scalar_subquery()
+        conditions.append(WorkOrderModel.work_center_id.in_(wc_subq))
+    if search and search.strip():
+        like = f"%{search.strip()}%"
+        conditions.append(or_(
+            WorkOrderModel.name.ilike(like),
+            WorkOrderModel.code.ilike(like),
+            ManufacturingOrder.code.ilike(like),
+        ))
+
+    base_join = select(WorkOrderModel).join(
+        ManufacturingOrder, WorkOrderModel.manufacturing_order_id == ManufacturingOrder.id
+    )
+    count_stmt = select(func.count(WorkOrderModel.id)).join(
+        ManufacturingOrder, WorkOrderModel.manufacturing_order_id == ManufacturingOrder.id
+    )
+    if conditions:
+        cond = and_(*conditions)
+        base_join = base_join.where(cond)
+        count_stmt = count_stmt.where(cond)
+
+    total = (await db.execute(count_stmt)).scalar() or 0
+
+    data_stmt = (
+        base_join
+        .options(
+            selectinload(WorkOrderModel.work_center),
+            selectinload(WorkOrderModel.completions).selectinload(MOCompletion.actual_items),
+            joinedload(WorkOrderModel.manufacturing_order).options(
+                joinedload(ManufacturingOrder.item),
+                joinedload(ManufacturingOrder.bom).selectinload(BOM.lines),
+            ),
+        )
+        .order_by(WorkOrderModel.created_at.desc(), WorkOrderModel.sequence)
+        .offset(skip)
+        .limit(limit)
+    )
+
+    wos = (await db.execute(data_stmt)).scalars().unique().all()
+
+    result = []
+    for wo in wos:
+        mo = wo.manufacturing_order
+        bom_line_item_ids = [str(ln.item_id) for ln in (mo.bom.lines if mo and mo.bom else [])]
+
+        completions_flat = []
+        for c in sorted(wo.completions or [], key=lambda x: x.created_at or datetime.min, reverse=True):
+            items_flat = [
+                WorkOrderCompletionItemFlat(
+                    item_id=str(ai.item_id),
+                    item_code=ai.item.code if ai.item else None,
+                    qty_used=float(ai.qty_used),
+                )
+                for ai in (c.actual_items or [])
+            ]
+            completions_flat.append(WorkOrderCompletionFlat(
+                id=str(c.id),
+                qty_completed=float(c.qty_completed),
+                operator_name=c.operator_name,
+                work_center_name=c.work_center.name if c.work_center else None,
+                created_at=c.created_at,
+                notes=c.notes,
+                actual_items=items_flat,
+            ))
+
+        result.append(WorkOrderFlatResponse(
+            id=str(wo.id),
+            code=wo.code,
+            sequence=wo.sequence,
+            name=wo.name,
+            status=wo.status,
+            qty=float(wo.qty) if wo.qty is not None else None,
+            qty_completed_total=float(wo.qty_completed_total) if wo.qty_completed_total is not None else None,
+            planned_duration_hours=wo.planned_duration_hours,
+            actual_duration_hours=wo.actual_duration_hours,
+            target_start_date=wo.target_start_date,
+            target_end_date=wo.target_end_date,
+            actual_start_date=wo.actual_start_date,
+            actual_end_date=wo.actual_end_date,
+            notes=wo.notes,
+            created_at=wo.created_at,
+            work_center_id=str(wo.work_center_id) if wo.work_center_id else None,
+            work_center_name=wo.work_center.name if wo.work_center else None,
+            work_center_type=wo.work_center.center_type if wo.work_center else None,
+            input_location=wo.input_location,
+            output_location=wo.output_location,
+            staging_status=wo.staging_status or "NOT_STAGED",
+            bom_operation_id=str(wo.bom_operation_id) if wo.bom_operation_id else None,
+            mo_id=str(mo.id),
+            mo_code=mo.code,
+            item_name=mo.item.name if mo and mo.item else "",
+            item_id=str(mo.item_id) if mo else "",
+            completions=completions_flat,
+            bom_line_item_ids=bom_line_item_ids,
+        ))
+
+    return WorkOrderFlatPageResponse(
+        items=result,
+        total=total,
+        page=(skip // limit) + 1,
+        size=limit,
+    )
+
 
 @router.put("/manufacturing-orders/{mo_id}/status")
 async def update_manufacturing_order_status(mo_id: str, status: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):

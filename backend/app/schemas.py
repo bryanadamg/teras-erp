@@ -655,6 +655,62 @@ class WOStagePayload(BaseModel):
     lines: list[WOStageLine]
 
 
+# ── Flat Work Order list (dedicated GET /work-orders endpoint) ──────────────
+
+class WorkOrderCompletionItemFlat(BaseModel):
+    item_id: str
+    item_code: str | None = None
+    qty_used: float
+
+
+class WorkOrderCompletionFlat(BaseModel):
+    id: str
+    qty_completed: float
+    operator_name: str | None = None
+    work_center_name: str | None = None
+    created_at: datetime | None = None
+    notes: str | None = None
+    actual_items: list[WorkOrderCompletionItemFlat] = []
+
+
+class WorkOrderFlatResponse(BaseModel):
+    id: str
+    code: str | None = None
+    sequence: int
+    name: str
+    status: str
+    qty: float | None = None
+    qty_completed_total: float | None = None
+    planned_duration_hours: float | None = None
+    actual_duration_hours: float | None = None
+    target_start_date: datetime | None = None
+    target_end_date: datetime | None = None
+    actual_start_date: datetime | None = None
+    actual_end_date: datetime | None = None
+    notes: str | None = None
+    created_at: datetime | None = None
+    work_center_id: str | None = None
+    work_center_name: str | None = None
+    work_center_type: str | None = None
+    input_location: LocationResponse | None = None
+    output_location: LocationResponse | None = None
+    staging_status: str = "NOT_STAGED"
+    bom_operation_id: str | None = None
+    mo_id: str
+    mo_code: str
+    item_name: str
+    item_id: str
+    completions: list[WorkOrderCompletionFlat] = []
+    bom_line_item_ids: list[str] = []
+
+
+class WorkOrderFlatPageResponse(BaseModel):
+    items: list[WorkOrderFlatResponse]
+    total: int
+    page: int
+    size: int
+
+
 # Resolve forward references now that all referenced schemas are defined
 ManufacturingOrderResponse.update_forward_refs()
 
