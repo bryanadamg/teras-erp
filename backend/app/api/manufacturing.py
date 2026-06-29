@@ -545,7 +545,8 @@ async def get_manufacturing_orders(
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
     search: Optional[str] = Query(None),
-    all_levels: bool = False, # New flag to include children in the flat list if desired
+    all_levels: bool = False,
+    slim: bool = False,  # dashboard-only: skip load_mo_tree, return minimal fields
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -585,6 +586,48 @@ async def get_manufacturing_orders(
         id_query.order_by(ManufacturingOrder.created_at.desc()).offset(skip).limit(limit)
     )
     root_ids = [row[0] for row in root_id_result.fetchall()]
+
+    # Slim mode: single query, no tree load. Used by the dashboard WO monitoring table
+    # which only needs id/code/status/item_id/qty/qty_completed_total/target_end_date.
+    if slim:
+        qty_completed_sub = (
+            select(func.coalesce(func.sum(MOCompletion.qty_completed), 0))
+            .where(MOCompletion.mo_id == ManufacturingOrder.id)
+            .correlate(ManufacturingOrder)
+            .scalar_subquery()
+        )
+        slim_result = await db.execute(
+            select(
+                ManufacturingOrder.id,
+                ManufacturingOrder.code,
+                ManufacturingOrder.status,
+                ManufacturingOrder.item_id,
+                ManufacturingOrder.qty,
+                ManufacturingOrder.target_end_date,
+                qty_completed_sub.label("qty_completed_total"),
+            )
+            .where(ManufacturingOrder.id.in_(root_ids))
+            .order_by(ManufacturingOrder.created_at.desc())
+        )
+        slim_items = [
+            {
+                "id": str(row.id),
+                "code": row.code,
+                "status": row.status,
+                "item_id": str(row.item_id) if row.item_id else None,
+                "qty": float(row.qty or 0),
+                "qty_completed_total": float(row.qty_completed_total or 0),
+                "target_end_date": row.target_end_date.isoformat() if row.target_end_date else None,
+                # stub fields the frontend schema expects
+                "work_orders": [], "child_mos": [], "completions": [], "planned_components": [],
+                "attribute_values": [], "required_mo_ids": [], "batch_trace": [],
+                "is_material_available": True, "bom_id": None, "bom": None,
+                "item": None, "sales_order": None, "is_shared_component": False,
+                "parent_mo_id": None,
+            }
+            for row in slim_result.all()
+        ]
+        return {"items": slim_items, "total": total, "page": (skip // limit) + 1, "size": len(slim_items)}
 
     # Load the full tree (unlimited depth) for the paginated root MOs
     mo_map = await load_mo_tree(db, root_ids)

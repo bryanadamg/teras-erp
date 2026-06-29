@@ -29,6 +29,7 @@ interface DataContextType {
     dashboardKPIs: any;
     dashboardSummary: any;
     dashboardKpiHistory: any;
+    dashboardWorkOrders: any[];
     itemIndex: Record<string, { name: string; code: string }>;
     companyProfile: any;
 
@@ -87,6 +88,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const [dashboardKPIs, setDashboardKPIs] = useState<any>({});
     const [dashboardSummary, setDashboardSummary] = useState<any>(null);
     const [dashboardKpiHistory, setDashboardKpiHistory] = useState<any>({});
+    const [dashboardWorkOrders, setDashboardWorkOrders] = useState<any[]>([]);
     const [itemIndex, setItemIndex] = useState<Record<string, { name: string; code: string }>>({});
     const [companyProfile, setCompanyProfile] = useState<any>(null);
 
@@ -232,16 +234,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             }
 
             // MES (Manufacturing Orders + Production Runs)
-            if (fetchTarget.includes('manufacturing') || fetchTarget.includes('work-orders') || fetchTarget.includes('production-runs') || fetchTarget.includes('sales-orders') || fetchTarget === 'dashboard' || fetchTarget === '' || fetchTarget.includes('reports')) {
+            const isDashboard = fetchTarget === 'dashboard' || fetchTarget === '';
+            if (fetchTarget.includes('manufacturing') || fetchTarget.includes('work-orders') || fetchTarget.includes('production-runs') || fetchTarget.includes('sales-orders') || isDashboard || fetchTarget.includes('reports')) {
                 const moSkip = (woPage - 1) * pageSize;
                 const moAllLevels = fetchTarget.includes('work-orders') ? '&all_levels=true' : '';
+                const moSlim = isDashboard ? '&slim=true' : '';
                 const moSearchParam = moSearch ? `&search=${encodeURIComponent(moSearch)}` : '';
-                requests.push(fetch(`${API_BASE}/manufacturing-orders?skip=${moSkip}&limit=${pageSize}${moAllLevels}${moSearchParam}`, { headers }));
-                requestTypes.push('manufacturing-orders');
-                const prSkip = (prPage - 1) * pageSize;
-                const prSearchParam = prSearch ? `&search=${encodeURIComponent(prSearch)}` : '';
-                requests.push(fetch(`${API_BASE}/production-runs?skip=${prSkip}&limit=${pageSize}${prSearchParam}`, { headers }));
-                requestTypes.push('production-runs');
+                requests.push(fetch(`${API_BASE}/manufacturing-orders?skip=${moSkip}&limit=${pageSize}${moAllLevels}${moSlim}${moSearchParam}`, { headers }));
+                requestTypes.push(isDashboard ? 'manufacturing-orders-slim' : 'manufacturing-orders');
+                if (!isDashboard) {
+                    const prSkip = (prPage - 1) * pageSize;
+                    const prSearchParam = prSearch ? `&search=${encodeURIComponent(prSearch)}` : '';
+                    requests.push(fetch(`${API_BASE}/production-runs?skip=${prSkip}&limit=${pageSize}${prSearchParam}`, { headers }));
+                    requestTypes.push('production-runs');
+                }
             }
 
             // Inventory / Stock
@@ -311,6 +317,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     case 'kpi-history': setDashboardKpiHistory(data); break;
                     case 'boms': setBoms(data); break;
                     case 'manufacturing-orders': setManufacturingOrders(data.items); setWoTotal(data.total); break;
+                    case 'manufacturing-orders-slim': setDashboardWorkOrders(data.items); break;
                     case 'production-runs': setProductionRuns(data.items); setPrTotal(data.total); break;
                     case 'balance': setStockBalance(data); break;
                     case 'stock-ledger': setStockEntries(data.items || []); setReportTotal(data.total || 0); break;
@@ -457,14 +464,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const value = React.useMemo(() => ({
         items, locations, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
-        partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, itemIndex, companyProfile,
+        partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, dashboardWorkOrders, itemIndex, companyProfile,
         pagination: { itemPage, setItemPage, itemTotal, woPage, setWoPage, woTotal, prPage, setPrPage, prTotal, auditPage, setAuditPage, auditTotal, reportPage, setReportPage, reportTotal, moSearch, setMoSearch: handleSetMoSearch, prSearch, setPrSearch: handleSetPrSearch, pageSize },
         filters: { itemSearch, setItemSearch, categoryL1, setCategoryL1: handleSetCategoryL1, categoryL2, setCategoryL2: handleSetCategoryL2, categoryL3, setCategoryL3, auditType, setAuditType },
         fetchData, refreshManufacturing, refreshPurchaseOrders, handleTabHover, authFetch
     }), [
         items, locations, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
-        partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, itemIndex, companyProfile,
+        partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, dashboardWorkOrders, itemIndex, companyProfile,
         itemPage, itemTotal, woPage, woTotal, prPage, prTotal, auditPage, auditTotal, reportPage, reportTotal, pageSize,
         itemSearch, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData, refreshManufacturing, refreshPurchaseOrders, handleTabHover, authFetch,
         handleSetCategoryL1, handleSetCategoryL2, handleSetMoSearch, handleSetPrSearch

@@ -47,7 +47,7 @@ function buildSection(key: string, d: any): SectionData {
   const purchaseOrders: any[] = d.purchaseOrders || [];
   const samples: any[]      = d.samples || [];
   const partners: any[]     = d.partners || [];
-  const mos: any[]          = d.manufacturingOrders || [];
+  const mos: any[]          = d.manufacturingOrders?.length > 0 ? d.manufacturingOrders : (d.dashboardWorkOrders || []);
   const prs: any[]          = d.productionRuns || [];
   const auditLogs: any[]    = d.auditLogs || [];
   const kpis: any           = d.dashboardKPIs || {};
