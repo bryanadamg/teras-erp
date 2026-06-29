@@ -83,6 +83,8 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
     const [filterGroup, setFilterGroup] = useState('');
     const [filterWC, setFilterWC] = useState('');
     const [filterMO, setFilterMO] = useState('');
+    const [woPage, setWoPage] = useState(1);
+    const WO_PAGE_SIZE = 50;
     const [expandedWOId, setExpandedWOId] = useState<string | null>(null);
     const [woQrUrls, setWoQrUrls] = useState<Record<string, string>>({});
 
@@ -149,6 +151,9 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
         status:   (wo: FlatWO) => wo.status,
     }), []);
     const { sorted: sortedWOs, sort, toggle: toggleSort } = useSortable(filtered, sortCols);
+    const pagedWOs = useMemo(() => sortedWOs.slice((woPage - 1) * WO_PAGE_SIZE, woPage * WO_PAGE_SIZE), [sortedWOs, woPage]);
+
+    useEffect(() => setWoPage(1), [filterStatus, filterGroup, filterWC, filterMO]);
 
     useEffect(() => {
         if (!highlightWOId || flatWOs.length === 0) return;
@@ -364,10 +369,13 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
         );
     };
 
-    const containerStyle: React.CSSProperties = classic ? {
-        border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-        background: '#ece9d8', fontFamily: xpFont,
-    } : {};
+    const containerStyle: React.CSSProperties = {
+        display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)',
+        ...(classic ? {
+            border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
+            background: '#ece9d8', fontFamily: xpFont,
+        } : {}),
+    };
 
     const titleBarStyle: React.CSSProperties = classic ? {
         background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)',
@@ -460,7 +468,7 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                     </div>
 
                     {/* Table */}
-                    <div className="table-responsive" style={classic ? { background: '#fff', maxHeight: 'calc(100vh - 180px)', overflowY: 'auto' } : undefined}>
+                    <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0, ...(classic ? { background: '#fff' } : {}) }}>
                         <table
                             style={{ width: '100%', borderCollapse: 'collapse', fontSize: classic ? 11 : undefined, fontFamily: classic ? xpFont : undefined, background: classic ? '#fff' : undefined }}
                             className={classic ? '' : 'table table-hover align-middle mb-0'}
@@ -497,7 +505,7 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                                         </td>
                                     </tr>
                                 )}
-                                {sortedWOs.map((wo, idx) => {
+                                {pagedWOs.map((wo, idx) => {
                                     const rowBg = classic ? (idx % 2 === 0 ? '#fff' : '#f5f3ee') : undefined;
                                     const isEditing = editId === wo.id;
                                     const isExpanded = expandedWOId === wo.id;
@@ -708,6 +716,36 @@ export default function WorkOrderListView({ manufacturingOrders, workCenters, on
                         </table>
                     </div>
 
+                    {sortedWOs.length > 0 && (() => {
+                        const pages = Math.max(1, Math.ceil(sortedWOs.length / WO_PAGE_SIZE));
+                        const from = (woPage - 1) * WO_PAGE_SIZE + 1;
+                        const to = Math.min(woPage * WO_PAGE_SIZE, sortedWOs.length);
+                        const btnStyle: React.CSSProperties = classic ? {
+                            fontFamily: xpFont, fontSize: 10, padding: '1px 8px',
+                            background: 'linear-gradient(to bottom,#f0efe6,#dddbd0)',
+                            border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
+                            cursor: 'pointer',
+                        } : { fontSize: 11, padding: '1px 10px', cursor: 'pointer' };
+                        return (
+                            <div style={{
+                                display: 'flex', alignItems: 'center', gap: 6,
+                                padding: classic ? '3px 8px' : '4px 12px',
+                                borderTop: classic ? '1px solid #808080' : '1px solid #dee2e6',
+                                background: classic ? '#d4d0c8' : '#f8f9fa',
+                                fontFamily: classic ? xpFont : undefined,
+                                fontSize: classic ? 10 : 11,
+                                flexShrink: 0,
+                            }}>
+                                <button disabled={woPage === 1} onClick={() => setWoPage(p => p - 1)} style={btnStyle}>
+                                    <i className="bi bi-chevron-left" style={{ fontSize: 9 }} /> Prev
+                                </button>
+                                <span style={{ color: '#555' }}>{from}&ndash;{to} of {sortedWOs.length} &middot; Page {woPage}/{pages}</span>
+                                <button disabled={woPage === pages} onClick={() => setWoPage(p => p + 1)} style={btnStyle}>
+                                    Next <i className="bi bi-chevron-right" style={{ fontSize: 9 }} />
+                                </button>
+                            </div>
+                        );
+                    })()}
                     {classic && (
                         <XPStatusBar right={<span>{selectedWOIds.size > 0 ? `${selectedWOIds.size} selected` : ''}</span>}>
                             {filtered.length === flatWOs.length
