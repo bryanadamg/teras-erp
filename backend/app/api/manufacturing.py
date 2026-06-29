@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_, inspect
 from sqlalchemy.orm import selectinload, joinedload, attributes as sa_attributes
@@ -627,7 +628,7 @@ async def get_manufacturing_orders(
             }
             for row in slim_result.all()
         ]
-        return {"items": slim_items, "total": total, "page": (skip // limit) + 1, "size": len(slim_items)}
+        return JSONResponse({"items": slim_items, "total": total, "page": (skip // limit) + 1, "size": len(slim_items)})
 
     # Load the full tree (unlimited depth) for the paginated root MOs
     mo_map = await load_mo_tree(db, root_ids)

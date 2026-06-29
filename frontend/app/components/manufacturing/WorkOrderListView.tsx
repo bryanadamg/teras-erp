@@ -470,12 +470,28 @@ export default function WorkOrderListView({
                     {/* Table */}
                     <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0, ...(classic ? { background: '#fff' } : {}) }}>
                         <table
-                            style={{ width: '100%', borderCollapse: 'collapse', fontSize: classic ? 11 : undefined, fontFamily: classic ? xpFont : undefined, background: classic ? '#fff' : undefined }}
+                            style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: classic ? 11 : undefined, fontFamily: classic ? xpFont : undefined, background: classic ? '#fff' : undefined }}
                             className={classic ? '' : 'table table-hover align-middle mb-0'}
                         >
+                            <colgroup>
+                                <col style={{ width: 28 }} />   {/* checkbox */}
+                                <col style={{ width: 22 }} />   {/* chevron */}
+                                <col style={{ width: 34 }} />   {/* # */}
+                                <col style={{ width: '13%' }} />{/* Name */}
+                                <col style={{ width: '11%' }} />{/* MO */}
+                                <col style={{ width: '10%' }} />{/* Product */}
+                                <col style={{ width: '13%' }} />{/* Work Center */}
+                                <col style={{ width: 60 }} />   {/* Planned */}
+                                <col style={{ width: 60 }} />   {/* Actual */}
+                                <col style={{ width: 86 }} />   {/* Target/Done */}
+                                <col style={{ width: 98 }} />   {/* Start */}
+                                <col style={{ width: 98 }} />   {/* End */}
+                                <col style={{ width: 108 }} />  {/* Status */}
+                                <col style={{ width: 108 }} />  {/* Actions */}
+                            </colgroup>
                             <thead>
                                 <tr className={classic ? '' : 'table-light'}>
-                                    <th style={{ ...thStyle, width: 24, padding: '3px 6px' }}>
+                                    <th style={{ ...thStyle, width: 28, padding: '3px 6px' }}>
                                         <input
                                             type="checkbox"
                                             checked={allFilteredSelected}
@@ -485,7 +501,7 @@ export default function WorkOrderListView({
                                             style={{ cursor: 'pointer' }}
                                         />
                                     </th>
-                                    <th style={{ ...thStyle, width: 20, padding: '3px 4px' }} className={classic ? '' : 'ps-3'} />
+                                    <th style={{ ...thStyle, width: 22, padding: '3px 4px' }} className={classic ? '' : 'ps-3'} />
                                     {([['#', 'sequence'], ['Name', 'name'], ['MO', 'mo'], ['Product', 'product'], ['Work Center', 'wc'], ['Planned', 'planned'], ['Actual', 'actual'], ['Target / Done', ''], ['Start', 'start'], ['End', 'end'], ['Status', 'status'], ['', '']] as [string, string][]).map(([h, key], i) => (
                                         <th key={`${h}-${i}`}
                                             style={{ ...thStyle, textAlign: h === '' ? 'right' : 'left', cursor: key ? 'pointer' : undefined, userSelect: 'none' }}
@@ -591,18 +607,20 @@ export default function WorkOrderListView({
                                                     </span>
                                                 </td>
                                                 <td style={{ ...tdBase, color: '#888', width: 36 }} className={classic ? '' : 'ps-3'}>{wo.sequence}</td>
-                                                <td style={{ ...tdBase, fontFamily: 'monospace', fontWeight: 'bold', fontSize: classic ? 10 : 11, color: '#000080' }}>
+                                                <td style={{ ...tdBase, fontFamily: 'monospace', fontWeight: 'bold', fontSize: classic ? 10 : 11, color: '#000080', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                                    title={(wo as any).code || wo.name}>
                                                     {(wo as any).code || wo.name}
                                                 </td>
                                                 <td
-                                                    style={{ ...tdBase, fontFamily: 'monospace', fontSize: classic ? 10 : 11, whiteSpace: 'nowrap', color: '#0058e6', textDecoration: 'underline', cursor: 'pointer' }}
+                                                    style={{ ...tdBase, fontFamily: 'monospace', fontSize: classic ? 10 : 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#0058e6', textDecoration: 'underline', cursor: 'pointer' }}
                                                     onClick={e => { e.stopPropagation(); router.push(`/manufacturing-orders?mo=${encodeURIComponent(wo.mo_code)}`); }}
-                                                    title="Go to Manufacturing Order"
+                                                    title={wo.mo_code}
                                                 >
                                                     {wo.mo_code}
                                                 </td>
-                                                <td style={{ ...tdBase, fontSize: classic ? 10 : 11, color: '#444' }}>{wo.item_name || '—'}</td>
-                                                <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>
+                                                <td style={{ ...tdBase, fontSize: classic ? 10 : 11, color: '#444', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                                    title={wo.item_name || ''}>{wo.item_name || '—'}</td>
+                                                <td style={{ ...tdBase, fontSize: classic ? 10 : 11, overflow: 'hidden' }}>
                                                     {wo.work_center_name
                                                         ? (() => {
                                                             const cs = getChipStyle(wo.work_center_type);
