@@ -283,7 +283,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
   if (classic) {
       return (
           <div className="row g-3 fade-in">
-              <div className="col-md-6">
+              <div className="col-md-7">
                   <XPPanel
                       icon="bi-cpu-fill"
                       title={t('work_centers')}
@@ -350,8 +350,8 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                                       <th style={{ ...xpTableHeader, padding: '3px 8px', width: 70 }}>{t('item_code')}</th>
                                       <th style={{ ...xpTableHeader, padding: '3px 8px' }}>{t('station_name')}</th>
                                       <th style={{ ...xpTableHeader, padding: '3px 8px', width: 60 }}>Type</th>
-                                      <th style={{ ...xpTableHeader, padding: '3px 8px', width: 60 }}>In Loc</th>
-                                      <th style={{ ...xpTableHeader, padding: '3px 8px', width: 60 }}>Out Loc</th>
+                                      <th style={{ ...xpTableHeader, padding: '3px 8px', width: 90 }}>In Loc</th>
+                                      <th style={{ ...xpTableHeader, padding: '3px 8px', width: 90 }}>Out Loc</th>
                                       <th style={{ ...xpTableHeader, padding: '3px 8px', width: 50 }}></th>
                                   </tr>
                               </thead>
@@ -370,8 +370,8 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                                                   <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px' }}>
                                                       <span style={{ padding: '1px 5px', borderRadius: 2, ...getWcTypeChip(wc.center_type) }}>{wc.center_type || 'GENERAL'}</span>
                                                   </td>
-                                                  <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#444' }}>{!isGroup ? getLocName(wc.input_location_id) : ''}</td>
-                                                  <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#444' }}>{!isGroup ? getLocName(wc.output_location_id) : ''}</td>
+                                                  <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#444', whiteSpace: 'nowrap' }}>{!isGroup ? getLocName(wc.input_location_id) : ''}</td>
+                                                  <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#444', whiteSpace: 'nowrap' }}>{!isGroup ? getLocName(wc.output_location_id) : ''}</td>
                                                   <td style={{ padding: '2px 4px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                                       <button style={{ ...xpBtn(), border: hoveredId === `wc-edit-${wc.id}` ? '1px solid #808080' : '1px solid transparent', background: 'transparent', padding: '1px 5px' }} onMouseEnter={() => setHoveredId(`wc-edit-${wc.id}`)} onMouseLeave={() => setHoveredId(null)} onClick={() => setEditingWC({ ...wc })} title="Edit"><i className="bi bi-pencil" style={{ fontSize: '11px' }}></i></button>
                                                       <button style={{ ...xpBtn(), border: hoveredId === `wc-${wc.id}` ? '1px solid #808080' : '1px solid transparent', background: 'transparent', padding: '1px 5px' }} onMouseEnter={() => setHoveredId(`wc-${wc.id}`)} onMouseLeave={() => setHoveredId(null)} onClick={() => onDeleteWorkCenter && onDeleteWorkCenter(wc.id)} title="Delete"><i className="bi bi-trash" style={{ color: '#c00000', fontSize: '11px' }}></i></button>
@@ -390,7 +390,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
               </div>
 
               {/* Operations */}
-              <div className="col-md-6">
+              <div className="col-md-5">
                   <XPPanel
                       icon="bi-gear-fill"
                       title={t('standard_operations')}
@@ -426,10 +426,13 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                               <tbody>
                                   {filteredOp.map((op: any, i: number) => (
                                       <tr key={op.id} style={{ background: i % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' }}>
-                                          <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', fontWeight: 'bold', color: '#1a5e1a', fontVariant: 'all-small-caps' }}>{op.code}</td>
+                                          <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', fontWeight: 'bold', color: '#1a5e1a', fontVariant: 'all-small-caps' }}>
+                                              {op.code}
+                                              {op.is_system && <span style={{ marginLeft: 5, fontSize: 9, fontWeight: 'bold', color: '#555', background: '#ddd', border: '1px solid #aaa', borderRadius: 2, padding: '0 3px', fontVariant: 'normal', letterSpacing: 0 }}>sys</span>}
+                                          </td>
                                           <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#000' }}>{op.name}</td>
                                           <td style={{ padding: '2px 4px', textAlign: 'center' }}>
-                                              <button style={{ ...xpBtn(), border: hoveredId === `op-${op.id}` ? '1px solid #808080' : '1px solid transparent', background: 'transparent', padding: '1px 5px' }} onMouseEnter={() => setHoveredId(`op-${op.id}`)} onMouseLeave={() => setHoveredId(null)} onClick={() => onDeleteOperation && onDeleteOperation(op.id)} title="Delete"><i className="bi bi-trash" style={{ color: '#c00000', fontSize: '11px' }}></i></button>
+                                              {!op.is_system && <button style={{ ...xpBtn(), border: hoveredId === `op-${op.id}` ? '1px solid #808080' : '1px solid transparent', background: 'transparent', padding: '1px 5px' }} onMouseEnter={() => setHoveredId(`op-${op.id}`)} onMouseLeave={() => setHoveredId(null)} onClick={() => onDeleteOperation && onDeleteOperation(op.id)} title="Delete"><i className="bi bi-trash" style={{ color: '#c00000', fontSize: '11px' }}></i></button>}
                                           </td>
                                       </tr>
                                   ))}
@@ -449,7 +452,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
   // ── Modern (Bootstrap) mode ───────────────────────────────────────────────
   return (
       <div className="row g-4 fade-in">
-          <div className="col-md-6">
+          <div className="col-md-7">
               <div className="card h-100 shadow-sm border-0">
                   <div className="card-header bg-white d-flex justify-content-between align-items-center">
                       <div>
@@ -534,8 +537,8 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                                                   </td>
                                                   <td style={{ fontStyle: isGroup ? 'italic' : 'normal', paddingLeft: indent ? '2rem' : undefined }}>{wc.name}</td>
                                                   <td><span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 3, ...getWcTypeChip(wc.center_type) }}>{wc.center_type || 'GENERAL'}</span></td>
-                                                  <td className="small text-muted">{!isGroup ? getLocName(wc.input_location_id) : ''}</td>
-                                                  <td className="small text-muted">{!isGroup ? getLocName(wc.output_location_id) : ''}</td>
+                                                  <td className="small text-muted" style={{ whiteSpace: 'nowrap' }}>{!isGroup ? getLocName(wc.input_location_id) : ''}</td>
+                                                  <td className="small text-muted" style={{ whiteSpace: 'nowrap' }}>{!isGroup ? getLocName(wc.output_location_id) : ''}</td>
                                                   <td>
                                                       <button className="btn btn-sm text-primary me-1" onClick={() => setEditingWC({ ...wc })} title="Edit"><i className="bi bi-pencil"></i></button>
                                                       <button className="btn btn-sm text-danger" onClick={() => onDeleteWorkCenter && onDeleteWorkCenter(wc.id)}><i className="bi bi-trash"></i></button>
@@ -552,7 +555,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
           </div>
 
           {/* Operations */}
-          <div className="col-md-6">
+          <div className="col-md-5">
               <div className="card h-100 shadow-sm border-0">
                   <div className="card-header bg-white">
                       <h5 className="card-title mb-0">{t('standard_operations')}</h5>
@@ -590,10 +593,13 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                               <tbody>
                                   {filteredOp.map((op: any) => (
                                       <tr key={op.id}>
-                                          <td className="fw-bold font-monospace text-success small">{op.code}</td>
+                                          <td className="fw-bold font-monospace text-success small">
+                                              {op.code}
+                                              {op.is_system && <span className="badge ms-1 text-secondary" style={{ background: '#e0e0e0', fontSize: 9, fontWeight: 'normal', border: '1px solid #bbb' }}>sys</span>}
+                                          </td>
                                           <td>{op.name}</td>
                                           <td>
-                                              <button className="btn btn-sm text-danger" onClick={() => onDeleteOperation && onDeleteOperation(op.id)}><i className="bi bi-trash"></i></button>
+                                              {!op.is_system && <button className="btn btn-sm text-danger" onClick={() => onDeleteOperation && onDeleteOperation(op.id)}><i className="bi bi-trash"></i></button>}
                                           </td>
                                       </tr>
                                   ))}
