@@ -1927,13 +1927,13 @@ export default function ManufacturingView({
                                   background: currentStyle === 'classic' ? '#fff' : undefined,
                               }} className={currentStyle === 'classic' ? '' : 'table table-hover align-middle mb-0'}>
                                   <colgroup>
-                                      <col style={{ width: '140px' }} />
+                                      <col style={{ width: '195px' }} />
                                       <col />
-                                      <col style={{ width: '65px' }} />
-                                      <col style={{ width: '145px' }} />
-                                      <col style={{ width: '185px' }} />
-                                      <col style={{ width: '105px' }} />
-                                      <col style={{ width: '100px' }} />
+                                      <col style={{ width: '60px' }} />
+                                      <col style={{ width: '125px' }} />
+                                      <col style={{ width: '160px' }} />
+                                      <col style={{ width: '90px' }} />
+                                      <col style={{ width: '125px' }} />
                                   </colgroup>
                                   <thead>
                                       <tr style={{
