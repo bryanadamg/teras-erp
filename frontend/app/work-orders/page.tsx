@@ -120,6 +120,7 @@ export default function WorkOrdersPage() {
             onUpdateStatus={handleUpdateWOStatus}
             onDelete={handleDeleteWO}
             onFetchMO={fetchMO}
+            onRefresh={() => fetchWOs(woPage, filterStatus, filterGroup, filterWC, woSearch)}
         />
     );
 }

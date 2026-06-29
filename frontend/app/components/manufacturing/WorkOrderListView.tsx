@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 import { useRouter } from 'next/navigation';
 import { useTheme } from '../../context/ThemeContext';
-import { useData } from '../../context/DataContext';
+
 import { useToast } from '../shared/Toast';
 import WOCompletionModal from './WOCompletionModal';
 import WOStepPrintModal from './WOStepPrintModal';
@@ -45,6 +45,7 @@ interface Props {
     onUpdateStatus: (id: string, status: string) => Promise<any>;
     onDelete: (id: string) => Promise<any>;
     onFetchMO: (moId: string) => Promise<any>;
+    onRefresh: () => void;
 }
 
 interface FlatWO {
@@ -80,12 +81,12 @@ export default function WorkOrderListView({
     workOrders, total, page, pageSize, onPageChange,
     workCenters, filterStatus, filterGroup, filterWC, woSearch,
     onFilterStatus, onFilterGroup, onFilterWC, onSearch, onClearFilters,
-    onUpdate, onUpdateStatus, onDelete, onFetchMO,
+    onUpdate, onUpdateStatus, onDelete, onFetchMO, onRefresh,
 }: Props) {
     const router = useRouter();
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
-    const { fetchData } = useData();
+
     const { showToast } = useToast();
     const highlightedRowRef = useRef<HTMLTableRowElement | null>(null);
     const [highlightWOId, setHighlightWOId] = useState<string | null>(null);
@@ -754,7 +755,7 @@ export default function WorkOrderListView({
                 mo={completionMO}
                 workOrder={completionWO ?? undefined}
                 onClose={() => { setCompletionMO(null); setCompletionWO(null); }}
-                onSaved={() => { setCompletionMO(null); setCompletionWO(null); fetchData('work-orders'); }}
+                onSaved={() => { setCompletionMO(null); setCompletionWO(null); onRefresh(); }}
             />
         )}
         {printWO && printMO && (
