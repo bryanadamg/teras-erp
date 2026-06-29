@@ -16,13 +16,16 @@ const normalizeStyle = (s: string | null): string =>
     s && VALID_STYLES.includes(s) ? s : (s ? 'modern' : 'classic');
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-    const [uiStyle, setUiStyleState] = useState('classic');
+    const [uiStyle, setUiStyleState] = useState(() => {
+        if (typeof window === 'undefined') return 'classic';
+        const saved = localStorage.getItem('ui_style');
+        return normalizeStyle(saved);
+    });
 
     useEffect(() => {
+        // Heal a stale stored value so it stops re-applying on every load.
         const saved = localStorage.getItem('ui_style');
         const normalized = normalizeStyle(saved);
-        setUiStyleState(normalized);
-        // Heal a stale stored value so it stops re-applying on every load.
         if (saved && saved !== normalized) localStorage.setItem('ui_style', normalized);
     }, []);
 
