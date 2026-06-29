@@ -55,6 +55,12 @@ export default function BOMView({
     companyProfile,
     initialCreateState, onClearInitialState,
     onCreateProductionRun, productionRuns,
+    // Pagination props (managed by bom/page.tsx)
+    bomPage = 1, bomTotal = 0, bomPageSize = 50,
+    bomSearch = '', onBomSearch,
+    setBomPage,
+    showRootOnly = true, setShowRootOnly,
+    bomLoading = false,
 }: any) {
     const { showToast } = useToast();
     const { t } = useLanguage();
@@ -67,19 +73,37 @@ export default function BOMView({
     const [editLoading, setEditLoading] = useState(false);
     const [printBOM, setPrintBOM] = useState<any>(null);
     const [startPRBom, setStartPRBom] = useState<any>(null);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [showRootOnly, setShowRootOnly] = useState(true);
     const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    // Cache of fetched BOM trees: rootBomId -> { bomId: bomObj } flat map
+    const [bomTreeCache, setBomTreeCache] = useState<Record<string, Record<string, any>>>({});
 
     // Inline detail panel state
     const [expandedBOMRows, setExpandedBOMRows] = useState<Record<string, boolean>>({});
     const [selectedBOMNodes, setSelectedBOMNodes] = useState<Record<string, string>>({});
 
-    const toggleBOMRow = (bomId: string, bomItemId: string) => {
+    // Flatten a BOMTreeResponse (recursive lines[].sub_bom) into a flat id->bom map
+    const flattenBOMTree = (bom: any, acc: Record<string, any> = {}): Record<string, any> => {
+        if (!bom || acc[bom.id]) return acc;
+        acc[bom.id] = bom;
+        for (const line of bom.lines || []) {
+            if (line.sub_bom) flattenBOMTree(line.sub_bom, acc);
+        }
+        return acc;
+    };
+
+    const toggleBOMRow = (bomId: string, _bomItemId: string) => {
         setExpandedBOMRows(prev => {
             const opening = !prev[bomId];
-            if (opening) setSelectedBOMNodes(p => ({ ...p, [bomId]: bomItemId }));
+            if (opening) {
+                setSelectedBOMNodes(p => ({ ...p, [bomId]: bomId }));
+                // Fetch and cache the full tree so sub-BOMs are available even across pages
+                if (!bomTreeCache[bomId] && onFetchBOMTree) {
+                    onFetchBOMTree(bomId).then((tree: any) => {
+                        if (tree) setBomTreeCache(c => ({ ...c, [bomId]: flattenBOMTree(tree) }));
+                    });
+                }
+            }
             return { ...prev, [bomId]: opening };
         });
     };
@@ -88,9 +112,21 @@ export default function BOMView({
         setSelectedBOMNodes(prev => ({ ...prev, [bomId]: subBomId }));
     };
 
-    // Attribute-aware sub-BOM lookup: exact attribute match first, then generic (no attrs), then undefined
+    // Combined lookup: current page boms + all cached tree boms (cache wins for sub-BOMs)
+    const allBomsById = useMemo<Record<string, any>>(() => {
+        const map: Record<string, any> = {};
+        for (const b of boms) map[b.id] = b;
+        for (const subMap of Object.values(bomTreeCache)) {
+            for (const [id, b] of Object.entries(subMap)) {
+                if (!map[id]) map[id] = b;
+            }
+        }
+        return map;
+    }, [boms, bomTreeCache]);
+
+    // Attribute-aware sub-BOM lookup: searches current page + all cached trees
     const findSubBOM = (line: any, excludeIds: Set<string> = new Set()): any | undefined => {
-        const candidates = boms.filter((b: any) => b.item_id === line.item_id && !excludeIds.has(b.id));
+        const candidates = Object.values(allBomsById).filter((b: any) => b.item_id === line.item_id && !excludeIds.has(b.id));
         if (candidates.length === 0) return undefined;
         const lineAttrs = [...(line.attribute_value_ids || [])].sort();
         const exact = candidates.find((b: any) => {
@@ -129,32 +165,9 @@ export default function BOMView({
         return valId;
     };
 
-    // Item IDs that appear as components in any BOM — these are sub-BOMs
-    const subBOMItemIds = useMemo(() => {
-        const ids = new Set<string>();
-        for (const b of boms) {
-            for (const line of b.lines || []) {
-                if (line.item_id) ids.add(line.item_id);
-            }
-        }
-        return ids;
-    }, [boms]);
-
-    // Filtered list
-    const filteredBOMs = useMemo(() => {
-        let list = boms;
-        if (showRootOnly) list = list.filter((b: any) => !subBOMItemIds.has(b.item_id));
-        if (!searchQuery.trim()) return list;
-        const q = searchQuery.toLowerCase();
-        return list.filter((b: any) => {
-            const code = (b.code || '').toLowerCase();
-            const name = (b.item_name || items.find((i: any) => i.id === b.item_id)?.name || '').toLowerCase();
-            return code.includes(q) || name.includes(q);
-        });
-    }, [boms, searchQuery, items, showRootOnly, subBOMItemIds]);
-
-    const allSelected = filteredBOMs.length > 0 && filteredBOMs.every((b: any) => selectedIds.has(b.id));
-    const someSelected = filteredBOMs.some((b: any) => selectedIds.has(b.id)) && !allSelected;
+    // Server already filters by search + root_only; boms is the current page result
+    const allSelected = boms.length > 0 && boms.every((b: any) => selectedIds.has(b.id));
+    const someSelected = boms.some((b: any) => selectedIds.has(b.id)) && !allSelected;
 
     const toggleSelect = (id: string) => setSelectedIds(prev => {
         const next = new Set(prev);
@@ -164,9 +177,9 @@ export default function BOMView({
 
     const toggleSelectAll = () => {
         if (allSelected) {
-            setSelectedIds(prev => { const n = new Set(prev); filteredBOMs.forEach((b: any) => n.delete(b.id)); return n; });
+            setSelectedIds(prev => { const n = new Set(prev); boms.forEach((b: any) => n.delete(b.id)); return n; });
         } else {
-            setSelectedIds(prev => { const n = new Set(prev); filteredBOMs.forEach((b: any) => n.add(b.id)); return n; });
+            setSelectedIds(prev => { const n = new Set(prev); boms.forEach((b: any) => n.add(b.id)); return n; });
         }
     };
 
@@ -373,7 +386,7 @@ export default function BOMView({
         const bomId = bom.id;
         const selectedBomId = selectedBOMNodes[bomId] ?? bom.id;
         const isRootSelected = selectedBomId === bom.id;
-        const displayBOM = isRootSelected ? bom : (boms.find((b: any) => b.id === selectedBomId) || bom);
+        const displayBOM = isRootSelected ? bom : (allBomsById[selectedBomId] || bom);
 
         const lines: any[] = displayBOM.lines || [];
         const ops: any[] = [...(displayBOM.operations || [])].sort((a: any, b: any) => a.sequence - b.sequence);
@@ -788,15 +801,15 @@ export default function BOMView({
                         <div style={{ background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '12px', fontWeight: 'bold', padding: '4px 8px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)', borderBottom: '1px solid #003080', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <span><i className="bi bi-diagram-3-fill" style={{ marginRight: '6px' }} />{t('active_boms')}</span>
-                                <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search BOMs..."
+                                <input type="text" value={bomSearch} onChange={e => onBomSearch?.(e.target.value)} placeholder="Search BOMs..."
                                     style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', border: '1px solid #808080', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.15)', padding: '2px 6px', background: '#fff', color: '#000', outline: 'none' }} />
                                 <div style={{ display: 'flex', border: '1px solid #808080', overflow: 'hidden', flexShrink: 0 }}>
                                     <button
-                                        onClick={() => setShowRootOnly(true)}
+                                        onClick={() => setShowRootOnly?.(true)}
                                         style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '1px 8px', cursor: 'pointer', border: 'none', background: showRootOnly ? 'linear-gradient(to bottom, #316ac5, #1a4a9a)' : 'linear-gradient(to bottom, #fff, #d4d0c8)', color: showRootOnly ? '#fff' : '#000', fontWeight: showRootOnly ? 'bold' : 'normal' }}
                                     >Root BOMs</button>
                                     <button
-                                        onClick={() => setShowRootOnly(false)}
+                                        onClick={() => setShowRootOnly?.(false)}
                                         style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '1px 8px', cursor: 'pointer', border: 'none', borderLeft: '1px solid #808080', background: !showRootOnly ? 'linear-gradient(to bottom, #316ac5, #1a4a9a)' : 'linear-gradient(to bottom, #fff, #d4d0c8)', color: !showRootOnly ? '#fff' : '#000', fontWeight: !showRootOnly ? 'bold' : 'normal' }}
                                     >All BOMs</button>
                                 </div>
@@ -818,10 +831,10 @@ export default function BOMView({
                         <div className="card-header bg-white d-flex justify-content-between align-items-center">
                             <div className="d-flex align-items-center gap-2">
                                 <h5 className="card-title mb-0"><i className="bi bi-diagram-3-fill me-2" />{t('active_boms')}</h5>
-                                <input type="text" className="form-control form-control-sm" style={{ width: '180px' }} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search BOMs..." />
+                                <input type="text" className="form-control form-control-sm" style={{ width: '180px' }} value={bomSearch} onChange={e => onBomSearch?.(e.target.value)} placeholder="Search BOMs..." />
                                 <div className="btn-group btn-group-sm">
-                                    <button className={`btn ${showRootOnly ? 'btn-primary' : 'btn-outline-secondary'}`} onClick={() => setShowRootOnly(true)}>Root BOMs</button>
-                                    <button className={`btn ${!showRootOnly ? 'btn-primary' : 'btn-outline-secondary'}`} onClick={() => setShowRootOnly(false)}>All BOMs</button>
+                                    <button className={`btn ${showRootOnly ? 'btn-primary' : 'btn-outline-secondary'}`} onClick={() => setShowRootOnly?.(true)}>Root BOMs</button>
+                                    <button className={`btn ${!showRootOnly ? 'btn-primary' : 'btn-outline-secondary'}`} onClick={() => setShowRootOnly?.(false)}>All BOMs</button>
                                 </div>
                                 {selectedIds.size > 0 && (
                                     <div className="d-flex align-items-center gap-2">
@@ -858,10 +871,14 @@ export default function BOMView({
                                 </thead>
 
                                 <tbody>
-                                    {filteredBOMs.length === 0 && searchQuery.trim() ? (
+                                    {boms.length === 0 && bomSearch.trim() ? (
                                         <tr><td colSpan={6} style={{ textAlign: 'center', padding: '16px', color: '#555', fontSize: '11px' }}>No BOMs match your search.</td></tr>
+                                    ) : boms.length === 0 ? (
+                                        <tr><td colSpan={6} style={{ textAlign: 'center', padding: '16px', color: '#555', fontSize: '11px' }}>
+                                            {bomLoading ? 'Loading...' : 'No BOMs yet. Click Create Recipe to get started.'}
+                                        </td></tr>
                                     ) : (
-                                        filteredBOMs.map((bom: any, index: number) => {
+                                        boms.map((bom: any, index: number) => {
                                             const isExpanded = expandedBOMRows[bom.id];
                                             const rowBg = classic
                                                 ? (selectedIds.has(bom.id) ? '#d8e4f8' : isExpanded ? '#eef2fc' : index % 2 === 0 ? '#ffffff' : '#f5f3ee')
@@ -973,6 +990,26 @@ export default function BOMView({
                                 </tbody>
                             </table>
                         </div>
+                        {/* Pager footer */}
+                        {bomTotal > 0 && (() => {
+                            const pages = Math.max(1, Math.ceil(bomTotal / bomPageSize));
+                            const from = (bomPage - 1) * bomPageSize + 1;
+                            const to = Math.min(bomPage * bomPageSize, bomTotal);
+                            const btn = (label: React.ReactNode, target: number, disabled: boolean) => (
+                                <button
+                                    disabled={disabled}
+                                    onClick={() => setBomPage?.(target)}
+                                    style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, padding: '1px 10px', background: disabled ? '#dcdacc' : 'linear-gradient(to bottom,#f0efe6,#dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: disabled ? '#999' : '#000', cursor: disabled ? 'default' : 'pointer' }}
+                                >{label}</button>
+                            );
+                            return (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', borderTop: '1px solid #808080', background: '#ece9d8', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11 }}>
+                                    {btn(<><i className="bi bi-chevron-left me-1" />Prev</>, bomPage - 1, bomPage <= 1)}
+                                    <span style={{ color: '#444' }}>{from}-{to} of {bomTotal} &nbsp;·&nbsp; Page {bomPage} / {pages}</span>
+                                    {btn(<>Next<i className="bi bi-chevron-right ms-1" /></>, bomPage + 1, bomPage >= pages)}
+                                </div>
+                            );
+                        })()}
                     </div>
                 </div>
             </div>

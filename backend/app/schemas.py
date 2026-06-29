@@ -201,6 +201,7 @@ class BOMSummaryResponse(BaseModel):
     except `operations` (an array) is collapsed to `operation_count` — the list
     only shows an op count, never the routing rows. Line/size shapes are
     unchanged so every consumer reads the same fields."""
+    is_root: bool = True  # True if item_id not used as a component in any other BOM
     id: UUID
     code: str
     description: str | None
@@ -241,6 +242,10 @@ class BOMSummaryResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class BOMSummaryPageResponse(BaseModel):
+    items: list[BOMSummaryResponse]
+    total: int
 
 class BOMLineTreeResponse(BOMLineResponse):
     sub_bom: Optional["BOMTreeResponse"] = None

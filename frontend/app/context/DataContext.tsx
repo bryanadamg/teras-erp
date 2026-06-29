@@ -222,15 +222,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             }
 
             // Engineering
-            // The BOM page uses the lightweight summary endpoint (operations
-            // collapsed to a count, no AttributeValue/operation row hydration).
-            // Manufacturing/MES/sales routes need the full nested tree, so they
-            // keep hitting /boms. ('bom' only matches the BOM page route — no
-            // other consuming route token contains it.)
-            if (fetchTarget.includes('bom')) {
-                requests.push(fetch(`${API_BASE}/boms/summary`, { headers }));
-                requestTypes.push('boms');
-            } else if (fetchTarget.includes('manufacturing') || fetchTarget.includes('work-orders') || fetchTarget.includes('production-runs') || fetchTarget.includes('samples') || fetchTarget.includes('sales-orders')) {
+            // The BOM page self-manages its own paginated /boms/summary fetches
+            // (search + pagination state live in bom/page.tsx). DataContext only
+            // fetches the full /boms payload for manufacturing/MES/sales routes
+            // that need the complete nested tree for WO/PR creation and printing.
+            if (fetchTarget.includes('manufacturing') || fetchTarget.includes('work-orders') || fetchTarget.includes('production-runs') || fetchTarget.includes('samples') || fetchTarget.includes('sales-orders')) {
                 requests.push(fetch(`${API_BASE}/boms`, { headers }));
                 requestTypes.push('boms');
             }

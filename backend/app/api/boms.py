@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload, joinedload
 from pathlib import Path
 import shutil, os, uuid as _uuid
@@ -12,7 +12,7 @@ from app.models.item import Item
 from app.models.location import Location
 from app.models.routing import WorkCenter, Operation
 from app.models.production_run import PRBomEntrySize
-from app.schemas import BOMCreate, BOMUpdate, BOMResponse, BOMSummaryResponse, BOMTreeResponse, SizeResponse, BOMAutomatorProfileCreate, BOMAutomatorProfileResponse
+from app.schemas import BOMCreate, BOMUpdate, BOMResponse, BOMSummaryResponse, BOMSummaryPageResponse, BOMTreeResponse, SizeResponse, BOMAutomatorProfileCreate, BOMAutomatorProfileResponse
 from app.models.auth import User, BOMAutomatorProfile
 from app.api.auth import get_current_user
 from app.services import audit_service
@@ -260,19 +260,43 @@ async def get_boms(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(g
             bl.attribute_value_ids = [v.id for v in bl.attribute_values]
     return items_list
 
-@router.get("/boms/summary", response_model=list[BOMSummaryResponse])
-async def get_boms_summary(skip: int = 0, limit: int = 5000, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
-    """Lightweight BOM list for the BOM page.
+@router.get("/boms/summary", response_model=BOMSummaryPageResponse)
+async def get_boms_summary(
+    skip: int = 0,
+    limit: int = 50,
+    search: str = Query(""),
+    root_only: bool = Query(False),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Paginated lightweight BOM list for the BOM page.
 
-    Returns full headers + lines + sizes, but collapses `operations` to a count
-    and pulls attribute ids straight from the association tables instead of
-    hydrating AttributeValue / BOMOperation ORM rows — far less work per request
-    than the full `/boms` endpoint.
-
-    NOT meaningfully paginated (high default limit): the BOM page resolves its
-    recursive sub-BOM tree client-side, so every BOM's lines must be present in
-    one payload. Other domains (manufacturing/MES/sales) still use `/boms`.
+    Returns full headers + lines + sizes, but collapses `operations` to a count.
+    Supports server-side search (code or item name) and root_only filtering.
+    Other domains (manufacturing/MES/sales) still use `/boms`.
     """
+    # Sub-BOMs: item_ids that appear as components in any BOM line
+    sub_item_ids_sq = select(BOMLine.item_id).distinct().scalar_subquery()
+
+    # Build WHERE conditions
+    where = []
+    if search:
+        where.append(or_(
+            BOM.code.ilike(f"%{search}%"),
+            Item.name.ilike(f"%{search}%"),
+        ))
+    if root_only:
+        where.append(BOM.item_id.not_in(sub_item_ids_sq))
+
+    # Count (join Item only when search requires it)
+    count_q = select(func.count(BOM.id))
+    if search:
+        count_q = count_q.join(Item, BOM.item_id == Item.id)
+    if where:
+        count_q = count_q.where(*where)
+    total: int = (await db.execute(count_q)).scalar_one()
+
+    # Data query
     query = select(BOM).options(
         joinedload(BOM.item),
         joinedload(BOM.customer),
@@ -280,17 +304,19 @@ async def get_boms_summary(skip: int = 0, limit: int = 5000, db: AsyncSession = 
         selectinload(BOM.lines).joinedload(BOMLine.item),
         selectinload(BOM.sizes).joinedload(BOMSize.size),
     )
+    if search:
+        query = query.join(Item, BOM.item_id == Item.id)
+    if where:
+        query = query.where(*where)
     result = await db.execute(query.order_by(BOM.created_at.desc()).offset(skip).limit(limit))
     boms = result.unique().scalars().all()
+
     if not boms:
-        return []
+        return {"items": [], "total": total}
 
     bom_ids = [b.id for b in boms]
     line_ids = [l.id for b in boms for l in b.lines]
 
-    # Attribute ids straight from the M2M tables (composite-PK leftmost column,
-    # so these are index-covered) — avoids loading AttributeValue rows just to
-    # read their ids.
     bom_attr_map: dict = {}
     rows = await db.execute(
         select(bom_values.c.bom_id, bom_values.c.attribute_value_id).where(bom_values.c.bom_id.in_(bom_ids))
@@ -313,12 +339,18 @@ async def get_boms_summary(skip: int = 0, limit: int = 5000, db: AsyncSession = 
     for bid, cnt in rows.all():
         op_counts[bid] = cnt
 
+    # Compute is_root: item_id not used as a component in any BOM line
+    component_rows = await db.execute(select(BOMLine.item_id).distinct())
+    component_item_ids = {r[0] for r in component_rows.all()}
+
     for b in boms:
         b.attribute_value_ids = bom_attr_map.get(b.id, [])
         b.operation_count = op_counts.get(b.id, 0)
+        b.is_root = b.item_id not in component_item_ids
         for bl in b.lines:
             bl.attribute_value_ids = line_attr_map.get(bl.id, [])
-    return boms
+
+    return {"items": boms, "total": total}
 
 @router.get("/boms/{bom_id}", response_model=BOMResponse)
 async def get_bom(bom_id: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
