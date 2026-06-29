@@ -67,8 +67,10 @@ export default function WorkOrdersPage() {
     useEffect(() => { fetchWOs(woPage, filterStatus, filterGroup, filterWC, woSearch); }, [woPage]);
 
     const handleFilterStatus = (v: string) => { setFilterStatus(v); setWoPage(1); fetchWOs(1, v, filterGroup, filterWC, woSearch); };
-    const handleFilterGroup = (v: string) => { setFilterGroup(v); setFilterWC(''); setWoPage(1); fetchWOs(1, filterStatus, v, '', woSearch); };
-    const handleFilterWC = (v: string) => { setFilterWC(v); setWoPage(1); fetchWOs(1, filterStatus, filterGroup, v, woSearch); };
+    const handleFilterWCChange = (groupId: string, wcId: string) => {
+        setFilterGroup(groupId); setFilterWC(wcId); setWoPage(1);
+        fetchWOs(1, filterStatus, groupId, wcId, woSearch);
+    };
 
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const handleSearch = useCallback((term: string) => {
@@ -119,10 +121,12 @@ export default function WorkOrdersPage() {
             filterWC={filterWC}
             woSearch={woSearch}
             onFilterStatus={handleFilterStatus}
-            onFilterGroup={handleFilterGroup}
-            onFilterWC={handleFilterWC}
+            onFilterWCChange={handleFilterWCChange}
             onSearch={handleSearch}
-            onClearFilters={() => { handleFilterStatus(''); handleFilterGroup(''); handleFilterWC(''); handleSearch(''); }}
+            onClearFilters={() => {
+                setFilterStatus(''); setFilterGroup(''); setFilterWC(''); setWoSearch(''); setWoPage(1);
+                fetchWOs(1, '', '', '', '');
+            }}
             onUpdate={handleUpdateWO}
             onUpdateStatus={handleUpdateWOStatus}
             onDelete={handleDeleteWO}

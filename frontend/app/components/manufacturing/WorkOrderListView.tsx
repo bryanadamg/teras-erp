@@ -38,8 +38,7 @@ interface Props {
     filterWC: string;
     woSearch: string;
     onFilterStatus: (v: string) => void;
-    onFilterGroup: (v: string) => void;
-    onFilterWC: (v: string) => void;
+    onFilterWCChange: (groupId: string, wcId: string) => void;
     onSearch: (v: string) => void;
     onClearFilters: () => void;
     onUpdate: (id: string, payload: any) => Promise<any>;
@@ -82,7 +81,7 @@ interface FlatWO {
 export default function WorkOrderListView({
     workOrders, total, page, pageSize, onPageChange,
     workCenters, filterStatus, filterGroup, filterWC, woSearch,
-    onFilterStatus, onFilterGroup, onFilterWC, onSearch, onClearFilters,
+    onFilterStatus, onFilterWCChange, onSearch, onClearFilters,
     onUpdate, onUpdateStatus, onDelete, onFetchMO, onRefresh,
     loading = false,
 }: Props) {
@@ -143,9 +142,9 @@ export default function WorkOrderListView({
 
     const wcFilterValue = filterWC ? `wc:${filterWC}` : filterGroup ? `grp:${filterGroup}` : '';
     const onWCFilterChange = (val: string) => {
-        if (!val) { onFilterGroup(''); onFilterWC(''); return; }
-        if (val.startsWith('grp:')) { onFilterGroup(val.slice(4)); onFilterWC(''); }
-        else { onFilterGroup(''); onFilterWC(val.slice(3)); }
+        if (!val) { onFilterWCChange('', ''); return; }
+        if (val.startsWith('grp:')) { onFilterWCChange(val.slice(4), ''); }
+        else { onFilterWCChange('', val.slice(3)); }
     };
 
     const filtered = flatWOs;
@@ -241,7 +240,7 @@ export default function WorkOrderListView({
         const completions: any[] = wo.completions || [];
 
         const panelStyle: React.CSSProperties = {
-            display: 'grid', gridTemplateColumns: '110px 280px minmax(260px, 420px)',
+            display: 'grid', gridTemplateColumns: '110px 280px minmax(260px, 1fr)',
             border: classic ? '1px solid #7f9db9' : '1px solid #dee2e6',
             fontFamily: xpFont, fontSize: 10,
         };
@@ -487,7 +486,7 @@ export default function WorkOrderListView({
                                 <col style={{ width: 98 }} />   {/* Start */}
                                 <col style={{ width: 98 }} />   {/* End */}
                                 <col style={{ width: 108 }} />  {/* Status */}
-                                <col style={{ width: 108 }} />  {/* Actions */}
+                                <col style={{ width: 126 }} />  {/* Actions */}
                             </colgroup>
                             <thead>
                                 <tr className={classic ? '' : 'table-light'}>
