@@ -5,6 +5,14 @@ import WorkOrderListView from '../components/manufacturing/WorkOrderListView';
 import { useData } from '../context/DataContext';
 
 const WO_PAGE_SIZE = 50;
+const CACHE_KEY = 'wo_page_cache';
+
+function readCache() {
+    try { return JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null'); } catch { return null; }
+}
+function writeCache(items: any[], total: number) {
+    try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ items, total })); } catch {}
+}
 
 export default function WorkOrdersPage() {
     const { workCenters, authFetch } = useData();
@@ -12,15 +20,15 @@ export default function WorkOrdersPage() {
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
-    const [woList, setWoList] = useState<any[]>([]);
-    const [woTotal, setWoTotal] = useState(0);
+    const cached = readCache();
+    const [woList, setWoList] = useState<any[]>(cached?.items || []);
+    const [woTotal, setWoTotal] = useState<number>(cached?.total || 0);
     const [woPage, setWoPage] = useState(1);
     const [filterStatus, setFilterStatus] = useState('');
     const [filterGroup, setFilterGroup] = useState('');
     const [filterWC, setFilterWC] = useState('');
     const [woSearch, setWoSearch] = useState('');
     const [loading, setLoading] = useState(false);
-    const [ready, setReady] = useState(false);
 
     const fetchWOs = useCallback(async (
         page = woPage,
@@ -42,25 +50,26 @@ export default function WorkOrdersPage() {
                 const data = await res.json();
                 setWoList(data.items);
                 setWoTotal(data.total);
+                // Only cache default view (page 1, no filters) so return navigation is instant
+                if (page === 1 && !status && !groupId && !wcId && !search) {
+                    writeCache(data.items, data.total);
+                }
             }
         } finally {
             setLoading(false);
-            setReady(true);
         }
     }, [woPage, filterStatus, filterGroup, filterWC, woSearch, authFetch, API_BASE]);
 
-    // Initial load
+    // Initial load — always refetch fresh in background (cache already shown)
     useEffect(() => { fetchWOs(1, '', '', '', ''); }, []);
 
     // Page change
-    useEffect(() => { if (ready) fetchWOs(woPage, filterStatus, filterGroup, filterWC, woSearch); }, [woPage]);
+    useEffect(() => { fetchWOs(woPage, filterStatus, filterGroup, filterWC, woSearch); }, [woPage]);
 
-    // Filter changes → reset to page 1
     const handleFilterStatus = (v: string) => { setFilterStatus(v); setWoPage(1); fetchWOs(1, v, filterGroup, filterWC, woSearch); };
     const handleFilterGroup = (v: string) => { setFilterGroup(v); setFilterWC(''); setWoPage(1); fetchWOs(1, filterStatus, v, '', woSearch); };
     const handleFilterWC = (v: string) => { setFilterWC(v); setWoPage(1); fetchWOs(1, filterStatus, filterGroup, v, woSearch); };
 
-    // Search with 350ms debounce
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const handleSearch = useCallback((term: string) => {
         setWoSearch(term);
@@ -97,8 +106,6 @@ export default function WorkOrdersPage() {
         return res.json();
     }, [authFetch, API_BASE]);
 
-    if (!ready) return null;
-
     return (
         <WorkOrderListView
             workOrders={woList}
@@ -121,6 +128,7 @@ export default function WorkOrdersPage() {
             onDelete={handleDeleteWO}
             onFetchMO={fetchMO}
             onRefresh={() => fetchWOs(woPage, filterStatus, filterGroup, filterWC, woSearch)}
+            loading={loading}
         />
     );
 }

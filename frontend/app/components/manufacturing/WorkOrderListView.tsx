@@ -46,6 +46,7 @@ interface Props {
     onDelete: (id: string) => Promise<any>;
     onFetchMO: (moId: string) => Promise<any>;
     onRefresh: () => void;
+    loading?: boolean;
 }
 
 interface FlatWO {
@@ -82,6 +83,7 @@ export default function WorkOrderListView({
     workCenters, filterStatus, filterGroup, filterWC, woSearch,
     onFilterStatus, onFilterGroup, onFilterWC, onSearch, onClearFilters,
     onUpdate, onUpdateStatus, onDelete, onFetchMO, onRefresh,
+    loading = false,
 }: Props) {
     const router = useRouter();
     const { uiStyle } = useTheme();
@@ -459,6 +461,9 @@ export default function WorkOrderListView({
                                 className={classic ? '' : 'btn btn-sm btn-outline-secondary'}>
                                 Clear
                             </button>
+                        )}
+                        {loading && (
+                            <span style={{ fontSize: classic ? 10 : 11, color: '#666', marginLeft: 4 }}>Loading...</span>
                         )}
                     </div>
 
