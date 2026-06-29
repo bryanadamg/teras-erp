@@ -1,5 +1,6 @@
 'use client';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useTheme } from '../../context/ThemeContext';
 
 export interface TreeSelectOption {
@@ -64,6 +65,24 @@ export default function TreeSelect({
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(() => collectGroupValues(options));
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [dropPos, setDropPos] = useState<{ top: number; left: number; width: number; above: boolean }>({ top: 0, left: 0, width: 0, above: false });
+
+  const computePos = useCallback(() => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - r.bottom;
+    const maxH = 320;
+    const above = spaceBelow < Math.min(maxH, 180) && r.top > spaceBelow;
+    setDropPos({
+      top: above ? r.top : r.bottom,
+      left: r.left,
+      width: r.width,
+      above,
+    });
+  }, []);
 
   // Auto-expand newly added groups
   useEffect(() => {
@@ -76,20 +95,29 @@ export default function TreeSelect({
     });
   }, [options]);
 
-  // Close on outside click or ESC
+  // Recompute position on open; close on outside click, ESC, scroll
   useEffect(() => {
     if (!open) return;
+    computePos();
     const onMouse = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      const inContainer = ref.current?.contains(t);
+      const inPanel = panelRef.current?.contains(t);
+      if (!inContainer && !inPanel) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    const onScroll = () => { computePos(); };
     document.addEventListener('mousedown', onMouse);
     document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', computePos);
     return () => {
       document.removeEventListener('mousedown', onMouse);
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', computePos);
     };
-  }, [open]);
+  }, [open, computePos]);
 
   const toggleGroup = (val: string) => {
     setExpanded(prev => {
@@ -132,21 +160,6 @@ export default function TreeSelect({
     overflow: 'hidden',
     whiteSpace: 'nowrap',
   };
-  const xpDropdown: React.CSSProperties = {
-    position: 'absolute',
-    top: '100%',
-    left: 0,
-    zIndex: 9999,
-    minWidth: '100%',
-    maxWidth: 400,
-    maxHeight: 320,
-    overflowY: 'auto',
-    background: '#fff',
-    border: '1px solid #7f9db9',
-    boxShadow: '2px 2px 4px rgba(0,0,0,0.25)',
-    marginTop: 1,
-  };
-
   // ── Recursive node renderer ─────────────────────────────────────────────────
   const renderNode = (opt: TreeSelectOption, depth: number): React.ReactNode => {
     const hasKids = (opt.children?.length ?? 0) > 0;
@@ -322,10 +335,36 @@ export default function TreeSelect({
     </div>
   );
 
+  const portalStyle: React.CSSProperties = {
+    position: 'fixed',
+    top: dropPos.top,
+    left: dropPos.left,
+    zIndex: 99999,
+    minWidth: dropPos.width,
+    maxHeight: 320,
+    overflowY: 'auto',
+    transform: dropPos.above ? 'translateY(-100%)' : undefined,
+  };
+
   if (classic) {
+    const panel = open ? createPortal(
+      <div ref={panelRef} style={{
+        ...portalStyle,
+        maxWidth: 400,
+        background: '#fff',
+        border: '1px solid #7f9db9',
+        boxShadow: '2px 2px 4px rgba(0,0,0,0.25)',
+      }}>
+        {emptyRow}
+        {options.map(o => renderNode(o, 0))}
+      </div>,
+      document.body
+    ) : null;
+
     return (
       <div ref={ref} style={{ position: 'relative', ...style }} className={className}>
         <button
+          ref={triggerRef}
           type="button"
           style={xpTrigger}
           onClick={() => !disabled && setOpen(v => !v)}
@@ -339,19 +378,30 @@ export default function TreeSelect({
             style={{ position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)', fontSize: 9, color: '#555', pointerEvents: 'none' }}
           />
         </button>
-        {open && (
-          <div style={xpDropdown}>
-            {emptyRow}
-            {options.map(o => renderNode(o, 0))}
-          </div>
-        )}
+        {panel}
       </div>
     );
   }
 
+  const panel = open ? createPortal(
+    <div ref={panelRef} style={{
+      ...portalStyle,
+      maxWidth: 420,
+      background: '#fff',
+      border: '1px solid #dee2e6',
+      borderRadius: 4,
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+    }}>
+      {emptyRow}
+      {options.map(o => renderNode(o, 0))}
+    </div>,
+    document.body
+  ) : null;
+
   return (
     <div ref={ref} style={{ position: 'relative', ...style }} className={className}>
       <button
+        ref={triggerRef}
         type="button"
         className={`form-select text-start ${size === 'sm' ? 'form-select-sm' : ''}`}
         style={{ cursor: disabled ? 'not-allowed' : 'pointer', color: value ? undefined : '#6c757d' }}
@@ -362,26 +412,7 @@ export default function TreeSelect({
           {triggerLabel}
         </span>
       </button>
-      {open && (
-        <div style={{
-          position: 'absolute',
-          top: '100%',
-          left: 0,
-          zIndex: 9999,
-          minWidth: '100%',
-          maxWidth: 420,
-          maxHeight: 320,
-          overflowY: 'auto',
-          background: '#fff',
-          border: '1px solid #dee2e6',
-          borderRadius: 4,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          marginTop: 2,
-        }}>
-          {emptyRow}
-          {options.map(o => renderNode(o, 0))}
-        </div>
-      )}
+      {panel}
     </div>
   );
 }
