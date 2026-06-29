@@ -741,9 +741,9 @@ export default function WorkOrderListView({
                             </div>
                         );
                     })()}
-                    {classic && (
-                        <XPStatusBar right={<span>{selectedWOIds.size > 0 ? `${selectedWOIds.size} selected` : ''}</span>}>
-                            {`${total} work order${total !== 1 ? 's' : ''} total`}
+                    {classic && selectedWOIds.size > 0 && (
+                        <XPStatusBar right={null}>
+                            {`${selectedWOIds.size} selected`}
                         </XPStatusBar>
                     )}
                 </div>
