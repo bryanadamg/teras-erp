@@ -1920,11 +1920,21 @@ export default function ManufacturingView({
                               )}
                               <table style={{
                                   width: '100%',
+                                  tableLayout: 'fixed',
                                   borderCollapse: 'collapse',
                                   fontFamily: currentStyle === 'classic' ? 'Tahoma, Arial, sans-serif' : undefined,
                                   fontSize: currentStyle === 'classic' ? '11px' : undefined,
                                   background: currentStyle === 'classic' ? '#fff' : undefined,
                               }} className={currentStyle === 'classic' ? '' : 'table table-hover align-middle mb-0'}>
+                                  <colgroup>
+                                      <col style={{ width: '140px' }} />
+                                      <col />
+                                      <col style={{ width: '65px' }} />
+                                      <col style={{ width: '145px' }} />
+                                      <col style={{ width: '185px' }} />
+                                      <col style={{ width: '105px' }} />
+                                      <col style={{ width: '100px' }} />
+                                  </colgroup>
                                   <thead>
                                       <tr style={{
                                           background: currentStyle === 'classic'
@@ -1948,6 +1958,7 @@ export default function ManufacturingView({
                                                   color: '#000',
                                                   fontWeight: 'bold',
                                                   whiteSpace: 'nowrap',
+                                                  overflow: 'hidden',
                                               }}>{label}</th>
                                           ))}
                                       </tr>
