@@ -10,6 +10,7 @@ import WOStepPrintModal from './WOStepPrintModal';
 import WOBulkPrintModal from './WOBulkPrintModal';
 import { getChipStyle } from './WorkOrderPanel';
 import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark } from '../shared/xpTheme';
+import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 
 const STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
 
@@ -102,7 +103,6 @@ export default function WorkOrderListView({
     const [bulkPrintOpen, setBulkPrintOpen] = useState(false);
     const [form, setForm] = useState({ sequence: '', name: '', work_center_id: '', planned_duration_hours: '' });
     const [isSaving, setIsSaving] = useState(false);
-    const [filterMO, setFilterMO] = useState('');
     const [expandedWOId, setExpandedWOId] = useState<string | null>(null);
     const [woQrUrls, setWoQrUrls] = useState<Record<string, string>>({});
 
@@ -120,18 +120,35 @@ export default function WorkOrderListView({
 
     const flatWOs: FlatWO[] = workOrders;
 
-    const groups = useMemo(() => workCenters.filter((wc: any) => !wc.parent_id), [workCenters]);
-    const filteredWCOptions = useMemo(() =>
-        filterGroup ? workCenters.filter((wc: any) => wc.parent_id === filterGroup) : workCenters,
-        [workCenters, filterGroup]
-    );
+    const wcFilterTreeOptions = useMemo((): TreeSelectOption[] => {
+        const grps = workCenters.filter((wc: any) => !wc.parent_id);
+        const result: TreeSelectOption[] = grps.map((g: any) => {
+            const kids = workCenters.filter((wc: any) => wc.parent_id === g.id);
+            return {
+                value: `grp:${g.id}`,
+                label: g.name,
+                selectable: true,
+                children: kids.length > 0 ? kids.map((wc: any) => ({
+                    value: `wc:${wc.id}`,
+                    label: wc.name,
+                    selectable: true,
+                })) : undefined,
+            };
+        });
+        // ungrouped machines
+        workCenters.filter((wc: any) => wc.parent_id && !grps.find((g: any) => g.id === wc.parent_id))
+            .forEach((wc: any) => result.push({ value: `wc:${wc.id}`, label: wc.name, selectable: true }));
+        return result;
+    }, [workCenters]);
 
-    // Filtering is server-side; client-side MO filter is the only remaining local filter
-    const filtered = useMemo(() => filterMO
-        ? flatWOs.filter(wo => wo.mo_id === filterMO)
-        : flatWOs,
-        [flatWOs, filterMO]
-    );
+    const wcFilterValue = filterWC ? `wc:${filterWC}` : filterGroup ? `grp:${filterGroup}` : '';
+    const onWCFilterChange = (val: string) => {
+        if (!val) { onFilterGroup(''); onFilterWC(''); return; }
+        if (val.startsWith('grp:')) { onFilterGroup(val.slice(4)); onFilterWC(''); }
+        else { onFilterGroup(''); onFilterWC(val.slice(3)); }
+    };
+
+    const filtered = flatWOs;
 
     const sortCols = useMemo(() => ({
         sequence: (wo: FlatWO) => wo.sequence,
@@ -206,13 +223,6 @@ export default function WorkOrderListView({
 
         return <span style={statusChipStyle(status)}>{(status || 'PENDING').replace('_', ' ')}</span>;
     };
-
-    const moOptions = useMemo(() => {
-        const seen = new Set<string>();
-        return flatWOs
-            .filter(wo => { if (seen.has(wo.mo_id)) return false; seen.add(wo.mo_id); return true; })
-            .map(wo => ({ id: wo.mo_id, label: `${wo.mo_code} — ${wo.item_name || ''}` }));
-    }, [flatWOs]);
 
     const allFilteredSelected = filtered.length > 0 && filtered.every(wo => selectedWOIds.has(wo.id));
     const someSelected = filtered.some(wo => selectedWOIds.has(wo.id));
@@ -437,26 +447,16 @@ export default function WorkOrderListView({
                             <option value="">All Statuses</option>
                             {STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
                         </select>
-                        <select value={filterGroup} onChange={e => onFilterGroup(e.target.value)}
-                            style={classic ? { ...xpInput, width: 120 } : { width: 140 }}
-                            className={classic ? '' : 'form-select form-select-sm'}>
-                            <option value="">All Groups</option>
-                            {groups.map((wc: any) => <option key={wc.id} value={wc.id}>{wc.name}</option>)}
-                        </select>
-                        <select value={filterWC} onChange={e => onFilterWC(e.target.value)}
-                            style={classic ? { ...xpInput, width: 130 } : { width: 150 }}
-                            className={classic ? '' : 'form-select form-select-sm'}>
-                            <option value="">All Work Centers</option>
-                            {filteredWCOptions.map((wc: any) => <option key={wc.id} value={wc.id}>{wc.name}</option>)}
-                        </select>
-                        <select value={filterMO} onChange={e => setFilterMO(e.target.value)}
-                            style={classic ? { ...xpInput, width: 160 } : { width: 180 }}
-                            className={classic ? '' : 'form-select form-select-sm'}>
-                            <option value="">All MOs (this page)</option>
-                            {moOptions.map(mo => <option key={mo.id} value={mo.id}>{mo.label}</option>)}
-                        </select>
-                        {(filterStatus || filterGroup || filterWC || filterMO || woSearch) && (
-                            <button onClick={() => { onClearFilters(); setFilterMO(''); }}
+                        <TreeSelect
+                            options={wcFilterTreeOptions}
+                            value={wcFilterValue}
+                            onChange={onWCFilterChange}
+                            allowEmpty
+                            emptyLabel="All Work Centers"
+                            style={classic ? { width: 160 } : { width: 180 }}
+                        />
+                        {(filterStatus || filterGroup || filterWC || woSearch) && (
+                            <button onClick={onClearFilters}
                                 style={classic ? { ...xpInput, width: 'auto', cursor: 'pointer', height: 20 } : undefined}
                                 className={classic ? '' : 'btn btn-sm btn-outline-secondary'}>
                                 Clear
