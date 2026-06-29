@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
+import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 
 // ── XP inline styles ─────────────────────────────────────────────────────
 const xpBevel: React.CSSProperties = {
@@ -113,6 +114,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
   const [editingWC, setEditingWC] = useState<any | null>(null);
 
   const locationList = locations || [];
+  const locPickerTreeOptions = useMemo(() => buildLocationPickerTree(locationList), [locationList]);
   const wcList = workCenters || [];
   // Only groups (no parent) can be selected as parent
   const groups = wcList.filter((w: any) => !w.parent_id);
@@ -209,17 +211,11 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                               <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', flexWrap: 'wrap' as const }}>
                                   <div style={{ flex: 1 }}>
                                       <label style={xpLabel}>Input Location</label>
-                                      <select style={{ ...xpInput, width: '100%' }} value={editingWC.input_location_id || ''} onChange={e => setEditingWC({ ...editingWC, input_location_id: e.target.value })}>
-                                          <option value="">— none —</option>
-                                          {locationList.map((l: any) => <option key={l.id} value={l.id}>{l.code} — {l.name}</option>)}
-                                      </select>
+                                      <TreeSelect options={locPickerTreeOptions} value={editingWC.input_location_id || ''} onChange={id => setEditingWC({ ...editingWC, input_location_id: id })} allowEmpty emptyLabel="— none —" size="sm" style={{ width: '100%' }} />
                                   </div>
                                   <div style={{ flex: 1 }}>
                                       <label style={xpLabel}>Output Location</label>
-                                      <select style={{ ...xpInput, width: '100%' }} value={editingWC.output_location_id || ''} onChange={e => setEditingWC({ ...editingWC, output_location_id: e.target.value })}>
-                                          <option value="">— none —</option>
-                                          {locationList.map((l: any) => <option key={l.id} value={l.id}>{l.code} — {l.name}</option>)}
-                                      </select>
+                                      <TreeSelect options={locPickerTreeOptions} value={editingWC.output_location_id || ''} onChange={id => setEditingWC({ ...editingWC, output_location_id: id })} allowEmpty emptyLabel="— none —" size="sm" style={{ width: '100%' }} />
                                   </div>
                               </div>
                           )}
@@ -270,17 +266,11 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                           <div className="row g-2 align-items-end">
                               <div className="col-4">
                                   <label className="form-label small mb-0">Input Location</label>
-                                  <select className="form-select form-select-sm" value={editingWC.input_location_id || ''} onChange={e => setEditingWC({ ...editingWC, input_location_id: e.target.value })}>
-                                      <option value="">— none —</option>
-                                      {locationList.map((l: any) => <option key={l.id} value={l.id}>{l.code} — {l.name}</option>)}
-                                  </select>
+                                  <TreeSelect options={locPickerTreeOptions} value={editingWC.input_location_id || ''} onChange={id => setEditingWC({ ...editingWC, input_location_id: id })} allowEmpty emptyLabel="— none —" size="sm" style={{ width: '100%' }} />
                               </div>
                               <div className="col-4">
                                   <label className="form-label small mb-0">Output Location</label>
-                                  <select className="form-select form-select-sm" value={editingWC.output_location_id || ''} onChange={e => setEditingWC({ ...editingWC, output_location_id: e.target.value })}>
-                                      <option value="">— none —</option>
-                                      {locationList.map((l: any) => <option key={l.id} value={l.id}>{l.code} — {l.name}</option>)}
-                                  </select>
+                                  <TreeSelect options={locPickerTreeOptions} value={editingWC.output_location_id || ''} onChange={id => setEditingWC({ ...editingWC, output_location_id: id })} allowEmpty emptyLabel="— none —" size="sm" style={{ width: '100%' }} />
                               </div>
                           </div>
                       )}
@@ -338,17 +328,11 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                                   <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', flexWrap: 'wrap' as const }}>
                                       <div style={{ flex: 1 }}>
                                           <label style={xpLabel}>Input Location</label>
-                                          <select style={{ ...xpInput, width: '100%' }} value={newWorkCenter.input_location_id} onChange={e => setNewWorkCenter({ ...newWorkCenter, input_location_id: e.target.value })}>
-                                              <option value="">— none —</option>
-                                              {locationList.map((l: any) => <option key={l.id} value={l.id}>{l.code} — {l.name}</option>)}
-                                          </select>
+                                          <TreeSelect options={locPickerTreeOptions} value={newWorkCenter.input_location_id} onChange={id => setNewWorkCenter({ ...newWorkCenter, input_location_id: id })} allowEmpty emptyLabel="— none —" size="sm" style={{ width: '100%' }} />
                                       </div>
                                       <div style={{ flex: 1 }}>
                                           <label style={xpLabel}>Output Location</label>
-                                          <select style={{ ...xpInput, width: '100%' }} value={newWorkCenter.output_location_id} onChange={e => setNewWorkCenter({ ...newWorkCenter, output_location_id: e.target.value })}>
-                                              <option value="">— none —</option>
-                                              {locationList.map((l: any) => <option key={l.id} value={l.id}>{l.code} — {l.name}</option>)}
-                                          </select>
+                                          <TreeSelect options={locPickerTreeOptions} value={newWorkCenter.output_location_id} onChange={id => setNewWorkCenter({ ...newWorkCenter, output_location_id: id })} allowEmpty emptyLabel="— none —" size="sm" style={{ width: '100%' }} />
                                       </div>
                                   </div>
                               )}
@@ -510,17 +494,11 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                               <div className="row g-2 align-items-end">
                                   <div className="col-5">
                                       <label className="form-label small">Input Location</label>
-                                      <select className="form-select form-select-sm" value={newWorkCenter.input_location_id} onChange={e => setNewWorkCenter({ ...newWorkCenter, input_location_id: e.target.value })}>
-                                          <option value="">— none —</option>
-                                          {locationList.map((l: any) => <option key={l.id} value={l.id}>{l.code} — {l.name}</option>)}
-                                      </select>
+                                      <TreeSelect options={locPickerTreeOptions} value={newWorkCenter.input_location_id} onChange={id => setNewWorkCenter({ ...newWorkCenter, input_location_id: id })} allowEmpty emptyLabel="— none —" size="sm" style={{ width: '100%' }} />
                                   </div>
                                   <div className="col-5">
                                       <label className="form-label small">Output Location</label>
-                                      <select className="form-select form-select-sm" value={newWorkCenter.output_location_id} onChange={e => setNewWorkCenter({ ...newWorkCenter, output_location_id: e.target.value })}>
-                                          <option value="">— none —</option>
-                                          {locationList.map((l: any) => <option key={l.id} value={l.id}>{l.code} — {l.name}</option>)}
-                                      </select>
+                                      <TreeSelect options={locPickerTreeOptions} value={newWorkCenter.output_location_id} onChange={id => setNewWorkCenter({ ...newWorkCenter, output_location_id: id })} allowEmpty emptyLabel="— none —" size="sm" style={{ width: '100%' }} />
                                   </div>
                               </div>
                           )}

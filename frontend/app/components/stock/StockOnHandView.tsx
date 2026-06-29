@@ -4,6 +4,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useSortable, SortMark } from '../shared/xpTheme';
 import { useToast } from '../shared/Toast';
 import SearchableSelect from '../shared/SearchableSelect';
+import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, buildCategoryTree } from '../shared/TreeSelect';
 
 interface StockOnHandViewProps {
     locations: any[];
@@ -29,9 +30,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
     const [search, setSearch] = useState('');
     const [locationFilter, setLocationFilter] = useState('');
     const [warehouseFilter, setWarehouseFilter] = useState('');
-    const [catL1, setCatL1] = useState('');
-    const [catL2, setCatL2] = useState('');
-    const [catL3, setCatL3] = useState('');
+    const [selectedCat, setSelectedCat] = useState('');
 
     // Transfer modal state
     const [transferTarget, setTransferTarget] = useState<any>(null);
@@ -58,7 +57,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
     const NEW_REASONS = ['Opening balance', 'Manual entry', 'Correction', 'Found stock', 'Other'];
     const [newOpen, setNewOpen] = useState(false);
     const [newItemCode, setNewItemCode] = useState('');
-    const [newLocCode, setNewLocCode] = useState('');
+    const [newLocId, setNewLocId] = useState('');
     const [newAttrIds, setNewAttrIds] = useState<string[]>([]);
     const [newQty, setNewQty] = useState('');
     const [newCones, setNewCones] = useState('');
@@ -212,7 +211,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
     }, [newItem, attributes]);
 
     const openNew = () => {
-        setNewItemCode(''); setNewLocCode(''); setNewAttrIds([]);
+        setNewItemCode(''); setNewLocId(''); setNewAttrIds([]);
         setNewQty(''); setNewCones(''); setNewBoxes(''); setNewDrums('');
         setNewReason(NEW_REASONS[0]); setNewNote('');
         setNewOpen(true);
@@ -226,7 +225,8 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
 
     const handleNewEntry = async () => {
         if (!newItemCode) { showToast('Select an item', 'danger'); return; }
-        if (!newLocCode) { showToast('Select a location', 'danger'); return; }
+        const newLoc = locations.find((l: any) => l.id === newLocId);
+        if (!newLocId || !newLoc) { showToast('Select a location', 'danger'); return; }
         const qty = num(newQty, NaN);
         if (isNaN(qty) || qty === 0) { showToast('Enter a non-zero quantity', 'danger'); return; }
         setSavingNew(true);
@@ -236,7 +236,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     item_code: newItemCode,
-                    location_code: newLocCode,
+                    location_code: newLoc.code,
                     attribute_value_ids: newAttrIds,
                     qty,
                     qty_cones: int(newCones, 0) || null,
@@ -323,32 +323,8 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
         else if (val.startsWith('wh:')) { setWarehouseFilter(val.slice(3)); setLocationFilter(''); }
         else if (val.startsWith('loc:')) { setLocationFilter(val.slice(4)); setWarehouseFilter(''); }
     };
-    const locDropdownOptions = (
-        <>
-            <option value="">All Locations</option>
-            {warehouseGroups.map((w: any) => (
-                <optgroup key={w.id} label={w.name}>
-                    <option value={`wh:${w.id}`}>All of {w.name}</option>
-                    {(childrenByWh[w.id] || []).map((zone: any) => {
-                        const bins = childrenByWh[zone.id] || [];
-                        return bins.length > 0 ? [
-                            <option key={`z-${zone.id}`} value={`loc:${zone.id}`}>&nbsp;&nbsp;{zone.name}</option>,
-                            ...bins.map((b: any) => (
-                                <option key={b.id} value={`loc:${b.id}`}>&nbsp;&nbsp;&nbsp;&nbsp;{b.name}</option>
-                            ))
-                        ] : (
-                            <option key={zone.id} value={`loc:${zone.id}`}>&nbsp;&nbsp;{zone.name}</option>
-                        );
-                    })}
-                </optgroup>
-            ))}
-            {standaloneLocs.length > 0 && (
-                <optgroup label="No Warehouse">
-                    {standaloneLocs.map((l: any) => <option key={l.id} value={`loc:${l.id}`}>{l.name}</option>)}
-                </optgroup>
-            )}
-        </>
-    );
+    const locFilterTreeOptions = useMemo(() => buildLocationFilterTree(locations || []), [locations]);
+    const locPickerTreeOptions = useMemo(() => buildLocationPickerTree(locations || []), [locations]);
 
     const getAttrValueName = (valId: string) => {
         for (const attr of attributes) {
@@ -369,12 +345,10 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
     };
     const pkgTotal = (bal: any) => Math.abs(bal.qty_cones || 0) + Math.abs(bal.qty_boxes || 0) + Math.abs(bal.qty_drums || 0);
 
-    // ── 3-level category filter (mirrors Item Inventory) ─────────────────────
+    // ── Category filter ───────────────────────────────────────────────────────
     const cats = categories || [];
-    const l1Options = useMemo(() => cats.filter((c: any) => c.level === 1), [cats]);
-    const l2Options = useMemo(() => (catL1 ? cats.filter((c: any) => c.parent_id === catL1) : []), [cats, catL1]);
-    const l3Options = useMemo(() => (catL2 ? cats.filter((c: any) => c.parent_id === catL2) : []), [cats, catL2]);
-    const effectiveCat = catL3 || catL2 || catL1;
+    const catTreeOptions = useMemo(() => buildCategoryTree(cats), [cats]);
+    const effectiveCat = selectedCat;
 
     // A row matches when its item_category_id is the selected category or any
     // descendant of it. Precompute the descendant-inclusive id set once.
@@ -396,7 +370,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
         return set;
     }, [cats, effectiveCat]);
 
-    const clearCats = () => { setCatL1(''); setCatL2(''); setCatL3(''); };
+    const clearCats = () => setSelectedCat('');
 
     const filtered = useMemo(() => {
         const s = search.toLowerCase();
@@ -656,19 +630,14 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         </div>
                         <div style={{ marginBottom: 8 }}>
                             <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Destination</label>
-                            <select
-                                style={classic ? { ...xpSelect, width: '100%' } : undefined}
-                                className={classic ? '' : 'form-select form-select-sm'}
+                            <TreeSelect
+                                options={buildLocationPickerTree(locations.filter((l: any) => l.id !== transferTarget.location_id))}
                                 value={transferToLoc}
-                                onChange={e => setTransferToLoc(e.target.value)}
-                            >
-                                <option value="">— select location —</option>
-                                {locations
-                                    .filter((l: any) => l.id !== transferTarget.location_id && !l.has_children && l.location_type !== 'warehouse')
-                                    .map((l: any) => (
-                                        <option key={l.id} value={l.id}>{l.full_path || (l.parent_name ? `${l.parent_name} / ${l.name}` : l.name)}</option>
-                                    ))}
-                            </select>
+                                onChange={setTransferToLoc}
+                                placeholder="— select location —"
+                                style={{ width: '100%' }}
+                                size="sm"
+                            />
                         </div>
                         <div style={{ marginBottom: 8 }}>
                             <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Quantity</label>
@@ -876,17 +845,14 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         ))}
                         <div style={{ marginBottom: 8 }}>
                             <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Location</label>
-                            <select
-                                style={classic ? { ...xpSelect, width: '100%' } : undefined}
-                                className={classic ? '' : 'form-select form-select-sm'}
-                                value={newLocCode}
-                                onChange={e => setNewLocCode(e.target.value)}
-                            >
-                                <option value="">— select location —</option>
-                                {locations.filter((l: any) => !l.has_children && l.location_type !== 'warehouse').map((l: any) => (
-                                    <option key={l.id} value={l.code}>{l.full_path || (l.parent_name ? `${l.parent_name} / ${l.name}` : l.name)}</option>
-                                ))}
-                            </select>
+                            <TreeSelect
+                                options={locPickerTreeOptions}
+                                value={newLocId}
+                                onChange={setNewLocId}
+                                placeholder="— select location —"
+                                style={{ width: '100%' }}
+                                size="sm"
+                            />
                         </div>
                         <div style={{ marginBottom: 8 }}>
                             <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Quantity <span style={{ color: '#888', fontWeight: 'normal' }}>(negative to subtract)</span></label>
@@ -970,23 +936,24 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             onChange={e => setSearch(e.target.value)}
                         />
                         <div style={xpSep} />
-                        <select style={{ ...xpSelect, width: 140 }} value={catL1} onChange={e => { setCatL1(e.target.value); setCatL2(''); setCatL3(''); }} title="Category">
-                            <option value="">All Categories</option>
-                            {l1Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                        <select style={{ ...xpSelect, width: 130 }} value={catL2} onChange={e => { setCatL2(e.target.value); setCatL3(''); }} disabled={!catL1} title="Subcategory">
-                            <option value="">All Sub</option>
-                            {l2Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                        <select style={{ ...xpSelect, width: 130 }} value={catL3} onChange={e => setCatL3(e.target.value)} disabled={!catL2} title="Sub-subcategory">
-                            <option value="">All Sub</option>
-                            {l3Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
+                        <TreeSelect
+                            options={catTreeOptions}
+                            value={selectedCat}
+                            onChange={setSelectedCat}
+                            allowEmpty
+                            emptyLabel="All Categories"
+                            style={{ width: 180 }}
+                        />
                         {effectiveCat && <button style={xpBtn()} onClick={clearCats} title="Clear category filter">Clear</button>}
                         <div style={xpSep} />
-                        <select style={{ ...xpSelect, width: 200 }} value={locSelectValue} onChange={e => onLocSelect(e.target.value)} title="Warehouse / Location">
-                            {locDropdownOptions}
-                        </select>
+                        <TreeSelect
+                            options={locFilterTreeOptions}
+                            value={locSelectValue}
+                            onChange={onLocSelect}
+                            allowEmpty
+                            emptyLabel="All Locations"
+                            style={{ width: 200 }}
+                        />
                         <div style={xpSep} />
                         <button style={xpBtn()} onClick={onRefresh} title="Refresh">
                             <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh
@@ -1061,31 +1028,28 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                                 onChange={e => setSearch(e.target.value)}
                             />
                         </div>
-                        <div className="col-md-2">
-                            <select className="form-select form-select-sm" value={catL1} onChange={e => { setCatL1(e.target.value); setCatL2(''); setCatL3(''); }}>
-                                <option value="">All Categories</option>
-                                {l1Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
-                        </div>
-                        <div className="col-md-2">
-                            <select className="form-select form-select-sm" value={catL2} onChange={e => { setCatL2(e.target.value); setCatL3(''); }} disabled={!catL1}>
-                                <option value="">All Subcategories</option>
-                                {l2Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
-                        </div>
-                        <div className="col-md-2">
-                            <select className="form-select form-select-sm" value={catL3} onChange={e => setCatL3(e.target.value)} disabled={!catL2}>
-                                <option value="">All Subcategories</option>
-                                {l3Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
+                        <div className="col-md-3">
+                            <TreeSelect
+                                options={catTreeOptions}
+                                value={selectedCat}
+                                onChange={setSelectedCat}
+                                allowEmpty
+                                emptyLabel="All Categories"
+                                size="sm"
+                            />
                         </div>
                         <div className="col-md-1">
                             <button className="btn btn-outline-secondary btn-sm w-100" onClick={clearCats} disabled={!effectiveCat} title="Clear category filter">Clear</button>
                         </div>
                         <div className="col-md-3">
-                            <select className="form-select form-select-sm" value={locSelectValue} onChange={e => onLocSelect(e.target.value)} title="Warehouse / Location">
-                                {locDropdownOptions}
-                            </select>
+                            <TreeSelect
+                                options={locFilterTreeOptions}
+                                value={locSelectValue}
+                                onChange={onLocSelect}
+                                allowEmpty
+                                emptyLabel="All Locations"
+                                size="sm"
+                            />
                         </div>
                         <div className="col-md-2">
                             <button className="btn btn-outline-secondary btn-sm w-100" onClick={onRefresh}>

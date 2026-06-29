@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../shared/Toast';
+import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -55,6 +56,7 @@ export default function WOStagingModal({ wo, onClose, onStaged }: Props) {
     const [batchesByItem, setBatchesByItem] = useState<Record<string, any[]>>({});
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const locPickerTreeOptions = useMemo(() => buildLocationPickerTree(locations || []), [locations]);
 
     useEffect(() => {
         let alive = true;
@@ -183,16 +185,14 @@ export default function WOStagingModal({ wo, onClose, onStaged }: Props) {
                                                 </td>
                                                 <td style={{ padding: '3px 5px' }}>
                                                     {r.source_location_id ? (r.source_location_name || '—') : (
-                                                        <select
-                                                            style={{ ...xpInput, minWidth: 110 }}
+                                                        <TreeSelect
+                                                            options={locPickerTreeOptions}
                                                             value={sourceByItem[r.item_id] || ''}
-                                                            onChange={e => setSourceByItem(p => ({ ...p, [r.item_id]: e.target.value }))}
-                                                        >
-                                                            <option value="">— pick source —</option>
-                                                            {(locations || []).filter((l: any) => !l.has_children && l.location_type !== 'warehouse').map((l: any) => (
-                                                                <option key={l.id} value={l.id}>{l.full_path || (l.parent_name ? `${l.parent_name} / ${l.name}` : l.name)}</option>
-                                                            ))}
-                                                        </select>
+                                                            onChange={id => setSourceByItem(p => ({ ...p, [r.item_id]: id }))}
+                                                            placeholder="— pick source —"
+                                                            style={{ minWidth: 140 }}
+                                                            size="sm"
+                                                        />
                                                     )}
                                                 </td>
                                                 <td style={{ padding: '3px 5px', textAlign: 'right' }}>{r.required_qty.toFixed(2)}</td>

@@ -9,6 +9,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { XPEmptyState, useSortable, SortMark } from '../shared/xpTheme';
+import TreeSelect, { buildCategoryTree, buildLocationPickerTree } from '../shared/TreeSelect';
 
 // XP-style category badge colours derived from category name
 function getCategoryXPStyle(category: string): { bg: string; border: string; color: string } {
@@ -269,19 +270,50 @@ export default function InventoryView({
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showCatInput, setShowCatInput] = useState(false);
 
-  // 3-level category filter derived options
-  const l1Options = categories.filter((c: any) => c.level === 1);
-  const l2Options = categoryL1 ? categories.filter((c: any) => c.parent_id === categoryL1) : [];
-  const l3Options = categoryL2 ? categories.filter((c: any) => c.parent_id === categoryL2) : [];
+  // Tree memos for TreeSelect components
+  const catTreeOptions = useMemo(() => buildCategoryTree(categories), [categories]);
+  const locPickerTreeOptions = useMemo(() => buildLocationPickerTree(locations || []), [locations]);
+
+  // Filter-level category: maps single TreeSelect value back to L1/L2/L3 DataContext state
+  const handleCategoryTreeChange = (id: string) => {
+    if (!id) { setCategoryL1(''); setCategoryL2(''); setCategoryL3(''); return; }
+    const cat = categories.find((c: any) => c.id === id);
+    if (!cat) return;
+    if (!cat.parent_id) {
+      setCategoryL1(id);
+    } else {
+      const parent = categories.find((c: any) => c.id === cat.parent_id);
+      if (!parent?.parent_id) {
+        setCategoryL1(cat.parent_id); setCategoryL2(id);
+      } else {
+        setCategoryL1(parent.parent_id); setCategoryL2(cat.parent_id); setCategoryL3(id);
+      }
+    }
+  };
 
   // Form-level category state (for create/edit modals)
   const [formCatL1, setFormCatL1] = useState('');
   const [formCatL2, setFormCatL2] = useState('');
   const [formCatL3, setFormCatL3] = useState('');
 
-  const formL2Options = formCatL1 ? categories.filter((c: any) => c.parent_id === formCatL1) : [];
-  const formL3Options = formCatL2 ? categories.filter((c: any) => c.parent_id === formCatL2) : [];
   const effectiveFormCategoryId: string | null = formCatL3 || formCatL2 || formCatL1 || null;
+
+  // Maps single TreeSelect value back to formCat L1/L2/L3
+  const handleFormCategoryChange = (id: string) => {
+    if (!id) { setFormCatL1(''); setFormCatL2(''); setFormCatL3(''); return; }
+    const cat = categories.find((c: any) => c.id === id);
+    if (!cat) return;
+    if (!cat.parent_id) {
+      setFormCatL1(id); setFormCatL2(''); setFormCatL3('');
+    } else {
+      const parent = categories.find((c: any) => c.id === cat.parent_id);
+      if (!parent?.parent_id) {
+        setFormCatL1(cat.parent_id); setFormCatL2(id); setFormCatL3('');
+      } else {
+        setFormCatL1(parent.parent_id); setFormCatL2(cat.parent_id); setFormCatL3(id);
+      }
+    }
+  };
   const isBeamCategory = !!effectiveFormCategoryId && (categories.find((c: any) => c.id === effectiveFormCategoryId)?.name || '').toLowerCase() === 'beam';
 
   const isRawMaterialCategory = !!formCatL1 && (categories.find((c: any) => c.id === formCatL1)?.name || '').toLowerCase().includes('raw');
@@ -714,37 +746,15 @@ export default function InventoryView({
                       style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
                       className={classic ? '' : 'form-label small text-muted'}
                   >{t('categories')}</label>
-                  {classic ? (
-                      <div style={{ display: 'flex', gap: 6 }}>
-                          <select style={xpSelect} value={formCatL1} onChange={e => { setFormCatL1(e.target.value); setFormCatL2(''); setFormCatL3(''); }}>
-                              <option value="">-- Select --</option>
-                              {l1Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                          </select>
-                          <select style={xpSelect} value={formCatL2} onChange={e => { setFormCatL2(e.target.value); setFormCatL3(''); }} disabled={!formCatL1}>
-                              <option value="">-- Select --</option>
-                              {formL2Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                          </select>
-                          <select style={xpSelect} value={formCatL3} onChange={e => setFormCatL3(e.target.value)} disabled={!formCatL2}>
-                              <option value="">-- Select --</option>
-                              {formL3Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                          </select>
-                      </div>
-                  ) : (
-                      <div className="d-flex gap-2">
-                          <select data-testid="category-select" className="form-select form-select-sm" value={formCatL1} onChange={e => { setFormCatL1(e.target.value); setFormCatL2(''); setFormCatL3(''); }}>
-                              <option value="">-- L1 --</option>
-                              {l1Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                          </select>
-                          <select className="form-select form-select-sm" value={formCatL2} onChange={e => { setFormCatL2(e.target.value); setFormCatL3(''); }} disabled={!formCatL1}>
-                              <option value="">-- L2 --</option>
-                              {formL2Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                          </select>
-                          <select className="form-select form-select-sm" value={formCatL3} onChange={e => setFormCatL3(e.target.value)} disabled={!formCatL2}>
-                              <option value="">-- L3 --</option>
-                              {formL3Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                          </select>
-                      </div>
-                  )}
+                  <TreeSelect
+                      options={catTreeOptions}
+                      value={effectiveFormCategoryId || ''}
+                      onChange={handleFormCategoryChange}
+                      allowEmpty
+                      emptyLabel="— None —"
+                      size="sm"
+                      style={{ width: '100%' }}
+                  />
               </div>
               <div className="mb-3">
                   <label
@@ -910,17 +920,15 @@ export default function InventoryView({
                       style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
                       className={classic ? '' : 'form-label small text-muted'}
                   >Default source location — where this item is normally pulled from when staging to production</label>
-                  <select
-                      style={classic ? { ...xpSelect, height: 'auto', padding: '2px 4px', width: '100%' } : undefined}
-                      className={classic ? '' : 'form-select'}
+                  <TreeSelect
+                      options={locPickerTreeOptions}
                       value={newItem.default_source_location_id}
-                      onChange={e => setNewItem({ ...newItem, default_source_location_id: e.target.value })}
-                  >
-                      <option value="">— None —</option>
-                      {(locations || []).filter((l: any) => !l.has_children && l.location_type !== 'warehouse').map((l: any) => (
-                        <option key={l.id} value={l.id}>{l.full_path || (l.parent_name ? `${l.parent_name} / ${l.name}` : l.name)}</option>
-                      ))}
-                  </select>
+                      onChange={id => setNewItem({ ...newItem, default_source_location_id: id })}
+                      allowEmpty
+                      emptyLabel="— None —"
+                      size="sm"
+                      style={{ width: '100%' }}
+                  />
               </div>
 
               <div className="mb-3">
@@ -1166,26 +1174,18 @@ export default function InventoryView({
                   </div>
                   {!forcedCategory && (
                   <>
-                  <div className="col-md-2">
-                      <select className="form-select form-select-sm" value={categoryL1} onChange={e => setCategoryL1(e.target.value)}>
-                          <option value="">All L1</option>
-                          {l1Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                      </select>
-                  </div>
-                  <div className="col-md-2">
-                      <select className="form-select form-select-sm" value={categoryL2} onChange={e => setCategoryL2(e.target.value)} disabled={!categoryL1}>
-                          <option value="">All L2</option>
-                          {l2Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                      </select>
-                  </div>
-                  <div className="col-md-2">
-                      <select className="form-select form-select-sm" value={categoryL3} onChange={e => setCategoryL3(e.target.value)} disabled={!categoryL2}>
-                          <option value="">All L3</option>
-                          {l3Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                      </select>
+                  <div className="col-md-3">
+                      <TreeSelect
+                          options={catTreeOptions}
+                          value={categoryL3 || categoryL2 || categoryL1}
+                          onChange={handleCategoryTreeChange}
+                          allowEmpty
+                          emptyLabel="All Categories"
+                          size="sm"
+                      />
                   </div>
                   <div className="col-md-1">
-                      <button className="btn btn-sm btn-outline-secondary w-100" onClick={() => { setCategoryL1(''); setCategoryL2(''); setCategoryL3(''); }}>Clear</button>
+                      <button className="btn btn-sm btn-outline-secondary w-100" onClick={() => { setCategoryL1(''); setCategoryL2(''); setCategoryL3(''); }} disabled={!categoryL1 && !categoryL2 && !categoryL3}>Clear</button>
                   </div>
                   </>
                   )}
@@ -1214,19 +1214,15 @@ export default function InventoryView({
               {/* Category filter row */}
               {!forcedCategory && (
                 <div style={{ ...xpToolbar, gap: 8 }}>
-                  <span style={{ fontSize: 10, color: '#555', whiteSpace: 'nowrap' }}>Category:</span>
-                  <select style={xpSelect} value={categoryL1} onChange={e => setCategoryL1(e.target.value)}>
-                    <option value="">All</option>
-                    {l1Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                  <select style={xpSelect} value={categoryL2} onChange={e => setCategoryL2(e.target.value)} disabled={!categoryL1}>
-                    <option value="">All</option>
-                    {l2Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                  <select style={xpSelect} value={categoryL3} onChange={e => setCategoryL3(e.target.value)} disabled={!categoryL2}>
-                    <option value="">All</option>
-                    {l3Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                  <span style={{ fontSize: 10, color: '#555', whiteSpace: 'nowrap', fontFamily: 'Tahoma, Arial, sans-serif' }}>Category:</span>
+                  <TreeSelect
+                    options={catTreeOptions}
+                    value={categoryL3 || categoryL2 || categoryL1}
+                    onChange={handleCategoryTreeChange}
+                    allowEmpty
+                    emptyLabel="All"
+                    style={{ width: 200 }}
+                  />
                   <button style={xpBtn()} onClick={() => { setCategoryL1(''); setCategoryL2(''); setCategoryL3(''); }}>
                     Clear
                   </button>
@@ -1432,37 +1428,15 @@ export default function InventoryView({
                         >
                           {t('categories')}
                         </label>
-                        {classic ? (
-                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' as const }}>
-                                <select style={xpSelect} value={formCatL1} onChange={e => { setFormCatL1(e.target.value); setFormCatL2(''); setFormCatL3(''); }}>
-                                    <option value="">-- Select --</option>
-                                    {l1Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
-                                <select style={xpSelect} value={formCatL2} onChange={e => { setFormCatL2(e.target.value); setFormCatL3(''); }} disabled={!formCatL1}>
-                                    <option value="">-- Select --</option>
-                                    {formL2Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
-                                <select style={xpSelect} value={formCatL3} onChange={e => setFormCatL3(e.target.value)} disabled={!formCatL2}>
-                                    <option value="">-- Select --</option>
-                                    {formL3Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
-                            </div>
-                        ) : (
-                            <div className="d-flex gap-2">
-                                <select className="form-select form-select-sm" value={formCatL1} onChange={e => { setFormCatL1(e.target.value); setFormCatL2(''); setFormCatL3(''); }}>
-                                    <option value="">-- L1 --</option>
-                                    {l1Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
-                                <select className="form-select form-select-sm" value={formCatL2} onChange={e => { setFormCatL2(e.target.value); setFormCatL3(''); }} disabled={!formCatL1}>
-                                    <option value="">-- L2 --</option>
-                                    {formL2Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
-                                <select className="form-select form-select-sm" value={formCatL3} onChange={e => setFormCatL3(e.target.value)} disabled={!formCatL2}>
-                                    <option value="">-- L3 --</option>
-                                    {formL3Options.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
-                            </div>
-                        )}
+                        <TreeSelect
+                            options={catTreeOptions}
+                            value={effectiveFormCategoryId || ''}
+                            onChange={handleFormCategoryChange}
+                            allowEmpty
+                            emptyLabel="— None —"
+                            size="sm"
+                            style={{ width: '100%' }}
+                        />
                     </div>
                     <div className="mb-3">
                         <label
@@ -1636,17 +1610,15 @@ export default function InventoryView({
                           className={classic ? '' : 'form-label small text-muted'}
                           style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#333333', display: 'block', marginBottom: '2px' } : undefined}
                         >Default source location — where this item is normally pulled from when staging to production</label>
-                        <select
-                          className={classic ? '' : 'form-select'}
-                          style={classic ? { ...xpSelect, width: '100%', boxSizing: 'border-box', height: '22px' } : undefined}
+                        <TreeSelect
+                          options={locPickerTreeOptions}
                           value={editingItem.default_source_location_id ?? ''}
-                          onChange={e => setEditingItem({ ...editingItem, default_source_location_id: e.target.value || null })}
-                        >
-                          <option value="">— None —</option>
-                          {(locations || []).filter((l: any) => !l.has_children && l.location_type !== 'warehouse').map((l: any) => (
-                            <option key={l.id} value={l.id}>{l.full_path || (l.parent_name ? `${l.parent_name} / ${l.name}` : l.name)}</option>
-                          ))}
-                        </select>
+                          onChange={id => setEditingItem({ ...editingItem, default_source_location_id: id || null })}
+                          allowEmpty
+                          emptyLabel="— None —"
+                          size="sm"
+                          style={{ width: '100%' }}
+                        />
                     </div>
 
                     <div className="mb-3">

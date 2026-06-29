@@ -3,6 +3,7 @@ import CodeConfigModal, { CodeConfig, buildCodeWithCounter } from '../shared/Cod
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import SearchableSelect from '../shared/SearchableSelect';
+import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 import PurchaseOrderPrintModal from './PurchaseOrderPrintModal';
 import ModalWrapper from '../shared/ModalWrapper';
 import { useTheme } from '../../context/ThemeContext';
@@ -401,6 +402,8 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
       return matchSearch && matchStatus;
   });
 
+  const locPickerTreeOptions = useMemo(() => buildLocationPickerTree(locations || []), [locations]);
+
   const poSortCols = useMemo(() => ({
       po:       (po: any) => po.po_number,
       supplier: (po: any) => getSupplierName(po.supplier_id),
@@ -488,7 +491,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                    </div>
                    <div className="col-md-12">
                        <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Receiving Warehouse</label>
-                       <SearchableSelect options={locations.filter((l: any) => !l.has_children && l.location_type !== 'warehouse').map((l: any) => ({ value: l.id, label: l.full_path || (l.parent_name ? `${l.parent_name} / ${l.name}` : l.name), subLabel: l.code }))} value={newPO.target_location_id} onChange={(val) => setNewPO({...newPO, target_location_id: val})} placeholder="Select receiving location…" required />
+                       <TreeSelect options={locPickerTreeOptions} value={newPO.target_location_id} onChange={(val) => setNewPO({...newPO, target_location_id: val})} placeholder="Select receiving location…" size="sm" style={{ width: '100%' }} />
                    </div>
                </div>
 
@@ -656,7 +659,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                        </div>
                        <div className="col-md-4">
                            <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Receiving Warehouse</label>
-                           <SearchableSelect options={locations.filter((l: any) => !l.has_children && l.location_type !== 'warehouse').map((l: any) => ({ value: l.id, label: l.full_path || (l.parent_name ? `${l.parent_name} / ${l.name}` : l.name), subLabel: l.code }))} value={receiptLocationId} onChange={(val) => setReceiptLocationId(val)} placeholder="Select warehouse…" required />
+                           <TreeSelect options={locPickerTreeOptions} value={receiptLocationId} onChange={(val) => setReceiptLocationId(val)} placeholder="Select warehouse…" size="sm" style={{ width: '100%' }} />
                        </div>
                        <div className="col-md-5">
                            <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Notes</label>

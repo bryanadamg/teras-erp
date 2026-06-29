@@ -7,6 +7,7 @@ import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { XPStatusBar, XPEmptyState } from '../shared/xpTheme';
 import SuratJalanPrintModal from './SuratJalanPrintModal';
+import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
 
@@ -93,10 +94,7 @@ export default function PackingView() {
         return m;
     }, [items]);
 
-    const leafLocations = useMemo(
-        () => (locations || []).filter((l: any) => !l.has_children && l.location_type !== 'warehouse'),
-        [locations]
-    );
+    const locPickerTreeOptions = useMemo(() => buildLocationPickerTree(locations || []), [locations]);
 
     const loadPacking = useCallback(async () => {
         const [poRes, balRes] = await Promise.all([
@@ -262,7 +260,7 @@ export default function PackingView() {
                     po={editing}
                     salesOrders={salesOrders}
                     itemById={itemById}
-                    leafLocations={leafLocations}
+                    locPickerTreeOptions={locPickerTreeOptions}
                     packedByOthers={packedByOthers}
                     availableFor={availableFor}
                     authFetch={authFetch}
@@ -333,7 +331,7 @@ function SOPickerModal({ packableSOs, packingOrders, onClose, onPick }: any) {
 }
 
 // ── editor ───────────────────────────────────────────────────────────────────
-function PackingEditor({ po, salesOrders, itemById, leafLocations, packedByOthers, availableFor, authFetch, onClose, onSaved, onPrint, showToast }: any) {
+function PackingEditor({ po, salesOrders, itemById, locPickerTreeOptions, packedByOthers, availableFor, authFetch, onClose, onSaved, onPrint, showToast }: any) {
     const readOnly = po.status !== 'DRAFT';
     const so = useMemo(() => (salesOrders || []).find((s: any) => String(s.id) === String(po.sales_order_id)), [salesOrders, po]);
     const soLines: any[] = so?.lines || [];
@@ -477,10 +475,7 @@ function PackingEditor({ po, salesOrders, itemById, leafLocations, packedByOther
                 <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
                     <div style={{ minWidth: 200 }}>
                         <label style={xpLabel}>Default ship-from warehouse</label>
-                        <select style={{ ...xpSelect, width: '100%' }} value={sourceLoc} disabled={readOnly} onChange={e => setSourceLoc(e.target.value)}>
-                            <option value="">— select —</option>
-                            {leafLocations.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
-                        </select>
+                        <TreeSelect options={locPickerTreeOptions} value={sourceLoc} onChange={setSourceLoc} disabled={readOnly} allowEmpty emptyLabel="— select —" size="sm" style={{ width: '100%' }} />
                     </div>
                     <div style={{ minWidth: 160 }}>
                         <label style={xpLabel}>Delivery Note No.</label>
@@ -546,10 +541,7 @@ function PackingEditor({ po, salesOrders, itemById, leafLocations, packedByOther
                                             value={ls.qty_packed ?? ''} onChange={e => setLine(String(l.id), { qty_packed: e.target.value })} />
                                     </td>
                                     <td style={td}>
-                                        <select style={{ ...xpSelect, width: '100%' }} disabled={readOnly} value={ls.source_location_id || ''} onChange={e => setLine(String(l.id), { source_location_id: e.target.value })}>
-                                            <option value="">(default)</option>
-                                            {leafLocations.map((loc: any) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
-                                        </select>
+                                        <TreeSelect options={locPickerTreeOptions} value={ls.source_location_id || ''} onChange={id => setLine(String(l.id), { source_location_id: id })} disabled={readOnly} allowEmpty emptyLabel="(default)" size="sm" style={{ width: '100%' }} />
                                     </td>
                                     <td style={td}>
                                         {it?.lot_tracked ? (

@@ -1,0 +1,474 @@
+'use client';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { useTheme } from '../../context/ThemeContext';
+
+export interface TreeSelectOption {
+  value: string;
+  label: string;
+  subLabel?: string;       // dimmed secondary text (e.g. location code)
+  children?: TreeSelectOption[];
+  selectable?: boolean;    // default: true when value is non-empty
+}
+
+interface Props {
+  options: TreeSelectOption[];
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  allowEmpty?: boolean;
+  emptyLabel?: string;
+  size?: 'sm';
+  disabled?: boolean;
+  style?: React.CSSProperties;
+  className?: string;
+}
+
+// Walk the tree and return breadcrumb labels for the selected value
+function getSelectedPath(options: TreeSelectOption[], target: string, ancestors: string[] = []): string[] | null {
+  for (const o of options) {
+    if (o.value === target) return [...ancestors, o.label];
+    if (o.children) {
+      const found = getSelectedPath(o.children, target, [...ancestors, o.label]);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+// Collect all group values that have children (for default expand)
+function collectGroupValues(options: TreeSelectOption[], out: Set<string> = new Set()): Set<string> {
+  for (const o of options) {
+    if (o.children?.length) {
+      out.add(o.value);
+      collectGroupValues(o.children, out);
+    }
+  }
+  return out;
+}
+
+export default function TreeSelect({
+  options,
+  value,
+  onChange,
+  placeholder = 'Select...',
+  allowEmpty = false,
+  emptyLabel = '— All —',
+  size,
+  disabled,
+  style,
+  className,
+}: Props) {
+  const { uiStyle } = useTheme();
+  const classic = uiStyle === 'classic';
+
+  const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(() => collectGroupValues(options));
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Auto-expand newly added groups
+  useEffect(() => {
+    setExpanded(prev => {
+      const groups = collectGroupValues(options);
+      let changed = false;
+      for (const g of groups) if (!prev.has(g)) { changed = true; break; }
+      if (!changed) return prev;
+      return new Set([...prev, ...groups]);
+    });
+  }, [options]);
+
+  // Close on outside click or ESC
+  useEffect(() => {
+    if (!open) return;
+    const onMouse = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onMouse);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onMouse);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const toggleGroup = (val: string) => {
+    setExpanded(prev => {
+      const s = new Set(prev);
+      s.has(val) ? s.delete(val) : s.add(val);
+      return s;
+    });
+  };
+
+  const select = (val: string) => {
+    onChange(val);
+    setOpen(false);
+  };
+
+  // Compute trigger label: full breadcrumb path or placeholder
+  const triggerLabel = useMemo(() => {
+    if (!value && allowEmpty) return emptyLabel;
+    if (!value) return placeholder;
+    const path = getSelectedPath(options, value);
+    return path ? path.join(' / ') : placeholder;
+  }, [value, options, allowEmpty, emptyLabel, placeholder]);
+
+  // ── XP styles ──────────────────────────────────────────────────────────────
+  const xpFont = { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11 } as const;
+  const xpTrigger: React.CSSProperties = {
+    ...xpFont,
+    display: 'flex',
+    alignItems: 'center',
+    width: '100%',
+    height: 20,
+    padding: '0 22px 0 4px',
+    border: '1px solid #7f9db9',
+    background: disabled ? '#f0f0f0' : '#fff',
+    color: value ? '#000' : '#777',
+    cursor: disabled ? 'default' : 'pointer',
+    textAlign: 'left',
+    position: 'relative',
+    boxSizing: 'border-box',
+    outline: 'none',
+    overflow: 'hidden',
+    whiteSpace: 'nowrap',
+  };
+  const xpDropdown: React.CSSProperties = {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    zIndex: 9999,
+    minWidth: '100%',
+    maxWidth: 400,
+    maxHeight: 320,
+    overflowY: 'auto',
+    background: '#fff',
+    border: '1px solid #7f9db9',
+    boxShadow: '2px 2px 4px rgba(0,0,0,0.25)',
+    marginTop: 1,
+  };
+
+  // ── Recursive node renderer ─────────────────────────────────────────────────
+  const renderNode = (opt: TreeSelectOption, depth: number): React.ReactNode => {
+    const hasKids = (opt.children?.length ?? 0) > 0;
+    const isExp = expanded.has(opt.value);
+    const canSelect = opt.selectable !== false && !!opt.value;
+    const isSelected = !!value && opt.value === value;
+
+    if (classic) {
+      return (
+        <div key={opt.value || `_d${depth}`}>
+          <div
+            style={{
+              ...xpFont,
+              display: 'flex',
+              alignItems: 'center',
+              paddingLeft: 4 + depth * 14,
+              paddingRight: 6,
+              paddingTop: 2,
+              paddingBottom: 2,
+              cursor: canSelect || hasKids ? 'pointer' : 'default',
+              background: isSelected ? 'linear-gradient(to bottom,#3c8cf0,#1a5fd0)' : 'transparent',
+              color: isSelected ? '#fff' : '#000',
+              userSelect: 'none',
+              gap: 2,
+            }}
+            onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = '#dde8f8'; }}
+            onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
+            onClick={() => {
+              if (hasKids) toggleGroup(opt.value);
+              if (canSelect) select(opt.value);
+            }}
+          >
+            {/* Chevron or spacer */}
+            {hasKids ? (
+              <span
+                style={{ width: 14, flexShrink: 0, display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+                onClick={e => { e.stopPropagation(); toggleGroup(opt.value); }}
+              >
+                <i
+                  className={`bi bi-chevron-${isExp ? 'down' : 'right'}`}
+                  style={{ fontSize: 8, color: isSelected ? '#cde' : '#555' }}
+                />
+              </span>
+            ) : (
+              <span style={{ width: 14, flexShrink: 0 }} />
+            )}
+
+            {/* L-line connector for children */}
+            {depth > 0 && (
+              <span style={{
+                width: 10, height: 10, flexShrink: 0, marginRight: 2,
+                borderLeft: `1px solid ${isSelected ? '#8ab' : '#ccc'}`,
+                borderBottom: `1px solid ${isSelected ? '#8ab' : '#ccc'}`,
+                marginBottom: 4,
+              }} />
+            )}
+
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {opt.label}
+            </span>
+            {opt.subLabel && (
+              <span style={{ fontSize: 10, color: isSelected ? '#cde' : '#888', flexShrink: 0, marginLeft: 4 }}>
+                {opt.subLabel}
+              </span>
+            )}
+            {hasKids && (
+              <span style={{ fontSize: 9, color: isSelected ? '#cde' : '#aaa', flexShrink: 0, marginLeft: 2 }}>
+                ({opt.children!.length})
+              </span>
+            )}
+          </div>
+          {hasKids && isExp && opt.children!.map(c => renderNode(c, depth + 1))}
+        </div>
+      );
+    }
+
+    // Bootstrap
+    return (
+      <div key={opt.value || `_d${depth}`}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            paddingLeft: 6 + depth * 14,
+            paddingRight: 8,
+            paddingTop: 4,
+            paddingBottom: 4,
+            cursor: canSelect || hasKids ? 'pointer' : 'default',
+            fontSize: size === 'sm' ? 12 : 13,
+            userSelect: 'none',
+            gap: 3,
+            background: isSelected ? '#0d6efd' : undefined,
+            color: isSelected ? '#fff' : undefined,
+          }}
+          onMouseEnter={e => {
+            if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = '#f0f6ff';
+          }}
+          onMouseLeave={e => {
+            if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = '';
+          }}
+          onClick={() => {
+            if (hasKids) toggleGroup(opt.value);
+            if (canSelect) select(opt.value);
+          }}
+        >
+          {hasKids ? (
+            <span
+              style={{ width: 14, flexShrink: 0, display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+              onClick={e => { e.stopPropagation(); toggleGroup(opt.value); }}
+            >
+              <i
+                className={`bi bi-chevron-${isExp ? 'down' : 'right'}`}
+                style={{ fontSize: 9, color: isSelected ? '#cde' : '#666' }}
+              />
+            </span>
+          ) : (
+            <span style={{ width: 14, flexShrink: 0 }} />
+          )}
+
+          {depth > 0 && (
+            <span style={{
+              width: 10, height: 10, flexShrink: 0, marginRight: 2,
+              borderLeft: `1px solid ${isSelected ? '#8ab4e8' : '#dee2e6'}`,
+              borderBottom: `1px solid ${isSelected ? '#8ab4e8' : '#dee2e6'}`,
+              marginBottom: 4,
+            }} />
+          )}
+
+          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {opt.label}
+          </span>
+          {opt.subLabel && (
+            <span style={{ fontSize: 11, color: isSelected ? 'rgba(255,255,255,0.7)' : '#888', flexShrink: 0 }}>
+              {opt.subLabel}
+            </span>
+          )}
+          {hasKids && (
+            <span style={{ fontSize: 10, color: isSelected ? 'rgba(255,255,255,0.6)' : '#aaa', flexShrink: 0 }}>
+              ({opt.children!.length})
+            </span>
+          )}
+        </div>
+        {hasKids && isExp && opt.children!.map(c => renderNode(c, depth + 1))}
+      </div>
+    );
+  };
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+  const emptyRow = allowEmpty && (
+    <div
+      style={classic ? {
+        ...xpFont,
+        padding: '2px 4px',
+        cursor: 'pointer',
+        background: !value ? 'linear-gradient(to bottom,#3c8cf0,#1a5fd0)' : 'transparent',
+        color: !value ? '#fff' : '#777',
+        fontStyle: 'italic',
+        userSelect: 'none',
+      } : {
+        padding: '4px 8px',
+        fontSize: size === 'sm' ? 12 : 13,
+        cursor: 'pointer',
+        color: !value ? '#fff' : '#888',
+        background: !value ? '#0d6efd' : undefined,
+        fontStyle: 'italic',
+        userSelect: 'none',
+      }}
+      onMouseEnter={e => { if (value) (e.currentTarget as HTMLDivElement).style.background = classic ? '#dde8f8' : '#f0f6ff'; }}
+      onMouseLeave={e => { if (value) (e.currentTarget as HTMLDivElement).style.background = ''; }}
+      onClick={() => select('')}
+    >
+      {emptyLabel}
+    </div>
+  );
+
+  if (classic) {
+    return (
+      <div ref={ref} style={{ position: 'relative', ...style }} className={className}>
+        <button
+          type="button"
+          style={xpTrigger}
+          onClick={() => !disabled && setOpen(v => !v)}
+          disabled={disabled}
+        >
+          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', ...xpFont, color: (value || (allowEmpty && !value)) ? '#000' : '#777' }}>
+            {triggerLabel}
+          </span>
+          <i
+            className={`bi bi-chevron-${open ? 'up' : 'down'}`}
+            style={{ position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)', fontSize: 9, color: '#555', pointerEvents: 'none' }}
+          />
+        </button>
+        {open && (
+          <div style={xpDropdown}>
+            {emptyRow}
+            {options.map(o => renderNode(o, 0))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div ref={ref} style={{ position: 'relative', ...style }} className={className}>
+      <button
+        type="button"
+        className={`form-select text-start ${size === 'sm' ? 'form-select-sm' : ''}`}
+        style={{ cursor: disabled ? 'not-allowed' : 'pointer', color: value ? undefined : '#6c757d' }}
+        onClick={() => !disabled && setOpen(v => !v)}
+        disabled={disabled}
+      >
+        <span className="d-block text-truncate" style={{ fontSize: size === 'sm' ? 12 : 14 }}>
+          {triggerLabel}
+        </span>
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          zIndex: 9999,
+          minWidth: '100%',
+          maxWidth: 420,
+          maxHeight: 320,
+          overflowY: 'auto',
+          background: '#fff',
+          border: '1px solid #dee2e6',
+          borderRadius: 4,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          marginTop: 2,
+        }}>
+          {emptyRow}
+          {options.map(o => renderNode(o, 0))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Tree builder helpers ──────────────────────────────────────────────────────
+
+/**
+ * Build tree options for a FILTER dropdown (warehouses selectable as "All of X").
+ * value encoding: '' = all, 'wh:<id>' = warehouse-wide, 'loc:<id>' = specific zone/bin
+ * Matches StockOnHandView's onLocSelect() parsing convention.
+ */
+export function buildLocationFilterTree(locations: any[]): TreeSelectOption[] {
+  const warehouses = (locations || []).filter((l: any) => l.location_type === 'warehouse');
+  return warehouses.map((w: any) => {
+    const zones = locations.filter((l: any) => l.parent_id === w.id);
+    return {
+      value: `wh:${w.id}`,
+      label: w.name,
+      selectable: true,
+      children: zones.map((z: any) => {
+        const bins = locations.filter((l: any) => l.parent_id === z.id);
+        return {
+          value: `loc:${z.id}`,
+          label: z.name,
+          selectable: true,
+          children: bins.length > 0 ? bins.map((b: any) => ({
+            value: `loc:${b.id}`,
+            label: b.name,
+            subLabel: b.code,
+            selectable: true,
+          })) : undefined,
+        };
+      }),
+    };
+  });
+}
+
+/**
+ * Build tree options for a PICKER dropdown (select a specific leaf location).
+ * Warehouses are non-selectable group headers.
+ * Zones selectable only if leaf (no bins). Bins always selectable.
+ * value = location UUID
+ */
+export function buildLocationPickerTree(locations: any[]): TreeSelectOption[] {
+  const warehouses = (locations || []).filter((l: any) => l.location_type === 'warehouse');
+  return warehouses.map((w: any) => {
+    const zones = locations.filter((l: any) => l.parent_id === w.id);
+    return {
+      value: `__wh_${w.id}`,  // non-selectable, just a key for expand state
+      label: w.name,
+      selectable: false,
+      children: zones.map((z: any) => {
+        const bins = locations.filter((l: any) => l.parent_id === z.id);
+        return {
+          value: z.id,
+          label: z.name,
+          subLabel: bins.length === 0 ? z.code : undefined,
+          selectable: bins.length === 0,  // only leaf zones selectable
+          children: bins.length > 0 ? bins.map((b: any) => ({
+            value: b.id,
+            label: b.name,
+            subLabel: b.code,
+            selectable: true,
+          })) : undefined,
+        };
+      }),
+    };
+  });
+}
+
+/**
+ * Build tree options for item category selection.
+ * All categories are selectable. Builds from flat array with parent_id.
+ */
+export function buildCategoryTree(categories: any[]): TreeSelectOption[] {
+  const roots = (categories || []).filter((c: any) => !c.parent_id);
+  const childrenOf = (parentId: string): any[] =>
+    categories.filter((c: any) => c.parent_id === parentId);
+
+  const toOpt = (cat: any): TreeSelectOption => {
+    const kids = childrenOf(cat.id);
+    return {
+      value: cat.id,
+      label: cat.name,
+      selectable: true,
+      children: kids.length > 0 ? kids.map(toOpt) : undefined,
+    };
+  };
+  return roots.map(toOpt);
+}
