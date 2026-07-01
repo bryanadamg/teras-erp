@@ -596,7 +596,7 @@ export default function WorkOrderPanel({
 
                                     {/* Actions */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                                        {wo.bom_operation_id && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
+                                        {(wo.bom_operation_id || (wo.work_center_type || '').toUpperCase() === 'WEAVING') && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
                                             <button
                                                 onClick={() => setStageWO(wo)}
                                                 title="Issue this step's materials to the line"
