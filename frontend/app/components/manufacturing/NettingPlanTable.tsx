@@ -21,7 +21,7 @@ export interface NettingNode {
     required_other: number;
     net_free: number;
     net_qty: number;
-    decision: string; // MAKE_ROOT | MAKE | RESIZE | SKIP
+    decision: string; // MAKE_ROOT | MAKE | RESIZE | SKIP | FORCED
 }
 
 // Fetches the dry-run netting plan from the backend (debounced). Both the MO
@@ -64,6 +64,7 @@ const DECISION: Record<string, { label: string; bg: string; fg: string; bd: stri
     MAKE: { label: 'Make', bg: '#dcfce7', fg: '#15803d', bd: '#86efac' },
     RESIZE: { label: 'Resize', bg: '#fef3c7', fg: '#92400e', bd: '#fbbf24' },
     SKIP: { label: 'In stock', bg: '#f1f5f9', fg: '#64748b', bd: '#cbd5e1' },
+    FORCED: { label: 'Forced', bg: '#fff7ed', fg: '#c2410c', bd: '#fdba74' },
 };
 
 const num = (v: number) => (Math.round((v || 0) * 100) / 100).toLocaleString();
@@ -173,9 +174,9 @@ export default function NettingPlanTable({
                                         {n.net_from_location_name || '—'}
                                     </td>
                                     <td style={tdNum}>{num(n.gross_required)}</td>
-                                    <td style={tdNum}>{n.is_root ? '—' : num(n.on_hand)}</td>
-                                    <td style={{ ...tdNum, color: n.is_root ? '#94a3b8' : (n.net_free > 0 ? '#15803d' : '#94a3b8') }}>
-                                        {n.is_root ? '—' : num(n.net_free)}
+                                    <td style={tdNum}>{num(n.on_hand)}</td>
+                                    <td style={{ ...tdNum, color: n.net_free > 0 ? '#15803d' : '#94a3b8' }}>
+                                        {num(n.net_free)}
                                     </td>
                                     <td style={{ ...tdNum, fontWeight: 700, color: n.net_qty > 0 ? (classic ? '#000' : '#0f172a') : '#cbd5e1' }}>
                                         {num(n.net_qty)}

@@ -21,6 +21,7 @@ interface BomEntryState {
     locked?: boolean;
     rawSoQtys?: Record<string, number>;
     rawTotalQty?: number;
+    forceCreate?: boolean;
 }
 
 interface Props {
@@ -198,6 +199,17 @@ function BomEntryRow({
                     )}
                 </div>
             )}
+
+            {selectedBom && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 6, fontSize: 10, fontFamily: xpFont, color: '#663c00', cursor: 'pointer' }}>
+                    <input
+                        type="checkbox"
+                        checked={!!entry.forceCreate}
+                        onChange={e => onChange({ ...entry, forceCreate: e.target.checked })}
+                    />
+                    Force create even if in stock
+                </label>
+            )}
         </div>
     );
 }
@@ -344,10 +356,10 @@ export default function ProductionRunModal({
                     const sizeEntries = sizes
                         .filter((s: any) => parseFloat(entry.sizeQtys[s.id] || '0') > 0)
                         .map((s: any) => ({ bom_size_id: s.id, qty: parseFloat(entry.sizeQtys[s.id]) }));
-                    return { bom_id: entry.bomId, sizes: sizeEntries };
+                    return { bom_id: entry.bomId, sizes: sizeEntries, force_create: !!entry.forceCreate };
                 }
                 const qty = parseFloat(entry.totalQty || '0');
-                return { bom_id: entry.bomId, total_qty: qty > 0 ? qty : undefined };
+                return { bom_id: entry.bomId, total_qty: qty > 0 ? qty : undefined, force_create: !!entry.forceCreate };
             })
             .filter((e: any) => (e.sizes && e.sizes.length > 0) || e.total_qty);
         return {
@@ -361,7 +373,7 @@ export default function ProductionRunModal({
     const { nodes: previewNodes, loading: previewLoading, error: previewError } =
         useNettingPreview('/production-runs/preview', previewBody, previewEnabled);
 
-    const addEntry = () => setBomEntries(prev => [...prev, { bomId: '', sizeQtys: {}, totalQty: '', attributeValueIds: [] }]);
+    const addEntry = () => setBomEntries(prev => [...prev, { bomId: '', sizeQtys: {}, totalQty: '', attributeValueIds: [], forceCreate: false }]);
     const removeEntry = (i: number) => setBomEntries(prev => prev.filter((_, idx) => idx !== i));
     const updateEntry = (i: number, updated: BomEntryState) =>
         setBomEntries(prev => prev.map((e, idx) => idx === i ? updated : e));
@@ -390,10 +402,10 @@ export default function ProductionRunModal({
                     const sizeEntries = sizes
                         .filter((s: any) => parseFloat(entry.sizeQtys[s.id] || '0') > 0)
                         .map((s: any) => ({ bom_size_id: s.id, qty: parseFloat(entry.sizeQtys[s.id]) }));
-                    return { bom_id: entry.bomId, sizes: sizeEntries, attribute_value_ids };
+                    return { bom_id: entry.bomId, sizes: sizeEntries, attribute_value_ids, force_create: !!entry.forceCreate };
                 }
                 const qty = parseFloat(entry.totalQty || '0');
-                return { bom_id: entry.bomId, total_qty: qty > 0 ? qty : undefined, attribute_value_ids };
+                return { bom_id: entry.bomId, total_qty: qty > 0 ? qty : undefined, attribute_value_ids, force_create: !!entry.forceCreate };
             });
 
             const res = await onSave({

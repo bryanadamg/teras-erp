@@ -406,6 +406,7 @@ class PRBomEntryCreate(BaseModel):
     sizes: list[PRBomSizeEntry] = []
     total_qty: float | None = None
     attribute_value_ids: list[UUID] = []
+    force_create: bool = False
 
 class PRBomEntrySizeResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -419,6 +420,7 @@ class PRBomEntryResponse(BaseModel):
     bom_id: UUID
     total_qty: float | None = None
     attribute_value_ids: list[UUID] = []
+    force_create: bool = False
     bom: Optional['BOMResponse'] = None
     sizes: list[PRBomEntrySizeResponse] = []
 
@@ -532,7 +534,7 @@ class NettingPreviewNode(BaseModel):
     required_other: float               # other open MOs' demand (excl. this unit)
     net_free: float                     # on_hand + incoming - required_other
     net_qty: float                      # qty actually made after netting
-    decision: str                       # MAKE_ROOT | MAKE | RESIZE | SKIP
+    decision: str                       # MAKE_ROOT | MAKE | RESIZE | SKIP | FORCED
 
 class ProductionRunPreviewRequest(BaseModel):
     bom_entries: list[PRBomEntryCreate]

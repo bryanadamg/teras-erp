@@ -502,6 +502,10 @@ async def create_production_run(
     await db.flush()
 
     # ── Pass 1: For each BOM entry, create root MO(s) ─────────────────────────
+    # Net-free ledger excludes this PR's own root MOs (their demand IS the gross
+    # we net); built up-front so root netting (this pass) and component netting
+    # (Pass 2) share one running ledger and can't double-claim the same stock.
+    availability = await Availability.create(db, exclude_pr_id=pr.id)
     bom_ro_pairs: list[tuple] = []  # [(bom, [root_mos])]
     total_root_mo_count = 0
 
@@ -519,12 +523,22 @@ async def create_production_run(
             bom_id=bom.id,
             total_qty=bom_entry.total_qty,
             attribute_value_ids=[str(v) for v in (bom_entry.attribute_value_ids or [])],
+            force_create=bom_entry.force_create,
         )
         db.add(pr_entry)
         await db.flush()
 
         entry_root_mos: list[ManufacturingOrder] = []
         bom_label = bom.code if bom.code else (bom.item.code if bom.item else f"B{entry_idx+1}")
+
+        # Variant the produced root will actually carry (entry override wins,
+        # same precedence applied post-creation below) — this is the netting key.
+        root_attrs = (
+            [str(v) for v in bom_entry.attribute_value_ids]
+            if bom_entry.attribute_value_ids
+            else [str(v.id) for v in bom.attribute_values]
+        )
+        root_net_loc = source_location.id if source_location else (location.id if location else None)
 
         if bom_entry.sizes:
             for size_entry in bom_entry.sizes:
@@ -540,9 +554,17 @@ async def create_production_run(
 
                 db.add(PRBomEntrySize(pr_bom_entry_id=pr_entry.id, bom_size_id=bom_size.id, qty=size_entry.qty))
 
+                gross = float(size_entry.qty)
+                if bom_entry.force_create:
+                    net_qty = gross
+                else:
+                    net_qty = await availability.consume(bom.item_id, root_attrs, root_net_loc, gross)
+                if net_qty <= 0:
+                    continue  # fully covered by stock -> no root MO for this size line
+
                 size_label = bom_size.label or (bom_size.size.name if bom_size.size else f"S{total_root_mo_count+1}")
                 root_mo = await create_mo_recursive(
-                    db, bom.id, float(size_entry.qty), (location.id if location else None), current_user.id,
+                    db, bom.id, net_qty, (location.id if location else None), current_user.id,
                     source_location_id=source_location.id if source_location else None,
                     sales_order_id=payload.sales_order_id,
                     production_run_id=pr.id,
@@ -562,25 +584,32 @@ async def create_production_run(
                 await db.flush()
 
         elif bom_entry.total_qty and bom_entry.total_qty > 0:
-            root_mo = await create_mo_recursive(
-                db, bom.id, float(bom_entry.total_qty), (location.id if location else None), current_user.id,
-                source_location_id=source_location.id if source_location else None,
-                sales_order_id=payload.sales_order_id,
-                production_run_id=pr.id,
-                target_start_date=payload.target_start_date,
-                target_end_date=payload.target_end_date,
-                create_children=False,
-            )
-            suffix = f"{entry_idx+1:03d}"
-            base_code = (
-                f"{payload.code}-{bom_label.upper()}-{suffix}"
-                if len(payload.bom_entries) > 1
-                else f"{payload.code}-{suffix}"
-            )
-            root_mo.code = await _find_unique_mo_code(db, base_code)
-            entry_root_mos.append(root_mo)
-            total_root_mo_count += 1
-            await db.flush()
+            gross = float(bom_entry.total_qty)
+            if bom_entry.force_create:
+                net_qty = gross
+            else:
+                net_qty = await availability.consume(bom.item_id, root_attrs, root_net_loc, gross)
+            if net_qty > 0:
+                root_mo = await create_mo_recursive(
+                    db, bom.id, net_qty, (location.id if location else None), current_user.id,
+                    source_location_id=source_location.id if source_location else None,
+                    sales_order_id=payload.sales_order_id,
+                    production_run_id=pr.id,
+                    target_start_date=payload.target_start_date,
+                    target_end_date=payload.target_end_date,
+                    create_children=False,
+                )
+                suffix = f"{entry_idx+1:03d}"
+                base_code = (
+                    f"{payload.code}-{bom_label.upper()}-{suffix}"
+                    if len(payload.bom_entries) > 1
+                    else f"{payload.code}-{suffix}"
+                )
+                root_mo.code = await _find_unique_mo_code(db, base_code)
+                entry_root_mos.append(root_mo)
+                total_root_mo_count += 1
+                await db.flush()
+            # net_qty <= 0 -> fully covered by stock, no root MO for this entry
 
         if bom_entry.attribute_value_ids:
             attr_result = await db.execute(
@@ -597,10 +626,9 @@ async def create_production_run(
             bom_ro_pairs.append((bom, entry_root_mos))
 
     # ── Pass 2: Aggregate demand across ALL BOM entries, create consolidated shared MOs ──
+    # Reuses the same `availability` ledger Pass 1 netted roots against, so a
+    # component can't claim stock a root already consumed (or vice versa).
     if bom_ro_pairs:
-        # Net-free ledger excludes this PR's own root MOs (their demand IS the
-        # gross we net); components covered by stock are skipped/resized.
-        availability = await Availability.create(db, exclude_pr_id=pr.id)
         await _create_consolidated_component_mos(
             db, bom_ro_pairs, location, source_location,
             payload.sales_order_id, pr.id,

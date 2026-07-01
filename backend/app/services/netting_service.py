@@ -19,8 +19,11 @@ decrements the running balance, so two sibling demands (or two consolidated
 component keys) cannot both claim the same physical stock.
 
 Scope notes (Tier 1):
-- Netting applies to components/sub-assemblies only. The root finished good is
-  always produced at full qty (make-to-order) — the caller never nets the root.
+- Production Run root finished goods ARE netted (same SKIP/RESIZE/MAKE rule as
+  components), unless the PR's BOM entry sets force_create=True — used to
+  deliberately keep producing an item that already carries stock (e.g. greige
+  stockpiling). A single ad-hoc MO created via POST /manufacturing-orders is
+  make-to-order and its root is still never netted; only its descendants are.
 - Cross-location supply (transfer instead of make) is NOT modelled here; netting
   is scoped to each node's planned source location and its leaf spots.
 - Safety stock and BOM tolerance % are ignored (gross = qty x percentage / 100);
@@ -231,6 +234,41 @@ def _component_node(sub_bom, level: int, loc_id, gross: float, net: float, detai
     }
 
 
+async def _info_detail(avail: "Availability", item_id, attribute_value_ids) -> dict:
+    """Read-only stock snapshot for a (item, variant) — used for FORCED root
+    nodes, which bypass netting entirely and must not decrement the ledger."""
+    vkey = _generate_variant_key([str(a) for a in (attribute_value_ids or [])])
+    item_s = str(item_id)
+    on_hand = await avail._on_hand(item_s, vkey)
+    key = (item_s, vkey)
+    incoming = avail._supply.get(key, 0.0)
+    required = avail._demand.get(key, 0.0)
+    return {"on_hand": on_hand, "incoming": incoming, "required_other": required,
+            "net_free": on_hand + incoming - required}
+
+
+def _root_netted_node(bom, gross: float, net: float, detail: dict, loc_id, loc_names: dict, forced: bool) -> dict:
+    item = bom.item
+    if forced:
+        decision = "FORCED"
+    elif net <= 0:
+        decision = "SKIP"
+    elif net < gross:
+        decision = "RESIZE"
+    else:
+        decision = "MAKE"
+    return {
+        "level": 0, "is_root": True,
+        "item_id": item.id, "item_code": item.code, "item_name": item.name, "uom": item.uom or "",
+        "net_from_location_id": loc_id,
+        "net_from_location_name": loc_names.get(str(loc_id), ""),
+        "gross_required": gross,
+        "on_hand": detail["on_hand"], "incoming": detail["incoming"],
+        "required_other": detail["required_other"], "net_free": detail["net_free"],
+        "net_qty": net, "decision": decision,
+    }
+
+
 async def _active_sub_bom(db: AsyncSession, item_id):
     return (await db.execute(
         select(BOM).options(joinedload(BOM.item), selectinload(BOM.attribute_values))
@@ -261,29 +299,52 @@ async def _preview_children(db, avail, bom_id, parent_net, source_location_id, l
 
 
 async def preview_production_run(db, bom_entries, location, source_location, exclude_pr_id=None) -> list[dict]:
-    """Dry-run of create_production_run: roots (always made) + consolidated,
-    netted components + deeper netted sub-tree. Returns a flat node list."""
+    """Dry-run of create_production_run: netted roots (unless force_create) +
+    consolidated, netted components + deeper netted sub-tree. Returns a flat
+    node list."""
     avail = await Availability.create(db, exclude_pr_id=exclude_pr_id)
     loc_names = await _location_name_map(db)
     nodes: list[dict] = []
 
-    # Pass 1: root finished goods — never netted.
+    # Pass 1: root finished goods — netted against stock same as a component,
+    # unless the entry's force_create bypasses it (stockpile override).
+    root_loc = source_location.id if source_location else (location.id if location else None)
     bom_ro_pairs = []
     for entry in bom_entries:
         bom = (await db.execute(
-            select(BOM).options(joinedload(BOM.item)).filter(BOM.id == entry.bom_id)
+            select(BOM).options(joinedload(BOM.item), selectinload(BOM.attribute_values))
+            .filter(BOM.id == entry.bom_id)
         )).unique().scalars().first()
         if not bom:
             continue
-        root_qtys = []
+        gross_qtys = []
         if getattr(entry, "sizes", None):
-            root_qtys = [float(s.qty) for s in entry.sizes if s.qty and s.qty > 0]
+            gross_qtys = [float(s.qty) for s in entry.sizes if s.qty and s.qty > 0]
         elif entry.total_qty and entry.total_qty > 0:
-            root_qtys = [float(entry.total_qty)]
-        for q in root_qtys:
-            nodes.append(_root_node(bom, q, location, loc_names))
-        if root_qtys:
-            bom_ro_pairs.append((bom, root_qtys))
+            gross_qtys = [float(entry.total_qty)]
+        if not gross_qtys:
+            continue
+
+        force = bool(getattr(entry, "force_create", False))
+        entry_attr_ids = getattr(entry, "attribute_value_ids", None)
+        root_attrs = (
+            [str(v) for v in entry_attr_ids] if entry_attr_ids
+            else [str(v.id) for v in bom.attribute_values]
+        )
+
+        net_qtys = []
+        for gross in gross_qtys:
+            if force:
+                detail = await _info_detail(avail, bom.item_id, root_attrs)
+                net = gross
+            else:
+                net, detail = await avail.consume_detailed(bom.item_id, root_attrs, root_loc, gross)
+            nodes.append(_root_netted_node(bom, gross, net, detail, root_loc, loc_names, force))
+            if net > 0:
+                net_qtys.append(net)
+
+        if net_qtys:
+            bom_ro_pairs.append((bom, net_qtys))
 
     # Pass 2: consolidate direct-component demand across all roots, then net.
     demand: dict[tuple, dict] = {}
