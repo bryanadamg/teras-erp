@@ -332,6 +332,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
   const xpTh: React.CSSProperties = classic ? {
     background: 'linear-gradient(to bottom, #f0ede4, #d8d4c8)', border: '1px solid #9090a0',
     padding: '2px 6px', fontWeight: 'bold', textAlign: 'left', whiteSpace: 'nowrap',
+    position: 'sticky', top: 0,
   } : {};
 
   const xpTd = (alt: boolean): React.CSSProperties => classic ? {
@@ -342,14 +343,14 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
   const colSpan = 11; // Lot Number, Item Code, Item Name, Origin, Location, Remaining, Ends, Notes, Created By, Created At, Actions
 
   return (
-    <div className="p-3">
-      {/* ── Header ── */}
+    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)' }}>
       {classic ? (
-        <div style={{ ...xpBevel, marginBottom: 12 }}>
+        <div style={{ ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          {/* ── Header ── */}
           <div style={xpTitleBar}>
             <span>Lot Management</span>
           </div>
-          <div style={{ padding: '6px 8px', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898' }}>
+          <div style={{ padding: '6px 8px', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', flexShrink: 0 }}>
             <button style={xpBtn()} onClick={() => setIsCreateOpen(true)}>
               <i className="bi bi-plus" /> New Lot
             </button>
@@ -363,154 +364,156 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
             </select>
             <input style={{ ...xpInput, width: 160 }} placeholder="Search..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
           </div>
-        </div>
-      ) : (
-        <div className="d-flex align-items-center gap-2 mb-3 flex-wrap">
-          <h5 className="mb-0 fw-bold">Lot Management</h5>
-          <button className="btn btn-sm btn-primary" onClick={() => setIsCreateOpen(true)}>
-            <i className="bi bi-plus" /> New Lot
-          </button>
-          <button className="btn btn-sm btn-outline-secondary" onClick={fetchBatches}>
-            <i className="bi bi-arrow-clockwise" />
-          </button>
-          <select className="form-select form-select-sm" style={{ width: 200 }} value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
-            <option value="">All Items</option>
-            {items.map(i => <option key={i.id} value={i.id}>{i.code} — {i.name}</option>)}
-          </select>
-          <input className="form-control form-control-sm" style={{ width: 200 }} placeholder="Search lots..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-        </div>
-      )}
 
-      {/* ── Table ── */}
-      {classic ? (
-        <div style={{ ...xpBevel, overflow: 'hidden' }}>
-          <table style={xpTable}>
-            <thead>
-              <tr>
-                <th style={xpTh}>Lot Number</th>
-                <th style={xpTh}>Item Code</th>
-                <th style={xpTh}>Item Name</th>
-                <th style={xpTh}>Origin</th>
-                <th style={xpTh}>Location</th>
-                <th style={{ ...xpTh, textAlign: 'right' }}>Remaining</th>
-                <th style={{ ...xpTh, textAlign: 'right' }}>Ends</th>
-                <th style={xpTh}>Notes</th>
-                <th style={xpTh}>Created By</th>
-                <th style={xpTh}>Created At</th>
-                <th style={xpTh}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && (
-                <tr><td colSpan={colSpan} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>Loading...</td></tr>
-              )}
-              {!loading && filtered.length === 0 && (
-                <tr><td colSpan={colSpan} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>No lots found.</td></tr>
-              )}
-              {filtered.map((b, i) => (
-                <>
-                  <tr key={b.id} style={{ background: expandedRows[b.id] ? '#d6e4f7' : i % 2 === 1 ? '#f0f0f8' : '#ffffff' }}>
-                    <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}><strong>{b.batch_number}</strong></td>
-                    <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{batchItemCode(b)}</td>
-                    <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{batchItemName(b)}</td>
-                    <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{originCell(b)}</td>
-                    <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.location_name || <span style={{ color: '#ccc' }}>—</span>}</td>
-                    <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right', background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}</td>
-                    <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right', background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.ends ?? '-'}</td>
-                    <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.notes || '-'}</td>
-                    <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.created_by || '-'}</td>
-                    <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{new Date(b.created_at).toLocaleDateString()}</td>
-                    <td style={{ ...xpTd(i % 2 === 1), whiteSpace: 'nowrap', background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>
-                      <button
-                        style={{
-                          ...xpBtn(), marginRight: 4, fontSize: 10, padding: '2px 7px',
-                          background: expandedRows[b.id]
-                            ? 'linear-gradient(to bottom,#d4d0c8,#fff)'
-                            : 'linear-gradient(to bottom,#fff,#d4d0c8)',
-                          borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-                        }}
-                        onClick={() => toggleExpand(b)}
-                        title="Show lot details, trace and genealogy"
-                      >
-                        <i className={`bi ${expandedRows[b.id] ? 'bi-chevron-up' : 'bi-diagram-3'}`} style={{ marginRight: 3 }} />
-                        {expandedRows[b.id] ? 'Hide' : 'Details'}
-                      </button>
-                      <button style={xpBtn({ background: 'linear-gradient(to bottom, #ffd0d0, #e08080)', fontSize: 10, padding: '2px 7px' })} onClick={() => handleDelete(b)}>
-                        <i className="bi bi-trash" />
-                      </button>
-                    </td>
-                  </tr>
-                  {expandedRows[b.id] && (
-                    <tr key={`${b.id}-detail`}>
-                      <td colSpan={colSpan} style={{ padding: 0, border: '1px solid #c0bdb5' }}>
-                        {renderExpandedPanel(b)}
+          {/* ── Table ── */}
+          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, background: '#ffffff' }}>
+            <table style={xpTable}>
+              <thead>
+                <tr>
+                  <th style={xpTh}>Lot Number</th>
+                  <th style={xpTh}>Item Code</th>
+                  <th style={xpTh}>Item Name</th>
+                  <th style={xpTh}>Origin</th>
+                  <th style={xpTh}>Location</th>
+                  <th style={{ ...xpTh, textAlign: 'right' }}>Remaining</th>
+                  <th style={{ ...xpTh, textAlign: 'right' }}>Ends</th>
+                  <th style={xpTh}>Notes</th>
+                  <th style={xpTh}>Created By</th>
+                  <th style={xpTh}>Created At</th>
+                  <th style={xpTh}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading && (
+                  <tr><td colSpan={colSpan} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>Loading...</td></tr>
+                )}
+                {!loading && filtered.length === 0 && (
+                  <tr><td colSpan={colSpan} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>No lots found.</td></tr>
+                )}
+                {filtered.map((b, i) => (
+                  <>
+                    <tr key={b.id} style={{ background: expandedRows[b.id] ? '#d6e4f7' : i % 2 === 1 ? '#f0f0f8' : '#ffffff' }}>
+                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}><strong>{b.batch_number}</strong></td>
+                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{batchItemCode(b)}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{batchItemName(b)}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{originCell(b)}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.location_name || <span style={{ color: '#ccc' }}>—</span>}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right', background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right', background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.ends ?? '-'}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.notes || '-'}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.created_by || '-'}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{new Date(b.created_at).toLocaleDateString()}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), whiteSpace: 'nowrap', background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>
+                        <button
+                          style={{
+                            ...xpBtn(), marginRight: 4, fontSize: 10, padding: '2px 7px',
+                            background: expandedRows[b.id]
+                              ? 'linear-gradient(to bottom,#d4d0c8,#fff)'
+                              : 'linear-gradient(to bottom,#fff,#d4d0c8)',
+                            borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
+                          }}
+                          onClick={() => toggleExpand(b)}
+                          title="Show lot details, trace and genealogy"
+                        >
+                          <i className={`bi ${expandedRows[b.id] ? 'bi-chevron-up' : 'bi-diagram-3'}`} style={{ marginRight: 3 }} />
+                          {expandedRows[b.id] ? 'Hide' : 'Details'}
+                        </button>
+                        <button style={xpBtn({ background: 'linear-gradient(to bottom, #ffd0d0, #e08080)', fontSize: 10, padding: '2px 7px' })} onClick={() => handleDelete(b)}>
+                          <i className="bi bi-trash" />
+                        </button>
                       </td>
                     </tr>
-                  )}
-                </>
-              ))}
-            </tbody>
-          </table>
+                    {expandedRows[b.id] && (
+                      <tr key={`${b.id}-detail`}>
+                        <td colSpan={colSpan} style={{ padding: 0, border: '1px solid #c0bdb5' }}>
+                          {renderExpandedPanel(b)}
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
-        <div className="table-responsive">
-          <table className="table table-sm table-hover table-bordered mb-0">
-            <thead className="table-light">
-              <tr>
-                <th>Lot Number</th>
-                <th>Item Code</th>
-                <th>Item Name</th>
-                <th>Origin</th>
-                <th>Location</th>
-                <th className="text-end">Remaining</th>
-                <th className="text-end">Ends</th>
-                <th>Notes</th>
-                <th>Created By</th>
-                <th>Created At</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && <tr><td colSpan={colSpan} className="text-center">Loading...</td></tr>}
-              {!loading && filtered.length === 0 && <tr><td colSpan={colSpan} className="text-center text-muted">No lots found.</td></tr>}
-              {filtered.map(b => (
-                <>
-                  <tr key={b.id} className={expandedRows[b.id] ? 'table-primary bg-opacity-10' : ''}>
-                    <td><strong>{b.batch_number}</strong></td>
-                    <td>{batchItemCode(b)}</td>
-                    <td>{batchItemName(b)}</td>
-                    <td>{originCell(b)}</td>
-                    <td>{b.location_name || <span className="text-muted">—</span>}</td>
-                    <td className="text-end">{b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}</td>
-                    <td className="text-end">{b.ends ?? '-'}</td>
-                    <td>{b.notes || '-'}</td>
-                    <td>{b.created_by || '-'}</td>
-                    <td>{new Date(b.created_at).toLocaleDateString()}</td>
-                    <td style={{ whiteSpace: 'nowrap' }}>
-                      <button
-                        className={`btn btn-sm me-1 ${expandedRows[b.id] ? 'btn-secondary' : 'btn-outline-secondary'}`}
-                        onClick={() => toggleExpand(b)}
-                        title="Show lot details, trace and genealogy"
-                      >
-                        <i className={`bi ${expandedRows[b.id] ? 'bi-chevron-up' : 'bi-diagram-3'}`} />
-                        {' '}Details
-                      </button>
-                      <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(b)}>
-                        <i className="bi bi-trash" />
-                      </button>
-                    </td>
-                  </tr>
-                  {expandedRows[b.id] && (
-                    <tr key={`${b.id}-detail`}>
-                      <td colSpan={colSpan} style={{ padding: 0 }}>
-                        {renderExpandedPanel(b)}
+        <div className="card shadow-sm border-0" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          {/* ── Header ── */}
+          <div className="card-header d-flex align-items-center gap-2 flex-wrap" style={{ flexShrink: 0 }}>
+            <h5 className="mb-0 fw-bold">Lot Management</h5>
+            <button className="btn btn-sm btn-primary" onClick={() => setIsCreateOpen(true)}>
+              <i className="bi bi-plus" /> New Lot
+            </button>
+            <button className="btn btn-sm btn-outline-secondary" onClick={fetchBatches}>
+              <i className="bi bi-arrow-clockwise" />
+            </button>
+            <select className="form-select form-select-sm" style={{ width: 200 }} value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
+              <option value="">All Items</option>
+              {items.map(i => <option key={i.id} value={i.id}>{i.code} — {i.name}</option>)}
+            </select>
+            <input className="form-control form-control-sm" style={{ width: 200 }} placeholder="Search lots..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+          </div>
+
+          {/* ── Table ── */}
+          <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+            <table className="table table-sm table-hover table-bordered mb-0">
+              <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+                <tr>
+                  <th>Lot Number</th>
+                  <th>Item Code</th>
+                  <th>Item Name</th>
+                  <th>Origin</th>
+                  <th>Location</th>
+                  <th className="text-end">Remaining</th>
+                  <th className="text-end">Ends</th>
+                  <th>Notes</th>
+                  <th>Created By</th>
+                  <th>Created At</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading && <tr><td colSpan={colSpan} className="text-center">Loading...</td></tr>}
+                {!loading && filtered.length === 0 && <tr><td colSpan={colSpan} className="text-center text-muted">No lots found.</td></tr>}
+                {filtered.map(b => (
+                  <>
+                    <tr key={b.id} className={expandedRows[b.id] ? 'table-primary bg-opacity-10' : ''}>
+                      <td><strong>{b.batch_number}</strong></td>
+                      <td>{batchItemCode(b)}</td>
+                      <td>{batchItemName(b)}</td>
+                      <td>{originCell(b)}</td>
+                      <td>{b.location_name || <span className="text-muted">—</span>}</td>
+                      <td className="text-end">{b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}</td>
+                      <td className="text-end">{b.ends ?? '-'}</td>
+                      <td>{b.notes || '-'}</td>
+                      <td>{b.created_by || '-'}</td>
+                      <td>{new Date(b.created_at).toLocaleDateString()}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        <button
+                          className={`btn btn-sm me-1 ${expandedRows[b.id] ? 'btn-secondary' : 'btn-outline-secondary'}`}
+                          onClick={() => toggleExpand(b)}
+                          title="Show lot details, trace and genealogy"
+                        >
+                          <i className={`bi ${expandedRows[b.id] ? 'bi-chevron-up' : 'bi-diagram-3'}`} />
+                          {' '}Details
+                        </button>
+                        <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(b)}>
+                          <i className="bi bi-trash" />
+                        </button>
                       </td>
                     </tr>
-                  )}
-                </>
-              ))}
-            </tbody>
-          </table>
+                    {expandedRows[b.id] && (
+                      <tr key={`${b.id}-detail`}>
+                        <td colSpan={colSpan} style={{ padding: 0 }}>
+                          {renderExpandedPanel(b)}
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

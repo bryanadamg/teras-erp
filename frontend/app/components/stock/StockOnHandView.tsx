@@ -921,8 +921,8 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
 
     if (classic) {
         return (
-            <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                <div style={{ ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1 }}>
+            <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)' }}>
+                <div style={{ ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
                     <div style={xpTitleBar}>
                         <span><i className="bi bi-boxes" style={{ marginRight: 6 }} />{t('stock_on_hand') || 'Stock On-Hand'}</span>
                         <span style={{ fontSize: '10px', opacity: 0.85 }}>{filtered.length} records</span>
@@ -965,7 +965,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />New Entry
                         </button>
                     </div>
-                    <div style={{ flex: 1, overflowY: 'auto', background: '#ffffff', maxHeight: 'calc(100vh - 200px)' }}>
+                    <div style={{ flex: 1, overflowY: 'auto', background: '#ffffff', minHeight: 0 }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
                                 <tr>
@@ -1012,13 +1012,13 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
 
     // ── Modern (Bootstrap) mode ───────────────────────────────────────────────
     return (
-        <div className="fade-in">
-            <div className="card shadow-sm border-0">
+        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)' }}>
+            <div className="card shadow-sm border-0" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
                 <div className="card-header bg-primary bg-opacity-10 text-primary-emphasis d-flex justify-content-between align-items-center py-3">
                     <h5 className="card-title mb-0"><i className="bi bi-boxes me-2" />{t('stock_on_hand') || 'Stock On-Hand'}</h5>
                     <span className="badge bg-primary bg-opacity-25 text-primary-emphasis">{filtered.length} records</span>
                 </div>
-                <div className="card-body pb-0">
+                <div className="card-body pb-0" style={{ flexShrink: 0 }}>
                     <div className="row g-2 mb-3">
                         <div className="col-md-3">
                             <input
@@ -1068,7 +1068,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         </div>
                     </div>
                 </div>
-                <div className="table-responsive">
+                <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
                     <table className="table table-hover table-sm mb-0">
                         <thead className="table-light">
                             <tr>
@@ -1094,7 +1094,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         </tbody>
                     </table>
                 </div>
-                <div className="card-footer text-muted d-flex gap-3 small">
+                <div className="card-footer text-muted d-flex gap-3 small" style={{ flexShrink: 0 }}>
                     <span><b>{filtered.length}</b> rows shown</span>
                     {negativeCount > 0 && <span className="text-danger"><b>{negativeCount}</b> negative</span>}
                     <span className="ms-auto">Total: {(stockBalance || []).length} SKUs</span>
