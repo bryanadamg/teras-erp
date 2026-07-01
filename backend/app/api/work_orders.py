@@ -11,7 +11,6 @@ from app.models.item import Item
 from app.models.category import Category
 from app.models.location import Location
 from app.models.batch import Batch
-from app.models.manufacturing import MODependency
 from app.models.stock_ledger import StockLedger
 from app.models.stock_balance import StockBalance
 from app.models.dyeing_setting import DyeRecipe, DyeingRun, dye_recipe_attribute_values
@@ -522,28 +521,20 @@ async def _wo_step_components(db: AsyncSession, wo: WorkOrder, mo: Manufacturing
         return []
     item_ids = [c.item_id for c in mo.planned_components]
     beam_res = await db.execute(
-        select(Item.id).join(Category, Item.category_id == Category.id)
-        .where(Item.id.in_(item_ids), func.lower(Category.name) == "beam")
+        select(Item.id).outerjoin(Category, Item.category_id == Category.id)
+        .where(Item.id.in_(item_ids), (Item.ends.isnot(None)) | (func.lower(Category.name) == "beam"))
     )
     beam_item_ids = {str(r[0]) for r in beam_res.all()}
     return [c for c in mo.planned_components if str(c.item_id) in beam_item_ids]
 
 
 async def _suggest_beam_batch(db: AsyncSession, mo: ManufacturingOrder, item_id, src_location_id) -> uuid.UUID | None:
-    """Trace this MO's (and any shared-component dependency MO's) BEAMING WOs to
-    find an unconsumed beam batch to pre-select in the staging picker."""
-    dep_res = await db.execute(select(MODependency.required_mo_id).where(MODependency.dependent_mo_id == mo.id))
-    mo_ids = [mo.id] + [r[0] for r in dep_res.all()]
-    beaming_wo_res = await db.execute(
-        select(WorkOrder.id).join(WorkCenter, WorkOrder.work_center_id == WorkCenter.id)
-        .where(WorkOrder.manufacturing_order_id.in_(mo_ids), func.upper(WorkCenter.center_type) == "BEAMING")
-    )
-    beaming_wo_ids = [r[0] for r in beaming_wo_res.all()]
-    if not beaming_wo_ids:
-        return None
+    """Beam is generic plant-level stock, not pegged to a producing MO (no
+    MODependency link between a WEAVING MO and the BEAMING MOs that made its
+    beam — see plant-level netting). Suggest the oldest unconsumed batch of
+    this item, FIFO, still fully overridable in the staging picker."""
     batch_res = await db.execute(
-        select(Batch).where(Batch.item_id == item_id, Batch.source_wo_id.in_(beaming_wo_ids))
-        .order_by(Batch.created_at.asc())
+        select(Batch).where(Batch.item_id == item_id).order_by(Batch.created_at.asc())
     )
     candidates = batch_res.scalars().all()
     if not candidates:

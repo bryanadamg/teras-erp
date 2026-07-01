@@ -6,6 +6,7 @@ from app.db.session import get_async_db
 from app.models.batch import Batch, BatchConsumption
 from app.models.item import Item
 from app.models.stock_balance import StockBalance
+from app.models.location import Location
 from app.models.work_order import WorkOrder
 from app.models.manufacturing import ManufacturingOrder
 from app.models.production_run import ProductionRun
@@ -161,6 +162,7 @@ async def list_batches(
     # Attach remaining stock per batch (optionally scoped to a location)
     keys = [str(b.id) for b in batches]
     remaining_map: dict[str, float] = {}
+    location_map: dict[str, tuple] = {}
     if keys:
         bal_q = (
             select(StockBalance.batch_key, func.sum(StockBalance.qty))
@@ -171,8 +173,20 @@ async def list_batches(
             bal_q = bal_q.filter(StockBalance.location_id == location_id)
         bal_res = await db.execute(bal_q)
         remaining_map = {k: float(v or 0) for k, v in bal_res.all()}
+
+        # Current location — beam is a physical unit, always at most one location with qty > 0
+        loc_q = (
+            select(StockBalance.batch_key, StockBalance.location_id, Location.name)
+            .join(Location, Location.id == StockBalance.location_id)
+            .filter(StockBalance.batch_key.in_(keys), StockBalance.qty > 0)
+        )
+        if location_id:
+            loc_q = loc_q.filter(StockBalance.location_id == location_id)
+        loc_res = await db.execute(loc_q)
+        location_map = {row[0]: (row[1], row[2]) for row in loc_res.all()}
     for b in batches:
         b.remaining = remaining_map.get(str(b.id), 0.0)
+        b.location_id, b.location_name = location_map.get(str(b.id), (None, None))
         b.item_code = b.item.code if b.item else None
         b.item_name = b.item.name if b.item else None
     await _resolve_gr_origins(db, list(batches))

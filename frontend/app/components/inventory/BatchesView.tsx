@@ -18,6 +18,8 @@ interface Batch {
   ends: number | null;
   source_wo_id: string | null;
   remaining: number | null;
+  location_id: string | null;
+  location_name: string | null;
   // Production origin (beam batches)
   mo_code: string | null;
   production_run_code: string | null;
@@ -337,7 +339,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
     background: alt ? '#f0f0f8' : '#ffffff', verticalAlign: 'middle',
   } : { verticalAlign: 'middle' };
 
-  const colSpan = 10; // Lot Number, Item Code, Item Name, Origin, Remaining, Ends, Notes, Created By, Created At, Actions
+  const colSpan = 11; // Lot Number, Item Code, Item Name, Origin, Location, Remaining, Ends, Notes, Created By, Created At, Actions
 
   return (
     <div className="p-3">
@@ -389,6 +391,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                 <th style={xpTh}>Item Code</th>
                 <th style={xpTh}>Item Name</th>
                 <th style={xpTh}>Origin</th>
+                <th style={xpTh}>Location</th>
                 <th style={{ ...xpTh, textAlign: 'right' }}>Remaining</th>
                 <th style={{ ...xpTh, textAlign: 'right' }}>Ends</th>
                 <th style={xpTh}>Notes</th>
@@ -411,6 +414,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                     <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{batchItemCode(b)}</td>
                     <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{batchItemName(b)}</td>
                     <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{originCell(b)}</td>
+                    <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.location_name || <span style={{ color: '#ccc' }}>—</span>}</td>
                     <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right', background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}</td>
                     <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right', background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.ends ?? '-'}</td>
                     <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.notes || '-'}</td>
@@ -457,6 +461,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                 <th>Item Code</th>
                 <th>Item Name</th>
                 <th>Origin</th>
+                <th>Location</th>
                 <th className="text-end">Remaining</th>
                 <th className="text-end">Ends</th>
                 <th>Notes</th>
@@ -475,6 +480,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                     <td>{batchItemCode(b)}</td>
                     <td>{batchItemName(b)}</td>
                     <td>{originCell(b)}</td>
+                    <td>{b.location_name || <span className="text-muted">—</span>}</td>
                     <td className="text-end">{b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}</td>
                     <td className="text-end">{b.ends ?? '-'}</td>
                     <td>{b.notes || '-'}</td>

@@ -1693,6 +1693,8 @@ class BatchResponse(BaseModel):
     ends: Optional[int] = None
     source_wo_id: Optional[UUID] = None
     remaining: Optional[float] = None  # stock balance for this batch (populated by list endpoint)
+    location_id: Optional[UUID] = None    # current location — beam is atomic, always at most one (populated by list endpoint)
+    location_name: Optional[str] = None
     # Origin lineage — resolved from source_wo_id → WO → MO → PR/SO (populated by batches endpoints)
     mo_id: Optional[UUID] = None
     mo_code: Optional[str] = None
