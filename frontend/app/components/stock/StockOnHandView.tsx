@@ -462,9 +462,9 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#000' }}>{bal.item_name}</div>
                         <div style={{ fontSize: '10px', color: '#666', fontVariant: 'all-small-caps' }}>{bal.item_code}</div>
                     </td>
-                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px' }}>
+                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', maxWidth: 140 }}>
                         {bal.item_category_name ? (
-                            <span style={{ background: '#e4eef0', border: '1px solid #8fb3bb', padding: '0 5px', fontSize: '10px', color: '#2a464a' }}>
+                            <span title={bal.item_category_name} style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom', background: '#e4eef0', border: '1px solid #8fb3bb', padding: '0 5px', fontSize: '10px', color: '#2a464a' }}>
                                 {bal.item_category_name}
                             </span>
                         ) : (
@@ -483,9 +483,9 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             </span>
                         </div>
                     </td>
-                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px' }}>
+                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', whiteSpace: 'nowrap' }}>
                         {bal.batch_key ? (
-                            <span style={{ background: '#fff8dc', border: '1px solid #c8a000', padding: '0 5px', fontSize: '10px', color: '#5a3c00' }}>
+                            <span style={{ background: '#fff8dc', border: '1px solid #c8a000', padding: '0 5px', fontSize: '10px', color: '#5a3c00', whiteSpace: 'nowrap' }}>
                                 {batchLabel}
                             </span>
                         ) : (
@@ -545,9 +545,9 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                     <div className="fw-medium">{bal.item_name}</div>
                     <small className="text-muted font-monospace">{bal.item_code}</small>
                 </td>
-                <td>
+                <td style={{ maxWidth: 140 }}>
                     {bal.item_category_name ? (
-                        <span className="badge bg-info-subtle text-info-emphasis">{bal.item_category_name}</span>
+                        <span title={bal.item_category_name} className="badge bg-info-subtle text-info-emphasis" style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom' }}>{bal.item_category_name}</span>
                     ) : (
                         <span className="text-muted">—</span>
                     )}
@@ -560,7 +560,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         <span className="badge bg-primary-subtle text-primary-emphasis">{bal.location_name || getLocationName(bal.location_id)}</span>
                     </div>
                 </td>
-                <td>
+                <td style={{ whiteSpace: 'nowrap' }}>
                     {bal.batch_key ? (
                         <span className="badge bg-warning text-dark">{batchLabel}</span>
                     ) : (
