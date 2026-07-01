@@ -356,6 +356,13 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       setNewSO({ ...newSO, lines: newSO.lines.filter((_, i) => i !== index) });
   };
 
+  const handleLineDateChange = (index: number, field: 'due_date' | 'internal_confirmation_date', value: string) => {
+      setNewSO(prev => ({
+          ...prev,
+          lines: prev.lines.map((l: any, i: number) => i === index ? { ...l, [field]: value } : l),
+      }));
+  };
+
   // Edit an already-added line's qty in place (no remove + re-add). Recomputes
   // the same length/weight derivatives Add Line would have produced.
   const handleLineQtyChange = (index: number, ydStr: string) => {
@@ -1331,16 +1338,35 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                    {/* Lines list */}
                    <div>
                        {newSO.lines.map((line: any, idx) => (
-                           <div key={idx} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:classic?'3px 6px':'8px',background:classic?(idx%2===0?'#ffffff':'#f5f3ee'):'white',border:classic?'1px solid #c0bdb5':'1px solid #dee2e6',marginBottom:2,fontFamily:classic?'Tahoma,Arial,sans-serif':undefined,fontSize:classic?'11px':undefined}}>
+                           <div key={idx} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:classic?'3px 6px':'8px',background:classic?(idx%2===0?'#ffffff':'#f5f3ee'):'white',border:classic?'1px solid #c0bdb5':'1px solid #dee2e6',marginBottom:2,fontFamily:classic?'Tahoma,Arial,sans-serif':undefined,fontSize:classic?'11px':undefined,flexWrap:'wrap' as const,gap:classic?4:6}}>
                                <div>
                                    <span style={{fontWeight:'bold'}}>{getItemName(line.item_id, line.item_name)}</span>
                                    <span style={{color:classic?'#555':'',marginLeft:8,fontFamily:classic?'Tahoma,Arial,sans-serif':'',fontSize:classic?'10px':''}} className={classic?'':'text-muted ms-2 font-monospace small'}>{getItemCode(line.item_id, line.item_code)}</span>
                                    {isSample(line.item_id) && <span style={{background:'#fff8dc',border:'1px solid #c8a000',color:'#4a3000',padding:'0 4px',fontSize:'9px',fontFamily:classic?'Tahoma,Arial,sans-serif':'',marginLeft:6}} className={classic?'':'badge bg-warning text-dark ms-2'}>Sample</span>}
-                                   {line.due_date && <span style={{color:classic?'#666':'',marginLeft:8,fontSize:classic?'10px':''}} className={classic?'':'text-muted ms-2 small'}><i className="bi bi-calendar2" style={{marginRight:3}}></i>{new Date(line.due_date).toLocaleDateString()}</span>}
                                    {(line.attribute_value_ids || []).length > 0 && <div style={{color:classic?'#666':'',fontSize:classic?'10px':'',fontStyle:'italic'}} className={classic?'':'small text-muted fst-italic'}>{(line.attribute_value_ids || []).map(getAttributeValueName).join(', ')}</div>}
                                    {line.bom_size_id && <div style={{color:classic?'#005':'',fontSize:classic?'10px':'',fontWeight:'bold'}} className={classic?'':'small text-primary fw-semibold'}><i className="bi bi-rulers me-1"></i>{getBomSizeLabelById(line.bom_size_id)}</div>}
                                </div>
-                               <div style={{display:'flex',alignItems:'center',gap:classic?6:10}}>
+                               <div style={{display:'flex',alignItems:'center',gap:classic?6:10,flexWrap:'wrap' as const}}>
+                                   <div style={{display:'flex',flexDirection:'column',gap:1}}>
+                                       <span style={{color:classic?'#999':'',fontSize:'9px'}} className={classic?'':'text-muted'}>Req</span>
+                                       <input type="date"
+                                           style={classic ? {...xpInput, width:110, height:'20px'} : {width:130}}
+                                           className={classic?'':'form-control form-control-sm'}
+                                           value={line.due_date || ''}
+                                           onChange={e => handleLineDateChange(idx, 'due_date', e.target.value)}
+                                           title="Delivery Request date"
+                                       />
+                                   </div>
+                                   <div style={{display:'flex',flexDirection:'column',gap:1}}>
+                                       <span style={{color:classic?'#999':'',fontSize:'9px'}} className={classic?'':'text-muted'}>Conf</span>
+                                       <input type="date"
+                                           style={classic ? {...xpInput, width:110, height:'20px'} : {width:130}}
+                                           className={classic?'':'form-control form-control-sm'}
+                                           value={line.internal_confirmation_date || ''}
+                                           onChange={e => handleLineDateChange(idx, 'internal_confirmation_date', e.target.value)}
+                                           title="Delivery Confirmation date"
+                                       />
+                                   </div>
                                    <span style={{fontWeight:'bold'}}>×</span>
                                    <input type="number" min="0" step="any"
                                        style={classic ? {...xpInput, width:70, textAlign:'right'} : {width:80,textAlign:'right'}}
