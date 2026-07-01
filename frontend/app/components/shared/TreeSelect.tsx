@@ -451,9 +451,8 @@ export function buildLocationFilterTree(locations: any[]): TreeSelectOption[] {
 }
 
 /**
- * Build tree options for a PICKER dropdown (select a specific leaf location).
- * Warehouses are non-selectable group headers.
- * Zones selectable only if leaf (no bins). Bins always selectable.
+ * Build tree options for a PICKER dropdown (select any location, any level).
+ * Warehouses, zones, and bins are all selectable.
  * value = location UUID
  */
 export function buildLocationPickerTree(locations: any[]): TreeSelectOption[] {
@@ -461,16 +460,17 @@ export function buildLocationPickerTree(locations: any[]): TreeSelectOption[] {
   return warehouses.map((w: any) => {
     const zones = locations.filter((l: any) => l.parent_id === w.id);
     return {
-      value: `__wh_${w.id}`,  // non-selectable, just a key for expand state
+      value: w.id,
       label: w.name,
-      selectable: false,
+      subLabel: w.code,
+      selectable: true,
       children: zones.map((z: any) => {
         const bins = locations.filter((l: any) => l.parent_id === z.id);
         return {
           value: z.id,
           label: z.name,
-          subLabel: bins.length === 0 ? z.code : undefined,
-          selectable: bins.length === 0,  // only leaf zones selectable
+          subLabel: z.code,
+          selectable: true,
           children: bins.length > 0 ? bins.map((b: any) => ({
             value: b.id,
             label: b.name,
