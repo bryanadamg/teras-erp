@@ -641,6 +641,7 @@ class WORequiredMaterial(BaseModel):
     staged: float = 0.0         # already staged to this WO's input location
     shortfall: float = 0.0      # max(0, required - staged)
     lot_tracked: bool = False
+    suggested_batch_id: UUID | None = None   # traced from this MO's BEAMING WO output; still overridable
 
 
 class WOStageLine(BaseModel):

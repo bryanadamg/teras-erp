@@ -35,6 +35,7 @@ interface RequiredMaterial {
     staged: number;
     shortfall: number;
     lot_tracked: boolean;
+    suggested_batch_id: string | null;
 }
 
 interface Props {
@@ -78,7 +79,17 @@ export default function WOStagingModal({ wo, onClose, onStaged }: Props) {
                     return [r.item_id, (list || []).filter((x: any) => (x.remaining ?? 0) > 0)] as const;
                 }));
                 if (!alive) return;
-                setBatchesByItem(Object.fromEntries(entries));
+                const byItem = Object.fromEntries(entries);
+                setBatchesByItem(byItem);
+                // Default-select the traced beam batch when it's still available; still overridable.
+                const defaults: Record<string, string> = {};
+                lotRows.forEach(r => {
+                    const available = (byItem[r.item_id] || []) as any[];
+                    if (r.suggested_batch_id && available.some(b => b.id === r.suggested_batch_id)) {
+                        defaults[r.item_id] = r.suggested_batch_id;
+                    }
+                });
+                if (Object.keys(defaults).length) setBatchByItem(prev => ({ ...defaults, ...prev }));
             } finally {
                 if (alive) setLoading(false);
             }

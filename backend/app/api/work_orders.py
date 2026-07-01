@@ -8,7 +8,10 @@ from app.models.work_order import WorkOrder
 from app.models.manufacturing import ManufacturingOrder
 from app.models.routing import WorkCenter
 from app.models.item import Item
+from app.models.category import Category
 from app.models.location import Location
+from app.models.batch import Batch
+from app.models.manufacturing import MODependency
 from app.models.stock_ledger import StockLedger
 from app.models.stock_balance import StockBalance
 from app.models.dyeing_setting import DyeRecipe, DyeingRun, dye_recipe_attribute_values
@@ -501,18 +504,65 @@ async def _wo_staged_by_item(db: AsyncSession, wo: WorkOrder) -> dict[str, float
     return {str(i): float(s or 0) for i, s in rows.all()}
 
 
-def _wo_step_components(wo: WorkOrder, mo: ManufacturingOrder) -> list:
-    """Planned components allocated to this WO's routing step."""
-    if not wo.bom_operation_id:
+async def _wo_step_components(db: AsyncSession, wo: WorkOrder, mo: ManufacturingOrder) -> list:
+    """Planned components allocated to this WO's routing step.
+
+    A WEAVING-center WO with no bom_operation_id runs the whole MO's beam
+    consumption (no per-step split) — fall back to the MO's beam-category
+    components directly, keyed by work center type rather than a BOM step."""
+    if wo.bom_operation_id:
+        return [
+            c for c in mo.planned_components
+            if c.bom_operation_id and str(c.bom_operation_id) == str(wo.bom_operation_id)
+        ]
+    if not wo.work_center_id or not mo.planned_components:
         return []
-    return [
-        c for c in mo.planned_components
-        if c.bom_operation_id and str(c.bom_operation_id) == str(wo.bom_operation_id)
-    ]
+    wc = (await db.execute(select(WorkCenter).filter(WorkCenter.id == wo.work_center_id))).scalars().first()
+    if not wc or (wc.center_type or "").upper() != "WEAVING":
+        return []
+    item_ids = [c.item_id for c in mo.planned_components]
+    beam_res = await db.execute(
+        select(Item.id).join(Category, Item.category_id == Category.id)
+        .where(Item.id.in_(item_ids), func.lower(Category.name) == "beam")
+    )
+    beam_item_ids = {str(r[0]) for r in beam_res.all()}
+    return [c for c in mo.planned_components if str(c.item_id) in beam_item_ids]
+
+
+async def _suggest_beam_batch(db: AsyncSession, mo: ManufacturingOrder, item_id, src_location_id) -> uuid.UUID | None:
+    """Trace this MO's (and any shared-component dependency MO's) BEAMING WOs to
+    find an unconsumed beam batch to pre-select in the staging picker."""
+    dep_res = await db.execute(select(MODependency.required_mo_id).where(MODependency.dependent_mo_id == mo.id))
+    mo_ids = [mo.id] + [r[0] for r in dep_res.all()]
+    beaming_wo_res = await db.execute(
+        select(WorkOrder.id).join(WorkCenter, WorkOrder.work_center_id == WorkCenter.id)
+        .where(WorkOrder.manufacturing_order_id.in_(mo_ids), func.upper(WorkCenter.center_type) == "BEAMING")
+    )
+    beaming_wo_ids = [r[0] for r in beaming_wo_res.all()]
+    if not beaming_wo_ids:
+        return None
+    batch_res = await db.execute(
+        select(Batch).where(Batch.item_id == item_id, Batch.source_wo_id.in_(beaming_wo_ids))
+        .order_by(Batch.created_at.asc())
+    )
+    candidates = batch_res.scalars().all()
+    if not candidates:
+        return None
+    bal_q = select(StockBalance.batch_key, func.sum(StockBalance.qty)).filter(
+        StockBalance.batch_key.in_([str(b.id) for b in candidates])
+    )
+    if src_location_id:
+        bal_q = bal_q.filter(StockBalance.location_id == src_location_id)
+    bal_q = bal_q.group_by(StockBalance.batch_key)
+    remaining = {k: float(v or 0) for k, v in (await db.execute(bal_q)).all()}
+    for b in candidates:
+        if remaining.get(str(b.id), 0.0) > 0:
+            return b.id
+    return None
 
 
 async def _wo_required_rows(db: AsyncSession, wo: WorkOrder, mo: ManufacturingOrder) -> list[WORequiredMaterial]:
-    comps = _wo_step_components(wo, mo)
+    comps = await _wo_step_components(db, wo, mo)
     if not comps:
         return []
     staged_by_item = await _wo_staged_by_item(db, wo)
@@ -561,6 +611,7 @@ async def _wo_required_rows(db: AsyncSession, wo: WorkOrder, mo: ManufacturingOr
                 )
             )
             batch_required = (bcount.scalar() or 0) > 0
+        suggested_batch_id = await _suggest_beam_batch(db, mo, c.item_id, src) if batch_required else None
         rows.append(WORequiredMaterial(
             item_id=c.item_id,
             item_code=it.code if it else None,
@@ -573,6 +624,7 @@ async def _wo_required_rows(db: AsyncSession, wo: WorkOrder, mo: ManufacturingOr
             staged=staged,
             shortfall=max(0.0, req - staged),
             lot_tracked=batch_required,
+            suggested_batch_id=suggested_batch_id,
         ))
     return rows
 

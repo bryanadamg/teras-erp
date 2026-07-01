@@ -153,7 +153,9 @@ export default function WorkOrderPanel({
     };
 
     const handleAdd = async () => {
-        if (bomOperations.length > 0 && !form.bom_operation_id) {
+        const selectedWC = workCenters.find((w: any) => String(w.id) === String(form.work_center_id));
+        const isWeaving = (selectedWC?.center_type || '').toUpperCase() === 'WEAVING';
+        if (bomOperations.length > 0 && !form.bom_operation_id && !isWeaving) {
             showToast('Select the routing step this work order runs.', 'danger');
             return;
         }
