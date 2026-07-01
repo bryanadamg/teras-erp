@@ -528,23 +528,23 @@ async def _wo_step_components(db: AsyncSession, wo: WorkOrder, mo: Manufacturing
     return [c for c in mo.planned_components if str(c.item_id) in beam_item_ids]
 
 
-async def _suggest_beam_batch(db: AsyncSession, mo: ManufacturingOrder, item_id, src_location_id) -> uuid.UUID | None:
+async def _suggest_beam_batch(db: AsyncSession, mo: ManufacturingOrder, item_id) -> uuid.UUID | None:
     """Beam is generic plant-level stock, not pegged to a producing MO (no
     MODependency link between a WEAVING MO and the BEAMING MOs that made its
-    beam — see plant-level netting). Suggest the oldest unconsumed batch of
-    this item, FIFO, still fully overridable in the staging picker."""
+    beam — see plant-level netting) and not pinned to a fixed location either.
+    Suggest the oldest unconsumed batch of this item anywhere in the plant,
+    FIFO, still fully overridable in the staging picker."""
     batch_res = await db.execute(
         select(Batch).where(Batch.item_id == item_id).order_by(Batch.created_at.asc())
     )
     candidates = batch_res.scalars().all()
     if not candidates:
         return None
-    bal_q = select(StockBalance.batch_key, func.sum(StockBalance.qty)).filter(
-        StockBalance.batch_key.in_([str(b.id) for b in candidates])
+    bal_q = (
+        select(StockBalance.batch_key, func.sum(StockBalance.qty))
+        .filter(StockBalance.batch_key.in_([str(b.id) for b in candidates]))
+        .group_by(StockBalance.batch_key)
     )
-    if src_location_id:
-        bal_q = bal_q.filter(StockBalance.location_id == src_location_id)
-    bal_q = bal_q.group_by(StockBalance.batch_key)
     remaining = {k: float(v or 0) for k, v in (await db.execute(bal_q)).all()}
     for b in candidates:
         if remaining.get(str(b.id), 0.0) > 0:
@@ -592,17 +592,35 @@ async def _wo_required_rows(db: AsyncSession, wo: WorkOrder, mo: ManufacturingOr
         # batch stock at the source (e.g. a beam — batch-tracked but lot_tracked=false).
         # Staging such an item without a batch would corrupt the batch_key="" balance.
         batch_required = bool(it and it.lot_tracked)
-        if not batch_required and src:
+        if not batch_required:
+            # Plant-wide check — a batch-tracked item (e.g. beam) may physically sit
+            # somewhere other than the resolved default source (see _suggest_beam_batch).
             bcount = await db.execute(
                 select(func.count()).select_from(StockBalance).where(
                     StockBalance.item_id == c.item_id,
-                    StockBalance.location_id == src,
                     StockBalance.batch_key != "",
                     StockBalance.qty > 0,
                 )
             )
             batch_required = (bcount.scalar() or 0) > 0
-        suggested_batch_id = await _suggest_beam_batch(db, mo, c.item_id, src) if batch_required else None
+        suggested_batch_id = await _suggest_beam_batch(db, mo, c.item_id) if batch_required else None
+        # A batch-tracked material's real source is wherever its batch sits, not the
+        # BOM/item default — once we have a suggestion, prefer its actual location.
+        if suggested_batch_id:
+            sb_res = await db.execute(
+                select(StockBalance.location_id).where(
+                    StockBalance.batch_key == str(suggested_batch_id), StockBalance.qty > 0
+                ).limit(1)
+            )
+            sb_loc = sb_res.scalar()
+            if sb_loc:
+                src = sb_loc
+                on_hand = await stock_service.get_stock_balance(db, c.item_id, src, attrs)
+                if str(src) not in loc_names:
+                    name_res = await db.execute(select(Location.name, Location.code).where(Location.id == src))
+                    row = name_res.first()
+                    if row:
+                        loc_names[str(src)] = row[0] or row[1] or ""
         rows.append(WORequiredMaterial(
             item_id=c.item_id,
             item_code=it.code if it else None,
@@ -659,6 +677,7 @@ async def stage_wo_materials(
         raise HTTPException(status_code=422, detail="This WO has no materials to stage (no step assigned, or step has no materials)")
 
     staged_any = False
+    moved_so_far: dict[str, float] = {}  # per item, across this request's lines — multiple batches can share an item
     for line in payload.lines:
         qty = float(line.qty or 0)
         if qty <= 0:
@@ -666,11 +685,14 @@ async def stage_wo_materials(
         rr = req_by_item.get(str(line.item_id))
         if not rr:
             raise HTTPException(status_code=400, detail=f"Item {line.item_id} is not a material of this WO's step")
-        # Cap top-up at the remaining shortfall so re-staging can't double-count.
-        remaining = max(0.0, rr.required_qty - rr.staged)
+        # Cap top-up at the remaining shortfall so re-staging (or multiple batch
+        # lines for the same item) can't double-count.
+        already_moved = moved_so_far.get(str(line.item_id), 0.0)
+        remaining = max(0.0, rr.required_qty - rr.staged - already_moved)
         if remaining <= 0:
             continue
         move_qty = min(qty, remaining)
+        moved_so_far[str(line.item_id)] = already_moved + move_qty
         src = line.source_location_id or rr.source_location_id
         if not src:
             raise HTTPException(status_code=422, detail=f"No source location for {rr.item_code or line.item_id}")

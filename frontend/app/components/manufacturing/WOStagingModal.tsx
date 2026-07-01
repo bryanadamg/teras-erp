@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../shared/Toast';
 import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
+import ModalWrapper from '../shared/ModalWrapper';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -53,7 +53,7 @@ export default function WOStagingModal({ wo, onClose, onStaged }: Props) {
     const [rows, setRows] = useState<RequiredMaterial[]>([]);
     const [qtyToStage, setQtyToStage] = useState<Record<string, string>>({});
     const [sourceByItem, setSourceByItem] = useState<Record<string, string>>({});
-    const [batchByItem, setBatchByItem] = useState<Record<string, string>>({});
+    const [batchByItem, setBatchByItem] = useState<Record<string, string[]>>({});
     const [batchesByItem, setBatchesByItem] = useState<Record<string, any[]>>({});
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -82,11 +82,11 @@ export default function WOStagingModal({ wo, onClose, onStaged }: Props) {
                 const byItem = Object.fromEntries(entries);
                 setBatchesByItem(byItem);
                 // Default-select the traced beam batch when it's still available; still overridable.
-                const defaults: Record<string, string> = {};
+                const defaults: Record<string, string[]> = {};
                 lotRows.forEach(r => {
                     const available = (byItem[r.item_id] || []) as any[];
                     if (r.suggested_batch_id && available.some(b => b.id === r.suggested_batch_id)) {
-                        defaults[r.item_id] = r.suggested_batch_id;
+                        defaults[r.item_id] = [r.suggested_batch_id];
                     }
                 });
                 if (Object.keys(defaults).length) setBatchByItem(prev => ({ ...defaults, ...prev }));
@@ -97,28 +97,50 @@ export default function WOStagingModal({ wo, onClose, onStaged }: Props) {
         return () => { alive = false; };
     }, [wo.id]);
 
+    // Sum of remaining qty across the beams/lots selected for this item.
+    const selectedLotQty = (itemId: string) => {
+        const selected = new Set(batchByItem[itemId] || []);
+        return (batchesByItem[itemId] || [])
+            .filter((b: any) => selected.has(b.id))
+            .reduce((sum: number, b: any) => sum + (b.remaining ?? 0), 0);
+    };
+
     const submit = async () => {
-        const lines = rows
+        const lotLines = rows
+            .filter(r => r.lot_tracked)
+            .flatMap(r => {
+                const selected = new Set(batchByItem[r.item_id] || []);
+                return (batchesByItem[r.item_id] || [])
+                    .filter((b: any) => selected.has(b.id))
+                    .map((b: any) => ({
+                        item_id: r.item_id,
+                        qty: b.remaining ?? 0,
+                        source_location_id: r.source_location_id || sourceByItem[r.item_id] || null,
+                        batch_id: b.id,
+                        attribute_value_ids: r.attribute_value_ids || [],
+                    }));
+            });
+        const plainLines = rows
+            .filter(r => !r.lot_tracked)
             .map(r => ({ r, qty: parseFloat(qtyToStage[r.item_id] || '0') }))
             .filter(({ qty }) => qty > 0)
             .map(({ r, qty }) => ({
                 item_id: r.item_id,
                 qty,
                 source_location_id: r.source_location_id || sourceByItem[r.item_id] || null,
-                batch_id: batchByItem[r.item_id] || null,
+                batch_id: null,
                 attribute_value_ids: r.attribute_value_ids || [],
             }));
-        if (!lines.length) { showToast('Enter a quantity to stage.', 'danger'); return; }
+        const lines = [...lotLines, ...plainLines];
+        if (!lines.length) { showToast('Select beams/lots or enter a quantity to stage.', 'danger'); return; }
         const missingSrc = lines.find(l => !l.source_location_id);
         if (missingSrc) {
             const r = rows.find(x => x.item_id === missingSrc.item_id);
             showToast(`Pick a source location for ${r?.item_code || r?.item_name}.`, 'danger'); return;
         }
-        // lot-tracked rows being staged must have a lot selected
-        const missingLot = rows.find(r =>
-            r.lot_tracked && parseFloat(qtyToStage[r.item_id] || '0') > 0 && !batchByItem[r.item_id]
-        );
-        if (missingLot) { showToast(`Select a lot for ${missingLot.item_code || missingLot.item_name}.`, 'danger'); return; }
+        // lot-tracked rows with a shortfall must have at least one beam/lot selected
+        const missingLot = rows.find(r => r.lot_tracked && r.shortfall > 0 && !(batchByItem[r.item_id] || []).length);
+        if (missingLot) { showToast(`Select a beam/lot for ${missingLot.item_code || missingLot.item_name}.`, 'danger'); return; }
 
         setSubmitting(true);
         try {
@@ -141,29 +163,27 @@ export default function WOStagingModal({ wo, onClose, onStaged }: Props) {
         }
     };
 
-    return createPortal(
-        <div style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 4000,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }} onClick={onClose}>
-            <div style={{
-                background: '#ece9d8', border: '2px solid #0a246a', width: 720, maxWidth: '95vw',
-                maxHeight: '90vh', display: 'flex', flexDirection: 'column', fontFamily: xpFont,
-            }} onClick={e => e.stopPropagation()}>
-                <div style={{
-                    background: 'linear-gradient(to right, #0a246a, #3a6ea5)', color: 'white',
-                    padding: '4px 8px', fontSize: 12, fontWeight: 'bold',
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                }}>
-                    <span>Stage Materials — {wo.code || wo.name}</span>
-                    <span style={{ cursor: 'pointer', padding: '0 4px' }} onClick={onClose}>x</span>
+    return (
+        <ModalWrapper
+            isOpen
+            onClose={onClose}
+            title={`Stage Materials — ${wo.code || wo.name}`}
+            modeless
+            size="xl"
+            footer={
+                <>
+                    <button style={xpBtn(false)} onClick={onClose} disabled={submitting}>Cancel</button>
+                    <button style={xpBtn(true)} onClick={submit} disabled={submitting || loading || rows.length === 0}>
+                        {submitting ? 'Staging...' : 'Stage Materials'}
+                    </button>
+                </>
+            }
+        >
+            <div style={{ fontFamily: xpFont, fontSize: 11 }}>
+                <div style={{ fontSize: 10, color: '#555', marginBottom: 8 }}>
+                    Moves each material from its source store into this work order&apos;s input location
+                    (<b>{wo.input_location?.code || wo.input_location_id || 'no input location'}</b>).
                 </div>
-
-                <div style={{ padding: 10, overflowY: 'auto', fontSize: 11 }}>
-                    <div style={{ fontSize: 10, color: '#555', marginBottom: 8 }}>
-                        Moves each material from its source store into this work order&apos;s input location
-                        ({wo.input_location?.code || wo.input_location_id || 'no input location'}).
-                    </div>
 
                     {loading ? (
                         <div style={{ color: '#888', padding: 12 }}>Loading required materials...</div>
@@ -187,7 +207,8 @@ export default function WOStagingModal({ wo, onClose, onStaged }: Props) {
                                 </thead>
                                 <tbody>
                                     {rows.map(r => {
-                                        const short = r.on_hand + 1e-9 < parseFloat(qtyToStage[r.item_id] || '0');
+                                        const stageQty = r.lot_tracked ? selectedLotQty(r.item_id) : parseFloat(qtyToStage[r.item_id] || '0');
+                                        const short = r.on_hand + 1e-9 < stageQty;
                                         return (
                                             <tr key={r.item_id} style={{ borderBottom: '1px solid #cfccc4' }}>
                                                 <td style={{ padding: '3px 5px' }}>
@@ -212,27 +233,49 @@ export default function WOStagingModal({ wo, onClose, onStaged }: Props) {
                                                 </td>
                                                 <td style={{ padding: '3px 5px', textAlign: 'right' }}>{r.staged.toFixed(2)}</td>
                                                 <td style={{ padding: '3px 5px', textAlign: 'right' }}>
-                                                    <input
-                                                        type="number" min="0" step="any"
-                                                        style={{ ...xpInput, width: 70, textAlign: 'right' }}
-                                                        value={qtyToStage[r.item_id] || ''}
-                                                        onChange={e => setQtyToStage(p => ({ ...p, [r.item_id]: e.target.value }))}
-                                                    />
+                                                    {r.lot_tracked ? (
+                                                        <span style={{ fontWeight: 'bold' }}>{stageQty.toFixed(2)}</span>
+                                                    ) : (
+                                                        <input
+                                                            type="number" min="0" step="any"
+                                                            style={{ ...xpInput, width: 70, textAlign: 'right' }}
+                                                            value={qtyToStage[r.item_id] || ''}
+                                                            onChange={e => setQtyToStage(p => ({ ...p, [r.item_id]: e.target.value }))}
+                                                        />
+                                                    )}
                                                 </td>
                                                 <td style={{ padding: '3px 5px' }}>
                                                     {r.lot_tracked ? (
-                                                        <select
-                                                            style={{ ...xpInput, minWidth: 110 }}
-                                                            value={batchByItem[r.item_id] || ''}
-                                                            onChange={e => setBatchByItem(p => ({ ...p, [r.item_id]: e.target.value }))}
-                                                        >
-                                                            <option value="">— Lot —</option>
-                                                            {(batchesByItem[r.item_id] || []).map((b: any) => (
-                                                                <option key={b.id} value={b.id}>
-                                                                    {b.batch_number} ({(b.remaining ?? 0).toFixed(1)})
-                                                                </option>
-                                                            ))}
-                                                        </select>
+                                                        <div style={{
+                                                            border: '1px solid #7f9db9', background: 'white',
+                                                            maxHeight: 220, overflowY: 'auto', minWidth: 150,
+                                                        }}>
+                                                            {(batchesByItem[r.item_id] || []).length === 0 ? (
+                                                                <div style={{ color: '#aaa', padding: '2px 4px' }}>— no beams/lots available —</div>
+                                                            ) : (batchesByItem[r.item_id] || []).map((b: any) => {
+                                                                const checked = (batchByItem[r.item_id] || []).includes(b.id);
+                                                                return (
+                                                                    <label key={b.id} style={{
+                                                                        display: 'flex', alignItems: 'center', gap: 4,
+                                                                        padding: '1px 4px', cursor: 'pointer',
+                                                                        background: checked ? '#e6f0ff' : 'transparent',
+                                                                    }}>
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={checked}
+                                                                            onChange={e => setBatchByItem(p => {
+                                                                                const cur = p[r.item_id] || [];
+                                                                                const next = e.target.checked
+                                                                                    ? [...cur, b.id]
+                                                                                    : cur.filter(id => id !== b.id);
+                                                                                return { ...p, [r.item_id]: next };
+                                                                            })}
+                                                                        />
+                                                                        {b.batch_number} ({(b.remaining ?? 0).toFixed(1)})
+                                                                    </label>
+                                                                );
+                                                            })}
+                                                        </div>
                                                     ) : <span style={{ color: '#bbb' }}>—</span>}
                                                 </td>
                                             </tr>
@@ -242,19 +285,7 @@ export default function WOStagingModal({ wo, onClose, onStaged }: Props) {
                             </table>
                         </div>
                     )}
-                </div>
-
-                <div style={{
-                    borderTop: '1px solid #aca899', padding: '6px 10px',
-                    display: 'flex', justifyContent: 'flex-end', gap: 6,
-                }}>
-                    <button style={xpBtn(false)} onClick={onClose} disabled={submitting}>Cancel</button>
-                    <button style={xpBtn(true)} onClick={submit} disabled={submitting || loading || rows.length === 0}>
-                        {submitting ? 'Staging...' : 'Stage Materials'}
-                    </button>
-                </div>
             </div>
-        </div>,
-        document.body
+        </ModalWrapper>
     );
 }
