@@ -181,6 +181,9 @@ SYSTEM_WAREHOUSES = [
     {"code": "FG",       "name": "Finished Goods Store",  "system_code": "FG"},
     {"code": "QC",       "name": "Quarantine",            "system_code": "QC"},
     {"code": "DISPATCH", "name": "Dispatch Staging",      "system_code": "DISPATCH"},
+    {"code": "SPARE",    "name": "Spare Parts Store",     "system_code": "SPARE"},
+    {"code": "GREIGE",   "name": "Greige Store",          "system_code": "GREIGE"},
+    {"code": "MIX",      "name": "Mix Store",             "system_code": "MIX"},
 ]
 
 
