@@ -2015,12 +2015,13 @@ export default function ManufacturingView({
                                                   default: { background: 'linear-gradient(to bottom,#fff,#d4d0c8)', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000' },
                                               };
                                               return (
-                                                  <button key={label} onClick={onClick} title={title} style={{
+                                                  <button key={label || title} onClick={onClick} title={title} style={{
                                                       fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px',
                                                       padding: '2px 7px', cursor: 'pointer', border: '1px solid',
+                                                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                       ...schemes[colorScheme],
                                                   }}>
-                                                      {iconCls && <i className={`${iconCls} me-1`}></i>}{label}
+                                                      {iconCls && <i className={label ? `${iconCls} me-1` : iconCls}></i>}{label}
                                                   </button>
                                               );
                                           };
@@ -2085,9 +2086,19 @@ export default function ManufacturingView({
                                                   </td>
 
                                                   {/* Qty */}
-                                                  <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold', color: '#000' }}
-                                                      className={currentStyle !== 'classic' ? 'text-center fw-bold' : ''}>
-                                                      {wo.qty}
+                                                  <td style={{ ...tdStyle, fontWeight: 'bold', color: '#000', fontFamily: 'monospace' }}
+                                                      className={currentStyle !== 'classic' ? 'fw-bold' : ''}>
+                                                      {(() => {
+                                                          const qtyStr = typeof wo.qty === 'number' ? wo.qty.toLocaleString('en-US', { maximumFractionDigits: 2 }) : String(wo.qty);
+                                                          const [intPart, decPart] = qtyStr.split('.');
+                                                          return (
+                                                              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                                                                  <span style={{ minWidth: '48px', textAlign: 'right' }}>{intPart}</span>
+                                                                  <span style={{ width: '7px', textAlign: 'left' }}>{decPart ? '.' : ''}</span>
+                                                                  <span style={{ minWidth: '20px', textAlign: 'left' }}>{decPart || ''}</span>
+                                                              </div>
+                                                          );
+                                                      })()}
                                                   </td>
 
                                                   {/* Target Timeline */}
@@ -2130,14 +2141,20 @@ export default function ManufacturingView({
                                                       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
                                                           {currentStyle === 'classic' ? (
                                                               <>
-                                                                  {xpBtn('Print', 'default', () => handlePrintWO(wo), 'Print Manufacturing Order', 'bi bi-printer')}
-                                                                  {wo.status === 'PENDING' && !isBlocked && xpBtn('Start',  'primary', () => onUpdateStatus(wo.id, 'IN_PROGRESS'))}
-                                                                  {xpBtn('Del', 'danger', () => onDeleteMO(wo.id), 'Delete', 'bi bi-trash')}
+                                                                  <span style={{ width: '48px', display: 'inline-flex' }}>
+                                                                      {wo.status === 'PENDING' && !isBlocked && xpBtn('Start',  'primary', () => onUpdateStatus(wo.id, 'IN_PROGRESS'))}
+                                                                  </span>
+                                                                  <span style={{ width: '26px', display: 'inline-flex' }}>
+                                                                      {xpBtn('', 'default', () => handlePrintWO(wo), 'Print Manufacturing Order', 'bi bi-printer')}
+                                                                  </span>
+                                                                  <span style={{ width: '26px', display: 'inline-flex' }}>
+                                                                      {xpBtn('', 'danger', () => onDeleteMO(wo.id), 'Delete', 'bi bi-trash')}
+                                                                  </span>
                                                               </>
                                                           ) : (
                                                               <>
-                                                                  <button className="btn btn-sm btn-link text-primary p-0" onClick={() => handlePrintWO(wo)} title="Print Manufacturing Order"><i className="bi bi-printer fs-5"></i></button>
                                                                   {wo.status === 'PENDING' && !isBlocked && <button className="btn btn-sm btn-primary py-0 px-2" style={{fontSize: '0.75rem'}} onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>START</button>}
+                                                                  <button className="btn btn-sm btn-link text-primary p-0" onClick={() => handlePrintWO(wo)} title="Print Manufacturing Order"><i className="bi bi-printer fs-5"></i></button>
                                                                   <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDeleteMO(wo.id)} title="Delete"><i className="bi bi-trash fs-5"></i></button>
                                                               </>
                                                           )}
