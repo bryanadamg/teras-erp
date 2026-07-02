@@ -2,12 +2,13 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { useTheme } from '../../context/ThemeContext';
 
 import { useToast } from '../shared/Toast';
-import WOCompletionModal from './WOCompletionModal';
-import WOStepPrintModal from './WOStepPrintModal';
-import WOBulkPrintModal from './WOBulkPrintModal';
+const WOCompletionModal = dynamic(() => import('./WOCompletionModal'), { ssr: false });
+const WOStepPrintModal = dynamic(() => import('./WOStepPrintModal'), { ssr: false });
+const WOBulkPrintModal = dynamic(() => import('./WOBulkPrintModal'), { ssr: false });
 import { getChipStyle } from './WorkOrderPanel';
 import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';

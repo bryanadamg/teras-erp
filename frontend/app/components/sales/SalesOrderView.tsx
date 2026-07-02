@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import CodeConfigModal, { CodeConfig, buildCodeWithCounter } from '../shared/CodeConfigModal';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
-import SalesPrintModal from './SalesPrintModal';
-import SOTablePrintModal from './SOTablePrintModal';
+const SalesPrintModal = dynamic(() => import('./SalesPrintModal'), { ssr: false });
+const SOTablePrintModal = dynamic(() => import('./SOTablePrintModal'), { ssr: false });
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useSortable, SortMark, StatusChip, statusTint, XPLoading } from '../shared/xpTheme';

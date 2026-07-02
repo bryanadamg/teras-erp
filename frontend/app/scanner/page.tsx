@@ -1,13 +1,17 @@
 'use client';
 
-import QRScannerView from '../components/shared/QRScannerView';
-import MobileScannerView from '../components/mobile/ScannerView';
+import dynamic from 'next/dynamic';
 import { useData } from '../context/DataContext';
 import { useRouter } from 'next/navigation';
 import { useToast } from '../components/shared/Toast';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useEffect, useState, useCallback } from 'react';
 import { XPLoading } from '../components/shared/xpTheme';
+
+// Both wrap html5-qrcode (camera access); only one renders per session
+// (isMobile), so load only the one actually needed instead of bundling both.
+const QRScannerView = dynamic(() => import('../components/shared/QRScannerView'), { ssr: false });
+const MobileScannerView = dynamic(() => import('../components/mobile/ScannerView'), { ssr: false });
 
 export default function ScannerPage() {
     const { items, boms, locations, attributes, stockBalance, workCenters, fetchData, authFetch } = useData() as any;

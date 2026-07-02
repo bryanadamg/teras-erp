@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useMemo } from 'react';
-import WOStepPrintModal from './WOStepPrintModal';
+import dynamic from 'next/dynamic';
+const WOStepPrintModal = dynamic(() => import('./WOStepPrintModal'), { ssr: false });
 import WOStagingModal from './WOStagingModal';
 import BeamPlanningModal from './BeamPlanningModal';
 import { useToast } from '../shared/Toast';

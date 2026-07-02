@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { useTheme } from '../../context/ThemeContext';
 import { createPortal } from 'react-dom';
 import BOMDesigner from './BOMDesigner';
-import BOMPrintModal from './BOMPrintModal';
+const BOMPrintModal = dynamic(() => import('./BOMPrintModal'), { ssr: false });
 import ProductionRunModal from '../manufacturing/ProductionRunModal';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';

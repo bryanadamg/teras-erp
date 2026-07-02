@@ -1,20 +1,20 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import dynamic from 'next/dynamic';
 import CodeConfigModal, { CodeConfig, buildCodeParts } from '../shared/CodeConfigModal';
 import CalendarView from '../shared/CalendarView';
 import SearchableSelect from '../shared/SearchableSelect';
-import QRScannerView from '../shared/QRScannerView';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import PrintHeader from '../shared/PrintHeader';
-import WOPrintModal, { PrintSettings } from './WOPrintModal';
+import type { PrintSettings } from './WOPrintModal';
+const WOPrintModal = dynamic(() => import('./WOPrintModal'), { ssr: false });
 import ProductionRunModal from './ProductionRunModal';
 import WorkOrderPanel from './WorkOrderPanel';
-import WOCompletionModal from './WOCompletionModal';
+const WOCompletionModal = dynamic(() => import('./WOCompletionModal'), { ssr: false });
 import MOCreationPreview from './MOCreationPreview';
 import { STATUS_COLORS, statusChipStyle, xpFont, xpInput, xpLabel } from '../shared/xpTheme';
 
@@ -742,28 +742,35 @@ export default function ManufacturingView({
       const readerId = `reader-${rootWoId}`;
 
       useEffect(() => {
+          let cancelled = false;
           const timer = setTimeout(() => {
               if (!document.getElementById(readerId)) return;
-              const scanner = new Html5QrcodeScanner(readerId, { fps: 10, qrbox: { width: 180, height: 180 } }, false);
-              scannerRef2.current = scanner;
-              scanner.render((code: string) => {
-                  const found = findNodeByCode(code);
-                  if (found) {
-                      scanner.clear().catch(() => {});
-                      onClose();
-                      if (found.status === 'PENDING') {
-                          onUpdateStatus(found.id, 'IN_PROGRESS');
-                      } else if (found.status === 'IN_PROGRESS') {
-                          setCompletionMO(found);
+              // html5-qrcode is only needed while this widget is mounted — load it
+              // on demand instead of paying its parse cost on every MO page visit.
+              import('html5-qrcode').then(({ Html5QrcodeScanner }) => {
+                  if (cancelled || !document.getElementById(readerId)) return;
+                  const scanner = new Html5QrcodeScanner(readerId, { fps: 10, qrbox: { width: 180, height: 180 } }, false);
+                  scannerRef2.current = scanner;
+                  scanner.render((code: string) => {
+                      const found = findNodeByCode(code);
+                      if (found) {
+                          scanner.clear().catch(() => {});
+                          onClose();
+                          if (found.status === 'PENDING') {
+                              onUpdateStatus(found.id, 'IN_PROGRESS');
+                          } else if (found.status === 'IN_PROGRESS') {
+                              setCompletionMO(found);
+                          } else {
+                              showToast(`MO "${code}" is already ${found.status}`, 'warning');
+                          }
                       } else {
-                          showToast(`MO "${code}" is already ${found.status}`, 'warning');
+                          showToast(`MO "${code}" not found`, 'danger');
                       }
-                  } else {
-                      showToast(`MO "${code}" not found`, 'danger');
-                  }
-              }, () => {});
+                  }, () => {});
+              });
           }, 100);
           return () => {
+              cancelled = true;
               clearTimeout(timer);
               scannerRef2.current?.clear().catch(() => {});
           };
