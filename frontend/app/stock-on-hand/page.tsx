@@ -5,7 +5,7 @@ import StockOnHandView from '../components/stock/StockOnHandView';
 import { useData } from '../context/DataContext';
 
 export default function StockOnHandPage() {
-    const { items, locations, stockBalance, attributes, categories, fetchData, authFetch } = useData();
+    const { items, locations, stockBalance, attributes, categories, fetchData, authFetch, loading } = useData();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
@@ -38,6 +38,7 @@ export default function StockOnHandPage() {
             onRefresh={fetchData}
             authFetch={authFetch}
             apiBase={API_BASE}
+            loading={loading.stockBalance}
         />
     );
 }

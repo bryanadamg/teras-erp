@@ -8,12 +8,12 @@ import PurchaseOrderPrintModal from './PurchaseOrderPrintModal';
 import ModalWrapper from '../shared/ModalWrapper';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { useSortable, SortMark, StatusChip } from '../shared/xpTheme';
+import { useSortable, SortMark, StatusChip, XPLoading } from '../shared/xpTheme';
 
 export default function PurchaseOrderView({ items, attributes, purchaseOrders, partners, locations, onCreatePO, onEditPO, onDeletePO, onCreateReceipt, onClosePO, companyProfile }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
-  const { itemIndex } = useData();
+  const { itemIndex, loading: dataLoading } = useData();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingPOId, setEditingPOId] = useState<string | null>(null);
   const [printingPO, setPrintingPO] = useState<any>(null);
@@ -1095,9 +1095,11 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                        style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'center', padding: '24px 8px', color: '#888', fontStyle: 'italic' } : undefined}
                                        className={classic ? '' : 'text-center py-5 text-muted'}
                                    >
-                                       {searchTerm || statusFilter !== 'ALL'
-                                           ? 'No orders match the current filter.'
-                                           : 'No Purchase Orders found. Create one to get started.'}
+                                       {dataLoading.purchaseOrders ? <XPLoading label="Loading purchase orders..." /> : (
+                                           searchTerm || statusFilter !== 'ALL'
+                                               ? 'No orders match the current filter.'
+                                               : 'No Purchase Orders found. Create one to get started.'
+                                       )}
                                    </td>
                                </tr>
                            )}

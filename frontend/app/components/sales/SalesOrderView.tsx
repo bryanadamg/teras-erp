@@ -8,7 +8,7 @@ import SalesPrintModal from './SalesPrintModal';
 import SOTablePrintModal from './SOTablePrintModal';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { useSortable, SortMark, StatusChip, statusTint } from '../shared/xpTheme';
+import { useSortable, SortMark, StatusChip, statusTint, XPLoading } from '../shared/xpTheme';
 import { useRouter } from 'next/navigation';
 
 export default function SalesOrderView({ items, attributes, boms, salesOrders, partners, onCreateSO, onDeleteSO, onEditSO, onUpdateSOStatus, onGenerateWO, productionRuns }: any) {
@@ -22,7 +22,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const [customerSearch, setCustomerSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const { uiStyle: currentStyle } = useTheme();
-  const { companyProfile, uoms, authFetch, itemIndex } = useData();
+  const { companyProfile, uoms, authFetch, itemIndex, loading: dataLoading } = useData();
 
   // Lineage (SO → PR → MO → WO → beam) trace modal
   const router = useRouter();
@@ -1740,9 +1740,11 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                        style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'center', padding: '24px 8px', color: '#888', fontStyle: 'italic' } : undefined}
                                        className={classic ? '' : 'text-center py-5 text-muted'}
                                    >
-                                       {searchTerm || customerSearch || statusFilter !== 'ALL'
-                                           ? 'No orders match the current filter.'
-                                           : 'No Sales Orders found. Create one to get started.'}
+                                       {dataLoading.salesOrders ? <XPLoading label="Loading sales orders..." /> : (
+                                           searchTerm || customerSearch || statusFilter !== 'ALL'
+                                               ? 'No orders match the current filter.'
+                                               : 'No Sales Orders found. Create one to get started.'
+                                       )}
                                    </td>
                                </tr>
                            )}

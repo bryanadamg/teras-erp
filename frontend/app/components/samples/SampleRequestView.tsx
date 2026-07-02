@@ -10,7 +10,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 import SamplePrintModal from './SamplePrintModal';
-import { StatusChip } from '../shared/xpTheme';
+import { StatusChip, XPLoading } from '../shared/xpTheme';
 
 export default function SampleRequestView({ samples, customers, onCreateSample, onEditSample, onUpdateStatus, onUpdateColorStatus, onDeleteSample, onMarkRead, onMarkUnread, onMarkAllRead }: any) {
   const { showToast } = useToast();
@@ -26,7 +26,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       });
       if (ok) onUpdateColorStatus(sampleId, colorId, 'APPROVED');
   };
-  const { companyProfile, attributes } = useData();
+  const { companyProfile, attributes, loading: dataLoading } = useData();
   const colorOptions = useMemo(() => {
     const attr = (attributes as any[]).find((a: any) => a.system_role === 'color');
     return (attr?.values ?? []).map((v: any) => ({ value: v.value, label: v.value }));
@@ -1954,9 +1954,11 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                        style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'center', padding: '24px 8px', color: '#555', fontStyle: 'italic' } : undefined}
                                        className={classic ? '' : 'text-center py-5 text-muted'}
                                    >
-                                       {searchTerm || statusFilter !== 'ALL'
-                                           ? 'No requests match the current filter.'
-                                           : 'No sample requests found. Create one to get started.'}
+                                       {dataLoading.samples ? <XPLoading label="Loading sample requests..." /> : (
+                                           searchTerm || statusFilter !== 'ALL'
+                                               ? 'No requests match the current filter.'
+                                               : 'No sample requests found. Create one to get started.'
+                                       )}
                                    </td>
                                </tr>
                            )}

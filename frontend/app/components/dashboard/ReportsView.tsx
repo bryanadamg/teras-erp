@@ -456,7 +456,7 @@ export default function ReportsView(_props: any) {
 
             <div className="card-body p-0">
                 {loading ? (
-                    <div className="text-center py-5 text-muted"><div className="spinner-border spinner-border-sm me-2" />Loading ledger...</div>
+                    <XPLoading label="Loading ledger..." />
                 ) : error ? (
                     <div className="text-center py-5 text-danger"><i className="bi bi-exclamation-triangle me-2" />Could not load ledger — {error}</div>
                 ) : rows.length === 0 ? (

@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '../components/shared/Toast';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useEffect, useState, useCallback } from 'react';
+import { XPLoading } from '../components/shared/xpTheme';
 
 export default function ScannerPage() {
     const { items, boms, locations, attributes, stockBalance, workCenters, fetchData, authFetch } = useData() as any;
@@ -51,14 +52,7 @@ export default function ScannerPage() {
     };
 
     if (loading) {
-        return (
-            <div className="d-flex align-items-center justify-content-center h-100 py-5">
-                <div className="text-center text-muted">
-                    <div className="spinner-border mb-3" role="status"></div>
-                    <div className="small">Loading orders...</div>
-                </div>
-            </div>
-        );
+        return <XPLoading label="Loading orders..." />;
     }
 
     if (isMobile) {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { useSortable, SortMark } from '../shared/xpTheme';
+import { useSortable, SortMark, XPLoading } from '../shared/xpTheme';
 import { useToast } from '../shared/Toast';
 import SearchableSelect from '../shared/SearchableSelect';
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, buildCategoryTree } from '../shared/TreeSelect';
@@ -16,11 +16,12 @@ interface StockOnHandViewProps {
     onRefresh: () => void;
     authFetch: (url: string, opts?: RequestInit) => Promise<Response>;
     apiBase: string;
+    loading?: boolean;
 }
 
 const UNCAT = '__uncat__';
 
-export default function StockOnHandView({ locations, stockBalance, attributes, categories, items = [], onSearchItems, onRefresh, authFetch, apiBase }: StockOnHandViewProps) {
+export default function StockOnHandView({ locations, stockBalance, attributes, categories, items = [], onSearchItems, onRefresh, authFetch, apiBase, loading = false }: StockOnHandViewProps) {
     const { uiStyle } = useTheme();
     const { t } = useLanguage();
     const { showToast } = useToast();
@@ -985,8 +986,10 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                                 {sortedRows.map((bal: any, i: number) => renderRow(bal, i))}
                                 {filtered.length === 0 && (
                                     <tr>
-                                        <td colSpan={10} style={{ textAlign: 'center', padding: '24px', fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
-                                            No stock records found
+                                        <td colSpan={10} style={{ textAlign: 'center', padding: '24px' }}>
+                                            {loading ? <XPLoading label="Loading stock balances..." /> : (
+                                                <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>No stock records found</span>
+                                            )}
                                         </td>
                                     </tr>
                                 )}
@@ -1088,7 +1091,9 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             {sortedRows.map((bal: any, i: number) => renderRow(bal, i))}
                             {filtered.length === 0 && (
                                 <tr>
-                                    <td colSpan={10} className="text-center text-muted py-4">No stock records found</td>
+                                    <td colSpan={10} className="text-center text-muted py-4">
+                                        {loading ? <XPLoading label="Loading stock balances..." /> : 'No stock records found'}
+                                    </td>
                                 </tr>
                             )}
                         </tbody>

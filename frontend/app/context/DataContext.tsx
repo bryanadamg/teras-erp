@@ -1,11 +1,19 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useUser } from './UserContext';
 import { useToast } from '../components/shared/Toast';
 
 const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
 const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
+
+// requestType -> the domain key views read via useData().loading.*
+const LOADING_KEY: Record<string, string> = {
+    items: 'items', boms: 'boms', 'manufacturing-orders': 'manufacturingOrders',
+    'production-runs': 'productionRuns', balance: 'stockBalance', 'stock-ledger': 'stockEntries',
+    'sales-orders': 'salesOrders', 'purchase-orders': 'purchaseOrders', samples: 'samples',
+    'audit-logs': 'auditLogs',
+};
 
 interface DataContextType {
     items: any[];
@@ -32,6 +40,15 @@ interface DataContextType {
     dashboardWorkOrders: any[];
     itemIndex: Record<string, { name: string; code: string }>;
     companyProfile: any;
+
+    // True until the domain's first fetch attempt (success or failure) resolves.
+    // Views gate their empty-state message on this so "no data yet" never
+    // flashes as "there is no data" before the request completes.
+    loading: {
+        items: boolean; boms: boolean; manufacturingOrders: boolean; productionRuns: boolean;
+        stockBalance: boolean; stockEntries: boolean; salesOrders: boolean; purchaseOrders: boolean;
+        samples: boolean; auditLogs: boolean;
+    };
 
     // Pagination & Search State
     pagination: {
@@ -114,6 +131,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const [categoryL3, setCategoryL3] = useState('');
     const [auditType, setAuditType] = useState('');
     const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+    // Tracks which domains have received at least one response (success or
+    // failure) since page load. Views use this to distinguish "still loading"
+    // from "loaded and genuinely empty" — arrays start as [] either way, so
+    // without this every list flashes its empty-state text before data arrives.
+    const [loadedOnce, setLoadedOnce] = useState<Record<string, boolean>>({});
 
     const handleSetMoSearch = useCallback((v: string) => {
         setMoSearch(v); setWoPage(1);
@@ -309,6 +332,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             const responses = await Promise.all(requests);
             const newMasterData: any = {};
             const failedTypes: string[] = [];
+            const touchedDomains = new Set(requestTypes.map(t => LOADING_KEY[t]).filter(Boolean));
             for (let i = 0; i < responses.length; i++) {
                 const res = responses[i]; const type = requestTypes[i];
                 if (!res.ok) { console.warn(`[DataContext] ${type} fetch failed: HTTP ${res.status} ${res.url}`); failedTypes.push(`${type} (${res.status})`); continue; }
@@ -340,6 +364,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     case 'audit-logs': setAuditLogs(data.items); setAuditTotal(data.total); break;
                 }
             }
+            if (touchedDomains.size > 0) {
+                setLoadedOnce(prev => {
+                    const next = { ...prev };
+                    touchedDomains.forEach(d => { next[d] = true; });
+                    return next;
+                });
+            }
             if (failedTypes.length > 0) {
                 showToast(`Some data could not be loaded: ${failedTypes.join(', ')}`, 'warning');
             }
@@ -351,6 +382,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         } catch (e) {
             console.error("Fetch Error", e);
             showToast('Network error — could not reach the server. Check your connection.', 'danger');
+            // Whole round-trip failed before any response was read (offline, DNS,
+            // CORS...) — mark every domain as "attempted" so views fall back to
+            // their empty/error state instead of spinning forever.
+            setLoadedOnce(prev => ({ ...prev, ...Object.fromEntries(Object.values(LOADING_KEY).map(k => [k, true])) }));
         }
         };
 
@@ -528,17 +563,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         return () => clearInterval(id);
     }, [currentUser]);
 
+    const loading = useMemo(() => ({
+        items: !loadedOnce.items, boms: !loadedOnce.boms, manufacturingOrders: !loadedOnce.manufacturingOrders,
+        productionRuns: !loadedOnce.productionRuns, stockBalance: !loadedOnce.stockBalance,
+        stockEntries: !loadedOnce.stockEntries, salesOrders: !loadedOnce.salesOrders,
+        purchaseOrders: !loadedOnce.purchaseOrders, samples: !loadedOnce.samples, auditLogs: !loadedOnce.auditLogs,
+    }), [loadedOnce]);
+
     const value = React.useMemo(() => ({
         items, locations, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
         partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, dashboardWorkOrders, itemIndex, companyProfile,
+        loading,
         pagination: { itemPage, setItemPage, itemTotal, woPage, setWoPage, woTotal, prPage, setPrPage, prTotal, auditPage, setAuditPage, auditTotal, reportPage, setReportPage, reportTotal, moSearch, setMoSearch: handleSetMoSearch, prSearch, setPrSearch: handleSetPrSearch, pageSize },
         filters: { itemSearch: itemSearchInput, setItemSearch: handleSetItemSearch, categoryL1, setCategoryL1: handleSetCategoryL1, categoryL2, setCategoryL2: handleSetCategoryL2, categoryL3, setCategoryL3, auditType, setAuditType },
         fetchData, refreshManufacturing, refreshPurchaseOrders, handleTabHover, authFetch, subscribeLiveEvents
     }), [
         items, locations, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
-        partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, dashboardWorkOrders, itemIndex, companyProfile,
+        partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, dashboardWorkOrders, itemIndex, companyProfile, loading,
         itemPage, itemTotal, woPage, woTotal, prPage, prTotal, auditPage, auditTotal, reportPage, reportTotal, pageSize,
         itemSearchInput, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData, refreshManufacturing, refreshPurchaseOrders, handleTabHover, authFetch,
         handleSetCategoryL1, handleSetCategoryL2, handleSetMoSearch, handleSetPrSearch, handleSetItemSearch, subscribeLiveEvents
