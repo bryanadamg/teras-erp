@@ -4,6 +4,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useSortable, SortMark, XPLoading } from '../shared/xpTheme';
 import { useToast } from '../shared/Toast';
 import SearchableSelect from '../shared/SearchableSelect';
+import ModalWrapper from '../shared/ModalWrapper';
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, buildCategoryTree } from '../shared/TreeSelect';
 
 interface StockOnHandViewProps {
@@ -459,9 +460,9 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
             return (
                 <tr key={`${bal.item_id}-${bal.location_id}-${bal.batch_key}-${i}`}
                     style={{ background: i % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' }}>
-                    <td style={{ padding: '4px 8px', fontFamily: xpFont }}>
-                        <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#000' }}>{bal.item_name}</div>
-                        <div style={{ fontSize: '10px', color: '#666', fontVariant: 'all-small-caps' }}>{bal.item_code}</div>
+                    <td style={{ padding: '4px 8px', fontFamily: xpFont, overflow: 'hidden' }}>
+                        <div title={bal.item_name} style={{ fontSize: '11px', fontWeight: 'bold', color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bal.item_name}</div>
+                        <div style={{ fontSize: '10px', color: '#666', fontVariant: 'all-small-caps', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bal.item_code}</div>
                     </td>
                     <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', maxWidth: 140 }}>
                         {bal.item_category_name ? (
@@ -542,9 +543,9 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
 
         return (
             <tr key={`${bal.item_id}-${bal.location_id}-${bal.batch_key}-${i}`}>
-                <td>
-                    <div className="fw-medium">{bal.item_name}</div>
-                    <small className="text-muted font-monospace">{bal.item_code}</small>
+                <td style={{ overflow: 'hidden' }}>
+                    <div title={bal.item_name} className="fw-medium text-truncate">{bal.item_name}</div>
+                    <small className="text-muted font-monospace text-truncate d-block">{bal.item_code}</small>
                 </td>
                 <td style={{ maxWidth: 140 }}>
                     {bal.item_category_name ? (
@@ -606,83 +607,73 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
     };
 
     const transferModal = transferTarget && (
-        <div className="modal show d-block" style={{ background: 'rgba(0,0,0,0.4)', zIndex: 20200 }}>
-            <div className="modal-dialog modal-dialog-centered modal-sm">
-                <div className="modal-content" style={classic ? { ...xpBevel, borderRadius: 0 } : {}}>
-                    {classic ? (
-                        <div style={xpTitleBar}>
-                            <span>Transfer Stock</span>
-                            <span style={{ cursor: 'pointer', fontWeight: 'bold' }} onClick={() => setTransferTarget(null)}>X</span>
-                        </div>
-                    ) : (
-                        <div className="modal-header">
-                            <h6 className="modal-title">Transfer Stock</h6>
-                            <button className="btn-close" onClick={() => setTransferTarget(null)} />
-                        </div>
-                    )}
-                    <div style={{ padding: 12, fontFamily: classic ? xpFont : undefined, fontSize: classic ? 11 : undefined }}>
-                        <div style={{ marginBottom: 8 }}>
-                            <strong>{transferTarget.item_name}</strong>
-                            <div style={{ fontSize: 10, color: '#666' }}>
-                                From: {transferTarget.location_name || getLocationName(transferTarget.location_id)}
-                                {transferTarget.batch_key ? ` · Lot: ${batchMap[transferTarget.batch_key] || transferTarget.batch_key}` : ''}
-                                {' · '}Available: {transferTarget.qty} {transferTarget.item_uom || ''}
-                            </div>
-                        </div>
-                        <div style={{ marginBottom: 8 }}>
-                            <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Destination</label>
-                            <TreeSelect
-                                options={buildLocationPickerTree(locations.filter((l: any) => l.id !== transferTarget.location_id))}
-                                value={transferToLoc}
-                                onChange={setTransferToLoc}
-                                placeholder="— select location —"
-                                style={{ width: '100%' }}
-                                size="sm"
-                            />
-                        </div>
-                        <div style={{ marginBottom: 8 }}>
-                            <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Quantity</label>
-                            <input
-                                type="number" min="0.0001" step="any"
-                                style={classic ? { ...xpInput, width: '100%' } : undefined}
-                                className={classic ? '' : 'form-control form-control-sm'}
-                                value={transferQty}
-                                onChange={e => setTransferQty(e.target.value)}
-                            />
-                        </div>
-                        <div style={{ marginBottom: 4 }}>
-                            <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>
-                                Packaging to move <span style={{ color: '#888', fontWeight: 'normal' }}>(optional)</span>
-                            </label>
-                            <div style={{ display: 'flex', gap: 6 }}>
-                                {([
-                                    ['Cones', transferCones, setTransferCones],
-                                    ['Boxes', transferBoxes, setTransferBoxes],
-                                    ['Drums', transferDrums, setTransferDrums],
-                                ] as [string, string, (v: string) => void][]).map(([lbl, val, set]) => (
-                                    <div key={lbl} style={{ flex: 1 }}>
-                                        <input
-                                            type="number" min="0" step="1" placeholder={lbl}
-                                            title={lbl}
-                                            style={classic ? { ...xpInput, width: '100%' } : undefined}
-                                            className={classic ? '' : 'form-control form-control-sm'}
-                                            value={val}
-                                            onChange={e => set(e.target.value)}
-                                        />
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
+        <ModalWrapper
+            isOpen={!!transferTarget}
+            onClose={() => setTransferTarget(null)}
+            title="Transfer Stock"
+            size="sm"
+            footer={<>
+                <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setTransferTarget(null)}>Cancel</button>
+                <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-primary'} onClick={handleTransfer} disabled={transferring}>
+                    {transferring ? 'Moving...' : 'Transfer'}
+                </button>
+            </>}
+        >
+            <div style={{ fontFamily: classic ? xpFont : undefined, fontSize: classic ? 11 : undefined }}>
+                <div style={{ marginBottom: 8 }}>
+                    <strong>{transferTarget.item_name}</strong>
+                    <div style={{ fontSize: 10, color: '#666' }}>
+                        From: {transferTarget.location_name || getLocationName(transferTarget.location_id)}
+                        {transferTarget.batch_key ? ` · Lot: ${batchMap[transferTarget.batch_key] || transferTarget.batch_key}` : ''}
+                        {' · '}Available: {transferTarget.qty} {transferTarget.item_uom || ''}
                     </div>
-                    <div style={{ padding: '6px 12px', display: 'flex', gap: 6, justifyContent: 'flex-end', borderTop: '1px solid #c0c0c0' }}>
-                        <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setTransferTarget(null)}>Cancel</button>
-                        <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-primary'} onClick={handleTransfer} disabled={transferring}>
-                            {transferring ? 'Moving...' : 'Transfer'}
-                        </button>
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                    <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Destination</label>
+                    <TreeSelect
+                        options={buildLocationPickerTree(locations.filter((l: any) => l.id !== transferTarget.location_id))}
+                        value={transferToLoc}
+                        onChange={setTransferToLoc}
+                        placeholder="— select location —"
+                        style={{ width: '100%' }}
+                        size="sm"
+                    />
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                    <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Quantity</label>
+                    <input
+                        type="number" min="0.0001" step="any"
+                        style={classic ? { ...xpInput, width: '100%' } : undefined}
+                        className={classic ? '' : 'form-control form-control-sm'}
+                        value={transferQty}
+                        onChange={e => setTransferQty(e.target.value)}
+                    />
+                </div>
+                <div style={{ marginBottom: 4 }}>
+                    <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>
+                        Packaging to move <span style={{ color: '#888', fontWeight: 'normal' }}>(optional)</span>
+                    </label>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                        {([
+                            ['Cones', transferCones, setTransferCones],
+                            ['Boxes', transferBoxes, setTransferBoxes],
+                            ['Drums', transferDrums, setTransferDrums],
+                        ] as [string, string, (v: string) => void][]).map(([lbl, val, set]) => (
+                            <div key={lbl} style={{ flex: 1 }}>
+                                <input
+                                    type="number" min="0" step="1" placeholder={lbl}
+                                    title={lbl}
+                                    style={classic ? { ...xpInput, width: '100%' } : undefined}
+                                    className={classic ? '' : 'form-control form-control-sm'}
+                                    value={val}
+                                    onChange={e => set(e.target.value)}
+                                />
+                            </div>
+                        ))}
                     </div>
                 </div>
             </div>
-        </div>
+        </ModalWrapper>
     );
 
     const adjustModal = adjustTarget && (() => {
@@ -703,221 +694,201 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
         };
         const pkgLabel = adjustMode === 'set' ? 'Counted packaging' : 'Packaging change (+/-)';
         return (
-            <div className="modal show d-block" style={{ background: 'rgba(0,0,0,0.4)', zIndex: 20200 }}>
-                <div className="modal-dialog modal-dialog-centered modal-sm">
-                    <div className="modal-content" style={classic ? { ...xpBevel, borderRadius: 0 } : {}}>
-                        {classic ? (
-                            <div style={xpTitleBar}>
-                                <span>Adjust Stock</span>
-                                <span style={{ cursor: 'pointer', fontWeight: 'bold' }} onClick={() => setAdjustTarget(null)}>X</span>
-                            </div>
-                        ) : (
-                            <div className="modal-header">
-                                <h6 className="modal-title">Adjust Stock</h6>
-                                <button className="btn-close" onClick={() => setAdjustTarget(null)} />
-                            </div>
-                        )}
-                        <div style={{ padding: 12, fontFamily: classic ? xpFont : undefined, fontSize: classic ? 11 : undefined }}>
-                            <div style={{ marginBottom: 8 }}>
-                                <strong>{t.item_name}</strong>
-                                <div style={{ fontSize: 10, color: '#666' }}>
-                                    {t.location_name || getLocationName(t.location_id)}
-                                    {t.batch_key ? ` · Lot: ${batchMap[t.batch_key] || t.batch_key}` : ''}
-                                    {' · '}On hand: {t.qty} {t.item_uom || ''}
-                                </div>
-                            </div>
-                            <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                                {modeBtn('set', 'Set to (count)')}
-                                {modeBtn('delta', 'Adjust by (+/-)')}
-                            </div>
-                            <div style={{ marginBottom: 8 }}>
-                                <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>
-                                    {adjustMode === 'set' ? 'Counted quantity' : 'Quantity change (+/-)'}
-                                </label>
-                                <input
-                                    type="number" step="any"
-                                    style={classic ? { ...xpInput, width: '100%' } : undefined}
-                                    className={classic ? '' : 'form-control form-control-sm'}
-                                    value={adjustQty}
-                                    onChange={e => setAdjustQty(e.target.value)}
-                                />
-                                <div style={{ fontSize: 10, color: delta < 0 ? '#c00000' : '#2d7a2d', marginTop: 2 }}>
-                                    New on hand: <b>{newQty}</b> {t.item_uom || ''} ({delta >= 0 ? '+' : ''}{delta})
-                                </div>
-                            </div>
-                            <div style={{ marginBottom: 8 }}>
-                                <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>
-                                    {pkgLabel} <span style={{ color: '#888', fontWeight: 'normal' }}>(optional)</span>
-                                </label>
-                                <div style={{ display: 'flex', gap: 6 }}>
-                                    {([
-                                        ['Cones', adjustCones, setAdjustCones],
-                                        ['Boxes', adjustBoxes, setAdjustBoxes],
-                                        ['Drums', adjustDrums, setAdjustDrums],
-                                    ] as [string, string, (v: string) => void][]).map(([lbl, val, set]) => (
-                                        <div key={lbl} style={{ flex: 1 }}>
-                                            <input
-                                                type="number" step="1" placeholder={lbl} title={lbl}
-                                                style={classic ? { ...xpInput, width: '100%' } : undefined}
-                                                className={classic ? '' : 'form-control form-control-sm'}
-                                                value={val}
-                                                onChange={e => set(e.target.value)}
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                            <div style={{ marginBottom: 8 }}>
-                                <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Reason</label>
-                                <select
-                                    style={classic ? { ...xpSelect, width: '100%' } : undefined}
-                                    className={classic ? '' : 'form-select form-select-sm'}
-                                    value={adjustReason}
-                                    onChange={e => setAdjustReason(e.target.value)}
-                                >
-                                    {ADJUST_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
-                                </select>
-                            </div>
-                            <div style={{ marginBottom: 4 }}>
-                                <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>
-                                    Note <span style={{ color: '#888', fontWeight: 'normal' }}>(optional)</span>
-                                </label>
-                                <input
-                                    type="text" placeholder="e.g. spoiled in transit"
-                                    style={classic ? { ...xpInput, width: '100%' } : undefined}
-                                    className={classic ? '' : 'form-control form-control-sm'}
-                                    value={adjustNote}
-                                    onChange={e => setAdjustNote(e.target.value)}
-                                />
-                            </div>
-                        </div>
-                        <div style={{ padding: '6px 12px', display: 'flex', gap: 6, justifyContent: 'flex-end', borderTop: '1px solid #c0c0c0' }}>
-                            <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setAdjustTarget(null)}>Cancel</button>
-                            <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-warning'} onClick={handleAdjust} disabled={adjusting}>
-                                {adjusting ? 'Saving...' : 'Save Adjustment'}
-                            </button>
+            <ModalWrapper
+                isOpen={true}
+                onClose={() => setAdjustTarget(null)}
+                title="Adjust Stock"
+                size="sm"
+                footer={<>
+                    <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setAdjustTarget(null)}>Cancel</button>
+                    <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-warning'} onClick={handleAdjust} disabled={adjusting}>
+                        {adjusting ? 'Saving...' : 'Save Adjustment'}
+                    </button>
+                </>}
+            >
+                <div style={{ fontFamily: classic ? xpFont : undefined, fontSize: classic ? 11 : undefined }}>
+                    <div style={{ marginBottom: 8 }}>
+                        <strong>{t.item_name}</strong>
+                        <div style={{ fontSize: 10, color: '#666' }}>
+                            {t.location_name || getLocationName(t.location_id)}
+                            {t.batch_key ? ` · Lot: ${batchMap[t.batch_key] || t.batch_key}` : ''}
+                            {' · '}On hand: {t.qty} {t.item_uom || ''}
                         </div>
                     </div>
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                        {modeBtn('set', 'Set to (count)')}
+                        {modeBtn('delta', 'Adjust by (+/-)')}
+                    </div>
+                    <div style={{ marginBottom: 8 }}>
+                        <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>
+                            {adjustMode === 'set' ? 'Counted quantity' : 'Quantity change (+/-)'}
+                        </label>
+                        <input
+                            type="number" step="any"
+                            style={classic ? { ...xpInput, width: '100%' } : undefined}
+                            className={classic ? '' : 'form-control form-control-sm'}
+                            value={adjustQty}
+                            onChange={e => setAdjustQty(e.target.value)}
+                        />
+                        <div style={{ fontSize: 10, color: delta < 0 ? '#c00000' : '#2d7a2d', marginTop: 2 }}>
+                            New on hand: <b>{newQty}</b> {t.item_uom || ''} ({delta >= 0 ? '+' : ''}{delta})
+                        </div>
+                    </div>
+                    <div style={{ marginBottom: 8 }}>
+                        <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>
+                            {pkgLabel} <span style={{ color: '#888', fontWeight: 'normal' }}>(optional)</span>
+                        </label>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                            {([
+                                ['Cones', adjustCones, setAdjustCones],
+                                ['Boxes', adjustBoxes, setAdjustBoxes],
+                                ['Drums', adjustDrums, setAdjustDrums],
+                            ] as [string, string, (v: string) => void][]).map(([lbl, val, set]) => (
+                                <div key={lbl} style={{ flex: 1 }}>
+                                    <input
+                                        type="number" step="1" placeholder={lbl} title={lbl}
+                                        style={classic ? { ...xpInput, width: '100%' } : undefined}
+                                        className={classic ? '' : 'form-control form-control-sm'}
+                                        value={val}
+                                        onChange={e => set(e.target.value)}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div style={{ marginBottom: 8 }}>
+                        <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Reason</label>
+                        <select
+                            style={classic ? { ...xpSelect, width: '100%' } : undefined}
+                            className={classic ? '' : 'form-select form-select-sm'}
+                            value={adjustReason}
+                            onChange={e => setAdjustReason(e.target.value)}
+                        >
+                            {ADJUST_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                    </div>
+                    <div style={{ marginBottom: 4 }}>
+                        <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>
+                            Note <span style={{ color: '#888', fontWeight: 'normal' }}>(optional)</span>
+                        </label>
+                        <input
+                            type="text" placeholder="e.g. spoiled in transit"
+                            style={classic ? { ...xpInput, width: '100%' } : undefined}
+                            className={classic ? '' : 'form-control form-control-sm'}
+                            value={adjustNote}
+                            onChange={e => setAdjustNote(e.target.value)}
+                        />
+                    </div>
                 </div>
-            </div>
+            </ModalWrapper>
         );
     })();
 
     const newEntryModal = newOpen && (
-        <div className="modal show d-block" style={{ background: 'rgba(0,0,0,0.4)', zIndex: 20200 }}>
-            <div className="modal-dialog modal-dialog-centered modal-sm">
-                <div className="modal-content" style={classic ? { ...xpBevel, borderRadius: 0 } : {}}>
-                    {classic ? (
-                        <div style={xpTitleBar}>
-                            <span>New Stock Entry</span>
-                            <span style={{ cursor: 'pointer', fontWeight: 'bold' }} onClick={() => setNewOpen(false)}>X</span>
-                        </div>
-                    ) : (
-                        <div className="modal-header">
-                            <h6 className="modal-title">New Stock Entry</h6>
-                            <button className="btn-close" onClick={() => setNewOpen(false)} />
-                        </div>
-                    )}
-                    <div style={{ padding: 12, fontFamily: classic ? xpFont : undefined, fontSize: classic ? 11 : undefined }}>
-                        <div style={{ marginBottom: 8 }}>
-                            <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Item</label>
-                            <SearchableSelect
-                                options={items.map((it: any) => ({ value: it.code, label: it.name, subLabel: it.code }))}
-                                onSearch={onSearchItems}
-                                value={newItemCode}
-                                onChange={(code: string) => { setNewItemCode(code); setNewAttrIds([]); }}
-                                placeholder="Search item..."
-                                size="sm"
-                            />
-                        </div>
-                        {newBoundAttrs.map((attr: any) => (
-                            <div key={attr.id} style={{ marginBottom: 6 }}>
-                                <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>{attr.name}</label>
-                                <select
-                                    style={classic ? { ...xpSelect, width: '100%' } : undefined}
-                                    className={classic ? '' : 'form-select form-select-sm'}
-                                    value={newAttrIds.find(vid => attr.values.some((v: any) => v.id === vid)) || ''}
-                                    onChange={e => setNewAttrValue(e.target.value, attr.id)}
-                                >
-                                    <option value="">Select {attr.name}...</option>
-                                    {attr.values.map((v: any) => <option key={v.id} value={v.id}>{v.value}</option>)}
-                                </select>
+        <ModalWrapper
+            isOpen={newOpen}
+            onClose={() => setNewOpen(false)}
+            title="New Stock Entry"
+            size="sm"
+            footer={<>
+                <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setNewOpen(false)}>Cancel</button>
+                <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-success'} onClick={handleNewEntry} disabled={savingNew}>
+                    {savingNew ? 'Saving...' : 'Save Entry'}
+                </button>
+            </>}
+        >
+            <div style={{ fontFamily: classic ? xpFont : undefined, fontSize: classic ? 11 : undefined }}>
+                <div style={{ marginBottom: 8 }}>
+                    <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Item</label>
+                    <SearchableSelect
+                        options={items.map((it: any) => ({ value: it.code, label: it.name, subLabel: it.code }))}
+                        onSearch={onSearchItems}
+                        value={newItemCode}
+                        onChange={(code: string) => { setNewItemCode(code); setNewAttrIds([]); }}
+                        placeholder="Search item..."
+                        size="sm"
+                    />
+                </div>
+                {newBoundAttrs.map((attr: any) => (
+                    <div key={attr.id} style={{ marginBottom: 6 }}>
+                        <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>{attr.name}</label>
+                        <select
+                            style={classic ? { ...xpSelect, width: '100%' } : undefined}
+                            className={classic ? '' : 'form-select form-select-sm'}
+                            value={newAttrIds.find(vid => attr.values.some((v: any) => v.id === vid)) || ''}
+                            onChange={e => setNewAttrValue(e.target.value, attr.id)}
+                        >
+                            <option value="">Select {attr.name}...</option>
+                            {attr.values.map((v: any) => <option key={v.id} value={v.id}>{v.value}</option>)}
+                        </select>
+                    </div>
+                ))}
+                <div style={{ marginBottom: 8 }}>
+                    <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Location</label>
+                    <TreeSelect
+                        options={locPickerTreeOptions}
+                        value={newLocId}
+                        onChange={setNewLocId}
+                        placeholder="— select location —"
+                        style={{ width: '100%' }}
+                        size="sm"
+                    />
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                    <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Quantity <span style={{ color: '#888', fontWeight: 'normal' }}>(negative to subtract)</span></label>
+                    <input
+                        type="number" step="any"
+                        style={classic ? { ...xpInput, width: '100%' } : undefined}
+                        className={classic ? '' : 'form-control form-control-sm'}
+                        value={newQty}
+                        onChange={e => setNewQty(e.target.value)}
+                    />
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                    <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>
+                        Packaging <span style={{ color: '#888', fontWeight: 'normal' }}>(optional)</span>
+                    </label>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                        {([
+                            ['Cones', newCones, setNewCones],
+                            ['Boxes', newBoxes, setNewBoxes],
+                            ['Drums', newDrums, setNewDrums],
+                        ] as [string, string, (v: string) => void][]).map(([lbl, val, set]) => (
+                            <div key={lbl} style={{ flex: 1 }}>
+                                <input
+                                    type="number" step="1" placeholder={lbl} title={lbl}
+                                    style={classic ? { ...xpInput, width: '100%' } : undefined}
+                                    className={classic ? '' : 'form-control form-control-sm'}
+                                    value={val}
+                                    onChange={e => set(e.target.value)}
+                                />
                             </div>
                         ))}
-                        <div style={{ marginBottom: 8 }}>
-                            <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Location</label>
-                            <TreeSelect
-                                options={locPickerTreeOptions}
-                                value={newLocId}
-                                onChange={setNewLocId}
-                                placeholder="— select location —"
-                                style={{ width: '100%' }}
-                                size="sm"
-                            />
-                        </div>
-                        <div style={{ marginBottom: 8 }}>
-                            <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Quantity <span style={{ color: '#888', fontWeight: 'normal' }}>(negative to subtract)</span></label>
-                            <input
-                                type="number" step="any"
-                                style={classic ? { ...xpInput, width: '100%' } : undefined}
-                                className={classic ? '' : 'form-control form-control-sm'}
-                                value={newQty}
-                                onChange={e => setNewQty(e.target.value)}
-                            />
-                        </div>
-                        <div style={{ marginBottom: 8 }}>
-                            <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>
-                                Packaging <span style={{ color: '#888', fontWeight: 'normal' }}>(optional)</span>
-                            </label>
-                            <div style={{ display: 'flex', gap: 6 }}>
-                                {([
-                                    ['Cones', newCones, setNewCones],
-                                    ['Boxes', newBoxes, setNewBoxes],
-                                    ['Drums', newDrums, setNewDrums],
-                                ] as [string, string, (v: string) => void][]).map(([lbl, val, set]) => (
-                                    <div key={lbl} style={{ flex: 1 }}>
-                                        <input
-                                            type="number" step="1" placeholder={lbl} title={lbl}
-                                            style={classic ? { ...xpInput, width: '100%' } : undefined}
-                                            className={classic ? '' : 'form-control form-control-sm'}
-                                            value={val}
-                                            onChange={e => set(e.target.value)}
-                                        />
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                        <div style={{ marginBottom: 8 }}>
-                            <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Reason</label>
-                            <select
-                                style={classic ? { ...xpSelect, width: '100%' } : undefined}
-                                className={classic ? '' : 'form-select form-select-sm'}
-                                value={newReason}
-                                onChange={e => setNewReason(e.target.value)}
-                            >
-                                {NEW_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
-                            </select>
-                        </div>
-                        <div style={{ marginBottom: 4 }}>
-                            <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Note <span style={{ color: '#888', fontWeight: 'normal' }}>(optional)</span></label>
-                            <input
-                                type="text"
-                                style={classic ? { ...xpInput, width: '100%' } : undefined}
-                                className={classic ? '' : 'form-control form-control-sm'}
-                                value={newNote}
-                                onChange={e => setNewNote(e.target.value)}
-                            />
-                        </div>
-                    </div>
-                    <div style={{ padding: '6px 12px', display: 'flex', gap: 6, justifyContent: 'flex-end', borderTop: '1px solid #c0c0c0' }}>
-                        <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setNewOpen(false)}>Cancel</button>
-                        <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-success'} onClick={handleNewEntry} disabled={savingNew}>
-                            {savingNew ? 'Saving...' : 'Save Entry'}
-                        </button>
                     </div>
                 </div>
+                <div style={{ marginBottom: 8 }}>
+                    <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Reason</label>
+                    <select
+                        style={classic ? { ...xpSelect, width: '100%' } : undefined}
+                        className={classic ? '' : 'form-select form-select-sm'}
+                        value={newReason}
+                        onChange={e => setNewReason(e.target.value)}
+                    >
+                        {NEW_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                </div>
+                <div style={{ marginBottom: 4 }}>
+                    <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Note <span style={{ color: '#888', fontWeight: 'normal' }}>(optional)</span></label>
+                    <input
+                        type="text"
+                        style={classic ? { ...xpInput, width: '100%' } : undefined}
+                        className={classic ? '' : 'form-control form-control-sm'}
+                        value={newNote}
+                        onChange={e => setNewNote(e.target.value)}
+                    />
+                </div>
             </div>
-        </div>
+        </ModalWrapper>
     );
 
     if (classic) {
@@ -967,19 +938,19 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         </button>
                     </div>
                     <div style={{ flex: 1, overflowY: 'auto', background: '#ffffff', minHeight: 0 }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                             <thead>
                                 <tr>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('itemCategory')} title="Sort">Item Category<SortMark sort={sort} colKey="itemCategory" /></th>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('batch')} title="Sort">Lot<SortMark sort={sort} colKey="batch" /></th>
-                                    <th style={xpTableHeader}>{t('attributes') || 'Attributes'}</th>
-                                    <th style={{ ...xpTableHeader, textAlign: 'right', cursor: 'pointer' }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
-                                    <th style={xpTableHeader}>UOM</th>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer' }} onClick={() => toggleSort('packaging')} title="Sort">Packaging<SortMark sort={sort} colKey="packaging" /></th>
-                                    <th style={{ ...xpTableHeader, textAlign: 'right' }}>Ends</th>
-                                    <th style={xpTableHeader}></th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: '16%' }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: '11%' }} onClick={() => toggleSort('itemCategory')} title="Sort">Item Category<SortMark sort={sort} colKey="itemCategory" /></th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: '13%' }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: '9%' }} onClick={() => toggleSort('batch')} title="Sort">Lot<SortMark sort={sort} colKey="batch" /></th>
+                                    <th style={{ ...xpTableHeader, width: '13%' }}>{t('attributes') || 'Attributes'}</th>
+                                    <th style={{ ...xpTableHeader, textAlign: 'right', cursor: 'pointer', width: '8%' }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
+                                    <th style={{ ...xpTableHeader, width: '6%' }}>UOM</th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: '10%' }} onClick={() => toggleSort('packaging')} title="Sort">Packaging<SortMark sort={sort} colKey="packaging" /></th>
+                                    <th style={{ ...xpTableHeader, textAlign: 'right', width: '6%' }}>Ends</th>
+                                    <th style={{ ...xpTableHeader, width: '8%' }}></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1072,19 +1043,19 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                     </div>
                 </div>
                 <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-                    <table className="table table-hover table-sm mb-0">
+                    <table className="table table-hover table-sm mb-0" style={{ tableLayout: 'fixed' }}>
                         <thead className="table-light">
                             <tr>
-                                <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
-                                <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('itemCategory')} title="Sort">Item Category<SortMark sort={sort} colKey="itemCategory" /></th>
-                                <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
-                                <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('batch')} title="Sort">Lot<SortMark sort={sort} colKey="batch" /></th>
-                                <th>{t('attributes') || 'Attributes'}</th>
-                                <th className="text-end" style={{ cursor: 'pointer' }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
-                                <th>UOM</th>
-                                <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('packaging')} title="Sort">Packaging<SortMark sort={sort} colKey="packaging" /></th>
-                                <th className="text-end">Ends</th>
-                                <th></th>
+                                <th style={{ cursor: 'pointer', width: '16%' }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
+                                <th style={{ cursor: 'pointer', width: '11%' }} onClick={() => toggleSort('itemCategory')} title="Sort">Item Category<SortMark sort={sort} colKey="itemCategory" /></th>
+                                <th style={{ cursor: 'pointer', width: '13%' }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
+                                <th style={{ cursor: 'pointer', width: '9%' }} onClick={() => toggleSort('batch')} title="Sort">Lot<SortMark sort={sort} colKey="batch" /></th>
+                                <th style={{ width: '13%' }}>{t('attributes') || 'Attributes'}</th>
+                                <th className="text-end" style={{ cursor: 'pointer', width: '8%' }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
+                                <th style={{ width: '6%' }}>UOM</th>
+                                <th style={{ cursor: 'pointer', width: '10%' }} onClick={() => toggleSort('packaging')} title="Sort">Packaging<SortMark sort={sort} colKey="packaging" /></th>
+                                <th className="text-end" style={{ width: '6%' }}>Ends</th>
+                                <th style={{ width: '8%' }}></th>
                             </tr>
                         </thead>
                         <tbody>

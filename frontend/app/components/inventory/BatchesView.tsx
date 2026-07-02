@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useToast } from '../shared/Toast';
+import ModalWrapper from '../shared/ModalWrapper';
 import { useTheme } from '../../context/ThemeContext';
 import { useConfirm } from '../../context/ConfirmContext';
 
@@ -519,56 +520,41 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
 
       {/* ── Create Modal ── */}
       {isCreateOpen && (
-        <div className="modal show d-block" style={{ background: 'rgba(0,0,0,0.4)' }}>
-          <div className="modal-dialog modal-dialog-centered">
-            <div className={`modal-content ${classic ? '' : ''}`} style={classic ? { ...xpBevel, borderRadius: 0 } : {}}>
-              {classic ? (
-                <div style={xpTitleBar}>
-                  <span>New Lot</span>
-                  <span style={{ cursor: 'pointer', fontWeight: 'bold' }} onClick={() => setIsCreateOpen(false)}>X</span>
-                </div>
-              ) : (
-                <div className="modal-header">
-                  <h5 className="modal-title">New Lot</h5>
-                  <button className="btn-close" onClick={() => setIsCreateOpen(false)} />
-                </div>
-              )}
-              <div className={classic ? '' : 'modal-body'} style={classic ? { padding: 12 } : {}}>
-                <div className="mb-3">
-                  <label style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>Item</label>
-                  <select
-                    className={classic ? '' : 'form-select form-select-sm mt-1'}
-                    style={classic ? { ...xpInput, width: '100%', height: 22 } : {}}
-                    value={createItemId}
-                    onChange={e => setCreateItemId(e.target.value)}
-                  >
-                    <option value="">-- Select Item --</option>
-                    {items.map(i => <option key={i.id} value={i.id}>{i.code} — {i.name}</option>)}
-                  </select>
-                </div>
-                <div className="mb-3">
-                  <label style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>Notes (optional)</label>
-                  <textarea
-                    className={classic ? '' : 'form-control form-control-sm mt-1'}
-                    style={classic ? { ...xpInput, width: '100%', height: 60, resize: 'vertical' } : {}}
-                    value={createNotes}
-                    onChange={e => setCreateNotes(e.target.value)}
-                    placeholder="Optional notes..."
-                  />
-                </div>
-              </div>
-              <div
-                className={classic ? '' : 'modal-footer'}
-                style={classic ? { padding: '6px 12px', display: 'flex', gap: 6, justifyContent: 'flex-end', borderTop: '1px solid #c0c0c0' } : {}}
-              >
-                <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setIsCreateOpen(false)}>Cancel</button>
-                <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-primary'} onClick={handleCreate} disabled={creating}>
-                  {creating ? 'Creating...' : 'Create Lot'}
-                </button>
-              </div>
-            </div>
+        <ModalWrapper
+          isOpen={isCreateOpen}
+          onClose={() => setIsCreateOpen(false)}
+          title="New Lot"
+          size="sm"
+          footer={<>
+            <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setIsCreateOpen(false)}>Cancel</button>
+            <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-primary'} onClick={handleCreate} disabled={creating}>
+              {creating ? 'Creating...' : 'Create Lot'}
+            </button>
+          </>}
+        >
+          <div className="mb-3">
+            <label style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>Item</label>
+            <select
+              className={classic ? '' : 'form-select form-select-sm mt-1'}
+              style={classic ? { ...xpInput, width: '100%', height: 22 } : {}}
+              value={createItemId}
+              onChange={e => setCreateItemId(e.target.value)}
+            >
+              <option value="">-- Select Item --</option>
+              {items.map(i => <option key={i.id} value={i.id}>{i.code} — {i.name}</option>)}
+            </select>
           </div>
-        </div>
+          <div className="mb-3">
+            <label style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>Notes (optional)</label>
+            <textarea
+              className={classic ? '' : 'form-control form-control-sm mt-1'}
+              style={classic ? { ...xpInput, width: '100%', height: 60, resize: 'vertical' } : {}}
+              value={createNotes}
+              onChange={e => setCreateNotes(e.target.value)}
+              placeholder="Optional notes..."
+            />
+          </div>
+        </ModalWrapper>
       )}
     </div>
   );

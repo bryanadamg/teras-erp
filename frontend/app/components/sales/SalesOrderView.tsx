@@ -800,17 +800,17 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
 
        {/* Production Lineage Modal — SO → PR → MO → WO → beams */}
        {(lineageSO || lineageData) && (
-           <div className="modal show d-block" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => { setLineageSO(null); setLineageData(null); }}>
-               <div className="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable" onClick={e => e.stopPropagation()}>
-                   <div className="modal-content" style={classic ? { border: '2px solid', borderColor: '#0058e6 #001840 #001840 #0058e6', borderRadius: 0 } : {}}>
-                       <div className="modal-header" style={classic ? { background: 'linear-gradient(to right,#0058e6,#08a5ff)', color: '#fff', padding: '4px 10px', borderBottom: '1px solid #003080' } : {}}>
-                           <h5 className="modal-title" style={{ fontSize: classic ? 13 : undefined, color: classic ? '#fff' : undefined }}>
-                               <i className="bi bi-diagram-3 me-2"></i>Production Lineage — {lineageSO?.po_number}
-                               {lineageSO?.customer_name && <span style={{ fontWeight: 'normal', fontSize: '0.85em', marginLeft: 8, opacity: 0.9 }}>{lineageSO.customer_name}</span>}
-                           </h5>
-                           <button className={classic ? '' : 'btn-close'} style={classic ? { background: 'none', border: 'none', color: '#fff', fontWeight: 'bold', cursor: 'pointer', fontSize: 14 } : {}} onClick={() => { setLineageSO(null); setLineageData(null); }}>{classic ? 'X' : ''}</button>
-                       </div>
-                       <div className="modal-body" style={{ fontSize: classic ? 12 : 13, fontFamily: classic ? 'Tahoma,Arial,sans-serif' : undefined }}>
+           <ModalWrapper
+               isOpen={!!(lineageSO || lineageData)}
+               onClose={() => { setLineageSO(null); setLineageData(null); }}
+               title={<>
+                   <i className="bi bi-diagram-3 me-2"></i>Production Lineage — {lineageSO?.po_number}
+                   {lineageSO?.customer_name && <span style={{ fontWeight: 'normal', fontSize: '0.85em', marginLeft: 8, opacity: 0.9 }}>{lineageSO.customer_name}</span>}
+               </>}
+               size="xxl"
+               footer={<button className={classic ? '' : 'btn btn-sm btn-secondary'} style={classic ? xpBtn() : undefined} onClick={() => { setLineageSO(null); setLineageData(null); }}>Close</button>}
+           >
+                       <div style={{ fontSize: classic ? 12 : 13, fontFamily: classic ? 'Tahoma,Arial,sans-serif' : undefined }}>
                            {lineageLoading && <p className="text-muted">Loading lineage...</p>}
                            {!lineageLoading && lineageData && (lineageData.production_runs || []).length === 0 && (
                                <p className="text-muted">No Production Runs created from this Sales Order yet. Everything produced for this order will appear here once a PR is created.</p>
@@ -861,12 +861,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                );
                            })}
                        </div>
-                       <div className="modal-footer" style={classic ? { padding: '6px 12px', borderTop: '1px solid #c0c0c0' } : {}}>
-                           <button className={classic ? '' : 'btn btn-sm btn-secondary'} style={classic ? xpBtn() : undefined} onClick={() => { setLineageSO(null); setLineageData(null); }}>Close</button>
-                       </div>
-                   </div>
-               </div>
-           </div>
+           </ModalWrapper>
        )}
 
        <CodeConfigModal

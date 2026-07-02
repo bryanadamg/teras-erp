@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import BOMDesigner from './BOMDesigner';
 const BOMPrintModal = dynamic(() => import('./BOMPrintModal'), { ssr: false });
 import ProductionRunModal from '../manufacturing/ProductionRunModal';
+import { MODAL_Z } from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
@@ -762,7 +763,7 @@ export default function BOMView({
         <div className="row g-4 fade-in">
             {/* BOM Designer Modal */}
             {isDesignerOpen && createPortal(
-                <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div role="dialog" aria-modal="true" aria-label={editingBOM ? `Edit BOM: ${editingBOM.code}` : 'BOM Designer'} style={{ position: 'fixed', inset: 0, zIndex: MODAL_Z[1], background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', width: 'min(1200px, 96vw)', height: 'min(860px, 94vh)', background: '#ece9d8', border: '2px solid #0a246a', boxShadow: '4px 4px 20px rgba(0,0,0,0.6), inset 0 0 0 1px #a6caf0', fontFamily: 'Tahoma, "Segoe UI", sans-serif', borderRadius: 4, overflow: 'hidden' }}>
                         <div style={{ background: 'linear-gradient(to right, #0a246a, #a6caf0, #0a246a)', padding: '3px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, userSelect: 'none' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

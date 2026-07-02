@@ -42,14 +42,17 @@ export const NAV_SECTIONS: NavSection[] = [
     },
     {
         key: 'inventory', label: 'Inventory', i18nKey: 'inventory', icon: 'bi-box-seam', accent: 'blue',
-        permissions: ['inventory.manage', 'stock.entry', 'locations.manage'],
+        permissions: ['inventory.manage', 'locations.manage'],
         items: [
             { tab: 'inventory', label: 'Item Inventory', i18nKey: 'item_inventory', icon: 'bi-list-check', permission: 'inventory.manage' },
             { tab: 'item-metadata', label: 'Attributes', i18nKey: 'attributes', icon: 'bi-tag', permission: 'inventory.manage' },
             { tab: 'batches', label: 'Lot', icon: 'bi-upc-scan', permission: 'inventory.manage' },
+            // Stock entry/transfer/adjust duties were merged into Stock On-Hand
+            // (commit e6f38da) — /stock (StockEntryView) is desktop-deprecated.
+            // Its mobile branch (bottom-tab "Stock") is a separate, still-live
+            // read-only browse view — don't add a desktop nav leaf here.
             { tab: 'stock-on-hand', label: 'Stock On-Hand', i18nKey: 'stock_on_hand', icon: 'bi-boxes', permission: 'inventory.manage' },
             { tab: 'booking-stock', label: 'Booking Stock', i18nKey: 'booking_stock', icon: 'bi-bookmark-check', permission: 'inventory.manage' },
-            { tab: 'stock', label: 'Stock Entry', i18nKey: 'stock_entry', icon: 'bi-clipboard-plus', permission: 'stock.entry' },
             { tab: 'locations', label: 'Locations', i18nKey: 'locations', icon: 'bi-geo-alt', permission: 'locations.manage' },
         ],
     },

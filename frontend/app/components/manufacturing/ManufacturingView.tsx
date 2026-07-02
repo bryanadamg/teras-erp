@@ -9,6 +9,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import ModalWrapper from '../shared/ModalWrapper';
+import Pager from '../shared/Pager';
 import PrintHeader from '../shared/PrintHeader';
 import type { PrintSettings } from './WOPrintModal';
 const WOPrintModal = dynamic(() => import('./WOPrintModal'), { ssr: false });
@@ -408,46 +409,9 @@ export default function ManufacturingView({
   };
 
   // Shared paginator footer for the PR / MO list tabs (server-side paginated)
-  const renderPager = (
-      page: number,
-      total: number,
-      onPage: (p: number) => void,
-  ) => {
-      const pages = Math.max(1, Math.ceil((total || 0) / pageSize));
-      if (!total) return null;
-      const from = (page - 1) * pageSize + 1;
-      const to = Math.min(page * pageSize, total);
-      const classic = currentStyle === 'classic';
-      const btn = (label: React.ReactNode, target: number, disabled: boolean) => (
-          <button
-              disabled={disabled}
-              onClick={() => onPage(target)}
-              className={classic ? '' : 'btn btn-sm btn-outline-secondary py-0 px-2'}
-              style={classic ? {
-                  fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, padding: '1px 10px',
-                  background: disabled ? '#dcdacc' : 'linear-gradient(to bottom,#f0efe6,#dddbd0)',
-                  border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-                  color: disabled ? '#999' : '#000', cursor: disabled ? 'default' : 'pointer',
-              } : { fontSize: '0.72rem' }}
-          >{label}</button>
-      );
-      return (
-          <div className="no-print" style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: classic ? '5px 8px' : '8px 12px',
-              borderTop: classic ? '1px solid #808080' : '1px solid #dee2e6',
-              background: classic ? '#ece9d8' : '#fff',
-              fontFamily: classic ? 'Tahoma, Arial, sans-serif' : undefined,
-              fontSize: classic ? 11 : 13,
-          }}>
-              {btn(<><i className="bi bi-chevron-left me-1"></i>Prev</>, page - 1, page <= 1)}
-              <span style={{ color: '#444' }}>
-                  {from}-{to} of {total} &nbsp;·&nbsp; Page {page} / {pages}
-              </span>
-              {btn(<>Next<i className="bi bi-chevron-right ms-1"></i></>, page + 1, page >= pages)}
-          </div>
-      );
-  };
+  const renderPager = (page: number, total: number, onPage: (p: number) => void) => (
+      <Pager page={page} total={total} pageSize={pageSize} onPageChange={onPage} hideWhenEmpty />
+  );
 
   // Text search is server-side (paginated). Only the date range is filtered client-side here.
   const filteredWorkOrders = manufacturingOrders.filter((wo: any) => {

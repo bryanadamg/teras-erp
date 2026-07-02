@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { STATUS_COLORS } from '../shared/xpTheme';
+import ModalWrapper from '../shared/ModalWrapper';
 import { useTheme } from '../../context/ThemeContext';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
@@ -812,90 +813,29 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
 
             {/* Complete Run Modal */}
             {showCompleteModal && (
-                <div style={{
-                    position: 'fixed', inset: 0, zIndex: 1050,
-                    background: 'rgba(0,0,0,0.45)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                    <div style={classic ? {
-                        background: '#ece9d8',
-                        border: '2px solid #0a246a',
-                        width: 640,
-                        maxWidth: '95vw',
-                        maxHeight: '90vh',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        fontFamily: xpFont,
-                        fontSize: 11,
-                        boxShadow: '3px 3px 8px rgba(0,0,0,0.4)',
-                    } : {
-                        background: '#f8fafc',
-                        border: '1px solid #dbe1ea',
-                        borderRadius: 9,
-                        width: 640,
-                        maxWidth: '95vw',
-                        maxHeight: '90vh',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        overflow: 'hidden',
-                        fontFamily: modernFont,
-                        fontSize: 13,
-                        boxShadow: '0 12px 32px rgba(15,23,42,0.22)',
-                    }}>
-                        {/* Title bar */}
-                        <div style={classic ? {
-                            background: 'linear-gradient(to right, #0a246a, #a6b5e3)',
-                            color: 'white',
-                            padding: '3px 8px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            fontSize: 11,
-                            fontWeight: 'bold',
-                        } : {
-                            background: '#f7f9fc',
-                            color: '#1e293b',
-                            padding: '10px 14px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            fontSize: 14,
-                            fontWeight: 700,
-                            borderBottom: '1px solid #dbe1ea',
-                            fontFamily: modernFont,
-                        }}>
-                            <span>
-                                Complete Dyeing Run {showCompleteModal.run_number ?? showCompleteModal.run_code ?? `#${showCompleteModal.id}`}
-                            </span>
-                            <button
-                                onClick={() => { setShowCompleteModal(null); setErrorMsg(null); }}
-                                style={classic ? {
-                                    background: 'linear-gradient(to bottom, #e06060, #c03030)',
-                                    border: '1px solid #800',
-                                    color: 'white',
-                                    fontFamily: xpFont,
-                                    fontSize: 10,
-                                    padding: '0 4px',
-                                    cursor: 'pointer',
-                                    lineHeight: '16px',
-                                    fontWeight: 'bold',
-                                } : {
-                                    background: 'transparent',
-                                    border: 'none',
-                                    color: '#64748b',
-                                    fontFamily: modernFont,
-                                    fontSize: 16,
-                                    padding: '0 6px',
-                                    cursor: 'pointer',
-                                    lineHeight: '20px',
-                                    fontWeight: 700,
-                                }}
-                            >
-                                X
-                            </button>
-                        </div>
-
-                        <div style={{ overflowY: 'auto', flex: 1, padding: classic ? 10 : 14 }}>
+                <ModalWrapper
+                    isOpen={!!showCompleteModal}
+                    onClose={() => { setShowCompleteModal(null); setErrorMsg(null); }}
+                    title={`Complete Dyeing Run ${showCompleteModal.run_number ?? showCompleteModal.run_code ?? `#${showCompleteModal.id}`}`}
+                    size="lg"
+                    footer={<>
+                        <button
+                            style={classic ? { ...xpBtn, padding: '3px 16px' } : { ...xpPrimaryBtn, padding: '6px 18px' }}
+                            onClick={handleSaveComplete}
+                            disabled={saving || !completeForm.output_batch_number}
+                        >
+                            {saving ? 'Saving...' : 'Save'}
+                        </button>
+                        <button
+                            style={classic ? { ...xpBtn, padding: '3px 16px' } : { ...xpBtn, padding: '6px 18px' }}
+                            onClick={() => { setShowCompleteModal(null); setErrorMsg(null); }}
+                            disabled={saving}
+                        >
+                            Cancel
+                        </button>
+                    </>}
+                >
+                    <div>
                             {errorMsg && (
                                 <div style={classic
                                     ? { background: '#fff3cd', border: '1px solid #ffc107', padding: '3px 8px', fontSize: 11, color: '#664d03', marginBottom: 6 }
@@ -1020,40 +960,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                 )}
                             </div>
                         </div>
-
-                        {/* Modal footer */}
-                        <div style={classic ? {
-                            borderTop: '1px solid #7f9db9',
-                            padding: '6px 10px',
-                            display: 'flex',
-                            justifyContent: 'flex-end',
-                            gap: 4,
-                            background: '#ece9d8',
-                        } : {
-                            borderTop: '1px solid #dbe1ea',
-                            padding: '10px 14px',
-                            display: 'flex',
-                            justifyContent: 'flex-end',
-                            gap: 8,
-                            background: '#f7f9fc',
-                        }}>
-                            <button
-                                style={classic ? { ...xpBtn, padding: '3px 16px' } : { ...xpPrimaryBtn, padding: '6px 18px' }}
-                                onClick={handleSaveComplete}
-                                disabled={saving || !completeForm.output_batch_number}
-                            >
-                                {saving ? 'Saving...' : 'Save'}
-                            </button>
-                            <button
-                                style={classic ? { ...xpBtn, padding: '3px 16px' } : { ...xpBtn, padding: '6px 18px' }}
-                                onClick={() => { setShowCompleteModal(null); setErrorMsg(null); }}
-                                disabled={saving}
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                </ModalWrapper>
             )}
         </div>
     );

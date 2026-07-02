@@ -4,6 +4,7 @@ import CodeConfigModal, { CodeConfig, buildCodeWithCounter } from '../shared/Cod
 import BulkImportModal from './BulkImportModal';
 import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
+import Pager from '../shared/Pager';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -233,11 +234,6 @@ export default function InventoryView({
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const { uiStyle: currentStyle } = useTheme();
-
-  // Derived Pagination
-  const totalPages = Math.ceil(totalItems / pageSize);
-  const startRange = (currentPage - 1) * pageSize + 1;
-  const endRange = Math.min(currentPage * pageSize, totalItems);
 
   // Config State
   const [isConfigOpen, setIsConfigOpen] = useState(false);
@@ -1306,62 +1302,17 @@ export default function InventoryView({
           </div>
 
           {/* ── Footer / Pagination ── */}
-          {classic ? (
-            <div style={xpStatusBar}>
-              <span>
-                {selectedIds.size > 0
+          <Pager
+            page={currentPage}
+            total={totalItems}
+            pageSize={pageSize}
+            onPageChange={onPageChange}
+            leftContent={classic
+              ? (selectedIds.size > 0
                   ? `${selectedIds.size} of ${totalItems} item${totalItems !== 1 ? 's' : ''} selected`
-                  : `${totalItems} item${totalItems !== 1 ? 's' : ''} total`}
-              </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <button
-                  style={xpBtn({ opacity: currentPage <= 1 ? 0.5 : 1, cursor: currentPage <= 1 ? 'default' : 'pointer' })}
-                  onClick={() => currentPage > 1 && onPageChange(currentPage - 1)}
-                  disabled={currentPage <= 1}
-                >
-                  ◀ Prev
-                </button>
-                <span style={{
-                    fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px',
-                    background: '#dce4f5', border: '1px solid #7f9db9',
-                    padding: '1px 10px', color: '#000000', fontWeight: 'bold',
-                }}>
-                  Page {currentPage} of {totalPages || 1}
-                </span>
-                <button
-                  style={xpBtn({ opacity: currentPage >= totalPages ? 0.5 : 1, cursor: currentPage >= totalPages ? 'default' : 'pointer' })}
-                  onClick={() => currentPage < totalPages && onPageChange(currentPage + 1)}
-                  disabled={currentPage >= totalPages}
-                >
-                  Next ▶
-                </button>
-              </div>
-              <span>Showing {startRange}–{endRange} of {totalItems}</span>
-            </div>
-          ) : (
-            <div className="card-footer bg-white border-top py-2 px-4 d-flex justify-content-between align-items-center">
-              <div className="small text-muted font-monospace">
-                  Showing {startRange}-{endRange} of {totalItems} items
-              </div>
-              <div className="btn-group">
-                  <button
-                    className={`btn btn-sm btn-light border ${currentPage <= 1 ? 'disabled opacity-50' : ''}`}
-                    onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-                  >
-                      <i className="bi bi-chevron-left me-1"></i>Previous
-                  </button>
-                  <div className="btn btn-sm btn-white border-top border-bottom px-3 fw-bold">
-                      Page {currentPage} of {totalPages || 1}
-                  </div>
-                  <button
-                    className={`btn btn-sm btn-light border ${currentPage >= totalPages ? 'disabled opacity-50' : ''}`}
-                    onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
-                  >
-                      Next<i className="bi bi-chevron-right ms-1"></i>
-                  </button>
-              </div>
-            </div>
-          )}
+                  : `${totalItems} item${totalItems !== 1 ? 's' : ''} total`)
+              : undefined}
+          />
         </div>
       </div>
 

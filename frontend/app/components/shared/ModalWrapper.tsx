@@ -1,8 +1,14 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useId } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
+
+// Shared z-index tier for anything that must render as an overlay but can't use
+// ModalWrapper directly (e.g. a full-screen designer canvas with its own custom
+// chrome) — keeps it in the same stacking order as regular modals instead of an
+// arbitrary one-off number.
+export const MODAL_Z = { 1: 20000, 2: 20100, 3: 20200 } as const;
 
 // Stack of open modals so Escape only closes the topmost one (nested levels 1-3).
 const escStack: Array<() => void> = [];
@@ -67,6 +73,7 @@ export default function ModalWrapper({
     const dragOffset = useRef({ x: 0, y: 0 });
 
     const floating = modeless && !isMobile;
+    const titleId = useId();
 
     useEffect(() => {
         if (!isOpen) return;
@@ -84,10 +91,39 @@ export default function ModalWrapper({
         if (!isOpen) dragOffset.current = { x: 0, y: 0 };
     }, [isOpen]);
 
+    // Focus trap: move focus into the dialog on open, cycle Tab/Shift+Tab within
+    // it, restore focus to whatever was focused before on close. Without this,
+    // keyboard users can tab straight through to background page content.
+    const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    useEffect(() => {
+        if (!isOpen) return;
+        const previouslyFocused = document.activeElement as HTMLElement | null;
+        const getFocusable = () => panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? null;
+
+        const raf = requestAnimationFrame(() => {
+            const items = getFocusable();
+            if (items && items.length > 0) items[0].focus();
+            else panelRef.current?.focus();
+        });
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key !== 'Tab') return;
+            const items = getFocusable();
+            if (!items || items.length === 0) { e.preventDefault(); return; }
+            const first = items[0], last = items[items.length - 1];
+            if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+            else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+            previouslyFocused?.focus?.();
+        };
+    }, [isOpen]);
+
     if (!isOpen) return null;
 
-    const zIndices = { 1: 20000, 2: 20100, 3: 20200 };
-    const modalZIndex = zIndices[level];
+    const modalZIndex = MODAL_Z[level];
 
     // Drag updates the DOM node directly — no React re-renders during pointermove,
     // transform is compositor-only, so this stays smooth on old hardware.
@@ -127,6 +163,10 @@ export default function ModalWrapper({
         const dialog = (
             <div
                 ref={panelRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={titleId}
+                tabIndex={-1}
                 style={{
                     width: xpSizeWidths[size] || 480, maxWidth: '96vw',
                     border: '2px solid',
@@ -158,7 +198,7 @@ export default function ModalWrapper({
                         cursor: floating ? 'move' : undefined,
                         touchAction: floating ? 'none' : undefined,
                     }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                    <span id={titleId} style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
                         {title}
                     </span>
                     <button
@@ -179,6 +219,7 @@ export default function ModalWrapper({
                             textShadow: '0 1px 1px rgba(0,0,0,0.5)',
                         }}
                         title="Close"
+                        aria-label="Close"
                     >✕</button>
                 </div>
 
@@ -233,14 +274,14 @@ export default function ModalWrapper({
     };
 
     const modernContent = (
-        <div className="modal-content shadow-lg border-0" style={{ overflow: 'visible' }}>
+        <div className="modal-content shadow-lg border-0" role="dialog" aria-modal="true" aria-labelledby={titleId} style={{ overflow: 'visible' }}>
             <div
                 className={`modal-header py-2 px-3 border-bottom ${headerClasses[variant]}`}
                 style={{ borderRadius: '0.5rem 0.5rem 0 0', cursor: floating ? 'move' : undefined, touchAction: floating ? 'none' : undefined, userSelect: floating ? 'none' : undefined }}
                 onPointerDown={floating ? startDrag : undefined}
             >
-                <h5 className="modal-title small fw-bold d-flex align-items-center gap-2">{title}</h5>
-                <button type="button" className={`btn-close ${variant === 'dark' ? 'btn-close-white' : ''}`} onClick={onClose}></button>
+                <h5 id={titleId} className="modal-title small fw-bold d-flex align-items-center gap-2">{title}</h5>
+                <button type="button" className={`btn-close ${variant === 'dark' ? 'btn-close-white' : ''}`} onClick={onClose} aria-label="Close"></button>
             </div>
             <div className="modal-body p-4" style={{ maxHeight: floating ? 'calc(100vh - 160px)' : '85vh', overflowY: 'auto', background: 'white' }}>
                 {children}
@@ -254,7 +295,7 @@ export default function ModalWrapper({
     if (floating) {
         const widths: Record<string, number> = { sm: 320, md: 520, lg: 760, xl: 960, xxl: 1100 };
         return (
-            <div ref={panelRef} style={{ ...floatingPos, width: widths[size] || 520, maxWidth: '96vw' }}>
+            <div ref={panelRef} tabIndex={-1} style={{ ...floatingPos, width: widths[size] || 520, maxWidth: '96vw', outline: 'none' }}>
                 {modernContent}
             </div>
         );
@@ -267,7 +308,7 @@ export default function ModalWrapper({
             onMouseDown={e => { backdropMouseDown.current = e.target === e.currentTarget; }}
             onClick={() => { if (backdropMouseDown.current) onClose(); }}
         >
-            <div className={`modal-dialog modal-${size === 'xxl' ? 'xl' : size} modal-dialog-centered`} style={size === 'xxl' ? { maxWidth: 1100 } : undefined} onClick={e => e.stopPropagation()}>
+            <div ref={panelRef} tabIndex={-1} className={`modal-dialog modal-${size === 'xxl' ? 'xl' : size} modal-dialog-centered`} style={size === 'xxl' ? { maxWidth: 1100, outline: 'none' } : { outline: 'none' }} onClick={e => e.stopPropagation()}>
                 {modernContent}
             </div>
         </div>
