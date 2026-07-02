@@ -5,7 +5,10 @@ import { useSortable, SortMark, XPLoading } from '../shared/xpTheme';
 import { useToast } from '../shared/Toast';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
+import Pager from '../shared/Pager';
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, buildCategoryTree } from '../shared/TreeSelect';
+
+const STOCK_PAGE_SIZE = 50;
 
 interface StockOnHandViewProps {
     locations: any[];
@@ -33,6 +36,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
     const [locationFilter, setLocationFilter] = useState('');
     const [warehouseFilter, setWarehouseFilter] = useState('');
     const [selectedCat, setSelectedCat] = useState('');
+    const [page, setPage] = useState(1);
 
     // Transfer modal state
     const [transferTarget, setTransferTarget] = useState<any>(null);
@@ -415,6 +419,13 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }), [batchMap, locations, locMap]);
     const { sorted: sortedRows, sort, toggle: toggleSort } = useSortable(filtered, sortCols);
+
+    // Client-side pagination — the fetch is still whole-table (DataContext), but
+    // only one page of rows hits the DOM at a time instead of the entire result.
+    useEffect(() => { setPage(1); }, [search, locationFilter, warehouseFilter, selectedCat]);
+    const pageCount = Math.max(1, Math.ceil(sortedRows.length / STOCK_PAGE_SIZE));
+    const clampedPage = Math.min(page, pageCount);
+    const pageRows = sortedRows.slice((clampedPage - 1) * STOCK_PAGE_SIZE, clampedPage * STOCK_PAGE_SIZE);
 
     // ── XP style helpers ─────────────────────────────────────────────────────
     const xpFont = 'Tahoma, "Segoe UI", sans-serif';
@@ -954,7 +965,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                                 </tr>
                             </thead>
                             <tbody>
-                                {sortedRows.map((bal: any, i: number) => renderRow(bal, i))}
+                                {pageRows.map((bal: any, i: number) => renderRow(bal, i))}
                                 {filtered.length === 0 && (
                                     <tr>
                                         <td colSpan={10} style={{ textAlign: 'center', padding: '24px' }}>
@@ -976,6 +987,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         {negativeCount > 0 && <span style={{ color: '#c00000' }}><b>{negativeCount}</b> negative</span>}
                         <span style={{ marginLeft: 'auto', color: '#666' }}>Total: {(stockBalance || []).length} SKUs</span>
                     </div>
+                    <Pager page={clampedPage} total={sortedRows.length} pageSize={STOCK_PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
                 </div>
                 {transferModal}
                 {adjustModal}
@@ -1059,7 +1071,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             </tr>
                         </thead>
                         <tbody>
-                            {sortedRows.map((bal: any, i: number) => renderRow(bal, i))}
+                            {pageRows.map((bal: any, i: number) => renderRow(bal, i))}
                             {filtered.length === 0 && (
                                 <tr>
                                     <td colSpan={10} className="text-center text-muted py-4">
@@ -1071,10 +1083,11 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                     </table>
                 </div>
                 <div className="card-footer text-muted d-flex gap-3 small" style={{ flexShrink: 0 }}>
-                    <span><b>{filtered.length}</b> rows shown</span>
+                    <span><b>{filtered.length}</b> rows match</span>
                     {negativeCount > 0 && <span className="text-danger"><b>{negativeCount}</b> negative</span>}
                     <span className="ms-auto">Total: {(stockBalance || []).length} SKUs</span>
                 </div>
+                <Pager page={clampedPage} total={sortedRows.length} pageSize={STOCK_PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
             </div>
             {transferModal}
             {adjustModal}

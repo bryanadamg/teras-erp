@@ -10,6 +10,9 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useSortable, SortMark, StatusChip, XPLoading } from '../shared/xpTheme';
+import Pager from '../shared/Pager';
+
+const PO_PAGE_SIZE = 50;
 
 export default function PurchaseOrderView({ items, attributes, purchaseOrders, partners, locations, onCreatePO, onEditPO, onDeletePO, onCreateReceipt, onClosePO, companyProfile }: any) {
   const { showToast } = useToast();
@@ -20,6 +23,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
   const [printingPO, setPrintingPO] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [poPage, setPoPage] = useState(1);
   const { uiStyle: currentStyle } = useTheme();
   const classic = currentStyle === 'classic';
   // Backend origin for static files (delivery-note attachments live at /static, not /api)
@@ -413,6 +417,11 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
       // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [partners]);
   const { sorted: sortedOrders, sort: poSort, toggle: togglePOSort } = useSortable(filteredOrders, poSortCols);
+
+  useEffect(() => { setPoPage(1); }, [searchTerm, statusFilter]);
+  const poPageCount = Math.max(1, Math.ceil(sortedOrders.length / PO_PAGE_SIZE));
+  const clampedPoPage = Math.min(poPage, poPageCount);
+  const pageOrders = sortedOrders.slice((clampedPoPage - 1) * PO_PAGE_SIZE, clampedPoPage * PO_PAGE_SIZE);
 
   const statusBadge = (status: string) => <StatusChip status={status} tint />;
 
@@ -876,7 +885,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                            </tr>
                        </thead>
                        <tbody>
-                           {sortedOrders.map((po: any, rowIndex: number) => (
+                           {pageOrders.map((po: any, rowIndex: number) => (
                                <>
                                <tr
                                    key={po.id}
@@ -1108,6 +1117,8 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                    </table>
                </div>
            </div>
+
+           <Pager page={clampedPoPage} total={sortedOrders.length} pageSize={PO_PAGE_SIZE} onPageChange={setPoPage} hideWhenEmpty />
 
            {/* ── Status bar ── */}
            {classic && (

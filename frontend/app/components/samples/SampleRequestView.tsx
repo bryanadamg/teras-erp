@@ -12,6 +12,9 @@ import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
 import { StatusChip, XPLoading } from '../shared/xpTheme';
+import Pager from '../shared/Pager';
+
+const SAMPLE_PAGE_SIZE = 50;
 
 export default function SampleRequestView({ samples, customers, onCreateSample, onEditSample, onUpdateStatus, onUpdateColorStatus, onDeleteSample, onMarkRead, onMarkUnread, onMarkAllRead }: any) {
   const { showToast } = useToast();
@@ -58,6 +61,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
   const STATIC_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace('/api', '');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [samplePage, setSamplePage] = useState(1);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [completionImageFile, setCompletionImageFile] = useState<File | null>(null);
   const [completionImagePreviewUrl, setCompletionImagePreviewUrl] = useState<string | null>(null);
@@ -567,6 +571,19 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       const matchStatus = statusFilter === 'ALL' || s.status === statusFilter;
       return matchSearch && matchStatus;
   });
+
+  useEffect(() => { setSamplePage(1); }, [searchTerm, statusFilter]);
+  // A ?highlight=<id> deep link must stay reachable even once paginated —
+  // jump straight to whichever page contains the target row.
+  useEffect(() => {
+      if (!highlightId) return;
+      const idx = filteredSamples.findIndex((s: any) => s.id === highlightId);
+      if (idx >= 0) setSamplePage(Math.floor(idx / SAMPLE_PAGE_SIZE) + 1);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightId, samples?.length]);
+  const samplePageCount = Math.max(1, Math.ceil(filteredSamples.length / SAMPLE_PAGE_SIZE));
+  const clampedSamplePage = Math.min(samplePage, samplePageCount);
+  const pageSamples = filteredSamples.slice((clampedSamplePage - 1) * SAMPLE_PAGE_SIZE, clampedSamplePage * SAMPLE_PAGE_SIZE);
 
   return (
     <div className="fade-in">
@@ -1345,7 +1362,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                            </tr>
                        </thead>
                        <tbody>
-                           {filteredSamples.map((s: any, rowIndex: number) => (
+                           {pageSamples.map((s: any, rowIndex: number) => (
                                <React.Fragment key={s.id}>
                                <tr
                                    key={`${s.id}-row`}
@@ -1967,6 +1984,8 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                    </table>
                </div>
            </div>
+
+           <Pager page={clampedSamplePage} total={filteredSamples.length} pageSize={SAMPLE_PAGE_SIZE} onPageChange={setSamplePage} hideWhenEmpty />
 
            {/* ── Status bar ── */}
            {classic && (

@@ -10,7 +10,10 @@ const SOTablePrintModal = dynamic(() => import('./SOTablePrintModal'), { ssr: fa
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useSortable, SortMark, StatusChip, statusTint, XPLoading } from '../shared/xpTheme';
+import Pager from '../shared/Pager';
 import { useRouter } from 'next/navigation';
+
+const SO_PAGE_SIZE = 50;
 
 export default function SalesOrderView({ items, attributes, boms, salesOrders, partners, onCreateSO, onDeleteSO, onEditSO, onUpdateSOStatus, onGenerateWO, productionRuns }: any) {
   const { showToast } = useToast();
@@ -22,6 +25,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const [searchTerm, setSearchTerm] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [soPage, setSoPage] = useState(1);
   const { uiStyle: currentStyle } = useTheme();
   const { companyProfile, uoms, authFetch, itemIndex, loading: dataLoading } = useData();
 
@@ -768,6 +772,13 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   }), []);
   const { sorted: sortedOrders, sort: soSort, toggle: toggleSOSort } = useSortable(filteredOrders, soSortCols);
 
+  // Client-side pagination by order (not raw table row — each SO expands into
+  // its own line rows via rowSpan, so the page window slices sortedOrders).
+  useEffect(() => { setSoPage(1); }, [searchTerm, customerSearch, statusFilter]);
+  const soPageCount = Math.max(1, Math.ceil(sortedOrders.length / SO_PAGE_SIZE));
+  const clampedSoPage = Math.min(soPage, soPageCount);
+  const pageOrders = sortedOrders.slice((clampedSoPage - 1) * SO_PAGE_SIZE, clampedSoPage * SO_PAGE_SIZE);
+
 
 
   return (
@@ -1488,7 +1499,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                            </tr>
                        </thead>
                        <tbody>
-                           {sortedOrders.flatMap((so: any, rowIndex: number) => {
+                           {pageOrders.flatMap((so: any, rowIndex: number) => {
                                const rowBg = rowIndex % 2 === 0 ? '#ffffff' : (classic ? '#f5f3ee' : '#fafafa');
                                const soLines: any[] = so.lines;
                                const lineCount = Math.max(soLines.length, 1);
@@ -1748,6 +1759,8 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                    </table>
                </div>
            </div>
+
+           <Pager page={clampedSoPage} total={sortedOrders.length} pageSize={SO_PAGE_SIZE} onPageChange={setSoPage} hideWhenEmpty />
 
            {/* ── Status bar ── */}
            {classic && (
