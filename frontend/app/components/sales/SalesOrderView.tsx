@@ -8,7 +8,7 @@ import SalesPrintModal from './SalesPrintModal';
 import SOTablePrintModal from './SOTablePrintModal';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { useSortable, SortMark } from '../shared/xpTheme';
+import { useSortable, SortMark, StatusChip, statusTint } from '../shared/xpTheme';
 import { useRouter } from 'next/navigation';
 
 export default function SalesOrderView({ items, attributes, boms, salesOrders, partners, onCreateSO, onDeleteSO, onEditSO, onUpdateSOStatus, onGenerateWO, productionRuns }: any) {
@@ -51,17 +51,8 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const goToMO = (code: string) => { closeLineage(); router.push(`/manufacturing-orders?mo=${encodeURIComponent(code)}`); };
   const goToPR = (code: string) => { closeLineage(); router.push(`/production-runs?pr=${encodeURIComponent(code)}`); };
 
-  // Status → [bg, border, text] palette for lineage badges
-  const lineageStatusPalette = (s: string): [string, string, string] => (({
-    COMPLETED: ['#d6f0d6', '#8cc28c', '#1a5e1a'],
-    IN_PROGRESS: ['#fff1c2', '#e0c060', '#7a5a00'],
-    READY: ['#cfe2ff', '#9ec5fe', '#0a58ca'],
-    PENDING: ['#ececec', '#bcbcbc', '#555555'],
-    CANCELLED: ['#f8d7da', '#e0a0a0', '#aa0000'],
-  } as Record<string, [string, string, string]>)[s] || ['#ececec', '#bcbcbc', '#555555']);
-
   const lineageStatusBadge = (s: string) => {
-    const [bg, bd, fg] = lineageStatusPalette(s);
+    const { background: bg, borderColor: bd, color: fg } = statusTint(s);
     return (
       <span style={{ fontSize: '0.68rem', background: bg, border: `1px solid ${bd}`, color: fg, padding: '0 6px', borderRadius: classic ? 0 : 10, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
         {(s || 'PENDING').replace('_', ' ')}
@@ -706,34 +697,6 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const getItemName = (id: string, embedded?: string) => items.find((i: any) => i.id === id)?.name || embedded || itemIndex?.[String(id)]?.name || id;
   const getItemCode = (id: string, embedded?: string) => items.find((i: any) => i.id === id)?.code || embedded || itemIndex?.[String(id)]?.code || id;
   const isSample = (id: string) => items.find((i: any) => i.id === id)?.category === 'Sample';
-
-  const getStatusBadge = (status: string) => {
-      switch(status) {
-          case 'READY': return 'bg-info text-white';
-          case 'PARTIAL': return 'bg-warning text-dark';
-          case 'SENT': return 'bg-warning text-dark';
-          case 'DELIVERED': return 'bg-success';
-          case 'CANCELLED': return 'bg-danger';
-          default: return 'bg-secondary';
-      }
-  };
-
-  const getStatusXPStyle = (status: string): React.CSSProperties => {
-      const map: Record<string, { bg: string; border: string; color: string }> = {
-          PENDING:   { bg: '#e8e8e8', border: '#6a6a6a', color: '#222' },
-          READY:     { bg: '#e8f5e9', border: '#2e7d32', color: '#1b4620' },
-          PARTIAL:   { bg: '#fff3cd', border: '#c77800', color: '#7a4f00' },
-          SENT:      { bg: '#fff8e1', border: '#c77800', color: '#4a3000' },
-          DELIVERED: { bg: '#e8f5e9', border: '#1a5e1a', color: '#0a3e0a' },
-          CANCELLED: { bg: '#fce4ec', border: '#b71c1c', color: '#6b0000' },
-      };
-      const s = map[status] || { bg: '#e8e8e8', border: '#6a6a6a', color: '#222' };
-      return {
-          background: s.bg, border: `1px solid ${s.border}`, color: s.color,
-          padding: '1px 5px', fontSize: '9px', fontFamily: 'Tahoma, Arial, sans-serif',
-          fontWeight: 'bold', whiteSpace: 'nowrap' as const,
-      };
-  };
 
   const formatDate = (date: string | null) => {
       if (!date) return '—';
@@ -1557,11 +1520,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
 
                                const statusCellContent = (
                                    <>
-                                       {classic ? (
-                                           <span style={getStatusXPStyle(so.status)}>{so.status}</span>
-                                       ) : (
-                                           <span className={`badge ${getStatusBadge(so.status)}`}>{so.status}</span>
-                                       )}
+                                       <StatusChip status={so.status} tint />
                                        {so.delivered_at && <div className="extra-small text-muted mt-1" style={{ fontSize:'9px' }}>Del: {formatDate(so.delivered_at)}</div>}
                                    </>
                                );

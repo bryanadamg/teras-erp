@@ -892,7 +892,7 @@ export default function ManufacturingView({
                   <div style={{ padding: '4px', overflowY: 'auto', flex: 1 }}>
                       {treeNodes.map(({ wo: node, level, isShared }: { wo: any; level: number; isShared: boolean }) => {
                           const isActive = node.id === selectedNodeId;
-                          const statusColor = node.status === 'COMPLETED' ? STATUS_COLORS.COMPLETED : node.status === 'IN_PROGRESS' ? (classic ? STATUS_COLORS.IN_PROGRESS : '#fd7e14') : '#6c757d';
+                          const statusColor = STATUS_COLORS[node.status] || '#6c757d';
                           return (
                               <div
                                   key={node.id}

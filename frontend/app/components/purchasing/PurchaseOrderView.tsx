@@ -8,7 +8,7 @@ import PurchaseOrderPrintModal from './PurchaseOrderPrintModal';
 import ModalWrapper from '../shared/ModalWrapper';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { useSortable, SortMark } from '../shared/xpTheme';
+import { useSortable, SortMark, StatusChip } from '../shared/xpTheme';
 
 export default function PurchaseOrderView({ items, attributes, purchaseOrders, partners, locations, onCreatePO, onEditPO, onDeletePO, onCreateReceipt, onClosePO, companyProfile }: any) {
   const { showToast } = useToast();
@@ -413,20 +413,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
   }), [partners]);
   const { sorted: sortedOrders, sort: poSort, toggle: togglePOSort } = useSortable(filteredOrders, poSortCols);
 
-  const statusBadge = (status: string) => {
-    if (classic) {
-      const bg = status === 'RECEIVED' ? '#e8f5e9' : status === 'RECEIVING' ? '#fff8e1' : '#e8e8e8';
-      const border = status === 'RECEIVED' ? '#2e7d32' : status === 'RECEIVING' ? '#f57f17' : '#6a6a6a';
-      const color = status === 'RECEIVED' ? '#1b4620' : status === 'RECEIVING' ? '#5d3800' : '#222';
-      return (
-        <span style={{ background: bg, border: `1px solid ${border}`, color, padding: '1px 5px', fontSize: '9px', fontFamily: 'Tahoma, Arial, sans-serif', fontWeight: 'bold', whiteSpace: 'nowrap' as const }}>
-          {status}
-        </span>
-      );
-    }
-    const cls = status === 'RECEIVED' ? 'bg-success' : status === 'RECEIVING' ? 'bg-warning text-dark' : 'bg-secondary';
-    return <span className={`badge ${cls}`}>{status}</span>;
-  };
+  const statusBadge = (status: string) => <StatusChip status={status} tint />;
 
   return (
     <div className="fade-in">

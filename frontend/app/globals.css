@@ -1028,6 +1028,13 @@ body {
   border-color: var(--primary-dark);
 }
 
+/* Tables — tabular figures so qty/amount columns align vertically instead of
+   jittering with each digit's natural width. Applies to every <table> (most
+   views hand-roll their own, not Bootstrap's .table class). */
+table {
+  font-variant-numeric: tabular-nums;
+}
+
 /* Table */
 .table th {
   font-weight: 600;

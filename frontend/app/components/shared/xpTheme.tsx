@@ -10,35 +10,65 @@ import React, { useMemo, useState } from 'react';
 
 export const xpFont = 'Tahoma, "Segoe UI", Arial, sans-serif';
 
+// Every domain status collapses into one of five semantic families, so a status
+// means the same color everywhere regardless of which module (SO/PO/MO/sample)
+// it came from. Add a new domain status here — not a new per-view color map.
+export type StatusFamily = 'gray' | 'amber' | 'blue' | 'green' | 'red';
+
+export const STATUS_FAMILY: Record<string, StatusFamily> = {
+    DRAFT: 'gray', CLOSED: 'gray',
+    PENDING: 'gray',
+    PARTIAL: 'amber', RECEIVING: 'amber', ON_HOLD: 'amber',
+    CONFIRMED: 'blue', IN_PROGRESS: 'blue', READY: 'blue', SENT: 'blue',
+    IN_PRODUCTION: 'blue', STAGED: 'blue',
+    COMPLETED: 'green', DONE: 'green', DELIVERED: 'green', RECEIVED: 'green', APPROVED: 'green',
+    CANCELLED: 'red', REJECTED: 'red',
+};
+
+const FAMILY_SOLID: Record<StatusFamily, string> = {
+    gray: '#666666', amber: '#b8860b', blue: '#0058e6', green: '#2d7a2d', red: '#c00000',
+};
+
+const FAMILY_CHIP: Record<StatusFamily, { background: string; borderColor: string; color: string }> = {
+    gray:  { background: '#d4d0c8', borderColor: '#808080', color: '#333333' },
+    amber: { background: '#c77800', borderColor: '#7a4a00', color: '#ffffff' },
+    blue:  { background: '#0058e6', borderColor: '#003080', color: '#ffffff' },
+    green: { background: '#2d7a2d', borderColor: '#1a5e1a', color: '#ffffff' },
+    red:   { background: '#c00000', borderColor: '#800000', color: '#ffffff' },
+};
+
+// Pastel/tinted chip — same family hues, light background + dark text. Use in
+// dense contexts (expanded rows, secondary lists) where a solid chip is too loud.
+const FAMILY_TINT: Record<StatusFamily, { background: string; borderColor: string; color: string }> = {
+    gray:  { background: '#e8e8e8', borderColor: '#7a7a7a', color: '#222222' },
+    amber: { background: '#fff3cd', borderColor: '#b8860b', color: '#5d3800' },
+    blue:  { background: '#dce4f5', borderColor: '#3a5faa', color: '#0d2a6e' },
+    green: { background: '#d4edda', borderColor: '#27713a', color: '#0c3a1a' },
+    red:   { background: '#f8d7da', borderColor: '#a01a1a', color: '#4a0000' },
+};
+
+const familyOf = (status?: string): StatusFamily => STATUS_FAMILY[(status || '').toUpperCase()] || 'gray';
+
 // Solid accent color per status — for text, border-left strips, progress bars.
-export const STATUS_COLORS: Record<string, string> = {
-    DRAFT: '#666666',
-    PENDING: '#b8860b',
-    CONFIRMED: '#0058e6',
-    IN_PROGRESS: '#0058e6',
-    COMPLETED: '#2d7a2d',
-    DONE: '#2d7a2d',
-    CANCELLED: '#c00000',
-    CLOSED: '#666666',
-};
+// Computed from STATUS_FAMILY so every known status resolves consistently;
+// an unlisted status is absent here (callers already fall back via `??`/`||`).
+export const STATUS_COLORS: Record<string, string> = Object.fromEntries(
+    Object.keys(STATUS_FAMILY).map((status) => [status, FAMILY_SOLID[STATUS_FAMILY[status]]])
+);
 
-// Chip (badge) palette per status — background / border / text.
-export const STATUS_CHIP: Record<string, { background: string; borderColor: string; color: string }> = {
-    DRAFT: { background: '#d4d0c8', borderColor: '#808080', color: '#333333' },
-    PENDING: { background: '#d4d0c8', borderColor: '#808080', color: '#333333' },
-    CONFIRMED: { background: '#0058e6', borderColor: '#003080', color: '#ffffff' },
-    IN_PROGRESS: { background: '#0058e6', borderColor: '#003080', color: '#ffffff' },
-    COMPLETED: { background: '#2d7a2d', borderColor: '#1a5e1a', color: '#ffffff' },
-    DONE: { background: '#2d7a2d', borderColor: '#1a5e1a', color: '#ffffff' },
-    CANCELLED: { background: '#c00000', borderColor: '#800000', color: '#ffffff' },
-    CLOSED: { background: '#d4d0c8', borderColor: '#808080', color: '#333333' },
-};
+// Chip (badge) palette per status — background / border / text. Solid variant.
+export const STATUS_CHIP: Record<string, { background: string; borderColor: string; color: string }> = Object.fromEntries(
+    Object.keys(STATUS_FAMILY).map((status) => [status, FAMILY_CHIP[STATUS_FAMILY[status]]])
+);
 
-export const statusColor = (status?: string): string =>
-    STATUS_COLORS[(status || '').toUpperCase()] || '#666666';
+export const statusColor = (status?: string): string => FAMILY_SOLID[familyOf(status)];
 
-export const statusChipStyle = (status?: string, extra: React.CSSProperties = {}): React.CSSProperties => {
-    const c = STATUS_CHIP[(status || '').toUpperCase()] || STATUS_CHIP.PENDING;
+// Tint colors only (no layout/border-radius opinions) — for call sites that
+// render their own badge shape but want the shared per-status palette.
+export const statusTint = (status?: string) => FAMILY_TINT[familyOf(status)];
+
+export const statusChipStyle = (status?: string, extra: React.CSSProperties = {}, tint = false): React.CSSProperties => {
+    const c = tint ? FAMILY_TINT[familyOf(status)] : FAMILY_CHIP[familyOf(status)];
     return {
         display: 'inline-block', fontSize: 9, fontWeight: 'bold',
         padding: '1px 6px', borderRadius: 0, border: '1px solid',
@@ -48,9 +78,9 @@ export const statusChipStyle = (status?: string, extra: React.CSSProperties = {}
     };
 };
 
-export function StatusChip({ status, label, style }: { status: string; label?: string; style?: React.CSSProperties }) {
+export function StatusChip({ status, label, style, tint, title }: { status: string; label?: string; style?: React.CSSProperties; tint?: boolean; title?: string }) {
     return (
-        <span style={statusChipStyle(status, style)}>
+        <span style={statusChipStyle(status, style, tint)} title={title}>
             {(label ?? status).replace(/_/g, ' ').toUpperCase()}
         </span>
     );

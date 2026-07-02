@@ -10,6 +10,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 import SamplePrintModal from './SamplePrintModal';
+import { StatusChip } from '../shared/xpTheme';
 
 export default function SampleRequestView({ samples, customers, onCreateSample, onEditSample, onUpdateStatus, onUpdateColorStatus, onDeleteSample, onMarkRead, onMarkUnread, onMarkAllRead }: any) {
   const { showToast } = useToast();
@@ -464,58 +465,6 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       setIsCreateOpen(false);
   };
 
-
-  const getStatusBadge = (status: string) => {
-      switch(status) {
-          case 'APPROVED': return 'bg-success';
-          case 'REJECTED': return 'bg-danger';
-          case 'SENT': return 'bg-info text-dark';
-          case 'IN_PRODUCTION': return 'bg-warning text-dark';
-          default: return 'bg-secondary';
-      }
-  };
-
-  const getStatusXPStyle = (status: string): React.CSSProperties => {
-      const map: Record<string, { bg: string; border: string; color: string }> = {
-          APPROVED:      { bg: '#d4edda', border: '#27713a', color: '#0c3a1a' },
-          REJECTED:      { bg: '#f8d7da', border: '#a01a1a', color: '#4a0000' },
-          SENT:          { bg: '#dce4f5', border: '#3a5faa', color: '#0d2a6e' },
-          IN_PRODUCTION: { bg: '#fff3cd', border: '#b8860b', color: '#3e2000' },
-      };
-      const s = map[status] || { bg: '#e8e8e8', border: '#7a7a7a', color: '#111' };
-      return {
-          background: s.bg, border: `1px solid ${s.border}`, color: s.color,
-          padding: '1px 5px', fontSize: '9px', fontFamily: 'Tahoma, Arial, sans-serif',
-          fontWeight: 'bold', whiteSpace: 'nowrap' as const,
-      };
-  };
-
-  const getColorStatusStyle = (status: string): React.CSSProperties => {
-      const map: Record<string, { bg: string; border: string; color: string }> = {
-          APPROVED:      { bg: '#d4edda', border: '#27713a', color: '#0c3a1a' },
-          REJECTED:      { bg: '#f8d7da', border: '#a01a1a', color: '#4a0000' },
-          IN_PRODUCTION: { bg: '#fff3cd', border: '#b8860b', color: '#3e2000' },
-          SENT:          { bg: '#dce4f5', border: '#3a5faa', color: '#0d2a6e' },
-          PENDING:       { bg: '#e8e8e8', border: '#7a7a7a', color: '#111' },
-      };
-      const s = map[status] || map['PENDING'];
-      return {
-          background: s.bg, border: `1px solid ${s.border}`, color: s.color,
-          padding: '1px 5px', fontSize: '9px', fontFamily: 'Tahoma, Arial, sans-serif',
-          fontWeight: 'bold', whiteSpace: 'nowrap' as const,
-      };
-  };
-
-  const getColorStatusBadgeClass = (status: string) => {
-      const map: Record<string, string> = {
-          APPROVED: 'bg-success',
-          REJECTED: 'bg-danger',
-          IN_PRODUCTION: 'bg-warning text-dark',
-          SENT: 'bg-info text-dark',
-          PENDING: 'bg-secondary',
-      };
-      return map[status] || 'bg-secondary';
-  };
 
   // ── Color panel inner-table styles ──────────────────────────────────────────
   const colorThCell: React.CSSProperties = {
@@ -1487,11 +1436,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                    </td>
                                    {/* Status — request-level only */}
                                    <td style={classic ? tdBase : undefined}>
-                                       {classic ? (
-                                           <span style={getStatusXPStyle(s.status)}>{s.status}</span>
-                                       ) : (
-                                           <span className={`badge ${getStatusBadge(s.status)}`}>{s.status}</span>
-                                       )}
+                                       <StatusChip status={s.status} tint />
                                    </td>
                                    {/* Colors — status count badges */}
                                    <td style={classic ? tdBase : undefined}>
@@ -1499,24 +1444,18 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                            const counts: Record<string, number> = { APPROVED: 0, SENT: 0, IN_PRODUCTION: 0, REJECTED: 0, PENDING: 0 };
                                            s.colors.forEach((c: any) => { const st = c.status || 'PENDING'; counts[st] = (counts[st] || 0) + 1; });
                                            const META = [
-                                               { key: 'APPROVED',      label: 'approved',      cls: 'bg-success' },
-                                               { key: 'SENT',          label: 'sent',          cls: 'bg-info text-dark' },
-                                               { key: 'IN_PRODUCTION', label: 'in production', cls: 'bg-warning text-dark' },
-                                               { key: 'REJECTED',      label: 'rejected',      cls: 'bg-danger' },
-                                               { key: 'PENDING',       label: 'pending',       cls: 'bg-secondary' },
+                                               { key: 'APPROVED',      label: 'approved' },
+                                               { key: 'SENT',          label: 'sent' },
+                                               { key: 'IN_PRODUCTION', label: 'in production' },
+                                               { key: 'REJECTED',      label: 'rejected' },
+                                               { key: 'PENDING',       label: 'pending' },
                                            ];
                                            const shown = META.filter(m => counts[m.key] > 0);
                                            return (
                                                <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' as const, alignItems: 'center' }}>
-                                                   {shown.map(m => classic ? (
-                                                       <span key={m.key} title={`${counts[m.key]} ${m.label}`}
-                                                             style={{ ...getColorStatusStyle(m.key), minWidth: 14, textAlign: 'center' as const }}>
-                                                           {counts[m.key]}
-                                                       </span>
-                                                   ) : (
-                                                       <span key={m.key} className={`badge ${m.cls}`} title={`${counts[m.key]} ${m.label}`}>
-                                                           {counts[m.key]}
-                                                       </span>
+                                                   {shown.map(m => (
+                                                       <StatusChip key={m.key} status={m.key} label={String(counts[m.key])} tint
+                                                           style={{ minWidth: 14, textAlign: 'center' as const }} title={`${counts[m.key]} ${m.label}`} />
                                                    ))}
                                                </div>
                                            );
@@ -1675,7 +1614,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                                                        </span>
                                                                                    </td>
                                                                                    <td style={tdStyle}>
-                                                                                       <span style={getColorStatusStyle(c.status || 'PENDING')}>{c.status || 'PENDING'}</span>
+                                                                                       <StatusChip status={c.status || 'PENDING'} tint />
                                                                                    </td>
                                                                                    <td style={{ ...tdStyle, textAlign: 'center' as const }}>
                                                                                        {isApproved ? (
@@ -1866,7 +1805,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                                                    <span className={`badge ${c.is_repeat ? 'bg-primary bg-opacity-10 text-primary' : 'bg-success bg-opacity-10 text-success'} border`} style={{ fontSize: 10 }}>{c.is_repeat ? 'Repeat' : 'New'}</span>
                                                                                </td>
                                                                                <td style={{ padding: '4px 6px', borderBottom: '1px solid #e9ecef' }}>
-                                                                                   <span className={`badge ${getColorStatusBadgeClass(c.status || 'PENDING')}`} style={{ fontSize: 10 }}>{c.status || 'PENDING'}</span>
+                                                                                   <StatusChip status={c.status || 'PENDING'} tint style={{ fontSize: 10 }} />
                                                                                </td>
                                                                                <td style={{ padding: '3px 6px', borderBottom: '1px solid #e9ecef', textAlign: 'center' as const }}>
                                                                                    {isApproved ? (
