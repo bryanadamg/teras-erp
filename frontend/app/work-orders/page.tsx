@@ -15,7 +15,7 @@ function writeCache(items: any[], total: number) {
 }
 
 export default function WorkOrdersPage() {
-    const { workCenters, authFetch } = useData();
+    const { workCenters, authFetch, subscribeLiveEvents } = useData();
 
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
@@ -62,6 +62,12 @@ export default function WorkOrdersPage() {
 
     // Initial load — always refetch fresh in background (cache already shown)
     useEffect(() => { fetchWOs(1, '', '', '', ''); }, []);
+
+    // Live updates: refetch the list when a debounced batch of production events
+    // arrives over the WebSocket (this page owns its list; context can't update it).
+    useEffect(() => subscribeLiveEvents((kind) => {
+        if (kind === 'production') fetchWOs();
+    }), [subscribeLiveEvents, fetchWOs]);
 
     // Page change
     useEffect(() => { fetchWOs(woPage, filterStatus, filterGroup, filterWC, woSearch); }, [woPage]);

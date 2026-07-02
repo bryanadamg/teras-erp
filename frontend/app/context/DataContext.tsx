@@ -58,6 +58,7 @@ interface DataContextType {
     refreshPurchaseOrders: () => Promise<void>;
     handleTabHover: (tab: string) => void;
     authFetch: (url: string, options?: any) => Promise<Response>;
+    subscribeLiveEvents: (fn: (kind: 'production' | 'kpi') => void) => () => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -104,7 +105,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const [reportPage, setReportPage] = useState(1);
     const [reportTotal, setReportTotal] = useState(0);
     const [pageSize] = useState(50);
-    const [itemSearch, setItemSearch] = useState('');
+    const [itemSearch, setItemSearch] = useState('');          // committed — drives fetches
+    const [itemSearchInput, setItemSearchInput] = useState(''); // live input value
     const [moSearch, setMoSearch] = useState('');
     const [prSearch, setPrSearch] = useState('');
     const [categoryL1, setCategoryL1] = useState('');
@@ -128,6 +130,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const handleSetCategoryL2 = useCallback((v: string) => {
         setCategoryL2(v); setCategoryL3('');
     }, []);
+
+    // Debounced item search: the input echoes instantly (itemSearchInput) but the
+    // committed value that triggers a backend round-trip (itemSearch) only updates
+    // after a quiet period — previously every keystroke refetched /items.
+    const itemSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const handleSetItemSearch = useCallback((v: string) => {
+        setItemSearchInput(v);
+        if (itemSearchTimer.current) clearTimeout(itemSearchTimer.current);
+        itemSearchTimer.current = setTimeout(() => { setItemSearch(v); setItemPage(1); }, 350);
+    }, []);
+    useEffect(() => () => { if (itemSearchTimer.current) clearTimeout(itemSearchTimer.current); }, []);
 
     const authFetch = useCallback(async (url: string, options: any = {}) => {
         const token = localStorage.getItem('access_token');
@@ -393,16 +406,70 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     // WebSocket Logic
     const fetchDataRef = useRef(fetchData);
     useEffect(() => { fetchDataRef.current = fetchData; }, [fetchData]);
+    const refreshManufacturingRef = useRef(refreshManufacturing);
+    useEffect(() => { refreshManufacturingRef.current = refreshManufacturing; }, [refreshManufacturing]);
+
+    // Pages that own their data (e.g. /work-orders fetches its own list) subscribe
+    // here to be told when a debounced batch of live events has arrived.
+    const liveSubsRef = useRef<Set<(kind: 'production' | 'kpi') => void>>(new Set());
+    const subscribeLiveEvents = useCallback((fn: (kind: 'production' | 'kpi') => void) => {
+        liveSubsRef.current.add(fn);
+        return () => { liveSubsRef.current.delete(fn); };
+    }, []);
 
     useEffect(() => {
         if (!currentUser) return;
-        
+
         // WebSocket logic is safe here as it only runs on client
         const wsUrl = API_BASE.replace(/^http/, 'ws') + '/ws/events';
         let ws: WebSocket;
         let reconnectTimer: any;
         let pingTimer: any;
+        let flushTimer: any = null;
         let lastActivity = Date.now();
+
+        // Debounce buffer: a burst of WS events (bulk status change, PR creation
+        // fan-out) collapses into ONE refetch + ONE toast per 800ms window instead
+        // of one heavy refetch per message. Each of those refetches used to pull
+        // items + the full nested /boms + all-level MOs + PRs — a storm.
+        const pending = { kinds: new Set<'production' | 'kpi'>(), codes: new Map<string, string>() };
+
+        const flushLive = () => {
+            flushTimer = null;
+            const kinds = new Set(pending.kinds);
+            const codes = new Map(pending.codes);
+            pending.kinds.clear(); pending.codes.clear();
+            const path = typeof window !== 'undefined' ? window.location.pathname : '';
+            const onDashboard = path === '/' || path.startsWith('/dashboard');
+
+            if (kinds.has('production')) {
+                // Route-aware refresh: only re-pull what the CURRENT page reads.
+                // Every page re-fetches on mount, so skipping unrelated routes is
+                // safe — they're fresh again the moment the user navigates there.
+                if (path.startsWith('/manufacturing-orders') || path.startsWith('/production-runs')) {
+                    // Root MOs + PRs only; never all_levels → no wrong-MO flash.
+                    refreshManufacturingRef.current();
+                } else if (onDashboard) {
+                    fetchDataRef.current('dashboard');
+                }
+                liveSubsRef.current.forEach(fn => { try { fn('production'); } catch {} });
+                if (codes.size === 1) {
+                    const [code, status] = Array.from(codes.entries())[0];
+                    showToast(`Manufacturing Order ${code} updated: ${status}`, 'info');
+                } else if (codes.size > 1) {
+                    showToast(`${codes.size} manufacturing orders updated`, 'info');
+                }
+            }
+            if (kinds.has('kpi')) {
+                if (onDashboard && !kinds.has('production')) fetchDataRef.current('dashboard');
+                liveSubsRef.current.forEach(fn => { try { fn('kpi'); } catch {} });
+            }
+        };
+        const queueLive = (kind: 'production' | 'kpi', code?: string, status?: string) => {
+            pending.kinds.add(kind);
+            if (code) pending.codes.set(code, status || '');
+            if (!flushTimer) flushTimer = setTimeout(flushLive, 800);
+        };
 
         const connect = () => {
             ws = new WebSocket(wsUrl);
@@ -424,19 +491,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     switch (data.type) {
                         case 'WORK_ORDER_UPDATE':
                         case 'MANUFACTURING_ORDER_UPDATE':
+                            // Cheap optimistic patch stays immediate; the refetch is debounced.
                             setManufacturingOrders((prev: any[]) => prev.map((mo: any) =>
                                 mo.id === data.mo_id ? { ...mo, status: data.status } : mo
                             ));
-                            fetchDataRef.current('work-orders');
-                            showToast(`Manufacturing Order ${data.code} updated: ${data.status}`, 'info');
+                            queueLive('production', data.code, data.status);
                             break;
                         case 'PRODUCTION_RUN_UPDATE':
-                            fetchDataRef.current('work-orders');
+                            queueLive('production');
                             break;
                         case 'KPI_UPDATE':
                             // A mutation invalidated the KPI cache — refresh dashboard
                             // KPIs + summary so the numbers stay live.
-                            fetchDataRef.current('dashboard');
+                            queueLive('kpi');
                             break;
                         default:
                             break;
@@ -447,7 +514,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             ws.onerror = () => ws.close();
         };
         connect();
-        return () => { clearInterval(pingTimer); if (ws) ws.close(1000); clearTimeout(reconnectTimer); };
+        return () => { clearInterval(pingTimer); if (ws) ws.close(1000); clearTimeout(reconnectTimer); clearTimeout(flushTimer); };
     }, [currentUser, showToast]);
 
     // Dashboard auto-refresh: while the user is viewing the dashboard, refresh
@@ -466,15 +533,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
         partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, dashboardWorkOrders, itemIndex, companyProfile,
         pagination: { itemPage, setItemPage, itemTotal, woPage, setWoPage, woTotal, prPage, setPrPage, prTotal, auditPage, setAuditPage, auditTotal, reportPage, setReportPage, reportTotal, moSearch, setMoSearch: handleSetMoSearch, prSearch, setPrSearch: handleSetPrSearch, pageSize },
-        filters: { itemSearch, setItemSearch, categoryL1, setCategoryL1: handleSetCategoryL1, categoryL2, setCategoryL2: handleSetCategoryL2, categoryL3, setCategoryL3, auditType, setAuditType },
-        fetchData, refreshManufacturing, refreshPurchaseOrders, handleTabHover, authFetch
+        filters: { itemSearch: itemSearchInput, setItemSearch: handleSetItemSearch, categoryL1, setCategoryL1: handleSetCategoryL1, categoryL2, setCategoryL2: handleSetCategoryL2, categoryL3, setCategoryL3, auditType, setAuditType },
+        fetchData, refreshManufacturing, refreshPurchaseOrders, handleTabHover, authFetch, subscribeLiveEvents
     }), [
         items, locations, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
         partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, dashboardWorkOrders, itemIndex, companyProfile,
         itemPage, itemTotal, woPage, woTotal, prPage, prTotal, auditPage, auditTotal, reportPage, reportTotal, pageSize,
-        itemSearch, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData, refreshManufacturing, refreshPurchaseOrders, handleTabHover, authFetch,
-        handleSetCategoryL1, handleSetCategoryL2, handleSetMoSearch, handleSetPrSearch
+        itemSearchInput, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData, refreshManufacturing, refreshPurchaseOrders, handleTabHover, authFetch,
+        handleSetCategoryL1, handleSetCategoryL2, handleSetMoSearch, handleSetPrSearch, handleSetItemSearch, subscribeLiveEvents
     ]);
 
     return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
