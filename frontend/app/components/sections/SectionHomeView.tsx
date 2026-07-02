@@ -6,29 +6,25 @@ import { useData } from '../../context/DataContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { xpFont, StatusChip } from '../shared/xpTheme';
+import { NAV_SECTIONS, navLabel, NavSection } from '../shared/navConfig';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Section Home — a focused mini-dashboard per sidebar section. Reuses the data
 // already loaded into DataContext (no backend calls). One framework component +
 // a per-section builder; content is intentionally minimal for v1.
+// Section identity (label/icon/accent) and quick links come from navConfig.
 // ─────────────────────────────────────────────────────────────────────────────
 
 type Tone = 'ok' | 'warn' | 'crit' | undefined;
 
 interface Kpi { label: string; value: number | string; tone?: Tone; tab?: string }
-interface Link { label: string; tab: string; icon: string }
 interface ListRow { code: string; primary: string; status?: string; right?: string }
 interface SectionList { title: string; cols: string[]; rows: ListRow[] }
-interface SectionData { kpis: Kpi[]; list: SectionList | null; links: Link[] }
+interface SectionData { kpis: Kpi[]; list: SectionList | null }
 
-const SECTION_META: Record<string, { label: string; icon: string; accent: string }> = {
-  sales:       { label: 'Sales',             icon: 'bi-graph-up',     accent: 'green' },
-  procurement: { label: 'Procurement',       icon: 'bi-cart3',        accent: 'amber' },
-  inventory:   { label: 'Inventory',         icon: 'bi-box-seam',     accent: 'blue'  },
-  engineering: { label: 'Engineering',       icon: 'bi-gear',         accent: 'blue'  },
-  dyeing:      { label: 'Dyeing & Setting',  icon: 'bi-droplet-half', accent: 'blue'  },
-  reports:     { label: 'Reports',           icon: 'bi-bar-chart',    accent: 'grey'  },
-};
+const SECTION_META: Record<string, NavSection> = Object.fromEntries(
+  NAV_SECTIONS.map((s) => [s.key, s])
+);
 
 const ACCENT_GRAD: Record<string, string> = {
   blue:  'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)',
@@ -79,12 +75,6 @@ function buildSection(key: string, d: any): SectionData {
           { label: 'Active Samples', value: activeSamples, tab: 'samples' },
         ],
         list: { title: 'Recent Sales Orders', cols: ['Code', 'Customer', 'Status', 'Date'], rows },
-        links: [
-          { label: 'Sales Orders', tab: 'sales-orders', icon: 'bi-file-text' },
-          { label: 'Packaging',    tab: 'packaging',    icon: 'bi-box2' },
-          { label: 'Customers',    tab: 'customers',    icon: 'bi-people' },
-          { label: 'Sample Requests', tab: 'samples',   icon: 'bi-flask' },
-        ],
       };
     }
 
@@ -103,10 +93,6 @@ function buildSection(key: string, d: any): SectionData {
           { label: 'Suppliers',  value: suppliers, tab: 'suppliers' },
         ],
         list: { title: 'Recent Purchase Orders', cols: ['Code', 'Supplier', 'Status', 'Date'], rows },
-        links: [
-          { label: 'Purchase Orders', tab: 'purchase-orders', icon: 'bi-bag' },
-          { label: 'Suppliers',       tab: 'suppliers',       icon: 'bi-truck' },
-        ],
       };
     }
 
@@ -133,13 +119,6 @@ function buildSection(key: string, d: any): SectionData {
           { label: 'Locations',  value: locCount, tab: 'locations' },
         ],
         list: { title: 'Recent Movements', cols: ['Item', 'Qty'], rows },
-        links: [
-          { label: 'Item Inventory', tab: 'inventory',     icon: 'bi-list-check' },
-          { label: 'Stock On-Hand',  tab: 'stock-on-hand', icon: 'bi-boxes' },
-          { label: 'Booking Stock',  tab: 'booking-stock', icon: 'bi-bookmark-check' },
-          { label: 'Batch / Lot',    tab: 'batches',       icon: 'bi-upc-scan' },
-          { label: 'Locations',      tab: 'locations',     icon: 'bi-geo-alt' },
-        ],
       };
     }
 
@@ -163,29 +142,13 @@ function buildSection(key: string, d: any): SectionData {
           { label: 'Production Runs', value: prs.length, tab: 'production-runs' },
         ],
         list: { title: 'Active Manufacturing Orders', cols: ['Code', 'Product', 'Status', 'Target'], rows },
-        links: [
-          { label: 'BOM',                 tab: 'bom',                 icon: 'bi-diagram-3' },
-          { label: 'Routing',             tab: 'routing',             icon: 'bi-shuffle' },
-          { label: 'Production Runs',     tab: 'production-runs',     icon: 'bi-collection-play' },
-          { label: 'Manufacturing Orders', tab: 'manufacturing-orders', icon: 'bi-list-task' },
-          { label: 'Work Orders',         tab: 'work-orders',         icon: 'bi-tools' },
-          { label: 'Weaving Monitor',     tab: 'weaving-monitor',     icon: 'bi-speedometer2' },
-        ],
       };
     }
 
     case 'dyeing': {
       // Data-thin section: no dyeing-run / lab-dip / color state in DataContext.
       // v1 surfaces navigation only; richer metrics need backend endpoints.
-      return {
-        kpis: [],
-        list: null,
-        links: [
-          { label: 'Dyeing & Setting', tab: 'dyeing-setting', icon: 'bi-palette' },
-          { label: 'Lab Dip Requests', tab: 'lab-dips',       icon: 'bi-droplet' },
-          { label: 'Color Library',    tab: 'colors',         icon: 'bi-palette2' },
-        ],
-      };
+      return { kpis: [], list: null };
     }
 
     case 'reports': {
@@ -196,15 +159,11 @@ function buildSection(key: string, d: any): SectionData {
           { label: 'Audit Entries',    value: auditLogs.length, tab: 'audit-logs' },
         ],
         list: null,
-        links: [
-          { label: 'Stock Ledger', tab: 'reports',    icon: 'bi-journal-text' },
-          { label: 'Audit Logs',   tab: 'audit-logs', icon: 'bi-clipboard-check' },
-        ],
       };
     }
 
     default:
-      return { kpis: [], list: null, links: [] };
+      return { kpis: [], list: null };
   }
 }
 
@@ -221,6 +180,11 @@ export default function SectionHomeView({ sectionKey }: { sectionKey: string }) 
 
   const meta = SECTION_META[sectionKey];
   const section = useMemo(() => buildSection(sectionKey, data), [sectionKey, data]);
+  // Quick links mirror the sidebar's children for this section (navConfig).
+  const links = useMemo(
+    () => (meta ? meta.items.map((i) => ({ label: navLabel(t, i), tab: i.tab, icon: i.icon })) : []),
+    [meta, t]
+  );
 
   // Unknown section → bounce to dashboard.
   useEffect(() => {
@@ -240,7 +204,7 @@ export default function SectionHomeView({ sectionKey }: { sectionKey: string }) 
           padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6,
           textShadow: '1px 1px 1px rgba(0,0,0,0.4)', border: '1px solid #003080',
         }}>
-          <i className={`bi ${meta.icon}`} aria-hidden="true" /> {meta.label}
+          <i className={`bi ${meta.icon}`} aria-hidden="true" /> {navLabel(t, meta)}
         </div>
 
         {/* KPI strip */}
@@ -296,7 +260,7 @@ export default function SectionHomeView({ sectionKey }: { sectionKey: string }) 
 
         {/* quick links */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-          {section.links.map((l) => (
+          {links.map((l) => (
             <button key={l.tab} onClick={() => go(l.tab)} style={{
               border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8',
               padding: '5px 10px', fontFamily: xpFont, fontSize: 11, cursor: 'pointer',
@@ -317,7 +281,7 @@ export default function SectionHomeView({ sectionKey }: { sectionKey: string }) 
     <div className="fade-in">
       <div className="d-flex align-items-center gap-2 mb-3">
         <i className={`bi ${meta.icon} fs-4 text-primary`} aria-hidden="true" />
-        <h4 className="fw-bold mb-0">{meta.label}</h4>
+        <h4 className="fw-bold mb-0">{navLabel(t, meta)}</h4>
       </div>
 
       {section.kpis.length > 0 && (
@@ -365,7 +329,7 @@ export default function SectionHomeView({ sectionKey }: { sectionKey: string }) 
       )}
 
       <div className="d-flex flex-wrap gap-2">
-        {section.links.map((l) => (
+        {links.map((l) => (
           <button key={l.tab} className="btn btn-outline-primary btn-sm d-flex align-items-center gap-2" onClick={() => go(l.tab)}>
             <i className={`bi ${l.icon}`} aria-hidden="true" /> {l.label}
           </button>

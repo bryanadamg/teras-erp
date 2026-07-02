@@ -1,7 +1,8 @@
-import { useState, useRef, useLayoutEffect } from 'react';
+import { Fragment, useState, useRef, useLayoutEffect } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUser } from '../../context/UserContext';
 import { useTheme } from '../../context/ThemeContext';
+import { NAV_SECTIONS, navLabel, NavSection } from './navConfig';
 
 interface SidebarProps {
   activeTab: string;
@@ -203,12 +204,14 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
   );
 
   // Section header — clickable, navigates to that section's home mini-dashboard.
-  const SectionHeader = ({ sectionKey, icon, label }: { sectionKey: string; icon: string; label: string }) => {
-    const navKey = `sections/${sectionKey}`;
-    const active = activeTab === `sections-${sectionKey}`;
+  // Highlighted when its own page OR any child page is active, so the group-level
+  // "where am I" never gets lost.
+  const SectionHeader = ({ section, childActive }: { section: NavSection; childActive: boolean }) => {
+    const navKey = `sections/${section.key}`;
+    const active = activeTab === `sections-${section.key}` || childActive;
     return (
       <div style={hdrStyle(hovered === navKey || active)} onClick={() => setActiveTab(navKey)} {...H(navKey)}>
-        <span><i className={`bi ${icon}`} /> {label}</span>
+        <span><i className={`bi ${section.icon}`} /> {navLabel(t, section)}</span>
         <i className="bi bi-chevron-right" style={{ fontSize: 9, opacity: classic ? 0.7 : 0.45 }} aria-hidden="true" />
       </div>
     );
@@ -316,84 +319,20 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         {/* ── Dashboard ── */}
         <NavItem tab="dashboard" label={t('dashboard') || 'Dashboard'} icon="bi-house-door" />
 
-        {/* ── Sales ── */}
-        <SectionHeader sectionKey="sales" icon="bi-graph-up" label={t('sales') || 'Sales'} />
-        <NavItem tab="sales-orders" label={t('sales_orders') || 'Sales Orders'} icon="bi-file-text" isSub />
-        <NavItem tab="packaging"    label="Packaging"                             icon="bi-box2"    isSub />
-        <NavItem tab="customers"    label={t('customers') || 'Customers'}        icon="bi-people" isSub />
-        <NavItem tab="samples"      label={t('sample_requests') || 'Sample Requests'} icon="bi-flask" isSub />
-
-        {/* ── Procurement ── */}
-        <SectionHeader sectionKey="procurement" icon="bi-cart3" label={t('procurement') || 'Procurement'} />
-        <NavItem tab="purchase-orders" label={t('purchase_orders') || 'Purchase Orders'} icon="bi-bag" isSub />
-        <NavItem tab="suppliers"        label={t('suppliers') || 'Suppliers'}              icon="bi-truck" isSub />
-
-        {/* ── Inventory ── */}
-        {(hasPermission('inventory.manage') || hasPermission('stock.entry') || hasPermission('locations.manage')) && (
-          <>
-            <SectionHeader sectionKey="inventory" icon="bi-box-seam" label={t('inventory') || 'Inventory'} />
-            {hasPermission('inventory.manage') && (
-              <>
-                <NavItem tab="inventory"     label={t('item_inventory') || 'Item Inventory'} icon="bi-list-check" isSub />
-                <NavItem tab="item-metadata" label={t('attributes') || 'Attributes'} icon="bi-tag" isSub />
-              </>
-            )}
-            {hasPermission('inventory.manage') && (
-              <NavItem tab="batches" label="Batch / Lot" icon="bi-upc-scan" isSub />
-            )}
-            {hasPermission('inventory.manage') && (
-              <NavItem tab="stock-on-hand" label={t('stock_on_hand') || 'Stock On-Hand'} icon="bi-boxes" isSub />
-            )}
-            {hasPermission('inventory.manage') && (
-              <NavItem tab="booking-stock" label={t('booking_stock') || 'Booking Stock'} icon="bi-bookmark-check" isSub />
-            )}
-            {hasPermission('locations.manage') && (
-              <NavItem tab="locations" label={t('locations') || 'Locations'}     icon="bi-geo-alt" isSub />
-            )}
-          </>
-        )}
-
-        {/* ── Engineering ── */}
-        {(hasPermission('manufacturing.manage') || hasPermission('work_order.manage')) && (
-          <>
-            <SectionHeader sectionKey="engineering" icon="bi-gear" label={t('engineering') || 'Engineering'} />
-            {hasPermission('manufacturing.manage') && (
-              <>
-                <NavItem tab="bom"     label={t('bom') || 'BOM'}     icon="bi-diagram-3" isSub />
-                <NavItem tab="routing" label={t('routing') || 'Routing'} icon="bi-shuffle" isSub />
-              </>
-            )}
-            {hasPermission('work_order.manage') && (
-              <>
-                <NavItem tab="production-runs"      label="Production Runs"                                        icon="bi-collection-play" isSub />
-                <NavItem tab="manufacturing-orders" label={t('manufacturing_orders') || 'Manufacturing Orders'} icon="bi-list-task" isSub />
-                <NavItem tab="work-orders"          label={t('work_orders') || 'Work Orders'}                   icon="bi-tools" isSub />
-                <NavItem tab="weaving-monitor"      label={t('weaving_monitor') || 'Weaving Monitor'}           icon="bi-speedometer2" isSub />
-              </>
-            )}
-          </>
-        )}
-
-        {/* ── Dyeing & Setting ── */}
-        {hasPermission('manufacturing.manage') && (
-          <>
-            <SectionHeader sectionKey="dyeing" icon="bi-droplet-half" label="Dyeing & Setting" />
-            <NavItem tab="dyeing-setting" label="Dyeing & Setting" icon="bi-palette" isSub />
-            <NavItem tab="lab-dips" label="Lab Dip Requests" icon="bi-droplet" isSub />
-            <NavItem tab="colors" label="Color Library" icon="bi-palette2" isSub />
-          </>
-        )}
-
-        {/* ── Reports ── */}
-        {hasPermission('reports.view') && (
-          <>
-            <SectionHeader sectionKey="reports" icon="bi-bar-chart" label={t('reports') || 'Reports'} />
-            <NavItem tab="reports"    label={t('stock_ledger') || 'Stock Ledger'} icon="bi-journal-text" isSub />
-            {hasPermission('admin.access') && (
-              <NavItem tab="audit-logs" label="Audit Logs" icon="bi-clipboard-check" isSub />
-            )}
-          </>
-        )}
+        {/* ── Sections (single source of truth: navConfig.ts) ── */}
+        {NAV_SECTIONS.map((section) => {
+          if (section.permissions && !section.permissions.some((p) => hasPermission(p))) return null;
+          const visibleItems = section.items.filter((i) => !i.permission || hasPermission(i.permission));
+          if (visibleItems.length === 0) return null;
+          return (
+            <Fragment key={section.key}>
+              <SectionHeader section={section} childActive={visibleItems.some((i) => i.tab === activeTab)} />
+              {visibleItems.map((i) => (
+                <NavItem key={i.tab} tab={i.tab} label={navLabel(t, i)} icon={i.icon} isSub />
+              ))}
+            </Fragment>
+          );
+        })}
 
         {/* ── System Admin ── */}
         {hasPermission('admin.access') && (

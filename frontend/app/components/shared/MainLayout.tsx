@@ -11,6 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import PixelAvatar from './PixelAvatar';
 import { XPLoading } from './xpTheme';
+import { SECTION_LABELS, PREFETCH_ROUTES } from './navConfig';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
     const { currentUser, logout, loading, hasPermission } = useUser();
@@ -20,7 +21,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     const router = useRouter();
     const pathname = usePathname();
 
-    const [appName, setAppName] = useState('Terras ERP');
+    const [appName, setAppName] = useState('Teras ERP');
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
     const [mounted, setMounted] = useState(false);
     const isMobile = useIsMobile();
@@ -58,16 +59,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
     useEffect(() => {
         if (!mounted || loading || !currentUser || isMobile) return;
-        const routes = [
-            '/dashboard', '/inventory', '/item-metadata', '/batches', '/stock-on-hand',
-            '/booking-stock', '/locations', '/bom', '/routing', '/production-runs',
-            '/manufacturing-orders', '/work-orders', '/dyeing-setting', '/lab-dips', '/colors',
-            '/sales-orders', '/packaging', '/customers', '/samples', '/purchase-orders',
-            '/suppliers', '/reports',
-            '/sections/sales', '/sections/procurement', '/sections/inventory',
-            '/sections/engineering', '/sections/dyeing', '/sections/reports',
-        ];
-        const id = setTimeout(() => { routes.forEach(r => { try { router.prefetch(r); } catch {} }); }, 1500);
+        const id = setTimeout(() => { PREFETCH_ROUTES.forEach(r => { try { router.prefetch(r); } catch {} }); }, 1500);
         return () => clearTimeout(id);
     }, [mounted, loading, currentUser, isMobile, router]);
 
@@ -93,11 +85,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     const activeTab = !pathname || pathname === '/' ? 'dashboard' : pathname.substring(1).replace(/\//g, '-');
 
     // Page title: prefer i18n label, fall back to the URL slug.
-    // Section-home routes (/sections/<key>) have no i18n key — map them explicitly.
-    const SECTION_LABELS: Record<string, string> = {
-        sales: 'Sales', procurement: 'Procurement', inventory: 'Inventory',
-        engineering: 'Engineering', dyeing: 'Dyeing & Setting', reports: 'Reports',
-    };
+    // Section-home routes (/sections/<key>) have no i18n key — labels come from navConfig.
     const tabKey = activeTab.replace(/-/g, '_');
     const pageTitle = activeTab.startsWith('sections-')
         ? (SECTION_LABELS[activeTab.slice('sections-'.length)] || activeTab.replace(/-/g, ' '))

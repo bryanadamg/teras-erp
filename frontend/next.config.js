@@ -7,6 +7,14 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
+  async redirects() {
+    return [
+      // Legacy routes folded into /item-metadata (were client-side stub pages)
+      { source: '/attributes', destination: '/item-metadata', permanent: false },
+      { source: '/categories', destination: '/item-metadata', permanent: false },
+      { source: '/uom', destination: '/item-metadata', permanent: false },
+    ]
+  },
   async rewrites() {
     return [
       {

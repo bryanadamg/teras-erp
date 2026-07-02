@@ -12,7 +12,7 @@ import QueryProvider from './components/shared/QueryProvider';
 import MainLayout from './components/shared/MainLayout';
 
 export const metadata = {
-  title: 'Terras ERP',
+  title: 'Teras ERP',
   description: 'Next-generation modular manufacturing system',
 }
 
@@ -24,7 +24,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
       <body>
         <QueryProvider>

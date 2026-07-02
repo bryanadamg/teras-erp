@@ -317,6 +317,13 @@ body {
   background: transparent;
 }
 
+/* Clickable KPI cards: hover affordance without the floating-card lift
+   (the old base .card:hover transform was removed). */
+.ui-style-modern .kpi-clickable:hover {
+  box-shadow: var(--shadow-md);
+  background: var(--primary-soft);
+}
+
 /* UI Style: Classic (Windows XP) */
 .ui-style-classic {
   --sidebar-width: 200px;
@@ -957,24 +964,14 @@ body {
   }
 }
 
-/* Cards */
+/* Cards — base styles serve login/docs pages (rendered outside ui-style-*);
+   both themes override them. No hover-lift: neither theme wants floating cards. */
 .card {
   border: none;
   border-radius: 12px;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
   background: white;
   margin-bottom: 24px;
-  transition: transform 0.2s;
-}
-
-.card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
-}
-
-.card.no-hover:hover {
-  transform: none !important;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important;
 }
 
 .card-header {
