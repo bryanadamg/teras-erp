@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 
@@ -77,6 +78,8 @@ export default function ColorLibraryView({
     const { confirm } = useConfirm();
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
+    const { hasPermission } = useUser();
+    const canManage = hasPermission('dyeing.manage');
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editing, setEditing] = useState<any>(null);
@@ -188,9 +191,11 @@ export default function ColorLibraryView({
             <div style={classic
                 ? { background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }
                 : { background: '#fff', borderBottom: '1px solid #dbe1ea', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
+                {canManage && (
                 <button style={primaryToolbarBtn} onClick={openCreate}>
                     <i className="bi bi-plus-lg" /> New Color
                 </button>
+                )}
                 <span style={sep(classic)} />
                 <input
                     style={{ ...inp(classic), width: 240, flexBasis: 240 }}
@@ -255,12 +260,16 @@ export default function ColorLibraryView({
                                 <td style={tdBase(classic)}>{statusChip(c.status)}</td>
                                 <td style={{ ...tdBase(classic), borderRight: 'none', textAlign: 'right' }}>
                                     <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end', alignItems: 'center' }}>
+                                        {canManage && (
                                         <button title="Edit" onClick={() => openEdit(c)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#555' : '#64748b', fontSize: 13 }}>
                                             <i className="bi bi-pencil" />
                                         </button>
+                                        )}
+                                        {canManage && (
                                         <button title={c.recipe_count > 0 ? 'Archive' : 'Delete'} onClick={() => handleDelete(c)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#a00' : '#dc2626', fontSize: 13 }}>
                                             <i className={c.recipe_count > 0 ? 'bi bi-archive' : 'bi bi-trash'} />
                                         </button>
+                                        )}
                                     </div>
                                 </td>
                             </tr>

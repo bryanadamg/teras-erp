@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { useUser } from '../../context/UserContext';
 import { useSortable, SortMark, XPLoading } from '../shared/xpTheme';
 import { useToast } from '../shared/Toast';
 import SearchableSelect from '../shared/SearchableSelect';
@@ -29,6 +30,9 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
     const { uiStyle } = useTheme();
     const { t } = useLanguage();
     const { showToast } = useToast();
+    const { hasPermission } = useUser();
+    const canEntry = hasPermission('stock.entry');
+    const canRebuild = hasPermission('admin.access');
     const classic = uiStyle === 'classic';
 
     const [batches, setBatches] = useState<any[]>([]);
@@ -538,10 +542,12 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                     </td>
                     <td style={{ padding: '2px 6px', whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'flex', gap: 4 }}>
-                            <button style={xpBtn({ fontSize: '10px', padding: '1px 6px', background: 'linear-gradient(to bottom,#fff0d0,#e8c068)' })} onClick={() => openAdjust(bal)} title="Adjust quantity (cycle count / correction)">
-                                Adjust
-                            </button>
-                            {bal.qty > 0 && (
+                            {canEntry && (
+                                <button style={xpBtn({ fontSize: '10px', padding: '1px 6px', background: 'linear-gradient(to bottom,#fff0d0,#e8c068)' })} onClick={() => openAdjust(bal)} title="Adjust quantity (cycle count / correction)">
+                                    Adjust
+                                </button>
+                            )}
+                            {canEntry && bal.qty > 0 && (
                                 <button style={xpBtn({ fontSize: '10px', padding: '1px 6px' })} onClick={() => openTransfer(bal)} title="Transfer to another location">
                                     Move
                                 </button>
@@ -603,10 +609,12 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                 <td className="text-end small" style={{ whiteSpace: 'nowrap' }}>{bal.item_ends != null ? bal.item_ends : ''}</td>
                 <td>
                     <div className="d-flex gap-1">
-                        <button className="btn btn-sm btn-outline-warning py-0" onClick={() => openAdjust(bal)} title="Adjust quantity (cycle count / correction)">
-                            Adjust
-                        </button>
-                        {bal.qty > 0 && (
+                        {canEntry && (
+                            <button className="btn btn-sm btn-outline-warning py-0" onClick={() => openAdjust(bal)} title="Adjust quantity (cycle count / correction)">
+                                Adjust
+                            </button>
+                        )}
+                        {canEntry && bal.qty > 0 && (
                             <button className="btn btn-sm btn-outline-primary py-0" onClick={() => openTransfer(bal)} title="Transfer to another location">
                                 Move
                             </button>
@@ -944,12 +952,16 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         <button style={xpBtn()} onClick={onRefresh} title="Refresh">
                             <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh
                         </button>
-                        <button style={xpBtn()} onClick={handleRebuild} disabled={rebuilding} title="Recompute stock balances from the ledger (use if balances look stale)">
-                            <i className="bi bi-arrow-repeat" style={{ marginRight: 4 }} />{rebuilding ? 'Rebuilding...' : 'Rebuild'}
-                        </button>
-                        <button style={xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold' })} onClick={openNew} title="Add stock for an item (new manual entry)">
-                            <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />New Entry
-                        </button>
+                        {canRebuild && (
+                            <button style={xpBtn()} onClick={handleRebuild} disabled={rebuilding} title="Recompute stock balances from the ledger (use if balances look stale)">
+                                <i className="bi bi-arrow-repeat" style={{ marginRight: 4 }} />{rebuilding ? 'Rebuilding...' : 'Rebuild'}
+                            </button>
+                        )}
+                        {canEntry && (
+                            <button style={xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold' })} onClick={openNew} title="Add stock for an item (new manual entry)">
+                                <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />New Entry
+                            </button>
+                        )}
                     </div>
                     <div style={{ flex: 1, overflowY: 'auto', background: '#ffffff', minHeight: 0 }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
@@ -1045,16 +1057,20 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                                 <i className="bi bi-arrow-clockwise me-1" />Refresh
                             </button>
                         </div>
-                        <div className="col-md-2">
-                            <button className="btn btn-outline-secondary btn-sm w-100" onClick={handleRebuild} disabled={rebuilding} title="Recompute stock balances from the ledger (use if balances look stale)">
-                                <i className="bi bi-arrow-repeat me-1" />{rebuilding ? 'Rebuilding...' : 'Rebuild'}
-                            </button>
-                        </div>
-                        <div className="col-md-2">
-                            <button className="btn btn-success btn-sm w-100" onClick={openNew} title="Add stock for an item (new manual entry)">
-                                <i className="bi bi-plus-lg me-1" />New Entry
-                            </button>
-                        </div>
+                        {canRebuild && (
+                            <div className="col-md-2">
+                                <button className="btn btn-outline-secondary btn-sm w-100" onClick={handleRebuild} disabled={rebuilding} title="Recompute stock balances from the ledger (use if balances look stale)">
+                                    <i className="bi bi-arrow-repeat me-1" />{rebuilding ? 'Rebuilding...' : 'Rebuild'}
+                                </button>
+                            </div>
+                        )}
+                        {canEntry && (
+                            <div className="col-md-2">
+                                <button className="btn btn-success btn-sm w-100" onClick={openNew} title="Add stock for an item (new manual entry)">
+                                    <i className="bi bi-plus-lg me-1" />New Entry
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
                 <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>

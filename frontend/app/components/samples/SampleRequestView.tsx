@@ -6,6 +6,7 @@ import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
+import { useUser } from '../../context/UserContext';
 import CodeConfigModal, { CodeConfig, buildCodeWithCounter } from '../shared/CodeConfigModal';
 import SearchableSelect from '../shared/SearchableSelect';
 import HistoryPane from '../shared/HistoryPane';
@@ -20,6 +21,8 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
   const { showToast } = useToast();
   const { confirm } = useConfirm();
   const { t } = useLanguage();
+  const { hasPermission } = useUser();
+  const canManage = hasPermission('sales.manage');
 
   const handleApproveColor = async (sampleId: string, colorId: string, colorName: string) => {
       const ok = await confirm({
@@ -1246,12 +1249,14 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                        <i className="bi bi-eyedropper" style={{ marginRight: 6 }}></i>
                        {t('sample_requests')}
                    </span>
+                   {canManage && (
                    <button
                        style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' })}
                        onClick={openCreateModal}
                    >
                        <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>{t('create')}
                    </button>
+                   )}
                </div>
            ) : (
                <div className="card-header bg-white d-flex justify-content-between align-items-center">
@@ -1261,9 +1266,11 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                        </h5>
                        <p className="text-muted small mb-0 mt-1">Track prototype and sample approval workflow</p>
                    </div>
+                   {canManage && (
                    <button className="btn btn-sm btn-primary" onClick={openCreateModal}>
                        <i className="bi bi-plus-lg me-2"></i>{t('create')}
                    </button>
+                   )}
                </div>
            )}
 
@@ -1492,6 +1499,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                    <td style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'right' as const } : undefined} className={classic ? '' : 'pe-4 text-end'}>
                                        <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end', alignItems: 'center' }}>
                                            {/* Edit button */}
+                                           {canManage && (
                                            <button
                                                title="Edit Sample Request"
                                                onClick={(e) => { e.stopPropagation(); openEditModal(s); }}
@@ -1502,6 +1510,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                            >
                                                <i className="bi bi-pencil"></i>
                                            </button>
+                                           )}
                                            {/* Print button */}
                                            <button
                                                title="Print SPK Sample"
@@ -1525,7 +1534,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                <i className="bi bi-clock-history"></i>
                                            </button>
                                            {/* Update split button (classic) / plain button (modern) */}
-                                           {classic ? (
+                                           {canManage && (classic ? (
                                                <div
                                                    className="action-dropdown-btn"
                                                    style={{ display: 'inline-flex', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer' }}
@@ -1547,7 +1556,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                >
                                                    Update <i className="bi bi-caret-down-fill ms-1" style={{fontSize: '0.65em'}}></i>
                                                </button>
-                                           )}
+                                           ))}
                                            {/* Read/unread dot */}
                                            <span
                                                title={s.is_unread ? 'Unread — click to mark as read' : 'Read — click to mark as unread'}
@@ -1652,32 +1661,34 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                                                                    <div style={{ fontSize: 9, color: '#555', fontFamily: 'Tahoma, Arial, sans-serif', fontStyle: 'italic', marginTop: 1 }}>{c.rejection_notes}</div>
                                                                                                )}
                                                                                            </div>
-                                                                                       ) : (
+                                                                                       ) : canManage ? (
                                                                                            <div style={{ display: 'inline-flex' }}>
                                                                                                <button type="button" style={cbInprod(isInProd)} onClick={() => onUpdateColorStatus(s.id, c.id, isInProd ? 'PENDING' : 'IN_PRODUCTION')} title={isInProd ? 'Reset to Pending' : 'Set In Production'}>&#9881; In Prod</button>
                                                                                                <button type="button" style={cbSend(isSent)} onClick={() => onUpdateColorStatus(s.id, c.id, isSent ? 'PENDING' : 'SENT')} title={isSent ? 'Reset to Pending' : 'Mark Sent to Customer'}>&#187; Sent</button>
                                                                                                <button type="button" style={cbApprove(false)} onClick={() => handleApproveColor(s.id, c.id, c.name)} title="Approve">&#10003; Approve</button>
                                                                                                <button type="button" style={cbReject(false)} onClick={() => openRejectModal(s.id, c.id, c.name)} title="Reject">&#10007; Reject</button>
                                                                                            </div>
-                                                                                       )}
+                                                                                       ) : null}
                                                                                    </td>
                                                                                    <td style={{ ...tdStyle, borderRight: 'none', textAlign: 'center' as const }}>
                                                                                        {isApproved ? (
                                                                                            c.item_id ? (
                                                                                                <span style={{ fontSize: 10, color: '#1b5e20', fontWeight: 'bold', fontFamily: 'Tahoma, Arial, sans-serif' }}>Item: {c.item_code}</span>
-                                                                                           ) : (
+                                                                                           ) : canManage ? (
                                                                                                <button
                                                                                                    style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontSize: 10, padding: '1px 6px' })}
                                                                                                    onClick={() => createItemFromColor(s, c)}
                                                                                                    title="Create Item from this approved color"
                                                                                                >+ Item</button>
-                                                                                           )
+                                                                                           ) : null
                                                                                        ) : isRejected ? (
+                                                                                           canManage ? (
                                                                                            <button
                                                                                                style={xpBtn({ background: 'linear-gradient(to bottom, #5a8fd8, #2a5faa)', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', color: '#fff', fontSize: 10, padding: '1px 6px' })}
                                                                                                onClick={() => createNewFromRejected(s, c)}
                                                                                                title="Create a new sample request based on this rejected color"
                                                                                            >+ New Sample</button>
+                                                                                           ) : null
                                                                                        ) : null}
                                                                                    </td>
                                                                                </tr>
@@ -1843,24 +1854,26 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                                                                <div className="text-muted fst-italic" style={{ fontSize: 9 }}>{c.rejection_notes}</div>
                                                                                            )}
                                                                                        </div>
-                                                                                   ) : (
+                                                                                   ) : canManage ? (
                                                                                        <div className="btn-group btn-group-sm" role="group">
                                                                                            <button type="button" className={`btn ${isInProd ? 'btn-warning' : 'btn-outline-warning'}`} style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => onUpdateColorStatus(s.id, c.id, isInProd ? 'PENDING' : 'IN_PRODUCTION')}>&#9881; In Prod</button>
                                                                                            <button type="button" className={`btn ${isSent ? 'btn-info' : 'btn-outline-info'}`} style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => onUpdateColorStatus(s.id, c.id, isSent ? 'PENDING' : 'SENT')}>&#187; Sent</button>
                                                                                            <button type="button" className="btn btn-outline-success" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => handleApproveColor(s.id, c.id, c.name)}>&#10003; Approve</button>
                                                                                            <button type="button" className="btn btn-outline-danger" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => openRejectModal(s.id, c.id, c.name)}>&#10007; Reject</button>
                                                                                        </div>
-                                                                                   )}
+                                                                                   ) : null}
                                                                                </td>
                                                                                <td style={{ padding: '3px 6px', borderBottom: '1px solid #e9ecef', textAlign: 'center' as const }}>
                                                                                    {isApproved ? (
                                                                                        c.item_id ? (
                                                                                            <span className="badge bg-success bg-opacity-10 text-success border" style={{ fontSize: 10 }}>Item: {c.item_code}</span>
-                                                                                       ) : (
+                                                                                       ) : canManage ? (
                                                                                            <button className="btn btn-sm btn-success" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => createItemFromColor(s, c)}>+ Item</button>
-                                                                                       )
+                                                                                       ) : null
                                                                                    ) : isRejected ? (
+                                                                                       canManage ? (
                                                                                        <button className="btn btn-sm btn-primary" style={{ fontSize: 10, padding: '1px 6px' }} onClick={() => createNewFromRejected(s, c)} title="Create a new sample request based on this rejected color">+ New Sample</button>
+                                                                                       ) : null
                                                                                    ) : null}
                                                                                </td>
                                                                            </tr>

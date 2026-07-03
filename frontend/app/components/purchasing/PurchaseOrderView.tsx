@@ -9,6 +9,7 @@ const PurchaseOrderPrintModal = dynamic(() => import('./PurchaseOrderPrintModal'
 import ModalWrapper from '../shared/ModalWrapper';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
+import { useUser } from '../../context/UserContext';
 import { useSortable, SortMark, StatusChip, XPLoading } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 
@@ -18,6 +19,8 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
   const { showToast } = useToast();
   const { t } = useLanguage();
   const { itemIndex, loading: dataLoading } = useData();
+  const { hasPermission } = useUser();
+  const canManage = hasPermission('purchasing.manage');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingPOId, setEditingPOId] = useState<string | null>(null);
   const [printingPO, setPrintingPO] = useState<any>(null);
@@ -786,12 +789,14 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                        <i className="bi bi-truck" style={{ marginRight: 6 }}></i>
                        {t('purchase_orders')}
                    </span>
+                   {canManage && (
                    <button
                        style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' })}
                        onClick={() => setIsCreateOpen(true)}
                    >
                        <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>{t('create')}
                    </button>
+                   )}
                </div>
            ) : (
                <div className="card-header bg-white d-flex justify-content-between align-items-center">
@@ -801,9 +806,11 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                        </h5>
                        <p className="text-muted small mb-0 mt-1">Manage outgoing supplier orders and stock receiving</p>
                    </div>
+                   {canManage && (
                    <button className="btn btn-sm btn-success text-white" onClick={() => setIsCreateOpen(true)}>
                        <i className="bi bi-plus-lg me-2"></i>{t('create')}
                    </button>
+                   )}
                </div>
            )}
 
@@ -931,7 +938,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                    </td>
                                    <td style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'right' as const } : undefined} className={classic ? '' : 'pe-4 text-end'}>
                                        <div style={classic ? { display: 'flex', gap: 2, justifyContent: 'flex-end', alignItems: 'center' } : undefined} className={classic ? '' : 'd-flex justify-content-end align-items-center gap-2'}>
-                                           {po.status !== 'RECEIVED' && (
+                                           {canManage && po.status !== 'RECEIVED' && (
                                                classic ? (
                                                    <button
                                                        style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff' })}
@@ -949,7 +956,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                    </button>
                                                )
                                            )}
-                                           {po.status !== 'RECEIVED' && po.status !== 'CANCELLED' && (
+                                           {canManage && po.status !== 'RECEIVED' && po.status !== 'CANCELLED' && (
                                                classic ? (
                                                    <button
                                                        style={xpBtn({ background: 'linear-gradient(to bottom, #f0c000, #c08000)', borderColor: '#a06000 #604000 #604000 #a06000', color: '#000' })}
@@ -971,7 +978,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                            )}
                                            {classic ? (
                                                <>
-                                                   {po.status === 'DRAFT' && (
+                                                   {canManage && po.status === 'DRAFT' && (
                                                        <button
                                                            title="Edit"
                                                            onClick={() => handleEditOpen(po)}
@@ -991,6 +998,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                    >
                                                        <i className="bi bi-printer"></i>
                                                    </button>
+                                                   {canManage && (
                                                    <button
                                                        title="Delete"
                                                        onClick={() => onDeletePO(po.id)}
@@ -1000,10 +1008,11 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                    >
                                                        <i className="bi bi-trash"></i>
                                                    </button>
+                                                   )}
                                                </>
                                            ) : (
                                                <>
-                                                   {po.status === 'DRAFT' && (
+                                                   {canManage && po.status === 'DRAFT' && (
                                                        <button className="btn btn-sm btn-link text-muted p-0" title="Edit" onClick={() => handleEditOpen(po)}>
                                                            <i className="bi bi-pencil fs-6"></i>
                                                        </button>
@@ -1011,9 +1020,11 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                    <button className="btn btn-sm btn-link text-muted p-0" title="Print" onClick={() => handlePrintPO(po)}>
                                                        <i className="bi bi-printer fs-6"></i>
                                                    </button>
+                                                   {canManage && (
                                                    <button className="btn btn-sm btn-link text-danger p-0" title="Delete" onClick={() => onDeletePO(po.id)}>
                                                        <i className="bi bi-trash fs-6"></i>
                                                    </button>
+                                                   )}
                                                </>
                                            )}
                                        </div>

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '../../context/ThemeContext';
+import { useUser } from '../../context/UserContext';
 
 type Category = {
     id: string;
@@ -52,6 +53,8 @@ export default function CategoriesView({
 }: CategoriesViewProps) {
     const { uiStyle: currentStyle } = useTheme();
     const classic = currentStyle === 'classic';
+    const { hasPermission } = useUser();
+    const canManage = hasPermission('inventory.manage');
 
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [search, setSearch] = useState('');
@@ -264,6 +267,7 @@ export default function CategoriesView({
                     {node.is_system && (
                         <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 9, color: '#003080', background: '#dce8ff', border: '1px solid #7fa8e0', padding: '0 4px', marginRight: 4 }}>SYSTEM</span>
                     )}
+                    {canManage && (
                     <span style={{ display: 'flex', gap: 2, opacity: actionsOpacity, transition: 'opacity 0.1s' }}>
                         {node.level < 3 && (
                             <button
@@ -285,6 +289,7 @@ export default function CategoriesView({
                             >✕</button>
                         )}
                     </span>
+                    )}
                 </div>
                 {!isCollapsed && node.children?.map(child => renderNodeClassic(child))}
                 {!isCollapsed && addingState?.parentId === node.id && renderAddRowClassic(node.level + 1)}
@@ -402,6 +407,7 @@ export default function CategoriesView({
                     {node.is_system && (
                         <span className="badge bg-primary" style={{ fontSize: 10, marginRight: 6 }}>SYSTEM</span>
                     )}
+                    {canManage && (
                     <span style={{ display: 'flex', gap: 2, opacity: actionsOpacity, transition: 'opacity 0.1s' }}>
                         {node.level < 3 && (
                             <button
@@ -426,6 +432,7 @@ export default function CategoriesView({
                             >✕</button>
                         )}
                     </span>
+                    )}
                 </div>
                 {!isCollapsed && node.children?.map(child => renderNodeModern(child))}
                 {!isCollapsed && addingState?.parentId === node.id && renderAddRowModern(node.level + 1)}
@@ -471,6 +478,7 @@ export default function CategoriesView({
                 </div>
 
                 {/* Add row */}
+                {canManage && (
                 <div style={{ ...xpToolbar, borderTop: '1px solid #b0a898', borderBottom: 'none' }}>
                     <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#000', whiteSpace: 'nowrap' }}>New category:</span>
                     <input
@@ -487,6 +495,7 @@ export default function CategoriesView({
                         <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>Add
                     </button>
                 </div>
+                )}
 
                 {/* Status bar */}
                 <div style={{
@@ -544,6 +553,7 @@ export default function CategoriesView({
             </div>
 
             {/* Add row */}
+            {canManage && (
             <form className="input-group mt-3" onSubmit={e => { e.preventDefault(); handleAddRoot(); }}>
                 <input
                     className="form-control"
@@ -555,6 +565,7 @@ export default function CategoriesView({
                     <i className="bi bi-plus-lg me-1"></i>Add
                 </button>
             </form>
+            )}
 
             {/* Status bar */}
             <div className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>

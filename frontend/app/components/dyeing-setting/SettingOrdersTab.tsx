@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '../../context/ThemeContext';
+import { useUser } from '../../context/UserContext';
 
 // ── Fonts ───────────────────────────────────────────────────────────────────
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
@@ -135,6 +136,8 @@ const statusChip = (status: string, classic: boolean) => {
 export default function SettingOrdersTab({ items, authFetch }: Props) {
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
+    const { hasPermission } = useUser();
+    const canManage = hasPermission('dyeing.manage');
 
     const [workOrders, setWorkOrders] = useState<any[]>([]);
     const [selectedWoId, setSelectedWoId] = useState<string | null>(null);
@@ -364,7 +367,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                     <span>
                         Setting Runs{selectedWo ? ` — ${selectedWo.name || selectedWo.code || selectedWoId}` : ''}
                     </span>
-                    {selectedWoId && (
+                    {canManage && selectedWoId && (
                         <button
                             onClick={() => { setShowCreateRun(true); setCreateForm(EMPTY_CREATE); }}
                             style={classic ? {
@@ -481,7 +484,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                                     <td style={tdStyle}>{fmtNum(run.actual_gsm, 2)}</td>
                                                     <td style={tdStyle}>{fmtNum(run.actual_shrinkage_pct, 2)}</td>
                                                     <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                        {(!run.status || run.status === 'PENDING') && (
+                                                        {canManage && (!run.status || run.status === 'PENDING') && (
                                                             <button
                                                                 onClick={() => handleStartRun(run)}
                                                                 style={classic ? {
@@ -498,7 +501,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                                                 Start
                                                             </button>
                                                         )}
-                                                        {run.status === 'IN_PROGRESS' && (
+                                                        {canManage && run.status === 'IN_PROGRESS' && (
                                                             <button
                                                                 onClick={() => {
                                                                     setShowCompleteModal(run);

@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useUser } from '../../context/UserContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { XPStatusBar, XPEmptyState } from '../shared/xpTheme';
@@ -79,6 +80,8 @@ export default function PackingView() {
     const { uiStyle } = useTheme();
     const { showToast } = useToast();
     const { confirm } = useConfirm();
+    const { hasPermission } = useUser();
+    const canManage = hasPermission('sales.manage');
 
     const [packingOrders, setPackingOrders] = useState<any[]>([]);
     const [balances, setBalances] = useState<any[]>([]);
@@ -191,9 +194,11 @@ export default function PackingView() {
                     <span style={{ fontSize: 10, opacity: 0.85 }}>{packingOrders.length} orders</span>
                 </div>
                 <div style={xpToolbar}>
-                    <button style={xpBtnGreen()} onClick={() => setPicking(true)} title="Create a packing order for a sales order">
-                        <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />New Packing Order
-                    </button>
+                    {canManage && (
+                        <button style={xpBtnGreen()} onClick={() => setPicking(true)} title="Create a packing order for a sales order">
+                            <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />New Packing Order
+                        </button>
+                    )}
                     <div style={xpSep} />
                     <button style={xpBtn()} onClick={loadAll} title="Refresh">
                         <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh
@@ -233,7 +238,7 @@ export default function PackingView() {
                                             {po.status === 'DRAFT' ? 'Edit' : 'View'}
                                         </button>
                                         <button style={{ ...xpBtn(), marginRight: 4 }} onClick={() => setPrintPO(po)}>Surat Jalan</button>
-                                        {po.status !== 'DISPATCHED' && (
+                                        {canManage && po.status !== 'DISPATCHED' && (
                                             <button style={xpBtn({ color: '#a00' })} onClick={() => deletePO(po)}>Delete</button>
                                         )}
                                     </td>
@@ -333,7 +338,9 @@ function SOPickerModal({ packableSOs, packingOrders, onClose, onPick }: any) {
 
 // ── editor ───────────────────────────────────────────────────────────────────
 function PackingEditor({ po, salesOrders, itemById, locPickerTreeOptions, packedByOthers, availableFor, authFetch, onClose, onSaved, onPrint, showToast }: any) {
-    const readOnly = po.status !== 'DRAFT';
+    const { hasPermission } = useUser();
+    const canManage = hasPermission('sales.manage');
+    const readOnly = po.status !== 'DRAFT' || !canManage;
     const so = useMemo(() => (salesOrders || []).find((s: any) => String(s.id) === String(po.sales_order_id)), [salesOrders, po]);
     const soLines: any[] = so?.lines || [];
 

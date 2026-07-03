@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 
@@ -143,6 +144,8 @@ export default function LabDipRequestView({
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
     const router = useRouter();
+    const { hasPermission } = useUser();
+    const canManage = hasPermission('dyeing.manage');
 
     // Spawn a Color Library record from an approved dip — mirrors the sample "+ Item"
     // flow: route to /colors with prefill params; the page opens the create modal filled.
@@ -329,9 +332,11 @@ export default function LabDipRequestView({
             <div style={classic
                 ? { background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const, flexShrink: 0 }
                 : { background: '#fff', borderBottom: '1px solid #dbe1ea', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const, flexShrink: 0 }}>
+                {canManage && (
                 <button style={primaryToolbarBtn} onClick={openCreate}>
                     <i className="bi bi-plus-lg" /> New Lab Dip Request
                 </button>
+                )}
                 <span style={classic ? { width: 1, height: 20, background: '#a0988c', margin: '0 2px' } : { width: 1, height: 20, background: '#dbe1ea', margin: '0 2px' }} />
                 <input style={{ ...xpInput(classic), width: 200 }} placeholder="Search code, color standard, article…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                 <span style={classic ? { width: 1, height: 20, background: '#a0988c', margin: '0 2px' } : { width: 1, height: 20, background: '#dbe1ea', margin: '0 2px' }} />
@@ -405,12 +410,16 @@ export default function LabDipRequestView({
                                         </td>
                                         <td style={{ ...tdBase(classic), borderRight: 'none', textAlign: 'right' as const }}>
                                             <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end', alignItems: 'center' }}>
+                                                {canManage && (
                                                 <button title="Edit" onClick={e => { e.stopPropagation(); openEdit(r); }} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#555' : '#64748b', fontSize: 13 }}>
                                                     <i className="bi bi-pencil" />
                                                 </button>
+                                                )}
+                                                {canManage && (
                                                 <button title="Delete" onClick={e => { e.stopPropagation(); onDelete(r.id); }} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#a00' : '#dc2626', fontSize: 13 }}>
                                                     <i className="bi bi-trash" />
                                                 </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
@@ -490,17 +499,17 @@ export default function LabDipRequestView({
                                                                                                 <span style={{ fontSize: classic ? 10 : 12, color: classic ? '#1b5e20' : '#15803d', fontWeight: classic ? 'bold' : 600 }}>Approved</span>
                                                                                                 {d.color_id ? (
                                                                                                     <span title="Added to Color Library" style={{ fontSize: classic ? 9 : 11, color: classic ? '#555' : '#64748b', display: 'inline-flex', alignItems: 'center', gap: 2 }}><i className="bi bi-check-circle-fill" /> In Library</span>
-                                                                                                ) : (
+                                                                                                ) : canManage ? (
                                                                                                     <button type="button" title="Create a Color Library record from this shade" style={approveBtn()} onClick={() => createColorFromDip(r, d)}><i className="bi bi-plus-lg" /> Color</button>
-                                                                                                )}
+                                                                                                ) : null}
                                                                                             </div>
-                                                                                        ) : (
+                                                                                        ) : canManage ? (
                                                                                             <div style={{ display: 'inline-flex' }}>
                                                                                                 <button type="button" style={dipBtn(st === 'RESUBMIT', 'resubmit')} onClick={() => onUpdateDipStatus(r.id, d.id, st === 'RESUBMIT' ? 'PENDING' : 'RESUBMIT')}>Resubmit</button>
                                                                                                 <button type="button" style={{ ...approveBtn(), borderRight: 'none' }} onClick={() => handleApproveDip(r.id, d.id, d.color_name)}>Approve</button>
                                                                                                 <button type="button" style={dipBtn(st === 'REJECTED', 'reject')} onClick={() => onUpdateDipStatus(r.id, d.id, st === 'REJECTED' ? 'PENDING' : 'REJECTED')}>Reject</button>
                                                                                             </div>
-                                                                                        )}
+                                                                                        ) : null}
                                                                                     </td>
                                                                                 </tr>
                                                                             );
@@ -517,7 +526,7 @@ export default function LabDipRequestView({
                                                         {/* Request status control */}
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', flexWrap: 'wrap' as const, borderBottom: classic ? '1px solid #d0cdc8' : '1px solid #e6eaf1', background: '#fff' }}>
                                                             <span style={{ fontSize: classic ? 10 : 12, fontWeight: classic ? 'bold' : 600, color: classic ? '#111' : '#475569' }}>Request Status:</span>
-                                                            <select style={{ ...xpInput(classic), width: 140 }} value={r.status} onChange={e => onUpdateStatus(r.id, e.target.value)}>
+                                                            <select style={{ ...xpInput(classic), width: 140 }} value={r.status} disabled={!canManage} onChange={e => onUpdateStatus(r.id, e.target.value)}>
                                                                 {REQUEST_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                                                             </select>
                                                         </div>

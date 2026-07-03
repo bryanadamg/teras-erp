@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useUser } from '../../context/UserContext';
 import { useToast } from '../shared/Toast';
 import CategoriesView from './CategoriesView';
 
@@ -34,6 +35,8 @@ export default function ItemMetadataView({
 }: Props) {
     const { t } = useLanguage();
     const { showToast } = useToast();
+    const { hasPermission } = useUser();
+    const canManage = hasPermission('inventory.manage');
 
     // ── UI style ──────────────────────────────────────────────────────────────
     const { uiStyle: currentStyle } = useTheme();
@@ -224,6 +227,7 @@ export default function ItemMetadataView({
                         <div style={xpTitleBar({ background: 'linear-gradient(to right,#c06a00,#f09030)', borderBottom: '1px solid #804800' })}>
                             <span><i className="bi bi-rulers" style={{ marginRight: 6 }}></i>Units of Measure (UOM)</span>
                         </div>
+                        {canManage && (
                         <form onSubmit={handleCreateUOM}>
                             <div style={xpToolbar}>
                                 <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', whiteSpace: 'nowrap' }}>New:</span>
@@ -231,6 +235,7 @@ export default function ItemMetadataView({
                                 <button type="submit" disabled={isUomSubmitting} style={{ ...xpBtnGreen, opacity: isUomSubmitting ? 0.6 : 1 }}><i className="bi bi-plus-lg" style={{ marginRight: 3 }}></i>{isUomSubmitting ? '...' : 'Add'}</button>
                             </div>
                         </form>
+                        )}
                         <div style={xpToolbar}>
                             <i className="bi bi-search" style={{ fontSize: '11px', color: '#666' }}></i>
                             <input style={{ ...xpInput, flex: 1 }} placeholder="Search..." value={uomSearch} onChange={e => setUomSearch(e.target.value)} />
@@ -263,7 +268,7 @@ export default function ItemMetadataView({
                                                     <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '9px', color: '#aaa', fontStyle: 'italic' }}>{uom.is_system ? '(base unit)' : 'no conversion set'}</span>
                                                 )}
                                             </div>
-                                            {!uom.is_system && (
+                                            {canManage && !uom.is_system && (
                                                 <button
                                                     style={{ ...xpBtn(), border: uomHovered === uom.id ? '1px solid #808080' : '1px solid transparent', background: uomHovered === uom.id ? 'linear-gradient(to bottom,#ffffff,#d4d0c8)' : 'transparent', padding: '1px 6px' }}
                                                     onMouseEnter={() => setUomHovered(uom.id)} onMouseLeave={() => setUomHovered(null)}
@@ -280,11 +285,12 @@ export default function ItemMetadataView({
                                                         {factors.map((f: any) => (
                                                             <span key={f.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', background: '#fff3e0', border: '1px solid #f0a040', color: '#804800', padding: '1px 4px' }}>
                                                                 1 {uom.name} = {parseFloat(f.value)} {f.to_uom_name}
-                                                                <button style={{ border: 'none', background: 'none', color: '#c00', cursor: 'pointer', padding: 0, fontSize: 11, lineHeight: 1, marginLeft: 2 }} onClick={() => onDeleteUOMFactor(uom.id, f.id)}>x</button>
+                                                                {canManage && <button style={{ border: 'none', background: 'none', color: '#c00', cursor: 'pointer', padding: 0, fontSize: 11, lineHeight: 1, marginLeft: 2 }} onClick={() => onDeleteUOMFactor(uom.id, f.id)}>x</button>}
                                                             </span>
                                                         ))}
                                                     </div>
                                                 )}
+                                                {canManage && (
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingTop: factors.length > 0 ? 5 : 0, borderTop: factors.length > 0 ? '1px solid #d0c8b0' : 'none' }}>
                                                     <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#804800' }}>1 <b>{uom.name}</b> =</span>
                                                     <input
@@ -306,6 +312,7 @@ export default function ItemMetadataView({
                                                     </select>
                                                     <button style={xpBtnGreen} onClick={() => handleAddFactor(uom)}>Add</button>
                                                 </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -323,9 +330,11 @@ export default function ItemMetadataView({
                 <div style={xpBevel}>
                     <div style={xpTitleBar()}>
                         <span><i className="bi bi-collection-fill" style={{ marginRight: 6 }}></i>Variants &amp; Attributes</span>
+                        {canManage && (
                         <button style={xpBtnGreen} onClick={openCreatePanel}>
                             <i className="bi bi-plus-lg" style={{ marginRight: 3 }}></i>New
                         </button>
+                        )}
                     </div>
                     {/* Search toolbar */}
                     <div style={xpToolbar}>
@@ -363,6 +372,7 @@ export default function ItemMetadataView({
                                                 {attr.values.length > 8 && <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: isActive ? 'rgba(255,255,255,0.7)' : '#888' }}>…</span>}
                                             </div>
                                         </div>
+                                        {canManage && (
                                         <button
                                             onClick={e => { e.stopPropagation(); onDeleteAttribute(attr.id); }}
                                             style={{ ...xpBtn(), border: attrHovered === `del-${attr.id}` ? '1px solid #808080' : '1px solid transparent', background: attrHovered === `del-${attr.id}` ? 'linear-gradient(to bottom,#ffffff,#d4d0c8)' : 'transparent', padding: '1px 6px', marginLeft: 6, flexShrink: 0 }}
@@ -371,6 +381,7 @@ export default function ItemMetadataView({
                                         >
                                             <i className="bi bi-trash" style={{ color: isActive ? '#ffcccc' : '#c00000', fontSize: '11px' }}></i>
                                         </button>
+                                        )}
                                     </div>
                                 );
                             })}
@@ -408,8 +419,8 @@ export default function ItemMetadataView({
                                         <div>
                                             <label style={xpLabel}>Attribute Name</label>
                                             <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
-                                                <input style={{ ...xpInput, flex: 1 }} value={editingAttr.name} onChange={e => setEditingAttr({ ...editingAttr, name: e.target.value })} />
-                                                <button style={xpBtnBlue} onClick={handleUpdateAttrName}>Save</button>
+                                                <input style={{ ...xpInput, flex: 1 }} value={editingAttr.name} disabled={!canManage} onChange={e => setEditingAttr({ ...editingAttr, name: e.target.value })} />
+                                                {canManage && <button style={xpBtnBlue} onClick={handleUpdateAttrName}>Save</button>}
                                             </div>
                                             <label style={xpLabel}>Values ({activeAttribute.values.length})</label>
                                             <div style={{ background: '#ffffff', border: '1px solid #7f9db9', maxHeight: 200, overflowY: 'auto', marginBottom: 6 }}>
@@ -418,8 +429,10 @@ export default function ItemMetadataView({
                                                         <input
                                                             style={{ ...xpInput, flex: 1, border: 'none', boxShadow: 'none', height: '18px', background: 'transparent' }}
                                                             defaultValue={val.value}
+                                                            disabled={!canManage}
                                                             onBlur={e => { if (e.target.value !== val.value) onUpdateValue(val.id, e.target.value); }}
                                                         />
+                                                        {canManage && (
                                                         <button
                                                             style={{ ...xpBtn(), border: attrHovered === val.id ? '1px solid #808080' : '1px solid transparent', background: attrHovered === val.id ? 'linear-gradient(to bottom,#ffffff,#d4d0c8)' : 'transparent', padding: '0 4px' }}
                                                             onMouseEnter={() => setAttrHovered(val.id)} onMouseLeave={() => setAttrHovered(null)}
@@ -427,12 +440,14 @@ export default function ItemMetadataView({
                                                         >
                                                             <i className="bi bi-x" style={{ color: '#c00000', fontSize: '11px' }}></i>
                                                         </button>
+                                                        )}
                                                     </div>
                                                 ))}
                                                 {activeAttribute.values.length === 0 && (
                                                     <div style={{ padding: '8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#666', textAlign: 'center' }}>No values yet</div>
                                                 )}
                                             </div>
+                                            {canManage && (
                                             <div style={{ display: 'flex', gap: 4 }}>
                                                 <input
                                                     style={{ ...xpInput, flex: 1 }}
@@ -446,6 +461,7 @@ export default function ItemMetadataView({
                                                     <button style={xpBtn({ background: 'linear-gradient(to bottom,#d4ead4,#a0c8a0)', borderColor: '#2e7d32 #1a5e1a #1a5e1a #2e7d32' })} onClick={handleAddNextToExisting}>+{nextValForEdit}</button>
                                                 )}
                                             </div>
+                                            )}
                                         </div>
                                     ) : null}
                                 </div>
@@ -488,12 +504,14 @@ export default function ItemMetadataView({
                             <p className="text-muted small mb-0 mt-1">Manage standard units for items.</p>
                         </div>
                         <div className="card-body">
+                            {canManage && (
                             <form onSubmit={handleCreateUOM} className="mb-3">
                                 <div className="input-group">
                                     <input className="form-control" placeholder="e.g. Dozen, Box, Litre..." value={newUOMName} onChange={e => setNewUOMName(e.target.value)} required />
                                     <button type="submit" className="btn btn-success px-4" disabled={isUomSubmitting}>{isUomSubmitting ? '...' : t('add')}</button>
                                 </div>
                             </form>
+                            )}
                             <div className="input-group mb-3">
                                 <span className="input-group-text"><i className="bi bi-search"></i></span>
                                 <input className="form-control" placeholder="Search units..." value={uomSearch} onChange={e => setUomSearch(e.target.value)} />
@@ -529,7 +547,7 @@ export default function ItemMetadataView({
                                                         <span className="text-muted fst-italic" style={{ fontSize: 11 }}>no conversion set</span>
                                                     )}
                                                 </div>
-                                                {!uom.is_system && (
+                                                {canManage && !uom.is_system && (
                                                     <button className="btn btn-sm text-danger p-0 px-2" onClick={() => onDeleteUOM(uom.id)}>
                                                         <i className="bi bi-trash"></i>
                                                     </button>
@@ -542,11 +560,12 @@ export default function ItemMetadataView({
                                                             {factors.map((f: any) => (
                                                                 <span key={f.id} className="d-inline-flex align-items-center gap-1 badge border fw-normal" style={{ fontSize: 11, background: '#fff3e0', borderColor: '#f0a040', color: '#804800' }}>
                                                                     1 {uom.name} = {parseFloat(f.value)} {f.to_uom_name}
-                                                                    <button className="btn-close" style={{ fontSize: 8, filter: 'invert(20%) sepia(100%) saturate(700%) hue-rotate(330deg)' }} onClick={() => onDeleteUOMFactor(uom.id, f.id)} />
+                                                                    {canManage && <button className="btn-close" style={{ fontSize: 8, filter: 'invert(20%) sepia(100%) saturate(700%) hue-rotate(330deg)' }} onClick={() => onDeleteUOMFactor(uom.id, f.id)} />}
                                                                 </span>
                                                             ))}
                                                         </div>
                                                     )}
+                                                    {canManage && (
                                                     <div className={`d-flex align-items-center gap-2 flex-wrap ${factors.length > 0 ? 'pt-2 border-top' : ''}`}>
                                                         <span className="small text-warning-emphasis">1 <strong>{uom.name}</strong> =</span>
                                                         <input
@@ -570,6 +589,7 @@ export default function ItemMetadataView({
                                                         </select>
                                                         <button className="btn btn-sm btn-success" onClick={() => handleAddFactor(uom)}>Add</button>
                                                     </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -597,9 +617,11 @@ export default function ItemMetadataView({
                             <span className="input-group-text"><i className="bi bi-search"></i></span>
                             <input className="form-control form-control-sm" placeholder="Search..." value={attrSearch} onChange={e => setAttrSearch(e.target.value)} />
                         </div>
+                        {canManage && (
                         <button className="btn btn-success btn-sm px-3" onClick={openCreatePanel}>
                             <i className="bi bi-plus-lg me-1"></i>New
                         </button>
+                        )}
                     </div>
                 </div>
                 <div className="card-body p-0 d-flex" style={{ minHeight: 200 }}>
@@ -632,9 +654,11 @@ export default function ItemMetadataView({
                                                 {attr.values.length > 8 && <span className="badge text-muted">...</span>}
                                             </div>
                                         </div>
+                                        {canManage && (
                                         <div onClick={e => e.stopPropagation()}>
                                             <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDeleteAttribute(attr.id)}><i className="bi bi-trash fs-6"></i></button>
                                         </div>
+                                        )}
                                     </div>
                                 );
                             })}
@@ -675,20 +699,21 @@ export default function ItemMetadataView({
                                         <div className="mb-3">
                                             <label className="form-label small fw-semibold">Attribute Name</label>
                                             <div className="input-group input-group-sm">
-                                                <input className="form-control" value={editingAttr.name} onChange={e => setEditingAttr({ ...editingAttr, name: e.target.value })} />
-                                                <button className="btn btn-outline-primary" onClick={handleUpdateAttrName}>{t('save')}</button>
+                                                <input className="form-control" value={editingAttr.name} disabled={!canManage} onChange={e => setEditingAttr({ ...editingAttr, name: e.target.value })} />
+                                                {canManage && <button className="btn btn-outline-primary" onClick={handleUpdateAttrName}>{t('save')}</button>}
                                             </div>
                                         </div>
                                         <label className="form-label small fw-semibold">Values ({activeAttribute.values.length})</label>
                                         <div className="list-group list-group-flush border rounded mb-2" style={{ maxHeight: 260, overflowY: 'auto' }}>
                                             {activeAttribute.values.map((val: any) => (
                                                 <div key={val.id} className="list-group-item d-flex align-items-center p-2">
-                                                    <input className="form-control form-control-sm border-0 bg-transparent flex-grow-1" defaultValue={val.value} onBlur={e => { if (e.target.value !== val.value) onUpdateValue(val.id, e.target.value); }} />
-                                                    <button className="btn btn-sm text-danger p-0 ms-1" onClick={() => onDeleteValue(val.id)}><i className="bi bi-x fs-5"></i></button>
+                                                    <input className="form-control form-control-sm border-0 bg-transparent flex-grow-1" defaultValue={val.value} disabled={!canManage} onBlur={e => { if (e.target.value !== val.value) onUpdateValue(val.id, e.target.value); }} />
+                                                    {canManage && <button className="btn btn-sm text-danger p-0 ms-1" onClick={() => onDeleteValue(val.id)}><i className="bi bi-x fs-5"></i></button>}
                                                 </div>
                                             ))}
                                             {activeAttribute.values.length === 0 && <div className="list-group-item text-center text-muted fst-italic small">No values yet</div>}
                                         </div>
+                                        {canManage && (
                                         <div className="input-group input-group-sm">
                                             <input className="form-control" placeholder="Add value..." value={newValueForEdit} onChange={e => setNewValueForEdit(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddValueToExisting()} />
                                             <button className="btn btn-secondary" onClick={handleAddValueToExisting}>{t('add')}</button>
@@ -696,6 +721,7 @@ export default function ItemMetadataView({
                                                 <button className="btn btn-outline-success" onClick={handleAddNextToExisting}>+{nextValForEdit}</button>
                                             )}
                                         </div>
+                                        )}
                                     </div>
                                 ) : null}
                             </div>

@@ -9,6 +9,7 @@ import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
+import { useUser } from '../../context/UserContext';
 import { XPEmptyState, useSortable, SortMark } from '../shared/xpTheme';
 import TreeSelect, { buildCategoryTree, buildLocationPickerTree } from '../shared/TreeSelect';
 
@@ -25,6 +26,9 @@ function getCategoryXPStyle(category: string): { bg: string; border: string; col
 
 // Memoized Row Component
 const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSelect, onEdit, onDelete, onViewHistory, getAttributeNames, classic }: any) => {
+    const { hasPermission } = useUser();
+    const canManage = hasPermission('inventory.manage');
+    const canDelete = hasPermission('inventory.delete');
     const rowBg = classic
         ? (isSelected ? '#316ac5' : isEditing ? '#fff8cc' : rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee')
         : undefined;
@@ -146,36 +150,44 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
                             >
                                 <i className="bi bi-clock-history"></i>
                             </button>
-                            <button
-                                title="Edit"
-                                onClick={() => onEdit(item)}
-                                style={{ background: 'none', border: '1px solid transparent', borderRadius: '2px', cursor: 'pointer', padding: '3px 6px', color: isSelected ? '#fff' : '#00309c', fontSize: '12px' }}
-                                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = isSelected ? 'rgba(255,255,255,0.15)' : '#e8f0f8'; }}
-                                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-                            >
-                                <i className="bi bi-pencil-square"></i>
-                            </button>
-                            <button
-                                title="Delete"
-                                onClick={() => onDelete(item.id)}
-                                style={{ background: 'none', border: '1px solid transparent', borderRadius: '2px', cursor: 'pointer', padding: '3px 6px', color: isSelected ? '#ffcccc' : '#aa0000', fontSize: '12px' }}
-                                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#cc8888'; (e.currentTarget as HTMLButtonElement).style.background = isSelected ? 'rgba(255,100,100,0.2)' : '#ffe8e8'; }}
-                                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-                            >
-                                <i className="bi bi-trash"></i>
-                            </button>
+                            {canManage && (
+                                <button
+                                    title="Edit"
+                                    onClick={() => onEdit(item)}
+                                    style={{ background: 'none', border: '1px solid transparent', borderRadius: '2px', cursor: 'pointer', padding: '3px 6px', color: isSelected ? '#fff' : '#00309c', fontSize: '12px' }}
+                                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = isSelected ? 'rgba(255,255,255,0.15)' : '#e8f0f8'; }}
+                                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+                                >
+                                    <i className="bi bi-pencil-square"></i>
+                                </button>
+                            )}
+                            {canDelete && (
+                                <button
+                                    title="Delete"
+                                    onClick={() => onDelete(item.id)}
+                                    style={{ background: 'none', border: '1px solid transparent', borderRadius: '2px', cursor: 'pointer', padding: '3px 6px', color: isSelected ? '#ffcccc' : '#aa0000', fontSize: '12px' }}
+                                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#cc8888'; (e.currentTarget as HTMLButtonElement).style.background = isSelected ? 'rgba(255,100,100,0.2)' : '#ffe8e8'; }}
+                                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+                                >
+                                    <i className="bi bi-trash"></i>
+                                </button>
+                            )}
                         </>
                     ) : (
                         <>
                             <button className="btn btn-sm btn-link text-info p-0" title="View History" onClick={() => onViewHistory(item.id)}>
                                 <i className="bi bi-clock-history"></i>
                             </button>
-                            <button className="btn btn-sm btn-link text-primary p-0" onClick={() => onEdit(item)}>
-                                <i className="bi bi-pencil-square"></i>
-                            </button>
-                            <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDelete(item.id)}>
-                                <i className="bi bi-trash"></i>
-                            </button>
+                            {canManage && (
+                                <button className="btn btn-sm btn-link text-primary p-0" onClick={() => onEdit(item)}>
+                                    <i className="bi bi-pencil-square"></i>
+                                </button>
+                            )}
+                            {canDelete && (
+                                <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDelete(item.id)}>
+                                    <i className="bi bi-trash"></i>
+                                </button>
+                            )}
                         </>
                     )}
                 </div>
@@ -230,6 +242,9 @@ export default function InventoryView({
   const router = useRouter();
 
   const { categories, locations, filters: { categoryL1, setCategoryL1, categoryL2, setCategoryL2, categoryL3, setCategoryL3, itemSearch, setItemSearch } } = useData();
+  const { hasPermission } = useUser();
+  const canManage = hasPermission('inventory.manage');
+  const canDelete = hasPermission('inventory.delete');
   // UI State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -1093,7 +1108,7 @@ export default function InventoryView({
               </div>
               {/* Right: action buttons */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                {selectedIds.size > 0 && (
+                {canDelete && selectedIds.size > 0 && (
                   <>
                     <button
                       style={xpBtn({ background: 'linear-gradient(to bottom, #ff6060, #cc0000)', borderColor: '#800000 #4a0000 #4a0000 #800000', color: '#ffffff' })}
@@ -1110,19 +1125,23 @@ export default function InventoryView({
                     <div style={xpSep}></div>
                   </>
                 )}
-                <button
-                  style={xpBtn()}
-                  onClick={() => setIsImportOpen(true)}
-                >
-                  <i className="bi bi-upload"></i> Import
-                </button>
-                <button
-                  data-testid="create-item-btn"
-                  style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' })}
-                  onClick={openCreateModal}
-                >
-                  <i className="bi bi-plus-lg"></i> {t('create')}
-                </button>
+                {canManage && (
+                  <>
+                    <button
+                      style={xpBtn()}
+                      onClick={() => setIsImportOpen(true)}
+                    >
+                      <i className="bi bi-upload"></i> Import
+                    </button>
+                    <button
+                      data-testid="create-item-btn"
+                      style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' })}
+                      onClick={openCreateModal}
+                    >
+                      <i className="bi bi-plus-lg"></i> {t('create')}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           ) : (
@@ -1133,7 +1152,7 @@ export default function InventoryView({
                       <p className="text-muted small mb-0 mt-1">
                           {forcedCategory ? 'Manage product samples and prototypes' : 'Master list of all products and materials'}
                       </p>
-                      {selectedIds.size > 0 && (
+                      {canDelete && selectedIds.size > 0 && (
                           <div className="d-flex align-items-center gap-2 mt-2">
                               <span className="text-muted small">{selectedIds.size} selected</span>
                               <button className="btn btn-sm btn-danger" onClick={handleBulkDelete}>
@@ -1145,6 +1164,7 @@ export default function InventoryView({
                           </div>
                       )}
                   </div>
+                  {canManage && (
                   <div className="d-flex gap-2">
                       <button className="btn btn-light btn-sm border" onClick={() => setIsImportOpen(true)}>
                           <i className="bi bi-upload me-2"></i>Import
@@ -1153,6 +1173,7 @@ export default function InventoryView({
                           <i className="bi bi-plus-lg me-2"></i>{t('create')}
                       </button>
                   </div>
+                  )}
               </div>
               {/* Filter Bar */}
               <div className="row g-2 align-items-center bg-light p-2 rounded border">

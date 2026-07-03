@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useUser } from '../../context/UserContext';
 import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 
 // ── XP inline styles ─────────────────────────────────────────────────────
@@ -66,9 +67,11 @@ function XPPanel({ icon, title, accentColor, createForm, searchVal, onSearch, se
             <div style={xpTitleBar({ background: `linear-gradient(to right, ${accentColor[0]} 0%, ${accentColor[1]} 100%)`, borderBottom: `1px solid ${accentColor[2]}` })}>
                 <span><i className={`bi ${icon}`} style={{ marginRight: 6 }}></i>{title}</span>
             </div>
-            <div style={{ background: '#f5f4ef', borderBottom: '1px solid #b0a898', padding: '6px 8px' }}>
-                {createForm}
-            </div>
+            {createForm && (
+                <div style={{ background: '#f5f4ef', borderBottom: '1px solid #b0a898', padding: '6px 8px' }}>
+                    {createForm}
+                </div>
+            )}
             <div style={xpToolbar}>
                 <i className="bi bi-search" style={{ fontSize: '11px', color: '#666' }}></i>
                 <input style={{ ...xpInput, flex: 1, minWidth: 80 }} placeholder={searchPlaceholder} value={searchVal} onChange={(e: any) => onSearch(e.target.value)} />
@@ -104,6 +107,8 @@ function buildTree(wcs: any[]): { wc: any; isGroup: boolean; indent: boolean }[]
 
 export default function RoutingView({ workCenters, operations, locations, onCreateWorkCenter, onUpdateWorkCenter, onDeleteWorkCenter, onCreateOperation, onDeleteOperation, onRefresh }: any) {
   const { t } = useLanguage();
+  const { hasPermission } = useUser();
+  const canManage = hasPermission('manufacturing.manage');
   const [newWorkCenter, setNewWorkCenter] = useState({ ...emptyWC });
   const [newOperation, setNewOperation] = useState({ code: '', name: '' });
   const [wcSearch, setWcSearch] = useState('');
@@ -292,7 +297,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                       onSearch={setWcSearch}
                       searchPlaceholder="Search work centers..."
                       countLabel={`${wcList.length} station${wcList.length === 1 ? '' : 's'}`}
-                      createForm={
+                      createForm={canManage && (
                           <form onSubmit={handleCreateWC} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                               <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', flexWrap: 'wrap' as const }}>
                                   <div>
@@ -342,7 +347,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                                   </button>
                               </div>
                           </form>
-                      }
+                      )}
                       table={
                           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                               <thead>
@@ -373,8 +378,8 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                                                   <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#444', whiteSpace: 'nowrap' }}>{!isGroup ? getLocName(wc.input_location_id) : ''}</td>
                                                   <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#444', whiteSpace: 'nowrap' }}>{!isGroup ? getLocName(wc.output_location_id) : ''}</td>
                                                   <td style={{ padding: '2px 4px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                                      <button style={{ ...xpBtn(), border: hoveredId === `wc-edit-${wc.id}` ? '1px solid #808080' : '1px solid transparent', background: 'transparent', padding: '1px 5px' }} onMouseEnter={() => setHoveredId(`wc-edit-${wc.id}`)} onMouseLeave={() => setHoveredId(null)} onClick={() => setEditingWC({ ...wc })} title="Edit"><i className="bi bi-pencil" style={{ fontSize: '11px' }}></i></button>
-                                                      <button style={{ ...xpBtn(), border: hoveredId === `wc-${wc.id}` ? '1px solid #808080' : '1px solid transparent', background: 'transparent', padding: '1px 5px' }} onMouseEnter={() => setHoveredId(`wc-${wc.id}`)} onMouseLeave={() => setHoveredId(null)} onClick={() => onDeleteWorkCenter && onDeleteWorkCenter(wc.id)} title="Delete"><i className="bi bi-trash" style={{ color: '#c00000', fontSize: '11px' }}></i></button>
+                                                      {canManage && <button style={{ ...xpBtn(), border: hoveredId === `wc-edit-${wc.id}` ? '1px solid #808080' : '1px solid transparent', background: 'transparent', padding: '1px 5px' }} onMouseEnter={() => setHoveredId(`wc-edit-${wc.id}`)} onMouseLeave={() => setHoveredId(null)} onClick={() => setEditingWC({ ...wc })} title="Edit"><i className="bi bi-pencil" style={{ fontSize: '11px' }}></i></button>}
+                                                      {canManage && <button style={{ ...xpBtn(), border: hoveredId === `wc-${wc.id}` ? '1px solid #808080' : '1px solid transparent', background: 'transparent', padding: '1px 5px' }} onMouseEnter={() => setHoveredId(`wc-${wc.id}`)} onMouseLeave={() => setHoveredId(null)} onClick={() => onDeleteWorkCenter && onDeleteWorkCenter(wc.id)} title="Delete"><i className="bi bi-trash" style={{ color: '#c00000', fontSize: '11px' }}></i></button>}
                                                   </td>
                                               </tr>
                                           )
@@ -399,7 +404,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                       onSearch={setOpSearch}
                       searchPlaceholder="Search operations..."
                       countLabel={`${filteredOp.length} operation${filteredOp.length === 1 ? '' : 's'}`}
-                      createForm={
+                      createForm={canManage && (
                           <form onSubmit={handleCreateOp} style={{ display: 'flex', gap: 4, alignItems: 'flex-end', flexWrap: 'wrap' as const }}>
                               <div>
                                   <label style={xpLabel}>{t('item_code')}</label>
@@ -413,7 +418,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                                   <i className="bi bi-plus-lg" style={{ marginRight: 3 }}></i>{t('add')}
                               </button>
                           </form>
-                      }
+                      )}
                       table={
                           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                               <thead>
@@ -432,7 +437,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                                           </td>
                                           <td style={{ padding: '4px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#000' }}>{op.name}</td>
                                           <td style={{ padding: '2px 4px', textAlign: 'center' }}>
-                                              {!op.is_system && <button style={{ ...xpBtn(), border: hoveredId === `op-${op.id}` ? '1px solid #808080' : '1px solid transparent', background: 'transparent', padding: '1px 5px' }} onMouseEnter={() => setHoveredId(`op-${op.id}`)} onMouseLeave={() => setHoveredId(null)} onClick={() => onDeleteOperation && onDeleteOperation(op.id)} title="Delete"><i className="bi bi-trash" style={{ color: '#c00000', fontSize: '11px' }}></i></button>}
+                                              {!op.is_system && canManage && <button style={{ ...xpBtn(), border: hoveredId === `op-${op.id}` ? '1px solid #808080' : '1px solid transparent', background: 'transparent', padding: '1px 5px' }} onMouseEnter={() => setHoveredId(`op-${op.id}`)} onMouseLeave={() => setHoveredId(null)} onClick={() => onDeleteOperation && onDeleteOperation(op.id)} title="Delete"><i className="bi bi-trash" style={{ color: '#c00000', fontSize: '11px' }}></i></button>}
                                           </td>
                                       </tr>
                                   ))}
@@ -462,6 +467,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                       {onRefresh && <button className="btn btn-sm btn-outline-secondary" onClick={onRefresh}><i className="bi bi-arrow-clockwise"></i></button>}
                   </div>
                   <div className="card-body">
+                      {canManage && (
                       <form onSubmit={handleCreateWC} className="mb-3 p-3 bg-light rounded border">
                           <div className="row g-2 align-items-end mb-2">
                               <div className="col-2">
@@ -509,6 +515,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                               <button type="submit" className="btn btn-sm btn-primary">{t('add')}</button>
                           </div>
                       </form>
+                      )}
                       <div className="input-group input-group-sm mb-2">
                           <span className="input-group-text"><i className="bi bi-search"></i></span>
                           <input className="form-control" placeholder="Search work centers..." value={wcSearch} onChange={e => setWcSearch(e.target.value)} />
@@ -540,8 +547,8 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                                                   <td className="small text-muted" style={{ whiteSpace: 'nowrap' }}>{!isGroup ? getLocName(wc.input_location_id) : ''}</td>
                                                   <td className="small text-muted" style={{ whiteSpace: 'nowrap' }}>{!isGroup ? getLocName(wc.output_location_id) : ''}</td>
                                                   <td>
-                                                      <button className="btn btn-sm text-primary me-1" onClick={() => setEditingWC({ ...wc })} title="Edit"><i className="bi bi-pencil"></i></button>
-                                                      <button className="btn btn-sm text-danger" onClick={() => onDeleteWorkCenter && onDeleteWorkCenter(wc.id)}><i className="bi bi-trash"></i></button>
+                                                      {canManage && <button className="btn btn-sm text-primary me-1" onClick={() => setEditingWC({ ...wc })} title="Edit"><i className="bi bi-pencil"></i></button>}
+                                                      {canManage && <button className="btn btn-sm text-danger" onClick={() => onDeleteWorkCenter && onDeleteWorkCenter(wc.id)}><i className="bi bi-trash"></i></button>}
                                                   </td>
                                               </tr>
                                           )
@@ -562,6 +569,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                       <p className="text-muted small mb-0 mt-1">Define reusable process steps like "Cutting", "Welding".</p>
                   </div>
                   <div className="card-body">
+                      {canManage && (
                       <form onSubmit={handleCreateOp} className="mb-3 p-3 bg-light rounded border">
                           <div className="row g-2 align-items-end">
                               <div className="col-4">
@@ -577,6 +585,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                               </div>
                           </div>
                       </form>
+                      )}
                       <div className="input-group input-group-sm mb-2">
                           <span className="input-group-text"><i className="bi bi-search"></i></span>
                           <input className="form-control" placeholder="Search operations..." value={opSearch} onChange={e => setOpSearch(e.target.value)} />
@@ -599,7 +608,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                                           </td>
                                           <td>{op.name}</td>
                                           <td>
-                                              {!op.is_system && <button className="btn btn-sm text-danger" onClick={() => onDeleteOperation && onDeleteOperation(op.id)}><i className="bi bi-trash"></i></button>}
+                                              {!op.is_system && canManage && <button className="btn btn-sm text-danger" onClick={() => onDeleteOperation && onDeleteOperation(op.id)}><i className="bi bi-trash"></i></button>}
                                           </td>
                                       </tr>
                                   ))}

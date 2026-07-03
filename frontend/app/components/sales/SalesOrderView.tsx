@@ -9,6 +9,7 @@ const SalesPrintModal = dynamic(() => import('./SalesPrintModal'), { ssr: false 
 const SOTablePrintModal = dynamic(() => import('./SOTablePrintModal'), { ssr: false });
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
+import { useUser } from '../../context/UserContext';
 import { useSortable, SortMark, StatusChip, statusTint, XPLoading } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { useRouter } from 'next/navigation';
@@ -28,6 +29,8 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const [soPage, setSoPage] = useState(1);
   const { uiStyle: currentStyle } = useTheme();
   const { companyProfile, uoms, authFetch, itemIndex, loading: dataLoading } = useData();
+  const { hasPermission } = useUser();
+  const canManage = hasPermission('sales.manage');
 
   // Lineage (SO → PR → MO → WO → beam) trace modal
   const router = useRouter();
@@ -1374,12 +1377,14 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                        <button style={xpBtn()} onClick={() => setIsTablePrintOpen(true)}>
                            <i className="bi bi-printer" style={{ marginRight: 4 }}></i>Print Table
                        </button>
+                       {canManage && (
                        <button
                            style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' })}
                            onClick={() => setIsCreateOpen(true)}
                        >
                            <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>{t('create')}
                        </button>
+                       )}
                    </div>
                </div>
            ) : (
@@ -1394,9 +1399,9 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                        <button className="btn btn-sm btn-outline-secondary btn-print" onClick={() => setIsTablePrintOpen(true)}>
                            <i className="bi bi-printer me-1"></i>Print Table
                        </button>
-                       <button className="btn btn-sm btn-primary" onClick={() => setIsCreateOpen(true)}>
+                       {canManage && <button className="btn btn-sm btn-primary" onClick={() => setIsCreateOpen(true)}>
                            <i className="bi bi-plus-lg me-2"></i>{t('create')}
-                       </button>
+                       </button>}
                    </div>
                </div>
            )}
@@ -1570,7 +1575,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                            </div>
                                        )}
                                        <div style={classic ? { display:'flex', gap:2, justifyContent:'flex-end', alignItems:'center' } : undefined} className={classic ? '' : 'd-flex justify-content-end align-items-center gap-1'}>
-                                       {(so.status === 'READY' || so.status === 'PARTIAL') && (
+                                       {canManage && (so.status === 'READY' || so.status === 'PARTIAL') && (
                                            classic ? (
                                                <button style={xpBtn({ padding:'1px 5px' })} title="Mark as Sent" onClick={() => onUpdateSOStatus(so.id, 'SENT')}>
                                                    <i className="bi bi-send"></i>
@@ -1581,7 +1586,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                                </button>
                                            )
                                        )}
-                                       {so.status === 'SENT' && (
+                                       {canManage && so.status === 'SENT' && (
                                            classic ? (
                                                <button style={xpBtn({ background:'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor:'#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color:'#fff', padding:'1px 5px' })} title="Mark as Delivered" onClick={() => onUpdateSOStatus(so.id, 'DELIVERED')}>
                                                    <i className="bi bi-check2-all"></i>
@@ -1594,7 +1599,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                        )}
                                        {classic ? (
                                            <>
-                                               {(so.status === 'PENDING' || so.status === 'READY') && (
+                                               {canManage && (so.status === 'PENDING' || so.status === 'READY') && (
                                                    <button title="Edit" onClick={() => handleEditOpen(so)}
                                                        style={{ background:'none', border:'1px solid transparent', borderRadius:2, cursor:'pointer', padding:'1px 4px', color:'#005080', fontSize:'13px' }}
                                                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor='#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background='#e8f0f8'; }}
@@ -1608,16 +1613,18 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor='transparent'; (e.currentTarget as HTMLButtonElement).style.background='none'; }}>
                                                    <i className="bi bi-printer"></i>
                                                </button>
+                                               {canManage && (
                                                <button title="Delete" onClick={() => onDeleteSO(so.id)}
                                                    style={{ background:'none', border:'1px solid transparent', borderRadius:2, cursor:'pointer', padding:'1px 4px', color:'#aa0000', fontSize:'13px' }}
                                                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor='#cc4444'; (e.currentTarget as HTMLButtonElement).style.background='#fff0f0'; }}
                                                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor='transparent'; (e.currentTarget as HTMLButtonElement).style.background='none'; }}>
                                                    <i className="bi bi-trash"></i>
                                                </button>
+                                               )}
                                            </>
                                        ) : (
                                            <>
-                                               {(so.status === 'PENDING' || so.status === 'READY') && (
+                                               {canManage && (so.status === 'PENDING' || so.status === 'READY') && (
                                                    <button className="btn btn-sm btn-link text-primary p-0" title="Edit" onClick={() => handleEditOpen(so)}>
                                                        <i className="bi bi-pencil fs-6"></i>
                                                    </button>
@@ -1625,9 +1632,11 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                                <button className="btn btn-sm btn-link text-muted p-0" title="Print" onClick={() => handlePrintSO(so)}>
                                                    <i className="bi bi-printer fs-6"></i>
                                                </button>
+                                               {canManage && (
                                                <button className="btn btn-sm btn-link text-danger p-0" title="Delete" onClick={() => onDeleteSO(so.id)}>
                                                    <i className="bi bi-trash fs-6"></i>
                                                </button>
+                                               )}
                                            </>
                                        )}
                                        </div>

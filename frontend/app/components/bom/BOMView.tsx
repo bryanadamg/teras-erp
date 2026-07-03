@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useTheme } from '../../context/ThemeContext';
+import { useUser } from '../../context/UserContext';
 import { createPortal } from 'react-dom';
 import BOMDesigner from './BOMDesigner';
 const BOMPrintModal = dynamic(() => import('./BOMPrintModal'), { ssr: false });
@@ -69,6 +70,8 @@ export default function BOMView({
     const { itemIndex } = useData();
     const { uiStyle: currentStyle } = useTheme();
     const classic = currentStyle === 'classic';
+    const { hasPermission } = useUser();
+    const canManage = hasPermission('manufacturing.manage');
 
     const [isDesignerOpen, setIsDesignerOpen] = useState(false);
     const [editingBOM, setEditingBOM] = useState<any>(null);
@@ -815,7 +818,7 @@ export default function BOMView({
                                         style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '1px 8px', cursor: 'pointer', border: 'none', borderLeft: '1px solid #808080', background: !showRootOnly ? 'linear-gradient(to bottom, #316ac5, #1a4a9a)' : 'linear-gradient(to bottom, #fff, #d4d0c8)', color: !showRootOnly ? '#fff' : '#000', fontWeight: !showRootOnly ? 'bold' : 'normal' }}
                                     >All BOMs</button>
                                 </div>
-                                {selectedIds.size > 0 && (
+                                {canManage && selectedIds.size > 0 && (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                         <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#fff' }}>{selectedIds.size} selected</span>
                                         <button style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '2px 10px', cursor: 'pointer', background: 'linear-gradient(to bottom, #fff, #d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000' }} onClick={handleBulkDelete}>
@@ -825,9 +828,11 @@ export default function BOMView({
                                     </div>
                                 )}
                             </div>
+                            {canManage && (
                             <button data-testid="create-bom-btn" style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '2px 10px', cursor: 'pointer', fontWeight: 'bold', background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff' }} onClick={() => setIsDesignerOpen(true)}>
                                 <i className="bi bi-plus-lg" style={{ marginRight: '4px' }} />{t('create_recipe')}
                             </button>
+                            )}
                         </div>
                     ) : (
                         <div className="card-header bg-white d-flex justify-content-between align-items-center">
@@ -838,7 +843,7 @@ export default function BOMView({
                                     <button className={`btn ${showRootOnly ? 'btn-primary' : 'btn-outline-secondary'}`} onClick={() => setShowRootOnly?.(true)}>Root BOMs</button>
                                     <button className={`btn ${!showRootOnly ? 'btn-primary' : 'btn-outline-secondary'}`} onClick={() => setShowRootOnly?.(false)}>All BOMs</button>
                                 </div>
-                                {selectedIds.size > 0 && (
+                                {canManage && selectedIds.size > 0 && (
                                     <div className="d-flex align-items-center gap-2">
                                         <span className="text-muted small">{selectedIds.size} selected</span>
                                         <button className="btn btn-sm btn-danger" onClick={handleBulkDelete}><i className="bi bi-trash me-1" />Delete Selected</button>
@@ -846,9 +851,11 @@ export default function BOMView({
                                     </div>
                                 )}
                             </div>
+                            {canManage && (
                             <button data-testid="create-bom-btn" className="btn btn-sm btn-primary" onClick={() => setIsDesignerOpen(true)}>
                                 <i className="bi bi-plus-lg me-2" />{t('create_recipe')}
                             </button>
+                            )}
                         </div>
                     )}
 
@@ -965,22 +972,26 @@ export default function BOMView({
                                                     </td>
                                                     <td style={classic ? { padding: '5px 6px', textAlign: 'right', verticalAlign: 'top' } : undefined} className={classic ? '' : 'pe-4 text-end align-top'}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'flex-end' }}>
-                                                            <button
-                                                                title="Edit BOM"
-                                                                style={classic ? { background: 'none', border: 'none', cursor: 'pointer', color: '#00508a', padding: '0 2px' } : undefined}
-                                                                className={classic ? '' : 'btn btn-sm btn-link text-primary'}
-                                                                onClick={() => handleEditBOM(bom)}
-                                                                disabled={editLoading}
-                                                            >
-                                                                <i className={editLoading ? 'bi bi-hourglass-split' : 'bi bi-pencil'} />
-                                                            </button>
-                                                            <button
-                                                                style={classic ? { background: 'none', border: 'none', cursor: 'pointer', color: '#a00', padding: '0 2px' } : undefined}
-                                                                className={classic ? '' : 'btn btn-sm btn-link text-danger'}
-                                                                onClick={() => onDeleteBOM(bom.id)}
-                                                            >
-                                                                <i className="bi bi-trash" />
-                                                            </button>
+                                                            {canManage && (
+                                                                <button
+                                                                    title="Edit BOM"
+                                                                    style={classic ? { background: 'none', border: 'none', cursor: 'pointer', color: '#00508a', padding: '0 2px' } : undefined}
+                                                                    className={classic ? '' : 'btn btn-sm btn-link text-primary'}
+                                                                    onClick={() => handleEditBOM(bom)}
+                                                                    disabled={editLoading}
+                                                                >
+                                                                    <i className={editLoading ? 'bi bi-hourglass-split' : 'bi bi-pencil'} />
+                                                                </button>
+                                                            )}
+                                                            {canManage && (
+                                                                <button
+                                                                    style={classic ? { background: 'none', border: 'none', cursor: 'pointer', color: '#a00', padding: '0 2px' } : undefined}
+                                                                    className={classic ? '' : 'btn btn-sm btn-link text-danger'}
+                                                                    onClick={() => onDeleteBOM(bom.id)}
+                                                                >
+                                                                    <i className="bi bi-trash" />
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </td>
                                                 </tr>

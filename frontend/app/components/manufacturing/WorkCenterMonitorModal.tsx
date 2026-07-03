@@ -5,6 +5,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useUser } from '../../context/UserContext';
 import { xpFont, xpBtn, StatusChip } from '../shared/xpTheme';
 
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']; // 0=Mon..6=Sun
@@ -35,6 +36,8 @@ interface Props {
 export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, manufacturingOrders, authFetch, apiBase }: Props) {
     const { t } = useLanguage();
     const { uiStyle } = useTheme();
+    const { hasPermission } = useUser();
+    const canManage = hasPermission('work_order.manage');
     const cls = uiStyle === 'classic';
 
     const [tab, setTab] = useState<'performance' | 'calendar'>('performance');
@@ -251,9 +254,11 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, ma
                             <div className={cls ? '' : 'text-muted'} style={cls ? { fontFamily: xpFont, fontSize: 12, color: '#666', marginBottom: 10 } : { marginBottom: 10 }}>
                                 {t('no_active_run')}
                             </div>
-                            <button className="btn btn-success btn-sm" onClick={() => setShowStart(true)}>
-                                <i className="bi bi-play-fill me-1" />{t('start_run')}
-                            </button>
+                            {canManage && (
+                                <button className="btn btn-success btn-sm" onClick={() => setShowStart(true)}>
+                                    <i className="bi bi-play-fill me-1" />{t('start_run')}
+                                </button>
+                            )}
                         </div>
                     )}
 
@@ -305,12 +310,14 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, ma
                                 <span className="text-muted small">
                                     {t('target')}: <strong>{fmt(run.target_qty, 2)} kg</strong> · {t('start_date')} {fmtDate(run.start_date)}
                                 </span>
-                                <button
-                                    className={cls ? '' : 'btn btn-sm btn-outline-danger ms-auto'}
-                                    style={cls ? xpBtn({ marginLeft: 'auto', color: RED, fontWeight: 'bold' }) : undefined}
-                                    onClick={() => stopRun(run.id)}>
-                                    <i className="bi bi-stop-fill me-1" />{t('stop_run')}
-                                </button>
+                                {canManage && (
+                                    <button
+                                        className={cls ? '' : 'btn btn-sm btn-outline-danger ms-auto'}
+                                        style={cls ? xpBtn({ marginLeft: 'auto', color: RED, fontWeight: 'bold' }) : undefined}
+                                        onClick={() => stopRun(run.id)}>
+                                        <i className="bi bi-stop-fill me-1" />{t('stop_run')}
+                                    </button>
+                                )}
                             </div>
 
                             {/* Hero: efficiency + actual + rate */}
@@ -441,28 +448,31 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, ma
                         {WEEKDAY_LABELS.map((lbl, idx) => {
                             const on = weekdays.includes(idx);
                             return cls ? (
-                                <button key={idx} onClick={() => toggleWeekday(idx)} style={{
-                                    fontFamily: xpFont, fontSize: 11, fontWeight: on ? 'bold' : 'normal', minWidth: 48, cursor: 'pointer',
+                                <button key={idx} disabled={!canManage} onClick={() => toggleWeekday(idx)} style={{
+                                    fontFamily: xpFont, fontSize: 11, fontWeight: on ? 'bold' : 'normal', minWidth: 48, cursor: canManage ? 'pointer' : 'default',
                                     padding: '3px 8px', border: '1px solid',
                                     borderColor: on ? '#003080 #6ea8ff #6ea8ff #003080' : '#dfdfdf #808080 #808080 #dfdfdf',
                                     background: on ? 'linear-gradient(to bottom,#3a8dff,#0058e6)' : 'linear-gradient(to bottom,#ffffff,#d4d0c8)',
                                     color: on ? '#fff' : '#444',
                                 }}>{lbl}</button>
                             ) : (
-                                <button key={idx} className={`btn btn-sm ${on ? 'btn-primary' : 'btn-outline-secondary'}`} style={{ minWidth: 52 }} onClick={() => toggleWeekday(idx)}>{lbl}</button>
+                                <button key={idx} disabled={!canManage} className={`btn btn-sm ${on ? 'btn-primary' : 'btn-outline-secondary'}`} style={{ minWidth: 52 }} onClick={() => toggleWeekday(idx)}>{lbl}</button>
                             );
                         })}
-                        <button className="btn btn-sm btn-success ms-2" onClick={saveCalendar}>
-                            <i className="bi bi-check-lg me-1" />{t('save')}
-                        </button>
+                        {canManage && (
+                            <button className="btn btn-sm btn-success ms-2" onClick={saveCalendar}>
+                                <i className="bi bi-check-lg me-1" />{t('save')}
+                            </button>
+                        )}
                     </div>
                     <p className={cls ? '' : 'text-muted small'} style={cls ? { fontFamily: xpFont, fontSize: 10, color: '#777' } : undefined}>{t('working_days_hint')}</p>
 
                     <div className="mt-3" />
                     <GroupHead icon="bi-calendar3" right={
-                        cls
+                        canManage ? (cls
                             ? <button onClick={importNational} style={{ ...xpBtn() }}><i className="bi bi-download me-1" />{t('import_id_holidays')} {calRef.getFullYear()}</button>
                             : <button className="btn btn-sm btn-outline-primary py-0" onClick={importNational}><i className="bi bi-download me-1" />{t('import_id_holidays')} {calRef.getFullYear()}</button>
+                        ) : null
                     }>{t('holidays')}</GroupHead>
 
                     {/* Month nav */}
@@ -499,10 +509,10 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, ma
                             else if (!working) bg = cls ? '#e6e3da' : '#eceef0';
                             cells.push(
                                 <div key={ds}
-                                    onClick={() => mh ? deleteHoliday(mh.id) : addHolidayDate(ds, (nat as string) || null)}
+                                    onClick={() => { if (!canManage) return; mh ? deleteHoliday(mh.id) : addHolidayDate(ds, (nat as string) || null); }}
                                     title={mh ? (mh.note || t('holiday')) : nat ? `${nat} — ${t('click_to_add') || 'click to add'}` : (working ? t('working_day') : t('rest_day'))}
                                     style={{
-                                        minHeight: 48, padding: '2px 4px', background: bg, cursor: 'pointer', overflow: 'hidden',
+                                        minHeight: 48, padding: '2px 4px', background: bg, cursor: canManage ? 'pointer' : 'default', overflow: 'hidden',
                                         border: isToday ? '2px solid #0058e6' : '1px solid', borderColor: isToday ? '#0058e6' : (cls ? '#c8c4b8' : '#e6e6e6'),
                                         fontFamily: cls ? xpFont : undefined, fontSize: 11,
                                     }}>

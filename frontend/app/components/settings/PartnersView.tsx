@@ -5,6 +5,7 @@ import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import { useTheme } from '../../context/ThemeContext';
+import { useUser } from '../../context/UserContext';
 
 interface Partner {
     id: string;
@@ -45,6 +46,8 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
 
     const classic = currentStyle === 'classic';
     const typeLabel = type === 'CUSTOMER' ? 'Customer' : 'Supplier';
+    const { hasPermission } = useUser();
+    const canManage = hasPermission(type === 'CUSTOMER' ? 'sales.manage' : 'purchasing.manage');
 
     // ── XP shared inline styles ──────────────────────────────────────────────
     const xpBevel: React.CSSProperties = {
@@ -221,12 +224,14 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                             <i className="bi bi-people-fill" style={{ marginRight: 6 }}></i>
                             {typeLabel} Management
                         </span>
+                        {canManage && (
                         <button
                             style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' })}
                             onClick={() => setIsCreateOpen(true)}
                         >
                             <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>Add {typeLabel}
                         </button>
+                        )}
                     </div>
                 ) : (
                     <div className="card-header bg-white d-flex justify-content-between align-items-center">
@@ -238,9 +243,11 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                                 Maintain your network of {typeLabel.toLowerCase()}s
                             </p>
                         </div>
+                        {canManage && (
                         <button className="btn btn-sm btn-primary" onClick={() => setIsCreateOpen(true)}>
                             <i className="bi bi-plus-lg me-2"></i>Add {typeLabel}
                         </button>
+                        )}
                     </div>
                 )}
 
@@ -277,7 +284,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                 )}
 
                 {/* ── Bulk action bar ── */}
-                {someSelected && (
+                {canManage && someSelected && (
                     classic ? (
                         <div style={{ ...xpToolbar, background: '#fff8e1', borderBottom: '1px solid #e0c060' }}>
                             <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#665500', fontWeight: 'bold' }}>
@@ -376,7 +383,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                                             )}
                                         </td>
                                         <td style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'right' as const } : undefined} className={classic ? '' : 'text-end pe-4'}>
-                                            {classic ? (
+                                            {!canManage ? null : classic ? (
                                                 <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                                                     <button
                                                         title="Edit"

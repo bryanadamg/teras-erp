@@ -6,6 +6,7 @@ import WOStagingModal from './WOStagingModal';
 import BeamPlanningModal from './BeamPlanningModal';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
+import { useUser } from '../../context/UserContext';
 import { STATUS_COLORS as STATUS_BORDER } from '../shared/xpTheme';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
@@ -80,6 +81,8 @@ export default function WorkOrderPanel({
 }: Props) {
     const { showToast } = useToast();
     const { operations: opMaster } = useData() as any;
+    const { hasPermission } = useUser();
+    const canManage = hasPermission('work_order.manage');
     const [addingRow, setAddingRow] = useState(false);
     const [editId, setEditId] = useState<string | null>(null);
     const [form, setForm] = useState({ ...emptyForm });
@@ -262,7 +265,7 @@ export default function WorkOrderPanel({
                 <span style={{ fontWeight: 'bold', fontSize: 11, color: '#000080' }}>
                     Work Orders
                 </span>
-                {!addingRow && !editId && (
+                {canManage && !addingRow && !editId && (
                     <div style={{ display: 'flex', gap: 4 }}>
                         <button
                             onClick={() => { setAddingRow(true); setEditId(null); }}
@@ -585,6 +588,7 @@ export default function WorkOrderPanel({
                                     <select
                                         value={wo.status}
                                         onChange={e => handleStatusChange(wo, e.target.value)}
+                                        disabled={!canManage}
                                         style={{
                                             fontFamily: xpFont, fontSize: 9, height: 16,
                                             border: '1px solid #aca899', background: '#ece9d8',
@@ -599,7 +603,7 @@ export default function WorkOrderPanel({
 
                                     {/* Actions */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                                        {(wo.bom_operation_id || (wo.work_center_type || '').toUpperCase() === 'WEAVING') && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
+                                        {canManage && (wo.bom_operation_id || (wo.work_center_type || '').toUpperCase() === 'WEAVING') && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
                                             <button
                                                 onClick={() => setStageWO(wo)}
                                                 title="Issue this step's materials to the line"
@@ -612,7 +616,7 @@ export default function WorkOrderPanel({
                                                 Stage
                                             </button>
                                         )}
-                                        {onLogWO && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
+                                        {canManage && onLogWO && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
                                             <button
                                                 onClick={() => onLogWO(wo)}
                                                 style={{
@@ -633,18 +637,22 @@ export default function WorkOrderPanel({
                                                 <i className="bi bi-printer" />
                                             </button>
                                         )}
-                                        <button
-                                            onClick={() => startEdit(wo)}
-                                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#0058e6', padding: '0 2px' }}
-                                        >
-                                            <i className="bi bi-pencil" />
-                                        </button>
-                                        <button
-                                            onClick={() => onDelete(wo.id)}
-                                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#aa0000', padding: '0 2px' }}
-                                        >
-                                            <i className="bi bi-trash" />
-                                        </button>
+                                        {canManage && (
+                                            <button
+                                                onClick={() => startEdit(wo)}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#0058e6', padding: '0 2px' }}
+                                            >
+                                                <i className="bi bi-pencil" />
+                                            </button>
+                                        )}
+                                        {canManage && (
+                                            <button
+                                                onClick={() => onDelete(wo.id)}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#aa0000', padding: '0 2px' }}
+                                            >
+                                                <i className="bi bi-trash" />
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             )}

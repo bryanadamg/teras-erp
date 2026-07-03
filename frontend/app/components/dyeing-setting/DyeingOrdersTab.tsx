@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { STATUS_COLORS } from '../shared/xpTheme';
 import ModalWrapper from '../shared/ModalWrapper';
 import { useTheme } from '../../context/ThemeContext';
+import { useUser } from '../../context/UserContext';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -144,6 +145,8 @@ const emptyCompleteForm: CompleteForm = {
 export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrdersTabProps) {
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
+    const { hasPermission } = useUser();
+    const canManage = hasPermission('dyeing.manage');
     const xpInput = makeInput(classic);
     const xpBtn = makeBtn(classic);
     const xpPrimaryBtn = makePrimaryBtn(classic);
@@ -502,12 +505,14 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                             <span>
                                 Dyeing Runs - {selectedWo?.name ?? selectedWo?.wo_number ?? `WO ${shortId(selectedWoId)}`}
                             </span>
+                            {canManage && (
                             <button
                                 style={classic ? { ...xpBtn, fontSize: 10 } : { ...xpPrimaryBtn, fontSize: 12 }}
                                 onClick={handleOpenCreateRun}
                             >
                                 {showCreateRun ? 'Cancel' : '+ Create Run'}
                             </button>
+                            )}
                         </div>
 
                         {errorMsg && (
@@ -774,7 +779,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                     </td>
                                                     <td style={classic ? { padding: '2px 6px', whiteSpace: 'nowrap' } : { padding: '6px 10px', whiteSpace: 'nowrap' }}>
                                                         <div style={{ display: 'flex', gap: classic ? 3 : 6 }}>
-                                                            {run.status === 'PENDING' && (
+                                                            {canManage && run.status === 'PENDING' && (
                                                                 <>
                                                                     <button
                                                                         style={xpPrimaryBtn}
@@ -790,7 +795,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                                                     </button>
                                                                 </>
                                                             )}
-                                                            {run.status === 'IN_PROGRESS' && (
+                                                            {canManage && run.status === 'IN_PROGRESS' && (
                                                                 <button
                                                                     style={xpPrimaryBtn}
                                                                     onClick={() => handleOpenComplete(run)}

@@ -5,6 +5,7 @@ import DyeRecipePrintView from './DyeRecipePrintView';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useUser } from '../../context/UserContext';
 import CodeConfigModal, { CodeConfig, buildCodeParts, buildCodeWithCounter } from '../shared/CodeConfigModal';
 import SearchableSelect from '../shared/SearchableSelect';
 
@@ -101,6 +102,8 @@ interface Props {
 export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
+    const { hasPermission } = useUser();
+    const canManage = hasPermission('dyeing.manage');
     const [recipes, setRecipes] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -467,9 +470,11 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                         );
                     })}
                 </div>
+                {canManage && (
                 <div style={{ padding: '4px 6px', borderTop: classic ? '1px solid #c0d4e8' : '1px solid #e6eaf1', background: classic ? '#eef2f8' : '#f8fafc' }}>
                     <button style={{ ...primaryBtnStyle(classic) }} onClick={openCreate}>+ New Recipe</button>
                 </div>
+                )}
             </div>
 
             {/* Right Panel */}
@@ -851,6 +856,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                         <div style={{ ...(classic ? xpSectionHeader : modernSectionHeader), display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span>Recipe Detail</span>
                             <div style={{ display: 'flex', gap: 4 }}>
+                                {canManage && (
                                 <button
                                     style={classic ? {
                                         ...xpBtn,
@@ -860,11 +866,13 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                                     } : { ...modernBtn }}
                                     onClick={() => openEdit(selectedRecipe)}
                                 >Edit</button>
+                                )}
                                 <button
                                     style={classic ? { ...xpBtn, fontSize: 10, padding: '1px 8px' } : { ...modernBtn }}
                                     onClick={() => setShowPrint(true)}
                                     title="Print Recipe Card"
                                 >Print</button>
+                                {canManage && (
                                 <button
                                     style={classic ? {
                                         ...xpBtn,
@@ -878,6 +886,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                                     }}
                                     onClick={() => handleDelete(selectedRecipe)}
                                 >Delete</button>
+                                )}
                             </div>
                         </div>
 

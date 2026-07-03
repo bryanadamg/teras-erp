@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useUser } from '../../context/UserContext';
 
 const ALL = '__all__';
 
@@ -17,6 +18,8 @@ export default function LocationsView({
   const { t } = useLanguage();
   const { uiStyle: currentStyle } = useTheme();
   const classic = currentStyle === 'classic';
+  const { hasPermission } = useUser();
+  const canManage = hasPermission('locations.manage');
 
   const [selectedStore, setSelectedStore] = useState<string>(ALL);
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
@@ -195,7 +198,7 @@ export default function LocationsView({
           )}
           {isSystem && <i className="bi bi-lock-fill" title="System store" style={{ color: active ? '#cde' : '#888', fontSize: 9 }} />}
           <span style={{ fontSize: 10, color: active ? '#dde' : '#777' }}>{cnt}</span>
-          {!renaming && !isSystem && hoveredStore === loc.id && (
+          {canManage && !renaming && !isSystem && hoveredStore === loc.id && (
             <>
               <i className="bi bi-pencil" title="Rename" onClick={(e) => { e.stopPropagation(); startRename(loc); }} style={{ color: active ? '#fff' : '#333', fontSize: 11 }} />
               <i className="bi bi-trash" title="Delete" onClick={(e) => { e.stopPropagation(); handleDelete(loc.id); }} style={{ color: active ? '#fff' : '#c00000', fontSize: 11 }} />
@@ -228,7 +231,7 @@ export default function LocationsView({
             <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{loc.name}</span>
           )}
           <span style={{ fontSize: 10, color: active ? '#dde' : '#777' }}>{cnt}</span>
-          {!renaming && hoveredZone === loc.id && (
+          {canManage && !renaming && hoveredZone === loc.id && (
             <>
               <i className="bi bi-pencil" title="Rename" onClick={(e) => { e.stopPropagation(); startRename(loc); }} style={{ color: active ? '#fff' : '#333', fontSize: 11 }} />
               <i className="bi bi-trash" title="Delete" onClick={(e) => { e.stopPropagation(); handleDelete(loc.id); }} style={{ color: active ? '#fff' : '#c00000', fontSize: 11 }} />
@@ -257,8 +260,8 @@ export default function LocationsView({
           ) : (
             <span style={{ flex: 1, minWidth: 0, fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{loc.name}</span>
           )}
-          <i className="bi bi-pencil" title="Rename" onClick={() => startRename(loc)} style={{ color: '#666', cursor: 'pointer' }} />
-          <button style={xpBtn({ padding: '1px 5px', background: 'transparent', border: '1px solid transparent' })} onClick={() => handleDelete(loc.id)} title="Delete"><i className="bi bi-trash" style={{ color: '#c00000' }} /></button>
+          {canManage && <i className="bi bi-pencil" title="Rename" onClick={() => startRename(loc)} style={{ color: '#666', cursor: 'pointer' }} />}
+          {canManage && <button style={xpBtn({ padding: '1px 5px', background: 'transparent', border: '1px solid transparent' })} onClick={() => handleDelete(loc.id)} title="Delete"><i className="bi bi-trash" style={{ color: '#c00000' }} /></button>}
         </div>
       );
     };
@@ -292,7 +295,7 @@ export default function LocationsView({
               <div style={{ width: 210, flexShrink: 0, borderRight: '1px solid #b0a898', background: '#f5f4ef', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ ...xpToolbar, justifyContent: 'space-between' }}>
                   <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, fontWeight: 'bold' }}>Stores</span>
-                  <button style={xpBtn({ padding: '1px 6px' })} onClick={() => setAddingStore(v => !v)} title="New store"><i className="bi bi-plus-lg" /></button>
+                  {canManage && <button style={xpBtn({ padding: '1px 6px' })} onClick={() => setAddingStore(v => !v)} title="New store"><i className="bi bi-plus-lg" /></button>}
                 </div>
                 {addingStore && (
                   <form onSubmit={handleAddStore} style={{ padding: '6px', borderBottom: '1px solid #d8d4c8', display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -320,11 +323,11 @@ export default function LocationsView({
                   <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, fontWeight: 'bold', color: '#003080' }}>
                     {selectedStoreObj ? selectedStoreObj.name : 'Zones'}
                   </span>
-                  {selectedStoreObj && (
+                  {canManage && selectedStoreObj && (
                     <button style={xpBtn({ padding: '1px 6px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontWeight: 'bold' })} onClick={() => setShowZoneForm(v => !v)} title="New zone"><i className="bi bi-plus-lg" /></button>
                   )}
                 </div>
-                {selectedStoreObj && showZoneForm && (
+                {canManage && selectedStoreObj && showZoneForm && (
                   <form onSubmit={handleAddZone} style={{ display: 'flex', gap: 4, padding: '4px 6px', background: '#eef3fb', borderBottom: '1px solid #b0c4de' }}>
                     <input autoFocus style={{ ...xpInput, flex: 1, minWidth: 0 }} placeholder="Zone name" value={newZoneName} onChange={(e) => setNewZoneName(e.target.value)} required />
                     <button type="submit" disabled={savingZone} style={xpBtn({ padding: '1px 6px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontWeight: 'bold', opacity: savingZone ? 0.6 : 1 })}>{savingZone ? '...' : 'Add'}</button>
@@ -342,13 +345,13 @@ export default function LocationsView({
                   <div style={{ flex: 1 }} />
                   <i className="bi bi-search" style={{ fontSize: 11, color: '#666' }} />
                   <input style={{ ...xpInput, width: 150 }} placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                  {selectedZoneObj && (
+                  {canManage && selectedZoneObj && (
                     <button style={xpBtn({ background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', fontWeight: 'bold' })} onClick={() => setShowBinForm(v => !v)}>
                       <i className="bi bi-plus-lg" style={{ marginRight: 3 }} />Add bin
                     </button>
                   )}
                 </div>
-                {selectedZoneObj && showBinForm && (
+                {canManage && selectedZoneObj && showBinForm && (
                   <form onSubmit={handleAddBin} style={{ display: 'flex', alignItems: 'flex-end', gap: 8, padding: '6px 8px', background: '#eef3fb', borderBottom: '1px solid #b0c4de' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <label style={xpLabel}>Bin / shelf name (e.g. A1, A2, B1)</label>
@@ -394,7 +397,7 @@ export default function LocationsView({
         )}
         {isSystem && <i className="bi bi-lock-fill" title="System store" style={{ color: active ? '#cde' : '#888', fontSize: 10 }} />}
         <span className={`badge rounded-pill ${active ? 'bg-light text-dark' : 'bg-secondary'}`}>{cnt}</span>
-        {!renaming && !isSystem && hoveredStore === loc.id && (
+        {canManage && !renaming && !isSystem && hoveredStore === loc.id && (
           <span className="d-flex gap-2" onClick={e => e.stopPropagation()}>
             <i className="bi bi-pencil" title="Rename" onClick={() => startRename(loc)} style={{ cursor: 'pointer' }} />
             <i className="bi bi-trash text-danger" title="Delete" onClick={() => handleDelete(loc.id)} style={{ cursor: 'pointer' }} />
@@ -429,7 +432,7 @@ export default function LocationsView({
           <span className="flex-grow-1 text-truncate text-start">{loc.name}</span>
         )}
         <span className={`badge rounded-pill ${active ? 'bg-light text-dark' : 'bg-secondary'}`}>{cnt}</span>
-        {!renaming && hoveredZone === loc.id && (
+        {canManage && !renaming && hoveredZone === loc.id && (
           <span className="d-flex gap-2" onClick={e => e.stopPropagation()}>
             <i className="bi bi-pencil" title="Rename" onClick={() => startRename(loc)} style={{ cursor: 'pointer' }} />
             <i className="bi bi-trash text-danger" title="Delete" onClick={() => handleDelete(loc.id)} style={{ cursor: 'pointer' }} />
@@ -457,8 +460,8 @@ export default function LocationsView({
         ) : (
           <span className="flex-grow-1 text-truncate">{loc.name}</span>
         )}
-        <i className="bi bi-pencil text-muted" title="Rename" style={{ cursor: 'pointer' }} onClick={() => startRename(loc)} />
-        <button className="btn btn-sm btn-link text-danger p-0 px-1" onClick={() => handleDelete(loc.id)} title="Delete"><i className="bi bi-trash" /></button>
+        {canManage && <i className="bi bi-pencil text-muted" title="Rename" style={{ cursor: 'pointer' }} onClick={() => startRename(loc)} />}
+        {canManage && <button className="btn btn-sm btn-link text-danger p-0 px-1" onClick={() => handleDelete(loc.id)} title="Delete"><i className="bi bi-trash" /></button>}
       </li>
     );
   };
@@ -477,7 +480,7 @@ export default function LocationsView({
               <div style={{ width: 220, flexShrink: 0 }} className="border-end d-flex flex-column">
                 <div className="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
                   <span className="text-muted text-uppercase small fw-bold">Stores</span>
-                  <button className="btn btn-sm btn-outline-secondary py-0" onClick={() => setAddingStore(v => !v)} title="New store"><i className="bi bi-plus-lg" /></button>
+                  {canManage && <button className="btn btn-sm btn-outline-secondary py-0" onClick={() => setAddingStore(v => !v)} title="New store"><i className="bi bi-plus-lg" /></button>}
                 </div>
                 {addingStore && (
                   <form onSubmit={handleAddStore} className="p-2 border-bottom d-flex flex-column gap-2">
@@ -500,11 +503,11 @@ export default function LocationsView({
               <div style={{ width: 200, flexShrink: 0 }} className="border-end d-flex flex-column">
                 <div className="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
                   <span className="text-muted text-uppercase small fw-bold">{selectedStoreObj ? selectedStoreObj.name : 'Zones'}</span>
-                  {selectedStoreObj && (
+                  {canManage && selectedStoreObj && (
                     <button className="btn btn-sm btn-outline-success py-0" onClick={() => setShowZoneForm(v => !v)} title="New zone"><i className="bi bi-plus-lg" /></button>
                   )}
                 </div>
-                {selectedStoreObj && showZoneForm && (
+                {canManage && selectedStoreObj && showZoneForm && (
                   <form onSubmit={handleAddZone} className="d-flex gap-1 p-2 border-bottom">
                     <input autoFocus className="form-control form-control-sm" placeholder="Zone name" value={newZoneName} onChange={(e) => setNewZoneName(e.target.value)} required />
                     <button type="submit" className="btn btn-sm btn-success" disabled={savingZone}>{savingZone ? '...' : 'Add'}</button>
@@ -529,9 +532,9 @@ export default function LocationsView({
                     <span className="input-group-text"><i className="bi bi-search" /></span>
                     <input className="form-control" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                   </div>
-                  {selectedZoneObj && <button className="btn btn-sm btn-success text-nowrap" onClick={() => setShowBinForm(v => !v)}><i className="bi bi-plus-lg me-1" />Add bin</button>}
+                  {canManage && selectedZoneObj && <button className="btn btn-sm btn-success text-nowrap" onClick={() => setShowBinForm(v => !v)}><i className="bi bi-plus-lg me-1" />Add bin</button>}
                 </div>
-                {selectedZoneObj && showBinForm && (
+                {canManage && selectedZoneObj && showBinForm && (
                   <form onSubmit={handleAddBin} className="d-flex align-items-end gap-2 px-3 py-2 border-bottom" style={{ background: '#eef3fb' }}>
                     <div className="flex-grow-1">
                       <label className="form-label small mb-1">Bin / shelf name (e.g. A1)</label>

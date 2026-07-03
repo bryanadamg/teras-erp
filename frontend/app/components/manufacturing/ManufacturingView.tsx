@@ -8,6 +8,7 @@ import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
+import { useUser } from '../../context/UserContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import PrintHeader from '../shared/PrintHeader';
@@ -59,6 +60,8 @@ export default function ManufacturingView({
   const router = useRouter();
   const { t } = useLanguage();
   const { authFetch, companyProfile, fetchData, pagination, itemIndex } = useData();
+  const { hasPermission } = useUser();
+  const canManage = hasPermission('work_order.manage');
   const { moSearch, setMoSearch, prSearch: prSearchCtx, setPrSearch: setPrSearchCtx } = pagination;
   const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
   const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
@@ -936,7 +939,7 @@ export default function ManufacturingView({
                               {getAttributeValueName(id)}
                           </span>
                       ))}
-                      {selectedNode.status === 'PENDING' && (
+                      {canManage && selectedNode.status === 'PENDING' && (
                           <button
                               title="Edit attributes"
                               onClick={() => setEditAttrsModal({ mo: selectedNode, selected: [...(selectedNode.attribute_value_ids || [])] })}
@@ -955,7 +958,7 @@ export default function ManufacturingView({
                       })()}
                       {bom && <span style={{ fontSize: '10px', color: '#444' }}>BOM: <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#000' }}>{bom.code}</span></span>}
                       <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px' }}>
-                          {selectedNode.status === 'PENDING' && (
+                          {canManage && selectedNode.status === 'PENDING' && (
                               <button className="btn btn-sm btn-primary py-0 px-2" style={{ fontSize: '0.72rem' }} onClick={() => onUpdateStatus(selectedNode.id, 'IN_PROGRESS')}>
                                   <i className="bi bi-play-fill me-1"></i>Start
                               </button>
@@ -1527,6 +1530,7 @@ export default function ManufacturingView({
                       <div style={{ display: 'flex', gap: '6px' }}>
                           {currentStyle === 'classic' ? (
                               <>
+                                  {canManage && (
                                   <button
                                       onClick={() => setIsPRModalOpen(true)}
                                       style={{
@@ -1539,6 +1543,8 @@ export default function ManufacturingView({
                                   >
                                       <i className="bi bi-collection-play me-1"></i>New Production Run
                                   </button>
+                                  )}
+                                  {canManage && (
                                   <button
                                       onClick={() => setIsCreateOpen(true)}
                                       style={{
@@ -1551,6 +1557,7 @@ export default function ManufacturingView({
                                   >
                                       <i className="bi bi-plus-lg me-1"></i>New MO
                                   </button>
+                                  )}
                                   <button
                                       onClick={handlePrintList}
                                       style={{
@@ -1566,8 +1573,8 @@ export default function ManufacturingView({
                               </>
                           ) : (
                               <>
-                                  <button className="btn btn-primary btn-sm" onClick={() => setIsPRModalOpen(true)}><i className="bi bi-collection-play me-1"></i>New Production Run</button>
-                                  <button className="btn btn-success btn-sm text-white" onClick={() => setIsCreateOpen(true)}><i className="bi bi-plus-lg me-1"></i>New MO</button>
+                                  {canManage && <button className="btn btn-primary btn-sm" onClick={() => setIsPRModalOpen(true)}><i className="bi bi-collection-play me-1"></i>New Production Run</button>}
+                                  {canManage && <button className="btn btn-success btn-sm text-white" onClick={() => setIsCreateOpen(true)}><i className="bi bi-plus-lg me-1"></i>New MO</button>}
                                   <button className="btn btn-outline-primary btn-sm btn-print" onClick={handlePrintList}><i className="bi bi-printer me-1"></i>{t('print')}</button>
                               </>
                           )}
@@ -1746,7 +1753,7 @@ export default function ManufacturingView({
                                                                   <i className={`bi ${isExpanded ? 'bi-chevron-up' : 'bi-list-check'}`}></i>
                                                                   {currentStyle === 'classic' && <span style={{ marginLeft: 3 }}>Materials</span>}
                                                               </button>
-                                                              {currentStyle === 'classic' ? (
+                                                              {canManage && (currentStyle === 'classic' ? (
                                                                   <button onClick={() => onDeleteProductionRun(pr.id)} style={{
                                                                       fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px',
                                                                       padding: '2px 7px', cursor: 'pointer', border: '1px solid',
@@ -1758,7 +1765,7 @@ export default function ManufacturingView({
                                                                   <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDeleteProductionRun(pr.id)} title="Delete Production Run">
                                                                       <i className="bi bi-trash fs-5"></i>
                                                                   </button>
-                                                              )}
+                                                              ))}
                                                           </td>
                                                       </tr>
                                                       {isExpanded && (
@@ -2113,20 +2120,20 @@ export default function ManufacturingView({
                                                           {currentStyle === 'classic' ? (
                                                               <>
                                                                   <span style={{ width: '48px', display: 'inline-flex' }}>
-                                                                      {wo.status === 'PENDING' && !isBlocked && xpBtn('Start',  'primary', () => onUpdateStatus(wo.id, 'IN_PROGRESS'))}
+                                                                      {canManage && wo.status === 'PENDING' && !isBlocked && xpBtn('Start',  'primary', () => onUpdateStatus(wo.id, 'IN_PROGRESS'))}
                                                                   </span>
                                                                   <span style={{ width: '26px', display: 'inline-flex' }}>
                                                                       {xpBtn('', 'default', () => handlePrintWO(wo), 'Print Manufacturing Order', 'bi bi-printer')}
                                                                   </span>
                                                                   <span style={{ width: '26px', display: 'inline-flex' }}>
-                                                                      {xpBtn('', 'danger', () => onDeleteMO(wo.id), 'Delete', 'bi bi-trash')}
+                                                                      {canManage && xpBtn('', 'danger', () => onDeleteMO(wo.id), 'Delete', 'bi bi-trash')}
                                                                   </span>
                                                               </>
                                                           ) : (
                                                               <>
-                                                                  {wo.status === 'PENDING' && !isBlocked && <button className="btn btn-sm btn-primary py-0 px-2" style={{fontSize: '0.75rem'}} onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>START</button>}
+                                                                  {canManage && wo.status === 'PENDING' && !isBlocked && <button className="btn btn-sm btn-primary py-0 px-2" style={{fontSize: '0.75rem'}} onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>START</button>}
                                                                   <button className="btn btn-sm btn-link text-primary p-0" onClick={() => handlePrintWO(wo)} title="Print Manufacturing Order"><i className="bi bi-printer fs-5"></i></button>
-                                                                  <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDeleteMO(wo.id)} title="Delete"><i className="bi bi-trash fs-5"></i></button>
+                                                                  {canManage && <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDeleteMO(wo.id)} title="Delete"><i className="bi bi-trash fs-5"></i></button>}
                                                               </>
                                                           )}
                                                       </div>

@@ -4,6 +4,7 @@ import QRCode from 'qrcode';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useTheme } from '../../context/ThemeContext';
+import { useUser } from '../../context/UserContext';
 
 import { useToast } from '../shared/Toast';
 const WOCompletionModal = dynamic(() => import('./WOCompletionModal'), { ssr: false });
@@ -89,6 +90,8 @@ export default function WorkOrderListView({
     const router = useRouter();
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
+    const { hasPermission } = useUser();
+    const canManage = hasPermission('work_order.manage');
 
     const { showToast } = useToast();
     const highlightedRowRef = useRef<HTMLTableRowElement | null>(null);
@@ -670,6 +673,7 @@ export default function WorkOrderListView({
                                                 <td style={tdBase} onClick={e => e.stopPropagation()}>
                                                     {classic ? (
                                                         <select value={wo.status}
+                                                            disabled={!canManage}
                                                             onChange={e => {
                                                                 const s = e.target.value;
                                                                 if (s === 'COMPLETED' && !canComplete(wo)) {
@@ -686,7 +690,7 @@ export default function WorkOrderListView({
                                                 <td style={{ ...tdBase, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
                                                     {classic ? (
                                                         <>
-                                                            {(wo.status === 'PENDING' || wo.status === 'IN_PROGRESS') && (
+                                                            {canManage && (wo.status === 'PENDING' || wo.status === 'IN_PROGRESS') && (
                                                                 <button onClick={() => openLog(wo)}
                                                                     style={{ fontFamily: xpFont, fontSize: 10, padding: '1px 6px', background: 'linear-gradient(to bottom,#b0e8b0,#70c870)', border: '1px solid #0a3e0a', cursor: 'pointer', color: '#004000', marginRight: 4 }}>
                                                                     Log
@@ -697,22 +701,26 @@ export default function WorkOrderListView({
                                                                 title="Print Kartu Kerja">
                                                                 <i className="bi bi-printer" />
                                                             </button>
-                                                            <button onClick={() => startEdit(wo)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#0058e6', marginRight: 4 }}>
-                                                                <i className="bi bi-pencil" />
-                                                            </button>
-                                                            <button onClick={() => onDelete(wo.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#a00' }}>
-                                                                <i className="bi bi-trash" />
-                                                            </button>
+                                                            {canManage && (
+                                                                <button onClick={() => startEdit(wo)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#0058e6', marginRight: 4 }}>
+                                                                    <i className="bi bi-pencil" />
+                                                                </button>
+                                                            )}
+                                                            {canManage && (
+                                                                <button onClick={() => onDelete(wo.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#a00' }}>
+                                                                    <i className="bi bi-trash" />
+                                                                </button>
+                                                            )}
                                                         </>
                                                     ) : (
                                                         <>
-                                                            {wo.status === 'PENDING' && (
+                                                            {canManage && wo.status === 'PENDING' && (
                                                                 <button className="btn btn-sm btn-primary py-0 px-2 me-1" style={{ fontSize: '0.72rem' }} onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>Start</button>
                                                             )}
-                                                            {(wo.status === 'PENDING' || wo.status === 'IN_PROGRESS') && (
+                                                            {canManage && (wo.status === 'PENDING' || wo.status === 'IN_PROGRESS') && (
                                                                 <button className="btn btn-sm btn-success py-0 px-2 me-1" style={{ fontSize: '0.72rem' }} onClick={() => openLog(wo)}>Log</button>
                                                             )}
-                                                            {wo.status === 'IN_PROGRESS' && (
+                                                            {canManage && wo.status === 'IN_PROGRESS' && (
                                                                 <button className="btn btn-sm btn-outline-success py-0 px-2 me-1" style={{ fontSize: '0.72rem' }}
                                                                     disabled={!canComplete(wo)} title={!canComplete(wo) ? `Target ${wo.qty} not reached` : undefined}
                                                                     onClick={() => onUpdateStatus(wo.id, 'COMPLETED')}>Finish</button>
@@ -720,8 +728,8 @@ export default function WorkOrderListView({
                                                             <button className="btn btn-sm btn-link text-secondary p-0 me-1"
                                                                 onClick={() => { onFetchMO(wo.mo_id).then(mo => { setPrintWO(wo); setPrintMO(mo ?? null); }); }}
                                                                 title="Print Kartu Kerja"><i className="bi bi-printer fs-6" /></button>
-                                                            <button className="btn btn-sm btn-link text-primary p-0 me-1" onClick={() => startEdit(wo)}><i className="bi bi-pencil fs-6" /></button>
-                                                            <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDelete(wo.id)}><i className="bi bi-trash fs-6" /></button>
+                                                            {canManage && <button className="btn btn-sm btn-link text-primary p-0 me-1" onClick={() => startEdit(wo)}><i className="bi bi-pencil fs-6" /></button>}
+                                                            {canManage && <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDelete(wo.id)}><i className="bi bi-trash fs-6" /></button>}
                                                         </>
                                                     )}
                                                 </td>
