@@ -1300,6 +1300,25 @@ table {
     width: 100% !important;
   }
 
+  /* Stock Ledger print — landscape, hide everything except portal */
+  body.stock-ledger-print-active > *:not(.stock-ledger-print-portal) {
+    display: none !important;
+  }
+  body.stock-ledger-print-active .stock-ledger-print-portal {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  body.stock-ledger-print-active .stock-ledger-print-portal .stock-ledger-print-paper {
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
   /* Purchase Order print preview modal — hide everything except the paper portal */
   body.po-print-preview-active > *:not(.po-print-paper-portal) {
     display: none !important;

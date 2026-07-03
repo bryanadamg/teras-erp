@@ -484,6 +484,28 @@ export function buildLocationPickerTree(locations: any[]): TreeSelectOption[] {
 }
 
 /**
+ * Expand a buildLocationFilterTree() select value ('wh:<id>' or 'loc:<id>') into
+ * the full list of matching location ids (the node itself + all descendants),
+ * so a server-side filter can match stock recorded at any depth below it.
+ */
+export function expandLocationFilterValue(locations: any[], value: string): string[] {
+  if (!value) return [];
+  const id = value.startsWith('wh:') || value.startsWith('loc:') ? value.slice(value.indexOf(':') + 1) : value;
+  const childrenOf: Record<string, string[]> = {};
+  for (const l of (locations || [])) {
+    if (l.parent_id) (childrenOf[l.parent_id] ||= []).push(String(l.id));
+  }
+  const out: string[] = [];
+  const stack = [id];
+  while (stack.length) {
+    const cur = stack.pop()!;
+    out.push(cur);
+    for (const c of (childrenOf[cur] || [])) stack.push(c);
+  }
+  return out;
+}
+
+/**
  * Build tree options for item category selection.
  * All categories are selectable. Builds from flat array with parent_id.
  */

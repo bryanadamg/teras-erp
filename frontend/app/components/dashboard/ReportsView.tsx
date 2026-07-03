@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
@@ -6,8 +7,12 @@ import {
     xpFont, xpBtn, xpInput, xpSelect, xpSep,
     XPLoading, XPEmptyState, useSortable, SortMark,
 } from '../shared/xpTheme';
+import TreeSelect, { buildLocationFilterTree, expandLocationFilterValue } from '../shared/TreeSelect';
+
+const StockLedgerPrintModal = dynamic(() => import('./StockLedgerPrintModal'), { ssr: false });
 
 const PAGE_SIZE = 50;
+const PRINT_LIMIT = 1000;
 
 // Friendly label + colour per reference_type. Unknown types fall back to a
 // title-cased label and a neutral pill so new movement sources still render.
@@ -47,7 +52,7 @@ const pkgDelta = (e: any): { n: number; label: string }[] => {
 export default function ReportsView(_props: any) {
     const { t } = useLanguage();
     const { uiStyle } = useTheme();
-    const { authFetch, locations = [], attributes = [], itemIndex } = useData();
+    const { authFetch, locations = [], attributes = [], itemIndex, companyProfile } = useData();
     const classic = uiStyle === 'classic';
 
     const API_BASE = useMemo(() => {
@@ -60,7 +65,7 @@ export default function ReportsView(_props: any) {
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
-    const [locationFilter, setLocationFilter] = useState('');
+    const [locationFilter, setLocationFilter] = useState(''); // TreeSelect value: '' | 'wh:<id>' | 'loc:<id>'
     const [refTypeFilter, setRefTypeFilter] = useState('');
     const [direction, setDirection] = useState<'' | 'in' | 'out'>('');
     const [page, setPage] = useState(1);
@@ -93,7 +98,7 @@ export default function ReportsView(_props: any) {
             if (debouncedSearch.trim()) p.set('search', debouncedSearch.trim());
             if (startDate) p.set('start_date', startDate);
             if (endDate) p.set('end_date', `${endDate}T23:59:59`);
-            if (locationFilter) p.set('location_id', locationFilter);
+            if (locationFilter) p.set('location_id', expandLocationFilterValue(locations, locationFilter).join(','));
             if (refTypeFilter) p.set('reference_type', refTypeFilter);
             if (direction) p.set('direction', direction);
 
@@ -111,14 +116,11 @@ export default function ReportsView(_props: any) {
         } finally {
             setLoading(false);
         }
-    }, [API_BASE, authFetch, page, debouncedSearch, startDate, endDate, locationFilter, refTypeFilter, direction]);
+    }, [API_BASE, authFetch, page, debouncedSearch, startDate, endDate, locationFilter, locations, refTypeFilter, direction]);
 
     useEffect(() => { fetchLedger(); }, [fetchLedger]);
 
-    const sortedLocations = useMemo(
-        () => [...locations].sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '')),
-        [locations]
-    );
+    const locFilterTreeOptions = useMemo(() => buildLocationFilterTree(locations || []), [locations]);
     const getItemName = (e: any) => e.item_name || itemIndex?.[String(e.item_id)]?.name || e.item_id;
     const getItemCode = (e: any) => e.item_code || itemIndex?.[String(e.item_id)]?.code || '';
     const getLocName = (e: any) => e.location_name || locations.find((l: any) => l.id === e.location_id)?.name || e.location_id;
@@ -169,8 +171,48 @@ export default function ReportsView(_props: any) {
         setLocationFilter(''); setRefTypeFilter(''); setDirection(''); setPage(1);
     };
 
-    const handlePrint = () => window.print();
+    const [printOpen, setPrintOpen] = useState(false);
+    const [printLoading, setPrintLoading] = useState(false);
+    const [printEntries, setPrintEntries] = useState<any[]>([]);
+
     const periodLabel = `${startDate || 'All time'} → ${endDate || 'now'}`;
+    const locFilterName = useMemo(() => {
+        if (!locationFilter) return '';
+        const id = locationFilter.slice(locationFilter.indexOf(':') + 1);
+        return locations.find((l: any) => l.id === id)?.name || '';
+    }, [locationFilter, locations]);
+    const filtersSummary = [
+        debouncedSearch && `Search: "${debouncedSearch}"`,
+        locationFilter && `Location: ${locFilterName || 'filtered'}`,
+        refTypeFilter && `Source: ${refMeta(refTypeFilter).label}`,
+        direction && `Direction: ${direction === 'in' ? 'In only' : 'Out only'}`,
+    ].filter(Boolean).join(' · ');
+
+    const handlePrint = async () => {
+        setPrintLoading(true);
+        try {
+            const p = new URLSearchParams();
+            p.set('skip', '0');
+            p.set('limit', String(PRINT_LIMIT));
+            if (debouncedSearch.trim()) p.set('search', debouncedSearch.trim());
+            if (startDate) p.set('start_date', startDate);
+            if (endDate) p.set('end_date', `${endDate}T23:59:59`);
+            if (locationFilter) p.set('location_id', expandLocationFilterValue(locations, locationFilter).join(','));
+            if (refTypeFilter) p.set('reference_type', refTypeFilter);
+            if (direction) p.set('direction', direction);
+
+            const res = await authFetch(`${API_BASE}/stock?${p.toString()}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            setPrintEntries(data.items || []);
+            setPrintOpen(true);
+        } catch (e) {
+            // fall back to a plain browser print of the current page if the fetch fails
+            window.print();
+        } finally {
+            setPrintLoading(false);
+        }
+    };
 
     // ── Shared row content (mode-agnostic data) ──────────────────────────────
     const renderClassicRow = (e: any, i: number) => {
@@ -267,6 +309,7 @@ export default function ReportsView(_props: any) {
         });
 
         return (
+            <>
             <div className="fade-in print-container" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                 <div style={{
                     border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
@@ -288,10 +331,14 @@ export default function ReportsView(_props: any) {
                             onChange={e => setSearch(e.target.value)}
                         />
                         <div style={xpSep} />
-                        <select style={xpSelect({ width: 150 })} value={locationFilter} onChange={e => onFilter(setLocationFilter)(e.target.value)}>
-                            <option value="">All Locations</option>
-                            {sortedLocations.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
-                        </select>
+                        <TreeSelect
+                            options={locFilterTreeOptions}
+                            value={locationFilter}
+                            onChange={onFilter(setLocationFilter)}
+                            allowEmpty
+                            emptyLabel="All Locations"
+                            style={{ width: 150 }}
+                        />
                         <select style={xpSelect({ width: 150 })} value={refTypeFilter} onChange={e => onFilter(setRefTypeFilter)(e.target.value)}>
                             <option value="">All Sources</option>
                             {refTypes.map(rt => <option key={rt} value={rt}>{refMeta(rt).label}</option>)}
@@ -313,7 +360,7 @@ export default function ReportsView(_props: any) {
                         <div style={xpSep} />
                         {hasFilters && <button style={xpBtn({ fontSize: '10px', padding: '1px 7px' })} onClick={clearFilters}><i className="bi bi-x-lg" style={{ marginRight: 3 }} />Clear</button>}
                         <button style={xpBtn()} onClick={fetchLedger} title="Refresh"><i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh</button>
-                        <button style={xpBtn()} onClick={handlePrint}><i className="bi bi-printer" style={{ marginRight: 4 }} />{t('print')}</button>
+                        <button style={xpBtn()} onClick={handlePrint} disabled={printLoading}><i className="bi bi-printer" style={{ marginRight: 4 }} />{printLoading ? 'Loading...' : t('print')}</button>
                     </div>
 
                     {/* Summary strip */}
@@ -373,6 +420,20 @@ export default function ReportsView(_props: any) {
                     </div>
                 </div>
             </div>
+            {printOpen && (
+                <StockLedgerPrintModal
+                    entries={printEntries}
+                    locations={locations}
+                    attributes={attributes}
+                    companyProfile={companyProfile}
+                    currentStyle={uiStyle}
+                    periodLabel={periodLabel}
+                    totals={{ total, totalIn, totalOut }}
+                    filtersSummary={filtersSummary}
+                    onClose={() => setPrintOpen(false)}
+                />
+            )}
+            </>
         );
     }
 
@@ -381,6 +442,7 @@ export default function ReportsView(_props: any) {
         `btn btn-sm ${direction === val ? `btn-${variant}` : `btn-outline-${variant}`}`;
 
     return (
+        <>
         <div className="card fade-in border-0 shadow-sm print-container">
             <div className="card-header bg-white border-bottom no-print py-3">
                 <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
@@ -388,7 +450,7 @@ export default function ReportsView(_props: any) {
                         <h5 className="card-title mb-0">{t('stock_ledger')}</h5>
                         <small className="text-muted">Every stock movement, in and out</small>
                     </div>
-                    <button className="btn btn-outline-primary btn-sm" onClick={handlePrint}><i className="bi bi-printer me-1" />{t('print')}</button>
+                    <button className="btn btn-outline-primary btn-sm" onClick={handlePrint} disabled={printLoading}><i className="bi bi-printer me-1" />{printLoading ? 'Loading...' : t('print')}</button>
                 </div>
                 <div className="row g-2 align-items-center">
                     <div className="col-md-3">
@@ -398,10 +460,13 @@ export default function ReportsView(_props: any) {
                         </div>
                     </div>
                     <div className="col-md-2">
-                        <select className="form-select form-select-sm" value={locationFilter} onChange={e => onFilter(setLocationFilter)(e.target.value)}>
-                            <option value="">All Locations</option>
-                            {sortedLocations.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
-                        </select>
+                        <TreeSelect
+                            options={locFilterTreeOptions}
+                            value={locationFilter}
+                            onChange={onFilter(setLocationFilter)}
+                            allowEmpty
+                            emptyLabel="All Locations"
+                        />
                     </div>
                     <div className="col-md-2">
                         <select className="form-select form-select-sm" value={refTypeFilter} onChange={e => onFilter(setRefTypeFilter)(e.target.value)}>
@@ -542,5 +607,19 @@ export default function ReportsView(_props: any) {
                 </div>
             </div>
         </div>
+        {printOpen && (
+            <StockLedgerPrintModal
+                entries={printEntries}
+                locations={locations}
+                attributes={attributes}
+                companyProfile={companyProfile}
+                currentStyle={uiStyle}
+                periodLabel={periodLabel}
+                totals={{ total, totalIn, totalOut }}
+                filtersSummary={filtersSummary}
+                onClose={() => setPrintOpen(false)}
+            />
+        )}
+        </>
     );
 }

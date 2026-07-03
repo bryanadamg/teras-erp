@@ -23,7 +23,7 @@ async def get_stock_ledger(
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
     search: Optional[str] = Query(None, description="Match item name/code or reference id"),
-    location_id: Optional[str] = Query(None),
+    location_id: Optional[str] = Query(None, description="Location id, or comma-separated ids (e.g. a warehouse plus its descendants)"),
     reference_type: Optional[str] = Query(None),
     direction: Optional[str] = Query(None, description="'in' (qty >= 0) or 'out' (qty < 0)"),
     db: AsyncSession = Depends(get_async_db),
@@ -41,7 +41,8 @@ async def get_stock_ledger(
     if end_date:
         conditions.append(StockLedger.created_at <= end_date)
     if location_id:
-        conditions.append(StockLedger.location_id == location_id)
+        loc_ids = [x for x in location_id.split(",") if x]
+        conditions.append(StockLedger.location_id.in_(loc_ids) if len(loc_ids) > 1 else StockLedger.location_id == loc_ids[0])
     if reference_type:
         conditions.append(StockLedger.reference_type == reference_type)
     if direction == "in":
