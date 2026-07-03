@@ -1069,7 +1069,7 @@ export default function InventoryView({
       <div className="col-12 order-2 order-md-1">
         {/* ── Outer shell: XP bevel in classic, Bootstrap card in default ── */}
         <div
-          style={classic ? xpBevel : undefined}
+          style={classic ? { ...xpBevel, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)' } : { display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)' }}
           className={classic ? '' : 'card h-100 border-0 shadow-sm'}
         >
           {/* ── Title bar ── */}
@@ -1227,7 +1227,7 @@ export default function InventoryView({
           )}
 
           {/* ── Table ── */}
-          <div className={classic ? '' : 'card-body p-0'}>
+          <div className={classic ? '' : 'card-body p-0'} style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
             <div className={classic ? '' : 'table-responsive'}>
               <table
                 className={classic ? '' : 'table table-hover align-middle mb-0'}
