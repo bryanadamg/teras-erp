@@ -18,6 +18,8 @@ interface BeamRow {
     repeat: string;
     next_destination_work_center_id: string;
     next_destination_location_id: string;
+    target_start_date: string;
+    target_end_date: string;
 }
 
 interface Props {
@@ -32,7 +34,7 @@ interface Props {
 
 let _rowId = 0;
 function makeRow(defaultWcId = '', defaultEnds = ''): BeamRow {
-    return { localId: `beam-${++_rowId}`, work_center_id: defaultWcId, qty: '', ends: defaultEnds, notes: '', repeat: '1', next_destination_work_center_id: '', next_destination_location_id: '' };
+    return { localId: `beam-${++_rowId}`, work_center_id: defaultWcId, qty: '', ends: defaultEnds, notes: '', repeat: '1', next_destination_work_center_id: '', next_destination_location_id: '', target_start_date: '', target_end_date: '' };
 }
 
 export default function BeamPlanningModal({ mo, machines, components = [], centerLabel = 'Beaming', locations = [], nextWorkCenters = [], onClose }: Props) {
@@ -45,8 +47,6 @@ export default function BeamPlanningModal({ mo, machines, components = [], cente
     const [rows, setRows] = useState<BeamRow[]>([makeRow(defaultWcId, defaultEnds)]);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [targetStartDate, setTargetStartDate] = useState('');
-    const [targetEndDate, setTargetEndDate] = useState('');
 
     const moQty = Number(mo.qty) || 0;
     const validRows = useMemo(() => rows.filter(r => parseFloat(r.qty) > 0), [rows]);
@@ -79,8 +79,8 @@ export default function BeamPlanningModal({ mo, machines, components = [], cente
                     sequence: 1,
                     next_destination_work_center_id: r.next_destination_work_center_id || undefined,
                     next_destination_location_id: r.next_destination_location_id || undefined,
-                    target_start_date: targetStartDate || undefined,
-                    target_end_date: targetEndDate || undefined,
+                    target_start_date: r.target_start_date || undefined,
+                    target_end_date: r.target_end_date || undefined,
                 }));
             });
             const res = await authFetch(`${API_BASE}/work-orders/bulk`, {
@@ -142,7 +142,7 @@ export default function BeamPlanningModal({ mo, machines, components = [], cente
             modeless
             onClose={onClose}
             title={`Plan ${centerLabel} Work Orders`}
-            size="xl"
+            size="xxl"
             footer={footer}
         >
             {/* MO info strip */}
@@ -165,28 +165,6 @@ export default function BeamPlanningModal({ mo, machines, components = [], cente
                         </div>
                     </React.Fragment>
                 ))}
-            </div>
-
-            {/* Target start/end dates */}
-            <div style={{ background: '#f5f3ee', border: '1px solid #c0bdb5', padding: '5px 8px', marginBottom: 8, display: 'flex', gap: 16, alignItems: 'center' }}>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    <span style={{ fontSize: 9, color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Target Start</span>
-                    <input
-                        type="date"
-                        style={{ ...xpInput, width: 130 }}
-                        value={targetStartDate}
-                        onChange={e => setTargetStartDate(e.target.value)}
-                    />
-                </label>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    <span style={{ fontSize: 9, color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Target End</span>
-                    <input
-                        type="date"
-                        style={{ ...xpInput, width: 130 }}
-                        value={targetEndDate}
-                        onChange={e => setTargetEndDate(e.target.value)}
-                    />
-                </label>
             </div>
 
             {/* Yarn components */}
@@ -214,16 +192,19 @@ export default function BeamPlanningModal({ mo, machines, components = [], cente
             </div>
 
             {/* Rows table */}
-            <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #c0bdb5', background: 'white', marginBottom: 0 }}>
+            <div style={{ overflowX: 'auto', border: '1px solid #c0bdb5' }}>
+            <table style={{ width: '100%', minWidth: 980, tableLayout: 'fixed', borderCollapse: 'collapse', background: 'white', marginBottom: 0 }}>
                 <thead>
                     <tr>
-                        <th style={thStyle('#')}>{'#'}</th>
-                        {machines.length > 1 && <th style={thStyle('Machine')}>Machine</th>}
-                        <th style={{ ...thStyle('Qty'), width: 90 }}>Qty / Beam</th>
-                        <th style={{ ...thStyle('Ends'), width: 100 }}>Qty / Ends (Utas)</th>
-                        <th style={{ ...thStyle('Repeat'), width: 56 }}>Repeat</th>
-                        <th style={thStyle('Notes / Beam ID')}>Notes / Beam ID</th>
-                        <th style={{ ...thStyle('Tujuan Berikutnya'), width: 150 }}>Tujuan Berikutnya</th>
+                        <th style={{ ...thStyle('#'), width: 26 }}>{'#'}</th>
+                        {machines.length > 1 && <th style={{ ...thStyle('Machine'), width: 110 }}>Machine</th>}
+                        <th style={{ ...thStyle('Qty'), width: 80 }}>Qty / Beam</th>
+                        <th style={{ ...thStyle('Ends'), width: 90 }}>Qty / Ends (Utas)</th>
+                        <th style={{ ...thStyle('Repeat'), width: 50 }}>Repeat</th>
+                        <th style={{ ...thStyle('Start'), width: 120 }}>Target Start</th>
+                        <th style={{ ...thStyle('End'), width: 120 }}>Target End</th>
+                        <th style={{ ...thStyle('Notes / Beam ID'), width: 160 }}>Notes / Beam ID</th>
+                        <th style={{ ...thStyle('Tujuan Berikutnya'), width: 160 }}>Tujuan Berikutnya</th>
                         <th style={{ ...thStyle(''), width: 26 }}></th>
                     </tr>
                 </thead>
@@ -270,6 +251,22 @@ export default function BeamPlanningModal({ mo, machines, components = [], cente
                                     style={{ ...xpInput, width: '100%', textAlign: 'center' }}
                                     value={row.repeat}
                                     onChange={e => update(row.localId, 'repeat', e.target.value)}
+                                />
+                            </td>
+                            <td style={tdStyle({ width: 118 })}>
+                                <input
+                                    type="date"
+                                    style={{ ...xpInput, width: '100%' }}
+                                    value={row.target_start_date}
+                                    onChange={e => update(row.localId, 'target_start_date', e.target.value)}
+                                />
+                            </td>
+                            <td style={tdStyle({ width: 118 })}>
+                                <input
+                                    type="date"
+                                    style={{ ...xpInput, width: '100%' }}
+                                    value={row.target_end_date}
+                                    onChange={e => update(row.localId, 'target_end_date', e.target.value)}
                                 />
                             </td>
                             <td style={tdStyle({})}>
@@ -322,6 +319,7 @@ export default function BeamPlanningModal({ mo, machines, components = [], cente
                     ))}
                 </tbody>
             </table>
+            </div>
 
             {/* Summary bar */}
             <div style={{
