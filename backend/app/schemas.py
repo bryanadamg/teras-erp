@@ -1218,6 +1218,8 @@ class SampleRequestResponse(BaseModel):
     notes: Optional[str] = None
     completion_image_url: Optional[str] = None
     design_pdf_url: Optional[str] = None
+    created_by_name: Optional[str] = None
+    created_by_role: Optional[str] = None
     class Config:
         from_attributes = True
 

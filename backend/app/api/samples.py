@@ -17,6 +17,13 @@ import shutil, os, uuid
 router = APIRouter()
 
 
+def _enrich_creator(samples: list) -> None:
+    for sample in samples:
+        creator = sample.created_by
+        sample.created_by_name = creator.full_name if creator else None
+        sample.created_by_role = creator.role.name if creator and creator.role else None
+
+
 async def _enrich_colors_with_items(db: AsyncSession, samples: list) -> None:
     all_color_ids = [c.id for s in samples for c in (s.colors or [])]
     if not all_color_ids:
@@ -71,6 +78,7 @@ async def create_sample_request(
         notes=payload.notes,
         status="DRAFT",
         updated_at=now,
+        created_by_id=current_user.id,
     )
     db.add(sample)
     await db.flush()
@@ -88,10 +96,11 @@ async def create_sample_request(
 
     result = await db.execute(
         select(SampleRequest)
-        .options(joinedload(SampleRequest.colors))
+        .options(joinedload(SampleRequest.colors), joinedload(SampleRequest.created_by).joinedload(User.role))
         .filter(SampleRequest.id == sample.id)
     )
     sample = result.unique().scalars().first()
+    _enrich_creator([sample])
 
     await audit_service.log_activity(
         db,
@@ -123,12 +132,13 @@ async def get_samples(
 ):
     result = await db.execute(
         select(SampleRequest)
-        .options(joinedload(SampleRequest.colors))
+        .options(joinedload(SampleRequest.colors), joinedload(SampleRequest.created_by).joinedload(User.role))
         .order_by(SampleRequest.created_at.desc())
         .offset(skip)
         .limit(limit)
     )
     samples = result.unique().scalars().all()
+    _enrich_creator(samples)
 
     reads_result = await db.execute(
         select(SampleRequestRead).filter(SampleRequestRead.user_id == current_user.id)
@@ -218,10 +228,11 @@ async def update_sample_request(
 
     result = await db.execute(
         select(SampleRequest)
-        .options(joinedload(SampleRequest.colors))
+        .options(joinedload(SampleRequest.colors), joinedload(SampleRequest.created_by).joinedload(User.role))
         .filter(SampleRequest.id == sample_id)
     )
     sample = result.unique().scalars().first()
+    _enrich_creator([sample])
 
     await audit_service.log_activity(
         db,

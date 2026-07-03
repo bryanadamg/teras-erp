@@ -1,7 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useUser } from '../../context/UserContext';
 
 interface SamplePrintSettings {
     preparedBy: string;
@@ -273,7 +272,6 @@ export default function SamplePrintModal({
     getCustomerName: (id: string) => string;
 }) {
     const isClassic = currentStyle === 'classic';
-    const { currentUser } = useUser();
 
     const [settings, setSettings] = useState<SamplePrintSettings>(() => {
         let saved: Partial<SamplePrintSettings> = {};
@@ -284,8 +282,8 @@ export default function SamplePrintModal({
         return {
             ...DEFAULT_SETTINGS,
             ...saved,
-            preparedBy: currentUser?.full_name || DEFAULT_SETTINGS.preparedBy,
-            preparedRole: currentUser?.role?.name || DEFAULT_SETTINGS.preparedRole,
+            preparedBy: sample?.created_by_name || DEFAULT_SETTINGS.preparedBy,
+            preparedRole: sample?.created_by_role || DEFAULT_SETTINGS.preparedRole,
         };
     });
 
