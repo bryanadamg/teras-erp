@@ -888,7 +888,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                <th style={classic ? { ...xpThCell, width: '90px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => togglePOSort('date')} title="Sort">Date<SortMark sort={poSort} colKey="date" /></th>
                                <th style={classic ? xpThCell : undefined}>Items</th>
                                <th style={classic ? { ...xpThCell, width: '90px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => togglePOSort('status')} title="Sort">Status<SortMark sort={poSort} colKey="status" /></th>
-                               <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '130px' } : undefined} className={classic ? '' : 'text-end pe-4'}>Actions</th>
+                               <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '140px' } : undefined} className={classic ? '' : 'text-end pe-3'}>Actions</th>
                            </tr>
                        </thead>
                        <tbody>
@@ -941,38 +941,40 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                            {canManage && po.status !== 'RECEIVED' && (
                                                classic ? (
                                                    <button
-                                                       style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff' })}
+                                                       style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', padding: 0, width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' })}
+                                                       title="Receive Goods"
                                                        onClick={() => openReceiptModal(po)}
                                                    >
-                                                       <i className="bi bi-box-arrow-in-down" style={{ marginRight: 3 }}></i>Receive
+                                                       <i className="bi bi-box-arrow-in-down"></i>
                                                    </button>
                                                ) : (
                                                    <button
-                                                       className="btn btn-sm btn-success text-white py-0 px-2"
-                                                       style={{fontSize: '0.75rem'}}
+                                                       className="btn btn-sm btn-success text-white p-0 d-inline-flex align-items-center justify-content-center"
+                                                       style={{fontSize: 12, width: 26, height: 26}}
+                                                       title="Receive Goods"
                                                        onClick={() => openReceiptModal(po)}
                                                    >
-                                                       <i className="bi bi-box-arrow-in-down me-1"></i>Receive Goods
+                                                       <i className="bi bi-box-arrow-in-down"></i>
                                                    </button>
                                                )
                                            )}
                                            {canManage && po.status !== 'RECEIVED' && po.status !== 'CANCELLED' && (
                                                classic ? (
                                                    <button
-                                                       style={xpBtn({ background: 'linear-gradient(to bottom, #f0c000, #c08000)', borderColor: '#a06000 #604000 #604000 #a06000', color: '#000' })}
-                                                       title="Mark as received even if quantities are short"
+                                                       style={xpBtn({ background: 'linear-gradient(to bottom, #f0c000, #c08000)', borderColor: '#a06000 #604000 #604000 #a06000', color: '#000', padding: 0, width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' })}
+                                                       title="Close PO — mark as received even if quantities are short"
                                                        onClick={() => onClosePO(po.id)}
                                                    >
-                                                       <i className="bi bi-check2-circle" style={{ marginRight: 3 }}></i>Close
+                                                       <i className="bi bi-check2-circle"></i>
                                                    </button>
                                                ) : (
                                                    <button
-                                                       className="btn btn-sm btn-warning py-0 px-2"
-                                                       style={{fontSize: '0.75rem'}}
-                                                       title="Mark as received even if quantities are short"
+                                                       className="btn btn-sm btn-warning p-0 d-inline-flex align-items-center justify-content-center"
+                                                       style={{fontSize: 12, width: 26, height: 26}}
+                                                       title="Close PO — mark as received even if quantities are short"
                                                        onClick={() => onClosePO(po.id)}
                                                    >
-                                                       <i className="bi bi-check2-circle me-1"></i>Close
+                                                       <i className="bi bi-check2-circle"></i>
                                                    </button>
                                                )
                                            )}
@@ -982,7 +984,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                        <button
                                                            title="Edit"
                                                            onClick={() => handleEditOpen(po)}
-                                                           style={{ background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', padding: '1px 4px', color: '#555', fontSize: '13px' }}
+                                                           style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', color: '#555', fontSize: '12px' }}
                                                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
                                                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
                                                        >
@@ -992,7 +994,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                    <button
                                                        title="Print"
                                                        onClick={() => handlePrintPO(po)}
-                                                       style={{ background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', padding: '1px 4px', color: '#555', fontSize: '13px' }}
+                                                       style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', color: '#555', fontSize: '12px' }}
                                                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
                                                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
                                                    >
@@ -1002,7 +1004,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                    <button
                                                        title="Delete"
                                                        onClick={() => onDeletePO(po.id)}
-                                                       style={{ background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', padding: '1px 4px', color: '#aa0000', fontSize: '13px' }}
+                                                       style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', color: '#aa0000', fontSize: '12px' }}
                                                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#cc4444'; (e.currentTarget as HTMLButtonElement).style.background = '#fff0f0'; }}
                                                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
                                                    >
@@ -1013,15 +1015,15 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                            ) : (
                                                <>
                                                    {canManage && po.status === 'DRAFT' && (
-                                                       <button className="btn btn-sm btn-link text-muted p-0" title="Edit" onClick={() => handleEditOpen(po)}>
+                                                       <button className="btn btn-sm btn-link text-muted p-0 d-inline-flex align-items-center justify-content-center" style={{width: 26, height: 26}} title="Edit" onClick={() => handleEditOpen(po)}>
                                                            <i className="bi bi-pencil fs-6"></i>
                                                        </button>
                                                    )}
-                                                   <button className="btn btn-sm btn-link text-muted p-0" title="Print" onClick={() => handlePrintPO(po)}>
+                                                   <button className="btn btn-sm btn-link text-muted p-0 d-inline-flex align-items-center justify-content-center" style={{width: 26, height: 26}} title="Print" onClick={() => handlePrintPO(po)}>
                                                        <i className="bi bi-printer fs-6"></i>
                                                    </button>
                                                    {canManage && (
-                                                   <button className="btn btn-sm btn-link text-danger p-0" title="Delete" onClick={() => onDeletePO(po.id)}>
+                                                   <button className="btn btn-sm btn-link text-danger p-0 d-inline-flex align-items-center justify-content-center" style={{width: 26, height: 26}} title="Delete" onClick={() => onDeletePO(po.id)}>
                                                        <i className="bi bi-trash fs-6"></i>
                                                    </button>
                                                    )}
