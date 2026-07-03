@@ -164,10 +164,10 @@ export default function WorkOrderListView({
         mo:       (wo: FlatWO) => (wo as any).mo_code,
         product:  (wo: FlatWO) => (wo as any).item_name,
         wc:       (wo: FlatWO) => wo.work_center_name,
-        planned:  (wo: FlatWO) => wo.planned_duration_hours ?? null,
-        actual:   (wo: FlatWO) => wo.actual_duration_hours ?? null,
-        start:    (wo: FlatWO) => wo.target_start_date ?? null,
-        end:      (wo: FlatWO) => wo.target_end_date ?? null,
+        tstart:   (wo: FlatWO) => wo.target_start_date ?? null,
+        tend:     (wo: FlatWO) => wo.target_end_date ?? null,
+        astart:   (wo: FlatWO) => wo.actual_start_date ?? null,
+        aend:     (wo: FlatWO) => wo.actual_end_date ?? null,
         status:   (wo: FlatWO) => wo.status,
     }), []);
     const { sorted: sortedWOs, sort, toggle: toggleSort } = useSortable(filtered, sortCols);
@@ -489,11 +489,11 @@ export default function WorkOrderListView({
                                 <col style={{ width: '11%' }} />{/* MO */}
                                 <col style={{ width: '10%' }} />{/* Product */}
                                 <col style={{ width: '13%' }} />{/* Work Center */}
-                                <col style={{ width: 60 }} />   {/* Planned */}
-                                <col style={{ width: 60 }} />   {/* Actual */}
                                 <col style={{ width: 86 }} />   {/* Target/Done */}
-                                <col style={{ width: 98 }} />   {/* Start */}
-                                <col style={{ width: 98 }} />   {/* End */}
+                                <col style={{ width: 90 }} />   {/* Target Start */}
+                                <col style={{ width: 90 }} />   {/* Target End */}
+                                <col style={{ width: 98 }} />   {/* Actual Start */}
+                                <col style={{ width: 98 }} />   {/* Actual End */}
                                 <col style={{ width: 108 }} />  {/* Status */}
                                 <col style={{ width: 126 }} />  {/* Actions */}
                             </colgroup>
@@ -510,7 +510,7 @@ export default function WorkOrderListView({
                                         />
                                     </th>
                                     <th style={{ ...thStyle, width: 22, padding: '3px 4px' }} className={classic ? '' : 'ps-3'} />
-                                    {([['#', 'sequence'], ['Name', 'name'], ['MO', 'mo'], ['Product', 'product'], ['Work Center', 'wc'], ['Planned', 'planned'], ['Actual', 'actual'], ['Target / Done', ''], ['Start', 'start'], ['End', 'end'], ['Status', 'status'], ['', '']] as [string, string][]).map(([h, key], i) => (
+                                    {([['#', 'sequence'], ['Name', 'name'], ['MO', 'mo'], ['Product', 'product'], ['Work Center', 'wc'], ['Target / Done', ''], ['Target Start', 'tstart'], ['Target End', 'tend'], ['Actual Start', 'astart'], ['Actual End', 'aend'], ['Status', 'status'], ['', '']] as [string, string][]).map(([h, key], i) => (
                                         <th key={`${h}-${i}`}
                                             style={{ ...thStyle, textAlign: h === '' ? 'right' : 'left', cursor: key ? 'pointer' : undefined, userSelect: 'none' }}
                                             className={classic ? '' : 'ps-3'}
@@ -648,8 +648,6 @@ export default function WorkOrderListView({
                                                         })()
                                                         : '—'}
                                                 </td>
-                                                <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>{wo.planned_duration_hours != null ? `${wo.planned_duration_hours}h` : '—'}</td>
-                                                <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>{wo.actual_duration_hours != null ? `${wo.actual_duration_hours}h` : '—'}</td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>
                                                     {wo.qty != null ? (() => {
                                                         const done = (wo.qty_completed_total ?? 0) >= wo.qty;
@@ -673,6 +671,8 @@ export default function WorkOrderListView({
                                                         );
                                                     })() : <span style={{ color: '#bbb' }}>—</span>}
                                                 </td>
+                                                <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>{fmtDate(wo.target_start_date)}</td>
+                                                <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>{fmtDate(wo.target_end_date)}</td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>{fmtDateTime(wo.actual_start_date)}</td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>{fmtDateTime(wo.actual_end_date)}</td>
                                                 <td style={tdBase} onClick={e => e.stopPropagation()}>
