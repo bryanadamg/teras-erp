@@ -1379,6 +1379,11 @@ class RoleBase(BaseModel):
 class RoleCreate(RoleBase):
     permission_ids: list[UUID] = []
 
+class RoleUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    permission_ids: Optional[list[UUID]] = None
+
 class RoleResponse(RoleBase):
     id: UUID
     permissions: list[PermissionResponse] = []
@@ -1412,6 +1417,7 @@ class UserResponse(UserBase):
     allowed_categories: list[str] | None = None
     avatar_id: str | None = None
     is_active: bool = True
+    last_login_at: datetime | None = None
     class Config:
         from_attributes = True
 

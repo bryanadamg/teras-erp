@@ -1,5 +1,6 @@
 import uuid
-from sqlalchemy import String, Boolean, ForeignKey, Table, Column, UniqueConstraint
+from datetime import datetime
+from sqlalchemy import String, Boolean, DateTime, ForeignKey, Table, Column, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
@@ -57,6 +58,7 @@ class User(Base):
     # Category-based restriction (If Null, allow all. If set, allow only these categories)
     allowed_categories: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     avatar_id: Mapped[str | None] = mapped_column(String(4), nullable=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     role = relationship("Role")
     permissions = relationship("Permission", secondary=user_permissions)

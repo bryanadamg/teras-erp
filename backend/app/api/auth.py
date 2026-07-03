@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, datetime, timezone
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.auth import User, Role
 from app.models.audit import AuditLog
-from app.schemas import UserResponse, RoleResponse, PermissionResponse, UserUpdate, UserCreate
+from app.schemas import UserResponse, RoleResponse, PermissionResponse, UserUpdate, UserCreate, RoleCreate, RoleUpdate
 from app.core.security import verify_password, create_access_token, get_password_hash, ALGORITHM, SECRET_KEY
 from jose import JWTError, jwt
 
@@ -69,6 +69,9 @@ def login_for_access_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    user.last_login_at = datetime.now(timezone.utc)
+    db.commit()
+
     access_token = create_access_token(subject=user.id)
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -88,6 +91,59 @@ def get_roles(db: Session = Depends(get_db), current_user: User = Depends(get_cu
 def get_permissions(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     from app.models.auth import Permission
     return db.query(Permission).all()
+
+@router.post("/roles", response_model=RoleResponse, status_code=status.HTTP_201_CREATED)
+def create_role(payload: RoleCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_admin)):
+    if db.query(Role).filter(Role.name == payload.name).first():
+        raise HTTPException(status_code=400, detail="Role name already taken")
+
+    from app.models.auth import Permission
+    perms = db.query(Permission).filter(Permission.id.in_(payload.permission_ids)).all() if payload.permission_ids else []
+
+    role = Role(name=payload.name, description=payload.description, permissions=perms)
+    db.add(role)
+    db.commit()
+    db.refresh(role)
+    _log_activity(db, current_user.id, "CREATE", role.id, details=f"Created role {role.name}")
+    return role
+
+@router.put("/roles/{role_id}", response_model=RoleResponse)
+def update_role(role_id: str, payload: RoleUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_admin)):
+    role = db.query(Role).filter(Role.id == role_id).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+
+    if payload.name is not None and payload.name != role.name:
+        if db.query(Role).filter(Role.name == payload.name).first():
+            raise HTTPException(status_code=400, detail="Role name already taken")
+        role.name = payload.name
+
+    if payload.description is not None:
+        role.description = payload.description
+
+    if payload.permission_ids is not None:
+        from app.models.auth import Permission
+        role.permissions = db.query(Permission).filter(Permission.id.in_(payload.permission_ids)).all()
+
+    db.commit()
+    db.refresh(role)
+    _log_activity(db, current_user.id, "UPDATE", role.id, details=f"Updated role {role.name}")
+    return role
+
+@router.delete("/roles/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_role(role_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_admin)):
+    role = db.query(Role).filter(Role.id == role_id).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+
+    in_use = db.query(User).filter(User.role_id == role.id).count()
+    if in_use:
+        raise HTTPException(status_code=400, detail=f"Role is assigned to {in_use} user(s); reassign them before deleting")
+
+    role_name = role.name
+    db.delete(role)
+    db.commit()
+    _log_activity(db, current_user.id, "DELETE", role_id, details=f"Deleted role {role_name}")
 
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def create_user(payload: UserCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_admin)):
@@ -176,6 +232,9 @@ def deactivate_user(user_id: str, db: Session = Depends(get_db), current_user: U
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    if str(current_user.id) == str(user_id):
+        raise HTTPException(status_code=400, detail="Cannot deactivate your own account")
 
     if user.role and user.role.name == "Administrator" and _count_active_admins(db, exclude_user_id=user.id) < 1:
         raise HTTPException(status_code=400, detail="Cannot deactivate the last active Administrator")

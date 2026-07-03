@@ -9,8 +9,9 @@ import SettingsGeneralTab from './SettingsGeneralTab';
 import SettingsAccountTab from './SettingsAccountTab';
 import SettingsDatabaseTab from './SettingsDatabaseTab';
 import SettingsUsersTab from './SettingsUsersTab';
+import SettingsRolesTab from './SettingsRolesTab';
 
-type TabKey = 'general' | 'account' | 'database' | 'users';
+type TabKey = 'general' | 'account' | 'database' | 'roles' | 'users';
 
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
@@ -30,6 +31,7 @@ export default function SettingsView({
         { key: 'account', label: 'My Account', icon: 'bi-person-fill' },
         ...(isAdmin ? [
             { key: 'database' as TabKey, label: 'Database & Backups', icon: 'bi-database-fill-gear' },
+            { key: 'roles' as TabKey, label: 'Roles & Permissions', icon: 'bi-diagram-3' },
             { key: 'users' as TabKey, label: 'User Management', icon: 'bi-shield-lock' },
         ] : []),
     ];
@@ -106,6 +108,10 @@ export default function SettingsView({
                             <>
                                 <div style={{ display: activeTab === 'database' ? 'block' : 'none' }}>
                                     <SettingsDatabaseTab />
+                                </div>
+
+                                <div style={{ display: activeTab === 'roles' ? 'block' : 'none' }}>
+                                    <SettingsRolesTab />
                                 </div>
 
                                 <div style={{ display: activeTab === 'users' ? 'block' : 'none' }}>
