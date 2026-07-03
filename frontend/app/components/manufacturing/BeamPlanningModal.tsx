@@ -45,6 +45,8 @@ export default function BeamPlanningModal({ mo, machines, components = [], cente
     const [rows, setRows] = useState<BeamRow[]>([makeRow(defaultWcId, defaultEnds)]);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [targetStartDate, setTargetStartDate] = useState('');
+    const [targetEndDate, setTargetEndDate] = useState('');
 
     const moQty = Number(mo.qty) || 0;
     const validRows = useMemo(() => rows.filter(r => parseFloat(r.qty) > 0), [rows]);
@@ -77,6 +79,8 @@ export default function BeamPlanningModal({ mo, machines, components = [], cente
                     sequence: 1,
                     next_destination_work_center_id: r.next_destination_work_center_id || undefined,
                     next_destination_location_id: r.next_destination_location_id || undefined,
+                    target_start_date: targetStartDate || undefined,
+                    target_end_date: targetEndDate || undefined,
                 }));
             });
             const res = await authFetch(`${API_BASE}/work-orders/bulk`, {
@@ -161,6 +165,28 @@ export default function BeamPlanningModal({ mo, machines, components = [], cente
                         </div>
                     </React.Fragment>
                 ))}
+            </div>
+
+            {/* Target start/end dates */}
+            <div style={{ background: '#f5f3ee', border: '1px solid #c0bdb5', padding: '5px 8px', marginBottom: 8, display: 'flex', gap: 16, alignItems: 'center' }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <span style={{ fontSize: 9, color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Target Start</span>
+                    <input
+                        type="date"
+                        style={{ ...xpInput, width: 130 }}
+                        value={targetStartDate}
+                        onChange={e => setTargetStartDate(e.target.value)}
+                    />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <span style={{ fontSize: 9, color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Target End</span>
+                    <input
+                        type="date"
+                        style={{ ...xpInput, width: 130 }}
+                        value={targetEndDate}
+                        onChange={e => setTargetEndDate(e.target.value)}
+                    />
+                </label>
             </div>
 
             {/* Yarn components */}
