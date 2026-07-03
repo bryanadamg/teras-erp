@@ -42,7 +42,7 @@ type Row = {
 export default function BookingStockView() {
     const { t } = useLanguage();
     const { uiStyle } = useTheme();
-    const { authFetch, locations = [], attributes = [] } = useData();
+    const { authFetch, attributes = [] } = useData();
     const classic = uiStyle === 'classic';
 
     const API_BASE = useMemo(() => {
@@ -53,7 +53,6 @@ export default function BookingStockView() {
     const [rows, setRows] = useState<Row[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [locationFilter, setLocationFilter] = useState('');
     const [search, setSearch] = useState('');
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -61,10 +60,7 @@ export default function BookingStockView() {
         setLoading(true);
         setError('');
         try {
-            const p = new URLSearchParams();
-            if (locationFilter) p.set('location_id', locationFilter);
-            const qs = p.toString();
-            const res = await authFetch(`${API_BASE}/stock/availability${qs ? `?${qs}` : ''}`);
+            const res = await authFetch(`${API_BASE}/stock/availability`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             setRows(await res.json());
         } catch (e: any) {
@@ -73,7 +69,7 @@ export default function BookingStockView() {
         } finally {
             setLoading(false);
         }
-    }, [API_BASE, authFetch, locationFilter]);
+    }, [API_BASE, authFetch]);
 
     useEffect(() => { fetchAvailability(); }, [fetchAvailability]);
 
@@ -88,24 +84,17 @@ export default function BookingStockView() {
     const variantLabel = useCallback((ids: string[]) =>
         (ids && ids.length) ? ids.map(getAttrValueName).join(' / ') : '', [getAttrValueName]);
 
-    const sortedLocations = useMemo(
-        () => [...locations].sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '')),
-        [locations]
-    );
-
     // Client-side item search over the server result.
     const filtered = useMemo(() => {
         const term = search.trim().toLowerCase();
         if (!term) return rows;
         return rows.filter(r =>
             r.item_name.toLowerCase().includes(term) ||
-            r.item_code.toLowerCase().includes(term) ||
-            (r.location_name || '').toLowerCase().includes(term));
+            r.item_code.toLowerCase().includes(term));
     }, [rows, search]);
 
     const { sorted, sort, toggle } = useSortable<Row>(filtered, {
         item: (r) => r.item_name,
-        location: (r) => r.location_name,
         variant: (r) => variantLabel(r.attribute_value_ids),
         on_hand: (r) => r.qty_on_hand,
         incoming: (r) => r.qty_incoming,
@@ -116,7 +105,7 @@ export default function BookingStockView() {
     const shortfallCount = useMemo(() => filtered.filter(r => r.qty_net_free < -EPS).length, [filtered]);
     const tightCount = useMemo(() => filtered.filter(r => r.qty_net_free >= -EPS && r.qty_net_free <= EPS).length, [filtered]);
 
-    const rowKey = (r: Row) => `${r.item_id}-${r.location_id}-${r.attribute_value_ids.join(',')}`;
+    const rowKey = (r: Row) => `${r.item_id}-${r.attribute_value_ids.join(',')}`;
     const toggleRow = (k: string) => setExpanded(prev => {
         const next = new Set(prev);
         next.has(k) ? next.delete(k) : next.add(k);
@@ -190,7 +179,6 @@ export default function BookingStockView() {
             boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px',
             background: '#ffffff', color: '#000000', height: '20px', outline: 'none',
         };
-        const xpSelectS: React.CSSProperties = { ...xpInputS, height: '22px' };
         const xpTableHeader: React.CSSProperties = {
             background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080',
             fontSize: '10px', fontWeight: 'bold', color: '#000000', fontFamily: xpFont,
@@ -212,16 +200,10 @@ export default function BookingStockView() {
                         <i className="bi bi-search" style={{ fontSize: '11px', color: '#666' }} />
                         <input
                             style={{ ...xpInputS, width: 200 }}
-                            placeholder="Search item, location..."
+                            placeholder="Search item..."
                             value={search}
                             onChange={e => setSearch(e.target.value)}
                         />
-                        <div style={xpSep} />
-                        <i className="bi bi-geo-alt" style={{ fontSize: '11px', color: '#666' }} />
-                        <select style={{ ...xpSelectS, width: 180 }} value={locationFilter} onChange={e => setLocationFilter(e.target.value)} title="Location">
-                            <option value="">{t('all_locations') || 'All Locations'}</option>
-                            {sortedLocations.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
-                        </select>
                         <div style={xpSep} />
                         <button style={xpBtn()} onClick={fetchAvailability} title="Refresh">
                             <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh
@@ -264,8 +246,8 @@ export default function BookingStockView() {
                                                     <div style={{ fontSize: '10px', color: '#666', fontVariant: 'all-small-caps', marginLeft: 18 }}>{r.item_code}</div>
                                                 </td>
                                                 <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px' }}>
-                                                    <span style={{ background: '#e8e1f0', border: '1px solid #a890c0', padding: '0 5px', fontSize: '10px', color: '#3a2a4a' }}>
-                                                        {r.location_name || '—'}
+                                                    <span style={{ background: '#e8e1f0', border: '1px solid #a890c0', padding: '0 5px', fontSize: '10px', color: '#3a2a4a' }} title="Netting is plant-wide, not per-location">
+                                                        Plant-wide
                                                     </span>
                                                 </td>
                                                 <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '10px' }}>
@@ -336,12 +318,8 @@ export default function BookingStockView() {
                 <div className="card-body py-2 d-flex flex-wrap align-items-center gap-2 border-bottom">
                     <div className="input-group input-group-sm" style={{ width: 240 }}>
                         <span className="input-group-text"><i className="bi bi-search" /></span>
-                        <input className="form-control" placeholder="Search item, location..." value={search} onChange={e => setSearch(e.target.value)} />
+                        <input className="form-control" placeholder="Search item..." value={search} onChange={e => setSearch(e.target.value)} />
                     </div>
-                    <select className="form-select form-select-sm" style={{ width: 200 }} value={locationFilter} onChange={e => setLocationFilter(e.target.value)}>
-                        <option value="">{t('all_locations') || 'All Locations'}</option>
-                        {sortedLocations.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
-                    </select>
                     <button className="btn btn-sm btn-outline-secondary" onClick={fetchAvailability}>
                         <i className="bi bi-arrow-clockwise me-1" />Refresh
                     </button>
@@ -379,7 +357,7 @@ export default function BookingStockView() {
                                                 <span className="fw-medium">{r.item_name}</span>
                                                 <small className="text-muted font-monospace ms-2">{r.item_code}</small>
                                             </td>
-                                            <td><span className="badge bg-secondary-subtle text-secondary-emphasis">{r.location_name || '—'}</span></td>
+                                            <td><span className="badge bg-secondary-subtle text-secondary-emphasis" title="Netting is plant-wide, not per-location">Plant-wide</span></td>
                                             <td className="small">{variant
                                                 ? <span className="badge bg-info-subtle text-info-emphasis">{variant}</span>
                                                 : <span className="text-muted">Standard</span>}</td>
