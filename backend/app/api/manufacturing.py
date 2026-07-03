@@ -696,6 +696,7 @@ async def list_work_orders_flat(
     status: str = Query(""),
     work_center_id: str = Query(""),
     group_id: str = Query(""),
+    center_type: str = Query(""),
     search: str = Query(""),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
@@ -710,6 +711,21 @@ async def list_work_orders_flat(
     if group_id:
         wc_subq = select(WorkCenter.id).where(WorkCenter.parent_id == group_id).scalar_subquery()
         conditions.append(WorkOrderModel.work_center_id.in_(wc_subq))
+    if center_type:
+        ct = center_type.upper()
+        alias_map = {"BEAMING": ["BEAMING"], "WEAVING": ["WEAVING", "TENUN"], "DYEING": ["DYEING", "CELUP"]}
+        if ct == "OTHERS":
+            named_subq = select(WorkCenter.id).where(
+                func.upper(WorkCenter.center_type).in_(["BEAMING", "WEAVING", "TENUN", "DYEING", "CELUP"])
+            ).scalar_subquery()
+            conditions.append(or_(
+                WorkOrderModel.work_center_id.is_(None),
+                WorkOrderModel.work_center_id.notin_(named_subq),
+            ))
+        else:
+            types = alias_map.get(ct, [ct])
+            wc_subq = select(WorkCenter.id).where(func.upper(WorkCenter.center_type).in_(types)).scalar_subquery()
+            conditions.append(WorkOrderModel.work_center_id.in_(wc_subq))
     if search and search.strip():
         like = f"%{search.strip()}%"
         conditions.append(or_(

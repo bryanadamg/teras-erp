@@ -13,8 +13,18 @@ const WOBulkPrintModal = dynamic(() => import('./WOBulkPrintModal'), { ssr: fals
 import { getChipStyle } from './WorkOrderPanel';
 import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
+import { Tabs, TabDef } from '../shared/Tabs';
 
 const STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
+
+type WOTabKey = 'ALL' | 'BEAMING' | 'WEAVING' | 'DYEING' | 'OTHERS';
+const WO_TABS: TabDef<WOTabKey>[] = [
+    { key: 'ALL',     label: 'All',     icon: 'bi-collection' },
+    { key: 'BEAMING', label: 'Beaming', icon: 'bi-diagram-3' },
+    { key: 'WEAVING', label: 'Weaving', icon: 'bi-grid-3x3' },
+    { key: 'DYEING',  label: 'Dyeing',  icon: 'bi-droplet-half' },
+    { key: 'OTHERS',  label: 'Others',  icon: 'bi-three-dots' },
+];
 
 const fmtDate = (v: any) => {
     if (!v) return '—';
@@ -39,6 +49,8 @@ interface Props {
     filterGroup: string;
     filterWC: string;
     woSearch: string;
+    activeTab: string;
+    onTabChange: (v: string) => void;
     onFilterStatus: (v: string) => void;
     onFilterWCChange: (groupId: string, wcId: string) => void;
     onSearch: (v: string) => void;
@@ -88,6 +100,7 @@ interface FlatWO {
 export default function WorkOrderListView({
     workOrders, total, page, pageSize, onPageChange,
     workCenters, filterStatus, filterGroup, filterWC, woSearch,
+    activeTab, onTabChange,
     onFilterStatus, onFilterWCChange, onSearch, onClearFilters,
     onUpdate, onUpdateStatus, onDelete, onFetchMO, onRefresh,
     loading = false,
@@ -439,6 +452,9 @@ export default function WorkOrderListView({
                             </button>
                         )}
                     </div>
+
+                    {/* Tabs */}
+                    <Tabs<WOTabKey> tabs={WO_TABS} activeKey={activeTab as WOTabKey} onChange={onTabChange} classic={classic} />
 
                     {/* Filter bar */}
                     <div style={filterBarStyle}>

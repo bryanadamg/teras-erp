@@ -28,6 +28,7 @@ export default function WorkOrdersPage() {
     const [filterGroup, setFilterGroup] = useState('');
     const [filterWC, setFilterWC] = useState('');
     const [woSearch, setWoSearch] = useState('');
+    const [activeTab, setActiveTab] = useState('ALL');
     const [loading, setLoading] = useState(false);
 
     const fetchWOs = useCallback(async (
@@ -36,6 +37,7 @@ export default function WorkOrdersPage() {
         groupId = filterGroup,
         wcId = filterWC,
         search = woSearch,
+        tab = activeTab,
     ) => {
         setLoading(true);
         try {
@@ -45,23 +47,24 @@ export default function WorkOrdersPage() {
             if (groupId) params.set('group_id', groupId);
             if (wcId) params.set('work_center_id', wcId);
             if (search) params.set('search', search);
+            if (tab && tab !== 'ALL') params.set('center_type', tab);
             const res = await authFetch(`${API_BASE}/work-orders?${params}`);
             if (res.ok) {
                 const data = await res.json();
                 setWoList(data.items);
                 setWoTotal(data.total);
                 // Only cache default view (page 1, no filters) so return navigation is instant
-                if (page === 1 && !status && !groupId && !wcId && !search) {
+                if (page === 1 && !status && !groupId && !wcId && !search && (!tab || tab === 'ALL')) {
                     writeCache(data.items, data.total);
                 }
             }
         } finally {
             setLoading(false);
         }
-    }, [woPage, filterStatus, filterGroup, filterWC, woSearch, authFetch, API_BASE]);
+    }, [woPage, filterStatus, filterGroup, filterWC, woSearch, activeTab, authFetch, API_BASE]);
 
     // Initial load — always refetch fresh in background (cache already shown)
-    useEffect(() => { fetchWOs(1, '', '', '', ''); }, []);
+    useEffect(() => { fetchWOs(1, '', '', '', '', 'ALL'); }, []);
 
     // Live updates: refetch the list when a debounced batch of production events
     // arrives over the WebSocket (this page owns its list; context can't update it).
@@ -70,12 +73,16 @@ export default function WorkOrdersPage() {
     }), [subscribeLiveEvents, fetchWOs]);
 
     // Page change
-    useEffect(() => { fetchWOs(woPage, filterStatus, filterGroup, filterWC, woSearch); }, [woPage]);
+    useEffect(() => { fetchWOs(woPage, filterStatus, filterGroup, filterWC, woSearch, activeTab); }, [woPage]);
 
-    const handleFilterStatus = (v: string) => { setFilterStatus(v); setWoPage(1); fetchWOs(1, v, filterGroup, filterWC, woSearch); };
+    const handleFilterStatus = (v: string) => { setFilterStatus(v); setWoPage(1); fetchWOs(1, v, filterGroup, filterWC, woSearch, activeTab); };
     const handleFilterWCChange = (groupId: string, wcId: string) => {
         setFilterGroup(groupId); setFilterWC(wcId); setWoPage(1);
-        fetchWOs(1, filterStatus, groupId, wcId, woSearch);
+        fetchWOs(1, filterStatus, groupId, wcId, woSearch, activeTab);
+    };
+    const handleTabChange = (tab: string) => {
+        setActiveTab(tab); setWoPage(1);
+        fetchWOs(1, filterStatus, filterGroup, filterWC, woSearch, tab);
     };
 
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -84,28 +91,28 @@ export default function WorkOrdersPage() {
         if (searchTimer.current) clearTimeout(searchTimer.current);
         searchTimer.current = setTimeout(() => {
             setWoPage(1);
-            fetchWOs(1, filterStatus, filterGroup, filterWC, term);
+            fetchWOs(1, filterStatus, filterGroup, filterWC, term, activeTab);
         }, 350);
-    }, [filterStatus, filterGroup, filterWC, fetchWOs]);
+    }, [filterStatus, filterGroup, filterWC, activeTab, fetchWOs]);
     useEffect(() => () => { if (searchTimer.current) clearTimeout(searchTimer.current); }, []);
 
     const handleUpdateWO = async (id: string, payload: any) => {
         const res = await authFetch(`${API_BASE}/work-orders/${id}`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
         });
-        if (res.ok) fetchWOs(woPage, filterStatus, filterGroup, filterWC, woSearch);
+        if (res.ok) fetchWOs(woPage, filterStatus, filterGroup, filterWC, woSearch, activeTab);
         return res;
     };
 
     const handleUpdateWOStatus = async (id: string, status: string) => {
         const res = await authFetch(`${API_BASE}/work-orders/${id}/status?status=${encodeURIComponent(status)}`, { method: 'PUT' });
-        if (res.ok) fetchWOs(woPage, filterStatus, filterGroup, filterWC, woSearch);
+        if (res.ok) fetchWOs(woPage, filterStatus, filterGroup, filterWC, woSearch, activeTab);
         return res;
     };
 
     const handleDeleteWO = async (id: string) => {
         const res = await authFetch(`${API_BASE}/work-orders/${id}`, { method: 'DELETE' });
-        if (res.ok) fetchWOs(woPage, filterStatus, filterGroup, filterWC, woSearch);
+        if (res.ok) fetchWOs(woPage, filterStatus, filterGroup, filterWC, woSearch, activeTab);
     };
 
     const fetchMO = useCallback(async (moId: string) => {
@@ -126,18 +133,20 @@ export default function WorkOrdersPage() {
             filterGroup={filterGroup}
             filterWC={filterWC}
             woSearch={woSearch}
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
             onFilterStatus={handleFilterStatus}
             onFilterWCChange={handleFilterWCChange}
             onSearch={handleSearch}
             onClearFilters={() => {
                 setFilterStatus(''); setFilterGroup(''); setFilterWC(''); setWoSearch(''); setWoPage(1);
-                fetchWOs(1, '', '', '', '');
+                fetchWOs(1, '', '', '', '', activeTab);
             }}
             onUpdate={handleUpdateWO}
             onUpdateStatus={handleUpdateWOStatus}
             onDelete={handleDeleteWO}
             onFetchMO={fetchMO}
-            onRefresh={() => fetchWOs(woPage, filterStatus, filterGroup, filterWC, woSearch)}
+            onRefresh={() => fetchWOs(woPage, filterStatus, filterGroup, filterWC, woSearch, activeTab)}
             loading={loading}
         />
     );
