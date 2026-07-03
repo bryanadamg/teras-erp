@@ -253,7 +253,7 @@ export default function SettingsUsersTab() {
                                         <td style={classic ? tdBase : undefined}>{user.full_name}</td>
                                         <td style={classic ? tdBase : undefined}>
                                             {classic ? (
-                                                <span style={{ display: 'inline-block', background: '#e8e8e8', border: '1px solid #6a6a6a', color: '#000', padding: '1px 5px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif', fontWeight: 'bold' }}>
+                                                <span style={{ display: 'inline-block', width: 'fit-content', maxWidth: '100%', background: '#e8e8e8', border: '1px solid #6a6a6a', color: '#000', padding: '1px 5px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif', fontWeight: 'bold' }}>
                                                     {user.role?.name || '-'}
                                                 </span>
                                             ) : (
