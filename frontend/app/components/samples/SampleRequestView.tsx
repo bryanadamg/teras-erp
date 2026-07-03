@@ -339,8 +339,13 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       setNewSample(prev => ({ ...prev, colors: prev.colors.filter((_, i) => i !== idx) }));
 
   const addPendingColor = () => {
-      if (!pendingColorName.trim()) return;
-      setNewSample(prev => ({ ...prev, colors: [...prev.colors, { name: pendingColorName.trim(), is_repeat: pendingColorIsRepeat }] }));
+      const name = pendingColorName.trim();
+      if (!name) return;
+      if (newSample.colors.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+          showToast(`"${name}" has already been added to this sample`, 'warning');
+          return;
+      }
+      setNewSample(prev => ({ ...prev, colors: [...prev.colors, { name, is_repeat: pendingColorIsRepeat }] }));
       setPendingColorName('');
   };
 
@@ -759,7 +764,8 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                {/* ══ ② Colors & Specs ══ */}
                {(() => {
                    const isColor = newSample.variant_type === 'color';
-                   const activeOptions = isColor ? colorOptions : comboOptions;
+                   const addedNames = new Set(newSample.colors.map(c => c.name.toLowerCase()));
+                   const activeOptions = (isColor ? colorOptions : comboOptions).filter(o => !addedNames.has(o.value.toLowerCase()));
                    const activeAttrName = isColor ? colorsAttrName : comboAttrName;
                    const switchTab = (tab: 'color' | 'combo') => {
                        if (tab === newSample.variant_type) return;
