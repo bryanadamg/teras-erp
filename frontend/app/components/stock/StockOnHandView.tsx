@@ -620,6 +620,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
     const transferModal = transferTarget && (
         <ModalWrapper
             isOpen={!!transferTarget}
+            modeless
             onClose={() => setTransferTarget(null)}
             title="Transfer Stock"
             size="sm"
@@ -707,6 +708,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
         return (
             <ModalWrapper
                 isOpen={true}
+                modeless
                 onClose={() => setAdjustTarget(null)}
                 title="Adjust Stock"
                 size="sm"
@@ -798,6 +800,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
     const newEntryModal = newOpen && (
         <ModalWrapper
             isOpen={newOpen}
+            modeless
             onClose={() => setNewOpen(false)}
             title="New Stock Entry"
             size="sm"
