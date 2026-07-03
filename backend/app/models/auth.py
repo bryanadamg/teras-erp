@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import String, ForeignKey, Table, Column, UniqueConstraint
+from sqlalchemy import String, Boolean, ForeignKey, Table, Column, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
@@ -49,6 +49,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     full_name: Mapped[str] = mapped_column(String(128))
     hashed_password: Mapped[str] = mapped_column(String(255)) # New field for security
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     role_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("roles.id"), nullable=True
     )

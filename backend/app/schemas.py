@@ -1391,7 +1391,10 @@ class UserBase(BaseModel):
     role_id: UUID | None = None
 
 class UserCreate(UserBase):
-    pass
+    password: str
+    permission_ids: list[UUID] = []
+    allowed_categories: list[str] | None = None
+    avatar_id: str | None = None
 
 class UserUpdate(BaseModel):
     username: Optional[str] = None
@@ -1408,6 +1411,7 @@ class UserResponse(UserBase):
     permissions: list[PermissionResponse] = []
     allowed_categories: list[str] | None = None
     avatar_id: str | None = None
+    is_active: bool = True
     class Config:
         from_attributes = True
 

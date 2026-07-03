@@ -28,6 +28,7 @@ export interface User {
 
     allowed_categories?: string[];
     avatar_id?: string | null;
+    is_active: boolean;
 }
 
 

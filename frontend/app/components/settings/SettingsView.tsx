@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useToast } from '../shared/Toast';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser, User } from '../../context/UserContext';
+import { useConfirm } from '../../context/ConfirmContext';
 import CompanyProfileView from './CompanyProfileView';
 import PixelAvatar from '../shared/PixelAvatar';
 import AvatarPicker from '../shared/AvatarPicker';
@@ -11,6 +12,7 @@ export default function SettingsView({
     companyProfile, onUpdateCompanyProfile, onUploadLogo
 }: any) {
   const { showToast } = useToast();
+  const { confirm } = useConfirm();
   const { currentUser, users, setCurrentUser, hasPermission, refreshUsers } = useUser();
 
   const { uiStyle: currentStyle } = useTheme();
@@ -46,6 +48,15 @@ export default function SettingsView({
   const [editAllowedCategories, setEditAllowedCategories] = useState<string[]>([]);
   const [editAvatarId, setEditAvatarId] = useState<string>('1');
   const [newPassword, setNewPassword] = useState('');
+
+  const [isAddingUser, setIsAddingUser] = useState(false);
+  const [newUsername, setNewUsername] = useState('');
+  const [newFullName, setNewFullName] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserRoleId, setNewUserRoleId] = useState('');
+  const [newUserPermissionIds, setNewUserPermissionIds] = useState<string[]>([]);
+  const [newUserAllowedCategories, setNewUserAllowedCategories] = useState<string[]>([]);
+  const [newUserAvatarId, setNewUserAvatarId] = useState<string>('1');
 
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
 
@@ -391,6 +402,94 @@ export default function SettingsView({
       } catch (e) {
           console.error(e);
           showToast('Error updating user', 'danger');
+      }
+  };
+
+  const resetNewUserForm = () => {
+      setNewUsername('');
+      setNewFullName('');
+      setNewUserPassword('');
+      setNewUserRoleId('');
+      setNewUserPermissionIds([]);
+      setNewUserAllowedCategories([]);
+      setNewUserAvatarId('1');
+  };
+
+  const toggleNewUserPermission = (permId: string) => {
+      setNewUserPermissionIds(prev =>
+          prev.includes(permId) ? prev.filter(id => id !== permId) : [...prev, permId]
+      );
+  };
+
+  const toggleNewUserCategory = (catName: string) => {
+      setNewUserAllowedCategories(prev =>
+          prev.includes(catName) ? prev.filter(c => c !== catName) : [...prev, catName]
+      );
+  };
+
+  const createUser = async () => {
+      if (!newUsername || !newFullName || !newUserPassword) {
+          showToast('Username, full name, and password are required', 'warning');
+          return;
+      }
+      try {
+          const payload: any = {
+              username: newUsername,
+              full_name: newFullName,
+              password: newUserPassword,
+              role_id: newUserRoleId || null,
+              permission_ids: newUserPermissionIds,
+              allowed_categories: newUserAllowedCategories.length > 0 ? newUserAllowedCategories : null,
+              avatar_id: newUserAvatarId,
+          };
+          const res = await fetch(`${API_BASE}/users`, {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+              },
+              body: JSON.stringify(payload)
+          });
+          if (res.ok) {
+              showToast('User created successfully!', 'success');
+              setIsAddingUser(false);
+              resetNewUserForm();
+              refreshUsers();
+          } else {
+              const err = await res.json();
+              showToast(`Failed: ${err.detail}`, 'danger');
+          }
+      } catch (e) {
+          console.error(e);
+          showToast('Error creating user', 'danger');
+      }
+  };
+
+  const setUserActive = async (user: User, active: boolean) => {
+      if (!active) {
+          const ok = await confirm({
+              title: 'Deactivate User',
+              message: `Deactivate "${user.username}"? They will immediately lose access until reactivated.`,
+              confirmText: 'Deactivate',
+              variant: 'danger',
+          });
+          if (!ok) return;
+      }
+      try {
+          const res = await fetch(`${API_BASE}/users/${user.id}/${active ? 'reactivate' : 'deactivate'}`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+          });
+          if (res.ok) {
+              showToast(`User ${active ? 'reactivated' : 'deactivated'} successfully!`, 'success');
+              refreshUsers();
+          } else {
+              const err = await res.json();
+              showToast(`Failed: ${err.detail}`, 'danger');
+          }
+      } catch (e) {
+          console.error(e);
+          showToast('Error updating user status', 'danger');
       }
   };
 
@@ -777,12 +876,20 @@ export default function SettingsView({
             {/* User Management */}
             <div style={classic ? xpBevel : undefined} className={classic ? '' : 'card shadow-sm border-0'}>
                 {classic ? (
-                    <div style={xpTitleBar('linear-gradient(to right, #8e0000 0%, #c84040 100%)', '#4a0000')}>
+                    <div style={{ ...xpTitleBar('linear-gradient(to right, #8e0000 0%, #c84040 100%)', '#4a0000'), display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span><i className="bi bi-shield-lock" style={{ marginRight: 6 }}></i>User Management (Admin)</span>
+                        <button
+                            style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', padding: '2px 10px' })}
+                            onClick={() => { setIsAddingUser(v => !v); resetNewUserForm(); }}
+                        ><i className="bi bi-person-plus me-1"></i>Add User</button>
                     </div>
                 ) : (
-                    <div className="card-header bg-danger bg-opacity-10 text-danger-emphasis">
+                    <div className="card-header bg-danger bg-opacity-10 text-danger-emphasis d-flex justify-content-between align-items-center">
                         <h5 className="card-title mb-0"><i className="bi bi-shield-lock me-2"></i>User Management (Admin)</h5>
+                        <button
+                            className="btn btn-sm btn-success"
+                            onClick={() => { setIsAddingUser(v => !v); resetNewUserForm(); }}
+                        ><i className="bi bi-person-plus me-1"></i>Add User</button>
                     </div>
                 )}
                 <div style={classic ? { background: '#ece9d8' } : undefined} className={classic ? '' : 'card-body p-0'}>
@@ -799,14 +906,148 @@ export default function SettingsView({
                                     <th style={classic ? xpThCell : undefined}>Role &amp; Password</th>
                                     <th style={classic ? xpThCell : undefined}>Permissions</th>
                                     <th style={classic ? xpThCell : undefined}>Allowed Categories</th>
+                                    <th style={classic ? xpThCell : undefined}>Status</th>
                                     <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none' } : undefined} className={classic ? '' : 'text-end pe-4'}>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
+                                {isAddingUser && (
+                                    <tr style={classic ? { background: '#fffde8', borderBottom: '1px solid #c0bdb5' } : undefined} className={classic ? '' : 'bg-light'}>
+                                        <td style={classic ? { ...tdBase, verticalAlign: 'top' } : undefined} className={classic ? '' : 'ps-4'}>
+                                            <div style={classic ? { width: 28, height: 28, border: '1px solid', borderColor: '#fff #888 #888 #fff', background: '#e0dcd4', display: 'flex', alignItems: 'center', justifyContent: 'center' } : { width: 32, height: 32, border: '1px solid #dee2e6', borderRadius: 4, background: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <PixelAvatar avatarId={newUserAvatarId} size={24} />
+                                            </div>
+                                            <div style={{ marginTop: 4 }}>
+                                                <AvatarPicker value={newUserAvatarId} onChange={setNewUserAvatarId} classic={classic} />
+                                            </div>
+                                        </td>
+                                        <td style={classic ? tdBase : undefined}>
+                                            <input
+                                                style={classic ? { ...xpInput, width: '100%', fontFamily: "'Courier New', monospace" } : undefined}
+                                                className={classic ? '' : 'form-control form-control-sm font-monospace'}
+                                                placeholder="Username"
+                                                value={newUsername}
+                                                onChange={e => setNewUsername(e.target.value)}
+                                            />
+                                        </td>
+                                        <td style={classic ? tdBase : undefined}>
+                                            <input
+                                                style={classic ? { ...xpInput, width: '100%' } : undefined}
+                                                className={classic ? '' : 'form-control form-control-sm'}
+                                                placeholder="Full Name"
+                                                value={newFullName}
+                                                onChange={e => setNewFullName(e.target.value)}
+                                            />
+                                        </td>
+                                        <td style={classic ? tdBase : undefined}>
+                                            <select
+                                                style={classic ? { ...xpInput, height: 'auto', padding: '2px 4px', width: '100%', marginBottom: 4 } : undefined}
+                                                className={classic ? '' : 'form-select form-select-sm mb-2'}
+                                                value={newUserRoleId}
+                                                onChange={e => setNewUserRoleId(e.target.value)}
+                                            >
+                                                <option value="">No Role</option>
+                                                {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                            </select>
+                                            <input
+                                                type="password"
+                                                style={classic ? { ...xpInput, width: '100%', borderColor: '#cc6666' } : undefined}
+                                                className={classic ? '' : 'form-control form-control-sm'}
+                                                placeholder="Password"
+                                                value={newUserPassword}
+                                                onChange={e => setNewUserPassword(e.target.value)}
+                                            />
+                                        </td>
+                                        <td style={classic ? tdBase : undefined}>
+                                            <div
+                                                style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 4, padding: '4px 6px', background: '#ffffff', border: '1px solid #b0a898', maxHeight: 150, overflowY: 'auto' as const } : { maxHeight: 150, overflowY: 'auto' as const }}
+                                                className={classic ? '' : 'd-flex flex-wrap gap-2 p-2 border rounded bg-white'}
+                                            >
+                                                {allPermissions.map(p => (
+                                                    <div key={p.id} style={classic ? { display: 'flex', alignItems: 'center', gap: 3 } : undefined} className={classic ? '' : 'form-check m-0'}>
+                                                        <input
+                                                            style={classic ? { cursor: 'pointer' } : undefined}
+                                                            className={classic ? '' : 'form-check-input'}
+                                                            type="checkbox"
+                                                            checked={newUserPermissionIds.includes(p.id)}
+                                                            onChange={() => toggleNewUserPermission(p.id)}
+                                                            id={`new-perm-${p.id}`}
+                                                        />
+                                                        <label
+                                                            style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#000', cursor: 'pointer' } : undefined}
+                                                            className={classic ? '' : 'form-check-label small'}
+                                                            htmlFor={`new-perm-${p.id}`}
+                                                            title={p.description}
+                                                        >{p.code}</label>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </td>
+                                        <td style={classic ? tdBase : undefined}>
+                                            <div
+                                                style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 4, padding: '4px 6px', background: '#ffffff', border: '1px solid #b0a898', maxHeight: 150, overflowY: 'auto' as const } : { maxHeight: 150, overflowY: 'auto' as const }}
+                                                className={classic ? '' : 'd-flex flex-wrap gap-2 p-2 border rounded bg-white'}
+                                            >
+                                                {allCategories.map(c => (
+                                                    <div key={c.id} style={classic ? { display: 'flex', alignItems: 'center', gap: 3 } : undefined} className={classic ? '' : 'form-check m-0'}>
+                                                        <input
+                                                            style={classic ? { cursor: 'pointer' } : undefined}
+                                                            className={classic ? '' : 'form-check-input'}
+                                                            type="checkbox"
+                                                            checked={newUserAllowedCategories.includes(c.name)}
+                                                            onChange={() => toggleNewUserCategory(c.name)}
+                                                            id={`new-cat-${c.id}`}
+                                                        />
+                                                        <label
+                                                            style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#000', cursor: 'pointer' } : undefined}
+                                                            className={classic ? '' : 'form-check-label small'}
+                                                            htmlFor={`new-cat-${c.id}`}
+                                                        >{c.name}</label>
+                                                    </div>
+                                                ))}
+                                                {allCategories.length === 0 && (
+                                                    <small style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#888' } : undefined} className={classic ? '' : 'text-muted'}>No categories defined</small>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td style={classic ? tdBase : undefined}>
+                                            {classic ? (
+                                                <span style={{ background: '#e8f5e9', border: '1px solid #2e7d32', color: '#1b4620', padding: '0 4px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif' }}>Active</span>
+                                            ) : (
+                                                <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25" style={{fontSize: '0.65rem'}}>Active</span>
+                                            )}
+                                        </td>
+                                        <td style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'right' as const } : undefined} className={classic ? '' : 'text-end pe-4'}>
+                                            <div style={classic ? { display: 'flex', gap: 2, justifyContent: 'flex-end' } : undefined} className={classic ? '' : 'd-flex gap-1 justify-content-end'}>
+                                                {classic ? (
+                                                    <>
+                                                        <button
+                                                            style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', padding: '2px 8px' })}
+                                                            onClick={createUser}
+                                                        ><i className="bi bi-check-lg"></i></button>
+                                                        <button
+                                                            style={xpBtn({ padding: '2px 8px' })}
+                                                            onClick={() => setIsAddingUser(false)}
+                                                        ><i className="bi bi-x-lg"></i></button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <button className="btn btn-sm btn-success" onClick={createUser}>
+                                                            <i className="bi bi-check-lg"></i>
+                                                        </button>
+                                                        <button className="btn btn-sm btn-light border" onClick={() => setIsAddingUser(false)}>
+                                                            <i className="bi bi-x-lg"></i>
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
                                 {users.map((user, rowIndex) => (
                                     <tr
                                         key={user.id}
-                                        style={classic ? { background: editingUser === user.id ? '#fffde8' : rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' } : undefined}
+                                        style={classic ? { background: editingUser === user.id ? '#fffde8' : rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5', opacity: user.is_active ? 1 : 0.6 } : { opacity: user.is_active ? 1 : 0.6 }}
                                         className={classic ? '' : (editingUser === user.id ? 'bg-light' : '')}
                                     >
                                         {editingUser === user.id ? (
@@ -910,6 +1151,21 @@ export default function SettingsView({
                                                         className={classic ? '' : 'text-muted d-block mt-1'}
                                                     >*Uncheck all for full access</small>
                                                 </td>
+                                                <td style={classic ? tdBase : undefined}>
+                                                    {user.is_active ? (
+                                                        classic ? (
+                                                            <span style={{ background: '#e8f5e9', border: '1px solid #2e7d32', color: '#1b4620', padding: '0 4px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif' }}>Active</span>
+                                                        ) : (
+                                                            <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25" style={{fontSize: '0.65rem'}}>Active</span>
+                                                        )
+                                                    ) : (
+                                                        classic ? (
+                                                            <span style={{ background: '#f5e8e8', border: '1px solid #8e0000', color: '#8e0000', padding: '0 4px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif' }}>Inactive</span>
+                                                        ) : (
+                                                            <span className="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-25" style={{fontSize: '0.65rem'}}>Inactive</span>
+                                                        )
+                                                    )}
+                                                </td>
                                                 <td style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'right' as const } : undefined} className={classic ? '' : 'text-end pe-4'}>
                                                     <div style={classic ? { display: 'flex', gap: 2, justifyContent: 'flex-end' } : undefined} className={classic ? '' : 'd-flex gap-1 justify-content-end'}>
                                                         {classic ? (
@@ -995,19 +1251,52 @@ export default function SettingsView({
                                                         )}
                                                     </div>
                                                 </td>
+                                                <td style={classic ? tdBase : undefined}>
+                                                    {user.is_active ? (
+                                                        classic ? (
+                                                            <span style={{ background: '#e8f5e9', border: '1px solid #2e7d32', color: '#1b4620', padding: '0 4px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif' }}>Active</span>
+                                                        ) : (
+                                                            <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25" style={{fontSize: '0.65rem'}}>Active</span>
+                                                        )
+                                                    ) : (
+                                                        classic ? (
+                                                            <span style={{ background: '#f5e8e8', border: '1px solid #8e0000', color: '#8e0000', padding: '0 4px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif' }}>Inactive</span>
+                                                        ) : (
+                                                            <span className="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-25" style={{fontSize: '0.65rem'}}>Inactive</span>
+                                                        )
+                                                    )}
+                                                </td>
                                                 <td style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'right' as const } : undefined} className={classic ? '' : 'text-end pe-4'}>
                                                     {classic ? (
-                                                        <button
-                                                            title="Edit"
-                                                            onClick={() => startEditingUser(user)}
-                                                            style={{ background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', padding: '1px 4px', color: '#555', fontSize: '12px' }}
-                                                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
-                                                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-                                                        ><i className="bi bi-pencil-square"></i></button>
+                                                        <>
+                                                            <button
+                                                                title="Edit"
+                                                                onClick={() => startEditingUser(user)}
+                                                                style={{ background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', padding: '1px 4px', color: '#555', fontSize: '12px' }}
+                                                                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
+                                                                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+                                                            ><i className="bi bi-pencil-square"></i></button>
+                                                            <button
+                                                                title={user.is_active ? 'Deactivate' : 'Reactivate'}
+                                                                onClick={() => setUserActive(user, !user.is_active)}
+                                                                style={{ background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', padding: '1px 4px', color: user.is_active ? '#8e0000' : '#2d7a2d', fontSize: '12px' }}
+                                                                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
+                                                                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+                                                            ><i className={`bi ${user.is_active ? 'bi-person-dash' : 'bi-person-check'}`}></i></button>
+                                                        </>
                                                     ) : (
-                                                        <button className="btn btn-sm btn-link" onClick={() => startEditingUser(user)}>
-                                                            <i className="bi bi-pencil-square"></i>
-                                                        </button>
+                                                        <>
+                                                            <button className="btn btn-sm btn-link" onClick={() => startEditingUser(user)}>
+                                                                <i className="bi bi-pencil-square"></i>
+                                                            </button>
+                                                            <button
+                                                                className={`btn btn-sm btn-link ${user.is_active ? 'text-danger' : 'text-success'}`}
+                                                                title={user.is_active ? 'Deactivate' : 'Reactivate'}
+                                                                onClick={() => setUserActive(user, !user.is_active)}
+                                                            >
+                                                                <i className={`bi ${user.is_active ? 'bi-person-dash' : 'bi-person-check'}`}></i>
+                                                            </button>
+                                                        </>
                                                     )}
                                                 </td>
                                             </>
