@@ -35,6 +35,7 @@ test.describe('Authentication & RBAC', () => {
         await expect(page).toHaveURL('/dashboard');
         await expect(page.getByTestId('settings-btn')).toBeVisible();
         await page.goto('/settings');
+        await page.getByRole('button', { name: 'Database & Backups' }).click();
         await expect(page.locator('text=Database Infrastructure')).toBeVisible();
     });
 

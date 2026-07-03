@@ -30,6 +30,25 @@ def admin_headers(admin_user):
     return {"Authorization": f"Bearer {token}"}
 
 
+@pytest.fixture
+def regular_user(db_session):
+    user = User(
+        username="regular_test",
+        full_name="Regular Test",
+        hashed_password=get_password_hash("regularpass"),
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def regular_headers(regular_user):
+    token = create_access_token(subject=regular_user.id)
+    return {"Authorization": f"Bearer {token}"}
+
+
 def test_admin_can_create_user(client, admin_headers):
     res = client.post("/api/users", json={
         "username": "newbie",
@@ -43,12 +62,12 @@ def test_admin_can_create_user(client, admin_headers):
     assert data["is_active"] is True
 
 
-def test_non_admin_cannot_create_user(client, auth_headers):
+def test_non_admin_cannot_create_user(client, regular_headers):
     res = client.post("/api/users", json={
         "username": "sneaky",
         "full_name": "Sneaky User",
         "password": "secret123",
-    }, headers=auth_headers)
+    }, headers=regular_headers)
     assert res.status_code == 403
 
 
@@ -96,17 +115,17 @@ def test_cannot_demote_last_active_administrator(client, admin_headers, admin_us
     assert res.status_code == 400
 
 
-def test_non_admin_cannot_edit_other_user(client, auth_headers, admin_user):
-    res = client.put(f"/api/users/{admin_user.id}", json={"full_name": "Hacked"}, headers=auth_headers)
+def test_non_admin_cannot_edit_other_user(client, regular_headers, admin_user):
+    res = client.put(f"/api/users/{admin_user.id}", json={"full_name": "Hacked"}, headers=regular_headers)
     assert res.status_code == 403
 
 
-def test_non_admin_cannot_self_promote(client, auth_headers, test_user, admin_user):
-    res = client.put(f"/api/users/{test_user.id}", json={"role_id": str(admin_user.role_id)}, headers=auth_headers)
+def test_non_admin_cannot_self_promote(client, regular_headers, regular_user, admin_user):
+    res = client.put(f"/api/users/{regular_user.id}", json={"role_id": str(admin_user.role_id)}, headers=regular_headers)
     assert res.status_code == 403
 
 
-def test_non_admin_can_update_own_profile(client, auth_headers, test_user):
-    res = client.put(f"/api/users/{test_user.id}", json={"full_name": "Updated Name"}, headers=auth_headers)
+def test_non_admin_can_update_own_profile(client, regular_headers, regular_user):
+    res = client.put(f"/api/users/{regular_user.id}", json={"full_name": "Updated Name"}, headers=regular_headers)
     assert res.status_code == 200
     assert res.json()["full_name"] == "Updated Name"

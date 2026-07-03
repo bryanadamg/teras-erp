@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
+import { Tabs, TabDef } from '../shared/Tabs';
 import DyeRecipeTab from './DyeRecipeTab';
 import DyeingOrdersTab from './DyeingOrdersTab';
 import SettingOrdersTab from './SettingOrdersTab';
@@ -31,7 +32,7 @@ const xpPanel: React.CSSProperties = {
 // ── Tab definitions ───────────────────────────────────────────────────────────
 type TabKey = 'recipes' | 'dyeing' | 'setting';
 
-const TABS: { key: TabKey; label: string; icon: string }[] = [
+const TABS: TabDef<TabKey>[] = [
     { key: 'recipes', label: 'Dye Recipes',     icon: 'bi-journal-text' },
     { key: 'dyeing',  label: 'Dyeing Orders',   icon: 'bi-droplet-half' },
     { key: 'setting', label: 'Setting Orders',  icon: 'bi-thermometer-half' },
@@ -66,63 +67,6 @@ export default function DyeingSettingView() {
         if (tab === 'dyeing') {
             fetchRecipes();
         }
-    };
-
-    // ── Tab button styles ─────────────────────────────────────────────────────
-    const tabBarStyle: React.CSSProperties = classic ? {
-        background: '#d6dff7',
-        borderBottom: '1px solid #7f9db9',
-        display: 'flex',
-        alignItems: 'flex-end',
-        padding: '4px 8px 0',
-        gap: 2,
-        fontFamily: xpFont,
-    } : {
-        background: '#fff',
-        borderBottom: '1px solid #dbe1ea',
-        display: 'flex',
-        alignItems: 'flex-end',
-        padding: '0 10px',
-        gap: 4,
-        fontFamily: modernFont,
-    };
-
-    const tabBtnStyle = (key: TabKey): React.CSSProperties => {
-        const active = activeTab === key;
-        if (!classic) {
-            return {
-                fontFamily: modernFont,
-                fontSize: 12.5,
-                padding: '9px 14px',
-                cursor: 'pointer',
-                border: 'none',
-                borderBottom: active ? '2px solid #2563eb' : '2px solid transparent',
-                background: 'transparent',
-                color: active ? '#2563eb' : '#64748b',
-                fontWeight: active ? 600 : 500,
-                userSelect: 'none',
-            };
-        }
-        return {
-            fontFamily: xpFont,
-            fontSize: 11,
-            padding: '3px 12px 4px',
-            cursor: 'pointer',
-            border: '1px solid',
-            borderBottom: active ? '1px solid #ece9d8' : '1px solid #7f9db9',
-            background: active
-                ? '#ece9d8'
-                : 'linear-gradient(to bottom, #e8e6db, #d0cec4)',
-            borderColor: active
-                ? '#7f9db9 #7f9db9 #ece9d8 #7f9db9'
-                : '#c0bdb5 #808080 #808080 #c0bdb5',
-            color: active ? '#000' : '#444',
-            fontWeight: active ? 'bold' : 'normal',
-            marginBottom: active ? -1 : 0,
-            position: 'relative',
-            zIndex: active ? 1 : 0,
-            userSelect: 'none',
-        };
     };
 
     // ── Render ────────────────────────────────────────────────────────────────
@@ -176,18 +120,7 @@ export default function DyeingSettingView() {
             </div>
 
             {/* Tabs bar */}
-            <div style={tabBarStyle}>
-                {TABS.map(tab => (
-                    <button
-                        key={tab.key}
-                        onClick={() => handleTabChange(tab.key)}
-                        style={tabBtnStyle(tab.key)}
-                    >
-                        <i className={`bi ${tab.icon}`} style={{ marginRight: 5, fontSize: 11 }} />
-                        {tab.label}
-                    </button>
-                ))}
-            </div>
+            <Tabs tabs={TABS} activeKey={activeTab} onChange={handleTabChange} classic={classic} />
 
             {/* Content area */}
             <div style={{
