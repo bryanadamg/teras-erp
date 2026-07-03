@@ -62,6 +62,11 @@ interface FlatWO {
     output_location_id?: string;
     input_location?: { id: string; code: string; name: string } | null;
     output_location?: { id: string; code: string; name: string } | null;
+    next_destination_location_id?: string;
+    next_destination_work_center_id?: string;
+    next_destination_location_name?: string;
+    next_destination_work_center_name?: string;
+    ends?: number;
     status: string;
     planned_duration_hours?: number;
     actual_duration_hours?: number;

@@ -697,6 +697,11 @@ class WorkOrderFlatResponse(BaseModel):
     work_center_type: str | None = None
     input_location: LocationResponse | None = None
     output_location: LocationResponse | None = None
+    next_destination_location_id: str | None = None
+    next_destination_work_center_id: str | None = None
+    next_destination_location_name: str | None = None
+    next_destination_work_center_name: str | None = None
+    ends: int | None = None
     staging_status: str = "NOT_STAGED"
     bom_operation_id: str | None = None
     mo_id: str
