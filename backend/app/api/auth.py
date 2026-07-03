@@ -37,18 +37,44 @@ def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: Session 
 def get_current_active_user(current_user: Annotated[User, Depends(get_current_user)]):
     return current_user
 
+def role_grants(role: Role | None, code: str) -> bool:
+    if not role:
+        return False
+    return any(p.code == 'admin.access' or p.code == code for p in role.permissions)
+
+def user_has_permission(user: User, code: str) -> bool:
+    """Effective permission = role grants (admin.access short-circuits) OR a direct grant.
+    Mirrors the frontend's UserContext.hasPermission so both sides agree on access."""
+    if role_grants(user.role, code):
+        return True
+    return any(p.code == code for p in (user.permissions or []))
+
+def require_permission(code: str):
+    """Dependency factory: 403s unless the current user's role or direct grants include `code`."""
+    def _dependency(current_user: Annotated[User, Depends(get_current_user)]) -> User:
+        if not user_has_permission(current_user, code):
+            raise HTTPException(status_code=403, detail=f"Missing permission: {code}")
+        return current_user
+    return _dependency
+
+def require_any_permission(*codes: str):
+    """Dependency factory: 403s unless the current user has at least one of `codes`."""
+    def _dependency(current_user: Annotated[User, Depends(get_current_user)]) -> User:
+        if not any(user_has_permission(current_user, code) for code in codes):
+            raise HTTPException(status_code=403, detail=f"Missing permission: one of {', '.join(codes)}")
+        return current_user
+    return _dependency
+
 def get_current_admin(current_user: Annotated[User, Depends(get_current_user)]):
-    if not current_user.role or current_user.role.name != "Administrator":
+    if not user_has_permission(current_user, 'admin.access'):
         raise HTTPException(status_code=403, detail="Not authorized")
     return current_user
 
 def _count_active_admins(db: Session, exclude_user_id: str | None = None) -> int:
-    query = db.query(User).join(Role, User.role_id == Role.id).filter(
-        Role.name == "Administrator", User.is_active == True
-    )
+    query = db.query(User).filter(User.is_active == True)
     if exclude_user_id is not None:
         query = query.filter(User.id != exclude_user_id)
-    return query.count()
+    return sum(1 for u in query.all() if user_has_permission(u, 'admin.access'))
 
 def _log_activity(db: Session, user_id, action: str, entity_id, details: str | None = None):
     db.add(AuditLog(user_id=user_id, action=action, entity_type="User", entity_id=str(entity_id), details=details))
@@ -181,7 +207,7 @@ def update_user(user_id: str, payload: UserUpdate, db: Session = Depends(get_db)
         raise HTTPException(status_code=404, detail="User not found")
 
     is_self = str(current_user.id) == str(user_id)
-    is_admin = bool(current_user.role and current_user.role.name == "Administrator")
+    is_admin = user_has_permission(current_user, 'admin.access')
 
     if not is_self and not is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
@@ -203,8 +229,9 @@ def update_user(user_id: str, payload: UserUpdate, db: Session = Depends(get_db)
         role = db.query(Role).filter(Role.id == payload.role_id).first()
         if not role:
             raise HTTPException(status_code=400, detail="Role not found")
-        was_admin = bool(user.role and user.role.name == "Administrator")
-        if was_admin and role.name != "Administrator" and _count_active_admins(db, exclude_user_id=user.id) < 1:
+        was_admin = user_has_permission(user, 'admin.access')
+        new_role_is_admin = role_grants(role, 'admin.access')
+        if was_admin and not new_role_is_admin and _count_active_admins(db, exclude_user_id=user.id) < 1:
             raise HTTPException(status_code=400, detail="Cannot remove the last active Administrator")
         user.role_id = role.id
 
@@ -236,7 +263,7 @@ def deactivate_user(user_id: str, db: Session = Depends(get_db), current_user: U
     if str(current_user.id) == str(user_id):
         raise HTTPException(status_code=400, detail="Cannot deactivate your own account")
 
-    if user.role and user.role.name == "Administrator" and _count_active_admins(db, exclude_user_id=user.id) < 1:
+    if user_has_permission(user, 'admin.access') and _count_active_admins(db, exclude_user_id=user.id) < 1:
         raise HTTPException(status_code=400, detail="Cannot deactivate the last active Administrator")
 
     user.is_active = False

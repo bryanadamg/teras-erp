@@ -11,7 +11,7 @@ from app.models.goods_receipt import GoodsReceipt, GoodsReceiptLine
 from app.models.attribute import AttributeValue
 from app.models.item import Item
 from app.models.batch import Batch
-from app.api.auth import get_current_user
+from app.api.auth import get_current_user, require_permission
 from app.models.auth import User
 from app.services import stock_service, audit_service
 from datetime import datetime
@@ -46,7 +46,7 @@ def _populate_line_attrs(po):
 async def create_purchase_order(
     payload: PurchaseOrderCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('purchasing.manage')),
 ):
     result = await db.execute(select(PurchaseOrder).filter(PurchaseOrder.po_number == payload.po_number))
     if result.scalars().first():
@@ -97,7 +97,7 @@ async def update_purchase_order(
     po_id: uuid.UUID,
     payload: PurchaseOrderCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('purchasing.manage')),
 ):
     result = await db.execute(
         select(PurchaseOrder).options(selectinload(PurchaseOrder.lines)).filter(PurchaseOrder.id == po_id)
@@ -188,7 +188,7 @@ async def create_goods_receipt(
     po_id: uuid.UUID,
     payload: GoodsReceiptCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('purchasing.manage')),
 ):
     result = await db.execute(
         select(PurchaseOrder)
@@ -303,7 +303,7 @@ async def upload_delivery_note(
     receipt_id: uuid.UUID,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('purchasing.manage')),
 ):
     """Attach a scanned supplier delivery note (Surat Jalan) PDF/image to a goods receipt."""
     result = await db.execute(select(GoodsReceipt).filter(GoodsReceipt.id == receipt_id))
@@ -381,7 +381,7 @@ async def get_purchase_orders(
 async def close_purchase_order(
     po_id: uuid.UUID,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('purchasing.manage')),
 ):
     """Force-close a PO as RECEIVED even if quantities are short (partial/under-delivery)."""
     result = await db.execute(_po_query().filter(PurchaseOrder.id == po_id))
@@ -413,7 +413,7 @@ async def close_purchase_order(
 async def delete_purchase_order(
     po_id: uuid.UUID,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('purchasing.manage')),
 ):
     result = await db.execute(select(PurchaseOrder).filter(PurchaseOrder.id == po_id))
     po = result.scalars().first()

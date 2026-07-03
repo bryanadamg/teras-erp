@@ -12,7 +12,7 @@ from app.schemas import (
 )
 from app.models.packing import PackingOrder, PackingLine, PackingPackage, PackingPackageItem
 from app.models.sales import SalesOrder, SalesOrderLine
-from app.api.auth import get_current_user
+from app.api.auth import get_current_user, require_permission
 from app.models.auth import User
 from app.services import audit_service, kpi_service, stock_service
 from app.core.ws_manager import manager
@@ -123,7 +123,7 @@ async def get_packing_order(
 async def create_packing_order(
     payload: PackingOrderCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('sales.manage')),
 ):
     so_result = await db.execute(
         select(SalesOrder).options(selectinload(SalesOrder.lines)).filter(SalesOrder.id == payload.sales_order_id)
@@ -188,7 +188,7 @@ async def update_packing_order(
     po_id: uuid.UUID,
     payload: PackingOrderUpdate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('sales.manage')),
 ):
     po = await _load(db, po_id)
     if not po:
@@ -276,7 +276,7 @@ async def update_packing_order(
 async def dispatch_packing_order(
     po_id: uuid.UUID,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('sales.manage')),
 ):
     result = await db.execute(
         select(PackingOrder)
@@ -384,7 +384,7 @@ async def dispatch_packing_order(
 async def delete_packing_order(
     po_id: uuid.UUID,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('sales.manage')),
 ):
     result = await db.execute(select(PackingOrder).filter(PackingOrder.id == po_id))
     po = result.scalars().first()

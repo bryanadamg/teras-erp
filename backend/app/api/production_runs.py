@@ -25,7 +25,7 @@ from app.services.netting_service import Availability, preview_production_run
 from app.api.manufacturing import create_mo_recursive
 from collections import defaultdict
 from app.models.auth import User
-from app.api.auth import get_current_user
+from app.api.auth import get_current_user, require_permission
 from app.services import audit_service
 from app.core.ws_manager import manager
 import uuid
@@ -440,7 +440,7 @@ async def get_production_run_material_requirements(
 async def preview_production_run_plan(
     payload: ProductionRunPreviewRequest,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('work_order.manage')),
 ):
     """Dry-run: shows the netting plan (per component: net-from location, gross,
     net-free, net qty, decision) for a PR before it is created. Creates nothing."""
@@ -463,7 +463,7 @@ async def preview_production_run_plan(
 async def create_production_run(
     payload: ProductionRunCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('work_order.manage')),
 ):
     if not payload.bom_entries:
         raise HTTPException(status_code=400, detail="At least one BOM entry is required")
@@ -659,7 +659,7 @@ async def update_production_run_status(
     pr_id: str,
     status: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('work_order.manage')),
 ):
     valid = {"PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"}
     if status not in valid:
@@ -692,7 +692,7 @@ async def update_production_run_status(
 async def delete_production_run(
     pr_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('work_order.manage')),
 ):
     result = await db.execute(select(ProductionRun).filter(ProductionRun.id == pr_id))
     pr = result.scalars().first()

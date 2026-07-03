@@ -14,7 +14,7 @@ from app.models.routing import WorkCenter, Operation
 from app.models.production_run import PRBomEntrySize
 from app.schemas import BOMCreate, BOMUpdate, BOMResponse, BOMSummaryResponse, BOMSummaryPageResponse, BOMTreeResponse, SizeResponse, BOMAutomatorProfileCreate, BOMAutomatorProfileResponse
 from app.models.auth import User, BOMAutomatorProfile
-from app.api.auth import get_current_user
+from app.api.auth import get_current_user, require_permission
 from app.services import audit_service
 from app.models.attribute import AttributeValue
 
@@ -88,7 +88,7 @@ async def get_sizes(db: AsyncSession = Depends(get_async_db), current_user: User
     return result.scalars().all()
 
 @router.post("/boms", response_model=BOMResponse)
-async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('manufacturing.manage'))):
     _validate_line_percentages(payload.lines)
     _validate_steps_assigned(payload.operations, payload.lines)
 
@@ -433,7 +433,7 @@ async def upload_bom_sample_photo(
     bom_id: str,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('manufacturing.manage')),
 ):
     result = await db.execute(select(BOM).filter(BOM.id == bom_id))
     bom = result.scalars().first()
@@ -456,7 +456,7 @@ async def upload_bom_design_file(
     bom_id: str,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('manufacturing.manage')),
 ):
     result = await db.execute(select(BOM).filter(BOM.id == bom_id))
     bom = result.scalars().first()
@@ -492,7 +492,7 @@ async def update_bom(
     bom_id: str,
     payload: BOMUpdate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('manufacturing.manage')),
 ):
     result = await db.execute(
         select(BOM).options(*_bom_eager_options()).filter(BOM.id == bom_id)
@@ -661,7 +661,7 @@ async def _collect_bom_tree_ids(db: AsyncSession, bom_id: _uuid.UUID, visited: s
 
 
 @router.delete("/boms/{bom_id}")
-async def delete_bom(bom_id: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+async def delete_bom(bom_id: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('manufacturing.manage'))):
     result = await db.execute(select(BOM).filter(BOM.id == bom_id))
     bom = result.scalars().first()
     if not bom:

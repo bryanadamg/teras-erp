@@ -9,7 +9,7 @@ from app.services import item_service, stock_service, import_service, audit_serv
 from app.schemas import ItemCreate, ItemResponse, StockEntryCreate, ItemUpdate, VariantCreate, PaginatedItemResponse
 from app.models.location import Location
 from app.models.auth import User
-from app.api.auth import get_current_user
+from app.api.auth import get_current_user, require_permission
 from sqlalchemy import select
 from app.core.ws_manager import manager
 from app.services import kpi_service
@@ -41,7 +41,7 @@ def _populate_source_info(item) -> None:
 
 
 @router.post("/items", response_model=ItemResponse)
-async def create_item_api(payload: ItemCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+async def create_item_api(payload: ItemCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('inventory.manage'))):
     db_item = await item_service.get_item_by_code(db, code=payload.code)
     if db_item:
         raise HTTPException(status_code=400, detail="Item already exists")
@@ -104,7 +104,7 @@ async def get_items_api(
     }
 
 @router.put("/items/{item_id}", response_model=ItemResponse)
-async def update_item_api(item_id: str, payload: ItemUpdate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+async def update_item_api(item_id: str, payload: ItemUpdate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('inventory.manage'))):
     item = await item_service.update_item(db, item_id, payload.model_dump(exclude_unset=True))
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -123,7 +123,7 @@ async def update_item_api(item_id: str, payload: ItemUpdate, db: AsyncSession = 
     return item
 
 @router.post("/items/stock")
-async def add_stock_api(payload: StockEntryCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+async def add_stock_api(payload: StockEntryCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('stock.entry'))):
     # Resolve Item
     item = await item_service.get_item_by_code(db, payload.item_code)
     if not item:
@@ -178,7 +178,7 @@ async def get_items_template(current_user: User = Depends(get_current_user)):
     return Response(content=content, media_type="text/csv", headers={"Content-Disposition": "attachment; filename=items_template.csv"})
 
 @router.post("/items/import")
-async def import_items(file: UploadFile = File(...), db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+async def import_items(file: UploadFile = File(...), db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('inventory.manage'))):
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Invalid file type. Please upload a CSV.")
     
@@ -191,7 +191,7 @@ async def import_items(file: UploadFile = File(...), db: AsyncSession = Depends(
     return {"status": "success", "imported": results["success"]}
 
 @router.delete("/items/{item_id}")
-async def delete_item(item_id: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+async def delete_item(item_id: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('inventory.delete'))):
     from app.models.item import Item
     result = await db.execute(select(Item).filter(Item.id == item_id))
     item = result.scalars().first()

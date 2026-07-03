@@ -5,7 +5,7 @@ from app.db.session import get_db
 from app.schemas import PartnerCreate, PartnerResponse, PartnerUpdate
 from app.models.partner import Partner
 from app.models.audit import AuditLog
-from app.api.auth import get_current_user
+from app.api.auth import get_current_user, require_permission, require_any_permission
 from app.models.auth import User
 from typing import List, Optional
 import uuid
@@ -13,7 +13,7 @@ import uuid
 router = APIRouter(prefix="/partners", tags=["partners"])
 
 @router.post("", response_model=PartnerResponse)
-def create_partner(payload: PartnerCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_partner(payload: PartnerCreate, db: Session = Depends(get_db), current_user: User = Depends(require_any_permission('sales.manage', 'purchasing.manage'))):
     partner = Partner(
         name=payload.name,
         address=payload.address,
@@ -37,7 +37,7 @@ def get_partners(type: Optional[str] = None, db: Session = Depends(get_db), curr
     return query.all()
 
 @router.put("/{partner_id}", response_model=PartnerResponse)
-def update_partner(partner_id: uuid.UUID, payload: PartnerUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def update_partner(partner_id: uuid.UUID, payload: PartnerUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_any_permission('sales.manage', 'purchasing.manage'))):
     partner = db.query(Partner).filter(Partner.id == partner_id).first()
     if not partner:
         raise HTTPException(status_code=404, detail="Partner not found")
@@ -51,7 +51,7 @@ def update_partner(partner_id: uuid.UUID, payload: PartnerUpdate, db: Session = 
     return partner
 
 @router.delete("/{partner_id}")
-def delete_partner(partner_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def delete_partner(partner_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(require_any_permission('sales.manage', 'purchasing.manage'))):
     partner = db.query(Partner).filter(Partner.id == partner_id).first()
     if not partner:
         raise HTTPException(status_code=404, detail="Partner not found")

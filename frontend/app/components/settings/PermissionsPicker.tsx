@@ -17,6 +17,9 @@ const MODULE_LABELS: Record<string, string> = {
     work_order: 'Work Orders',
     stock: 'Stock',
     reports: 'Reports',
+    sales: 'Sales',
+    purchasing: 'Purchasing',
+    dyeing: 'Dyeing & Setting',
 };
 
 function moduleLabel(code: string): string {

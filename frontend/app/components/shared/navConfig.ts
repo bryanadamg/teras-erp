@@ -26,18 +26,20 @@ export interface NavSection {
 export const NAV_SECTIONS: NavSection[] = [
     {
         key: 'sales', label: 'Sales', i18nKey: 'sales', icon: 'bi-graph-up', accent: 'green',
+        permissions: ['sales.manage'],
         items: [
-            { tab: 'sales-orders', label: 'Sales Orders', i18nKey: 'sales_orders', icon: 'bi-file-text' },
-            { tab: 'packaging', label: 'Packaging', icon: 'bi-box2' },
-            { tab: 'customers', label: 'Customers', i18nKey: 'customers', icon: 'bi-people' },
-            { tab: 'samples', label: 'Sample Requests', i18nKey: 'sample_requests', icon: 'bi-flask' },
+            { tab: 'sales-orders', label: 'Sales Orders', i18nKey: 'sales_orders', icon: 'bi-file-text', permission: 'sales.manage' },
+            { tab: 'packaging', label: 'Packaging', icon: 'bi-box2', permission: 'sales.manage' },
+            { tab: 'customers', label: 'Customers', i18nKey: 'customers', icon: 'bi-people', permission: 'sales.manage' },
+            { tab: 'samples', label: 'Sample Requests', i18nKey: 'sample_requests', icon: 'bi-flask', permission: 'sales.manage' },
         ],
     },
     {
         key: 'procurement', label: 'Procurement', i18nKey: 'procurement', icon: 'bi-cart3', accent: 'amber',
+        permissions: ['purchasing.manage'],
         items: [
-            { tab: 'purchase-orders', label: 'Purchase Orders', i18nKey: 'purchase_orders', icon: 'bi-bag' },
-            { tab: 'suppliers', label: 'Suppliers', i18nKey: 'suppliers', icon: 'bi-truck' },
+            { tab: 'purchase-orders', label: 'Purchase Orders', i18nKey: 'purchase_orders', icon: 'bi-bag', permission: 'purchasing.manage' },
+            { tab: 'suppliers', label: 'Suppliers', i18nKey: 'suppliers', icon: 'bi-truck', permission: 'purchasing.manage' },
         ],
     },
     {
@@ -70,11 +72,11 @@ export const NAV_SECTIONS: NavSection[] = [
     },
     {
         key: 'dyeing', label: 'Dyeing & Setting', icon: 'bi-droplet-half', accent: 'blue',
-        permissions: ['manufacturing.manage'],
+        permissions: ['dyeing.manage'],
         items: [
-            { tab: 'dyeing-setting', label: 'Dyeing & Setting', icon: 'bi-palette' },
-            { tab: 'lab-dips', label: 'Lab Dip Requests', icon: 'bi-droplet' },
-            { tab: 'colors', label: 'Color Library', icon: 'bi-palette2' },
+            { tab: 'dyeing-setting', label: 'Dyeing & Setting', icon: 'bi-palette', permission: 'dyeing.manage' },
+            { tab: 'lab-dips', label: 'Lab Dip Requests', icon: 'bi-droplet', permission: 'dyeing.manage' },
+            { tab: 'colors', label: 'Color Library', icon: 'bi-palette2', permission: 'dyeing.manage' },
         ],
     },
     {

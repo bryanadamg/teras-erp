@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.session import get_async_db
 from app.schemas import CompanyProfileResponse, CompanyProfileUpdate
 from app.models.settings import CompanyProfile
-from app.api.auth import get_current_user
+from app.api.auth import get_current_user, get_current_admin
 from app.models.auth import User
 import shutil
 import os
@@ -28,14 +28,10 @@ async def get_company_profile(db: AsyncSession = Depends(get_async_db), current_
 
 @router.put("/company", response_model=CompanyProfileResponse)
 async def update_company_profile(
-    payload: CompanyProfileUpdate, 
+    payload: CompanyProfileUpdate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_admin)
 ):
-    # Only Admin can update profile
-    if current_user.role.name != "Administrator":
-        raise HTTPException(status_code=403, detail="Not authorized")
-        
     result = await db.execute(select(CompanyProfile))
     profile = result.scalars().first()
     if not profile:
@@ -51,13 +47,10 @@ async def update_company_profile(
 
 @router.post("/company/logo")
 async def upload_logo(
-    file: UploadFile = File(...), 
+    file: UploadFile = File(...),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_admin)
 ):
-    if current_user.role.name != "Administrator":
-        raise HTTPException(status_code=403, detail="Not authorized")
-        
     # Ensure dir exists
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     

@@ -14,7 +14,7 @@ from app.models.sales import SalesOrder
 from app.models.goods_receipt import GoodsReceipt, GoodsReceiptLine
 from app.models.purchase import PurchaseOrder
 from app.schemas import BatchCreate, BatchResponse, BatchTraceResponse, BatchConsumptionResponse, BatchTraceBackNode
-from app.api.auth import get_current_user
+from app.api.auth import get_current_user, require_permission
 from app.models.auth import User
 from app.services import audit_service
 from datetime import datetime, timezone
@@ -116,7 +116,7 @@ async def generate_batch_number(db: AsyncSession, prefix: str = "BAT") -> str:
 async def create_batch(
     payload: BatchCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('inventory.manage')),
 ):
     item_result = await db.execute(select(Item).filter(Item.id == payload.item_id))
     item = item_result.scalars().first()
@@ -215,7 +215,7 @@ async def get_batch(
 async def delete_batch(
     batch_id: uuid.UUID,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('inventory.delete')),
 ):
     result = await db.execute(select(Batch).filter(Batch.id == batch_id))
     batch = result.scalars().first()

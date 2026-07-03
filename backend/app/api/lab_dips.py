@@ -8,7 +8,7 @@ from app.schemas import (
     LabDipRequestCreate, LabDipRequestUpdate, LabDipRequestResponse, LabDipLineResponse,
 )
 from app.models.auth import User
-from app.api.auth import get_current_user
+from app.api.auth import get_current_user, require_permission
 from app.services import audit_service
 from datetime import datetime, date
 
@@ -23,7 +23,7 @@ def _parse_date(value, default=None):
 async def create_lab_dip_request(
     payload: LabDipRequestCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('dyeing.manage')),
 ):
     count_result = await db.execute(select(func.count()).select_from(LabDipRequest))
     count = count_result.scalar_one()
@@ -119,7 +119,7 @@ async def update_lab_dip_request(
     request_id: str,
     payload: LabDipRequestUpdate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('dyeing.manage')),
 ):
     result = await db.execute(
         select(LabDipRequest).options(joinedload(LabDipRequest.dips)).filter(LabDipRequest.id == request_id)
@@ -196,7 +196,7 @@ async def update_lab_dip_status(
     request_id: str,
     status: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('dyeing.manage')),
 ):
     result = await db.execute(select(LabDipRequest).filter(LabDipRequest.id == request_id))
     req = result.scalars().first()
@@ -230,7 +230,7 @@ async def update_dip_status(
     line_id: str,
     status: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('dyeing.manage')),
 ):
     result = await db.execute(
         select(LabDipLine).filter(LabDipLine.id == line_id, LabDipLine.lab_dip_request_id == request_id)
@@ -273,7 +273,7 @@ async def update_dip_status(
 async def delete_lab_dip_request(
     request_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('dyeing.manage')),
 ):
     result = await db.execute(select(LabDipRequest).filter(LabDipRequest.id == request_id))
     req = result.scalars().first()

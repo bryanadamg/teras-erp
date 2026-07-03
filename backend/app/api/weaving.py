@@ -12,7 +12,7 @@ from app.models.weaving import WeavingRun, WorkCenterHoliday
 from app.models.routing import WorkCenter
 from app.models.manufacturing import ManufacturingOrder
 from app.models.auth import User
-from app.api.auth import get_current_user
+from app.api.auth import get_current_user, require_permission
 from app.schemas import (
     WeavingRunCreate, WeavingRunUpdate, WeavingRunResponse,
     WorkCenterHolidayCreate, WorkCenterHolidayResponse, WorkCenterCalendarUpdate,
@@ -57,7 +57,7 @@ async def _run_actual_kg(db: AsyncSession, run: WeavingRun) -> float:
 async def create_weaving_run(
     payload: WeavingRunCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('work_order.manage')),
 ):
     wc = await _get_wc(db, str(payload.work_center_id))
     mo_res = await db.execute(select(ManufacturingOrder).where(ManufacturingOrder.id == payload.mo_id))
@@ -92,7 +92,7 @@ async def update_weaving_run(
     run_id: str,
     payload: WeavingRunUpdate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('work_order.manage')),
 ):
     res = await db.execute(select(WeavingRun).where(WeavingRun.id == run_id))
     run = res.scalars().first()
@@ -117,7 +117,7 @@ async def update_weaving_run(
 async def stop_weaving_run(
     run_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('work_order.manage')),
 ):
     res = await db.execute(select(WeavingRun).where(WeavingRun.id == run_id))
     run = res.scalars().first()
@@ -140,7 +140,7 @@ async def stop_weaving_run(
 async def delete_weaving_run(
     run_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('work_order.manage')),
 ):
     res = await db.execute(select(WeavingRun).where(WeavingRun.id == run_id))
     run = res.scalars().first()
@@ -366,7 +366,7 @@ async def update_calendar(
     wc_id: str,
     payload: WorkCenterCalendarUpdate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('work_order.manage')),
 ):
     wc = await _get_wc(db, wc_id)
     wc.working_weekdays = sorted(set(int(d) for d in payload.working_weekdays if 0 <= int(d) <= 6))
@@ -384,7 +384,7 @@ async def add_holiday(
     wc_id: str,
     payload: WorkCenterHolidayCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('work_order.manage')),
 ):
     wc = await _get_wc(db, wc_id)
     existing = await db.execute(
@@ -411,7 +411,7 @@ async def import_national_holidays(
     wc_id: str,
     year: int = Query(...),
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('work_order.manage')),
 ):
     wc = await _get_wc(db, wc_id)
     existing = await db.execute(
@@ -439,7 +439,7 @@ async def import_national_holidays(
 async def delete_holiday(
     holiday_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('work_order.manage')),
 ):
     res = await db.execute(select(WorkCenterHoliday).where(WorkCenterHoliday.id == holiday_id))
     hol = res.scalars().first()

@@ -4,7 +4,7 @@ from app.db.session import get_db
 from app.models.uom import UOM, UOMFactor
 from app.models.auth import User
 from app.schemas import UOMCreate, UOMResponse, UOMFactorCreate, UOMFactorResponse
-from app.api.auth import get_current_user
+from app.api.auth import get_current_user, require_permission
 
 router = APIRouter()
 
@@ -19,7 +19,7 @@ def _factor_response(factor: UOMFactor) -> dict:
     }
 
 @router.post("/uoms", response_model=UOMResponse)
-def create_uom(payload: UOMCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_uom(payload: UOMCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('inventory.manage'))):
     if db.query(UOM).filter(UOM.name == payload.name).first():
         raise HTTPException(status_code=400, detail="UOM already exists")
 
@@ -48,7 +48,7 @@ def get_uoms(db: Session = Depends(get_db), current_user: User = Depends(get_cur
     return result
 
 @router.delete("/uoms/{uom_id}")
-def delete_uom(uom_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def delete_uom(uom_id: str, db: Session = Depends(get_db), current_user: User = Depends(require_permission('inventory.manage'))):
     uom = db.query(UOM).filter(UOM.id == uom_id).first()
     if not uom:
         raise HTTPException(status_code=404, detail="UOM not found")
@@ -59,7 +59,7 @@ def delete_uom(uom_id: str, db: Session = Depends(get_db), current_user: User = 
     return {"status": "success", "message": "UOM deleted"}
 
 @router.post("/uoms/{from_uom_id}/factors", response_model=UOMFactorResponse)
-def create_uom_factor(from_uom_id: str, payload: UOMFactorCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_uom_factor(from_uom_id: str, payload: UOMFactorCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('inventory.manage'))):
     from_uom = db.query(UOM).filter(UOM.id == from_uom_id).first()
     if not from_uom:
         raise HTTPException(status_code=404, detail="From UOM not found")
@@ -76,7 +76,7 @@ def create_uom_factor(from_uom_id: str, payload: UOMFactorCreate, db: Session = 
     return _factor_response(factor)
 
 @router.delete("/uoms/{from_uom_id}/factors/{factor_id}")
-def delete_uom_factor(from_uom_id: str, factor_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def delete_uom_factor(from_uom_id: str, factor_id: str, db: Session = Depends(get_db), current_user: User = Depends(require_permission('inventory.manage'))):
     factor = db.query(UOMFactor).filter(UOMFactor.id == factor_id, UOMFactor.from_uom_id == from_uom_id).first()
     if not factor:
         raise HTTPException(status_code=404, detail="Factor not found")

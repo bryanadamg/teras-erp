@@ -7,7 +7,7 @@ from app.services import stock_service, audit_service, kpi_service
 from app.core.ws_manager import manager
 from app.schemas import StockLedgerResponse, StockBalanceResponse, PaginatedStockLedgerResponse, StockEntryCreate, StockTransferCreate, BookingStockRow, BookingDemandMO, BookingSupplyMO
 from app.models.auth import User
-from app.api.auth import get_current_user
+from app.api.auth import get_current_user, require_permission, get_current_admin
 from app.models.item import Item
 from app.models.location import Location
 from app.models.stock_balance import StockBalance
@@ -135,7 +135,7 @@ async def get_stock_ledger(
 async def create_stock_entry(
     payload: StockEntryCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission('stock.entry'))
 ):
     item_result = await db.execute(select(Item).filter(Item.code == payload.item_code))
     item = item_result.scalars().first()
@@ -190,7 +190,7 @@ async def create_stock_entry(
 async def transfer_stock(
     payload: StockTransferCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('stock.entry')),
 ):
     if payload.qty <= 0:
         raise HTTPException(status_code=400, detail="qty must be positive")
@@ -380,7 +380,7 @@ async def get_stock_availability(
 
 
 @router.post("/stock/balances/rebuild")
-def rebuild_stock_balances(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def rebuild_stock_balances(db: Session = Depends(get_db), current_user: User = Depends(get_current_admin)):
     """Recompute the materialized StockBalance table from the StockLedger.
 
     StockBalance is only rebuilt at startup; if the ledger and the summary drift

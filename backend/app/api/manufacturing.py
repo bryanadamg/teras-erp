@@ -26,7 +26,7 @@ from app.schemas import (
 )
 from app.models.attribute import AttributeValue
 from app.models.auth import User
-from app.api.auth import get_current_user
+from app.api.auth import get_current_user, require_permission
 from app.models.item import Item
 from app.models.stock_balance import StockBalance
 from app.models.batch import Batch, BatchConsumption
@@ -411,7 +411,7 @@ async def create_mo_recursive(
     return mo
 
 @router.post("/manufacturing-orders/preview", response_model=list[NettingPreviewNode])
-async def preview_manufacturing_order(payload: MOPreviewRequest, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+async def preview_manufacturing_order(payload: MOPreviewRequest, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('work_order.manage'))):
     """Dry-run: netting plan for a nested MO before creation (root always made,
     components netted against net-free stock). Creates nothing."""
     location = None
@@ -428,7 +428,7 @@ async def preview_manufacturing_order(payload: MOPreviewRequest, db: AsyncSessio
 
 
 @router.post("/manufacturing-orders", response_model=ManufacturingOrderResponse)
-async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('work_order.manage'))):
     # 1. Validation
     result = await db.execute(select(BOM).filter(BOM.id == payload.bom_id))
     bom = result.scalars().first()
@@ -813,7 +813,7 @@ async def list_work_orders_flat(
 
 
 @router.put("/manufacturing-orders/{mo_id}/status")
-async def update_manufacturing_order_status(mo_id: str, status: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+async def update_manufacturing_order_status(mo_id: str, status: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('work_order.manage'))):
     result = await db.execute(
         select(ManufacturingOrder)
         .filter(ManufacturingOrder.id == mo_id)
@@ -865,7 +865,7 @@ async def update_mo_attributes(
     mo_id: str,
     payload: MOAttributeUpdate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('work_order.manage')),
 ):
     result = await db.execute(
         select(ManufacturingOrder)
@@ -909,7 +909,7 @@ async def add_mo_completion(
     mo_id: str,
     payload: MOCompletionCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('work_order.manage')),
 ):
     result = await db.execute(
         select(ManufacturingOrder)
@@ -1170,7 +1170,7 @@ async def complete_manufacturing_order_with_batches(
     mo_id: str,
     payload: MOCompleteWithBatchesPayload,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('work_order.manage')),
 ):
     from app.models.batch import BatchConsumption
 
@@ -1255,7 +1255,7 @@ async def complete_manufacturing_order_with_batches(
 
 
 @router.delete("/manufacturing-orders/{mo_id}")
-async def delete_manufacturing_order(mo_id: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+async def delete_manufacturing_order(mo_id: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('work_order.manage'))):
     result = await db.execute(select(ManufacturingOrder).filter(ManufacturingOrder.id == mo_id))
     mo = result.scalars().first()
     if not mo: raise HTTPException(status_code=404, detail="Not found")

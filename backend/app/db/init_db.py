@@ -228,6 +228,9 @@ def seed_rbac(db):
             ("stock.entry", "Record Stock Movements"),
             ("reports.view", "View Reports"),
             ("admin.access", "Full System Access"),
+            ("sales.manage", "Manage Sales Orders, Packaging, Customers, Samples"),
+            ("purchasing.manage", "Manage Purchase Orders and Suppliers"),
+            ("dyeing.manage", "Manage Dyeing, Setting, Lab Dips, and Colors"),
         ]
 
         db_perms = {}
@@ -241,9 +244,9 @@ def seed_rbac(db):
             db_perms[code] = perm
 
         roles_data = {
-            "Administrator": ["admin.access", "inventory.manage", "inventory.delete", "locations.manage", "manufacturing.manage", "work_order.manage", "stock.entry", "reports.view"],
-            "Store Manager": ["inventory.manage", "stock.entry", "reports.view"],
-            "Production Manager": ["manufacturing.manage", "work_order.manage", "reports.view"],
+            "Administrator": ["admin.access", "inventory.manage", "inventory.delete", "locations.manage", "manufacturing.manage", "work_order.manage", "stock.entry", "reports.view", "sales.manage", "purchasing.manage", "dyeing.manage"],
+            "Store Manager": ["inventory.manage", "stock.entry", "reports.view", "purchasing.manage"],
+            "Production Manager": ["manufacturing.manage", "work_order.manage", "reports.view", "dyeing.manage"],
             "Operator": ["work_order.manage"],
         }
 

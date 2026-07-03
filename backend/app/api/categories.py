@@ -6,7 +6,7 @@ from sqlalchemy.orm import selectinload
 from app.db.session import get_async_db
 from app.models.category import Category
 from app.schemas import CategoryCreate, CategoryResponse
-from app.api.auth import get_current_user
+from app.api.auth import get_current_user, require_permission
 
 router = APIRouter()
 
@@ -57,7 +57,7 @@ async def list_categories(
 async def create_category(
     data: CategoryCreate,
     db: AsyncSession = Depends(get_async_db),
-    _=Depends(get_current_user),
+    _=Depends(require_permission('inventory.manage')),
 ):
     if data.parent_id:
         parent = await _get_or_404(db, data.parent_id)
@@ -75,7 +75,7 @@ async def rename_category(
     category_id: uuid.UUID,
     data: CategoryCreate,
     db: AsyncSession = Depends(get_async_db),
-    _=Depends(get_current_user),
+    _=Depends(require_permission('inventory.manage')),
 ):
     cat = await _get_or_404(db, category_id)
     if cat.is_system:
@@ -89,7 +89,7 @@ async def rename_category(
 async def delete_category(
     category_id: uuid.UUID,
     db: AsyncSession = Depends(get_async_db),
-    _=Depends(get_current_user),
+    _=Depends(require_permission('inventory.manage')),
 ):
     cat = await _get_or_404(db, category_id)
     if cat.is_system:

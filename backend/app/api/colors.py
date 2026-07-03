@@ -10,7 +10,7 @@ from app.models.attribute import Attribute, AttributeValue
 from app.models.dyeing_setting import DyeRecipe
 from app.models.lab_dip import LabDipRequest, LabDipLine
 from app.models.auth import User
-from app.api.auth import get_current_user
+from app.api.auth import get_current_user, require_permission
 from app.services import audit_service
 from app.core.ws_manager import manager
 from app.schemas import ColorCreate, ColorUpdate, ColorResponse, ColorListResponse
@@ -111,7 +111,7 @@ async def get_color(
 async def create_color(
     payload: ColorCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('dyeing.manage')),
 ):
     existing = await db.execute(select(Color).filter(Color.code == payload.code))
     if existing.scalars().first():
@@ -167,7 +167,7 @@ async def update_color(
     color_id: str,
     payload: ColorUpdate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('dyeing.manage')),
 ):
     result = await db.execute(
         select(Color).options(joinedload(Color.attribute_value)).filter(Color.id == color_id)
@@ -209,7 +209,7 @@ async def update_color(
 async def delete_color(
     color_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('dyeing.manage')),
 ):
     result = await db.execute(select(Color).filter(Color.id == color_id))
     c = result.scalars().first()

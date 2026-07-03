@@ -16,7 +16,7 @@ from app.models.stock_balance import StockBalance
 from app.models.dyeing_setting import DyeRecipe, DyeingRun, dye_recipe_attribute_values
 from app.schemas import WorkOrderCreate, WorkOrderResponse, WORequiredMaterial, WOStagePayload
 from app.models.auth import User
-from app.api.auth import get_current_user
+from app.api.auth import get_current_user, require_permission
 from app.services import audit_service, stock_service
 from app.core.ws_manager import manager
 from datetime import datetime
@@ -70,7 +70,7 @@ async def list_work_orders(
 async def create_work_order(
     payload: WorkOrderCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('work_order.manage')),
 ):
     mo_result = await db.execute(
         select(ManufacturingOrder)
@@ -228,7 +228,7 @@ async def update_work_order(
     wo_id: str,
     payload: WorkOrderCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('work_order.manage')),
 ):
     result = await db.execute(
         select(WorkOrder).options(*_wo_options()).filter(WorkOrder.id == wo_id)
@@ -308,7 +308,7 @@ async def update_work_order_status(
     wo_id: str,
     status: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('work_order.manage')),
 ):
     valid = {"PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"}
     if status not in valid:
@@ -339,7 +339,7 @@ async def update_work_order_status(
 async def create_work_orders_bulk(
     payloads: list[WorkOrderCreate],
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('work_order.manage')),
 ):
     if not payloads:
         return []
@@ -664,7 +664,7 @@ async def stage_wo_materials(
     wo_id: str,
     payload: WOStagePayload,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('work_order.manage')),
 ):
     wo, mo = await _load_wo_and_mo(db, wo_id)
     if not wo.input_location_id:
@@ -747,7 +747,7 @@ async def stage_wo_materials(
 async def delete_work_order(
     wo_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission('work_order.manage')),
 ):
     result = await db.execute(select(WorkOrder).filter(WorkOrder.id == wo_id))
     wo = result.scalars().first()
