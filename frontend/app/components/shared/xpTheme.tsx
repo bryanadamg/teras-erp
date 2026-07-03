@@ -119,6 +119,74 @@ export const xpPanel = (extra: React.CSSProperties = {}): React.CSSProperties =>
     ...extra,
 });
 
+// Groups related fields in a create/edit form under a labeled section.
+// Classic: recessed panel with an Explorer-taskpane-style gradient header bar
+// (distinct fill + inset shadow so it reads as a surface, not just a divider).
+// Modern: matching light-blue header bar over a bordered card.
+export function FormSection({ title, classic, children }: { title: React.ReactNode; classic: boolean; children: React.ReactNode }) {
+    if (classic) {
+        return (
+            <div style={{
+                border: '1px solid #a89f8c', borderRadius: 2,
+                marginTop: 12, marginBottom: 16,
+                background: '#f6f4ec',
+                boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.10)',
+                overflow: 'hidden',
+            }}>
+                <div style={{
+                    background: 'linear-gradient(to bottom, #eef3fc 0%, #d3ddf0 100%)',
+                    borderBottom: '1px solid #a9b8d4',
+                    padding: '4px 10px',
+                    fontFamily: xpFont, fontSize: 10, fontWeight: 'bold',
+                    color: '#1a3d6e', textTransform: 'uppercase' as const, letterSpacing: '0.5px',
+                }}>
+                    {title}
+                </div>
+                <div style={{ padding: '12px 12px 2px' }}>
+                    {children}
+                </div>
+            </div>
+        );
+    }
+    return (
+        <div className="mb-4 rounded-2 border overflow-hidden">
+            <div className="px-3 py-2 border-bottom" style={{ background: 'linear-gradient(to bottom, #eef4ff, #dce8fb)' }}>
+                <h6 className="text-uppercase mb-0 fw-bold" style={{ fontSize: 11, letterSpacing: '0.5px', color: '#1a4a8a' }}>{title}</h6>
+            </div>
+            <div className="p-3 pb-1">
+                {children}
+            </div>
+        </div>
+    );
+}
+
+// Field label with optional muted/italic helper caption below it — keeps the
+// instruction text visually lighter than the label so a form of many fields
+// doesn't read as one dense block of same-weight text.
+export function FieldLabel({ children, hint, classic, right }: { children: React.ReactNode; hint?: string; classic: boolean; right?: React.ReactNode }) {
+    return (
+        <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                <label
+                    style={classic ? { fontFamily: xpFont, fontSize: 11, fontWeight: 'bold', color: '#2b2822', margin: 0 } : undefined}
+                    className={classic ? '' : 'form-label small fw-semibold mb-0'}
+                >
+                    {children}
+                </label>
+                {right}
+            </div>
+            {hint && (
+                <div
+                    style={classic ? { fontFamily: xpFont, fontSize: 10, color: '#938c76', fontStyle: 'italic', marginBottom: 3 } : undefined}
+                    className={classic ? '' : 'text-muted small fst-italic mb-1'}
+                >
+                    {hint}
+                </div>
+            )}
+        </>
+    );
+}
+
 // ── Loading / empty states ───────────────────────────────────────────────────
 
 /**

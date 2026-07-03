@@ -10,7 +10,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { XPEmptyState, useSortable, SortMark } from '../shared/xpTheme';
+import { XPEmptyState, useSortable, SortMark, FormSection, FieldLabel } from '../shared/xpTheme';
 import TreeSelect, { buildCategoryTree, buildLocationPickerTree } from '../shared/TreeSelect';
 
 // XP-style category badge colours derived from category name
@@ -22,74 +22,6 @@ function getCategoryXPStyle(category: string): { bg: string; border: string; col
     if (l.includes('pack'))  return { bg: '#e8eaf6', border: '#3949ab', color: '#1a237e' };
     if (l.includes('semi'))  return { bg: '#fff8e1', border: '#c77800', color: '#4a3000' };
     return { bg: '#e8e8e8', border: '#6a6a6a', color: '#222222' };
-}
-
-// Groups related fields in the create/edit item forms under a labeled section.
-// Classic: recessed panel with an Explorer-taskpane-style gradient header bar
-// (distinct fill + inset shadow so it reads as a surface, not just a divider).
-// Modern: matching light-blue header bar over a bordered card.
-function FormSection({ title, classic, children }: { title: string; classic: boolean; children: React.ReactNode }) {
-    if (classic) {
-        return (
-            <div style={{
-                border: '1px solid #a89f8c', borderRadius: 2,
-                marginTop: 12, marginBottom: 16,
-                background: '#f6f4ec',
-                boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.10)',
-                overflow: 'hidden',
-            }}>
-                <div style={{
-                    background: 'linear-gradient(to bottom, #eef3fc 0%, #d3ddf0 100%)',
-                    borderBottom: '1px solid #a9b8d4',
-                    padding: '4px 10px',
-                    fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10, fontWeight: 'bold',
-                    color: '#1a3d6e', textTransform: 'uppercase' as const, letterSpacing: '0.5px',
-                }}>
-                    {title}
-                </div>
-                <div style={{ padding: '12px 12px 2px' }}>
-                    {children}
-                </div>
-            </div>
-        );
-    }
-    return (
-        <div className="mb-4 rounded-2 border overflow-hidden">
-            <div className="px-3 py-2 border-bottom" style={{ background: 'linear-gradient(to bottom, #eef4ff, #dce8fb)' }}>
-                <h6 className="text-uppercase mb-0 fw-bold" style={{ fontSize: 11, letterSpacing: '0.5px', color: '#1a4a8a' }}>{title}</h6>
-            </div>
-            <div className="p-3 pb-1">
-                {children}
-            </div>
-        </div>
-    );
-}
-
-// Field label with optional muted/italic helper caption below it — keeps the
-// instruction text visually lighter than the label so a form of many fields
-// doesn't read as one dense block of same-weight text.
-function FieldLabel({ children, hint, classic, right }: { children: React.ReactNode; hint?: string; classic: boolean; right?: React.ReactNode }) {
-    return (
-        <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-                <label
-                    style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, fontWeight: 'bold', color: '#2b2822', margin: 0 } : undefined}
-                    className={classic ? '' : 'form-label small fw-semibold mb-0'}
-                >
-                    {children}
-                </label>
-                {right}
-            </div>
-            {hint && (
-                <div
-                    style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10, color: '#938c76', fontStyle: 'italic', marginBottom: 3 } : undefined}
-                    className={classic ? '' : 'text-muted small fst-italic mb-1'}
-                >
-                    {hint}
-                </div>
-            )}
-        </>
-    );
 }
 
 // Memoized Row Component
@@ -1261,25 +1193,19 @@ export default function InventoryView({
 
           {/* ── XP Toolbar (search + filter) ── */}
           {classic && (
-            <>
-              <div style={xpToolbar}>
-                <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#333333', fontWeight: 'bold' }}>
-                  <i className="bi bi-search" style={{ marginRight: '4px', fontSize: '10px' }}></i>
-                </span>
-                <input
-                  type="text"
-                  style={{ ...xpInput, width: '180px' }}
-                  placeholder={`${t('search')} items…`}
-                  value={searchTerm}
-                  onChange={e => onSearchChange(e.target.value)}
-                />
-                <div style={{ marginLeft: 'auto', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#555555' }}>
-                  {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''} on page
-                </div>
-              </div>
-              {/* Category filter row */}
+            <div style={{ ...xpToolbar, gap: 8 }}>
+              <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#333333', fontWeight: 'bold' }}>
+                <i className="bi bi-search" style={{ marginRight: '4px', fontSize: '10px' }}></i>
+              </span>
+              <input
+                type="text"
+                style={{ ...xpInput, width: '180px' }}
+                placeholder={`${t('search')} items…`}
+                value={searchTerm}
+                onChange={e => onSearchChange(e.target.value)}
+              />
               {!forcedCategory && (
-                <div style={{ ...xpToolbar, gap: 8 }}>
+                <>
                   <span style={{ fontSize: 10, color: '#555', whiteSpace: 'nowrap', fontFamily: 'Tahoma, Arial, sans-serif' }}>Category:</span>
                   <TreeSelect
                     options={catTreeOptions}
@@ -1292,9 +1218,12 @@ export default function InventoryView({
                   <button style={xpBtn()} onClick={() => { setCategoryL1(''); setCategoryL2(''); setCategoryL3(''); }}>
                     Clear
                   </button>
-                </div>
+                </>
               )}
-            </>
+              <div style={{ marginLeft: 'auto', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#555555' }}>
+                {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''} on page
+              </div>
+            </div>
           )}
 
           {/* ── Table ── */}
