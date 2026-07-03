@@ -9,8 +9,10 @@ import { xpBtn, xpInput } from '../shared/xpTheme';
 import { xpBevel, xpTitleBar, xpTableHeader, xpThCell, tdBase } from './settingsStyles';
 import PixelAvatar from '../shared/PixelAvatar';
 import AvatarPicker from '../shared/AvatarPicker';
+import Pager from '../shared/Pager';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
+const USERS_PAGE_SIZE = 10;
 
 export default function SettingsUsersTab() {
     const { showToast } = useToast();
@@ -33,6 +35,7 @@ export default function SettingsUsersTab() {
     const [newPassword, setNewPassword] = useState('');
 
     const [isAddingUser, setIsAddingUser] = useState(false);
+    const [page, setPage] = useState(1);
     const [newUsername, setNewUsername] = useState('');
     const [newFullName, setNewFullName] = useState('');
     const [newUserPassword, setNewUserPassword] = useState('');
@@ -203,6 +206,10 @@ export default function SettingsUsersTab() {
             showToast('Error updating user status', 'danger');
         }
     };
+
+    const pageCount = Math.max(1, Math.ceil(users.length / USERS_PAGE_SIZE));
+    const clampedPage = Math.min(page, pageCount);
+    const pagedUsers = users.slice((clampedPage - 1) * USERS_PAGE_SIZE, clampedPage * USERS_PAGE_SIZE);
 
     return (
         <div style={classic ? xpBevel : undefined} className={classic ? '' : 'card shadow-sm border-0'}>
@@ -375,7 +382,7 @@ export default function SettingsUsersTab() {
                                     </td>
                                 </tr>
                             )}
-                            {users.map((user, rowIndex) => (
+                            {pagedUsers.map((user, rowIndex) => (
                                 <tr
                                     key={user.id}
                                     style={classic ? { background: editingUser === user.id ? '#fffde8' : rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5', opacity: user.is_active ? 1 : 0.6 } : { opacity: user.is_active ? 1 : 0.6 }}
@@ -637,11 +644,13 @@ export default function SettingsUsersTab() {
                         </tbody>
                     </table>
                 </div>
-                {classic && (
-                    <div style={{ background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)', borderTop: '1px solid #b0a898', padding: '2px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#333' }}>
-                        {users.length} user{users.length !== 1 ? 's' : ''} total
-                    </div>
-                )}
+                <Pager
+                    page={clampedPage}
+                    total={users.length}
+                    pageSize={USERS_PAGE_SIZE}
+                    onPageChange={setPage}
+                    leftContent={classic ? `${users.length} user${users.length !== 1 ? 's' : ''} total` : undefined}
+                />
             </div>
         </div>
     );
