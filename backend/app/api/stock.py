@@ -271,6 +271,11 @@ async def get_stock_availability(
 
         net_free = on_hand + incoming - required
 
+    Committed-supply rule: a sales-order-linked root MO's outstanding output is
+    promised to that order and is EXCLUDED from incoming — it never covers
+    other demand. Shared-component/child MOs and uncommitted stock-build roots
+    stay in supply.
+
     Demand is OUTSTANDING-based: a component is scaled by the MO's remaining
     output (MO.qty - completed), so already-produced quantity stops counting.
 
@@ -282,6 +287,7 @@ async def get_stock_availability(
     from uuid import UUID
     from sqlalchemy.orm import selectinload, joinedload
     from app.models.manufacturing import ManufacturingOrder
+    from app.services.netting_service import _sales_order_linked_prs, _output_committed
 
     ONGOING = ("PENDING", "IN_PROGRESS")
     mo_rows = (await db.execute(
@@ -294,6 +300,8 @@ async def get_stock_availability(
             joinedload(ManufacturingOrder.bom),
         )
     )).unique().scalars().all()
+
+    so_linked_prs = await _sales_order_linked_prs(db, mo_rows)
 
     # demand + supply keyed by (item_id, attr_key) only — no location.
     demand: dict[tuple, dict] = defaultdict(lambda: {"total_required": 0.0, "contributions": []})
@@ -324,7 +332,10 @@ async def get_stock_availability(
                 mo_id=mo.id, mo_code=mo.code, mo_qty=float(mo.qty), required_qty=req,
             ))
 
-        # ── Supply: this MO's own outstanding output is a scheduled receipt ──
+        # ── Supply: this MO's own outstanding output is a scheduled receipt,
+        # unless committed to a sales order (committed-supply rule) ──
+        if _output_committed(mo, so_linked_prs):
+            continue
         out_attr = sorted(str(v.id) for v in mo.attribute_values)
         skey = (str(mo.item_id), ",".join(out_attr))
         s = supply[skey]

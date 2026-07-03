@@ -7,8 +7,17 @@ NOT exploded); partially-covered components are resized to the shortfall.
 
     net_free(item, variant, location)
         = on_hand     -- StockBalance, rolled up across the location's leaf spots
-        + incoming    -- outstanding output of OTHER open MOs producing the item
+        + incoming    -- outstanding output of OTHER open MOs producing the item,
+                         excluding COMMITTED output (see below)
         - required    -- outstanding component demand of OTHER open MOs
+
+Committed-supply rule: a root MO (not a shared component, no parent) that is
+linked to a sales order — directly via MO.sales_order_id or through its
+Production Run — has its output promised to that order. It is NOT free supply
+and never nets away a new, distinct order for the same item. Shared-component
+and child MOs stay in supply (their output is balanced by the consuming MOs'
+component demand), as do uncommitted root MOs (stock-builds / greige
+stockpiling), whose output deliberately covers future demand.
 
 "OTHER" excludes the unit being planned (the current Production Run, or the
 current root MO) so a run never nets against its own freshly-created demand —
@@ -42,10 +51,40 @@ from sqlalchemy.orm import selectinload, joinedload
 from app.models.stock_balance import StockBalance
 from app.models.location import Location
 from app.models.manufacturing import ManufacturingOrder
+from app.models.production_run import ProductionRun
 from app.models.bom import BOM
 from app.services.stock_service import _generate_variant_key
 
 ONGOING = ("PENDING", "IN_PROGRESS")
+
+
+async def _sales_order_linked_prs(db: AsyncSession, mos) -> set[str]:
+    """IDs (as str) of Production Runs that carry a sales_order_id, among the
+    PRs referenced by ``mos``. Used to detect committed output on root MOs that
+    only link to their sales order through the PR."""
+    pr_ids = {mo.production_run_id for mo in mos if mo.production_run_id and not mo.sales_order_id}
+    if not pr_ids:
+        return set()
+    rows = (await db.execute(
+        select(ProductionRun.id).where(
+            ProductionRun.id.in_(pr_ids),
+            ProductionRun.sales_order_id.is_not(None),
+        )
+    )).all()
+    return {str(i) for (i,) in rows}
+
+
+def _output_committed(mo, so_linked_prs: set[str]) -> bool:
+    """Committed-supply rule: a sales-order-linked root MO's output belongs to
+    that order and is not free incoming supply. Shared-component and child MOs
+    are never committed (their output is balanced by the consuming MOs'
+    component demand); uncommitted roots are stock-builds whose output is
+    deliberately free."""
+    return (
+        not mo.is_shared_component
+        and mo.parent_mo_id is None
+        and (mo.sales_order_id is not None or str(mo.production_run_id) in so_linked_prs)
+    )
 
 
 class Availability:
@@ -88,6 +127,8 @@ class Availability:
             )
         )).unique().scalars().all()
 
+        so_linked_prs = await _sales_order_linked_prs(self.db, mos)
+
         for mo in mos:
             if self.exclude_pr_id and str(mo.production_run_id) == self.exclude_pr_id:
                 continue
@@ -106,7 +147,11 @@ class Availability:
                 vkey = _generate_variant_key([str(a) for a in (comp.attribute_value_ids or [])])
                 self._demand[(str(comp.item_id), vkey)] += req
 
-            # Supply: this MO's own outstanding output is a scheduled receipt.
+            # Supply: this MO's own outstanding output is a scheduled receipt —
+            # unless it is COMMITTED to a sales order (committed-supply rule),
+            # in which case it must not cover other, distinct demand.
+            if _output_committed(mo, so_linked_prs):
+                continue
             out_vkey = _generate_variant_key([str(v.id) for v in mo.attribute_values])
             self._supply[(str(mo.item_id), out_vkey)] += outstanding
 
