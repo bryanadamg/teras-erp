@@ -416,6 +416,8 @@ async def create_work_orders_bulk(
             notes=payload.notes,
             target_start_date=payload.target_start_date,
             target_end_date=payload.target_end_date,
+            next_destination_work_center_id=payload.next_destination_work_center_id,
+            next_destination_location_id=payload.next_destination_location_id,
             status="PENDING",
         )
         db.add(wo)
