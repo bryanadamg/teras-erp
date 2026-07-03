@@ -1715,6 +1715,7 @@ class BatchResponse(BaseModel):
     location_id: Optional[UUID] = None    # current location — beam is atomic, always at most one (populated by list endpoint)
     location_name: Optional[str] = None
     # Origin lineage — resolved from source_wo_id → WO → MO → PR/SO (populated by batches endpoints)
+    wo_code: Optional[str] = None
     mo_id: Optional[UUID] = None
     mo_code: Optional[str] = None
     production_run_id: Optional[UUID] = None

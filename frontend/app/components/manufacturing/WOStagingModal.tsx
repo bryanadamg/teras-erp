@@ -271,7 +271,9 @@ export default function WOStagingModal({ wo, onClose, onStaged }: Props) {
                                                                                 return { ...p, [r.item_id]: next };
                                                                             })}
                                                                         />
-                                                                        {b.batch_number} ({(b.remaining ?? 0).toFixed(1)})
+                                                                        {b.batch_number}
+                                                        {b.wo_code ? <span style={{ color: '#777' }}> — {b.wo_code}</span> : null}
+                                                        {' '}({(b.remaining ?? 0).toFixed(1)})
                                                                     </label>
                                                                 );
                                                             })}

@@ -59,6 +59,7 @@ async def _resolve_batch_origins(db: AsyncSession, batches: list[Batch]) -> None
     rows = await db.execute(
         select(
             WorkOrder.id,
+            WorkOrder.code,
             ManufacturingOrder.id,
             ManufacturingOrder.code,
             ManufacturingOrder.production_run_id,
@@ -75,9 +76,10 @@ async def _resolve_batch_origins(db: AsyncSession, batches: list[Batch]) -> None
         .filter(WorkOrder.id.in_(wo_ids))
     )
     origin: dict = {}
-    for (wo_id, mo_id, mo_code, pr_id, pr_code,
+    for (wo_id, wo_code, mo_id, mo_code, pr_id, pr_code,
          mo_so_id, mo_so_code, pr_so_id, pr_so_code) in rows.all():
         origin[wo_id] = {
+            "wo_code": wo_code,
             "mo_id": mo_id,
             "mo_code": mo_code,
             "production_run_id": pr_id,
