@@ -24,6 +24,74 @@ function getCategoryXPStyle(category: string): { bg: string; border: string; col
     return { bg: '#e8e8e8', border: '#6a6a6a', color: '#222222' };
 }
 
+// Groups related fields in the create/edit item forms under a labeled section.
+// Classic: recessed panel with an Explorer-taskpane-style gradient header bar
+// (distinct fill + inset shadow so it reads as a surface, not just a divider).
+// Modern: matching light-blue header bar over a bordered card.
+function FormSection({ title, classic, children }: { title: string; classic: boolean; children: React.ReactNode }) {
+    if (classic) {
+        return (
+            <div style={{
+                border: '1px solid #a89f8c', borderRadius: 2,
+                marginTop: 12, marginBottom: 16,
+                background: '#f6f4ec',
+                boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.10)',
+                overflow: 'hidden',
+            }}>
+                <div style={{
+                    background: 'linear-gradient(to bottom, #eef3fc 0%, #d3ddf0 100%)',
+                    borderBottom: '1px solid #a9b8d4',
+                    padding: '4px 10px',
+                    fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10, fontWeight: 'bold',
+                    color: '#1a3d6e', textTransform: 'uppercase' as const, letterSpacing: '0.5px',
+                }}>
+                    {title}
+                </div>
+                <div style={{ padding: '12px 12px 2px' }}>
+                    {children}
+                </div>
+            </div>
+        );
+    }
+    return (
+        <div className="mb-4 rounded-2 border overflow-hidden">
+            <div className="px-3 py-2 border-bottom" style={{ background: 'linear-gradient(to bottom, #eef4ff, #dce8fb)' }}>
+                <h6 className="text-uppercase mb-0 fw-bold" style={{ fontSize: 11, letterSpacing: '0.5px', color: '#1a4a8a' }}>{title}</h6>
+            </div>
+            <div className="p-3 pb-1">
+                {children}
+            </div>
+        </div>
+    );
+}
+
+// Field label with optional muted/italic helper caption below it — keeps the
+// instruction text visually lighter than the label so a form of many fields
+// doesn't read as one dense block of same-weight text.
+function FieldLabel({ children, hint, classic, right }: { children: React.ReactNode; hint?: string; classic: boolean; right?: React.ReactNode }) {
+    return (
+        <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                <label
+                    style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, fontWeight: 'bold', color: '#2b2822', margin: 0 } : undefined}
+                    className={classic ? '' : 'form-label small fw-semibold mb-0'}
+                >
+                    {children}
+                </label>
+                {right}
+            </div>
+            {hint && (
+                <div
+                    style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10, color: '#938c76', fontStyle: 'italic', marginBottom: 3 } : undefined}
+                    className={classic ? '' : 'text-muted small fst-italic mb-1'}
+                >
+                    {hint}
+                </div>
+            )}
+        </>
+    );
+}
+
 // Memoized Row Component
 const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSelect, onEdit, onDelete, onViewHistory, getAttributeNames, classic }: any) => {
     const { hasPermission } = useUser();
@@ -729,34 +797,25 @@ export default function InventoryView({
           }
       >
           <form id="create-item-form" onSubmit={handleSubmitItem} data-testid="create-item-modal">
+            <FormSection title="Basic Info" classic={classic}>
               <div className="mb-3">
-                  <label
-                      style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 } : undefined}
-                      className={classic ? '' : 'form-label d-flex justify-content-between align-items-center small text-muted'}
-                  >
+                  <FieldLabel classic={classic} right={<i className="bi bi-gear-fill text-muted" style={{cursor: 'pointer'}} onClick={() => setIsConfigOpen(true)} title="Configure Auto-Suggestion"></i>}>
                       {t('item_code')}
-                      <i className="bi bi-gear-fill text-muted" style={{cursor: 'pointer'}} onClick={() => setIsConfigOpen(true)} title="Configure Auto-Suggestion"></i>
-                  </label>
+                  </FieldLabel>
                   <input data-testid="item-code-input" style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} placeholder="ITM-001" value={newItem.code} onChange={e => {
                       const code = e.target.value;
                       setNewItem(prev => ({ ...prev, code, name: nameManuallyEdited ? prev.name : code }));
                   }} required />
               </div>
               <div className="mb-3">
-                  <label
-                      style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
-                      className={classic ? '' : 'form-label small text-muted'}
-                  >{t('item_name')}</label>
+                  <FieldLabel classic={classic}>{t('item_name')}</FieldLabel>
                   <input data-testid="item-name-input" style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} placeholder="Product Name" value={newItem.name} onChange={e => {
                       setNameManuallyEdited(true);
                       setNewItem(prev => ({ ...prev, name: e.target.value }));
                   }} required />
               </div>
               <div className="mb-3">
-                  <label
-                      style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
-                      className={classic ? '' : 'form-label small text-muted'}
-                  >{t('categories')}</label>
+                  <FieldLabel classic={classic}>{t('categories')}</FieldLabel>
                   <TreeSelect
                       options={catTreeOptions}
                       value={effectiveFormCategoryId || ''}
@@ -767,25 +826,22 @@ export default function InventoryView({
                       style={{ width: '100%' }}
                   />
               </div>
-              <div className="mb-3">
-                  <label
-                      style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
-                      className={classic ? '' : 'form-label small text-muted'}
-                  >{t('uom')}</label>
+              <div className="mb-1">
+                  <FieldLabel classic={classic}>{t('uom')}</FieldLabel>
                   <select data-testid="uom-select" style={classic ? { ...xpInput, height: 'auto', padding: '2px 4px', width: '100%' } : undefined} className={classic ? '' : 'form-select'} value={newItem.uom} onChange={e => setNewItem({...newItem, uom: e.target.value, packaging_factor_ids: []})} required>
                       <option value="">Unit...</option>
                       {(uoms || []).map((u: any) => <option key={u.id} value={u.name}>{u.name}</option>)}
                   </select>
               </div>
+            </FormSection>
 
+            <FormSection title="Packaging & Weight" classic={classic}>
               {/* Packaging Units */}
               <div className="mb-3">
                 {classic ? (
-                  <div style={{ border: '1px solid #a0988c', padding: '6px 8px 8px', position: 'relative', marginTop: 2 }}>
-                    <span style={{ position: 'absolute', top: -7, left: 8, background: '#ece9d8', padding: '0 4px', fontSize: '10px', fontWeight: 'bold', color: '#444', textTransform: 'uppercase' as const, letterSpacing: '0.4px', fontFamily: 'Tahoma, Arial, sans-serif' }}>
-                      Packaging Units
-                    </span>
-                    <div style={{ paddingTop: 4, display: 'flex', flexDirection: 'column' as const, gap: 4 }}>
+                  <div>
+                    <FieldLabel classic={classic} hint={!newItem.uom ? undefined : 'Extra units this item can also be counted/received in'}>Packaging Units</FieldLabel>
+                    <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 4 }}>
                       {(() => {
                         const factors = (uoms || []).flatMap((u: any) => (u.factors || []).filter((f: any) => f.to_uom_name === newItem.uom));
                         if (!newItem.uom) return <span style={{ fontSize: '10px', color: '#aaa', fontStyle: 'italic' }}>Select a UoM first</span>;
@@ -859,12 +915,9 @@ export default function InventoryView({
                 )}
               </div>
 
-              <div className="row g-2 mb-3">
+              <div className="row g-2 mb-1">
                   <div className="col-5">
-                      <label
-                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
-                          className={classic ? '' : 'form-label small text-muted'}
-                      >Weight / Unit</label>
+                      <FieldLabel classic={classic}>Weight / Unit</FieldLabel>
                       <input
                           style={classic ? xpInput : undefined}
                           className={classic ? '' : 'form-control'}
@@ -877,10 +930,7 @@ export default function InventoryView({
                       />
                   </div>
                   <div className="col-4">
-                      <label
-                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
-                          className={classic ? '' : 'form-label small text-muted'}
-                      >Unit</label>
+                      <FieldLabel classic={classic}>Unit</FieldLabel>
                       <select
                           style={classic ? { ...xpInput, height: 'auto', padding: '2px 4px', width: '100%' } : undefined}
                           className={classic ? '' : 'form-select'}
@@ -894,28 +944,33 @@ export default function InventoryView({
                       </select>
                   </div>
               </div>
+            </FormSection>
 
-              <div className="mb-3" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <input
-                      style={classic ? { cursor: 'pointer' } : undefined}
-                      className={classic ? '' : 'form-check-input'}
-                      type="checkbox"
-                      id="new-lot-tracked"
-                      checked={newItem.lot_tracked}
-                      onChange={e => setNewItem({ ...newItem, lot_tracked: e.target.checked })}
-                  />
-                  <label
-                      style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', cursor: 'pointer', margin: 0 } : { margin: 0 }}
-                      className={classic ? '' : 'form-check-label small'}
-                      htmlFor="new-lot-tracked"
-                  >Lot tracked — every receipt, production output and transfer requires a lot number</label>
+            <FormSection title="Inventory Settings" classic={classic}>
+              <div className="mb-1">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <input
+                          style={classic ? { cursor: 'pointer' } : undefined}
+                          className={classic ? '' : 'form-check-input'}
+                          type="checkbox"
+                          id="new-lot-tracked"
+                          checked={newItem.lot_tracked}
+                          onChange={e => setNewItem({ ...newItem, lot_tracked: e.target.checked })}
+                      />
+                      <label
+                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', fontWeight: 'bold', color: '#2b2822', cursor: 'pointer', margin: 0 } : { margin: 0 }}
+                          className={classic ? '' : 'form-check-label small fw-semibold'}
+                          htmlFor="new-lot-tracked"
+                      >Lot tracked</label>
+                  </div>
+                  <div
+                      style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10, color: '#938c76', fontStyle: 'italic', margin: '1px 0 3px 20px' } : undefined}
+                      className={classic ? '' : 'text-muted small fst-italic mb-1'}
+                  >Every receipt, production output and transfer requires a lot number</div>
               </div>
 
               <div className="mb-3">
-                  <label
-                      style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
-                      className={classic ? '' : 'form-label small text-muted'}
-                  >Reorder point (min stock) — flags low stock when total on-hand drops below this. Blank = default (10).</label>
+                  <FieldLabel classic={classic} hint="Flags low stock when total on-hand drops below this. Blank = default (10).">Reorder point (min stock)</FieldLabel>
                   <input
                       type="number" min="0" step="any"
                       style={classic ? { ...xpInput, height: 'auto', padding: '2px 4px', width: '100%' } : undefined}
@@ -926,11 +981,8 @@ export default function InventoryView({
                   />
               </div>
 
-              <div className="mb-3">
-                  <label
-                      style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
-                      className={classic ? '' : 'form-label small text-muted'}
-                  >Default source location — where this item is normally pulled from when staging to production</label>
+              <div className="mb-1">
+                  <FieldLabel classic={classic} hint="Where this item is normally pulled from when staging to production">Default source location</FieldLabel>
                   <TreeSelect
                       options={locPickerTreeOptions}
                       value={newItem.default_source_location_id}
@@ -941,14 +993,11 @@ export default function InventoryView({
                       style={{ width: '100%' }}
                   />
               </div>
+            </FormSection>
 
-              <div className="mb-3">
-                  <label
-                      style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
-                      className={classic ? '' : 'form-label small text-muted d-block'}
-                  >{t('attributes')}</label>
+            <FormSection title={t('attributes')} classic={classic}>
                   <div
-                      style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 6, padding: '4px 6px', background: '#f5f4ef', border: '1px solid #b0a898', maxHeight: 120, overflowY: 'auto' as const } : { maxHeight: 120, overflowY: 'auto' as const }}
+                      style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 6, padding: '5px 7px', background: '#ffffff', border: '1px solid #b0a898', marginBottom: 10, maxHeight: 120, overflowY: 'auto' as const } : { maxHeight: 120, overflowY: 'auto' as const }}
                       className={classic ? '' : 'd-flex flex-wrap gap-2 p-2 border rounded bg-light'}
                   >
                       {attributes.map((attr: any) => (
@@ -972,7 +1021,7 @@ export default function InventoryView({
                       ))}
                       {attributes.length === 0 && <small style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#888', fontStyle: 'italic' } : undefined} className={classic ? '' : 'text-muted fst-italic'}>No attributes defined</small>}
                   </div>
-              </div>
+            </FormSection>
 
               {newItem.source_sample_id && (
                   <div className="mb-3">
@@ -1085,7 +1134,7 @@ export default function InventoryView({
       </ModalWrapper>
 
       {/* LEFT COLUMN: Items List */}
-      <div className={`${activeEditingItem ? 'col-md-8' : 'col-12'} order-2 order-md-1`}>
+      <div className="col-12 order-2 order-md-1">
         {/* ── Outer shell: XP bevel in classic, Bootstrap card in default ── */}
         <div
           style={classic ? xpBevel : undefined}
@@ -1337,39 +1386,41 @@ export default function InventoryView({
         </div>
       </div>
 
-      {/* RIGHT COLUMN: Edit Form */}
-      {activeEditingItem && (
-      <div className="col-md-4 order-1 order-md-2">
-        <div
-          style={classic
-            ? { ...xpBevel, position: 'sticky', top: '24px', zIndex: 100 }
-            : { top: '24px', zIndex: 100 }}
-          className={classic ? '' : 'card sticky-top border-0 shadow-lg border-primary border-opacity-50'}
-        >
-          {/* Edit panel title bar */}
-          {classic ? (
-            <div style={xpTitleBar}>
-              <span><i className="bi bi-pencil-square" style={{ marginRight: '6px' }}></i>{t('edit')} Item</span>
-            </div>
-          ) : (
-            <div className="card-header bg-primary text-white">
-               <h5 className="card-title mb-0">
-                   <span><i className="bi bi-pencil-square me-2"></i>{t('edit')}</span>
-               </h5>
-            </div>
-          )}
-          <div
-            className={classic ? '' : 'card-body'}
-            style={classic ? { background: '#f0efe8', padding: '10px' } : undefined}
-          >
-                <form onSubmit={handleUpdateItemSubmit} className="mb-4">
+      {/* Edit Modal */}
+      <ModalWrapper
+          isOpen={!!activeEditingItem}
+          modeless
+          onClose={() => setEditingItem(null)}
+          title={<span><i className="bi bi-pencil-square me-2"></i>{t('edit')} Item</span>}
+          variant="primary"
+          size="md"
+          footer={activeEditingItem ? (
+              classic ? (
+                <>
+                  <button type="button" style={xpBtn()} onClick={() => setEditingItem(null)}>{t('cancel')}</button>
+                  <button
+                    type="button"
+                    style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold', padding: '2px 16px' })}
+                    onClick={() => (document.getElementById('edit-item-form') as HTMLFormElement)?.requestSubmit()}
+                  >{t('save')}</button>
+                </>
+              ) : (
+                <>
+                  <button type="button" className="btn btn-sm btn-light text-muted" onClick={() => setEditingItem(null)}>{t('cancel')}</button>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm px-3"
+                    onClick={() => (document.getElementById('edit-item-form') as HTMLFormElement)?.requestSubmit()}
+                  >{t('save')}</button>
+                </>
+              )
+          ) : undefined}
+      >
+          {activeEditingItem && (
+                <form id="edit-item-form" onSubmit={handleUpdateItemSubmit}>
+                  <FormSection title="Basic Info" classic={classic}>
                     <div className="mb-3">
-                        <label
-                          className={classic ? '' : 'form-label small text-muted'}
-                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#333333', display: 'block', marginBottom: '2px' } : undefined}
-                        >
-                          {t('item_code')}
-                        </label>
+                        <FieldLabel classic={classic}>{t('item_code')}</FieldLabel>
                         <input
                           className={classic ? '' : 'form-control'}
                           style={classic ? { ...xpInput, width: '100%', boxSizing: 'border-box' } : undefined}
@@ -1379,12 +1430,7 @@ export default function InventoryView({
                         />
                     </div>
                     <div className="mb-3">
-                        <label
-                          className={classic ? '' : 'form-label small text-muted'}
-                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#333333', display: 'block', marginBottom: '2px' } : undefined}
-                        >
-                          {t('item_name')}
-                        </label>
+                        <FieldLabel classic={classic}>{t('item_name')}</FieldLabel>
                         <input
                           className={classic ? '' : 'form-control'}
                           style={classic ? { ...xpInput, width: '100%', boxSizing: 'border-box' } : undefined}
@@ -1394,12 +1440,7 @@ export default function InventoryView({
                         />
                     </div>
                     <div className="mb-3">
-                        <label
-                          className={classic ? '' : 'form-label small text-muted'}
-                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#333333', display: 'block', marginBottom: '2px' } : undefined}
-                        >
-                          {t('categories')}
-                        </label>
+                        <FieldLabel classic={classic}>{t('categories')}</FieldLabel>
                         <TreeSelect
                             options={catTreeOptions}
                             value={effectiveFormCategoryId || ''}
@@ -1410,13 +1451,8 @@ export default function InventoryView({
                             style={{ width: '100%' }}
                         />
                     </div>
-                    <div className="mb-3">
-                        <label
-                          className={classic ? '' : 'form-label small text-muted'}
-                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#333333', display: 'block', marginBottom: '2px' } : undefined}
-                        >
-                          {t('uom')}
-                        </label>
+                    <div className="mb-1">
+                        <FieldLabel classic={classic}>{t('uom')}</FieldLabel>
                         <select
                           className={classic ? '' : 'form-select'}
                           style={classic ? { ...xpSelect, width: '100%', boxSizing: 'border-box', height: '22px' } : undefined}
@@ -1428,15 +1464,15 @@ export default function InventoryView({
                             {(uoms || []).map((u: any) => <option key={u.id} value={u.name}>{u.name}</option>)}
                         </select>
                     </div>
+                  </FormSection>
 
+                  <FormSection title="Packaging & Weight" classic={classic}>
                     {/* Packaging Units */}
                     <div className="mb-3">
                       {classic ? (
-                        <div style={{ border: '1px solid #a0988c', padding: '6px 8px 8px', position: 'relative', marginTop: 2 }}>
-                          <span style={{ position: 'absolute', top: -7, left: 8, background: '#ece9d8', padding: '0 4px', fontSize: '10px', fontWeight: 'bold', color: '#444', textTransform: 'uppercase' as const, letterSpacing: '0.4px', fontFamily: 'Tahoma, Arial, sans-serif' }}>
-                            Packaging Units
-                          </span>
-                          <div style={{ paddingTop: 4, display: 'flex', flexDirection: 'column' as const, gap: 4 }}>
+                        <div>
+                          <FieldLabel classic={classic}>Packaging Units</FieldLabel>
+                          <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 4 }}>
                             {(() => {
                               const factors = (uoms || []).flatMap((u: any) => (u.factors || []).filter((f: any) => f.to_uom_name === editingItem.uom));
                               if (!editingItem.uom) return <span style={{ fontSize: '10px', color: '#aaa', fontStyle: 'italic' }}>Select a UoM first</span>;
@@ -1510,12 +1546,9 @@ export default function InventoryView({
                       )}
                     </div>
 
-                    <div className="row g-2 mb-3">
+                    <div className="row g-2 mb-1">
                         <div className="col-6">
-                            <label
-                              className={classic ? '' : 'form-label small text-muted'}
-                              style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#333333', display: 'block', marginBottom: '2px' } : undefined}
-                            >Weight / Unit</label>
+                            <FieldLabel classic={classic}>Weight / Unit</FieldLabel>
                             <input
                               className={classic ? '' : 'form-control'}
                               style={classic ? { ...xpInput, width: '100%', boxSizing: 'border-box' } : undefined}
@@ -1528,10 +1561,7 @@ export default function InventoryView({
                             />
                         </div>
                         <div className="col-6">
-                            <label
-                              className={classic ? '' : 'form-label small text-muted'}
-                              style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#333333', display: 'block', marginBottom: '2px' } : undefined}
-                            >Weight Unit</label>
+                            <FieldLabel classic={classic}>Weight Unit</FieldLabel>
                             <select
                               className={classic ? '' : 'form-select'}
                               style={classic ? { ...xpSelect, width: '100%', boxSizing: 'border-box', height: '22px' } : undefined}
@@ -1545,28 +1575,33 @@ export default function InventoryView({
                             </select>
                         </div>
                     </div>
+                  </FormSection>
 
-                    <div className="mb-3" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <input
-                          className={classic ? '' : 'form-check-input'}
-                          style={classic ? { cursor: 'pointer' } : undefined}
-                          type="checkbox"
-                          id="edit-lot-tracked"
-                          checked={!!editingItem.lot_tracked}
-                          onChange={e => setEditingItem({ ...editingItem, lot_tracked: e.target.checked })}
-                        />
-                        <label
-                          className={classic ? '' : 'form-check-label small'}
-                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#333333', cursor: 'pointer', margin: 0 } : { margin: 0 }}
-                          htmlFor="edit-lot-tracked"
-                        >Lot tracked — every receipt, production output and transfer requires a lot number</label>
+                  <FormSection title="Inventory Settings" classic={classic}>
+                    <div className="mb-1">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <input
+                              className={classic ? '' : 'form-check-input'}
+                              style={classic ? { cursor: 'pointer' } : undefined}
+                              type="checkbox"
+                              id="edit-lot-tracked"
+                              checked={!!editingItem.lot_tracked}
+                              onChange={e => setEditingItem({ ...editingItem, lot_tracked: e.target.checked })}
+                            />
+                            <label
+                              className={classic ? '' : 'form-check-label small fw-semibold'}
+                              style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', fontWeight: 'bold', color: '#2b2822', cursor: 'pointer', margin: 0 } : { margin: 0 }}
+                              htmlFor="edit-lot-tracked"
+                            >Lot tracked</label>
+                        </div>
+                        <div
+                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10, color: '#938c76', fontStyle: 'italic', margin: '1px 0 3px 20px' } : undefined}
+                          className={classic ? '' : 'text-muted small fst-italic mb-1'}
+                        >Every receipt, production output and transfer requires a lot number</div>
                     </div>
 
                     <div className="mb-3">
-                        <label
-                          className={classic ? '' : 'form-label small text-muted'}
-                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#333333', display: 'block', marginBottom: '2px' } : undefined}
-                        >Reorder point (min stock) — blank = default (10)</label>
+                        <FieldLabel classic={classic} hint="Flags low stock when total on-hand drops below this. Blank = default (10).">Reorder point (min stock)</FieldLabel>
                         <input
                           type="number" min="0" step="any"
                           className={classic ? '' : 'form-control'}
@@ -1577,11 +1612,8 @@ export default function InventoryView({
                         />
                     </div>
 
-                    <div className="mb-3">
-                        <label
-                          className={classic ? '' : 'form-label small text-muted'}
-                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#333333', display: 'block', marginBottom: '2px' } : undefined}
-                        >Default source location — where this item is normally pulled from when staging to production</label>
+                    <div className="mb-1">
+                        <FieldLabel classic={classic} hint="Where this item is normally pulled from when staging to production">Default source location</FieldLabel>
                         <TreeSelect
                           options={locPickerTreeOptions}
                           value={editingItem.default_source_location_id ?? ''}
@@ -1592,20 +1624,15 @@ export default function InventoryView({
                           style={{ width: '100%' }}
                         />
                     </div>
+                  </FormSection>
 
-                    <div className="mb-3">
-                        <label
-                          className={classic ? '' : 'form-label small text-muted d-block'}
-                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#333333', display: 'block', marginBottom: '2px' } : undefined}
-                        >
-                          {t('attributes')}
-                        </label>
+                  <FormSection title={t('attributes')} classic={classic}>
                         <div
                           className={classic ? '' : 'd-flex flex-wrap gap-2 p-2 border rounded bg-light'}
                           style={classic ? {
-                              display: 'flex', flexWrap: 'wrap' as const, gap: '4px',
-                              padding: '4px', border: '1px solid #7f9db9',
-                              background: '#ffffff', maxHeight: '100px', overflowY: 'auto' as const,
+                              display: 'flex', flexWrap: 'wrap' as const, gap: '6px',
+                              padding: '5px 7px', border: '1px solid #b0a898',
+                              background: '#ffffff', marginBottom: 10, maxHeight: '120px', overflowY: 'auto' as const,
                           } : undefined}
                         >
                             {attributes.map((attr: any) => (
@@ -1627,37 +1654,10 @@ export default function InventoryView({
                                 </div>
                             ))}
                         </div>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
-                        {classic ? (
-                          <>
-                            <button
-                              type="button"
-                              style={xpBtn()}
-                              onClick={() => setEditingItem(null)}
-                            >
-                              {t('cancel')}
-                            </button>
-                            <button
-                              type="submit"
-                              style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold', padding: '2px 16px' })}
-                            >
-                              {t('save')}
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button type="button" className="btn btn-sm btn-light text-muted" onClick={() => setEditingItem(null)}>{t('cancel')}</button>
-                            <button type="submit" className="btn btn-primary btn-sm px-3">{t('save')}</button>
-                          </>
-                        )}
-                    </div>
+                  </FormSection>
                 </form>
-          </div>
-        </div>
-      </div>
-      )}
+          )}
+      </ModalWrapper>
 
       {historyEntityId && (
           <HistoryPane

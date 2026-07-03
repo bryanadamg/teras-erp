@@ -226,7 +226,7 @@ export default function ModalWrapper({
                 {/* Body — ui-style-classic triggers CSS overrides for Bootstrap controls */}
                 <div
                     className="ui-style-classic"
-                    style={{ padding: '12px 14px', overflowY: 'auto', background: '#ece9d8', flex: 1 }}
+                    style={{ padding: '12px 14px', overflowY: 'auto', background: 'linear-gradient(to bottom, #f1efe5 0%, #e5e2d3 100%)', flex: 1 }}
                 >
                     {children}
                 </div>

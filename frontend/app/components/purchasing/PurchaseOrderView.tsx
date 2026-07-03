@@ -980,7 +980,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                            )}
                                            {classic ? (
                                                <>
-                                                   {canManage && po.status === 'DRAFT' && (
+                                                   {canManage && po.status === 'DRAFT' ? (
                                                        <button
                                                            title="Edit"
                                                            onClick={() => handleEditOpen(po)}
@@ -990,6 +990,8 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                        >
                                                            <i className="bi bi-pencil"></i>
                                                        </button>
+                                                   ) : (
+                                                       <span style={{ display: 'inline-block', width: 20, height: 20 }} />
                                                    )}
                                                    <button
                                                        title="Print"
@@ -1014,10 +1016,12 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                </>
                                            ) : (
                                                <>
-                                                   {canManage && po.status === 'DRAFT' && (
+                                                   {canManage && po.status === 'DRAFT' ? (
                                                        <button className="btn btn-sm btn-link text-muted p-0 d-inline-flex align-items-center justify-content-center" style={{width: 26, height: 26}} title="Edit" onClick={() => handleEditOpen(po)}>
                                                            <i className="bi bi-pencil fs-6"></i>
                                                        </button>
+                                                   ) : (
+                                                       <span style={{ display: 'inline-block', width: 26, height: 26 }} />
                                                    )}
                                                    <button className="btn btn-sm btn-link text-muted p-0 d-inline-flex align-items-center justify-content-center" style={{width: 26, height: 26}} title="Print" onClick={() => handlePrintPO(po)}>
                                                        <i className="bi bi-printer fs-6"></i>
