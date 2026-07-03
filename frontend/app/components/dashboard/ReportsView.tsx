@@ -8,6 +8,7 @@ import {
     XPLoading, XPEmptyState, useSortable, SortMark,
 } from '../shared/xpTheme';
 import TreeSelect, { buildLocationFilterTree, expandLocationFilterValue } from '../shared/TreeSelect';
+import Pager from '../shared/Pager';
 
 const StockLedgerPrintModal = dynamic(() => import('./StockLedgerPrintModal'), { ssr: false });
 
@@ -149,9 +150,6 @@ export default function ReportsView(_props: any) {
     }), []);
     const { sorted: rows, sort, toggle } = useSortable(entries, sortCols);
 
-    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-    const startRange = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-    const endRange = Math.min(page * PAGE_SIZE, total);
     const net = totalIn + totalOut;
     const hasFilters = !!(debouncedSearch || startDate || endDate || locationFilter || refTypeFilter || direction);
 
@@ -310,7 +308,7 @@ export default function ReportsView(_props: any) {
 
         return (
             <>
-            <div className="fade-in print-container" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <div className="fade-in print-container" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)' }}>
                 <div style={{
                     border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
                     boxShadow: '2px 2px 4px rgba(0,0,0,0.3)', background: '#ece9d8',
@@ -405,19 +403,7 @@ export default function ReportsView(_props: any) {
                         )}
                     </div>
 
-                    {/* Pagination footer */}
-                    <div style={{
-                        background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)', borderTop: '1px solid #b0a898',
-                        padding: '3px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        fontFamily: xpFont, fontSize: '11px', color: '#333',
-                    }} className="no-print">
-                        <span>Showing <b>{startRange}</b>–<b>{endRange}</b> of <b>{total.toLocaleString()}</b></span>
-                        <div style={{ display: 'flex', gap: 2 }}>
-                            <button style={{ ...xpBtn(), opacity: page <= 1 ? 0.5 : 1 }} disabled={page <= 1} onClick={() => setPage(Math.max(1, page - 1))}><i className="bi bi-chevron-left" /> Previous</button>
-                            <span style={{ ...xpBtn({ cursor: 'default', background: '#ece9d8' }), fontWeight: 'bold' }}>{page} / {totalPages}</span>
-                            <button style={{ ...xpBtn(), opacity: page >= totalPages ? 0.5 : 1 }} disabled={page >= totalPages} onClick={() => setPage(Math.min(totalPages, page + 1))}>Next <i className="bi bi-chevron-right" /></button>
-                        </div>
-                    </div>
+                    <Pager page={page} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} className="no-print" />
                 </div>
             </div>
             {printOpen && (
@@ -443,7 +429,7 @@ export default function ReportsView(_props: any) {
 
     return (
         <>
-        <div className="card fade-in border-0 shadow-sm print-container">
+        <div className="card fade-in border-0 shadow-sm print-container" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)' }}>
             <div className="card-header bg-white border-bottom no-print py-3">
                 <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                     <div>
@@ -519,7 +505,7 @@ export default function ReportsView(_props: any) {
                 <p className="text-muted small mb-0">{total} movements · In +{fmtQty(totalIn)} · Out {fmtQty(totalOut)} · Net {fmtQty(net)}</p>
             </div>
 
-            <div className="card-body p-0">
+            <div className="card-body p-0" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 {loading ? (
                     <XPLoading label="Loading ledger..." />
                 ) : error ? (
@@ -531,9 +517,9 @@ export default function ReportsView(_props: any) {
                         {hasFilters && <div><button className="btn btn-sm btn-outline-secondary mt-3" onClick={clearFilters}>Clear filters</button></div>}
                     </div>
                 ) : (
-                    <div className="table-responsive">
+                    <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
                         <table className="table table-hover align-middle mb-0">
-                            <thead className="table-light">
+                            <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                                 <tr>
                                     <th className="ps-4" style={{ cursor: 'pointer' }} onClick={() => toggle('date')}>{t('date')}<SortMark sort={sort} colKey="date" /></th>
                                     <th style={{ cursor: 'pointer' }} onClick={() => toggle('item')}>Item<SortMark sort={sort} colKey="item" /></th>
@@ -598,14 +584,7 @@ export default function ReportsView(_props: any) {
                 )}
             </div>
 
-            <div className="card-footer bg-white border-top py-2 px-4 d-flex justify-content-between align-items-center no-print">
-                <div className="small text-muted">Showing {startRange}-{endRange} of {total.toLocaleString()} movements</div>
-                <div className="btn-group">
-                    <button className={`btn btn-sm btn-light border ${page <= 1 ? 'disabled opacity-50' : ''}`} onClick={() => setPage(Math.max(1, page - 1))}><i className="bi bi-chevron-left me-1" />Previous</button>
-                    <div className="btn btn-sm btn-white border-top border-bottom px-3 fw-bold">Page {page} of {totalPages}</div>
-                    <button className={`btn btn-sm btn-light border ${page >= totalPages ? 'disabled opacity-50' : ''}`} onClick={() => setPage(Math.min(totalPages, page + 1))}>Next<i className="bi bi-chevron-right ms-1" /></button>
-                </div>
-            </div>
+            <Pager page={page} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} className="px-4 no-print" />
         </div>
         {printOpen && (
             <StockLedgerPrintModal
