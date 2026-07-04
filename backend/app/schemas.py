@@ -356,6 +356,9 @@ class ManufacturingOrderCreate(BaseModel):
 class MOAttributeUpdate(BaseModel):
     attribute_value_ids: list[UUID]
 
+class MOPutawayUpdate(BaseModel):
+    location_id: UUID | None = None   # null clears the planned putaway bin
+
 class BatchConsumptionInMO(BaseModel):
     input_batch_id: UUID
     input_batch_number: str
@@ -382,6 +385,8 @@ class ManufacturingOrderResponse(BaseModel):
     attribute_value_ids: list[UUID] = []
     location_id: UUID | None = None
     source_location_id: UUID | None = None
+    planned_putaway_location_id: UUID | None = None
+    planned_putaway_location_name: str | None = None
     qty: float
     status: str
     target_start_date: datetime | None

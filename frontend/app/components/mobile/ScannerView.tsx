@@ -94,8 +94,6 @@ export default function MobileScannerView({
     const [beamNumber, setBeamNumber]           = useState('');
     const [batchesByItem, setBatchesByItem]     = useState<Record<string, any[]>>({});
     const [consumedBatches, setConsumedBatches] = useState<Record<string, string>>({});
-    const [putaway, setPutaway]                 = useState<any>(null);
-    const [outputLocationId, setOutputLocationId] = useState('');
 
     const scannerRef = useRef<Html5QrcodeScanner | null>(null);
     const terminalId = useRef(Math.random().toString(36).substr(2, 6).toUpperCase());
@@ -287,17 +285,6 @@ export default function MobileScannerView({
         setSubQuery('');
         setBeamNumber('');
         setConsumedBatches({});
-        setPutaway(null);
-        setOutputLocationId('');
-        // Dynamic putaway: candidate bins under the WO's output location,
-        // suggestion pre-selected, operator free to override.
-        authFetch(`${API_BASE}/work-orders/${scannedWOId}/putaway-suggestion`)
-            .then((r: Response) => (r.ok ? r.json() : null))
-            .catch(() => null)
-            .then((data: any) => {
-                setPutaway(data);
-                setOutputLocationId(data?.suggested_location_id || '');
-            });
     }, [scannedWOId]);
 
     // Recalculate planned actuals when output qty changes
@@ -358,7 +345,6 @@ export default function MobileScannerView({
                     actual_items: actualItems,
                     beam_number: isLotOutput ? (beamNumber.trim() || null) : null,
                     consumed_batches: Object.values(consumedBatches).filter(Boolean),
-                    output_location_id: outputLocationId || null,
                 }),
             });
             if (!res.ok) {
@@ -470,30 +456,25 @@ export default function MobileScannerView({
                             </div>
                         )}
 
-                        {/* Output bin (putaway) */}
-                        {(putaway?.bins?.length ?? 0) > 0 && (
-                            <div style={{ marginBottom: 10 }}>
-                                <div style={{ fontFamily: XP_FONT, fontSize: 11, fontWeight: 'bold', marginBottom: 4 }}>Bin Tujuan (Putaway)</div>
-                                <select
-                                    value={outputLocationId}
-                                    onChange={e => setOutputLocationId(e.target.value)}
-                                    style={{ ...xpInput, appearance: 'auto' }}
-                                >
-                                    {putaway.bins.map((b: any) => (
-                                        <option key={b.id} value={b.id}>
-                                            {b.full_path}
-                                            {b.item_on_hand > 0 ? ` — ${Number(b.item_on_hand).toFixed(2)} item sama` : b.total_on_hand <= 0 ? ' — kosong' : ''}
-                                            {b.id === putaway.suggested_location_id ? ' (saran)' : ''}
-                                        </option>
-                                    ))}
-                                </select>
-                                <div style={{ fontFamily: XP_FONT, fontSize: 9, color: '#888', marginTop: 2 }}>
-                                    {outputLocationId === putaway.suggested_location_id
-                                        ? 'Saran sistem — bisa diganti bin lain.'
-                                        : 'Pilihan manual — hasil dibukukan ke bin ini.'}
+                        {/* Putaway destination — assigned by planning, read-only for operator */}
+                        {(() => {
+                            const dest = scannedWOParentMO?.planned_putaway_location_name
+                                || scannedWO?.output_location?.name
+                                || scannedWO?.output_location_name
+                                || null;
+                            return dest ? (
+                                <div style={{ marginBottom: 10, background: '#eef7ee', border: '1px solid #9cc79c', padding: '6px 10px' }}>
+                                    <span style={{ fontFamily: XP_FONT, fontSize: 12, fontWeight: 'bold', color: '#1a5e1a' }}>
+                                        Simpan ke: {dest}
+                                    </span>
+                                    <div style={{ fontFamily: XP_FONT, fontSize: 9, color: '#555', marginTop: 2 }}>
+                                        {scannedWOParentMO?.planned_putaway_location_name
+                                            ? 'Bin ditentukan oleh planning.'
+                                            : 'Lokasi output WO (belum ada bin dari planning).'}
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            ) : null;
+                        })()}
 
                         {/* Lot pickers (consumption) */}
                         {Object.keys(batchesByItem).map(itemId => (

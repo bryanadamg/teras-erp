@@ -9,6 +9,7 @@ from app.models.manufacturing import ManufacturingOrder
 from app.models.routing import WorkCenter
 from app.models.item import Item
 from app.models.category import Category
+from app.models.bom import BOMOperation
 from app.models.location import Location
 from app.models.batch import Batch
 from app.models.stock_ledger import StockLedger
@@ -586,21 +587,46 @@ async def _descendant_leaves(db: AsyncSession, root_id) -> list[Location]:
     return [c for c in nodes.values() if str(c.id) not in parent_ids]
 
 
-@router.get("/work-orders/{wo_id}/putaway-suggestion", response_model=PutawaySuggestionResponse)
-async def get_wo_putaway_suggestion(
-    wo_id: str,
+@router.get("/manufacturing-orders/{mo_id}/putaway-suggestion", response_model=PutawaySuggestionResponse)
+async def get_mo_putaway_suggestion(
+    mo_id: str,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Dynamic putaway: candidate bins under the WO's output location plus a
-    suggested one. Priority: bin explicitly configured on the WO -> bin already
-    holding the output item (addition to stock) -> empty bin -> first bin by
-    code. Purely advisory — the completion payload can post anywhere."""
-    wo, mo = await _load_wo_and_mo(db, wo_id)
-    if not wo.output_location_id:
+    """Putaway planning aid for the MO: candidate bins under the routing's final
+    output area plus a suggested one. Priority: bin already assigned on the MO
+    -> bin already holding the output item (addition to stock) -> empty bin ->
+    first bin by code. Advisory — planning picks and saves via PATCH .../putaway."""
+    mo_res = await db.execute(select(ManufacturingOrder).filter(ManufacturingOrder.id == mo_id))
+    mo = mo_res.scalars().first()
+    if not mo:
+        raise HTTPException(status_code=404, detail="Manufacturing Order not found")
+
+    # Root area = MO's assigned bin's zone if set, else the final routing step's
+    # work-center output location, else the last WO's output location.
+    root_id = mo.planned_putaway_location_id
+    if not root_id and mo.bom_id:
+        op_res = await db.execute(
+            select(WorkCenter.output_location_id)
+            .join(BOMOperation, BOMOperation.work_center_id == WorkCenter.id)
+            .where(BOMOperation.bom_id == mo.bom_id, WorkCenter.output_location_id.isnot(None))
+            .order_by(BOMOperation.sequence.desc())
+            .limit(1)
+        )
+        root_id = op_res.scalar()
+    if not root_id:
+        wo_res = await db.execute(
+            select(WorkOrder.output_location_id)
+            .where(WorkOrder.manufacturing_order_id == mo.id, WorkOrder.output_location_id.isnot(None))
+            .order_by(WorkOrder.sequence.desc())
+            .limit(1)
+        )
+        root_id = wo_res.scalar()
+    if not root_id:
         return PutawaySuggestionResponse()
+
     root_res = await db.execute(
-        select(Location).options(joinedload(Location.parent)).where(Location.id == wo.output_location_id)
+        select(Location).options(joinedload(Location.parent)).where(Location.id == root_id)
     )
     root = root_res.scalars().first()
     if not root:

@@ -68,6 +68,13 @@ class ManufacturingOrder(Base):
         UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True
     )
 
+    # Planned putaway bin — assigned by planning/store BEFORE production finishes
+    # (the output "carries" its destination); completions book output here.
+    # Operator does not choose — the WO output location is only the fallback.
+    planned_putaway_location_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True
+    )
+
     # Traceability
     sales_order_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("sales_orders.id"), nullable=True, index=True
@@ -106,6 +113,10 @@ class ManufacturingOrder(Base):
     # Relationships
     bom = relationship("BOM", back_populates="manufacturing_orders")
     item = relationship("Item")
+    # lazy=joined: to-one, always available for serialization in async routes
+    planned_putaway_location = relationship(
+        "Location", foreign_keys=[planned_putaway_location_id], lazy="joined"
+    )
     planned_components: Mapped[List["MOPlannedComponent"]] = relationship(
         "MOPlannedComponent",
         back_populates="mo",
@@ -163,6 +174,14 @@ class ManufacturingOrder(Base):
     @property
     def item_ends(self) -> int | None:
         return self.item.ends if self.item else None
+
+    @property
+    def planned_putaway_location_name(self) -> str | None:
+        loc = self.planned_putaway_location
+        if not loc:
+            return None
+        pn = loc.parent_name
+        return f"{pn} / {loc.name}" if pn else (loc.name or loc.code)
 
 
 class MOCompletion(Base):

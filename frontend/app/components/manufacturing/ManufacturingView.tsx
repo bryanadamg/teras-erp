@@ -130,6 +130,7 @@ export default function ManufacturingView({
   const [moCodeFilter, setMoCodeFilter] = useState<string>(initialMOFilter || moSearch || '');
   const [prSearch, setPrSearch] = useState<string>(initialPRFilter || prSearchCtx || '');
   const [editAttrsModal, setEditAttrsModal] = useState<{ mo: any; selected: string[] } | null>(null);
+  const [putawayModal, setPutawayModal] = useState<{ mo: any; bins: any[]; suggested: string | null; reason: string | null; selected: string; loading: boolean } | null>(null);
 
   useEffect(() => {
       if (initialMOFilter) setMoCodeFilter(initialMOFilter);
@@ -571,6 +572,46 @@ export default function ManufacturingView({
       }
   };
 
+  // Putaway bin: planning decides where the output will be stored before
+  // production finishes — the suggestion endpoint proposes, planner saves.
+  const openPutawayModal = async (mo: any) => {
+      setPutawayModal({ mo, bins: [], suggested: null, reason: null, selected: mo.planned_putaway_location_id || '', loading: true });
+      try {
+          const res = await authFetch(`${API_BASE}/manufacturing-orders/${mo.id}/putaway-suggestion`);
+          const data = res.ok ? await res.json() : null;
+          setPutawayModal(prev => prev && prev.mo.id === mo.id ? {
+              ...prev,
+              loading: false,
+              bins: data?.bins || [],
+              suggested: data?.suggested_location_id || null,
+              reason: data?.reason || null,
+              selected: prev.selected || data?.suggested_location_id || '',
+          } : prev);
+      } catch {
+          setPutawayModal(prev => prev && prev.mo.id === mo.id ? { ...prev, loading: false } : prev);
+      }
+  };
+
+  const handleSavePutaway = async (moId: string, locationId: string) => {
+      try {
+          const res = await authFetch(`${API_BASE}/manufacturing-orders/${moId}/putaway`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ location_id: locationId || null }),
+          });
+          if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              showToast(err.detail || 'Failed to set putaway bin', 'error');
+              return;
+          }
+          setPutawayModal(null);
+          showToast(locationId ? 'Putaway bin saved' : 'Putaway bin cleared', 'success');
+          fetchData();
+      } catch {
+          showToast('Failed to set putaway bin', 'error');
+      }
+  };
+
   const getBomSizeLabel = (bomId: string, bomSizeId: string, snapshot?: any): string => {
       const src = snapshot || (() => {
           const bom = boms.find((b: any) => b.id === bomId);
@@ -956,6 +997,22 @@ export default function ManufacturingView({
                               </span>
                           ) : null;
                       })()}
+                      <span
+                          title="Planned putaway bin — where the output will be stored"
+                          style={{ fontSize: '9px', padding: '1px 6px', background: selectedNode.planned_putaway_location_name ? '#e8f5e9' : '#f3f4f6', color: selectedNode.planned_putaway_location_name ? '#1b5e20' : '#6b7280', border: `1px solid ${selectedNode.planned_putaway_location_name ? '#a5d6a7' : '#d1d5db'}`, borderRadius: 2, fontWeight: 700 }}
+                      >
+                          <i className="bi bi-box-arrow-in-down me-1"></i>
+                          {selectedNode.planned_putaway_location_name || 'No putaway bin'}
+                      </span>
+                      {canManage && selectedNode.status !== 'COMPLETED' && selectedNode.status !== 'CANCELLED' && (
+                          <button
+                              title="Set putaway bin"
+                              onClick={() => openPutawayModal(selectedNode)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', color: '#6b7280', fontSize: '11px' }}
+                          >
+                              <i className="bi bi-pencil"></i>
+                          </button>
+                      )}
                       {bom && <span style={{ fontSize: '10px', color: '#444' }}>BOM: <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#000' }}>{bom.code}</span></span>}
                       <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px' }}>
                           {canManage && selectedNode.status === 'PENDING' && (
@@ -2282,6 +2339,96 @@ export default function ManufacturingView({
                               })}
                           </tbody>
                       </table>
+                  </ModalWrapper>
+              );
+          })()}
+
+          {putawayModal && (() => {
+              const xpBtn = (onClick: () => void, label: string, primary: boolean) => (
+                  <button
+                      onClick={onClick}
+                      style={{
+                          fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
+                          padding: '2px 14px', cursor: 'pointer', borderRadius: 0,
+                          background: primary
+                              ? 'linear-gradient(to bottom, #b0e8b0, #70c870)'
+                              : 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
+                          border: '1px solid',
+                          borderColor: primary
+                              ? '#d0f0d0 #0a3e0a #0a3e0a #1a5e1a'
+                              : '#dfdfdf #808080 #808080 #dfdfdf',
+                          fontWeight: primary ? 'bold' : 'normal',
+                          color: primary ? '#004000' : '#000',
+                          minWidth: 70,
+                      }}
+                  >{label}</button>
+              );
+              const isClassic = currentStyle === 'classic';
+              const pm = putawayModal;
+              const reasonText = pm.reason === 'same_item' ? 'bin already holds this item'
+                  : pm.reason === 'empty_bin' ? 'first empty bin'
+                  : pm.reason === 'configured' ? 'currently assigned bin'
+                  : pm.reason === 'first_bin' ? 'first bin by code'
+                  : null;
+              const selStyle = isClassic ? {
+                  fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
+                  border: '1px solid', borderColor: '#808080 #dfdfdf #dfdfdf #808080',
+                  background: '#fff', height: 20, padding: '0 2px',
+                  outline: 'none', width: '100%', borderRadius: 0,
+              } as React.CSSProperties : { fontSize: 12, width: '100%' } as React.CSSProperties;
+              return (
+                  <ModalWrapper
+                      isOpen
+                      modeless
+                      onClose={() => setPutawayModal(null)}
+                      title={<><i className="bi bi-box-arrow-in-down me-1"></i>Putaway Bin — <span style={{ fontFamily: 'monospace' }}>{pm.mo.code}</span></>}
+                      size="md"
+                      level={2}
+                      footer={isClassic ? (
+                          <div style={{ display: 'flex', gap: 4 }}>
+                              {xpBtn(() => setPutawayModal(null), 'Cancel', false)}
+                              {xpBtn(() => handleSavePutaway(pm.mo.id, pm.selected), 'Save', true)}
+                          </div>
+                      ) : (
+                          <div style={{ display: 'flex', gap: 8 }}>
+                              <button className="btn btn-sm btn-secondary" onClick={() => setPutawayModal(null)}>Cancel</button>
+                              <button className="btn btn-sm btn-primary" onClick={() => handleSavePutaway(pm.mo.id, pm.selected)}>Save</button>
+                          </div>
+                      )}
+                  >
+                      <div style={{ fontFamily: isClassic ? 'Tahoma, sans-serif' : undefined, fontSize: isClassic ? 11 : 12, color: '#333', marginBottom: 8 }}>
+                          Where this output will be stored when produced. Operators see this on the work order — they do not choose it.
+                      </div>
+                      {pm.loading ? (
+                          <div style={{ fontSize: 11, color: '#888' }}>Loading bins...</div>
+                      ) : pm.bins.length === 0 ? (
+                          <div style={{ fontSize: 11, color: '#888' }}>
+                              No candidate bins found — set an output location on the routing&apos;s final work center (or a work order), and create bins under it on the Locations page.
+                          </div>
+                      ) : (
+                          <>
+                              <select
+                                  value={pm.selected}
+                                  onChange={e => setPutawayModal(prev => prev ? { ...prev, selected: e.target.value } : prev)}
+                                  style={selStyle}
+                                  className={isClassic ? undefined : 'form-select form-select-sm'}
+                              >
+                                  <option value="">— none (fall back to WO output location) —</option>
+                                  {pm.bins.map((b: any) => (
+                                      <option key={b.id} value={b.id}>
+                                          {b.full_path}
+                                          {b.item_on_hand > 0 ? ` — ${Number(b.item_on_hand).toFixed(2)} same item` : b.total_on_hand <= 0 ? ' — empty' : ''}
+                                          {b.id === pm.suggested ? ' (suggested)' : ''}
+                                      </option>
+                                  ))}
+                              </select>
+                              {reasonText && (
+                                  <div style={{ fontSize: 10, color: '#666', marginTop: 4 }}>
+                                      Suggestion: {reasonText}.
+                                  </div>
+                              )}
+                          </>
+                      )}
                   </ModalWrapper>
               );
           })()}

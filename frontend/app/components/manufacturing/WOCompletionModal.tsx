@@ -72,8 +72,6 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
     const [rejectId, setRejectId] = useState<string | null>(null);
     const [rejectReason, setRejectReason] = useState('');
     const [rejecting, setRejecting] = useState(false);
-    const [putaway, setPutaway] = useState<any>(null);
-    const [outputLocationId, setOutputLocationId] = useState('');
 
     const findItem = (itemId: string) => (items || []).find((i: any) => i.id === itemId);
     const isBeamItem = (itemId: string) => {
@@ -115,18 +113,12 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
         });
     }, [JSON.stringify(materialItemIds), workOrder?.id, isWeavingWO]);
 
-    // Dynamic putaway: fetch candidate bins under the WO's output location.
-    // Suggestion pre-selected; operator can pick any listed bin.
-    useEffect(() => {
-        if (!workOrder?.id) { setPutaway(null); setOutputLocationId(''); return; }
-        authFetch(`${API_BASE}/work-orders/${workOrder.id}/putaway-suggestion`)
-            .then((r: Response) => (r.ok ? r.json() : null))
-            .catch(() => null)
-            .then((data: any) => {
-                setPutaway(data);
-                setOutputLocationId(data?.suggested_location_id || '');
-            });
-    }, [workOrder?.id]);
+    // Putaway destination is a planning decision carried by the MO — operator
+    // only sees where the output goes; the backend books stock there.
+    const putawayDest = mo.planned_putaway_location_name
+        || workOrder?.output_location?.name
+        || workOrder?.output_location_name
+        || null;
 
     // Build material rows from BOM lines when in WO mode.
     // L2: a WO only consumes the materials allocated to its routing step
@@ -233,7 +225,6 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                     actual_items: woActualItems,
                     beam_number: isLotOutput ? (beamNumber.trim() || null) : null,
                     consumed_batches: Object.values(consumedBatches).filter(Boolean),
-                    output_location_id: outputLocationId || null,
                 }),
             });
             if (!res.ok) {
@@ -390,30 +381,12 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                     </div>
                                 </div>
                             )}
-                            {workOrder && (putaway?.bins?.length ?? 0) > 0 && (
-                                <div>
-                                    <label style={{ ...xpLabel, fontWeight: 'bold' }}>Output Bin (Putaway)</label>
-                                    <select
-                                        style={{ ...xpInput, height: 22 }}
-                                        value={outputLocationId}
-                                        onChange={e => setOutputLocationId(e.target.value)}
-                                    >
-                                        {putaway.bins.map((b: any) => (
-                                            <option key={b.id} value={b.id}>
-                                                {b.full_path}
-                                                {b.item_on_hand > 0 ? ` — ${Number(b.item_on_hand).toFixed(2)} same item` : b.total_on_hand <= 0 ? ' — empty' : ''}
-                                                {b.id === putaway.suggested_location_id ? ' (suggested)' : ''}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <div style={{ fontSize: 9, color: '#888', marginTop: 2 }}>
-                                        {outputLocationId === putaway.suggested_location_id
-                                            ? `System suggestion: ${putaway.reason === 'same_item' ? 'bin already holds this item'
-                                                : putaway.reason === 'empty_bin' ? 'first empty bin'
-                                                : putaway.reason === 'configured' ? 'bin set on the work order'
-                                                : 'first bin'}`
-                                            : 'Manual override — output books to the selected bin.'}
-                                    </div>
+                            {workOrder && putawayDest && (
+                                <div style={{ background: '#eef7ee', border: '1px solid #9cc79c', padding: '4px 8px', fontSize: 10 }}>
+                                    <span style={{ color: '#1a5e1a', fontWeight: 'bold' }}>Putaway: {putawayDest}</span>
+                                    <span style={{ color: '#555', marginLeft: 6 }}>
+                                        {mo.planned_putaway_location_name ? 'assigned by planning' : 'WO output location (no bin assigned)'}
+                                    </span>
                                 </div>
                             )}
                             {workOrder && Object.keys(batchesByItem).map(itemId => {

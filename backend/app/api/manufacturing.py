@@ -21,6 +21,7 @@ from app.schemas import (
     MOCompletionCreate, MOCompletionResponse, MOCompletionItemCreate,
     MOCompletionReject,
     MOAttributeUpdate,
+    MOPutawayUpdate,
     MOPreviewRequest, NettingPreviewNode,
     WorkOrderFlatPageResponse, WorkOrderFlatResponse,
     WorkOrderCompletionFlat, WorkOrderCompletionItemFlat,
@@ -61,6 +62,8 @@ def get_mo_options():
         selectinload(ManufacturingOrder.batch_consumptions).selectinload(BatchConsumption.input_batch),
         selectinload(ManufacturingOrder.batch_consumptions).selectinload(BatchConsumption.output_batch),
         selectinload(ManufacturingOrder.completions),
+        # putaway bin + its parent zone (for the "Zone / Bin" display name)
+        joinedload(ManufacturingOrder.planned_putaway_location).joinedload(Location.parent),
     ]
 
     # Sub-relationships for children (Level 1)
@@ -928,6 +931,53 @@ async def update_mo_attributes(
     populate_mo_ids(mo)
     return mo
 
+@router.patch("/manufacturing-orders/{mo_id}/putaway", response_model=ManufacturingOrderResponse)
+async def update_mo_putaway(
+    mo_id: str,
+    payload: MOPutawayUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('work_order.manage')),
+):
+    """Assign the planned putaway bin — planning/store decides where the output
+    will be stored before production finishes. Completions book output stock to
+    this location; the WO output location is only the fallback."""
+    result = await db.execute(
+        select(ManufacturingOrder).filter(ManufacturingOrder.id == mo_id)
+    )
+    mo = result.unique().scalars().first()
+    if not mo:
+        raise HTTPException(status_code=404, detail="Manufacturing Order not found")
+    if mo.status in ("COMPLETED", "CANCELLED"):
+        raise HTTPException(status_code=400, detail=f"Cannot set putaway on a {mo.status} MO")
+
+    old_id = str(mo.planned_putaway_location_id) if mo.planned_putaway_location_id else None
+    loc = None
+    if payload.location_id:
+        loc_res = await db.execute(select(Location).filter(Location.id == payload.location_id))
+        loc = loc_res.scalars().first()
+        if not loc:
+            raise HTTPException(status_code=404, detail="Location not found")
+    mo.planned_putaway_location_id = payload.location_id
+    await db.commit()
+
+    await audit_service.log_activity(
+        db, current_user.id, "UPDATE", "ManufacturingOrder", str(mo.id),
+        f"Putaway bin on MO {mo.code}: {old_id or 'none'} -> {loc.code if loc else 'none'}"
+    )
+    await manager.broadcast({"type": "mo_updated", "id": str(mo.id)})
+    # expire_on_commit=False: the cached instance still holds the OLD (possibly
+    # None) planned_putaway_location relationship — expire so the reload joins
+    # fresh. Capture the pk first: reading mo.id after expire would trigger a
+    # sync lazy refresh (MissingGreenlet).
+    mo_pk = mo.id
+    db.expire_all()
+
+    mo_map = await load_mo_tree(db, [mo_pk])
+    mo = mo_map.get(mo_pk)
+    populate_mo_ids(mo)
+    return mo
+
+
 @router.post("/manufacturing-orders/{mo_id}/completions", response_model=ManufacturingOrderResponse)
 async def add_mo_completion(
     mo_id: str,
@@ -967,8 +1017,9 @@ async def add_mo_completion(
     # as a physical beam batch. Batch stock rows always use variant_key="" — the
     # batch itself is the identity, so attrs are intentionally not stamped.
     wo_input_loc = wo.input_location_id if wo else None
-    wo_output_loc = wo.output_location_id if wo else None
-    # Putaway override: operator-chosen destination bin wins over the WO default
+    # Putaway priority: explicit payload override (API-level) -> planned putaway
+    # bin assigned on the MO by planning/store -> WO output location fallback.
+    wo_output_loc = mo.planned_putaway_location_id or (wo.output_location_id if wo else None)
     if payload.output_location_id:
         loc_chk = await db.execute(select(Location.id).filter(Location.id == payload.output_location_id))
         if not loc_chk.scalar():

@@ -113,6 +113,14 @@ export default function KartuKerjaCardWeaving({
                             </td>
                         </tr>
                     )}
+                    {parentMO?.planned_putaway_location_name && (
+                        <tr>
+                            <td style={gridLbl}>Simpan ke</td>
+                            <td colSpan={3} style={{ ...gridVal, fontWeight: 'bold' }}>
+                                {parentMO.planned_putaway_location_name}
+                            </td>
+                        </tr>
+                    )}
                 </tbody>
             </table>
 
