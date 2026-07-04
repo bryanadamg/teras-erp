@@ -40,6 +40,7 @@ interface DataContextType {
     dashboardWorkOrders: any[];
     itemIndex: Record<string, { name: string; code: string }>;
     companyProfile: any;
+    wsStatus: 'connecting' | 'open' | 'closed';
 
     // True until the domain's first fetch attempt (success or failure) resolves.
     // Views gate their empty-state message on this so "no data yet" never
@@ -109,6 +110,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const [dashboardWorkOrders, setDashboardWorkOrders] = useState<any[]>([]);
     const [itemIndex, setItemIndex] = useState<Record<string, { name: string; code: string }>>({});
     const [companyProfile, setCompanyProfile] = useState<any>(null);
+    const [wsStatus, setWsStatus] = useState<'connecting' | 'open' | 'closed'>('connecting');
 
     // UI & Sync State
     const [itemPage, setItemPage] = useState(1);
@@ -507,9 +509,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         };
 
         const connect = () => {
+            setWsStatus('connecting');
             ws = new WebSocket(wsUrl);
             ws.onopen = () => {
                 lastActivity = Date.now();
+                setWsStatus('open');
                 clearInterval(pingTimer);
                 // App-level heartbeat: ping every 25s; if no traffic for 60s the
                 // link is dead (server gone, proxy dropped it) — force a reconnect.
@@ -545,7 +549,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     }
                 } catch (e) { console.error("WS Error", e); }
             };
-            ws.onclose = (e) => { clearInterval(pingTimer); if (e.code !== 1000) reconnectTimer = setTimeout(connect, 5000); };
+            ws.onclose = (e) => { setWsStatus('closed'); clearInterval(pingTimer); if (e.code !== 1000) reconnectTimer = setTimeout(connect, 5000); };
             ws.onerror = () => ws.close();
         };
         connect();
@@ -574,6 +578,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         items, locations, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
         partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, dashboardWorkOrders, itemIndex, companyProfile,
+        wsStatus,
         loading,
         pagination: { itemPage, setItemPage, itemTotal, woPage, setWoPage, woTotal, prPage, setPrPage, prTotal, auditPage, setAuditPage, auditTotal, reportPage, setReportPage, reportTotal, moSearch, setMoSearch: handleSetMoSearch, prSearch, setPrSearch: handleSetPrSearch, pageSize },
         filters: { itemSearch: itemSearchInput, setItemSearch: handleSetItemSearch, categoryL1, setCategoryL1: handleSetCategoryL1, categoryL2, setCategoryL2: handleSetCategoryL2, categoryL3, setCategoryL3, auditType, setAuditType },
@@ -581,7 +586,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }), [
         items, locations, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
-        partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, dashboardWorkOrders, itemIndex, companyProfile, loading,
+        partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, dashboardWorkOrders, itemIndex, companyProfile, wsStatus, loading,
         itemPage, itemTotal, woPage, woTotal, prPage, prTotal, auditPage, auditTotal, reportPage, reportTotal, pageSize,
         itemSearchInput, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData, refreshManufacturing, refreshPurchaseOrders, handleTabHover, authFetch,
         handleSetCategoryL1, handleSetCategoryL2, handleSetMoSearch, handleSetPrSearch, handleSetItemSearch, subscribeLiveEvents

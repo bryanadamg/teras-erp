@@ -1,14 +1,44 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
+from sqlalchemy import text
 from app.core.db_manager import db_manager
+from app.core.ws_manager import manager as ws_manager
 from app.schemas import DatabaseResponse, ConnectionProfile
 from app.api.auth import get_current_admin
 from app.models.auth import User
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 import shutil
+import time
 
 router = APIRouter(prefix="/admin/database", tags=["admin"])
+
+@router.get("/status")
+async def get_system_status(current_user: User = Depends(get_current_admin)):
+    result = {
+        "db": {"ok": False, "latency_ms": None},
+        "redis": {"ok": False, "latency_ms": None},
+        "db_size_bytes": None,
+    }
+    try:
+        if db_manager.async_engine:
+            start = time.perf_counter()
+            async with db_manager.async_engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+                size = await conn.execute(text("SELECT pg_database_size(current_database())"))
+                result["db_size_bytes"] = size.scalar()
+            result["db"]["ok"] = True
+            result["db"]["latency_ms"] = round((time.perf_counter() - start) * 1000, 1)
+    except Exception:
+        pass
+    try:
+        start = time.perf_counter()
+        if ws_manager.redis and await ws_manager.redis.ping():
+            result["redis"]["ok"] = True
+            result["redis"]["latency_ms"] = round((time.perf_counter() - start) * 1000, 1)
+    except Exception:
+        pass
+    return result
 
 @router.get("/current", response_model=DatabaseResponse)
 def get_current_db(current_user: User = Depends(get_current_admin)):

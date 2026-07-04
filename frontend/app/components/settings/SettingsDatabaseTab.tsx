@@ -4,15 +4,51 @@ import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '../shared/Toast';
 import { useTheme } from '../../context/ThemeContext';
 import { useConfirm } from '../../context/ConfirmContext';
+import { useData } from '../../context/DataContext';
 import { xpBtn, xpInput } from '../shared/xpTheme';
 import { xpBevel, xpTitleBar, xpSectionHead, xpTableHeader, xpThCell, tdBase } from './settingsStyles';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
 
+function prettyBytes(bytes: number | null): string {
+    if (bytes == null) return '—';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let val = bytes, i = 0;
+    while (val >= 1024 && i < units.length - 1) { val /= 1024; i++; }
+    return `${val.toFixed(val >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+type PingState = { ok: boolean; latency_ms: number | null } | null;
+
+function StatusTile({ classic, label, icon, ok, detail }: { classic: boolean; label: string; icon: string; ok: boolean | null; detail: string }) {
+    const color = ok === null ? '#888' : ok ? '#2e7d32' : '#c62828';
+    const dotBg = ok === null ? '#aaa' : ok ? '#4caf50' : '#e53935';
+    return (
+        <div style={classic ? {
+            flex: '1 1 150px', minWidth: 150, background: '#fff', border: '1px solid #b0a898',
+            padding: '6px 8px', display: 'flex', flexDirection: 'column' as const, gap: 2,
+        } : {
+            flex: '1 1 150px', minWidth: 150, background: '#f8f9fa', border: '1px solid #e2e6ea',
+            borderRadius: 8, padding: '8px 10px', display: 'flex', flexDirection: 'column' as const, gap: 2,
+        }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: classic ? 'Tahoma,Arial,sans-serif' : undefined, fontSize: classic ? 11 : 12, fontWeight: 'bold', color: classic ? '#333' : '#495057' }}>
+                <i className={`bi ${icon}`} />
+                <span>{label}</span>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: dotBg, marginLeft: 'auto', flexShrink: 0 }} />
+            </div>
+            <div style={{ fontFamily: classic ? 'Tahoma,Arial,sans-serif' : undefined, fontSize: classic ? 11 : 12, color, fontWeight: 600 }}>
+                {ok === null ? 'Checking…' : ok ? 'Online' : 'Offline'}
+            </div>
+            <div style={{ fontFamily: classic ? 'Tahoma,Arial,sans-serif' : undefined, fontSize: classic ? 10 : 11, color: '#888' }}>{detail}</div>
+        </div>
+    );
+}
+
 export default function SettingsDatabaseTab() {
     const { showToast } = useToast();
     const { confirm } = useConfirm();
     const { uiStyle } = useTheme();
+    const { wsStatus } = useData();
     const classic = uiStyle === 'classic';
 
     const [currentDbUrl, setCurrentDbUrl] = useState('');
@@ -21,6 +57,40 @@ export default function SettingsDatabaseTab() {
     const [isDbLoading, setIsDbLoading] = useState(false);
     const [snapshots, setSnapshots] = useState<any[]>([]);
     const [isSnapshotLoading, setIsSnapshotLoading] = useState(false);
+
+    const [beOnline, setBeOnline] = useState<boolean | null>(null);
+    const [dbPing, setDbPing] = useState<PingState>(null);
+    const [redisPing, setRedisPing] = useState<PingState>(null);
+    const [dbSizeBytes, setDbSizeBytes] = useState<number | null>(null);
+    const [statusCheckedAt, setStatusCheckedAt] = useState<Date | null>(null);
+    const [isStatusLoading, setIsStatusLoading] = useState(false);
+
+    const fetchSystemStatus = useCallback(async () => {
+        setIsStatusLoading(true);
+        try {
+            const res = await fetch(`${API_BASE}/admin/database/status`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+            });
+            setBeOnline(res.ok);
+            if (res.ok) {
+                const data = await res.json();
+                setDbPing(data.db);
+                setRedisPing(data.redis);
+                setDbSizeBytes(data.db_size_bytes);
+            }
+        } catch (e) {
+            setBeOnline(false);
+        } finally {
+            setStatusCheckedAt(new Date());
+            setIsStatusLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchSystemStatus();
+        const id = setInterval(fetchSystemStatus, 30000);
+        return () => clearInterval(id);
+    }, [fetchSystemStatus]);
 
     const fetchDbInfo = useCallback(async () => {
         try {
@@ -158,6 +228,49 @@ export default function SettingsDatabaseTab() {
 
     return (
         <>
+            {/* System Status */}
+            <div style={classic ? xpBevel : undefined} className={classic ? '' : 'card shadow-sm border-0 mb-4 border-start border-4 border-success'}>
+                {classic ? (
+                    <div style={xpTitleBar('linear-gradient(to right, #2e7d32 0%, #4caf50 100%)', '#1b5e20')}>
+                        <span><i className="bi bi-activity" style={{ marginRight: 6 }}></i>System Status</span>
+                        <button style={xpBtn()} onClick={fetchSystemStatus} disabled={isStatusLoading}>
+                            {isStatusLoading ? <span className="spinner-border spinner-border-sm"></span> : <><i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }}></i>Refresh</>}
+                        </button>
+                    </div>
+                ) : (
+                    <div className="card-header bg-success bg-opacity-10 text-success-emphasis d-flex justify-content-between align-items-center">
+                        <h5 className="card-title mb-0"><i className="bi bi-activity me-2"></i>System Status</h5>
+                        <button className="btn btn-sm btn-outline-success" onClick={fetchSystemStatus} disabled={isStatusLoading}>
+                            {isStatusLoading ? <span className="spinner-border spinner-border-sm"></span> : <><i className="bi bi-arrow-clockwise me-1"></i>Refresh</>}
+                        </button>
+                    </div>
+                )}
+                <div style={classic ? { padding: '12px 14px', background: '#ece9d8' } : undefined} className={classic ? '' : 'card-body'}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 8 }}>
+                        <StatusTile classic={classic} label="WebSocket" icon="bi-broadcast"
+                            ok={wsStatus === 'open' ? true : wsStatus === 'closed' ? false : null}
+                            detail={wsStatus === 'connecting' ? 'Connecting…' : 'Live event feed'} />
+                        <StatusTile classic={classic} label="Backend API" icon="bi-hdd-network"
+                            ok={beOnline}
+                            detail={beOnline === false ? 'Unreachable' : 'REST API'} />
+                        <StatusTile classic={classic} label="Database" icon="bi-database"
+                            ok={dbPing?.ok ?? (beOnline === false ? false : null)}
+                            detail={dbPing?.ok ? `${dbPing.latency_ms} ms` : 'PostgreSQL'} />
+                        <StatusTile classic={classic} label="Redis" icon="bi-lightning-charge"
+                            ok={redisPing?.ok ?? (beOnline === false ? false : null)}
+                            detail={redisPing?.ok ? `${redisPing.latency_ms} ms` : 'Event bus'} />
+                        <StatusTile classic={classic} label="DB Storage" icon="bi-hdd-stack"
+                            ok={dbSizeBytes != null ? true : null}
+                            detail={prettyBytes(dbSizeBytes)} />
+                    </div>
+                    {statusCheckedAt && (
+                        <div style={{ marginTop: 6, textAlign: 'right', fontFamily: classic ? 'Tahoma,Arial,sans-serif' : undefined, fontSize: 10, color: '#999' }}>
+                            Last checked {statusCheckedAt.toLocaleTimeString()}
+                        </div>
+                    )}
+                </div>
+            </div>
+
             {/* Database Infrastructure */}
             <div style={classic ? xpBevel : undefined} className={classic ? '' : 'card shadow-sm border-0 mb-4 border-start border-4 border-info'}>
                 {classic ? (
