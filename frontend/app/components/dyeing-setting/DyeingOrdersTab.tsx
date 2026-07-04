@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { STATUS_COLORS } from '../shared/xpTheme';
 import ModalWrapper from '../shared/ModalWrapper';
+import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 
@@ -64,6 +65,9 @@ const makeThCell = (classic: boolean): React.CSSProperties => classic ? {
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
+
+const WO_PAGE_SIZE = 20;
+const RUN_PAGE_SIZE = 20;
 
 const SHADE_COLORS: Record<string, { bg: string; color: string }> = {
     PASS: { bg: '#d4edda', color: '#155724' },
@@ -163,6 +167,8 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
     const [completeForm, setCompleteForm] = useState<CompleteForm>(emptyCompleteForm);
     const [saving, setSaving] = useState(false);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    const [woPage, setWoPage] = useState(1);
+    const [runPage, setRunPage] = useState(1);
 
     const fetchWorkOrders = useCallback(async () => {
         try {
@@ -201,9 +207,18 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
         } else {
             setRuns([]);
         }
+        setRunPage(1);
     }, [selectedWoId, fetchRuns]);
 
     const selectedWo = workOrders.find(wo => String(wo.id) === selectedWoId);
+
+    const woPages = Math.max(1, Math.ceil(workOrders.length / WO_PAGE_SIZE));
+    const clampedWoPage = Math.min(woPage, woPages);
+    const pagedWorkOrders = workOrders.slice((clampedWoPage - 1) * WO_PAGE_SIZE, clampedWoPage * WO_PAGE_SIZE);
+
+    const runPages = Math.max(1, Math.ceil(runs.length / RUN_PAGE_SIZE));
+    const clampedRunPage = Math.min(runPage, runPages);
+    const pagedRuns = runs.slice((clampedRunPage - 1) * RUN_PAGE_SIZE, clampedRunPage * RUN_PAGE_SIZE);
 
     const handleSelectWo = (wo: any) => {
         setSelectedWoId(String(wo.id));
@@ -446,7 +461,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                 </tr>
                             </thead>
                             <tbody>
-                                {workOrders.map(wo => {
+                                {pagedWorkOrders.map(wo => {
                                     const isSelected = String(wo.id) === selectedWoId;
                                     return (
                                         <tr
@@ -491,6 +506,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                         </table>
                     )}
                 </div>
+                <Pager page={clampedWoPage} total={workOrders.length} pageSize={WO_PAGE_SIZE} onPageChange={setWoPage} hideWhenEmpty />
             </div>
 
             {/* Right pane: Runs */}
@@ -721,7 +737,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {runs.map((run, idx) => {
+                                        {pagedRuns.map((run, idx) => {
                                             const runLabel = run.run_number ?? run.run_code ?? `#${idx + 1}`;
                                             const recipeName = run.recipe_name
                                                 ?? recipes.find(r => String(r.id) === String(run.recipe_id))?.name
@@ -812,6 +828,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                                 </table>
                             )}
                         </div>
+                        <Pager page={clampedRunPage} total={runs.length} pageSize={RUN_PAGE_SIZE} onPageChange={setRunPage} hideWhenEmpty />
                     </>
                 )}
             </div>

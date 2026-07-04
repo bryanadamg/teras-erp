@@ -8,6 +8,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import CodeConfigModal, { CodeConfig, buildCodeParts, buildCodeWithCounter } from '../shared/CodeConfigModal';
 import SearchableSelect from '../shared/SearchableSelect';
+import Pager from '../shared/Pager';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -58,6 +59,7 @@ const primaryBtnStyle = (classic: boolean): React.CSSProperties => classic ? xpB
 };
 
 const LINE_TYPES = ['DYE', 'AUXILIARY', 'SALT', 'OTHER'];
+const RECIPE_PAGE_SIZE = 25;
 
 interface RecipeLine {
     id?: string;
@@ -120,6 +122,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
     const [codeConfig, setCodeConfig] = useState<CodeConfig | null>(null);
     const [allChemicalItems, setAllChemicalItems] = useState<any[]>([]);
     const [colors, setColors] = useState<any[]>([]);
+    const [page, setPage] = useState(1);
     const { showToast } = useToast();
     const { confirm } = useConfirm();
 
@@ -211,6 +214,11 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
             (r.name || '').toLowerCase().includes(q)
         );
     });
+
+    useEffect(() => { setPage(1); }, [searchText]);
+    const recipePages = Math.max(1, Math.ceil(filteredRecipes.length / RECIPE_PAGE_SIZE));
+    const clampedPage = Math.min(page, recipePages);
+    const pagedRecipes = filteredRecipes.slice((clampedPage - 1) * RECIPE_PAGE_SIZE, clampedPage * RECIPE_PAGE_SIZE);
 
     const openCreate = () => {
         setEditingRecipe(null);
@@ -408,7 +416,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                     {!loading && filteredRecipes.length === 0 && (
                         <div style={{ padding: '8px', color: classic ? '#888' : '#64748b', fontSize: classic ? 10 : 12 }}>No recipes found.</div>
                     )}
-                    {filteredRecipes.map((recipe, idx) => {
+                    {pagedRecipes.map((recipe, idx) => {
                         const isSelected = String(recipe.id) === String(selectedId);
                         const isHovered = String(recipe.id) === String(hoveredId);
                         const isEven = idx % 2 === 0;
@@ -470,6 +478,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                         );
                     })}
                 </div>
+                <Pager page={clampedPage} total={filteredRecipes.length} pageSize={RECIPE_PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
                 {canManage && (
                 <div style={{ padding: '4px 6px', borderTop: classic ? '1px solid #c0d4e8' : '1px solid #e6eaf1', background: classic ? '#eef2f8' : '#f8fafc' }}>
                     <button style={{ ...primaryBtnStyle(classic) }} onClick={openCreate}>+ New Recipe</button>

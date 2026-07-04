@@ -8,6 +8,8 @@ import { useUser } from '../../context/UserContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { XPStatusBar, XPEmptyState } from '../shared/xpTheme';
+import Pager from '../shared/Pager';
+import ModalWrapper from '../shared/ModalWrapper';
 const SuratJalanPrintModal = dynamic(() => import('./SuratJalanPrintModal'), { ssr: false });
 import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 
@@ -67,6 +69,7 @@ const SO_CHIP: Record<string, React.CSSProperties> = {
 };
 
 const num = (v: any) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+const PKG_PAGE_SIZE = 20;
 
 function StatusChip({ status, map }: { status: string; map: Record<string, React.CSSProperties> }) {
     return <span style={map[status] || PKG_CHIP.DRAFT}>{status}</span>;
@@ -91,6 +94,7 @@ export default function PackingView() {
     const [picking, setPicking] = useState(false);
     const [editing, setEditing] = useState<any | null>(null);
     const [printPO, setPrintPO] = useState<any | null>(null);
+    const [pkgPage, setPkgPage] = useState(1);
 
     const itemById = useMemo(() => {
         const m: Record<string, any> = {};
@@ -186,6 +190,10 @@ export default function PackingView() {
     const drafts = packingOrders.filter((p: any) => p.status === 'DRAFT').length;
     const dispatched = packingOrders.filter((p: any) => p.status === 'DISPATCHED').length;
 
+    const pkgPages = Math.max(1, Math.ceil(packingOrders.length / PKG_PAGE_SIZE));
+    const clampedPkgPage = Math.min(pkgPage, pkgPages);
+    const pagedPackingOrders = packingOrders.slice((clampedPkgPage - 1) * PKG_PAGE_SIZE, clampedPkgPage * PKG_PAGE_SIZE);
+
     return (
         <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: '100%', fontFamily: xpFont }}>
             <div style={{ ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
@@ -224,7 +232,7 @@ export default function PackingView() {
                                     <XPEmptyState icon="bi-box2" message={loading ? 'Loading...' : 'No packing orders yet. Click “New Packing Order” to pack an order — including partially-produced ones.'} />
                                 </td></tr>
                             )}
-                            {packingOrders.map((po: any) => (
+                            {pagedPackingOrders.map((po: any) => (
                                 <tr key={po.id}>
                                     <td style={{ ...td, fontWeight: 'bold', color: '#00309c' }}>{po.code}</td>
                                     <td style={td}>{po.sales_order_code || '-'}</td>
@@ -247,6 +255,7 @@ export default function PackingView() {
                         </tbody>
                     </table>
                 </div>
+                <Pager page={clampedPkgPage} total={packingOrders.length} pageSize={PKG_PAGE_SIZE} onPageChange={setPkgPage} hideWhenEmpty />
             </div>
             <XPStatusBar right={`${drafts} draft · ${dispatched} dispatched`}>
                 {loading ? 'Loading...' : `${packingOrders.length} packing order(s)`}
@@ -297,8 +306,8 @@ export default function PackingView() {
 function SOPickerModal({ packableSOs, packingOrders, onClose, onPick }: any) {
     const hasOpenDraft = (soId: string) => packingOrders.some((p: any) => String(p.sales_order_id) === String(soId) && p.status === 'DRAFT');
     return (
-        <Overlay onClose={onClose} title="Select an Order to Pack" width={660}>
-            <div style={{ padding: 12, fontFamily: xpFont, overflowY: 'auto', background: '#fff' }}>
+        <ModalWrapper isOpen onClose={onClose} title="Select an Order to Pack" size="lg" modeless>
+            <div style={{ fontFamily: xpFont }}>
                 <div style={{ fontSize: 10, color: '#666', marginBottom: 8 }}>
                     Partially-produced orders can be packed too — ship whatever finished stock is on hand now.
                 </div>
@@ -332,7 +341,7 @@ function SOPickerModal({ packableSOs, packingOrders, onClose, onPick }: any) {
                         </table>
                     )}
             </div>
-        </Overlay>
+        </ModalWrapper>
     );
 }
 
@@ -471,8 +480,24 @@ function PackingEditor({ po, salesOrders, itemById, locPickerTreeOptions, packed
     const sectionTitle: React.CSSProperties = { fontSize: 11, fontWeight: 'bold', color: '#00309c', margin: '14px 0 6px', borderBottom: '1px solid #c8c4b8', paddingBottom: 3 };
 
     return (
-        <Overlay onClose={onClose} title={`Packing Order ${po.code} — SO ${po.sales_order_code || so?.po_number || ''}`} width={940} tall>
-            <div style={{ padding: 14, fontFamily: xpFont, overflowY: 'auto', flex: 1, background: '#f4f3ee' }}>
+        <ModalWrapper
+            isOpen
+            onClose={onClose}
+            title={`Packing Order ${po.code} — SO ${po.sales_order_code || so?.po_number || ''}`}
+            size="xl"
+            modeless
+            footer={
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                    <button style={xpBtn()} onClick={onClose}>Close</button>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                        <button style={xpBtn()} onClick={() => onPrint(buildDraftForPrint(po, so, buildPayload()))}>Surat Jalan</button>
+                        {!readOnly && <button style={xpBtn()} disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Save'}</button>}
+                        {!readOnly && <button style={xpBtnGreen()} onClick={dispatch}>Confirm Dispatch</button>}
+                    </div>
+                </div>
+            }
+        >
+            <div style={{ fontFamily: xpFont }}>
                 {readOnly && (
                     <div style={{ background: '#eef7ee', border: '1px solid #2d7a2d', color: '#0a3e0a', padding: '5px 10px', fontSize: 11, marginBottom: 10 }}>
                         This packing order is {po.status} and read-only.
@@ -625,17 +650,7 @@ function PackingEditor({ po, salesOrders, itemById, locPickerTreeOptions, packed
                 <div style={sectionTitle}>Notes</div>
                 <textarea style={{ ...xpInput, height: 50, width: '100%', resize: 'vertical' }} disabled={readOnly} value={notes} onChange={e => setNotes(e.target.value)} />
             </div>
-
-            {/* Footer */}
-            <div style={{ padding: '8px 12px', borderTop: '1px solid #b0a898', background: 'linear-gradient(to bottom,#f4f2ea,#e3e1d6)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <button style={xpBtn()} onClick={onClose}>Close</button>
-                <div style={{ display: 'flex', gap: 6 }}>
-                    <button style={xpBtn()} onClick={() => onPrint(buildDraftForPrint(po, so, buildPayload()))}>Surat Jalan</button>
-                    {!readOnly && <button style={xpBtn()} disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Save'}</button>}
-                    {!readOnly && <button style={xpBtnGreen()} onClick={dispatch}>Confirm Dispatch</button>}
-                </div>
-            </div>
-        </Overlay>
+        </ModalWrapper>
     );
 }
 
@@ -656,17 +671,3 @@ function buildDraftForPrint(po: any, so: any, payload: any) {
     };
 }
 
-// ── generic XP dialog ────────────────────────────────────────────────────────
-function Overlay({ children, onClose, title, width = 600, tall = false }: any) {
-    return (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
-            <div onClick={e => e.stopPropagation()} style={{ ...xpBevel, width: '94vw', maxWidth: width, maxHeight: '92vh', height: tall ? '92vh' : undefined, display: 'flex', flexDirection: 'column' }}>
-                <div style={xpTitleBar}>
-                    <span>{title}</span>
-                    <button onClick={onClose} style={{ ...xpBtn({ padding: '0 6px', fontWeight: 'bold' }) }}>X</button>
-                </div>
-                {children}
-            </div>
-        </div>
-    );
-}

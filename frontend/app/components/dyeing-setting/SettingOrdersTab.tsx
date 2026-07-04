@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
+import Pager from '../shared/Pager';
 
 // ── Fonts ───────────────────────────────────────────────────────────────────
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
@@ -99,6 +100,9 @@ const EMPTY_COMPLETE: CompleteForm = {
     actual_shrinkage_pct: '',
 };
 
+const SO_WO_PAGE_SIZE = 20;
+const SO_RUN_PAGE_SIZE = 20;
+
 const fmtNum = (v: any, decimals = 2) => {
     if (v == null || v === '') return '—';
     const n = parseFloat(v);
@@ -149,6 +153,8 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
     const [completeForm, setCompleteForm] = useState<CompleteForm>(EMPTY_COMPLETE);
     const [saving, setSaving] = useState(false);
     const [completing, setCompleting] = useState(false);
+    const [woPage, setWoPage] = useState(1);
+    const [runPage, setRunPage] = useState(1);
 
     // ── Fetch WOs ─────────────────────────────────────────────────────────────
     const fetchWorkOrders = useCallback(async () => {
@@ -187,9 +193,18 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
         } else {
             setRuns([]);
         }
+        setRunPage(1);
     }, [selectedWoId, fetchRuns]);
 
     const selectedWo = workOrders.find(w => w.id === selectedWoId);
+
+    const woPages = Math.max(1, Math.ceil(workOrders.length / SO_WO_PAGE_SIZE));
+    const clampedWoPage = Math.min(woPage, woPages);
+    const pagedWorkOrders = workOrders.slice((clampedWoPage - 1) * SO_WO_PAGE_SIZE, clampedWoPage * SO_WO_PAGE_SIZE);
+
+    const runPages = Math.max(1, Math.ceil(runs.length / SO_RUN_PAGE_SIZE));
+    const clampedRunPage = Math.min(runPage, runPages);
+    const pagedRuns = runs.slice((clampedRunPage - 1) * SO_RUN_PAGE_SIZE, clampedRunPage * SO_RUN_PAGE_SIZE);
 
     // ── Create Run ────────────────────────────────────────────────────────────
     const handleCreateRun = async () => {
@@ -320,7 +335,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                             No setting work orders found.
                         </div>
                     )}
-                    {workOrders.map(wo => {
+                    {pagedWorkOrders.map(wo => {
                         const selected = wo.id === selectedWoId;
                         return (
                             <div
@@ -354,6 +369,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                         );
                     })}
                 </div>
+                <Pager page={clampedWoPage} total={workOrders.length} pageSize={SO_WO_PAGE_SIZE} onPageChange={setWoPage} hideWhenEmpty />
                 <div style={{ borderTop: classic ? '1px solid #c0bdb5' : '1px solid #dbe1ea', padding: 4 }}>
                     <button onClick={fetchWorkOrders} style={{ ...xpBtn(classic), width: '100%', fontSize: 10 }}>
                         Refresh
@@ -467,7 +483,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {runs.map((run: any, idx: number) => (
+                                            {pagedRuns.map((run: any, idx: number) => (
                                                 <tr
                                                     key={run.id}
                                                     style={{ background: idx % 2 === 0 ? '#fff' : (classic ? '#f5f3ee' : '#f8fafc') }}
@@ -529,6 +545,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
                                 </div>
                             )}
                         </div>
+                        <Pager page={clampedRunPage} total={runs.length} pageSize={SO_RUN_PAGE_SIZE} onPageChange={setRunPage} hideWhenEmpty />
                     </>
                 )}
             </div>

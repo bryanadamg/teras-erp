@@ -7,6 +7,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
+import Pager from '../shared/Pager';
 
 // ── XP style constants (consistent with DyeingSettingView) ──────────────────
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
@@ -117,6 +118,7 @@ const dipRowStyle = (status: string, classic: boolean): { borderLeftColor: strin
 };
 
 const today = () => new Date().toISOString().split('T')[0];
+const LABDIP_PAGE_SIZE = 20;
 
 const emptyForm = () => ({
     request_date: today(),
@@ -170,6 +172,7 @@ export default function LabDipRequestView({
     const [form, setForm] = useState(emptyForm());
     const [pendingColor, setPendingColor] = useState('');
     const [pendingRound, setPendingRound] = useState(1);
+    const [page, setPage] = useState(1);
 
     // Colors now come from the Color Library (color_id). Fall back to the legacy
     // `labdip_color` attribute values only if the library has not been populated yet.
@@ -275,6 +278,12 @@ export default function LabDipRequestView({
         return matchSearch && matchStatus;
     });
 
+    // Search/filter change → reset to page 1
+    React.useEffect(() => { setPage(1); }, [searchTerm, statusFilter]);
+    const totalPages = Math.max(1, Math.ceil(filtered.length / LABDIP_PAGE_SIZE));
+    const clampedPage = Math.min(page, totalPages);
+    const paged = filtered.slice((clampedPage - 1) * LABDIP_PAGE_SIZE, clampedPage * LABDIP_PAGE_SIZE);
+
     const setField = (k: string, v: any) => setForm(prev => ({ ...prev, [k]: v }));
 
     // ── Dip status buttons (mirror SampleColor approval UI) ──
@@ -368,7 +377,7 @@ export default function LabDipRequestView({
                         {filtered.length === 0 && (
                             <tr><td colSpan={7} style={{ ...tdBase(classic), textAlign: 'center' as const, color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>No lab dip requests yet.</td></tr>
                         )}
-                        {filtered.map((r: any, idx: number) => {
+                        {paged.map((r: any, idx: number) => {
                             const approved = (r.dips || []).filter((d: any) => d.status === 'APPROVED').length;
                             const total = (r.dips || []).length;
                             return (
@@ -555,6 +564,7 @@ export default function LabDipRequestView({
                     </tbody>
                 </table>
             </div>
+            <Pager page={clampedPage} total={filtered.length} pageSize={LABDIP_PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
 
             {/* Create / Edit modal */}
             <ModalWrapper
