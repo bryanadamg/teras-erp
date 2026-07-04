@@ -182,6 +182,12 @@ class MOCompletion(Base):
     output_batch_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("batches.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # Where output was actually booked (putaway bin — may differ from the WO's
+    # output location when the operator overrode the suggestion); un-lotted
+    # rejects must pull back from here, not the WO default
+    output_location_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True
+    )
     # QC reject: flagged completions no longer count toward MO/WO progress
     rejected: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     reject_reason: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)

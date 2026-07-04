@@ -1071,6 +1071,7 @@ async def add_mo_completion(
         work_center_id=payload.work_center_id,
         work_order_id=payload.work_order_id,
         output_batch_id=output_batch.id if output_batch else None,
+        output_location_id=wo_output_loc,
     )
     db.add(completion)
     await db.flush()
@@ -1257,10 +1258,11 @@ async def reject_mo_completion(
         if not comp.output_batch_id:
             comp.output_batch_id = batch.id
     else:
-        # Un-lotted output can't be flagged — pull it back out of the WO's
-        # output location instead so it stops counting as good stock.
+        # Un-lotted output can't be flagged — pull it back out of the location it
+        # was actually booked to (putaway bin recorded on the completion; WO
+        # output location for legacy rows) so it stops counting as good stock.
         wo = next((w for w in mo.work_orders if str(w.id) == str(comp.work_order_id)), None)
-        out_loc = wo.output_location_id if wo else None
+        out_loc = comp.output_location_id or (wo.output_location_id if wo else None)
         if out_loc:
             await stock_service.add_stock_entry(
                 db,

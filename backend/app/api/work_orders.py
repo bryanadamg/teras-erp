@@ -573,7 +573,9 @@ async def _descendant_leaves(db: AsyncSession, root_id) -> list[Location]:
     nodes: dict[str, Location] = {}
     level_ids = [root_id]
     for _ in range(2):  # warehouse -> zone -> bin
-        res = await db.execute(select(Location).where(Location.parent_id.in_(level_ids)))
+        res = await db.execute(
+            select(Location).options(joinedload(Location.parent)).where(Location.parent_id.in_(level_ids))
+        )
         children = res.scalars().all()
         if not children:
             break
@@ -597,7 +599,9 @@ async def get_wo_putaway_suggestion(
     wo, mo = await _load_wo_and_mo(db, wo_id)
     if not wo.output_location_id:
         return PutawaySuggestionResponse()
-    root_res = await db.execute(select(Location).where(Location.id == wo.output_location_id))
+    root_res = await db.execute(
+        select(Location).options(joinedload(Location.parent)).where(Location.id == wo.output_location_id)
+    )
     root = root_res.scalars().first()
     if not root:
         return PutawaySuggestionResponse()
@@ -610,7 +614,9 @@ async def get_wo_putaway_suggestion(
         configured_bin = root
         leaves = [root]
         if root.parent_id:
-            sib_res = await db.execute(select(Location).where(Location.parent_id == root.parent_id))
+            sib_res = await db.execute(
+                select(Location).options(joinedload(Location.parent)).where(Location.parent_id == root.parent_id)
+            )
             leaves += [s for s in sib_res.scalars().all()
                        if not s.has_children and str(s.id) != str(root.id)]
 
