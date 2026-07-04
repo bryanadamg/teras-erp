@@ -2,6 +2,8 @@
 import React from 'react';
 import KartuKerjaCardBeaming, { type KartuKerjaSettings } from './KartuKerjaCardBeaming';
 import KartuKerjaCardGeneral from './KartuKerjaCardGeneral';
+import KartuKerjaCardWeaving from './KartuKerjaCardWeaving';
+import KartuKerjaCardDyeing from './KartuKerjaCardDyeing';
 
 export type { KartuKerjaSettings };
 
@@ -26,7 +28,11 @@ export default function KartuKerjaCard(props: {
     switch (centerType) {
         case 'BEAMING':
             return <KartuKerjaCardBeaming {...props} />;
-        // WARPING, WEAVING, DYEING, SETTING, FINISHING: printout specifics TBD — use general layout for now.
+        case 'WEAVING':
+            return <KartuKerjaCardWeaving {...props} />;
+        case 'DYEING':
+            return <KartuKerjaCardDyeing {...props} />;
+        // WARPING, SETTING, FINISHING: printout specifics TBD — use general layout for now.
         default:
             return <KartuKerjaCardGeneral {...props} />;
     }
