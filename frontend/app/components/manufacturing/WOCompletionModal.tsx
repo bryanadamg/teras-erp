@@ -80,6 +80,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
     const isBeamOutput = !!workOrder
         && (isBeamItem(mo.item_id) || (mo.item_code || '').startsWith('BEAM-') || woWcType === 'BEAMING');
     const isLotOutput = isBeamOutput || (!!workOrder && !!findItem(mo.item_id)?.lot_tracked);
+    const isWeavingWO = woWcType === 'WEAVING' || woWcType === 'TENUN';
 
     // Lot input: each material line with batch stock at the input location gets a lot picker
     const materialItemIds = workOrder ? Array.from(new Set(materialRows.map(r => r.item_id))) : [];
@@ -93,7 +94,13 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                 .then((data: any[]) => [id, (data || []).filter((b: any) => (b.remaining ?? 0) > 0)] as const)
         )).then(pairs => {
             const map: Record<string, any[]> = {};
-            for (const [id, list] of pairs) { if (list.length) map[id] = list; }
+            for (const [id, list] of pairs) {
+                if (!list.length) continue;
+                // Weaving consumes from the merged kg pool — staged beams are
+                // consumed at WO start, so no per-beam pick here.
+                if (isWeavingWO && (isBeamItem(id) || list.every((b: any) => b.ends != null))) continue;
+                map[id] = list;
+            }
             setBatchesByItem(map);
             setConsumedBatches(prev => {
                 const next: Record<string, string> = {};
@@ -101,7 +108,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                 return next;
             });
         });
-    }, [JSON.stringify(materialItemIds), workOrder?.id]);
+    }, [JSON.stringify(materialItemIds), workOrder?.id, isWeavingWO]);
 
     // Build material rows from BOM lines when in WO mode.
     // L2: a WO only consumes the materials allocated to its routing step

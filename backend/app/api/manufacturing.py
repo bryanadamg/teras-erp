@@ -11,7 +11,7 @@ from app.models.bom import BOM, BOMLine, BOMSize, BOMOperation
 from app.models.routing import Operation as OperationModel, WorkCenter
 from app.models.location import Location
 from app.models.sales import SalesOrder
-from app.services import stock_service, audit_service, kpi_service
+from app.services import stock_service, audit_service, kpi_service, beam_service
 from app.services.netting_service import Availability, preview_mo
 from app.schemas import (
     ManufacturingOrderCreate, ManufacturingOrderResponse,
@@ -1069,6 +1069,13 @@ async def add_mo_completion(
     if wo and wo.status == "PENDING":
         wo.status = "IN_PROGRESS"
         wo.actual_start_date = datetime.utcnow()
+
+    # WEAVING: any beam still sitting as batch stock at the input location
+    # (WO started via this log, or re-staged mid-run) merges into the
+    # batch-less kg pool now, so the deduction below draws plain pool kg —
+    # no per-beam selection. Idempotent, self-guards on work center type.
+    if wo and wo_input_loc:
+        await beam_service.merge_staged_beams(db, wo)
 
     # Save actual items used (substitutes)
     for ai in payload.actual_items:

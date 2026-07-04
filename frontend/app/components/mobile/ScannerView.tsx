@@ -167,6 +167,7 @@ export default function MobileScannerView({
     const isBeamOutput = !!scannedWO && !!scannedWOParentMO
         && (isBeamItem(scannedWOParentMO.item_id) || (scannedWOParentMO.item_code || '').startsWith('BEAM-') || woWcType === 'BEAMING');
     const isLotOutput = isBeamOutput || (!!scannedWO && !!scannedWOParentMO && !!findItem(scannedWOParentMO.item_id)?.lot_tracked);
+    const isWeavingWO = woWcType === 'WEAVING' || woWcType === 'TENUN';
 
     // Lot input: each material line with batch stock at the input location gets a lot picker
     const materialItemIds = scannedWO ? Array.from(new Set(materialRows.map(r => r.item_id))) : [];
@@ -180,7 +181,13 @@ export default function MobileScannerView({
                 .then((data: any[]) => [id, (data || []).filter((b: any) => (b.remaining ?? 0) > 0)] as const)
         )).then(pairs => {
             const map: Record<string, any[]> = {};
-            for (const [id, list] of pairs) { if (list.length) map[id] = list; }
+            for (const [id, list] of pairs) {
+                if (!list.length) continue;
+                // Weaving consumes from the merged kg pool — staged beams are
+                // consumed at WO start, so no per-beam pick here.
+                if (isWeavingWO && (isBeamItem(id) || list.every((b: any) => b.ends != null))) continue;
+                map[id] = list;
+            }
             setBatchesByItem(map);
             setConsumedBatches(prev => {
                 const next: Record<string, string> = {};
@@ -188,7 +195,7 @@ export default function MobileScannerView({
                 return next;
             });
         });
-    }, [JSON.stringify(materialItemIds), scannedWOId]);
+    }, [JSON.stringify(materialItemIds), scannedWOId, isWeavingWO]);
 
     // Scanner lifecycle — active when no WO selected
     useEffect(() => {

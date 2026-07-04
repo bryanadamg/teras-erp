@@ -1699,6 +1699,15 @@ class BatchCreate(BaseModel):
     item_id: UUID
     notes: Optional[str] = None
 
+class LeftoverBeamCreate(BaseModel):
+    """Re-lot leftover warp from a WEAVING WO's merged (batch-less) kg pool
+    back into a trackable beam batch at the WO's input location."""
+    item_id: UUID
+    qty: float
+    beam_number: Optional[str] = None   # blank → auto-generate BM-YYYYMMDD-NNNN
+    ends: Optional[int] = None
+    notes: Optional[str] = None
+
 class BatchResponse(BaseModel):
     id: UUID
     batch_number: str

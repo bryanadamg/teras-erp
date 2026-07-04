@@ -309,7 +309,25 @@ async def trace_batch_backward(
         cons_result = await db.execute(
             select(BatchConsumption).filter(BatchConsumption.output_batch_id == b.id)
         )
-        for c in cons_result.scalars().all():
+        cons_rows = list(cons_result.scalars().all())
+        # Beam-merge consumptions are pegged at MO level (output_batch_id NULL)
+        # because beams are consumed at weaving WO start, before any output lot
+        # exists — attach them here via this batch's producing WO's MO.
+        if b.source_wo_id:
+            mo_id = (
+                await db.execute(
+                    select(WorkOrder.manufacturing_order_id).where(WorkOrder.id == b.source_wo_id)
+                )
+            ).scalar()
+            if mo_id:
+                extra = await db.execute(
+                    select(BatchConsumption).filter(
+                        BatchConsumption.manufacturing_order_id == mo_id,
+                        BatchConsumption.output_batch_id.is_(None),
+                    )
+                )
+                cons_rows += list(extra.scalars().all())
+        for c in cons_rows:
             key = str(c.input_batch_id)
             if key in visited:
                 continue

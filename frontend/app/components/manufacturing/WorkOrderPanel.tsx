@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 const WOStepPrintModal = dynamic(() => import('./WOStepPrintModal'), { ssr: false });
 import WOStagingModal from './WOStagingModal';
 import BeamPlanningModal from './BeamPlanningModal';
+import LeftoverBeamModal from './LeftoverBeamModal';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
@@ -89,6 +90,7 @@ export default function WorkOrderPanel({
     const [isSaving, setIsSaving] = useState(false);
     const [printWO, setPrintWO] = useState<WO | null>(null);
     const [stageWO, setStageWO] = useState<WO | null>(null);
+    const [leftoverWO, setLeftoverWO] = useState<WO | null>(null);
     const [overAssignWarning, setOverAssignWarning] = useState<{ totalAssigned: number; moQty: number } | null>(null);
     const [beamPlanOpen, setBeamPlanOpen] = useState(false);
 
@@ -616,6 +618,19 @@ export default function WorkOrderPanel({
                                                 Stage
                                             </button>
                                         )}
+                                        {canManage && ['WEAVING', 'TENUN'].includes((wo.work_center_type || '').toUpperCase()) && (wo.status === 'IN_PROGRESS' || wo.status === 'COMPLETED') && (
+                                            <button
+                                                onClick={() => setLeftoverWO(wo)}
+                                                title="Register leftover warp as a new beam lot"
+                                                style={{
+                                                    fontFamily: xpFont, fontSize: 10, padding: '0px 6px',
+                                                    background: 'linear-gradient(to bottom, #ffe8c0, #eab060)',
+                                                    border: '1px solid #995500', cursor: 'pointer', color: '#663300',
+                                                }}
+                                            >
+                                                Leftover
+                                            </button>
+                                        )}
                                         {canManage && onLogWO && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
                                             <button
                                                 onClick={() => onLogWO(wo)}
@@ -841,6 +856,13 @@ export default function WorkOrderPanel({
                     wo={stageWO}
                     onClose={() => setStageWO(null)}
                     onStaged={() => { /* WO list refreshes via the WORK_ORDER_UPDATE broadcast */ }}
+                />
+            )}
+
+            {leftoverWO && (
+                <LeftoverBeamModal
+                    wo={leftoverWO}
+                    onClose={() => setLeftoverWO(null)}
                 />
             )}
 
