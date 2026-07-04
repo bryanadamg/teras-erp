@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, case
 from sqlalchemy.orm import joinedload, selectinload
 from typing import Optional
 from app.db.session import get_async_db
@@ -14,7 +14,10 @@ from app.models.batch import Batch
 from app.models.stock_ledger import StockLedger
 from app.models.stock_balance import StockBalance
 from app.models.dyeing_setting import DyeRecipe, DyeingRun, dye_recipe_attribute_values
-from app.schemas import WorkOrderCreate, WorkOrderResponse, WORequiredMaterial, WOStagePayload, LeftoverBeamCreate, BatchResponse
+from app.schemas import (
+    WorkOrderCreate, WorkOrderResponse, WORequiredMaterial, WOStagePayload,
+    LeftoverBeamCreate, BatchResponse, PutawayBinOption, PutawaySuggestionResponse,
+)
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission
 from app.api.batches import generate_batch_number
@@ -563,6 +566,93 @@ async def _suggest_beam_batch(db: AsyncSession, mo: ManufacturingOrder, item_id)
         if remaining.get(str(b.id), 0.0) > 0:
             return b.id
     return None
+
+
+async def _descendant_leaves(db: AsyncSession, root_id) -> list[Location]:
+    """Leaf locations (bins) under a root, walking the max-3-level hierarchy."""
+    nodes: dict[str, Location] = {}
+    level_ids = [root_id]
+    for _ in range(2):  # warehouse -> zone -> bin
+        res = await db.execute(select(Location).where(Location.parent_id.in_(level_ids)))
+        children = res.scalars().all()
+        if not children:
+            break
+        for c in children:
+            nodes[str(c.id)] = c
+        level_ids = [c.id for c in children]
+    parent_ids = {str(c.parent_id) for c in nodes.values()}
+    return [c for c in nodes.values() if str(c.id) not in parent_ids]
+
+
+@router.get("/work-orders/{wo_id}/putaway-suggestion", response_model=PutawaySuggestionResponse)
+async def get_wo_putaway_suggestion(
+    wo_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Dynamic putaway: candidate bins under the WO's output location plus a
+    suggested one. Priority: bin explicitly configured on the WO -> bin already
+    holding the output item (addition to stock) -> empty bin -> first bin by
+    code. Purely advisory — the completion payload can post anywhere."""
+    wo, mo = await _load_wo_and_mo(db, wo_id)
+    if not wo.output_location_id:
+        return PutawaySuggestionResponse()
+    root_res = await db.execute(select(Location).where(Location.id == wo.output_location_id))
+    root = root_res.scalars().first()
+    if not root:
+        return PutawaySuggestionResponse()
+
+    configured_bin = None
+    leaves = await _descendant_leaves(db, root.id)
+    if not leaves:
+        # Output points straight at a leaf (bin, or childless zone/warehouse):
+        # that explicit config stays the suggestion; siblings become overrides.
+        configured_bin = root
+        leaves = [root]
+        if root.parent_id:
+            sib_res = await db.execute(select(Location).where(Location.parent_id == root.parent_id))
+            leaves += [s for s in sib_res.scalars().all()
+                       if not s.has_children and str(s.id) != str(root.id)]
+
+    bal_res = await db.execute(
+        select(
+            StockBalance.location_id,
+            func.sum(StockBalance.qty),
+            func.sum(case((StockBalance.item_id == mo.item_id, StockBalance.qty), else_=0)),
+        )
+        .where(StockBalance.location_id.in_([l.id for l in leaves]))
+        .group_by(StockBalance.location_id)
+    )
+    totals = {str(lid): (float(t or 0), float(i or 0)) for lid, t, i in bal_res.all()}
+
+    leaves.sort(key=lambda l: (l.code or l.name or ""))
+    suggested, reason = configured_bin, ("configured" if configured_bin is not None else None)
+    if suggested is None:
+        same = [l for l in leaves if totals.get(str(l.id), (0.0, 0.0))[1] > 0]
+        if same:
+            suggested = max(same, key=lambda l: totals[str(l.id)][1])
+            reason = "same_item"
+    if suggested is None:
+        empty = next((l for l in leaves if totals.get(str(l.id), (0.0, 0.0))[0] <= 0), None)
+        if empty is not None:
+            suggested, reason = empty, "empty_bin"
+    if suggested is None:
+        suggested, reason = leaves[0], "first_bin"
+
+    def _opt(l: Location) -> PutawayBinOption:
+        t, i = totals.get(str(l.id), (0.0, 0.0))
+        pn = l.parent_name
+        return PutawayBinOption(
+            id=l.id, code=l.code, name=l.name,
+            full_path=f"{pn} / {l.name}" if pn else (l.name or l.code),
+            total_on_hand=t, item_on_hand=i,
+        )
+
+    return PutawaySuggestionResponse(
+        suggested_location_id=suggested.id,
+        reason=reason,
+        bins=[_opt(l) for l in leaves],
+    )
 
 
 async def _wo_required_rows(db: AsyncSession, wo: WorkOrder, mo: ManufacturingOrder) -> list[WORequiredMaterial]:

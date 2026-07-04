@@ -314,6 +314,7 @@ class MOCompletionCreate(BaseModel):
     beam_number: str | None = None      # lot-tracked/beam output: batch number (blank = auto-generate)
     beam_batch_id: UUID | None = None   # legacy single input batch (kept for compat)
     consumed_batches: list[UUID] = []   # input batches to consume from, matched to lines by item
+    output_location_id: UUID | None = None  # putaway override: books output here instead of the WO's output location
 
 class MOCompletionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -667,6 +668,22 @@ class WOStageLine(BaseModel):
 
 class WOStagePayload(BaseModel):
     lines: list[WOStageLine]
+
+
+class PutawayBinOption(BaseModel):
+    """One candidate destination bin under a WO's output location."""
+    id: UUID
+    code: str
+    name: str
+    full_path: str
+    item_on_hand: float = 0.0    # output item already sitting in this bin
+    total_on_hand: float = 0.0   # any stock in this bin (0 = empty)
+
+
+class PutawaySuggestionResponse(BaseModel):
+    suggested_location_id: UUID | None = None
+    reason: str | None = None    # 'configured' | 'same_item' | 'empty_bin' | 'first_bin'
+    bins: list[PutawayBinOption] = []
 
 
 # ── Flat Work Order list (dedicated GET /work-orders endpoint) ──────────────

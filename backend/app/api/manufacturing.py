@@ -968,6 +968,12 @@ async def add_mo_completion(
     # batch itself is the identity, so attrs are intentionally not stamped.
     wo_input_loc = wo.input_location_id if wo else None
     wo_output_loc = wo.output_location_id if wo else None
+    # Putaway override: operator-chosen destination bin wins over the WO default
+    if payload.output_location_id:
+        loc_chk = await db.execute(select(Location.id).filter(Location.id == payload.output_location_id))
+        if not loc_chk.scalar():
+            raise HTTPException(status_code=404, detail="Output location not found")
+        wo_output_loc = payload.output_location_id
 
     is_beam_output = bool(
         mo.item and mo.item.category and (mo.item.category.name or "").lower() == "beam"
