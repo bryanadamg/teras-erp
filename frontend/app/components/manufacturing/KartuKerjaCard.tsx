@@ -23,7 +23,11 @@ export default function KartuKerjaCard(props: {
     settings: KartuKerjaSettings;
     companyName?: string;
 }) {
-    const centerType = String(props.workOrder?.work_center_type || '').toUpperCase();
+    const rawType = String(props.workOrder?.work_center_type || '').toUpperCase();
+    // TENUN/CELUP are Indonesian aliases for WEAVING/DYEING work centers — see
+    // alias_map in api/manufacturing.py list_work_orders_flat.
+    const aliasMap: Record<string, string> = { TENUN: 'WEAVING', CELUP: 'DYEING' };
+    const centerType = aliasMap[rawType] || rawType;
 
     switch (centerType) {
         case 'BEAMING':
