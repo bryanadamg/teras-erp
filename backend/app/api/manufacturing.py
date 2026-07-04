@@ -19,6 +19,7 @@ from app.schemas import (
     MOCompleteWithBatchesPayload,
     BatchConsumptionInMO,
     MOCompletionCreate, MOCompletionResponse, MOCompletionItemCreate,
+    MOCompletionReject,
     MOAttributeUpdate,
     MOPreviewRequest, NettingPreviewNode,
     WorkOrderFlatPageResponse, WorkOrderFlatResponse,
@@ -132,9 +133,9 @@ def populate_mo_ids(mo: ManufacturingOrder):
     else:
         mo.batch_trace = []
 
-    # 3b. Populate completion totals (if loaded)
+    # 3b. Populate completion totals (if loaded) — rejected entries don't count
     if "completions" not in insp.unloaded:
-        mo.qty_completed_total = sum(float(c.qty_completed) for c in mo.completions)
+        mo.qty_completed_total = sum(float(c.qty_completed) for c in mo.completions if not c.rejected)
     else:
         mo.qty_completed_total = 0.0
         sa_attributes.set_committed_value(mo, "completions", [])
@@ -593,7 +594,7 @@ async def get_manufacturing_orders(
     if slim:
         qty_completed_sub = (
             select(func.coalesce(func.sum(MOCompletion.qty_completed), 0))
-            .where(MOCompletion.mo_id == ManufacturingOrder.id)
+            .where(MOCompletion.mo_id == ManufacturingOrder.id, MOCompletion.rejected == False)  # noqa: E712
             .correlate(ManufacturingOrder)
             .scalar_subquery()
         )
@@ -787,6 +788,8 @@ async def list_work_orders_flat(
                 created_at=c.created_at,
                 notes=c.notes,
                 actual_items=items_flat,
+                rejected=bool(c.rejected),
+                reject_reason=c.reject_reason,
             ))
 
         result.append(WorkOrderFlatResponse(
@@ -1061,6 +1064,7 @@ async def add_mo_completion(
         notes=payload.notes,
         work_center_id=payload.work_center_id,
         work_order_id=payload.work_order_id,
+        output_batch_id=output_batch.id if output_batch else None,
     )
     db.add(completion)
     await db.flush()
@@ -1150,9 +1154,10 @@ async def add_mo_completion(
             batch_id=output_batch.id if output_batch else None,
         )
 
-    # Sum all completions to check for auto-complete
+    # Sum all non-rejected completions to check for auto-complete
     total_result = await db.execute(
-        select(func.sum(MOCompletion.qty_completed)).filter(MOCompletion.mo_id == mo.id)
+        select(func.sum(MOCompletion.qty_completed))
+        .filter(MOCompletion.mo_id == mo.id, MOCompletion.rejected == False)  # noqa: E712
     )
     total_completed = float(total_result.scalar() or 0)
 
@@ -1170,7 +1175,11 @@ async def add_mo_completion(
     if wo and wo.qty:
         wo_total_result = await db.execute(
             select(func.sum(MOCompletion.qty_completed))
-            .filter(MOCompletion.mo_id == mo.id, MOCompletion.work_order_id == wo.id)
+            .filter(
+                MOCompletion.mo_id == mo.id,
+                MOCompletion.work_order_id == wo.id,
+                MOCompletion.rejected == False,  # noqa: E712
+            )
         )
         wo_total = float(wo_total_result.scalar() or 0)
         if wo_total >= float(wo.qty) and wo.status != "COMPLETED":
@@ -1181,6 +1190,103 @@ async def add_mo_completion(
     await audit_service.log_activity(db, current_user.id, "COMPLETION", "ManufacturingOrder", mo_id, f"Logged {payload.qty_completed} completed (total {total_completed}/{mo.qty})")
     await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": mo_id, "status": mo.status, "code": mo.code})
 
+    try:
+        await kpi_service.invalidate_kpis_async(db)
+        await manager.broadcast({"type": "KPI_UPDATE"})
+    except Exception:
+        pass
+
+    mo_map = await load_mo_tree(db, [mo.id])
+    mo = mo_map.get(mo.id)
+    populate_mo_ids(mo)
+    return mo
+
+
+@router.post("/manufacturing-orders/{mo_id}/completions/{completion_id}/reject", response_model=ManufacturingOrderResponse)
+async def reject_mo_completion(
+    mo_id: str,
+    completion_id: str,
+    payload: MOCompletionReject,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('work_order.manage')),
+):
+    """QC reject of a produced lot. The completion stops counting toward MO/WO
+    progress (MO reopens if it had auto-completed) and the output lot is marked
+    REJECTED — it stays physically in stock but drops out of good-stock netting
+    and consumption pickers. Rework is a NEW work order created manually for the
+    shortfall; this endpoint does not touch the original WO."""
+    result = await db.execute(
+        select(ManufacturingOrder)
+        .filter(ManufacturingOrder.id == mo_id)
+        .options(*get_mo_options())
+    )
+    mo = result.unique().scalars().first()
+    if not mo:
+        raise HTTPException(status_code=404, detail="Manufacturing Order not found")
+
+    comp = next((c for c in mo.completions if str(c.id) == str(completion_id)), None)
+    if not comp:
+        raise HTTPException(status_code=404, detail="Completion not found on this MO")
+    if comp.rejected:
+        raise HTTPException(status_code=400, detail="Completion is already rejected")
+
+    # Resolve the output lot: linked at creation, or named explicitly for
+    # legacy completions that predate the output_batch_id link.
+    batch = None
+    batch_id = payload.output_batch_id or comp.output_batch_id
+    if batch_id:
+        b_res = await db.execute(select(Batch).filter(Batch.id == batch_id))
+        batch = b_res.scalars().first()
+        if payload.output_batch_id and not batch:
+            raise HTTPException(status_code=404, detail="Output lot not found")
+
+    comp.rejected = True
+    comp.reject_reason = (payload.reason or "").strip() or None
+    comp.rejected_at = datetime.utcnow()
+    comp.rejected_by = current_user.username
+
+    if batch:
+        # Lot stays in stock, flagged — netting/pickers exclude REJECTED lots.
+        batch.quality_status = "REJECTED"
+        if not comp.output_batch_id:
+            comp.output_batch_id = batch.id
+    else:
+        # Un-lotted output can't be flagged — pull it back out of the WO's
+        # output location instead so it stops counting as good stock.
+        wo = next((w for w in mo.work_orders if str(w.id) == str(comp.work_order_id)), None)
+        out_loc = wo.output_location_id if wo else None
+        if out_loc:
+            await stock_service.add_stock_entry(
+                db,
+                item_id=mo.item_id,
+                location_id=out_loc,
+                qty_change=-float(comp.qty_completed),
+                reference_type="Reject",
+                reference_id=mo.code,
+                attribute_value_ids=[v.id for v in mo.attribute_values],
+                batch_id=None,
+            )
+
+    # Progress returns to the MO: reopen if the reject drops it below target.
+    total_result = await db.execute(
+        select(func.sum(MOCompletion.qty_completed))
+        .filter(MOCompletion.mo_id == mo.id, MOCompletion.rejected == False)  # noqa: E712
+    )
+    total_good = float(total_result.scalar() or 0)
+    if mo.status == "COMPLETED" and total_good < float(mo.qty):
+        mo.status = "IN_PROGRESS"
+        mo.actual_end_date = None
+
+    await db.commit()
+    await audit_service.log_activity(
+        db, current_user.id, "REJECT", "ManufacturingOrder", mo_id,
+        f"Rejected completion of {float(comp.qty_completed):g}"
+        + (f" (lot {batch.batch_number})" if batch else "")
+        + (f": {comp.reject_reason}" if comp.reject_reason else "")
+        + f" — good total {total_good:g}/{mo.qty}",
+    )
+    await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": mo_id, "status": mo.status, "code": mo.code})
+    await manager.broadcast({"type": "STOCK_UPDATE"})
     try:
         await kpi_service.invalidate_kpis_async(db)
         await manager.broadcast({"type": "KPI_UPDATE"})

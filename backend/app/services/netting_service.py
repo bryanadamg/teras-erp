@@ -44,7 +44,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Optional
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
 
@@ -52,8 +52,15 @@ from app.models.stock_balance import StockBalance
 from app.models.location import Location
 from app.models.manufacturing import ManufacturingOrder
 from app.models.production_run import ProductionRun
+from app.models.batch import Batch
 from app.models.bom import BOM
 from app.services.stock_service import _generate_variant_key
+
+
+def rejected_batch_keys():
+    """Subquery of batch_keys whose lot is QC-REJECTED — their stock is
+    physically present but must never count as good/available."""
+    return select(cast(Batch.id, String)).where(Batch.quality_status == "REJECTED")
 
 ONGOING = ("PENDING", "IN_PROGRESS")
 
@@ -134,7 +141,7 @@ class Availability:
                 continue
             if str(mo.id) in self.exclude_mo_ids:
                 continue
-            completed = sum(float(c.qty_completed) for c in mo.completions)
+            completed = sum(float(c.qty_completed) for c in mo.completions if not c.rejected)
             outstanding = float(mo.qty) - completed
             if outstanding <= 0:
                 continue
@@ -162,6 +169,7 @@ class Availability:
             select(func.sum(StockBalance.qty)).where(
                 StockBalance.item_id == item_id,
                 StockBalance.variant_key == vkey,
+                StockBalance.batch_key.not_in(rejected_batch_keys()),
             )
         )).scalar()
         return float(total or 0.0)

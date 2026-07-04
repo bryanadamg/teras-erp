@@ -546,7 +546,9 @@ async def _suggest_beam_batch(db: AsyncSession, mo: ManufacturingOrder, item_id)
     Suggest the oldest unconsumed batch of this item anywhere in the plant,
     FIFO, still fully overridable in the staging picker."""
     batch_res = await db.execute(
-        select(Batch).where(Batch.item_id == item_id).order_by(Batch.created_at.asc())
+        select(Batch)
+        .where(Batch.item_id == item_id, Batch.quality_status != "REJECTED")
+        .order_by(Batch.created_at.asc())
     )
     candidates = batch_res.scalars().all()
     if not candidates:

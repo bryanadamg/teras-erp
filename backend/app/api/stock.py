@@ -309,7 +309,7 @@ async def get_stock_availability(
     supply: dict[tuple, dict] = defaultdict(lambda: {"total_incoming": 0.0, "contributions": []})
 
     for mo in mo_rows:
-        completed = sum(float(c.qty_completed) for c in mo.completions)
+        completed = sum(float(c.qty_completed) for c in mo.completions if not c.rejected)
         outstanding = float(mo.qty) - completed
         if outstanding <= 0:
             continue  # nothing left to make → no remaining demand, no incoming
@@ -355,10 +355,15 @@ async def get_stock_availability(
     )).scalars().all()}
 
     # Plant-wide on-hand: sum StockBalance across ALL locations per (item, variant_key).
+    # QC-rejected lot stock is physically present but never good/available.
+    from app.services.netting_service import rejected_batch_keys
     onhand_map: dict[tuple, float] = {}
     for iid, vk, q in (await db.execute(
         select(StockBalance.item_id, StockBalance.variant_key, func.sum(StockBalance.qty))
-        .where(StockBalance.item_id.in_(item_ids))
+        .where(
+            StockBalance.item_id.in_(item_ids),
+            StockBalance.batch_key.not_in(rejected_batch_keys()),
+        )
         .group_by(StockBalance.item_id, StockBalance.variant_key)
     )).all():
         onhand_map[(str(iid), vk or "")] = float(q or 0)

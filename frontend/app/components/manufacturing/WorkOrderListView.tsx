@@ -349,10 +349,18 @@ export default function WorkOrderListView({
                                                 const hasMeta = substitutes.length > 0 || bomItems.length > 0 || c.notes;
                                                 return (
                                                     <React.Fragment key={c.id || ci}>
-                                                        <tr style={{ background: ci % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #e8e6e0' }}>
+                                                        <tr style={{ background: c.rejected ? '#fbe4e4' : ci % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #e8e6e0' }}>
                                                             <td style={{ padding: '2px 5px', color: '#666', whiteSpace: 'nowrap' }}>{fmtDateTime(c.created_at)}</td>
-                                                            <td style={{ padding: '2px 5px', fontWeight: 'bold', color: '#000080', textAlign: 'right' }}>+{parseFloat(c.qty_completed).toFixed(2)}</td>
-                                                            <td style={{ padding: '2px 5px', color: '#333' }}>{c.operator_name || '—'}</td>
+                                                            <td
+                                                                style={{ padding: '2px 5px', fontWeight: 'bold', color: c.rejected ? '#900' : '#000080', textAlign: 'right', textDecoration: c.rejected ? 'line-through' : 'none' }}
+                                                                title={c.rejected ? (c.reject_reason ? `Rejected: ${c.reject_reason}` : 'Rejected') : undefined}
+                                                            >
+                                                                +{parseFloat(c.qty_completed).toFixed(2)}
+                                                            </td>
+                                                            <td style={{ padding: '2px 5px', color: '#333' }}>
+                                                                {c.operator_name || '—'}
+                                                                {c.rejected && <span style={{ marginLeft: 5, fontSize: 8, fontWeight: 'bold', color: '#900', border: '1px solid #c88', background: '#fff', padding: '0 3px' }}>REJECTED</span>}
+                                                            </td>
                                                             <td style={{ padding: '2px 5px', color: '#555' }}>{c.work_center_name || '—'}</td>
                                                         </tr>
                                                         {hasMeta && (

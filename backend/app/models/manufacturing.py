@@ -178,10 +178,20 @@ class MOCompletion(Base):
     notes: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     work_center_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("work_centers.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    # Output lot produced by this completion (links reject → batch)
+    output_batch_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("batches.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # QC reject: flagged completions no longer count toward MO/WO progress
+    rejected: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    reject_reason: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    rejected_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    rejected_by: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
 
     mo = relationship("ManufacturingOrder", back_populates="completions")
     work_order: Mapped[Optional["WorkOrder"]] = relationship("WorkOrder", back_populates="completions")
     work_center: Mapped[Optional["WorkCenter"]] = relationship("WorkCenter", lazy="joined")
+    output_batch = relationship("Batch", foreign_keys=[output_batch_id], lazy="joined")
     actual_items: Mapped[List["MOCompletionItem"]] = relationship(
         "MOCompletionItem", back_populates="completion", cascade="all, delete-orphan", lazy="joined"
     )
@@ -189,6 +199,10 @@ class MOCompletion(Base):
     @property
     def work_center_name(self) -> str | None:
         return self.work_center.name if self.work_center else None
+
+    @property
+    def output_batch_number(self) -> str | None:
+        return self.output_batch.batch_number if self.output_batch else None
 
 
 class MOCompletionItem(Base):

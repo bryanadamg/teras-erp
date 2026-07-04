@@ -22,6 +22,9 @@ class Batch(Base):
     )
     created_by: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # QC status: GOOD | REJECTED. Rejected lots stay physically in stock but are
+    # excluded from netting/availability and from consumption/staging pickers.
+    quality_status: Mapped[str] = mapped_column(String(16), default="GOOD", server_default="GOOD")
 
     item = relationship("Item")
     consumptions_as_input = relationship("BatchConsumption", foreign_keys="BatchConsumption.input_batch_id", back_populates="input_batch")

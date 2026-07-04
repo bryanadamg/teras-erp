@@ -327,6 +327,17 @@ class MOCompletionResponse(BaseModel):
     work_center_name: str | None = None
     actual_items: list[MOCompletionItemResponse] = []
     created_at: datetime
+    output_batch_id: UUID | None = None
+    output_batch_number: str | None = None
+    rejected: bool = False
+    reject_reason: str | None = None
+    rejected_at: datetime | None = None
+    rejected_by: str | None = None
+
+class MOCompletionReject(BaseModel):
+    reason: str | None = None
+    # Legacy completions (pre output_batch_id link) can name the lot explicitly
+    output_batch_id: UUID | None = None
 
 class ManufacturingOrderCreate(BaseModel):
     code: str
@@ -674,6 +685,8 @@ class WorkOrderCompletionFlat(BaseModel):
     created_at: datetime | None = None
     notes: str | None = None
     actual_items: list[WorkOrderCompletionItemFlat] = []
+    rejected: bool = False
+    reject_reason: str | None = None
 
 
 class WorkOrderFlatResponse(BaseModel):
@@ -1720,6 +1733,7 @@ class BatchResponse(BaseModel):
     created_at: datetime
     ends: Optional[int] = None
     source_wo_id: Optional[UUID] = None
+    quality_status: str = "GOOD"    # GOOD | REJECTED
     remaining: Optional[float] = None  # stock balance for this batch (populated by list endpoint)
     location_id: Optional[UUID] = None    # current location — beam is atomic, always at most one (populated by list endpoint)
     location_name: Optional[str] = None

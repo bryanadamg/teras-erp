@@ -76,7 +76,7 @@ export default function WOStagingModal({ wo, onClose, onStaged }: Props) {
                 const entries = await Promise.all(lotRows.map(async r => {
                     const b = await authFetch(`${API_BASE}/batches?item_id=${r.item_id}&location_id=${r.source_location_id}&limit=200`);
                     const list = b.ok ? await b.json() : [];
-                    return [r.item_id, (list || []).filter((x: any) => (x.remaining ?? 0) > 0)] as const;
+                    return [r.item_id, (list || []).filter((x: any) => (x.remaining ?? 0) > 0 && x.quality_status !== 'REJECTED')] as const;
                 }));
                 if (!alive) return;
                 const byItem = Object.fromEntries(entries);

@@ -106,6 +106,7 @@ async def sum_actual_kg(db: AsyncSession, work_center_id, mo_id, start_date: dat
         select(func.coalesce(func.sum(MOCompletion.qty_completed), 0))
         .where(MOCompletion.work_center_id == work_center_id)
         .where(MOCompletion.mo_id == mo_id)
+        .where(MOCompletion.rejected == False)  # noqa: E712
         .where(MOCompletion.created_at >= start_date)
     )
     if end_date:

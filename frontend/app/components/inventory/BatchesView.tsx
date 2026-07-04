@@ -21,6 +21,7 @@ interface Batch {
   remaining: number | null;
   location_id: string | null;
   location_name: string | null;
+  quality_status?: string;   // GOOD | REJECTED
   // Production origin (beam batches)
   mo_code: string | null;
   production_run_code: string | null;
@@ -394,7 +395,12 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                 {filtered.map((b, i) => (
                   <>
                     <tr key={b.id} style={{ background: expandedRows[b.id] ? '#d6e4f7' : i % 2 === 1 ? '#f0f0f8' : '#ffffff' }}>
-                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}><strong>{b.batch_number}</strong></td>
+                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>
+                        <strong>{b.batch_number}</strong>
+                        {b.quality_status === 'REJECTED' && (
+                          <span style={{ marginLeft: 5, fontSize: 9, fontWeight: 'bold', color: '#900', border: '1px solid #c88', background: '#fbe4e4', padding: '0 3px' }}>REJECTED</span>
+                        )}
+                      </td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{batchItemCode(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{batchItemName(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{originCell(b)}</td>
@@ -479,7 +485,10 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                 {filtered.map(b => (
                   <>
                     <tr key={b.id} className={expandedRows[b.id] ? 'table-primary bg-opacity-10' : ''}>
-                      <td><strong>{b.batch_number}</strong></td>
+                      <td>
+                        <strong>{b.batch_number}</strong>
+                        {b.quality_status === 'REJECTED' && <span className="badge bg-danger ms-1">REJECTED</span>}
+                      </td>
                       <td>{batchItemCode(b)}</td>
                       <td>{batchItemName(b)}</td>
                       <td>{originCell(b)}</td>

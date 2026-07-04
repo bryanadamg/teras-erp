@@ -178,7 +178,7 @@ export default function MobileScannerView({
             authFetch(`${API_BASE}/batches?item_id=${id}${loc ? `&location_id=${loc}` : ''}&limit=200`)
                 .then((r: Response) => (r.ok ? r.json() : []))
                 .catch(() => [])
-                .then((data: any[]) => [id, (data || []).filter((b: any) => (b.remaining ?? 0) > 0)] as const)
+                .then((data: any[]) => [id, (data || []).filter((b: any) => (b.remaining ?? 0) > 0 && b.quality_status !== 'REJECTED')] as const)
         )).then(pairs => {
             const map: Record<string, any[]> = {};
             for (const [id, list] of pairs) {

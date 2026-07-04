@@ -103,4 +103,4 @@ class WorkOrder(Base):
 
     @property
     def qty_completed_total(self) -> float:
-        return sum(float(c.qty_completed) for c in self.completions)
+        return sum(float(c.qty_completed) for c in self.completions if not c.rejected)
