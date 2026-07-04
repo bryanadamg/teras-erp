@@ -142,7 +142,7 @@ function sectionHdrStyleModern(isHovered: boolean): React.CSSProperties {
 
 export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, isOpen }: SidebarProps) {
   const { t } = useLanguage();
-  const { hasPermission, logout } = useUser();
+  const { hasPermission } = useUser();
   const { uiStyle } = useTheme();
   const classic = uiStyle === 'classic';
   const navStyle = classic ? navItemStyle : navItemStyleModern;
@@ -333,11 +333,6 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
             </Fragment>
           );
         })}
-
-        {/* ── System Admin ── */}
-        {hasPermission('admin.access') && (
-          <NavItem tab="settings" label="System Admin" icon="bi-shield-lock" />
-        )}
       </div>
 
       {/* ── Footer ── */}
@@ -352,48 +347,50 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         padding: '10px 12px',
         flexShrink: 0,
       }}>
-        <button
-          onClick={logout}
-          {...H('logout')}
-          style={classic ? {
-            width: '100%',
-            padding: '4px 0',
-            background: hovered === 'logout'
-              ? 'linear-gradient(to bottom, #ffffff, #e0dcd4)'
-              : 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-            borderTop: '1px solid #fff',
-            borderLeft: '1px solid #fff',
-            borderRight: '1px solid #555',
-            borderBottom: '1px solid #555',
-            color: '#800000',
-            fontFamily: xpFont,
-            fontSize: 11,
-            fontWeight: 'bold',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
-          } : {
-            width: '100%',
-            padding: '8px 0',
-            background: hovered === 'logout' ? '#fef2f2' : 'transparent',
-            border: `1px solid ${hovered === 'logout' ? '#fecaca' : M_BORDER}`,
-            borderRadius: 8,
-            color: '#dc2626',
-            fontFamily: modernFont,
-            fontSize: 12.5,
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 7,
-            transition: 'all 0.12s',
-          }}
-        >
-          <i className="bi bi-box-arrow-right" /> {t('logout') || 'Logout'}
-        </button>
+        {hasPermission('admin.access') && (
+          <button
+            onClick={() => setActiveTab('settings')}
+            {...H('settings')}
+            style={classic ? {
+              width: '100%',
+              padding: '4px 0',
+              background: hovered === 'settings'
+                ? 'linear-gradient(to bottom, #ffffff, #dde4f4)'
+                : 'linear-gradient(to bottom, #f0f3fb, #d6dff7)',
+              borderTop: '1px solid #fff',
+              borderLeft: '1px solid #fff',
+              borderRight: '1px solid #555',
+              borderBottom: '1px solid #555',
+              color: NAV_COLOR,
+              fontFamily: xpFont,
+              fontSize: 11,
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+            } : {
+              width: '100%',
+              padding: '8px 0',
+              background: hovered === 'settings' ? '#eff6ff' : 'transparent',
+              border: `1px solid ${hovered === 'settings' ? '#bfdbfe' : M_BORDER}`,
+              borderRadius: 8,
+              color: '#1d4ed8',
+              fontFamily: modernFont,
+              fontSize: 12.5,
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 7,
+              transition: 'all 0.12s',
+            }}
+          >
+            <i className="bi bi-shield-lock" /> System Admin
+          </button>
+        )}
         <div style={{ marginTop: 5, textAlign: 'center' }}>
           <small style={{ fontSize: 9, color: classic ? '#6070a0' : '#94a3b8', fontFamily: classic ? xpFont : modernFont }}>
             {t('powered_by') || 'Powered by'} Teras ERP
