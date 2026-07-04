@@ -665,7 +665,7 @@ export default function InventoryView({
       textAlign: 'left' as const,
       whiteSpace: 'nowrap' as const,
       position: 'sticky' as const,
-      top: 30, // below the 30px classic top bar
+      top: 0,
       zIndex: 5,
       background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
       borderBottom: '2px solid #808080',
@@ -1233,7 +1233,8 @@ export default function InventoryView({
                 className={classic ? '' : 'table table-hover align-middle mb-0'}
                 style={classic ? {
                     width: '100%',
-                    borderCollapse: 'collapse',
+                    borderCollapse: 'separate',
+                    borderSpacing: 0,
                     fontFamily: 'Tahoma, Arial, sans-serif',
                     fontSize: '11px',
                     background: '#ffffff',
