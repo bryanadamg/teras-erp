@@ -399,18 +399,27 @@ async def get_production_run_material_requirements(
 
     # Plant-wide on-hand: sum StockBalance across ALL locations per (item, variant_key).
     onhand_map: dict[tuple, float] = {}
+    onhand_by_item: dict[str, float] = defaultdict(float)
     for iid, vk, q in (await db.execute(
         select(StockBalance.item_id, StockBalance.variant_key, func.sum(StockBalance.qty))
         .where(StockBalance.item_id.in_(item_ids))
         .group_by(StockBalance.item_id, StockBalance.variant_key)
     )).all():
         onhand_map[(str(iid), vk or "")] = float(q or 0)
+        onhand_by_item[str(iid)] += float(q or 0)
 
     results = []
     for (item_id_str, attr_key), data in agg.items():
         item = item_map.get(data["item_id"])
-        v_key = ",".join(sorted(data["attr_ids"]))
-        available = onhand_map.get((item_id_str, v_key), 0.0)
+        # Batch/lot-identity items (beams, lot-tracked items) never stamp variant
+        # attrs on their stock rows (variant_key is always "" — the batch itself is
+        # the identity), so match plant-wide on-hand by item only, not by variant.
+        is_batch_identity = bool(item and (item.lot_tracked or (item.category and (item.category.name or "").lower() == "beam")))
+        if is_batch_identity:
+            available = onhand_by_item.get(item_id_str, 0.0)
+        else:
+            v_key = ",".join(sorted(data["attr_ids"]))
+            available = onhand_map.get((item_id_str, v_key), 0.0)
         total = data["total_required"]
         results.append(PRMaterialRequirementItem(
             item_id=data["item_id"],
