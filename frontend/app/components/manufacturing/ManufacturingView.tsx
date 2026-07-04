@@ -698,7 +698,7 @@ export default function ManufacturingView({
   const togglePR = (prId: string) => {
       setExpandedPRs(prev => {
           const expanding = !prev[prId];
-          if (expanding && !prMaterialReqs[prId]) fetchPRMaterialRequirements(prId);
+          if (expanding) fetchPRMaterialRequirements(prId);
           return { ...prev, [prId]: expanding };
       });
   };
