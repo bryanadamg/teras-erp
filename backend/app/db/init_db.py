@@ -263,15 +263,17 @@ def seed_rbac(db):
                     role.permissions.append(db_perms[code])
             db.commit()
 
-        users_data = [
-            ("admin", "System Admin", "Administrator"),
-            ("store_mgr", "Budi Store", "Store Manager"),
-            ("prod_mgr", "Siti Production", "Production Manager"),
-            ("operator", "Joko Worker", "Operator"),
-        ]
-        for uname, fname, rname in users_data:
-            user = db.query(User).filter(User.username == uname).first()
-            if not user:
+        # Only seed demo accounts on a truly empty user table (first boot).
+        # Per-username existence checks would resurrect an account an admin
+        # deliberately deleted in production on every subsequent restart.
+        if db.query(User).count() == 0:
+            users_data = [
+                ("admin", "System Admin", "Administrator"),
+                ("store_mgr", "Budi Store", "Store Manager"),
+                ("prod_mgr", "Siti Production", "Production Manager"),
+                ("operator", "Joko Worker", "Operator"),
+            ]
+            for uname, fname, rname in users_data:
                 role = db.query(Role).filter(Role.name == rname).first()
                 db.add(User(
                     username=uname,
@@ -279,7 +281,7 @@ def seed_rbac(db):
                     role_id=role.id,
                     hashed_password=get_password_hash("password"),
                 ))
-                db.commit()
+            db.commit()
 
         logger.info("Seeded RBAC (Roles, Permissions, Users)")
     except Exception as e:
