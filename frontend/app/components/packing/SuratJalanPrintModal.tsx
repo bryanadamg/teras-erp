@@ -5,12 +5,12 @@ import { useData } from '../../context/DataContext';
 
 const font = 'Tahoma, "Segoe UI", sans-serif';
 
-function SJDocument({ po, so, items, attributes, companyProfile, customerAddr, preparedBy }: any) {
+function SJDocument({ po, so, attributes, companyProfile, customerAddr, preparedBy }: any) {
     const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '');
     const { itemIndex } = useData();
 
-    const itemName = (id: string) => items.find((i: any) => i.id === id)?.name || itemIndex?.[String(id)]?.name || id;
-    const itemUOM = (id: string) => items.find((i: any) => i.id === id)?.uom || '';
+    const itemName = (id: string) => itemIndex?.[String(id)]?.name || id;
+    const itemUOM = (id: string) => itemIndex?.[String(id)]?.uom || '';
     const attrName = (vid: string) => {
         for (const attr of attributes) { const v = attr.values?.find((x: any) => x.id === vid); if (v) return v.value; }
         return '';
@@ -162,7 +162,7 @@ function SJDocument({ po, so, items, attributes, companyProfile, customerAddr, p
     );
 }
 
-export default function SuratJalanPrintModal({ po, salesOrders, items, attributes, companyProfile, customerAddr, currentStyle, onClose }: any) {
+export default function SuratJalanPrintModal({ po, salesOrders, attributes, companyProfile, customerAddr, currentStyle, onClose }: any) {
     const so = (salesOrders || []).find((s: any) => String(s.id) === String(po.sales_order_id));
     const [preparedBy, setPreparedBy] = useState('');
 
@@ -183,7 +183,7 @@ export default function SuratJalanPrintModal({ po, salesOrders, items, attribute
     const xpTitleBar: React.CSSProperties = { background: 'linear-gradient(to right,#0058e6 0%,#08a5ff 100%)', color: '#fff', fontFamily: font, fontWeight: 'bold', fontSize: 12, padding: '4px 8px', borderBottom: '1px solid #003080', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 26 };
     const xpInput: React.CSSProperties = { fontFamily: font, fontSize: 11, border: '1px solid #7f9db9', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px', background: '#fff', color: '#000', height: 20, width: '100%', boxSizing: 'border-box', outline: 'none' };
 
-    const doc = <SJDocument po={po} so={so} items={items} attributes={attributes} companyProfile={companyProfile} customerAddr={customerAddr} preparedBy={preparedBy} />;
+    const doc = <SJDocument po={po} so={so} attributes={attributes} companyProfile={companyProfile} customerAddr={customerAddr} preparedBy={preparedBy} />;
 
     return (
         <>

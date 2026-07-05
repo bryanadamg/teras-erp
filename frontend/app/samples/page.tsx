@@ -6,7 +6,7 @@ import { useToast } from '../components/shared/Toast';
 import { useConfirm } from '../context/ConfirmContext';
 
 export default function SamplesPage() {
-    const { partners, samples, fetchData, authFetch } = useData();
+    const { partners, samples, refreshSamples, authFetch } = useData();
     const customers = partners.filter((p: any) => p.type === 'CUSTOMER');
     const { showToast } = useToast();
     const { confirm } = useConfirm();
@@ -29,12 +29,12 @@ export default function SamplesPage() {
             uploads.push(authFetch(`${API_BASE}/samples/${created.id}/design-pdf`, { method: 'POST', body: fd }));
         }
         if (uploads.length) await Promise.all(uploads);
-        fetchData();
+        refreshSamples();
     };
 
     const handleUpdateSampleStatus = async (id: string, status: string) => {
         const res = await authFetch(`${API_BASE}/samples/${id}/status?status=${status}`, { method: 'PUT' });
-        if (res.ok) fetchData();
+        if (res.ok) refreshSamples();
     };
 
     const handleUpdateColorStatus = async (sampleId: string, colorId: string, status: string, reason?: string, notes?: string) => {
@@ -42,13 +42,13 @@ export default function SamplesPage() {
         if (reason) url += `&reason=${encodeURIComponent(reason)}`;
         if (notes) url += `&notes=${encodeURIComponent(notes)}`;
         const res = await authFetch(url, { method: 'PUT' });
-        if (res.ok) fetchData();
+        if (res.ok) refreshSamples();
     };
 
     const handleEditSample = async (id: string, p: any) => {
         const res = await authFetch(`${API_BASE}/samples/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
         if (!res.ok) return;
-        fetchData('samples');
+        refreshSamples();
         showToast('Sample request updated', 'success');
     };
 
@@ -62,7 +62,7 @@ export default function SamplesPage() {
         if (!confirmed) return;
         const res = await authFetch(`${API_BASE}/samples/${id}`, { method: 'DELETE' });
         if (res.ok) {
-            fetchData();
+            refreshSamples();
             showToast('Sample request deleted', 'success');
         } else {
             showToast('Failed to delete sample request', 'danger');
@@ -71,17 +71,17 @@ export default function SamplesPage() {
 
     const handleMarkRead = async (id: string) => {
         await authFetch(`${API_BASE}/samples/${id}/read`, { method: 'POST' });
-        fetchData('samples');
+        refreshSamples();
     };
 
     const handleMarkUnread = async (id: string) => {
         await authFetch(`${API_BASE}/samples/${id}/read`, { method: 'DELETE' });
-        fetchData('samples');
+        refreshSamples();
     };
 
     const handleMarkAllRead = async () => {
         await authFetch(`${API_BASE}/samples/read-all`, { method: 'POST' });
-        fetchData('samples');
+        refreshSamples();
     };
 
     return (

@@ -16,7 +16,7 @@ export default function ProductionRunsPage() {
         productionRuns,
         operations, workCenters, partners,
         locations, stockBalance, companyProfile,
-        fetchData, authFetch,
+        fetchData, refreshManufacturing, authFetch,
         pagination,
     } = useData();
     const { woPage, woTotal, prPage, prTotal, setPrPage, setWoPage, pageSize } = pagination;
@@ -72,13 +72,13 @@ export default function ProductionRunsPage() {
         const res = await authFetch(`${API_BASE}/manufacturing-orders`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
         });
-        fetchData();
+        refreshManufacturing();
         return res;
     };
 
     const handleUpdateMOStatus = async (moId: string, status: string) => {
         const res = await authFetch(`${API_BASE}/manufacturing-orders/${moId}/status?status=${status}`, { method: 'PUT' });
-        if (res.ok) { fetchData(); return true; }
+        if (res.ok) { refreshManufacturing(); return true; }
         else { const err = await res.json(); showToast(`Error: ${err.detail}`, 'danger'); return false; }
     };
 
@@ -91,14 +91,14 @@ export default function ProductionRunsPage() {
         });
         if (!confirmed) return;
         const res = await authFetch(`${API_BASE}/manufacturing-orders/${moId}`, { method: 'DELETE' });
-        if (res.ok) { showToast('Manufacturing Order deleted', 'success'); fetchData(); }
+        if (res.ok) { showToast('Manufacturing Order deleted', 'success'); refreshManufacturing(); }
     };
 
     const handleCreateProductionRun = async (p: any) => {
         const res = await authFetch(`${API_BASE}/production-runs`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p)
         });
-        if (res.ok) fetchData();
+        if (res.ok) refreshManufacturing();
         return res;
     };
 
@@ -111,13 +111,13 @@ export default function ProductionRunsPage() {
         });
         if (!confirmed) return;
         const res = await authFetch(`${API_BASE}/production-runs/${id}`, { method: 'DELETE' });
-        if (res.ok) { showToast('Production Run deleted', 'success'); fetchData(); }
+        if (res.ok) { showToast('Production Run deleted', 'success'); refreshManufacturing(); }
         else { const err = await res.json().catch(() => ({})); showToast(`Error: ${err.detail || 'Delete failed'}`, 'danger'); }
     };
 
     const handleUpdatePRStatus = async (id: string, status: string) => {
         const res = await authFetch(`${API_BASE}/production-runs/${id}/status?status=${encodeURIComponent(status)}`, { method: 'PUT' });
-        if (res.ok) fetchData();
+        if (res.ok) refreshManufacturing();
         return res;
     };
 
@@ -125,7 +125,7 @@ export default function ProductionRunsPage() {
         const res = await authFetch(`${API_BASE}/work-orders`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
         });
-        if (res.ok) fetchData();
+        if (res.ok) refreshManufacturing();
         return res;
     };
 
@@ -133,19 +133,19 @@ export default function ProductionRunsPage() {
         const res = await authFetch(`${API_BASE}/work-orders/${id}`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
         });
-        if (res.ok) fetchData();
+        if (res.ok) refreshManufacturing();
         return res;
     };
 
     const handleUpdateWOStatus = async (id: string, status: string) => {
         const res = await authFetch(`${API_BASE}/work-orders/${id}/status?status=${encodeURIComponent(status)}`, { method: 'PUT' });
-        if (res.ok) fetchData();
+        if (res.ok) refreshManufacturing();
         return res;
     };
 
     const handleDeleteWO = async (id: string) => {
         const res = await authFetch(`${API_BASE}/work-orders/${id}`, { method: 'DELETE' });
-        if (res.ok) fetchData();
+        if (res.ok) refreshManufacturing();
     };
 
     if (isMobile) {

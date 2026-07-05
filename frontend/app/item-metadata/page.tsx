@@ -6,7 +6,7 @@ import { useConfirm } from '../context/ConfirmContext';
 import { useToast } from '../components/shared/Toast';
 
 export default function ItemMetadataPage() {
-    const { categories, uoms, attributes, fetchData, authFetch } = useData();
+    const { categories, uoms, attributes, refreshItemMetadata, authFetch } = useData();
     const { confirm } = useConfirm();
     const { showToast } = useToast();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
@@ -19,7 +19,7 @@ export default function ItemMetadataPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, parent_id: parentId ?? null }),
         });
-        if (res.ok) fetchData();
+        if (res.ok) refreshItemMetadata();
         return res;
     };
 
@@ -30,7 +30,7 @@ export default function ItemMetadataPage() {
         });
         if (!confirmed) return;
         const res = await authFetch(`${API_BASE}/categories/${id}`, { method: 'DELETE' });
-        if (res.ok) fetchData();
+        if (res.ok) refreshItemMetadata();
     };
 
     const handleRenameCategory = async (id: string, name: string) => {
@@ -39,7 +39,7 @@ export default function ItemMetadataPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name }),
         });
-        if (res.ok) fetchData();
+        if (res.ok) refreshItemMetadata();
     };
 
     // ── UOM ───────────────────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ export default function ItemMetadataPage() {
         const res = await authFetch(`${API_BASE}/uoms`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }),
         });
-        if (res.ok) fetchData();
+        if (res.ok) refreshItemMetadata();
         return res;
     };
 
@@ -58,7 +58,7 @@ export default function ItemMetadataPage() {
         });
         if (!confirmed) return;
         const res = await authFetch(`${API_BASE}/uoms/${id}`, { method: 'DELETE' });
-        if (res.ok) fetchData();
+        if (res.ok) refreshItemMetadata();
     };
 
     const handleSaveUOMFactor = async (fromUomId: string, toUomId: string, value: number) => {
@@ -66,12 +66,12 @@ export default function ItemMetadataPage() {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ to_uom_id: toUomId, value }),
         });
-        if (res.ok) fetchData();
+        if (res.ok) refreshItemMetadata();
     };
 
     const handleDeleteUOMFactor = async (uomId: string, factorId: string) => {
         const res = await authFetch(`${API_BASE}/uoms/${uomId}/factors/${factorId}`, { method: 'DELETE' });
-        if (res.ok) fetchData();
+        if (res.ok) refreshItemMetadata();
     };
 
     // ── Attributes ────────────────────────────────────────────────────────────
@@ -79,7 +79,7 @@ export default function ItemMetadataPage() {
         const res = await authFetch(`${API_BASE}/attributes`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p),
         });
-        if (res.ok) fetchData();
+        if (res.ok) refreshItemMetadata();
         return res;
     };
 
@@ -87,7 +87,7 @@ export default function ItemMetadataPage() {
         const res = await authFetch(`${API_BASE}/attributes/${id}`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }),
         });
-        if (res.ok) fetchData();
+        if (res.ok) refreshItemMetadata();
     };
 
     const handleDeleteAttribute = async (id: string) => {
@@ -98,7 +98,7 @@ export default function ItemMetadataPage() {
         if (!confirmed) return;
         const res = await authFetch(`${API_BASE}/attributes/${id}`, { method: 'DELETE' });
         if (res.ok) {
-            fetchData();
+            refreshItemMetadata();
         } else {
             const err = await res.json().catch(() => ({}));
             showToast(err.detail || 'Failed to delete attribute', 'danger');
@@ -109,20 +109,20 @@ export default function ItemMetadataPage() {
         const res = await authFetch(`${API_BASE}/attributes/${attributeId}/values`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value }),
         });
-        if (res.ok) fetchData();
+        if (res.ok) refreshItemMetadata();
     };
 
     const handleUpdateValue = async (valueId: string, value: string) => {
         const res = await authFetch(`${API_BASE}/attributes/values/${valueId}`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value }),
         });
-        if (res.ok) fetchData();
+        if (res.ok) refreshItemMetadata();
     };
 
     const handleDeleteValue = async (valueId: string) => {
         const res = await authFetch(`${API_BASE}/attributes/values/${valueId}`, { method: 'DELETE' });
         if (res.ok) {
-            fetchData();
+            refreshItemMetadata();
         } else {
             const err = await res.json().catch(() => ({}));
             showToast(err.detail || 'Failed to delete value', 'danger');

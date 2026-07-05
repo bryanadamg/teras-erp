@@ -7,7 +7,7 @@ import { useToast } from '../components/shared/Toast';
 import { useConfirm } from '../context/ConfirmContext';
 
 export default function SalesOrdersPage() {
-    const { items, attributes, salesOrders, partners, boms, productionRuns, fetchData, authFetch } = useData();
+    const { items, attributes, salesOrders, partners, boms, productionRuns, refreshSalesOrders, authFetch } = useData();
     const { showToast } = useToast();
     const { confirm } = useConfirm();
     const router = useRouter();
@@ -17,7 +17,7 @@ export default function SalesOrdersPage() {
 
     const handleCreateSO = async (p: any) => {
         const res = await authFetch(`${API_BASE}/sales-orders`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
-        if (res.ok) fetchData();
+        if (res.ok) refreshSalesOrders();
         return res;
     };
 
@@ -30,7 +30,7 @@ export default function SalesOrdersPage() {
         });
         if (!confirmed) return;
         const res = await authFetch(`${API_BASE}/sales-orders/${id}`, { method: 'DELETE' });
-        if (res.ok) fetchData();
+        if (res.ok) refreshSalesOrders();
     };
 
     const handleGeneratePR = (so: any) => {
@@ -143,14 +143,14 @@ export default function SalesOrdersPage() {
 
     const handleUpdateSO = async (id: string, payload: any) => {
         const res = await authFetch(`${API_BASE}/sales-orders/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        if (res.ok) fetchData();
+        if (res.ok) refreshSalesOrders();
         return res;
     };
 
     const handleUpdateSOStatus = async (soId: string, status: string) => {
         const res = await authFetch(`${API_BASE}/sales-orders/${soId}/status?status=${status}`, { method: 'PUT' });
         if (res.ok) {
-            fetchData();
+            refreshSalesOrders();
             showToast(`Order status updated to ${status}`, 'success');
         } else {
             const err = await res.json();

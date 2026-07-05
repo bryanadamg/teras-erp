@@ -76,10 +76,10 @@ function StatusChip({ status, map }: { status: string; map: Record<string, React
 }
 
 export default function PackingView() {
-    // partners/locations/attributes/companyProfile come from DataContext master data
-    // (loaded on initial app load). salesOrders + full items are NOT loaded on the
+    // partners/locations/attributes/companyProfile/itemIndex come from DataContext
+    // master data (loaded on initial app load). salesOrders are NOT loaded on the
     // packaging route, so this view self-fetches them.
-    const { partners, locations, attributes, companyProfile, authFetch } = useData();
+    const { partners, locations, attributes, companyProfile, itemIndex, authFetch } = useData();
     const { uiStyle } = useTheme();
     const { showToast } = useToast();
     const { confirm } = useConfirm();
@@ -89,18 +89,20 @@ export default function PackingView() {
     const [packingOrders, setPackingOrders] = useState<any[]>([]);
     const [balances, setBalances] = useState<any[]>([]);
     const [salesOrders, setSalesOrders] = useState<any[]>([]);
-    const [items, setItems] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [picking, setPicking] = useState(false);
     const [editing, setEditing] = useState<any | null>(null);
     const [printPO, setPrintPO] = useState<any | null>(null);
     const [pkgPage, setPkgPage] = useState(1);
 
+    // Built from the shared itemIndex (id/name/code/uom/lot_tracked) instead of a
+    // dedicated /items?limit=10000 fetch — keep the `id` field so existing
+    // itemById[x].id lookups (lot dedup) keep working unchanged.
     const itemById = useMemo(() => {
         const m: Record<string, any> = {};
-        (items || []).forEach((i: any) => { m[String(i.id)] = i; });
+        Object.entries(itemIndex || {}).forEach(([id, v]: [string, any]) => { m[id] = { id, ...v }; });
         return m;
-    }, [items]);
+    }, [itemIndex]);
 
     const locPickerTreeOptions = useMemo(() => buildLocationPickerTree(locations || []), [locations]);
 
@@ -116,12 +118,8 @@ export default function PackingView() {
     const loadAll = useCallback(async () => {
         setLoading(true);
         try {
-            const [so, it] = await Promise.all([
-                authFetch(`${API_BASE}/sales-orders`),
-                authFetch(`${API_BASE}/items?limit=10000`),
-            ]);
+            const so = await authFetch(`${API_BASE}/sales-orders`);
             if (so.ok) { const d = await so.json(); setSalesOrders(Array.isArray(d) ? d : (d.items || [])); }
-            if (it.ok) { const d = await it.json(); setItems(Array.isArray(d) ? d : (d.items || [])); }
             await loadPacking();
         } finally { setLoading(false); }
     }, [authFetch, loadPacking]);
@@ -290,7 +288,6 @@ export default function PackingView() {
                 <SuratJalanPrintModal
                     po={printPO}
                     salesOrders={salesOrders}
-                    items={items}
                     attributes={attributes}
                     companyProfile={companyProfile}
                     customerAddr={customerAddr}

@@ -52,7 +52,7 @@ export default function SettingsPage() {
                 companyProfile={companyProfile}
                 onUpdateCompanyProfile={handleUpdateCompanyProfile}
                 onUploadLogo={handleUploadLogo}
-                onClearCache={() => { localStorage.removeItem('terras_master_cache_v2'); fetchData(); }}
+                onClearCache={() => { localStorage.removeItem('terras_master_cache_v3'); fetchData(); }}
             />
     );
 }

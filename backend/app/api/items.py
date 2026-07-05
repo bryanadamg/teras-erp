@@ -19,15 +19,15 @@ router = APIRouter()
 
 @router.get("/items/lookup")
 async def get_items_lookup(db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
-    """Lightweight id/code/name list of ALL items.
+    """Lightweight id/code/name/uom/lot_tracked list of ALL items.
 
     Declared BEFORE any dynamic GET /items/{item_id} route so 'lookup' is not
     captured as an item_id path param. Columns only — no eager loads, no pagination.
     """
     from app.models.item import Item
-    result = await db.execute(select(Item.id, Item.code, Item.name))
+    result = await db.execute(select(Item.id, Item.code, Item.name, Item.uom, Item.lot_tracked))
     return [
-        {"id": str(row.id), "name": row.name, "code": row.code}
+        {"id": str(row.id), "name": row.name, "code": row.code, "uom": row.uom, "lot_tracked": row.lot_tracked}
         for row in result.all()
     ]
 

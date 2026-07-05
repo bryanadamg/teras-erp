@@ -38,7 +38,7 @@ interface DataContextType {
     dashboardSummary: any;
     dashboardKpiHistory: any;
     dashboardWorkOrders: any[];
-    itemIndex: Record<string, { name: string; code: string }>;
+    itemIndex: Record<string, { name: string; code: string; uom?: string; lot_tracked?: boolean }>;
     companyProfile: any;
     wsStatus: 'connecting' | 'open' | 'closed';
 
@@ -74,6 +74,10 @@ interface DataContextType {
     fetchData: (targetTab?: string) => Promise<void>;
     refreshManufacturing: () => Promise<void>;
     refreshPurchaseOrders: () => Promise<void>;
+    refreshSalesOrders: () => Promise<void>;
+    refreshSamples: () => Promise<void>;
+    refreshItemMetadata: () => Promise<void>;
+    refreshRouting: () => Promise<void>;
     handleTabHover: (tab: string) => void;
     authFetch: (url: string, options?: any) => Promise<Response>;
     subscribeLiveEvents: (fn: (kind: 'production' | 'kpi' | 'stock' | 'weaving') => void) => () => void;
@@ -108,7 +112,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const [dashboardSummary, setDashboardSummary] = useState<any>(null);
     const [dashboardKpiHistory, setDashboardKpiHistory] = useState<any>({});
     const [dashboardWorkOrders, setDashboardWorkOrders] = useState<any[]>([]);
-    const [itemIndex, setItemIndex] = useState<Record<string, { name: string; code: string }>>({});
+    const [itemIndex, setItemIndex] = useState<Record<string, { name: string; code: string; uom?: string; lot_tracked?: boolean }>>({});
     const [companyProfile, setCompanyProfile] = useState<any>(null);
     const [wsStatus, setWsStatus] = useState<'connecting' | 'open' | 'closed'>('connecting');
 
@@ -193,7 +197,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         try {
             const token = localStorage.getItem('access_token');
             const headers = { 'Authorization': `Bearer ${token}` };
-            const CACHE_KEY = 'terras_master_cache_v2';
+            // v3: itemIndex now carries uom/lot_tracked (needed by PackingView) —
+            // bump so a stale v2 cache doesn't serve an index missing those fields.
+            const CACHE_KEY = 'terras_master_cache_v3';
             const CACHE_TTL = 3600000; 
             const savedCache = localStorage.getItem(CACHE_KEY);
             let masterFetched = false;
@@ -268,8 +274,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             // that need the complete nested tree for WO/PR creation and printing.
             // NOT work-orders: that page reads only workCenters/itemIndex and
             // self-fetches its own flat WO list — boms/MO-tree/stock-balance below
-            // are all wasted work there.
-            if (fetchTarget.includes('manufacturing') || fetchTarget.includes('production-runs') || fetchTarget.includes('samples') || fetchTarget.includes('sales-orders')) {
+            // are all wasted work there. NOT samples: SampleRequestView never reads
+            // boms (only companyProfile/attributes) — every status/read toggle was
+            // needlessly re-pulling the full nested BOM tree.
+            if (fetchTarget.includes('manufacturing') || fetchTarget.includes('production-runs') || fetchTarget.includes('sales-orders')) {
                 requests.push(fetch(`${API_BASE}/boms`, { headers }));
                 requestTypes.push('boms');
             }
@@ -307,9 +315,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             }
 
             // Sales & CRM
-            if (fetchTarget.includes('sales-orders') || fetchTarget.includes('samples') || fetchTarget.includes('customers')) {
+            // Split: sales-orders page reads salesOrders but not samples; samples
+            // page reads samples but not salesOrders; customers page reads neither
+            // (only partners, fetched separately in master data) — each used to
+            // pull both regardless of which one it actually needed.
+            if (fetchTarget.includes('sales-orders')) {
                 requests.push(fetch(`${API_BASE}/sales-orders`, { headers }));
                 requestTypes.push('sales-orders');
+            }
+            if (fetchTarget.includes('samples')) {
                 requests.push(fetch(`${API_BASE}/samples`, { headers }));
                 requestTypes.push('samples');
             }
@@ -352,7 +366,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     case 'partners': setPartners(data); newMasterData.partners = data; break;
                     case 'company-profile': setCompanyProfile(data); newMasterData.companyProfile = data; break;
                     case 'items': setItems(data.items); setItemTotal(data.total); break;
-                    case 'item-lookup': { const idx: Record<string, { name: string; code: string }> = {}; for (const it of (data || [])) idx[String(it.id)] = { name: it.name, code: it.code }; setItemIndex(idx); newMasterData.itemIndex = idx; break; }
+                    case 'item-lookup': { const idx: Record<string, { name: string; code: string; uom?: string; lot_tracked?: boolean }> = {}; for (const it of (data || [])) idx[String(it.id)] = { name: it.name, code: it.code, uom: it.uom, lot_tracked: it.lot_tracked }; setItemIndex(idx); newMasterData.itemIndex = idx; break; }
                     case 'kpis': setDashboardKPIs(data); break;
                     case 'dashboard-summary': setDashboardSummary(data); break;
                     case 'kpi-history': setDashboardKpiHistory(data); break;
@@ -436,6 +450,75 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             const res = await fetch(`${API_BASE}/purchase-orders`, { headers, cache: 'no-store' });
             if (res.ok) { const d = await res.json(); setPurchaseOrders(d); }
         } catch (e) { console.error('refreshPurchaseOrders error', e); }
+    }, [currentUser]);
+
+    // Targeted refresh for the Sales Orders page after a SO mutation — same
+    // reasoning as refreshPurchaseOrders: goes straight to /sales-orders instead
+    // of the broad fetchData() (items + full /boms + MOs + PRs + samples + partners).
+    const refreshSalesOrders = useCallback(async () => {
+        if (!currentUser) return;
+        try {
+            const token = localStorage.getItem('access_token');
+            const headers = { 'Authorization': `Bearer ${token}` };
+            const res = await fetch(`${API_BASE}/sales-orders`, { headers, cache: 'no-store' });
+            if (res.ok) { const d = await res.json(); setSalesOrders(d); }
+        } catch (e) { console.error('refreshSalesOrders error', e); }
+    }, [currentUser]);
+
+    // Targeted refresh for the Samples page after a sample mutation — same
+    // reasoning as refreshSalesOrders: goes straight to /samples instead of the
+    // broad fetchData() (which no longer even pulls boms/sales-orders for this
+    // route, but still would re-pull items + master data unnecessarily).
+    const refreshSamples = useCallback(async () => {
+        if (!currentUser) return;
+        try {
+            const token = localStorage.getItem('access_token');
+            const headers = { 'Authorization': `Bearer ${token}` };
+            const res = await fetch(`${API_BASE}/samples`, { headers, cache: 'no-store' });
+            if (res.ok) { const d = await res.json(); setSamples(d); }
+        } catch (e) { console.error('refreshSamples error', e); }
+    }, [currentUser]);
+
+    // Targeted refresh for the Item Metadata page (categories/UOMs/attributes
+    // CRUD) — that page reads only these 3 collections, but every small mutation
+    // called the broad fetchData(), which on this route refetches ALL master data
+    // (locations, sizes, work-centers, operations, partners, company) + items +
+    // item-lookup as well.
+    const refreshItemMetadata = useCallback(async () => {
+        if (!currentUser) return;
+        try {
+            const token = localStorage.getItem('access_token');
+            const headers = { 'Authorization': `Bearer ${token}` };
+            const [catRes, uomRes, attrRes] = await Promise.all([
+                fetch(`${API_BASE}/categories`, { headers, cache: 'no-store' }),
+                fetch(`${API_BASE}/uoms`, { headers, cache: 'no-store' }),
+                fetch(`${API_BASE}/attributes`, { headers, cache: 'no-store' }),
+            ]);
+            if (catRes.ok) setCategories(await catRes.json());
+            if (uomRes.ok) setUoms(await uomRes.json());
+            if (attrRes.ok) setAttributes(await attrRes.json());
+        } catch (e) { console.error('refreshItemMetadata error', e); }
+    }, [currentUser]);
+
+    // Targeted refresh for the Routing page (work centers/operations CRUD) —
+    // that page reads only workCenters/operations/locations, but every mutation
+    // called fetchData('routing'), which refetches ALL 9 master-data endpoints
+    // (locations, attributes, categories, uoms, sizes, work-centers, operations,
+    // partners, company).
+    const refreshRouting = useCallback(async () => {
+        if (!currentUser) return;
+        try {
+            const token = localStorage.getItem('access_token');
+            const headers = { 'Authorization': `Bearer ${token}` };
+            const [wcRes, opRes, locRes] = await Promise.all([
+                fetch(`${API_BASE}/work-centers`, { headers, cache: 'no-store' }),
+                fetch(`${API_BASE}/operations`, { headers, cache: 'no-store' }),
+                fetch(`${API_BASE}/locations`, { headers, cache: 'no-store' }),
+            ]);
+            if (wcRes.ok) setWorkCenters(await wcRes.json());
+            if (opRes.ok) setOperations(await opRes.json());
+            if (locRes.ok) setLocations(await locRes.json());
+        } catch (e) { console.error('refreshRouting error', e); }
     }, [currentUser]);
 
     // Targeted refresh for a STOCK_UPDATE live event — only the balance table,
@@ -641,13 +724,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         loading,
         pagination: { itemPage, setItemPage, itemTotal, woPage, setWoPage, woTotal, prPage, setPrPage, prTotal, auditPage, setAuditPage, auditTotal, reportPage, setReportPage, reportTotal, moSearch, setMoSearch: handleSetMoSearch, prSearch, setPrSearch: handleSetPrSearch, pageSize },
         filters: { itemSearch: itemSearchInput, setItemSearch: handleSetItemSearch, categoryL1, setCategoryL1: handleSetCategoryL1, categoryL2, setCategoryL2: handleSetCategoryL2, categoryL3, setCategoryL3, auditType, setAuditType },
-        fetchData, refreshManufacturing, refreshPurchaseOrders, handleTabHover, authFetch, subscribeLiveEvents
+        fetchData, refreshManufacturing, refreshPurchaseOrders, refreshSalesOrders, refreshSamples, refreshItemMetadata, refreshRouting, handleTabHover, authFetch, subscribeLiveEvents
     }), [
         items, locations, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
         partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, dashboardWorkOrders, itemIndex, companyProfile, wsStatus, loading,
         itemPage, itemTotal, woPage, woTotal, prPage, prTotal, auditPage, auditTotal, reportPage, reportTotal, pageSize,
-        itemSearchInput, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData, refreshManufacturing, refreshPurchaseOrders, handleTabHover, authFetch,
+        itemSearchInput, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData, refreshManufacturing, refreshPurchaseOrders, refreshSalesOrders, refreshSamples, refreshItemMetadata, refreshRouting, handleTabHover, authFetch,
         handleSetCategoryL1, handleSetCategoryL2, handleSetMoSearch, handleSetPrSearch, handleSetItemSearch, subscribeLiveEvents
     ]);
 
