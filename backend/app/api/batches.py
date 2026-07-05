@@ -188,6 +188,13 @@ async def list_batches(
             loc_q = loc_q.filter(StockBalance.location_id == location_id)
         loc_res = await db.execute(loc_q)
         location_map = {row[0]: (row[1], row[2]) for row in loc_res.all()}
+
+    # A location filter means "lots actually present there" (lot/batch pickers for
+    # staging and completion pass location_id expecting only selectable options) —
+    # without this, batches with zero stock at that location still showed up.
+    if location_id:
+        batches = [b for b in batches if remaining_map.get(str(b.id), 0.0) > 0]
+
     for b in batches:
         b.remaining = remaining_map.get(str(b.id), 0.0)
         b.location_id, b.location_name = location_map.get(str(b.id), (None, None))

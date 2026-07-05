@@ -11,8 +11,8 @@ import PixelAvatar from '../shared/PixelAvatar';
 import Pager from '../shared/Pager';
 import UserFormModal, { UserFormPayload } from './UserFormModal';
 import EffectivePermissions from './EffectivePermissions';
+import { API_BASE } from '../shared/apiBase';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
 const USERS_PAGE_SIZE = 10;
 
 type StatusFilter = 'all' | 'active' | 'inactive';

@@ -8,8 +8,7 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { xpBtn } from '../shared/xpTheme';
 import { xpBevel, xpTitleBar, xpTableHeader, xpThCell, tdBase } from './settingsStyles';
 import RoleFormModal, { RoleFormPayload, RoleLike } from './RoleFormModal';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
+import { API_BASE } from '../shared/apiBase';
 
 export default function SettingsRolesTab() {
     const { showToast } = useToast();

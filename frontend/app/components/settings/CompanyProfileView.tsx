@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '../shared/Toast';
 import { useTheme } from '../../context/ThemeContext';
+import { STATIC_BASE as API_BASE } from '../shared/apiBase';
 
 export default function CompanyProfileView({ profile, onUpdate, onUploadLogo, authFetch }: any) {
     const { showToast } = useToast();
@@ -58,8 +59,6 @@ export default function CompanyProfileView({ profile, onUpdate, onUploadLogo, au
             setIsUploading(false);
         }
     };
-
-    const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace('/api', '');
 
     const xpBevel: React.CSSProperties = {
         border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',

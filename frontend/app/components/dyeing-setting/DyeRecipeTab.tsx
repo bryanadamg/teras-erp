@@ -9,6 +9,7 @@ import { useUser } from '../../context/UserContext';
 import CodeConfigModal, { CodeConfig, buildCodeParts, buildCodeWithCounter } from '../shared/CodeConfigModal';
 import SearchableSelect from '../shared/SearchableSelect';
 import Pager from '../shared/Pager';
+import { API_BASE } from '../shared/apiBase';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -128,7 +129,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
 
     useEffect(() => {
         // Active colors for the recipe's shade picker (capped; future: server typeahead at 30k).
-        authFetch('/api/colors?status=active&size=500')
+        authFetch(`${API_BASE}/colors?status=active&size=500`)
             .then((res: Response) => res.ok ? res.json() : null)
             .then((data: any) => { if (data) setColors(data.items ?? []); })
             .catch(() => {});
@@ -140,14 +141,14 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
     [colors]);
 
     useEffect(() => {
-        authFetch('/api/preferences/code_config_DYE')
+        authFetch(`${API_BASE}/preferences/code_config_DYE`)
             .then((res: Response) => res.ok ? res.json() : null)
             .then((data: any) => { if (data?.value) setCodeConfig(data.value); })
             .catch(() => {});
     }, [authFetch]);
 
     useEffect(() => {
-        authFetch('/api/items?skip=0&limit=2000&search=')
+        authFetch(`${API_BASE}/items?skip=0&limit=2000&search=`)
             .then((res: Response) => res.ok ? res.json() : null)
             .then((data: any) => {
                 if (!data) return;
@@ -162,7 +163,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
     const loadRecipes = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await authFetch('/api/dye-recipes');
+            const res = await authFetch(`${API_BASE}/dye-recipes`);
             if (res.ok) {
                 const data = await res.json();
                 setRecipes(Array.isArray(data) ? data : (data.items || []));
@@ -291,13 +292,13 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
             };
             let res;
             if (editingRecipe) {
-                res = await authFetch(`/api/dye-recipes/${editingRecipe.id}`, {
+                res = await authFetch(`${API_BASE}/dye-recipes/${editingRecipe.id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),
                 });
             } else {
-                res = await authFetch('/api/dye-recipes', {
+                res = await authFetch(`${API_BASE}/dye-recipes`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),
@@ -333,7 +334,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
         });
         if (!confirmed) return;
         try {
-            const res = await authFetch(`/api/dye-recipes/${recipe.id}`, { method: 'DELETE' });
+            const res = await authFetch(`${API_BASE}/dye-recipes/${recipe.id}`, { method: 'DELETE' });
             if (res.ok) {
                 await loadRecipes();
                 setSelectedId(null);
@@ -1031,7 +1032,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                 initialConfig={codeConfig || undefined}
                 onSave={cfg => {
                     setCodeConfig(cfg);
-                    authFetch('/api/preferences/code_config_DYE', {
+                    authFetch(`${API_BASE}/preferences/code_config_DYE`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ value: cfg }),

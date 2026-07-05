@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
+import { API_BASE } from './apiBase';
 
 interface HistoryPaneProps {
     entityType: 'Item' | 'SampleRequest' | 'BOM' | 'WorkOrder';
@@ -216,7 +217,6 @@ export default function HistoryPane({ entityType, entityId, onClose }: HistoryPa
     const [logs, setLogs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
-    const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
 
     useEffect(() => {
         const fetchHistory = async () => {

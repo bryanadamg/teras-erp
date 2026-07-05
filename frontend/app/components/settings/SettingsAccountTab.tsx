@@ -8,8 +8,7 @@ import { xpBtn, xpInput, xpLabel } from '../shared/xpTheme';
 import { xpBevel, xpTitleBar } from './settingsStyles';
 import PixelAvatar from '../shared/PixelAvatar';
 import AvatarPicker from '../shared/AvatarPicker';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
+import { API_BASE } from '../shared/apiBase';
 
 export default function SettingsAccountTab() {
     const { showToast } = useToast();

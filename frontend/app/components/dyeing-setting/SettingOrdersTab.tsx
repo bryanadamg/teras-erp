@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import Pager from '../shared/Pager';
+import { API_BASE } from '../shared/apiBase';
 
 // ── Fonts ───────────────────────────────────────────────────────────────────
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
@@ -160,7 +161,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
     const fetchWorkOrders = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await authFetch('/api/work-orders?center_type=SETTING');
+            const res = await authFetch(`${API_BASE}/work-orders?center_type=SETTING`);
             if (res.ok) {
                 const data = await res.json();
                 setWorkOrders(Array.isArray(data) ? data : (data.items ?? []));
@@ -175,7 +176,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
     // ── Fetch Runs for selected WO ────────────────────────────────────────────
     const fetchRuns = useCallback(async (woId: string) => {
         try {
-            const res = await authFetch(`/api/setting-runs?work_order_id=${woId}`);
+            const res = await authFetch(`${API_BASE}/setting-runs?work_order_id=${woId}`);
             if (res.ok) {
                 const data = await res.json();
                 setRuns(Array.isArray(data) ? data : (data.items ?? []));
@@ -224,7 +225,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
             if (createForm.width_cm !== '') payload.width_cm = parseFloat(createForm.width_cm);
             if (createForm.overfeed_pct !== '') payload.overfeed_pct = parseFloat(createForm.overfeed_pct);
 
-            const res = await authFetch('/api/setting-runs', {
+            const res = await authFetch(`${API_BASE}/setting-runs`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
@@ -242,7 +243,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
     // ── Start Run ─────────────────────────────────────────────────────────────
     const handleStartRun = async (run: any) => {
         try {
-            const res = await authFetch(`/api/setting-runs/${run.id}/start`, { method: 'POST' });
+            const res = await authFetch(`${API_BASE}/setting-runs/${run.id}/start`, { method: 'POST' });
             if (res.ok && selectedWoId) fetchRuns(selectedWoId);
         } catch {
             // silent
@@ -262,7 +263,7 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
             if (completeForm.actual_gsm !== '') payload.actual_gsm = parseFloat(completeForm.actual_gsm);
             if (completeForm.actual_shrinkage_pct !== '') payload.actual_shrinkage_pct = parseFloat(completeForm.actual_shrinkage_pct);
 
-            const res = await authFetch(`/api/setting-runs/${showCompleteModal.id}/complete`, {
+            const res = await authFetch(`${API_BASE}/setting-runs/${showCompleteModal.id}/complete`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),

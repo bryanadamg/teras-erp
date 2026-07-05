@@ -1,8 +1,8 @@
 import { useData } from '../../context/DataContext';
+import { STATIC_BASE as API_BASE } from './apiBase';
 
 export default function PrintHeader({ title }: { title: string }) {
     const { companyProfile } = useData();
-    const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace('/api', '');
 
     return (
         <div className="d-none d-print-block mb-4">

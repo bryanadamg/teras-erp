@@ -14,6 +14,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
 import { StatusChip, XPLoading } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
+import { STATIC_BASE } from '../shared/apiBase';
 
 const SAMPLE_PAGE_SIZE = 50;
 
@@ -61,7 +62,6 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
   const [historyEntityId, setHistoryEntityId] = useState<string | null>(null);
-  const STATIC_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace('/api', '');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [samplePage, setSamplePage] = useState(1);
