@@ -363,7 +363,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     case 'sizes': setSizes(data); newMasterData.sizes = data; break;
                     case 'work-centers': setWorkCenters(data); newMasterData.workCenters = data; break;
                     case 'operations': setOperations(data); newMasterData.operations = data; break;
-                    case 'partners': setPartners(data); newMasterData.partners = data; break;
+                    case 'partners': setPartners(data.items || []); newMasterData.partners = data.items || []; break;
                     case 'company-profile': setCompanyProfile(data); newMasterData.companyProfile = data; break;
                     case 'items': setItems(data.items); setItemTotal(data.total); break;
                     case 'item-lookup': { const idx: Record<string, { name: string; code: string; uom?: string; lot_tracked?: boolean }> = {}; for (const it of (data || [])) idx[String(it.id)] = { name: it.name, code: it.code, uom: it.uom, lot_tracked: it.lot_tracked }; setItemIndex(idx); newMasterData.itemIndex = idx; break; }

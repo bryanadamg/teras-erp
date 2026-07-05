@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.schemas import PartnerCreate, PartnerResponse, PartnerUpdate
+from app.schemas import PartnerCreate, PartnerResponse, PartnerUpdate, PaginatedPartnerResponse
 from app.models.partner import Partner
 from app.models.audit import AuditLog
 from app.api.auth import get_current_user, require_permission, require_any_permission
@@ -31,12 +31,21 @@ def create_partner(payload: PartnerCreate, db: Session = Depends(get_db), curren
     db.commit()
     return partner
 
-@router.get("", response_model=List[PartnerResponse])
-def get_partners(type: Optional[str] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+@router.get("", response_model=PaginatedPartnerResponse)
+def get_partners(
+    type: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 1000,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     query = db.query(Partner)
     if type:
         query = query.filter(Partner.type == type)
-    return query.all()
+    total = query.count()
+    items = query.offset(skip).limit(limit).all()
+    page = (skip // limit) + 1 if limit else 1
+    return {"items": items, "total": total, "page": page, "size": limit}
 
 @router.put("/{partner_id}", response_model=PartnerResponse)
 def update_partner(partner_id: uuid.UUID, payload: PartnerUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_any_permission('sales.manage', 'purchasing.manage'))):

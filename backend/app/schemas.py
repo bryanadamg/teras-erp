@@ -1007,6 +1007,12 @@ class PartnerResponse(PartnerCreate):
     class Config:
         from_attributes = True
 
+class PaginatedPartnerResponse(BaseModel):
+    items: list[PartnerResponse]
+    total: int
+    page: int
+    size: int
+
 # --- Purchase Order (Outgoing) Schemas ---
 
 class PurchaseOrderLineCreate(BaseModel):
