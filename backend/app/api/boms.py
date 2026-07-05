@@ -137,7 +137,7 @@ async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db
         bom.attribute_values = vals
 
     db.add(bom)
-    await db.commit()
+    await db.flush()
 
     # 4. Create BOM Sizes
     for size_entry in payload.sizes:
@@ -152,7 +152,6 @@ async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db
             measurement_max=size_entry.measurement_max,
         )
         db.add(bom_size)
-    await db.commit()
 
     # 5. Create BOM Operations first so lines can reference them by sequence
     seq_to_op_id: dict[int, any] = {}

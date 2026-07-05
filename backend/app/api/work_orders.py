@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, case
 from sqlalchemy.orm import joinedload, selectinload
@@ -53,23 +53,6 @@ router = APIRouter()
 
 def _wo_options():
     return [joinedload(WorkOrder.work_center), selectinload(WorkOrder.completions)]
-
-@router.get("/work-orders", response_model=list[WorkOrderResponse])
-async def list_work_orders(
-    manufacturing_order_id: Optional[str] = Query(None),
-    center_type: Optional[str] = Query(None),
-    skip: int = 0,
-    limit: int = 9999,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
-):
-    q = select(WorkOrder).options(*_wo_options()).order_by(WorkOrder.sequence)
-    if manufacturing_order_id:
-        q = q.filter(WorkOrder.manufacturing_order_id == manufacturing_order_id)
-    if center_type:
-        q = q.join(WorkCenter, WorkOrder.work_center_id == WorkCenter.id).filter(WorkCenter.center_type == center_type)
-    result = await db.execute(q.offset(skip).limit(limit))
-    return result.scalars().all()
 
 @router.post("/work-orders", response_model=WorkOrderResponse)
 async def create_work_order(

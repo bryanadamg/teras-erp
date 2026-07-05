@@ -184,7 +184,7 @@ async def import_items(file: UploadFile = File(...), db: AsyncSession = Depends(
         raise HTTPException(status_code=400, detail="Invalid file type. Please upload a CSV.")
     
     content = await file.read()
-    results = await import_service.import_items_csv(db, content)
+    results = await import_service.import_items_csv(db, content, user_id=current_user.id)
     
     if results["errors"]:
         return {"status": "partial_success", "imported": results["success"], "errors": results["errors"]}
