@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTheme } from '../../context/ThemeContext';
+import { MODAL_REPOSITION_EVENT } from './ModalWrapper';
 
 export interface TreeSelectOption {
   value: string;
@@ -111,11 +112,13 @@ export default function TreeSelect({
     document.addEventListener('keydown', onKey);
     window.addEventListener('scroll', onScroll, true);
     window.addEventListener('resize', computePos);
+    window.addEventListener(MODAL_REPOSITION_EVENT, computePos);
     return () => {
       document.removeEventListener('mousedown', onMouse);
       document.removeEventListener('keydown', onKey);
       window.removeEventListener('scroll', onScroll, true);
       window.removeEventListener('resize', computePos);
+      window.removeEventListener(MODAL_REPOSITION_EVENT, computePos);
     };
   }, [open, computePos]);
 

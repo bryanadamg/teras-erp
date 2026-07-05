@@ -10,6 +10,12 @@ import { useIsMobile } from '../../hooks/useIsMobile';
 // arbitrary one-off number.
 export const MODAL_Z = { 1: 20000, 2: 20100, 3: 20200 } as const;
 
+// Fired on every drag-move of a modeless modal panel. The panel's position is
+// updated by mutating the DOM transform directly (no React re-render, no native
+// resize/scroll event) — anything anchoring a portaled overlay to the panel
+// (e.g. SearchableSelect, TreeSelect dropdowns) must listen for this to stay glued.
+export const MODAL_REPOSITION_EVENT = 'terras-modal-reposition';
+
 // Stack of open modals so Escape only closes the topmost one (nested levels 1-3).
 const escStack: Array<() => void> = [];
 let escListenerAttached = false;
@@ -137,6 +143,7 @@ export default function ModalWrapper({
         const onMove = (ev: PointerEvent) => {
             dragOffset.current = { x: base.x + ev.clientX - startX, y: base.y + ev.clientY - startY };
             el.style.transform = `translate(calc(-50% + ${dragOffset.current.x}px), ${dragOffset.current.y}px)`;
+            window.dispatchEvent(new Event(MODAL_REPOSITION_EVENT));
         };
         const onUp = () => {
             window.removeEventListener('pointermove', onMove);

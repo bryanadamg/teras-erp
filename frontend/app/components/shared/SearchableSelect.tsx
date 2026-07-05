@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { MODAL_REPOSITION_EVENT } from './ModalWrapper';
 
 interface Option {
     value: string;
@@ -93,9 +94,11 @@ export default function SearchableSelect({
         const onResize = () => calcDropdownPos();
         window.addEventListener('scroll', onScroll, true);
         window.addEventListener('resize', onResize);
+        window.addEventListener(MODAL_REPOSITION_EVENT, onResize);
         return () => {
             window.removeEventListener('scroll', onScroll, true);
             window.removeEventListener('resize', onResize);
+            window.removeEventListener(MODAL_REPOSITION_EVENT, onResize);
         };
     }, [isOpen]);
 

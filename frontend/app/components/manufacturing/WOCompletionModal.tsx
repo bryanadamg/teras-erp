@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../shared/Toast';
 import SearchableSelect from '../shared/SearchableSelect';
+import ModalWrapper from '../shared/ModalWrapper';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -248,21 +248,24 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
         value: it.id, label: it.name, subLabel: it.code,
     }));
 
-    return createPortal(
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ width: 480, background: '#ece9d8', border: '2px solid #0a246a', fontFamily: xpFont, borderRadius: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
-
-                {/* Title bar */}
-                <div style={{ background: 'linear-gradient(to right, #0a246a, #a6caf0, #0a246a)', padding: '3px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none', flexShrink: 0 }}>
-                    <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 12, textShadow: '1px 1px 2px rgba(0,0,0,0.6)' }}>
-                        {workOrder ? `Log WO: ${workOrder.code || workOrder.name} — ${mo.code}` : `Log Completion — ${mo.code}`}
-                    </span>
-                    <button onClick={onClose} style={{ width: 21, height: 21, background: 'linear-gradient(to bottom, #e06060, #b03030)', border: '1px solid #800', borderRadius: 2, cursor: 'pointer', color: '#fff', fontSize: 12, fontWeight: 'bold', lineHeight: 1 }}>x</button>
-                </div>
-
-                {/* Body */}
-                <form onSubmit={handleSubmit} style={{ overflowY: 'auto', flex: 1 }}>
-                    <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+    return (
+        <ModalWrapper
+            isOpen
+            onClose={onClose}
+            title={workOrder ? `Log WO: ${workOrder.code || workOrder.name} — ${mo.code}` : `Log Completion — ${mo.code}`}
+            modeless
+            size="md"
+            footer={
+                <>
+                    <button type="button" onClick={onClose} style={xpBtn()}>Cancel</button>
+                    <button type="submit" form="wo-completion-form" disabled={submitting} style={{ ...xpBtn(true), opacity: submitting ? 0.6 : 1 }}>
+                        {submitting ? 'Saving...' : 'Log Completion'}
+                    </button>
+                </>
+            }
+        >
+                <form id="wo-completion-form" onSubmit={handleSubmit} style={{ fontFamily: xpFont }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
 
                         {/* Product info + progress */}
                         <div style={{ border: '1px solid #aca899', padding: '8px 10px', background: '#f5f4ee', display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -634,17 +637,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                             </div>
                         )}
                     </div>
-
-                    {/* Footer */}
-                    <div style={{ borderTop: '1px solid #aca899', padding: '6px 10px', display: 'flex', justifyContent: 'flex-end', gap: 6, background: '#ece9d8', flexShrink: 0 }}>
-                        <button type="button" onClick={onClose} style={xpBtn()}>Cancel</button>
-                        <button type="submit" disabled={submitting} style={{ ...xpBtn(true), opacity: submitting ? 0.6 : 1 }}>
-                            {submitting ? 'Saving...' : 'Log Completion'}
-                        </button>
-                    </div>
                 </form>
-            </div>
-        </div>,
-        document.body
+        </ModalWrapper>
     );
 }
