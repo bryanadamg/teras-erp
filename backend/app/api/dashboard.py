@@ -20,11 +20,6 @@ def get_dashboard_kpis(db: Session = Depends(get_db), current_user: User = Depen
     # You can choose to refresh if data is old, or just return cache
     return kpi_service.get_all_cached_kpis(db)
 
-@router.post("/kpis/refresh")
-def refresh_kpis(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    kpi_service.refresh_all_kpis(db)
-    return {"status": "success"}
-
 @router.get("/kpis/history")
 def get_kpi_history(days: int = 30, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Daily KPI time series for trend charts: {key: [{date, value}, ...]}."""

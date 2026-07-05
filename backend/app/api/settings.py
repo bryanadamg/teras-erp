@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, UploadFile, File
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.session import get_async_db
@@ -61,7 +62,7 @@ async def upload_logo(
     file_path = UPLOAD_DIR / f"company_logo{file_ext}"
     
     with file_path.open("wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+        await run_in_threadpool(shutil.copyfileobj, file.file, buffer)
     
     # Update profile
     result = await db.execute(select(CompanyProfile))

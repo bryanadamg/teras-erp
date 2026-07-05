@@ -5,13 +5,13 @@ from sqlalchemy import select, func, or_, inspect
 from sqlalchemy.orm import selectinload, joinedload, attributes as sa_attributes
 from collections import defaultdict
 from app.db.session import get_async_db
-from app.models.manufacturing import ManufacturingOrder, MOCompletion, MODependency, MOCompletionItem, MOPlannedComponent
+from app.models.manufacturing import ManufacturingOrder, MOCompletion, MOCompletionItem
 from app.models.work_order import WorkOrder as WorkOrderModel
 from app.models.bom import BOM, BOMLine, BOMSize, BOMOperation
 from app.models.routing import Operation as OperationModel, WorkCenter
 from app.models.location import Location
 from app.models.sales import SalesOrder
-from app.services import stock_service, audit_service, kpi_service, beam_service
+from app.services import stock_service, audit_service, kpi_service, beam_service, mrp_service
 from app.services.netting_service import Availability, preview_mo
 from app.schemas import (
     ManufacturingOrderCreate, ManufacturingOrderResponse,
@@ -37,7 +37,6 @@ from datetime import datetime
 from typing import Optional
 from app.core.ws_manager import manager
 import uuid
-import re
 
 router = APIRouter()
 
@@ -157,22 +156,6 @@ def populate_mo_ids(mo: ManufacturingOrder):
         mo.required_mo_ids = []
         sa_attributes.set_committed_value(mo, "required_dependencies", [])
 
-async def _snapshot_bom_lines(db: AsyncSession, mo: ManufacturingOrder, bom: BOM):
-    """Snapshot BOM lines into MOPlannedComponent rows at MO creation time."""
-    for line in bom.lines:
-        attr_ids = [str(v.id) for v in line.attribute_values]
-        db.add(MOPlannedComponent(
-            mo_id=mo.id,
-            item_id=line.item_id,
-            percentage=line.percentage,
-            qty=line.qty,
-            source_location_id=line.source_location_id,
-            bom_line_id=line.id,
-            bom_operation_id=line.bom_operation_id,
-            attribute_value_ids=attr_ids,
-        ))
-
-
 async def load_mo_tree(db: AsyncSession, root_ids: list) -> dict:
     """
     Load a MO tree of arbitrary depth using a recursive CTE.
@@ -282,138 +265,6 @@ async def _create_wos_from_operations(db: AsyncSession, mo: ManufacturingOrder, 
     return created
 
 
-async def create_mo_recursive(
-    db: AsyncSession,
-    bom_id: uuid.UUID,
-    qty: float,
-    location_id: uuid.UUID,
-    user_id: uuid.UUID,
-    parent_mo_id: Optional[uuid.UUID] = None,
-    source_location_id: Optional[uuid.UUID] = None,
-    sales_order_id: Optional[uuid.UUID] = None,
-    production_run_id: Optional[uuid.UUID] = None,
-    target_start_date: Optional[datetime] = None,
-    target_end_date: Optional[datetime] = None,
-    bom_size_id: Optional[uuid.UUID] = None,
-    create_children: bool = True,
-    availability=None,
-) -> ManufacturingOrder:
-    """Recursively creates manufacturing orders for sub-assemblies.
-    Pass create_children=False to create only the root MO (used in two-pass PR creation).
-
-    When ``availability`` (a netting_service.Availability ledger) is supplied,
-    each sub-assembly's gross requirement is netted against net-free stock before
-    its MO is created: fully-covered children are skipped (no MO, no sub-tree),
-    partially-covered children are resized to the shortfall. The root MO itself
-    is never netted — only its children/descendants."""
-    # 1. Fetch BOM with lines and operations
-    result = await db.execute(
-        select(BOM)
-        .options(
-            selectinload(BOM.lines).selectinload(BOMLine.attribute_values),
-            selectinload(BOM.attribute_values),
-            selectinload(BOM.operations).joinedload(BOMOperation.work_center),
-        )
-        .filter(BOM.id == bom_id)
-    )
-    bom = result.scalars().first()
-    if not bom:
-        raise ValueError(f"BOM {bom_id} not found")
-
-    # 2. Generate a meaningful code based on the BOM's item name (MO-{ITEM_NAME}-001)
-    item_result = await db.execute(select(Item).filter(Item.id == bom.item_id))
-    item = item_result.scalars().first()
-    raw_name = item.name if item else str(bom.item_id)[:8]
-    safe_name = re.sub(r'[^A-Za-z0-9\-]', '-', raw_name).strip('-')
-    base = f"MO-{safe_name}"
-    counter = 1
-    while True:
-        candidate = f"{base}-{str(counter).zfill(5)}"
-        existing = await db.execute(select(ManufacturingOrder.id).filter(ManufacturingOrder.code == candidate).limit(1))
-        if existing.scalars().first() is None:
-            mo_code = candidate
-            break
-        counter += 1
-
-    # 3. Create this MO (bom_size_id only applies to the root MO, not sub-assemblies)
-    mo = ManufacturingOrder(
-        code=mo_code,
-        bom_id=bom.id,
-        item_id=bom.item_id,
-        location_id=location_id,
-        # MO source defaults to the item-master default issue location when no
-        # explicit source is passed (industry chain; staging can still override).
-        source_location_id=source_location_id or (item.default_source_location_id if item else None),
-        sales_order_id=sales_order_id,
-        production_run_id=production_run_id,
-        parent_mo_id=parent_mo_id,
-        bom_size_id=bom_size_id if parent_mo_id is None else None,
-        qty=qty,
-        target_start_date=target_start_date,
-        target_end_date=target_end_date,
-        status="PENDING"
-    )
-    mo.attribute_values = list(bom.attribute_values)
-    db.add(mo)
-    await db.flush()
-
-    # Snapshot BOM size spec at creation time
-    if bom_size_id and parent_mo_id is None:
-        from app.models.size import Size
-        sz_result = await db.execute(
-            select(BOMSize).options(joinedload(BOMSize.size)).filter(BOMSize.id == bom_size_id)
-        )
-        bom_sz = sz_result.unique().scalars().first()
-        if bom_sz:
-            mo.bom_size_snapshot = {
-                "size_name": bom_sz.size.name if bom_sz.size else None,
-                "label": bom_sz.label,
-                "target_measurement": float(bom_sz.target_measurement) if bom_sz.target_measurement is not None else None,
-                "measurement_min": float(bom_sz.measurement_min) if bom_sz.measurement_min is not None else None,
-                "measurement_max": float(bom_sz.measurement_max) if bom_sz.measurement_max is not None else None,
-            }
-
-    # Snapshot BOM lines at creation time so future BOM edits don't affect this MO
-    await _snapshot_bom_lines(db, mo, bom)
-
-    # 4. Look for sub-BOMs in lines — only active BOMs, percentage-based qty
-    if create_children:
-        for line in bom.lines:
-            if not line.percentage:
-                continue  # 0% or null = not needed
-            sub_bom_result = await db.execute(
-                select(BOM).options(selectinload(BOM.attribute_values))
-                .filter(BOM.item_id == line.item_id, BOM.active == True).limit(1)
-            )
-            sub_bom = sub_bom_result.scalars().first()
-
-            if sub_bom:
-                sub_qty = (qty * float(line.percentage)) / 100
-                if availability is not None:
-                    # Net this sub-assembly against net-free stock at the planned
-                    # source location, using the produced item's own variant.
-                    sub_attrs = [str(v.id) for v in sub_bom.attribute_values]
-                    sub_loc = source_location_id or location_id
-                    sub_qty = await availability.consume(sub_bom.item_id, sub_attrs, sub_loc, sub_qty)
-                    if sub_qty <= 0:
-                        continue  # covered by stock -> skip MO and its sub-tree
-                await create_mo_recursive(
-                    db,
-                    sub_bom.id,
-                    sub_qty,
-                    location_id,
-                    user_id,
-                    parent_mo_id=mo.id,
-                    source_location_id=source_location_id,
-                    sales_order_id=sales_order_id,
-                    production_run_id=production_run_id,
-                    target_start_date=target_start_date,
-                    target_end_date=target_end_date,
-                    availability=availability,
-                )
-
-    return mo
-
 @router.post("/manufacturing-orders/preview", response_model=list[NettingPreviewNode])
 async def preview_manufacturing_order(payload: MOPreviewRequest, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('work_order.manage'))):
     """Dry-run: netting plan for a nested MO before creation (root always made,
@@ -457,7 +308,7 @@ async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: Asyn
             # Build the net-free ledger BEFORE the root MO exists, so this MO's
             # own demand isn't scanned. Root is made full; children are netted.
             availability = await Availability.create(db)
-            mo = await create_mo_recursive(
+            mo = await mrp_service.create_mo_recursive(
                 db,
                 payload.bom_id,
                 payload.qty,
@@ -516,7 +367,7 @@ async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: Asyn
         )
         bom_for_snapshot = bom_lines_result.scalars().first()
         if bom_for_snapshot:
-            await _snapshot_bom_lines(db, mo, bom_for_snapshot)
+            await mrp_service.snapshot_bom_lines(db, mo, bom_for_snapshot)
 
         await db.commit()
 

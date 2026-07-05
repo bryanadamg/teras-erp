@@ -5,7 +5,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from app.db.session import get_async_db
 from uuid import UUID
 from app.models.production_run import ProductionRun
-from app.models.manufacturing import ManufacturingOrder, MODependency, MOPlannedComponent
+from app.models.manufacturing import ManufacturingOrder
 from app.models.bom import BOM, BOMLine, BOMSize
 from app.models.work_order import WorkOrder as WorkOrderModel
 from app.models.location import Location
@@ -20,9 +20,8 @@ from app.models.production_run import PRBomEntry, PRBomEntrySize
 from app.models.item import Item
 from app.models.stock_balance import StockBalance
 from app.models.attribute import AttributeValue
-from app.services import stock_service
+from app.services import stock_service, mrp_service
 from app.services.netting_service import Availability, preview_production_run
-from app.api.manufacturing import create_mo_recursive
 from collections import defaultdict
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission
@@ -52,122 +51,6 @@ async def _find_unique_mo_code(db: AsyncSession, candidate: str) -> str:
         n += 1
 
 
-async def _create_consolidated_component_mos(
-    db: AsyncSession,
-    bom_ro_pairs: list[tuple],
-    location,
-    source_location,
-    sales_order_id,
-    production_run_id,
-    target_start_date,
-    target_end_date,
-    user_id,
-    availability=None,
-):
-    """Pass 2 of PR creation: walk all BOMs in the run, aggregate component demand across
-    ALL root MOs from ALL BOM entries, create ONE consolidated component MO per unique
-    sub-assembly (keyed on item_id + sub_bom_id + src_loc), and write MODependency
-    pegging records. This consolidates shared greige/base items across color variants.
-
-    When ``availability`` is supplied, each consolidated demand is netted against
-    net-free stock first: a component fully covered by stock gets no MO (and no
-    sub-tree); a partially-covered one is resized to the shortfall and its pegging
-    qty is scaled down proportionally. Deeper levels net via create_mo_recursive."""
-
-    # Aggregate demand: (item_id, sub_bom_id, src_loc_id) → {sub_bom_id, item_id, sub_attrs, total_qty, contributions}
-    demand: dict[tuple, dict] = {}
-
-    for bom, root_mos in bom_ro_pairs:
-        bom_result = await db.execute(
-            select(BOM).options(selectinload(BOM.lines)).filter(BOM.id == bom.id)
-        )
-        bom_with_lines = bom_result.scalars().first()
-        if not bom_with_lines:
-            continue
-
-        for line in bom_with_lines.lines:
-            if not line.percentage:
-                continue
-            sub_bom_result = await db.execute(
-                select(BOM).options(selectinload(BOM.attribute_values))
-                .filter(BOM.item_id == line.item_id, BOM.active == True).limit(1)
-            )
-            sub_bom = sub_bom_result.scalars().first()
-            if not sub_bom:
-                continue
-
-            # Source kept only as the component MO's default source (staging
-            # cascade). Industry chain: BOM-line override -> item-master default ->
-            # PR source (legacy). Plant-level netting consolidates by (item, sub_bom)
-            # alone — location is not part of the key.
-            item_default_src = (await db.execute(
-                select(Item.default_source_location_id).filter(Item.id == line.item_id)
-            )).scalar()
-            src_loc_id = (
-                line.source_location_id
-                or item_default_src
-                or (source_location.id if source_location else None)
-            )
-            key = (str(line.item_id), str(sub_bom.id))
-
-            if key not in demand:
-                demand[key] = {
-                    "sub_bom_id": sub_bom.id,
-                    "item_id": line.item_id,
-                    "sub_attrs": [str(v.id) for v in sub_bom.attribute_values],
-                    "total_qty": 0.0,
-                    "src_loc_id": src_loc_id,
-                    "contributions": {},
-                }
-
-            for root_mo in root_mos:
-                contrib_qty = (float(root_mo.qty) * float(line.percentage)) / 100
-                demand[key]["total_qty"] += contrib_qty
-                demand[key]["contributions"][root_mo.id] = demand[key]["contributions"].get(root_mo.id, 0.0) + contrib_qty
-
-    # Create one consolidated component MO per unique sub-assembly, write pegging records
-    for data in demand.values():
-        total = data["total_qty"]
-        if total <= 0:
-            continue
-
-        # Net consolidated demand against net-free stock at the planned source location.
-        net_qty = total
-        if availability is not None:
-            net_qty = await availability.consume(
-                data["item_id"], data["sub_attrs"], data["src_loc_id"], total
-            )
-        if net_qty <= 0:
-            continue  # fully covered by stock -> no component MO, no pegging, no sub-tree
-
-        component_mo = await create_mo_recursive(
-            db,
-            data["sub_bom_id"],
-            net_qty,
-            location.id if location else None,
-            user_id,
-            parent_mo_id=None,
-            source_location_id=data["src_loc_id"],
-            sales_order_id=None,
-            production_run_id=production_run_id,
-            target_start_date=target_start_date,
-            target_end_date=target_end_date,
-            create_children=True,
-            availability=availability,
-        )
-        component_mo.is_shared_component = True
-        await db.flush()
-
-        # Scale pegging to what this MO actually supplies (remainder is pegged to stock).
-        factor = net_qty / total
-        for root_mo_id, contrib_qty in data["contributions"].items():
-            db.add(MODependency(
-                dependent_mo_id=root_mo_id,
-                required_mo_id=component_mo.id,
-                qty=contrib_qty * factor,
-            ))
-
-    await db.flush()
 
 def _bom_load_options():
     return [
@@ -286,21 +169,6 @@ async def list_production_runs(
         _post_process_pr(pr)
     page = (skip // limit) + 1
     return {"items": prs, "total": total, "page": page, "size": limit}
-
-@router.get("/production-runs/{pr_id}", response_model=ProductionRunResponse)
-async def get_production_run(
-    pr_id: str,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
-):
-    result = await db.execute(
-        select(ProductionRun).options(*_pr_load_options()).filter(ProductionRun.id == pr_id)
-    )
-    pr = result.scalars().first()
-    if not pr:
-        raise HTTPException(status_code=404, detail="Production Run not found")
-    _post_process_pr(pr)
-    return pr
 
 def _bom_traversal_order(pr) -> dict[tuple, int]:
     """DFS from root MOs → component MOs via required_dependencies.
@@ -572,7 +440,7 @@ async def create_production_run(
                     continue  # fully covered by stock -> no root MO for this size line
 
                 size_label = bom_size.label or (bom_size.size.name if bom_size.size else f"S{total_root_mo_count+1}")
-                root_mo = await create_mo_recursive(
+                root_mo = await mrp_service.create_mo_recursive(
                     db, bom.id, net_qty, (location.id if location else None), current_user.id,
                     source_location_id=source_location.id if source_location else None,
                     sales_order_id=payload.sales_order_id,
@@ -599,7 +467,7 @@ async def create_production_run(
             else:
                 net_qty = await availability.consume(bom.item_id, root_attrs, root_net_loc, gross)
             if net_qty > 0:
-                root_mo = await create_mo_recursive(
+                root_mo = await mrp_service.create_mo_recursive(
                     db, bom.id, net_qty, (location.id if location else None), current_user.id,
                     source_location_id=source_location.id if source_location else None,
                     sales_order_id=payload.sales_order_id,
@@ -638,7 +506,7 @@ async def create_production_run(
     # Reuses the same `availability` ledger Pass 1 netted roots against, so a
     # component can't claim stock a root already consumed (or vice versa).
     if bom_ro_pairs:
-        await _create_consolidated_component_mos(
+        await mrp_service.create_consolidated_component_mos(
             db, bom_ro_pairs, location, source_location,
             payload.sales_order_id, pr.id,
             payload.target_start_date, payload.target_end_date,

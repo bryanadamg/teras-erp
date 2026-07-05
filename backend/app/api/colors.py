@@ -91,21 +91,6 @@ async def list_colors(
     }
 
 
-@router.get("/colors/{color_id}", response_model=ColorResponse)
-async def get_color(
-    color_id: str,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
-):
-    result = await db.execute(
-        select(Color).options(joinedload(Color.customer)).filter(Color.id == color_id)
-    )
-    c = result.scalars().first()
-    if not c:
-        raise HTTPException(status_code=404, detail="Color not found")
-    counts = await _recipe_counts(db, [c.id])
-    return _serialize(c, counts.get(c.id, 0))
-
 
 @router.post("/colors", response_model=ColorResponse)
 async def create_color(

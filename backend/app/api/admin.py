@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import text
 from app.core.db_manager import db_manager
 from app.core.ws_manager import manager as ws_manager
@@ -106,7 +107,7 @@ async def upload_snapshot(file: UploadFile = File(...), current_user: User = Dep
     safe_filename = Path(file.filename).name
     dest = db_manager.get_snapshot_path(safe_filename)
     with dest.open("wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+        await run_in_threadpool(shutil.copyfileobj, file.file, buffer)
 
     _log_admin_action(current_user.id, "DB_SNAPSHOT_UPLOAD", f"Uploaded snapshot {safe_filename}")
     return {"message": f"Snapshot {safe_filename} uploaded", "status": True}

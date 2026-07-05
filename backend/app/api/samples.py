@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete
 from sqlalchemy.orm import joinedload
@@ -430,7 +431,7 @@ async def upload_completion_image(
         ext = ".jpg"
     file_path = upload_dir / f"{sample_id}_completion{ext}"
     with file_path.open("wb") as buf:
-        shutil.copyfileobj(file.file, buf)
+        await run_in_threadpool(shutil.copyfileobj, file.file, buf)
 
     sample.completion_image_url = f"/static/samples/{sample_id}_completion{ext}"
     await db.commit()
@@ -456,7 +457,7 @@ async def upload_design_pdf(
     ext = Path(file.filename).suffix.lower() if file.filename else ".pdf"
     file_path = upload_dir / f"{sample_id}_design{ext}"
     with file_path.open("wb") as buf:
-        shutil.copyfileobj(file.file, buf)
+        await run_in_threadpool(shutil.copyfileobj, file.file, buf)
 
     sample.design_pdf_url = f"/static/samples/{sample_id}_design{ext}"
     await db.commit()

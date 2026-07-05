@@ -1,6 +1,5 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from asyncpg.exceptions import ForeignKeyViolationError
@@ -178,12 +177,6 @@ async def add_stock_api(payload: StockEntryCreate, db: AsyncSession = Depends(ge
         pass
 
     return {"status": "success", "message": "Stock recorded"}
-
-@router.get("/items/template")
-async def get_items_template(current_user: User = Depends(get_current_user)):
-    # Keep as sync if generating CSV doesn't need DB or use run_in_threadpool
-    content = import_service.generate_items_template()
-    return Response(content=content, media_type="text/csv", headers={"Content-Disposition": "attachment; filename=items_template.csv"})
 
 @router.post("/items/import")
 async def import_items(file: UploadFile = File(...), db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('inventory.manage'))):

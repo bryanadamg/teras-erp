@@ -237,21 +237,6 @@ async def match_dye_recipe(
     return {"match": _serialize_recipe(best)}
 
 
-@router.get("/dye-recipes/{recipe_id}", response_model=DyeRecipeResponse)
-async def get_dye_recipe(
-    recipe_id: str,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
-):
-    result = await db.execute(
-        select(DyeRecipe).options(*_recipe_opts()).filter(DyeRecipe.id == recipe_id)
-    )
-    r = result.scalars().first()
-    if not r:
-        raise HTTPException(status_code=404, detail="Recipe not found")
-    return _serialize_recipe(r)
-
-
 @router.put("/dye-recipes/{recipe_id}", response_model=DyeRecipeResponse)
 async def update_dye_recipe(
     recipe_id: str,
@@ -410,21 +395,6 @@ async def create_dyeing_run(
     return _enrich_dyeing_run(run)
 
 
-@router.get("/dyeing-runs/{run_id}", response_model=DyeingRunResponse)
-async def get_dyeing_run(
-    run_id: str,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
-):
-    result = await db.execute(
-        select(DyeingRun).options(*_dyeing_run_opts()).filter(DyeingRun.id == run_id)
-    )
-    run = result.scalars().first()
-    if not run:
-        raise HTTPException(status_code=404, detail="Dyeing run not found")
-    return _enrich_dyeing_run(run)
-
-
 @router.post("/dyeing-runs/{run_id}/start", response_model=DyeingRunResponse)
 async def start_dyeing_run(
     run_id: str,
@@ -579,21 +549,6 @@ async def create_setting_run(
         db, str(current_user.id), "CREATE", "SettingRun", str(run.id),
         details=f"Created setting run #{run.run_number} for WO {run.work_order_id}", changes={}
     )
-    return _enrich_setting_run(run)
-
-
-@router.get("/setting-runs/{run_id}", response_model=SettingRunResponse)
-async def get_setting_run(
-    run_id: str,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
-):
-    result = await db.execute(
-        select(SettingRun).options(*_setting_run_opts()).filter(SettingRun.id == run_id)
-    )
-    run = result.scalars().first()
-    if not run:
-        raise HTTPException(status_code=404, detail="Setting run not found")
     return _enrich_setting_run(run)
 
 

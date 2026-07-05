@@ -107,18 +107,6 @@ async def list_packing_orders(
     return PackingOrderListResponse(items=orders, total=total, page=page, size=size)
 
 
-@router.get("/{po_id}", response_model=PackingOrderResponse)
-async def get_packing_order(
-    po_id: uuid.UUID,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
-):
-    po = await _load(db, po_id)
-    if not po:
-        raise HTTPException(status_code=404, detail="Packing order not found")
-    return _decorate(po)
-
-
 @router.post("", response_model=PackingOrderResponse)
 async def create_packing_order(
     payload: PackingOrderCreate,

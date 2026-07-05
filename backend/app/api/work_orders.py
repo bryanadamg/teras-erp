@@ -195,22 +195,6 @@ async def create_work_order(
 
     return response
 
-@router.get("/work-orders/{wo_id}", response_model=WorkOrderResponse)
-async def get_work_order(
-    wo_id: str,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
-):
-    result = await db.execute(
-        select(WorkOrder)
-        .options(joinedload(WorkOrder.work_center), selectinload(WorkOrder.completions))
-        .filter(WorkOrder.id == wo_id)
-    )
-    wo = result.scalars().first()
-    if not wo:
-        raise HTTPException(status_code=404, detail="Work Order not found")
-    return wo
-
 @router.put("/work-orders/{wo_id}", response_model=WorkOrderResponse)
 async def update_work_order(
     wo_id: str,

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select, func, or_
@@ -359,32 +360,6 @@ async def get_boms_summary(
 
     return {"items": boms, "total": total}
 
-@router.get("/boms/{bom_id}", response_model=BOMResponse)
-async def get_bom(bom_id: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(
-        select(BOM)
-        .options(
-            joinedload(BOM.item),
-            joinedload(BOM.customer),
-            joinedload(BOM.work_center),
-            selectinload(BOM.attribute_values),
-            selectinload(BOM.lines).joinedload(BOMLine.item),
-            selectinload(BOM.lines).selectinload(BOMLine.attribute_values),
-            selectinload(BOM.operations),
-            selectinload(BOM.sizes).joinedload(BOMSize.size),
-        )
-        .filter(BOM.id == bom_id)
-    )
-    bom = result.scalars().first()
-    if not bom:
-        raise HTTPException(status_code=404, detail="BOM not found")
-    
-    bom.attribute_value_ids = [v.id for v in bom.attribute_values]
-    for bl in bom.lines:
-        bl.attribute_value_ids = [v.id for v in bl.attribute_values]
-
-    return bom
-
 async def _load_bom_subtree(bom_id: str, db: AsyncSession, visited: set) -> any:
     if bom_id in visited:
         return None
@@ -454,7 +429,7 @@ async def upload_bom_sample_photo(
     ext = os.path.splitext(file.filename or "")[1].lower() or ".jpg"
     file_path = upload_dir / f"{bom_id}_sample{ext}"
     with file_path.open("wb") as buf:
-        shutil.copyfileobj(file.file, buf)
+        await run_in_threadpool(shutil.copyfileobj, file.file, buf)
 
     bom.sample_photo_url = f"/static/boms/{bom_id}_sample{ext}"
     await db.commit()
@@ -478,7 +453,7 @@ async def upload_bom_design_file(
     ext = os.path.splitext(file.filename or "")[1].lower() or ".pdf"
     file_path = upload_dir / f"{bom_id}_design{ext}"
     with file_path.open("wb") as buf:
-        shutil.copyfileobj(file.file, buf)
+        await run_in_threadpool(shutil.copyfileobj, file.file, buf)
 
     bom.design_file_url = f"/static/boms/{bom_id}_design{ext}"
     await db.commit()

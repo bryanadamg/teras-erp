@@ -83,11 +83,3 @@ async def import_items_csv(db: AsyncSession, file_content: bytes, user_id=None):
         )
 
     return results
-
-def generate_items_template():
-    """Generates a CSV template for items."""
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["Code", "Name", "UOM", "Category"])
-    writer.writerow(["ITM-001", "Example Item", "pcs", "Raw Material"])
-    return output.getvalue()

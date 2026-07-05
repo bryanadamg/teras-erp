@@ -99,21 +99,6 @@ async def get_lab_dips(
     return result.unique().scalars().all()
 
 
-@router.get("/lab-dips/{request_id}", response_model=LabDipRequestResponse)
-async def get_lab_dip(
-    request_id: str,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
-):
-    result = await db.execute(
-        select(LabDipRequest).options(joinedload(LabDipRequest.dips)).filter(LabDipRequest.id == request_id)
-    )
-    req = result.unique().scalars().first()
-    if not req:
-        raise HTTPException(status_code=404, detail="Lab dip request not found")
-    return req
-
-
 @router.put("/lab-dips/{request_id}", response_model=LabDipRequestResponse)
 async def update_lab_dip_request(
     request_id: str,

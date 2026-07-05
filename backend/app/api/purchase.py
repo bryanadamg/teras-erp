@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete as sa_delete
 from sqlalchemy.orm import selectinload
@@ -332,7 +333,7 @@ async def upload_delivery_note(
     upload_dir.mkdir(parents=True, exist_ok=True)
     file_path = upload_dir / f"{receipt_id}_dn{ext}"
     with file_path.open("wb") as buf:
-        shutil.copyfileobj(file.file, buf)
+        await run_in_threadpool(shutil.copyfileobj, file.file, buf)
 
     gr.delivery_note_url = f"/static/receipts/{receipt_id}_dn{ext}"
     await db.commit()
@@ -355,24 +356,6 @@ async def upload_delivery_note(
         .filter(GoodsReceipt.id == receipt_id)
     )
     return final.scalars().first()
-
-
-@router.get("/{po_id}/receipts", response_model=list[GoodsReceiptResponse])
-async def get_goods_receipts(
-    po_id: uuid.UUID,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
-):
-    result = await db.execute(
-        select(GoodsReceipt)
-        .options(
-            selectinload(GoodsReceipt.lines).selectinload(GoodsReceiptLine.item),
-            selectinload(GoodsReceipt.lines).selectinload(GoodsReceiptLine.batch),
-        )
-        .filter(GoodsReceipt.po_id == po_id)
-        .order_by(GoodsReceipt.receipt_date.desc())
-    )
-    return result.scalars().all()
 
 
 @router.get("", response_model=list[PurchaseOrderResponse])

@@ -106,15 +106,15 @@ def read_users_me(current_user: Annotated[User, Depends(get_current_active_user)
     return current_user
 
 @router.get("/users", response_model=list[UserResponse])
-def get_users(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_users(db: Session = Depends(get_db), current_user: User = Depends(get_current_admin)):
     return db.query(User).all()
 
 @router.get("/roles", response_model=list[RoleResponse])
-def get_roles(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_roles(db: Session = Depends(get_db), current_user: User = Depends(get_current_admin)):
     return db.query(Role).all()
 
 @router.get("/permissions", response_model=list[PermissionResponse])
-def get_permissions(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_permissions(db: Session = Depends(get_db), current_user: User = Depends(get_current_admin)):
     from app.models.auth import Permission
     return db.query(Permission).all()
 
