@@ -239,7 +239,12 @@ async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db
     return refresh_bom
 
 @router.get("/boms", response_model=list[BOMResponse])
-async def get_boms(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+async def get_boms(skip: int = 0, limit: int | None = None, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
+    """Full nested BOM list — consumed unpaginated by manufacturing/MES/sales/samples
+    and the scanner, which need every active BOM in memory to resolve sub-BOM chains
+    for MRP consolidation (you can't page through this: which page holds a given
+    sub-BOM isn't known in advance). `limit` defaults to unbounded for that reason —
+    the BOM page's own paginated list lives at /boms/summary instead."""
     query = select(BOM).options(
         joinedload(BOM.item),
         joinedload(BOM.customer),
@@ -250,8 +255,11 @@ async def get_boms(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(g
         selectinload(BOM.operations),
         selectinload(BOM.sizes).joinedload(BOMSize.size),
     )
-    
-    result = await db.execute(query.order_by(BOM.created_at.desc()).offset(skip).limit(limit))
+    query = query.order_by(BOM.created_at.desc()).offset(skip)
+    if limit is not None:
+        query = query.limit(limit)
+
+    result = await db.execute(query)
     items_list = result.unique().scalars().all()
     
     for item in items_list:
