@@ -266,19 +266,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             // (search + pagination state live in bom/page.tsx). DataContext only
             // fetches the full /boms payload for manufacturing/MES/sales routes
             // that need the complete nested tree for WO/PR creation and printing.
-            if (fetchTarget.includes('manufacturing') || fetchTarget.includes('work-orders') || fetchTarget.includes('production-runs') || fetchTarget.includes('samples') || fetchTarget.includes('sales-orders')) {
+            // NOT work-orders: that page reads only workCenters/itemIndex and
+            // self-fetches its own flat WO list — boms/MO-tree/stock-balance below
+            // are all wasted work there.
+            if (fetchTarget.includes('manufacturing') || fetchTarget.includes('production-runs') || fetchTarget.includes('samples') || fetchTarget.includes('sales-orders')) {
                 requests.push(fetch(`${API_BASE}/boms`, { headers }));
                 requestTypes.push('boms');
             }
 
             // MES (Manufacturing Orders + Production Runs)
             const isDashboard = fetchTarget === 'dashboard' || fetchTarget === '';
-            if (fetchTarget.includes('manufacturing') || fetchTarget.includes('work-orders') || fetchTarget.includes('production-runs') || fetchTarget.includes('sales-orders') || isDashboard || fetchTarget.includes('reports')) {
+            if (fetchTarget.includes('manufacturing') || fetchTarget.includes('production-runs') || fetchTarget.includes('sales-orders') || isDashboard || fetchTarget.includes('reports')) {
                 const moSkip = (woPage - 1) * pageSize;
-                const moAllLevels = fetchTarget.includes('work-orders') ? '&all_levels=true' : '';
                 const moSlim = isDashboard ? '&slim=true' : '';
                 const moSearchParam = moSearch ? `&search=${encodeURIComponent(moSearch)}` : '';
-                requests.push(fetch(`${API_BASE}/manufacturing-orders?skip=${moSkip}&limit=${pageSize}${moAllLevels}${moSlim}${moSearchParam}`, { headers }));
+                requests.push(fetch(`${API_BASE}/manufacturing-orders?skip=${moSkip}&limit=${pageSize}${moSlim}${moSearchParam}`, { headers }));
                 requestTypes.push(isDashboard ? 'manufacturing-orders-slim' : 'manufacturing-orders');
                 if (!isDashboard) {
                     const prSkip = (prPage - 1) * pageSize;
@@ -449,6 +451,26 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         } catch (e) { console.error('refreshStockBalance error', e); }
     }, [currentUser]);
 
+    // Targeted refresh for a KPI_UPDATE live event while on the dashboard — only
+    // the 3 KPI-ish calls, not the broad fetchData('dashboard') (which also
+    // re-pulls paginated items + item-lookup + a slim MO page, none of which a
+    // KPI ping (fired by nearly every sales/sample/stock/item mutation) changes).
+    const refreshDashboardKPIs = useCallback(async () => {
+        if (!currentUser) return;
+        try {
+            const token = localStorage.getItem('access_token');
+            const headers = { 'Authorization': `Bearer ${token}` };
+            const [kpiRes, summaryRes, historyRes] = await Promise.all([
+                fetch(`${API_BASE}/dashboard/kpis`, { headers, cache: 'no-store' }),
+                fetch(`${API_BASE}/dashboard/summary`, { headers, cache: 'no-store' }),
+                fetch(`${API_BASE}/dashboard/kpis/history?days=30`, { headers, cache: 'no-store' }),
+            ]);
+            if (kpiRes.ok) setDashboardKPIs(await kpiRes.json());
+            if (summaryRes.ok) setDashboardSummary(await summaryRes.json());
+            if (historyRes.ok) setDashboardKpiHistory(await historyRes.json());
+        } catch (e) { console.error('refreshDashboardKPIs error', e); }
+    }, [currentUser]);
+
     const handleTabHover = (tab: string) => fetchData(tab);
 
     useEffect(() => { if (currentUser) fetchData(); }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, itemSearch, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData]);
@@ -460,6 +482,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => { refreshManufacturingRef.current = refreshManufacturing; }, [refreshManufacturing]);
     const refreshStockBalanceRef = useRef(refreshStockBalance);
     useEffect(() => { refreshStockBalanceRef.current = refreshStockBalance; }, [refreshStockBalance]);
+    const refreshDashboardKPIsRef = useRef(refreshDashboardKPIs);
+    useEffect(() => { refreshDashboardKPIsRef.current = refreshDashboardKPIs; }, [refreshDashboardKPIs]);
 
     // Pages that own their data (e.g. /work-orders fetches its own list) subscribe
     // here to be told when a debounced batch of live events has arrived.
@@ -513,7 +537,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 }
             }
             if (kinds.has('kpi')) {
-                if (onDashboard && !kinds.has('production')) fetchDataRef.current('dashboard');
+                if (onDashboard && !kinds.has('production')) refreshDashboardKPIsRef.current();
                 liveSubsRef.current.forEach(fn => { try { fn('kpi'); } catch {} });
             }
             if (kinds.has('stock')) {
