@@ -158,7 +158,8 @@ async def add_stock_api(payload: StockEntryCreate, db: AsyncSession = Depends(ge
         boxes_change=payload.qty_boxes or 0,
         drums_change=payload.qty_drums or 0,
     )
-    
+    await db.commit()
+
     await audit_service.log_activity(
         db,
         user_id=current_user.id,

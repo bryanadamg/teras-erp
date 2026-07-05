@@ -56,17 +56,57 @@ async def add_stock_entry(
     cones_change = int(cones_change or 0)
     boxes_change = int(boxes_change or 0)
     drums_change = int(drums_change or 0)
+    v_key = _generate_variant_key(attribute_value_ids)
 
-    # 1. Prevent Negative Stock (using pre-calculated balance).
+    # 1. Lock the relevant balance row(s) FIRST, then apply the negative-stock guard
+    # against the locked value. Locking before checking (rather than checking with an
+    # unlocked read and locking only for the later update) closes the race where two
+    # concurrent deductions both read a sufficient balance before either applies.
+    #
     # Guard applies to base qty only — packaging counts are advisory tallies
     # (no UOM conversion) and may legitimately drift, so they never block.
-    if qty_change < 0:
-        current_balance = await get_stock_balance(db, item_id, location_id, attribute_value_ids, batch_key)
+    if qty_change < 0 and not batch_key:
+        # Aggregate guard: a plain (non-batch) deduction is checked against the total
+        # on-hand across all batch rows for this item/location/variant, but only the
+        # batch_key="" row is actually updated below — lock every row in that set
+        # before summing so the guard and the update share one consistent snapshot.
+        locked_result = await db.execute(
+            select(StockBalance)
+            .filter(
+                StockBalance.item_id == item_id,
+                StockBalance.location_id == location_id,
+                StockBalance.variant_key == v_key,
+            )
+            .with_for_update()
+        )
+        locked_rows = locked_result.scalars().all()
+        current_balance = sum(float(r.qty) for r in locked_rows)
         if current_balance + qty_change < 0:
             raise HTTPException(
                 status_code=400,
                 detail=f"Insufficient stock. Current: {current_balance}, Required: {abs(qty_change)}"
             )
+        balance = next((r for r in locked_rows if r.batch_key == ""), None)
+    else:
+        result = await db.execute(
+            select(StockBalance)
+            .filter(
+                StockBalance.item_id == item_id,
+                StockBalance.location_id == location_id,
+                StockBalance.variant_key == v_key,
+                StockBalance.batch_key == batch_key,
+            )
+            .with_for_update()
+            .limit(1)
+        )
+        balance = result.scalars().first()
+        if qty_change < 0:
+            current_balance = float(balance.qty) if balance else 0.0
+            if current_balance + qty_change < 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Insufficient stock. Current: {current_balance}, Required: {abs(qty_change)}"
+                )
 
     # 2. Create the Ledger Entry
     entry = StockLedger(
@@ -88,21 +128,7 @@ async def add_stock_entry(
 
     db.add(entry)
 
-    # 3. ATOMIC SUMMARY UPDATE
-    v_key = _generate_variant_key(attribute_value_ids)
-    result = await db.execute(
-        select(StockBalance)
-        .filter(
-            StockBalance.item_id == item_id,
-            StockBalance.location_id == location_id,
-            StockBalance.variant_key == v_key,
-            StockBalance.batch_key == batch_key,
-        )
-        .with_for_update()
-        .limit(1)
-    )
-    balance = result.scalars().first()
-
+    # 3. ATOMIC SUMMARY UPDATE (balance row already locked above)
     if not balance:
         balance = StockBalance(
             item_id=item_id,
@@ -125,7 +151,15 @@ async def add_stock_entry(
         balance.qty_boxes = int(balance.qty_boxes or 0) + boxes_change
         balance.qty_drums = int(balance.qty_drums or 0) + drums_change
 
-    await db.commit()
+    # Flush (not commit): the session uses autoflush=False, so without this, a second
+    # add_stock_entry call in the same request for a balance row this call just created
+    # (e.g. two lines merging into the same new pool row) wouldn't see it via the
+    # business-key SELECT above and would insert a duplicate StockBalance. Flushing
+    # sends the INSERT/UPDATE within the open transaction — visible to the next call,
+    # still rolled back together with everything else if the caller never commits.
+    # Caller commits once at the end so multi-entry operations (transfers, WO
+    # completions, staging, dispatch) apply atomically in one transaction.
+    await db.flush()
 
 async def get_stock_entries(db: AsyncSession, skip: int = 0, limit: int = 100) -> tuple[list[StockLedger], int]:
     # Count total

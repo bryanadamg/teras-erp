@@ -162,6 +162,7 @@ async def create_stock_entry(
         boxes_change=payload.qty_boxes or 0,
         drums_change=payload.qty_drums or 0,
     )
+    await db.commit()
 
     await audit_service.log_activity(
         db=db,
@@ -233,6 +234,7 @@ async def transfer_stock(
         attribute_value_ids=attrs, batch_id=payload.batch_id,
         cones_change=c, boxes_change=b, drums_change=d,
     )
+    await db.commit()
 
     await audit_service.log_activity(
         db=db,
