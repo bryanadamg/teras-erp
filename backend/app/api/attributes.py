@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.attribute import Attribute, AttributeValue
@@ -50,8 +51,15 @@ def delete_attribute(attribute_id: str, db: Session = Depends(get_db), current_u
     if attribute.is_system:
         raise HTTPException(status_code=400, detail=f"'{attribute.name}' is a system attribute and cannot be deleted.")
 
-    db.delete(attribute)
-    db.commit()
+    try:
+        db.delete(attribute)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete '{attribute.name}': it is still assigned to items or used in existing transaction records (stock, orders, BOMs, etc). Remove those references first.",
+        )
     return {"status": "success", "message": "Attribute deleted"}
 
 @router.post("/attributes/{attribute_id}/values", response_model=AttributeValueResponse)
@@ -82,7 +90,14 @@ def delete_attribute_value(value_id: str, db: Session = Depends(get_db), current
     val = db.query(AttributeValue).filter(AttributeValue.id == value_id).first()
     if not val:
         raise HTTPException(status_code=404, detail="Attribute Value not found")
-    
-    db.delete(val)
-    db.commit()
+
+    try:
+        db.delete(val)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete value '{val.value}': it is still used by existing items or transaction records (stock, orders, BOMs, etc). Remove those references first.",
+        )
     return {"status": "success", "message": "Value deleted"}

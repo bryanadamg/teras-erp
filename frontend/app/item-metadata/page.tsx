@@ -3,10 +3,12 @@
 import ItemMetadataView from '../components/settings/ItemMetadataView';
 import { useData } from '../context/DataContext';
 import { useConfirm } from '../context/ConfirmContext';
+import { useToast } from '../components/shared/Toast';
 
 export default function ItemMetadataPage() {
     const { categories, uoms, attributes, fetchData, authFetch } = useData();
     const { confirm } = useConfirm();
+    const { showToast } = useToast();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
@@ -95,7 +97,12 @@ export default function ItemMetadataPage() {
         });
         if (!confirmed) return;
         const res = await authFetch(`${API_BASE}/attributes/${id}`, { method: 'DELETE' });
-        if (res.ok) fetchData();
+        if (res.ok) {
+            fetchData();
+        } else {
+            const err = await res.json().catch(() => ({}));
+            showToast(err.detail || 'Failed to delete attribute', 'danger');
+        }
     };
 
     const handleAddValue = async (attributeId: string, value: string) => {
@@ -114,7 +121,12 @@ export default function ItemMetadataPage() {
 
     const handleDeleteValue = async (valueId: string) => {
         const res = await authFetch(`${API_BASE}/attributes/values/${valueId}`, { method: 'DELETE' });
-        if (res.ok) fetchData();
+        if (res.ok) {
+            fetchData();
+        } else {
+            const err = await res.json().catch(() => ({}));
+            showToast(err.detail || 'Failed to delete value', 'danger');
+        }
     };
 
     return (
