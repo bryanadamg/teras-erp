@@ -127,13 +127,14 @@ export default function SearchableSelect({
                 left: dropdownPos.left,
                 width: dropdownPos.width,
                 minWidth: dropdownPos.width,
-                maxWidth: 340,
+                maxWidth: 420,
                 background: 'white',
                 border: '1px solid #7f9db9',
                 boxShadow: '2px 2px 6px rgba(0,0,0,0.28)',
                 zIndex: 99999,
                 display: 'flex', flexDirection: 'column',
                 maxHeight: DROPDOWN_MAX_HEIGHT,
+                overflowX: 'hidden',
             }}
             onMouseDown={e => e.stopPropagation()}
         >
@@ -185,7 +186,7 @@ export default function SearchableSelect({
             </div>
 
             {/* Options */}
-            <div style={{ overflowY: 'auto', flex: 1 }}>
+            <div style={{ overflowY: 'auto', overflowX: 'hidden', flex: 1 }}>
                 {filteredOptions.length === 0 ? (
                     <div style={{ padding: '5px 8px', fontSize: 10, color: '#888', fontStyle: 'italic', fontFamily: font }}>
                         No matches found

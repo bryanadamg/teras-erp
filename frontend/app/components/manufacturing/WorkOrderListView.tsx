@@ -13,6 +13,7 @@ const WOBulkPrintModal = dynamic(() => import('./WOBulkPrintModal'), { ssr: fals
 import { getChipStyle } from './WorkOrderPanel';
 import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
+import SearchableSelect from '../shared/SearchableSelect';
 import { Tabs, TabDef } from '../shared/Tabs';
 
 const STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
@@ -50,9 +51,12 @@ interface Props {
     filterWC: string;
     woSearch: string;
     activeTab: string;
+    itemIndex: Record<string, { name: string; code: string }>;
+    filterComponentId: string;
     onTabChange: (v: string) => void;
     onFilterStatus: (v: string) => void;
     onFilterWCChange: (groupId: string, wcId: string) => void;
+    onFilterComponent: (itemId: string) => void;
     onSearch: (v: string) => void;
     onClearFilters: () => void;
     onUpdate: (id: string, payload: any) => Promise<any>;
@@ -92,6 +96,7 @@ interface FlatWO {
     notes?: string;
     completions?: any[];
     bom_line_item_ids?: string[];
+    bom_operation_id?: string | null;
     mo_id: string;
     mo_code: string;
     item_name: string;
@@ -100,8 +105,8 @@ interface FlatWO {
 export default function WorkOrderListView({
     workOrders, total, page, pageSize, onPageChange,
     workCenters, filterStatus, filterGroup, filterWC, woSearch,
-    activeTab, onTabChange,
-    onFilterStatus, onFilterWCChange, onSearch, onClearFilters,
+    activeTab, itemIndex, filterComponentId, onTabChange,
+    onFilterStatus, onFilterWCChange, onFilterComponent, onSearch, onClearFilters,
     onUpdate, onUpdateStatus, onDelete, onFetchMO, onRefresh,
     loading = false,
 }: Props) {
@@ -126,6 +131,13 @@ export default function WorkOrderListView({
     const [isSaving, setIsSaving] = useState(false);
     const [expandedWOId, setExpandedWOId] = useState<string | null>(null);
     const [woQrUrls, setWoQrUrls] = useState<Record<string, string>>({});
+    const [woComponents, setWoComponents] = useState<Record<string, any[]>>({});
+    const [woComponentsLoading, setWoComponentsLoading] = useState<Record<string, boolean>>({});
+
+    const componentOptions = useMemo(
+        () => Object.entries(itemIndex).map(([id, it]) => ({ value: id, label: it.name, subLabel: it.code })),
+        [itemIndex]
+    );
 
     useEffect(() => {
         const woId = new URLSearchParams(window.location.search).get('wo');
@@ -137,6 +149,32 @@ export default function WorkOrderListView({
         QRCode.toDataURL(expandedWOId, { margin: 1, width: 200 })
             .then(url => setWoQrUrls(prev => ({ ...prev, [expandedWOId]: url })))
             .catch(() => {});
+    }, [expandedWOId]);
+
+    useEffect(() => {
+        if (!expandedWOId || woComponents[expandedWOId]) return;
+        const wo = flatWOs.find(w => w.id === expandedWOId);
+        if (!wo) return;
+        setWoComponentsLoading(prev => ({ ...prev, [expandedWOId]: true }));
+        onFetchMO(wo.mo_id)
+            .then((mo: any) => {
+                const allLines: any[] = mo?.bom?.lines || [];
+                // Same step-scoping as WOCompletionModal: a WO with a bom_operation_id
+                // consumes only that step's lines; legacy/unassigned WOs fall back to the whole recipe.
+                const lines = wo.bom_operation_id
+                    ? allLines.filter((l: any) => l.bom_operation_id && String(l.bom_operation_id) === String(wo.bom_operation_id))
+                    : allLines;
+                const woQty = wo.qty ?? mo?.qty ?? 0;
+                const rows = lines.map((l: any) => ({
+                    item_id: l.item_id,
+                    item_code: l.item_code,
+                    item_name: l.item_name,
+                    required_qty: l.percentage ? (woQty * l.percentage) / 100 : woQty * (l.qty || 0),
+                }));
+                setWoComponents(prev => ({ ...prev, [expandedWOId]: rows }));
+            })
+            .catch(() => setWoComponents(prev => ({ ...prev, [expandedWOId]: [] })))
+            .finally(() => setWoComponentsLoading(prev => ({ ...prev, [expandedWOId]: false })));
     }, [expandedWOId]);
 
     const flatWOs: FlatWO[] = workOrders;
@@ -261,8 +299,11 @@ export default function WorkOrderListView({
         const bomItemIds = new Set<string>(wo.bom_line_item_ids || []);
         const completions: any[] = wo.completions || [];
 
+        const components: any[] = woComponents[wo.id] || [];
+        const componentsLoading = !!woComponentsLoading[wo.id];
+
         const panelStyle: React.CSSProperties = {
-            display: 'grid', gridTemplateColumns: '110px 280px minmax(260px, 1fr)',
+            display: 'grid', gridTemplateColumns: '110px 260px 220px minmax(200px, 1fr)',
             border: classic ? '1px solid #7f9db9' : '1px solid #dee2e6',
             fontFamily: xpFont, fontSize: 10,
         };
@@ -322,6 +363,27 @@ export default function WorkOrderListView({
                             {wo.notes && (
                                 <div style={{ marginTop: 4, padding: '2px 5px', background: '#fffbe6', border: '1px solid #e0d080', fontSize: 9, fontStyle: 'italic', color: '#666' }}>
                                     {wo.notes}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Components — materials required for this WO's step */}
+                        <div style={{ borderRight: '1px solid #c0bdb5', padding: '6px 8px', background: '#f5f4ef', overflow: 'hidden' }}>
+                            <div style={colHeaderStyle}>Components ({components.length})</div>
+                            {componentsLoading ? (
+                                <div style={{ color: '#aaa', fontStyle: 'italic', fontSize: 9 }}>Loading...</div>
+                            ) : components.length === 0 ? (
+                                <div style={{ color: '#aaa', fontStyle: 'italic', fontSize: 9 }}>No components.</div>
+                            ) : (
+                                <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                                    {components.map((c: any) => (
+                                        <div key={c.item_id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, marginBottom: 2, paddingBottom: 2, borderBottom: '1px solid #e8e6e0' }}>
+                                            <span style={{ color: '#222', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }} title={c.item_name || c.item_code}>
+                                                {c.item_code || c.item_name || c.item_id}
+                                            </span>
+                                            <span style={{ color: '#000080', fontWeight: 'bold' }}>{parseFloat(c.required_qty).toFixed(2)}</span>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                         </div>
@@ -487,7 +549,16 @@ export default function WorkOrderListView({
                             emptyLabel="All Work Centers"
                             style={classic ? { width: 160 } : { width: 180 }}
                         />
-                        {(filterStatus || filterGroup || filterWC || woSearch) && (
+                        <div style={{ width: classic ? 260 : 280 }}>
+                            <SearchableSelect
+                                options={componentOptions}
+                                value={filterComponentId}
+                                onChange={onFilterComponent}
+                                placeholder="All Components"
+                                size={classic ? 'sm' : 'md'}
+                            />
+                        </div>
+                        {(filterStatus || filterGroup || filterWC || woSearch || filterComponentId) && (
                             <button onClick={onClearFilters}
                                 style={classic ? { ...xpInput, width: 'auto', cursor: 'pointer', height: 20 } : undefined}
                                 className={classic ? '' : 'btn btn-sm btn-outline-secondary'}>

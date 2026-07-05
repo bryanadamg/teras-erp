@@ -15,7 +15,7 @@ function writeCache(items: any[], total: number) {
 }
 
 export default function WorkOrdersPage() {
-    const { workCenters, authFetch, subscribeLiveEvents } = useData();
+    const { workCenters, itemIndex, authFetch, subscribeLiveEvents } = useData();
 
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
@@ -27,6 +27,7 @@ export default function WorkOrdersPage() {
     const [filterStatus, setFilterStatus] = useState('');
     const [filterGroup, setFilterGroup] = useState('');
     const [filterWC, setFilterWC] = useState('');
+    const [filterComponentId, setFilterComponentId] = useState('');
     const [woSearch, setWoSearch] = useState('');
     const [activeTab, setActiveTab] = useState('ALL');
     const [loading, setLoading] = useState(false);
@@ -38,6 +39,7 @@ export default function WorkOrdersPage() {
         wcId = filterWC,
         search = woSearch,
         tab = activeTab,
+        componentId = filterComponentId,
     ) => {
         setLoading(true);
         try {
@@ -48,23 +50,24 @@ export default function WorkOrdersPage() {
             if (wcId) params.set('work_center_id', wcId);
             if (search) params.set('search', search);
             if (tab && tab !== 'ALL') params.set('center_type', tab);
+            if (componentId) params.set('component_item_id', componentId);
             const res = await authFetch(`${API_BASE}/work-orders?${params}`);
             if (res.ok) {
                 const data = await res.json();
                 setWoList(data.items);
                 setWoTotal(data.total);
                 // Only cache default view (page 1, no filters) so return navigation is instant
-                if (page === 1 && !status && !groupId && !wcId && !search && (!tab || tab === 'ALL')) {
+                if (page === 1 && !status && !groupId && !wcId && !search && (!tab || tab === 'ALL') && !componentId) {
                     writeCache(data.items, data.total);
                 }
             }
         } finally {
             setLoading(false);
         }
-    }, [woPage, filterStatus, filterGroup, filterWC, woSearch, activeTab, authFetch, API_BASE]);
+    }, [woPage, filterStatus, filterGroup, filterWC, woSearch, activeTab, filterComponentId, authFetch, API_BASE]);
 
     // Initial load — always refetch fresh in background (cache already shown)
-    useEffect(() => { fetchWOs(1, '', '', '', '', 'ALL'); }, []);
+    useEffect(() => { fetchWOs(1, '', '', '', '', 'ALL', ''); }, []);
 
     // Live updates: refetch the list when a debounced batch of production events
     // arrives over the WebSocket (this page owns its list; context can't update it).
@@ -73,16 +76,20 @@ export default function WorkOrdersPage() {
     }), [subscribeLiveEvents, fetchWOs]);
 
     // Page change
-    useEffect(() => { fetchWOs(woPage, filterStatus, filterGroup, filterWC, woSearch, activeTab); }, [woPage]);
+    useEffect(() => { fetchWOs(woPage, filterStatus, filterGroup, filterWC, woSearch, activeTab, filterComponentId); }, [woPage]);
 
-    const handleFilterStatus = (v: string) => { setFilterStatus(v); setWoPage(1); fetchWOs(1, v, filterGroup, filterWC, woSearch, activeTab); };
+    const handleFilterStatus = (v: string) => { setFilterStatus(v); setWoPage(1); fetchWOs(1, v, filterGroup, filterWC, woSearch, activeTab, filterComponentId); };
     const handleFilterWCChange = (groupId: string, wcId: string) => {
         setFilterGroup(groupId); setFilterWC(wcId); setWoPage(1);
-        fetchWOs(1, filterStatus, groupId, wcId, woSearch, activeTab);
+        fetchWOs(1, filterStatus, groupId, wcId, woSearch, activeTab, filterComponentId);
+    };
+    const handleFilterComponent = (itemId: string) => {
+        setFilterComponentId(itemId); setWoPage(1);
+        fetchWOs(1, filterStatus, filterGroup, filterWC, woSearch, activeTab, itemId);
     };
     const handleTabChange = (tab: string) => {
         setActiveTab(tab); setWoPage(1);
-        fetchWOs(1, filterStatus, filterGroup, filterWC, woSearch, tab);
+        fetchWOs(1, filterStatus, filterGroup, filterWC, woSearch, tab, filterComponentId);
     };
 
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -91,9 +98,9 @@ export default function WorkOrdersPage() {
         if (searchTimer.current) clearTimeout(searchTimer.current);
         searchTimer.current = setTimeout(() => {
             setWoPage(1);
-            fetchWOs(1, filterStatus, filterGroup, filterWC, term, activeTab);
+            fetchWOs(1, filterStatus, filterGroup, filterWC, term, activeTab, filterComponentId);
         }, 350);
-    }, [filterStatus, filterGroup, filterWC, activeTab, fetchWOs]);
+    }, [filterStatus, filterGroup, filterWC, activeTab, filterComponentId, fetchWOs]);
     useEffect(() => () => { if (searchTimer.current) clearTimeout(searchTimer.current); }, []);
 
     const handleUpdateWO = async (id: string, payload: any) => {
@@ -134,13 +141,16 @@ export default function WorkOrdersPage() {
             filterWC={filterWC}
             woSearch={woSearch}
             activeTab={activeTab}
+            itemIndex={itemIndex}
+            filterComponentId={filterComponentId}
             onTabChange={handleTabChange}
             onFilterStatus={handleFilterStatus}
             onFilterWCChange={handleFilterWCChange}
+            onFilterComponent={handleFilterComponent}
             onSearch={handleSearch}
             onClearFilters={() => {
-                setFilterStatus(''); setFilterGroup(''); setFilterWC(''); setWoSearch(''); setWoPage(1);
-                fetchWOs(1, '', '', '', '', activeTab);
+                setFilterStatus(''); setFilterGroup(''); setFilterWC(''); setWoSearch(''); setFilterComponentId(''); setWoPage(1);
+                fetchWOs(1, '', '', '', '', activeTab, '');
             }}
             onUpdate={handleUpdateWO}
             onUpdateStatus={handleUpdateWOStatus}

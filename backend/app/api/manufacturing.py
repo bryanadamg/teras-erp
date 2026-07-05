@@ -702,12 +702,17 @@ async def list_work_orders_flat(
     group_id: str = Query(""),
     center_type: str = Query(""),
     search: str = Query(""),
+    component_item_id: str = Query(""),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
     from sqlalchemy import and_
 
     conditions = []
+    if component_item_id:
+        bom_ids_subq = select(BOMLine.bom_id).where(BOMLine.item_id == component_item_id).scalar_subquery()
+        mo_ids_subq = select(ManufacturingOrder.id).where(ManufacturingOrder.bom_id.in_(bom_ids_subq)).scalar_subquery()
+        conditions.append(WorkOrderModel.manufacturing_order_id.in_(mo_ids_subq))
     if status:
         conditions.append(WorkOrderModel.status == status)
     if work_center_id:
