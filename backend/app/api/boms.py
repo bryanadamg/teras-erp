@@ -407,19 +407,21 @@ async def _load_bom_subtree(bom_id: str, db: AsyncSession, visited: set) -> any:
     bom.attribute_value_ids = [v.id for v in bom.attribute_values]
     for bl in bom.lines:
         bl.attribute_value_ids = [v.id for v in bl.attribute_values]
+        # Candidates eager-load attribute_values up front (one query) instead of
+        # re-querying each candidate individually just to compare its attributes —
+        # was O(candidates) extra round-trips per line, recursively down the tree.
         sub_result = await db.execute(
-            select(BOM).filter(BOM.item_id == bl.item_id).order_by(BOM.created_at.desc())
+            select(BOM)
+            .options(selectinload(BOM.attribute_values))
+            .filter(BOM.item_id == bl.item_id)
+            .order_by(BOM.created_at.desc())
         )
         sub_boms = sub_result.scalars().all()
         matched = None
         if sub_boms:
             line_av_ids = set(str(v) for v in bl.attribute_value_ids)
             for candidate in sub_boms:
-                cand_result = await db.execute(
-                    select(BOM).options(selectinload(BOM.attribute_values)).filter(BOM.id == candidate.id)
-                )
-                cand = cand_result.unique().scalars().first()
-                cand_av_ids = set(str(v.id) for v in (cand.attribute_values or []))
+                cand_av_ids = set(str(v.id) for v in (candidate.attribute_values or []))
                 if cand_av_ids == line_av_ids:
                     matched = candidate
                     break

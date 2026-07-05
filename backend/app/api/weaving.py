@@ -158,19 +158,9 @@ async def delete_weaving_run(
 
 # ── Monitor grid (all weaving machines, at a glance) ────────────────────────
 
-async def _machine_monitor(db: AsyncSession, wc: WorkCenter, today: date) -> dict:
-    weekdays, holidays = await _load_calendar(db, wc)
-    res = await db.execute(
-        select(WeavingRun)
-        .options(selectinload(WeavingRun.mo).selectinload(ManufacturingOrder.item))
-        .where(WeavingRun.work_center_id == wc.id)
-        .where(WeavingRun.status == "RUNNING")
-        .order_by(WeavingRun.created_at.desc())
-    )
-    run = res.scalars().first()
+def _machine_payload(wc: WorkCenter, run: Optional[WeavingRun], actual: Optional[float], weekdays, holidays, today: date) -> dict:
     payload = {"id": str(wc.id), "code": wc.code, "name": wc.name, "center_type": wc.center_type, "active_run": None}
     if run:
-        actual = await _run_actual_kg(db, run)
         m = weaving_service.compute_run_metrics(run, actual, weekdays, holidays, today)
         mo = run.mo
         payload["active_run"] = {
@@ -201,7 +191,43 @@ async def weaving_monitor(
         .order_by(WorkCenter.code)
     )
     machines = res.scalars().all()
-    out = [await _machine_monitor(db, wc, today) for wc in machines]
+    if not machines:
+        return {"machines": [], "total": 0, "running": 0, "avg_efficiency_pct": None}
+
+    machine_ids = [wc.id for wc in machines]
+
+    # Batch holidays for every machine in one query instead of one query per
+    # machine (_load_calendar was called per-wc in a loop before this).
+    hol_res = await db.execute(
+        select(WorkCenterHoliday.work_center_id, WorkCenterHoliday.holiday_date)
+        .where(WorkCenterHoliday.work_center_id.in_(machine_ids))
+    )
+    holidays_by_wc: dict = {}
+    for wc_id, hdate in hol_res.all():
+        holidays_by_wc.setdefault(wc_id, []).append(hdate)
+
+    # Batch the active RUNNING run per machine in one query instead of one query
+    # per machine. Ordered so the first row seen per work_center_id is the most
+    # recently created one — matches the old per-machine ".first()" semantics.
+    run_res = await db.execute(
+        select(WeavingRun)
+        .options(selectinload(WeavingRun.mo).selectinload(ManufacturingOrder.item))
+        .where(WeavingRun.work_center_id.in_(machine_ids))
+        .where(WeavingRun.status == "RUNNING")
+        .order_by(WeavingRun.work_center_id, WeavingRun.created_at.desc())
+    )
+    active_run_by_wc: dict = {}
+    for run in run_res.scalars().all():
+        active_run_by_wc.setdefault(run.work_center_id, run)
+
+    out = []
+    for wc in machines:
+        weekdays = wc.working_weekdays if wc.working_weekdays else DEFAULT_WEEKDAYS
+        holidays = holidays_by_wc.get(wc.id, [])
+        run = active_run_by_wc.get(wc.id)
+        actual = await _run_actual_kg(db, run) if run else None
+        out.append(_machine_payload(wc, run, actual, weekdays, holidays, today))
+
     running = sum(1 for m in out if m["active_run"])
     effs = [m["active_run"]["efficiency_pct"] for m in out if m["active_run"] and m["active_run"]["efficiency_pct"] is not None]
     avg_eff = round(sum(effs) / len(effs), 1) if effs else None
