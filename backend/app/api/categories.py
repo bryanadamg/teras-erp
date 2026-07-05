@@ -5,8 +5,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.db.session import get_async_db
 from app.models.category import Category
+from app.models.auth import User
 from app.schemas import CategoryCreate, CategoryResponse
 from app.api.auth import get_current_user, require_permission
+from app.services import audit_service
 
 router = APIRouter()
 
@@ -57,7 +59,7 @@ async def list_categories(
 async def create_category(
     data: CategoryCreate,
     db: AsyncSession = Depends(get_async_db),
-    _=Depends(require_permission('inventory.manage')),
+    current_user: User = Depends(require_permission('inventory.manage')),
 ):
     if data.parent_id:
         parent = await _get_or_404(db, data.parent_id)
@@ -66,6 +68,7 @@ async def create_category(
     cat = Category(name=data.name, parent_id=data.parent_id)
     db.add(cat)
     await db.commit()
+    await audit_service.log_activity(db, current_user.id, "CREATE", "Category", str(cat.id), details=f"Created category {cat.name}")
     # Re-fetch with relationships loaded so level/path_names work.
     return await _get_or_404(db, cat.id)
 
@@ -75,13 +78,15 @@ async def rename_category(
     category_id: uuid.UUID,
     data: CategoryCreate,
     db: AsyncSession = Depends(get_async_db),
-    _=Depends(require_permission('inventory.manage')),
+    current_user: User = Depends(require_permission('inventory.manage')),
 ):
     cat = await _get_or_404(db, category_id)
     if cat.is_system:
         raise HTTPException(status_code=403, detail="Cannot rename a system category")
+    old_name = cat.name
     cat.name = data.name
     await db.commit()
+    await audit_service.log_activity(db, current_user.id, "UPDATE", "Category", str(cat.id), details=f"Renamed category {old_name} -> {data.name}")
     return await _get_or_404(db, cat.id)
 
 
@@ -89,12 +94,14 @@ async def rename_category(
 async def delete_category(
     category_id: uuid.UUID,
     db: AsyncSession = Depends(get_async_db),
-    _=Depends(require_permission('inventory.manage')),
+    current_user: User = Depends(require_permission('inventory.manage')),
 ):
     cat = await _get_or_404(db, category_id)
     if cat.is_system:
         raise HTTPException(status_code=403, detail="Cannot delete a system category")
     if cat.children:
         raise HTTPException(status_code=400, detail="Cannot delete a category that has subcategories")
+    cat_id, cat_name = cat.id, cat.name
     await db.delete(cat)
     await db.commit()
+    await audit_service.log_activity(db, current_user.id, "DELETE", "Category", str(cat_id), details=f"Deleted category {cat_name}")

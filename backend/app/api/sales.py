@@ -85,6 +85,15 @@ async def create_sales_order(payload: SalesOrderCreate, db: AsyncSession = Depen
             line.item_name = line.item.name
             line.item_code = line.item.code
 
+    await audit_service.log_activity(
+        db,
+        user_id=current_user.id,
+        action="CREATE",
+        entity_type="SalesOrder",
+        entity_id=str(so_refreshed.id),
+        details=f"Created SO {so_refreshed.po_number}"
+    )
+
     try:
         await kpi_service.invalidate_kpis_async(db)
         await manager.broadcast({"type": "KPI_UPDATE"})

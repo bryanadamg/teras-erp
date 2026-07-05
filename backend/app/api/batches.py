@@ -232,6 +232,7 @@ async def delete_batch(
         db, current_user.id, "DELETE", "Batch", str(batch_id),
         details=f"Deleted batch {batch.batch_number}"
     )
+    await manager.broadcast({"type": "STOCK_UPDATE"})
     return {"status": "success"}
 
 

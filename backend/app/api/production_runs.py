@@ -688,6 +688,11 @@ async def update_production_run_status(
         pr.actual_end_date = datetime.utcnow()
 
     await db.commit()
+    await audit_service.log_activity(
+        db, user_id=current_user.id, action="STATUS_CHANGE",
+        entity_type="PRODUCTION_RUN", entity_id=pr_id,
+        details=f"Status -> {status}"
+    )
     await manager.broadcast({"type": "PRODUCTION_RUN_UPDATE", "pr_id": pr_id, "status": status})
 
     result = await db.execute(

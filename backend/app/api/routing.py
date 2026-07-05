@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.routing import WorkCenter, Operation
 from app.models.auth import User
+from app.models.audit import AuditLog
 from app.schemas import WorkCenterCreate, WorkCenterResponse, OperationCreate, OperationResponse
 from app.api.auth import get_current_user, require_permission
 
@@ -27,6 +28,8 @@ def create_work_center(payload: WorkCenterCreate, db: Session = Depends(get_db),
     db.add(wc)
     db.commit()
     db.refresh(wc)
+    db.add(AuditLog(user_id=current_user.id, action="CREATE", entity_type="work_center", entity_id=str(wc.id), details=f"Created work center {wc.code}"))
+    db.commit()
     return wc
 
 @router.get("/work-centers", response_model=list[WorkCenterResponse])
@@ -53,6 +56,7 @@ def update_work_center(wc_id: str, payload: WorkCenterCreate, db: Session = Depe
     # Cascade center_type to children when group type changes
     if type_changed and not payload.parent_id:
         db.query(WorkCenter).filter(WorkCenter.parent_id == wc.id).update({"center_type": payload.center_type})
+    db.add(AuditLog(user_id=current_user.id, action="UPDATE", entity_type="work_center", entity_id=str(wc.id), details=f"Updated work center {wc.code}"))
     db.commit()
     db.refresh(wc)
     return wc
@@ -62,6 +66,7 @@ def delete_work_center(wc_id: str, db: Session = Depends(get_db), current_user: 
     wc = db.query(WorkCenter).filter(WorkCenter.id == wc_id).first()
     if not wc:
         raise HTTPException(status_code=404, detail="Work Center not found")
+    db.add(AuditLog(user_id=current_user.id, action="DELETE", entity_type="work_center", entity_id=str(wc.id), details=f"Deleted work center {wc.code}"))
     db.delete(wc)
     db.commit()
     return {"status": "success", "message": "Work Center deleted"}
@@ -80,6 +85,8 @@ def create_operation(payload: OperationCreate, db: Session = Depends(get_db), cu
     db.add(op)
     db.commit()
     db.refresh(op)
+    db.add(AuditLog(user_id=current_user.id, action="CREATE", entity_type="operation", entity_id=str(op.id), details=f"Created operation {op.code}"))
+    db.commit()
     return op
 
 @router.get("/operations", response_model=list[OperationResponse])
@@ -93,6 +100,7 @@ def delete_operation(op_id: str, db: Session = Depends(get_db), current_user: Us
         raise HTTPException(status_code=404, detail="Operation not found")
     if op.is_system:
         raise HTTPException(status_code=400, detail="Cannot delete system operation")
+    db.add(AuditLog(user_id=current_user.id, action="DELETE", entity_type="operation", entity_id=str(op.id), details=f"Deleted operation {op.code}"))
     db.delete(op)
     db.commit()
     return {"status": "success", "message": "Operation deleted"}

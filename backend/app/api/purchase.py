@@ -13,7 +13,8 @@ from app.models.item import Item
 from app.models.batch import Batch
 from app.api.auth import get_current_user, require_permission
 from app.models.auth import User
-from app.services import stock_service, audit_service
+from app.services import stock_service, audit_service, kpi_service
+from app.core.ws_manager import manager
 from datetime import datetime
 import uuid
 
@@ -87,6 +88,10 @@ async def create_purchase_order(
         db.add(db_line)
 
     await db.commit()
+    await audit_service.log_activity(
+        db, current_user.id, "CREATE", "purchase_order", str(po.id),
+        details=f"Created PO {po.po_number}"
+    )
 
     final = await db.execute(_po_query().filter(PurchaseOrder.id == po.id))
     return _populate_line_attrs(final.scalars().first())
@@ -286,6 +291,13 @@ async def create_goods_receipt(
         entity_id=str(gr.id),
         details=f"Goods receipt for PO {po.po_number}",
     )
+
+    await manager.broadcast({"type": "STOCK_UPDATE"})
+    try:
+        await kpi_service.invalidate_kpis_async(db)
+        await manager.broadcast({"type": "KPI_UPDATE"})
+    except Exception:
+        pass
 
     final = await db.execute(
         select(GoodsReceipt)

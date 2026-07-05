@@ -434,6 +434,7 @@ async def upload_completion_image(
 
     sample.completion_image_url = f"/static/samples/{sample_id}_completion{ext}"
     await db.commit()
+    await audit_service.log_activity(db, current_user.id, "UPDATE", "SampleRequest", sample_id, details="Uploaded completion image")
     return {"completion_image_url": sample.completion_image_url}
 
 
@@ -459,6 +460,7 @@ async def upload_design_pdf(
 
     sample.design_pdf_url = f"/static/samples/{sample_id}_design{ext}"
     await db.commit()
+    await audit_service.log_activity(db, current_user.id, "UPDATE", "SampleRequest", sample_id, details="Uploaded design PDF")
     return {"design_pdf_url": sample.design_pdf_url}
 
 

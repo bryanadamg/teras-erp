@@ -6,6 +6,7 @@ from app.schemas import CompanyProfileResponse, CompanyProfileUpdate
 from app.models.settings import CompanyProfile
 from app.api.auth import get_current_user, get_current_admin
 from app.models.auth import User
+from app.services import audit_service
 import shutil
 import os
 from pathlib import Path
@@ -38,11 +39,12 @@ async def update_company_profile(
         profile = CompanyProfile()
         db.add(profile)
 
-    for field, value in payload.dict(exclude_unset=True).items():
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(profile, field, value)
-    
+
     await db.commit()
     await db.refresh(profile)
+    await audit_service.log_activity(db, current_user.id, "UPDATE", "CompanyProfile", str(profile.id), details="Updated company profile")
     return profile
 
 @router.post("/company/logo")
@@ -71,5 +73,6 @@ async def upload_logo(
     # Store relative URL
     profile.logo_url = f"/static/logos/company_logo{file_ext}"
     await db.commit()
-    
+    await audit_service.log_activity(db, current_user.id, "UPDATE", "CompanyProfile", str(profile.id), details="Uploaded company logo")
+
     return {"logo_url": profile.logo_url}

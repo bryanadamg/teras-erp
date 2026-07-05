@@ -27,6 +27,8 @@ def create_partner(payload: PartnerCreate, db: Session = Depends(get_db), curren
     db.add(partner)
     db.commit()
     db.refresh(partner)
+    db.add(AuditLog(user_id=current_user.id, action="CREATE", entity_type="partner", entity_id=str(partner.id), details=f"Created partner {partner.name}"))
+    db.commit()
     return partner
 
 @router.get("", response_model=List[PartnerResponse])
@@ -42,10 +44,11 @@ def update_partner(partner_id: uuid.UUID, payload: PartnerUpdate, db: Session = 
     if not partner:
         raise HTTPException(status_code=404, detail="Partner not found")
     
-    update_data = payload.dict(exclude_unset=True)
+    update_data = payload.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(partner, key, value)
-    
+
+    db.add(AuditLog(user_id=current_user.id, action="UPDATE", entity_type="partner", entity_id=str(partner.id), details=f"Updated partner {partner.name}"))
     db.commit()
     db.refresh(partner)
     return partner

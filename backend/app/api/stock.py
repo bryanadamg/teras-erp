@@ -11,6 +11,7 @@ from app.api.auth import get_current_user, require_permission, get_current_admin
 from app.models.item import Item
 from app.models.location import Location
 from app.models.stock_balance import StockBalance
+from app.models.audit import AuditLog
 from datetime import datetime
 from typing import Optional
 
@@ -179,6 +180,7 @@ async def create_stock_entry(
         },
     )
 
+    await manager.broadcast({"type": "STOCK_UPDATE"})
     try:
         await kpi_service.invalidate_kpis_async(db)
         await manager.broadcast({"type": "KPI_UPDATE"})
@@ -245,6 +247,7 @@ async def transfer_stock(
         changes={"item": item.code, "qty": payload.qty, "route": ref, "batch_id": str(payload.batch_id) if payload.batch_id else None},
     )
 
+    await manager.broadcast({"type": "STOCK_UPDATE"})
     try:
         await kpi_service.invalidate_kpis_async(db)
         await manager.broadcast({"type": "KPI_UPDATE"})
@@ -409,4 +412,6 @@ def rebuild_stock_balances(db: Session = Depends(get_db), current_user: User = D
     """
     from app.db.init_db import sync_stock_balances
     sync_stock_balances(db)
+    db.add(AuditLog(user_id=current_user.id, action="REBUILD", entity_type="StockBalance", entity_id="all", details="Rebuilt stock balances from ledger"))
+    db.commit()
     return {"status": "success", "message": "Stock balances rebuilt from ledger"}

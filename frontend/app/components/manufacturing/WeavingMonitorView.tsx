@@ -19,7 +19,7 @@ function fmt(n: any, d = 1): string {
 }
 
 export default function WeavingMonitorView() {
-    const { manufacturingOrders, authFetch } = useData();
+    const { manufacturingOrders, authFetch, subscribeLiveEvents } = useData();
     const { t } = useLanguage();
     const { uiStyle } = useTheme();
     const cls = uiStyle === 'classic';
@@ -41,6 +41,12 @@ export default function WeavingMonitorView() {
     }, [API_BASE, authFetch]);
 
     useEffect(() => { load(); }, [load]);
+
+    // Live: a run start/update/stop/delete elsewhere re-loads this monitor.
+    useEffect(() => {
+        const unsubscribe = subscribeLiveEvents((kind) => { if (kind === 'weaving') load(); });
+        return unsubscribe;
+    }, [subscribeLiveEvents, load]);
 
     const closeModal = () => { setSelected(null); load(); };
     const machines: any[] = data?.machines || [];

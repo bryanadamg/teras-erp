@@ -337,8 +337,13 @@ async def delete_dye_recipe(
     r = result.scalars().first()
     if not r:
         raise HTTPException(status_code=404, detail="Recipe not found")
+    r_code = r.code
     await db.delete(r)
     await db.commit()
+    await audit_service.log_activity(
+        db, current_user.id, "DELETE", "DyeRecipe", recipe_id,
+        details=f"Deleted recipe {r_code}"
+    )
     return {"status": "success"}
 
 
@@ -437,6 +442,10 @@ async def start_dyeing_run(
     run.status = "IN_PROGRESS"
     run.started_at = datetime.now(timezone.utc)
     await db.commit()
+    await audit_service.log_activity(
+        db, current_user.id, "STATUS_CHANGE", "DyeingRun", run_id,
+        details=f"Started dyeing run {run.run_number}"
+    )
     result = await db.execute(
         select(DyeingRun).options(*_dyeing_run_opts()).filter(DyeingRun.id == run_id)
     )
@@ -605,6 +614,10 @@ async def start_setting_run(
     run.status = "IN_PROGRESS"
     run.started_at = datetime.now(timezone.utc)
     await db.commit()
+    await audit_service.log_activity(
+        db, current_user.id, "STATUS_CHANGE", "SettingRun", run_id,
+        details=f"Started setting run {run.run_number}"
+    )
     result = await db.execute(
         select(SettingRun).options(*_setting_run_opts()).filter(SettingRun.id == run_id)
     )

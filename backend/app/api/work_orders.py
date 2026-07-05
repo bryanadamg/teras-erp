@@ -322,6 +322,10 @@ async def update_work_order_status(
         merged = await beam_service.merge_staged_beams(db, wo)
 
     await db.commit()
+    await audit_service.log_activity(
+        db, current_user.id, "STATUS_CHANGE", "WorkOrder", wo_id,
+        details=f"Status -> {status}" + (f" ({merged} beam(s) merged)" if merged else "")
+    )
     await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": wo_id, "status": status})
     if merged:
         await manager.broadcast({"type": "STOCK_UPDATE"})

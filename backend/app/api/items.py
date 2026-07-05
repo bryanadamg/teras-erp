@@ -169,7 +169,14 @@ async def add_stock_api(payload: StockEntryCreate, db: AsyncSession = Depends(ge
         details=f"Manual stock adjustment: {payload.qty} for {item.code} at {location.name}",
         changes=payload.model_dump()
     )
-    
+
+    await manager.broadcast({"type": "STOCK_UPDATE"})
+    try:
+        await kpi_service.invalidate_kpis_async(db)
+        await manager.broadcast({"type": "KPI_UPDATE"})
+    except Exception:
+        pass
+
     return {"status": "success", "message": "Stock recorded"}
 
 @router.get("/items/template")

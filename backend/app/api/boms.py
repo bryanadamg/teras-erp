@@ -456,6 +456,7 @@ async def upload_bom_sample_photo(
 
     bom.sample_photo_url = f"/static/boms/{bom_id}_sample{ext}"
     await db.commit()
+    await audit_service.log_activity(db, current_user.id, "UPDATE", "BOM", bom_id, details=f"Uploaded sample photo for BOM {bom.code}")
     return {"sample_photo_url": bom.sample_photo_url}
 
 @router.post("/boms/{bom_id}/design-file")
@@ -479,6 +480,7 @@ async def upload_bom_design_file(
 
     bom.design_file_url = f"/static/boms/{bom_id}_design{ext}"
     await db.commit()
+    await audit_service.log_activity(db, current_user.id, "UPDATE", "BOM", bom_id, details=f"Uploaded design file for BOM {bom.code}")
     return {"design_file_url": bom.design_file_url}
 
 def _bom_eager_options():

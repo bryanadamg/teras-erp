@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.location import Location
 from app.models.auth import User
+from app.models.audit import AuditLog
 from app.schemas import LocationCreate, LocationResponse, LocationUpdate
 from app.api.auth import get_current_user, require_permission
 
@@ -63,6 +64,8 @@ def create_location(payload: LocationCreate, db: Session = Depends(get_db), curr
     db.add(loc)
     db.commit()
     db.refresh(loc)
+    db.add(AuditLog(user_id=current_user.id, action="CREATE", entity_type="location", entity_id=str(loc.id), details=f"Created location {loc.code}"))
+    db.commit()
     return loc
 
 
@@ -103,6 +106,7 @@ def update_location(location_id: str, payload: LocationUpdate, db: Session = Dep
             raise HTTPException(status_code=400, detail="System stores cannot be moved")
         _assert_parent_ok(db, data["parent_id"], moving_id=loc.id)
         loc.parent_id = data["parent_id"]
+    db.add(AuditLog(user_id=current_user.id, action="UPDATE", entity_type="location", entity_id=str(loc.id), details=f"Updated location {loc.code}"))
     db.commit()
     db.refresh(loc)
     return loc
@@ -117,6 +121,7 @@ def delete_location(location_id: str, db: Session = Depends(get_db), current_use
         raise HTTPException(status_code=400, detail="System stores cannot be deleted")
     if db.query(Location).filter(Location.parent_id == loc.id).first():
         raise HTTPException(status_code=400, detail="Remove sub-locations first")
+    db.add(AuditLog(user_id=current_user.id, action="DELETE", entity_type="location", entity_id=str(loc.id), details=f"Deleted location {loc.code}"))
     db.delete(loc)
     db.commit()
     return {"status": "success", "message": "Location deleted"}

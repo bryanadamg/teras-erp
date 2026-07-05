@@ -76,7 +76,7 @@ interface DataContextType {
     refreshPurchaseOrders: () => Promise<void>;
     handleTabHover: (tab: string) => void;
     authFetch: (url: string, options?: any) => Promise<Response>;
-    subscribeLiveEvents: (fn: (kind: 'production' | 'kpi') => void) => () => void;
+    subscribeLiveEvents: (fn: (kind: 'production' | 'kpi' | 'stock' | 'weaving') => void) => () => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -436,6 +436,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         } catch (e) { console.error('refreshPurchaseOrders error', e); }
     }, [currentUser]);
 
+    // Targeted refresh for a STOCK_UPDATE live event — only the balance table,
+    // not the broad fetchData() (which on stock/manufacturing routes also re-pulls
+    // items + the full nested /boms).
+    const refreshStockBalance = useCallback(async () => {
+        if (!currentUser) return;
+        try {
+            const token = localStorage.getItem('access_token');
+            const headers = { 'Authorization': `Bearer ${token}` };
+            const res = await fetch(`${API_BASE}/stock/balance`, { headers, cache: 'no-store' });
+            if (res.ok) { const d = await res.json(); setStockBalance(d); }
+        } catch (e) { console.error('refreshStockBalance error', e); }
+    }, [currentUser]);
+
     const handleTabHover = (tab: string) => fetchData(tab);
 
     useEffect(() => { if (currentUser) fetchData(); }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, itemSearch, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData]);
@@ -445,11 +458,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => { fetchDataRef.current = fetchData; }, [fetchData]);
     const refreshManufacturingRef = useRef(refreshManufacturing);
     useEffect(() => { refreshManufacturingRef.current = refreshManufacturing; }, [refreshManufacturing]);
+    const refreshStockBalanceRef = useRef(refreshStockBalance);
+    useEffect(() => { refreshStockBalanceRef.current = refreshStockBalance; }, [refreshStockBalance]);
 
     // Pages that own their data (e.g. /work-orders fetches its own list) subscribe
     // here to be told when a debounced batch of live events has arrived.
-    const liveSubsRef = useRef<Set<(kind: 'production' | 'kpi') => void>>(new Set());
-    const subscribeLiveEvents = useCallback((fn: (kind: 'production' | 'kpi') => void) => {
+    const liveSubsRef = useRef<Set<(kind: 'production' | 'kpi' | 'stock' | 'weaving') => void>>(new Set());
+    const subscribeLiveEvents = useCallback((fn: (kind: 'production' | 'kpi' | 'stock' | 'weaving') => void) => {
         liveSubsRef.current.add(fn);
         return () => { liveSubsRef.current.delete(fn); };
     }, []);
@@ -469,7 +484,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         // fan-out) collapses into ONE refetch + ONE toast per 800ms window instead
         // of one heavy refetch per message. Each of those refetches used to pull
         // items + the full nested /boms + all-level MOs + PRs — a storm.
-        const pending = { kinds: new Set<'production' | 'kpi'>(), codes: new Map<string, string>() };
+        const pending = { kinds: new Set<'production' | 'kpi' | 'stock' | 'weaving'>(), codes: new Map<string, string>() };
 
         const flushLive = () => {
             flushTimer = null;
@@ -501,8 +516,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 if (onDashboard && !kinds.has('production')) fetchDataRef.current('dashboard');
                 liveSubsRef.current.forEach(fn => { try { fn('kpi'); } catch {} });
             }
+            if (kinds.has('stock')) {
+                // Route-aware, same reasoning as 'production': only the routes that
+                // actually read stockBalance (per CLAUDE.md) re-pull it.
+                if (path.startsWith('/stock') || path.startsWith('/booking-stock') || path.startsWith('/manufacturing-orders') || path.startsWith('/production-runs')) {
+                    refreshStockBalanceRef.current();
+                } else if (onDashboard) {
+                    fetchDataRef.current('dashboard');
+                }
+                liveSubsRef.current.forEach(fn => { try { fn('stock'); } catch {} });
+            }
+            if (kinds.has('weaving')) {
+                // Pages that self-fetch (WeavingMonitorView) subscribe and reload themselves.
+                liveSubsRef.current.forEach(fn => { try { fn('weaving'); } catch {} });
+            }
         };
-        const queueLive = (kind: 'production' | 'kpi', code?: string, status?: string) => {
+        const queueLive = (kind: 'production' | 'kpi' | 'stock' | 'weaving', code?: string, status?: string) => {
             pending.kinds.add(kind);
             if (code) pending.codes.set(code, status || '');
             if (!flushTimer) flushTimer = setTimeout(flushLive, 800);
@@ -543,6 +572,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                             // A mutation invalidated the KPI cache — refresh dashboard
                             // KPIs + summary so the numbers stay live.
                             queueLive('kpi');
+                            break;
+                        case 'STOCK_UPDATE':
+                            queueLive('stock');
+                            break;
+                        case 'weaving_run':
+                            queueLive('weaving');
                             break;
                         default:
                             break;

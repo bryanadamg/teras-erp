@@ -526,6 +526,13 @@ async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: Asyn
 
     await audit_service.log_activity(db, current_user.id, "CREATE", "ManufacturingOrder", str(mo.id), f"Created {'Nested' if payload.create_nested else 'Single'} MO {mo.code}")
 
+    await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": str(mo.id), "status": mo.status, "code": mo.code})
+    try:
+        await kpi_service.invalidate_kpis_async(db)
+        await manager.broadcast({"type": "KPI_UPDATE"})
+    except Exception:
+        pass
+
     populate_mo_ids(mo)
     return mo
 
@@ -931,7 +938,7 @@ async def update_mo_attributes(
         db, current_user.id, "UPDATE", "ManufacturingOrder", str(mo.id),
         f"Updated attributes on MO {mo.code}: {old_ids} -> {[str(v) for v in payload.attribute_value_ids]}"
     )
-    await manager.broadcast({"type": "mo_updated", "id": str(mo.id)})
+    await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": str(mo.id), "status": mo.status, "code": mo.code})
 
     populate_mo_ids(mo)
     return mo
@@ -969,7 +976,7 @@ async def update_mo_putaway(
         db, current_user.id, "UPDATE", "ManufacturingOrder", str(mo.id),
         f"Putaway bin on MO {mo.code}: {old_id or 'none'} -> {loc.code if loc else 'none'}"
     )
-    await manager.broadcast({"type": "mo_updated", "id": str(mo.id)})
+    await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": str(mo.id), "status": mo.status, "code": mo.code})
     # expire_on_commit=False: the cached instance still holds the OLD (possibly
     # None) planned_putaway_location relationship — expire so the reload joins
     # fresh. Capture the pk first: reading mo.id after expire would trigger a
@@ -1461,4 +1468,12 @@ async def delete_manufacturing_order(mo_id: str, db: AsyncSession = Depends(get_
     await db.delete(mo)
     await db.commit()
     await audit_service.log_activity(db, current_user.id, "DELETE", "manufacturing_order", mo_id, details=f"Deleted MO {mo_code}")
+
+    await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": mo_id, "status": "DELETED", "code": mo_code})
+    try:
+        await kpi_service.invalidate_kpis_async(db)
+        await manager.broadcast({"type": "KPI_UPDATE"})
+    except Exception:
+        pass
+
     return {"status": "success"}
