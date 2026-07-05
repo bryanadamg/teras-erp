@@ -68,20 +68,28 @@ export default function TreeSelect({
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const [dropPos, setDropPos] = useState<{ top: number; left: number; width: number; above: boolean }>({ top: 0, left: 0, width: 0, above: false });
+  const [dropPos, setDropPos] = useState<{ top: number; left: number; width: number; above: boolean; maxHeight: number }>({ top: 0, left: 0, width: 0, above: false, maxHeight: 320 });
 
   const computePos = useCallback(() => {
     const el = triggerRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - r.bottom;
-    const maxH = 320;
-    const above = spaceBelow < Math.min(maxH, 180) && r.top > spaceBelow;
+    const margin = 8;
+    const desired = 320;
+    const spaceBelow = window.innerHeight - r.bottom - margin;
+    const spaceAbove = r.top - margin;
+    // Flip above only when below is cramped AND above genuinely has more room —
+    // otherwise clamp maxHeight to whichever side we land on so the panel never
+    // renders past the viewport edge (it was previously fixed at 320 regardless
+    // of actual space, which cut it off behind the taskbar on short screens).
+    const above = spaceBelow < 180 && spaceAbove > spaceBelow;
+    const maxHeight = Math.max(80, Math.min(desired, above ? spaceAbove : spaceBelow));
     setDropPos({
       top: above ? r.top : r.bottom,
       left: r.left,
       width: r.width,
       above,
+      maxHeight,
     });
   }, []);
 
@@ -344,7 +352,7 @@ export default function TreeSelect({
     left: dropPos.left,
     zIndex: 99999,
     minWidth: dropPos.width,
-    maxHeight: 320,
+    maxHeight: dropPos.maxHeight,
     overflowY: 'auto',
     transform: dropPos.above ? 'translateY(-100%)' : undefined,
   };
