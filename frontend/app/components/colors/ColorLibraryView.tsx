@@ -100,7 +100,7 @@ export default function ColorLibraryView({
 
     // Debounce the search box so each keystroke does not fire a request against 30k rows.
     useEffect(() => {
-        const t = setTimeout(() => onSearchChange(searchInput.trim()), 300);
+        const t = setTimeout(() => onSearchChange(searchInput.trim()), 350);
         return () => clearTimeout(t);
     }, [searchInput]); // eslint-disable-line react-hooks/exhaustive-deps
 

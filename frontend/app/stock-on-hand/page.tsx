@@ -24,7 +24,7 @@ export default function StockOnHandPage() {
                 const data = await res.json();
                 setSelectItems(data.items || []);
             }
-        }, 250);
+        }, 350);
     }, [items, authFetch, API_BASE]);
 
     return (

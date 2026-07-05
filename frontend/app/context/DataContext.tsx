@@ -86,7 +86,7 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-    const { currentUser } = useUser();
+    const { currentUser, logout } = useUser();
     const { showToast } = useToast();
 
     // Data State
@@ -173,8 +173,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     const authFetch = useCallback(async (url: string, options: any = {}) => {
         const token = localStorage.getItem('access_token');
-        return fetch(url, { ...options, headers: { ...options.headers, 'Authorization': `Bearer ${token}` } });
-    }, []);
+        const res = await fetch(url, { ...options, headers: { ...options.headers, 'Authorization': `Bearer ${token}` } });
+        // Expired/invalid token — log out so MainLayout's currentUser-null guard
+        // redirects to /login, instead of every caller silently getting back a
+        // 401 body it doesn't check for. 403 (valid token, missing permission)
+        // is untouched — that's not an auth failure, it shouldn't sign anyone out.
+        if (res.status === 401) {
+            logout();
+        }
+        return res;
+    }, [logout]);
 
     const inFlightRef = useRef<Record<string, Promise<any>>>({});
     // Mirror itemIndex into a ref so fetchData can check "do we already have the

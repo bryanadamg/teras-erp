@@ -33,7 +33,7 @@ export default function StockEntryPage() {
                 const data = await res.json();
                 setSelectItems(data.items || []);
             }
-        }, 250);
+        }, 350);
     }, [items, authFetch, API_BASE]);
 
     const handleAddStock = async (p: any) => {

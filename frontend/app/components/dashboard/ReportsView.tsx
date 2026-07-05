@@ -82,7 +82,7 @@ export default function ReportsView(_props: any) {
 
     // Debounce the free-text search; reset to page 1 on every new term.
     useEffect(() => {
-        const id = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 300);
+        const id = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 350);
         return () => clearTimeout(id);
     }, [search]);
 

@@ -79,7 +79,7 @@ export default function BOMPage() {
     const itemSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const handleItemSearch = useCallback((term: string) => {
         if (itemSearchTimer.current) clearTimeout(itemSearchTimer.current);
-        itemSearchTimer.current = setTimeout(() => setItemSearch(term), 250);
+        itemSearchTimer.current = setTimeout(() => setItemSearch(term), 350);
     }, [setItemSearch]);
     useEffect(() => () => { if (itemSearchTimer.current) clearTimeout(itemSearchTimer.current); }, []);
 
