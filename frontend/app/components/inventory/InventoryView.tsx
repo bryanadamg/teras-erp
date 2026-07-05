@@ -25,7 +25,7 @@ function getCategoryXPStyle(category: string): { bg: string; border: string; col
 }
 
 // Memoized Row Component
-const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSelect, onEdit, onDelete, onViewHistory, getAttributeNames, classic }: any) => {
+const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSelect, onEdit, onDelete, onViewHistory, getAttributeList, classic }: any) => {
     const { hasPermission } = useUser();
     const canManage = hasPermission('inventory.manage');
     const canDelete = hasPermission('inventory.delete');
@@ -92,6 +92,13 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
                     )
                 ) : null}
             </td>
+            <td style={classic ? { ...tdBase, width: '55px' } : { width: '55px' }}>
+                {classic ? (
+                    <span style={{ color: isSelected ? '#e8f0ff' : '#333', fontSize: '9px' }}>{item.uom}</span>
+                ) : (
+                    <span className="text-muted small">{item.uom}</span>
+                )}
+            </td>
             <td style={tdBase}>
                 {item.source_sample_code ? (
                     classic ? (
@@ -116,13 +123,34 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
                 )}
             </td>
             <td style={tdBase}>
-                {classic ? (
-                    <span style={{ color: isSelected ? '#e8f0ff' : '#333', fontSize: '9px' }}>
-                        {getAttributeNames(item.attribute_ids)}
-                    </span>
-                ) : (
-                    <span className="text-muted small">{getAttributeNames(item.attribute_ids)}</span>
-                )}
+                {(() => {
+                    const names = getAttributeList(item.attribute_ids);
+                    if (names.length === 0) {
+                        return classic
+                            ? <span style={{ color: isSelected ? '#cce0ff' : '#999', fontSize: '9px' }}>-</span>
+                            : <span className="text-muted small">-</span>;
+                    }
+                    return (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: classic ? 3 : 4 }}>
+                            {names.map((name, i) => classic ? (
+                                <span key={i} style={{
+                                    background: isSelected ? 'rgba(255,255,255,0.2)' : '#eef2fb',
+                                    border: `1px solid ${isSelected ? 'rgba(255,255,255,0.5)' : '#9fb3d9'}`,
+                                    color: isSelected ? '#fff' : '#2a3f6b',
+                                    padding: '1px 5px',
+                                    fontSize: '9px',
+                                    fontFamily: 'Tahoma, Arial, sans-serif',
+                                    fontWeight: 'bold',
+                                    whiteSpace: 'nowrap',
+                                }}>
+                                    {name}
+                                </span>
+                            ) : (
+                                <span key={i} className="badge bg-light text-dark border fw-normal">{name}</span>
+                            ))}
+                        </div>
+                    );
+                })()}
             </td>
             <td style={tdBase}>
                 {item.weight_per_unit != null ? (
@@ -580,9 +608,9 @@ export default function InventoryView({
 
   useEffect(() => { setSelectedIds(new Set()); }, [currentPage]);
 
-  const getAttributeNames = (ids: string[]) => {
-      if (!ids || ids.length === 0) return '-';
-      return ids.map(id => attributes.find((a: any) => a.id === id)?.name).filter(Boolean).join(', ');
+  const getAttributeList = (ids: string[]): string[] => {
+      if (!ids || ids.length === 0) return [];
+      return ids.map(id => attributes.find((a: any) => a.id === id)?.name).filter(Boolean);
   };
 
   const handleEdit = (item: any) => {
@@ -1272,6 +1300,7 @@ export default function InventoryView({
                     <th style={classic ? { ...xpThCell, width: '110px', cursor: 'pointer' } : { cursor: 'pointer' }} className={classic ? '' : 'ps-4'} onClick={() => toggleSort('code')} title="Sort">{t('item_code')}<SortMark sort={sort} colKey="code" /></th>
                     <th style={classic ? { ...xpThCell, cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggleSort('name')} title="Sort">{t('item_name')}<SortMark sort={sort} colKey="name" /></th>
                     <th style={classic ? { ...xpThCell, width: '110px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggleSort('category')} title="Sort">{t('categories')}<SortMark sort={sort} colKey="category" /></th>
+                    <th style={classic ? { ...xpThCell, width: '55px' } : { width: '55px' }}>{t('uom')}</th>
                     <th style={classic ? { ...xpThCell, width: '90px' } : undefined}>{t('source_sample')}</th>
                     <th style={classic ? xpThCell : undefined}>{t('attributes')}</th>
                     <th style={classic ? { ...xpThCell, width: '90px', cursor: 'pointer' } : { width: '90px', cursor: 'pointer' }} onClick={() => toggleSort('weight')} title="Sort">{t('weight_per_unit')}<SortMark sort={sort} colKey="weight" /></th>
@@ -1290,14 +1319,14 @@ export default function InventoryView({
                         onEdit={handleEdit}
                         onDelete={onDeleteItem}
                         onViewHistory={setHistoryEntityId}
-                        getAttributeNames={getAttributeNames}
+                        getAttributeList={getAttributeList}
                         classic={classic}
                     />
                   ))}
                   {filteredItems.length === 0 && (
                     <tr>
                       <td
-                        colSpan={8}
+                        colSpan={9}
                         style={classic ? { padding: 0, background: '#ffffff' } : undefined}
                         className={classic ? '' : 'text-center text-muted py-5'}
                       >
