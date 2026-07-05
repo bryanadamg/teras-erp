@@ -777,6 +777,7 @@ class ItemCreate(BaseModel):
     lot_tracked: bool = False
     min_stock_level: float | None = None
     default_source_location_id: UUID | None = None
+    default_putaway_location_id: UUID | None = None
 
 
 class ItemUpdate(BaseModel):
@@ -795,6 +796,7 @@ class ItemUpdate(BaseModel):
     lot_tracked: bool | None = None
     min_stock_level: float | None = None
     default_source_location_id: UUID | None = None
+    default_putaway_location_id: UUID | None = None
 
 
 class ItemResponse(BaseModel):
@@ -817,6 +819,7 @@ class ItemResponse(BaseModel):
     lot_tracked: bool = False
     min_stock_level: float | None = None
     default_source_location_id: UUID | None = None
+    default_putaway_location_id: UUID | None = None
 
     class Config:
         from_attributes = True

@@ -2368,6 +2368,7 @@ export default function ManufacturingView({
               const reasonText = pm.reason === 'same_item' ? 'bin already holds this item'
                   : pm.reason === 'empty_bin' ? 'first empty bin'
                   : pm.reason === 'configured' ? 'currently assigned bin'
+                  : pm.reason === 'item_default' ? "item's default putaway bin"
                   : pm.reason === 'first_bin' ? 'first bin by code'
                   : null;
               const selStyle = isClassic ? {

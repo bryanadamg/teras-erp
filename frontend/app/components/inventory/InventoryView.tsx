@@ -264,7 +264,7 @@ export default function InventoryView({
   });
 
   // Creation State
-  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [] as string[], weight_per_unit: '' as string | number, weight_unit: 'g/y', packaging_factor_ids: [] as string[], ends: '' as string | number, lot_tracked: false, min_stock_level: '' as string | number, default_source_location_id: '' as string });
+  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [] as string[], weight_per_unit: '' as string | number, weight_unit: 'g/y', packaging_factor_ids: [] as string[], ends: '' as string | number, lot_tracked: false, min_stock_level: '' as string | number, default_source_location_id: '' as string, default_putaway_location_id: '' as string });
   const [nameManuallyEdited, setNameManuallyEdited] = useState(false);
 
   // Beam item creation state
@@ -430,6 +430,7 @@ export default function InventoryView({
       if (payload.ends === '' || payload.ends === null) { delete payload.ends; } else { payload.ends = parseInt(payload.ends); }
       if (payload.min_stock_level === '' || payload.min_stock_level === null || payload.min_stock_level === undefined) { delete payload.min_stock_level; } else { payload.min_stock_level = parseFloat(payload.min_stock_level); }
       if (!payload.default_source_location_id) { delete payload.default_source_location_id; }
+      if (!payload.default_putaway_location_id) { delete payload.default_putaway_location_id; }
 
       const res = await onCreateItem(payload);
 
@@ -469,7 +470,7 @@ export default function InventoryView({
           } else {
               showToast('Item created successfully', 'success');
           }
-          setNewItem({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [], weight_per_unit: '', weight_unit: 'g/y', packaging_factor_ids: [], ends: '', lot_tracked: false, min_stock_level: '', default_source_location_id: '' });
+          setNewItem({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [], weight_per_unit: '', weight_unit: 'g/y', packaging_factor_ids: [], ends: '', lot_tracked: false, min_stock_level: '', default_source_location_id: '', default_putaway_location_id: '' });
           setFormCatL1(''); setFormCatL2(''); setFormCatL3('');
           setNameManuallyEdited(false);
           setCreateBeam(false); setBeamName(''); setBeamUom(''); setBeamEnds('');
@@ -498,6 +499,7 @@ export default function InventoryView({
           lot_tracked: !!editingItem.lot_tracked,
           min_stock_level: (editingItem.min_stock_level === '' || editingItem.min_stock_level === null || editingItem.min_stock_level === undefined) ? null : parseFloat(editingItem.min_stock_level),
           default_source_location_id: editingItem.default_source_location_id || null,
+          default_putaway_location_id: editingItem.default_putaway_location_id || null,
       };
 
       onUpdateItem(editingItem.id, payload);
@@ -919,6 +921,19 @@ export default function InventoryView({
                       options={locPickerTreeOptions}
                       value={newItem.default_source_location_id}
                       onChange={id => setNewItem({ ...newItem, default_source_location_id: id })}
+                      allowEmpty
+                      emptyLabel="— None —"
+                      size="sm"
+                      style={{ width: '100%' }}
+                  />
+              </div>
+
+              <div className="mb-1">
+                  <FieldLabel classic={classic} hint="Preferred bin for this item's production output — pre-fills the MO putaway suggestion">Default putaway location</FieldLabel>
+                  <TreeSelect
+                      options={locPickerTreeOptions}
+                      value={newItem.default_putaway_location_id}
+                      onChange={id => setNewItem({ ...newItem, default_putaway_location_id: id })}
                       allowEmpty
                       emptyLabel="— None —"
                       size="sm"
@@ -1548,6 +1563,19 @@ export default function InventoryView({
                           options={locPickerTreeOptions}
                           value={editingItem.default_source_location_id ?? ''}
                           onChange={id => setEditingItem({ ...editingItem, default_source_location_id: id || null })}
+                          allowEmpty
+                          emptyLabel="— None —"
+                          size="sm"
+                          style={{ width: '100%' }}
+                        />
+                    </div>
+
+                    <div className="mb-1">
+                        <FieldLabel classic={classic} hint="Preferred bin for this item's production output — pre-fills the MO putaway suggestion">Default putaway location</FieldLabel>
+                        <TreeSelect
+                          options={locPickerTreeOptions}
+                          value={editingItem.default_putaway_location_id ?? ''}
+                          onChange={id => setEditingItem({ ...editingItem, default_putaway_location_id: id || null })}
                           allowEmpty
                           emptyLabel="— None —"
                           size="sm"

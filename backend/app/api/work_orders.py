@@ -566,16 +566,25 @@ async def get_mo_putaway_suggestion(
 ):
     """Putaway planning aid for the MO: candidate bins under the routing's final
     output area plus a suggested one. Priority: bin already assigned on the MO
-    -> bin already holding the output item (addition to stock) -> empty bin ->
-    first bin by code. Advisory — planning picks and saves via PATCH .../putaway."""
+    -> item master's default putaway bin -> bin already holding the output item
+    (addition to stock) -> empty bin -> first bin by code. Advisory — planning
+    picks and saves via PATCH .../putaway."""
     mo_res = await db.execute(select(ManufacturingOrder).filter(ManufacturingOrder.id == mo_id))
     mo = mo_res.scalars().first()
     if not mo:
         raise HTTPException(status_code=404, detail="Manufacturing Order not found")
 
-    # Root area = MO's assigned bin's zone if set, else the final routing step's
-    # work-center output location, else the last WO's output location.
+    # Root area = MO's assigned bin's zone if set, else the item master's default
+    # putaway bin, else the final routing step's work-center output location,
+    # else the last WO's output location.
     root_id = mo.planned_putaway_location_id
+    item_default_used = False
+    if not root_id and mo.item_id:
+        item_default_res = await db.execute(
+            select(Item.default_putaway_location_id).filter(Item.id == mo.item_id)
+        )
+        root_id = item_default_res.scalar()
+        item_default_used = root_id is not None
     if not root_id and mo.bom_id:
         op_res = await db.execute(
             select(WorkCenter.output_location_id)
@@ -629,7 +638,8 @@ async def get_mo_putaway_suggestion(
     totals = {str(lid): (float(t or 0), float(i or 0)) for lid, t, i in bal_res.all()}
 
     leaves.sort(key=lambda l: (l.code or l.name or ""))
-    suggested, reason = configured_bin, ("configured" if configured_bin is not None else None)
+    configured_reason = "item_default" if item_default_used else "configured"
+    suggested, reason = configured_bin, (configured_reason if configured_bin is not None else None)
     if suggested is None:
         same = [l for l in leaves if totals.get(str(l.id), (0.0, 0.0))[1] > 0]
         if same:

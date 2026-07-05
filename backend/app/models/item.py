@@ -52,6 +52,12 @@ class Item(Base):
         UUID(as_uuid=True), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True
     )
 
+    # Material-master default putaway (receiving) location — preferred bin for
+    # this item's production output. MO.planned_putaway_location_id overrides it.
+    default_putaway_location_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True
+    )
+
     weight_per_unit: Mapped[float | None] = mapped_column(Float, nullable=True)
     weight_unit: Mapped[str | None] = mapped_column(String(16), nullable=True)  # e.g. gsm, g/m², oz/yd²
     ends: Mapped[int | None] = mapped_column(nullable=True)  # warp ends count for beam items
