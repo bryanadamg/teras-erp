@@ -69,9 +69,6 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
     const [beamNumber, setBeamNumber] = useState('');
     const [batchesByItem, setBatchesByItem] = useState<Record<string, any[]>>({});
     const [consumedBatches, setConsumedBatches] = useState<Record<string, string>>({});
-    const [rejectId, setRejectId] = useState<string | null>(null);
-    const [rejectReason, setRejectReason] = useState('');
-    const [rejecting, setRejecting] = useState(false);
 
     const findItem = (itemId: string) => (items || []).find((i: any) => i.id === itemId);
     const isBeamItem = (itemId: string) => {
@@ -239,32 +236,6 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
             showToast(err.message, 'danger');
         } finally {
             setSubmitting(false);
-        }
-    };
-
-    // QC reject: flags the completion (progress returns to the MO) and marks
-    // its output lot REJECTED — refill is a new WO created manually.
-    const handleReject = async (c: any) => {
-        setRejecting(true);
-        try {
-            const res = await authFetch(`${API_BASE}/manufacturing-orders/${mo.id}/completions/${c.id}/reject`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reason: rejectReason.trim() || null }),
-            });
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err.detail || 'Failed to reject completion');
-            }
-            const updated = await res.json();
-            showToast(`Rejected ${parseFloat(c.qty_completed).toFixed(2)} — progress returned to MO`, 'success');
-            setRejectId(null);
-            setRejectReason('');
-            onSaved(updated);
-        } catch (err: any) {
-            showToast(err.message, 'danger');
-        } finally {
-            setRejecting(false);
         }
     };
 
@@ -632,68 +603,30 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                         </thead>
                                         <tbody>
                                             {completions.map((c: any, i: number) => (
-                                                <React.Fragment key={c.id}>
-                                                    <tr style={{ background: c.rejected ? '#fbe4e4' : i % 2 === 0 ? '#fff' : '#f5f4ee' }}>
-                                                        <td
-                                                            style={{ padding: '2px 6px', textAlign: 'right', fontWeight: 'bold', textDecoration: c.rejected ? 'line-through' : 'none', color: c.rejected ? '#900' : undefined }}
-                                                            title={c.output_batch_number ? `Lot ${c.output_batch_number}` : undefined}
-                                                        >
-                                                            {parseFloat(c.qty_completed).toFixed(2)}
-                                                        </td>
-                                                        <td style={{ padding: '2px 6px', color: '#555' }}>{c.operator_name || '—'}</td>
-                                                        <td style={{ padding: '2px 6px', color: '#555' }}>{c.work_center_name || '—'}</td>
-                                                        <td style={{ padding: '2px 6px', color: '#555' }}>
-                                                            {c.actual_items && c.actual_items.length > 0
-                                                                ? c.actual_items.map((ai: any) => `${ai.item_code || ai.item_id} ×${parseFloat(ai.qty_used).toFixed(2)}`).join(', ')
-                                                                : '—'}
-                                                        </td>
-                                                        <td style={{ padding: '2px 6px', color: '#555' }}>{new Date(c.created_at).toLocaleString()}</td>
-                                                        <td style={{ padding: '2px 4px', textAlign: 'center' }}>
-                                                            {c.rejected ? (
-                                                                <span style={{ fontSize: 9, fontWeight: 'bold', color: '#900' }} title={c.reject_reason || 'Rejected'}>
-                                                                    REJECTED
-                                                                </span>
-                                                            ) : (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => { setRejectId(rejectId === c.id ? null : c.id); setRejectReason(''); }}
-                                                                    title="QC reject this output — progress returns to the MO"
-                                                                    style={{ fontFamily: xpFont, fontSize: 9, padding: '0 5px', cursor: 'pointer', background: rejectId === c.id ? '#f0c8c8' : 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid #808080', color: '#900' }}
-                                                                >
-                                                                    Rej
-                                                                </button>
-                                                            )}
-                                                        </td>
-                                                    </tr>
-                                                    {rejectId === c.id && (
-                                                        <tr style={{ background: '#fdeeee' }}>
-                                                            <td colSpan={6} style={{ padding: '6px 8px', borderTop: '1px solid #d8a8a8', borderBottom: '1px solid #d8a8a8' }}>
-                                                                <div style={{ fontSize: 10, fontWeight: 'bold', color: '#900', marginBottom: 4 }}>
-                                                                    Reject {parseFloat(c.qty_completed).toFixed(2)}{c.output_batch_number ? ` — Lot ${c.output_batch_number}` : ''}? Lot is marked rejected and MO progress is returned.
-                                                                </div>
-                                                                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                                                    <input
-                                                                        type="text"
-                                                                        style={{ ...xpInput, flex: 1 }}
-                                                                        value={rejectReason}
-                                                                        onChange={e => setRejectReason(e.target.value)}
-                                                                        placeholder="Reason (defect, shade off, etc.)"
-                                                                        autoFocus
-                                                                    />
-                                                                    <button
-                                                                        type="button"
-                                                                        disabled={rejecting}
-                                                                        onClick={() => handleReject(c)}
-                                                                        style={{ fontFamily: xpFont, fontSize: 10, padding: '1px 8px', cursor: 'pointer', background: 'linear-gradient(to bottom, #f0b0b0, #d87070)', border: '1px solid #803030', color: '#500', fontWeight: 'bold', opacity: rejecting ? 0.6 : 1 }}
-                                                                    >
-                                                                        {rejecting ? 'Rejecting...' : 'Confirm Reject'}
-                                                                    </button>
-                                                                    <button type="button" onClick={() => setRejectId(null)} style={{ ...xpBtn(), fontSize: 10, padding: '1px 8px' }}>Cancel</button>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    )}
-                                                </React.Fragment>
+                                                <tr key={c.id} style={{ background: c.rejected ? '#fbe4e4' : i % 2 === 0 ? '#fff' : '#f5f4ee' }}>
+                                                    <td
+                                                        style={{ padding: '2px 6px', textAlign: 'right', fontWeight: 'bold', textDecoration: c.rejected ? 'line-through' : 'none', color: c.rejected ? '#900' : undefined }}
+                                                        title={c.output_batch_number ? `Lot ${c.output_batch_number}` : undefined}
+                                                    >
+                                                        {parseFloat(c.qty_completed).toFixed(2)}
+                                                    </td>
+                                                    <td style={{ padding: '2px 6px', color: '#555' }}>{c.operator_name || '—'}</td>
+                                                    <td style={{ padding: '2px 6px', color: '#555' }}>{c.work_center_name || '—'}</td>
+                                                    <td style={{ padding: '2px 6px', color: '#555' }}>
+                                                        {c.actual_items && c.actual_items.length > 0
+                                                            ? c.actual_items.map((ai: any) => `${ai.item_code || ai.item_id} ×${parseFloat(ai.qty_used).toFixed(2)}`).join(', ')
+                                                            : '—'}
+                                                    </td>
+                                                    <td style={{ padding: '2px 6px', color: '#555' }}>{new Date(c.created_at).toLocaleString()}</td>
+                                                    <td style={{ padding: '2px 4px', textAlign: 'center' }}>
+                                                        {/* QC disposition lives on the Lot Management page — read-only marker here */}
+                                                        {c.rejected && (
+                                                            <span style={{ fontSize: 9, fontWeight: 'bold', color: '#900' }} title={c.reject_reason || 'Rejected'}>
+                                                                REJECTED
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                </tr>
                                             ))}
                                         </tbody>
                                     </table>

@@ -86,6 +86,11 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [rowTraceData, setRowTraceData] = useState<Record<string, RowTraceState>>({});
 
+  // QC reject
+  const [rejectBatch, setRejectBatch] = useState<Batch | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejecting, setRejecting] = useState(false);
+
   const fetchBatches = async () => {
     setLoading(true);
     try {
@@ -138,6 +143,32 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
     const res = await authFetch(`${apiBase}/batches/${batch.id}`, { method: 'DELETE' });
     if (res.ok) { showToast('Deleted', 'success'); fetchBatches(); }
     else showToast('Delete failed', 'danger');
+  };
+
+  // QC disposition: lot flagged REJECTED (drops out of good stock/pickers);
+  // if it was born from a production log, that qty returns to the MO's progress.
+  const handleReject = async () => {
+    if (!rejectBatch) return;
+    setRejecting(true);
+    try {
+      const res = await authFetch(`${apiBase}/batches/${rejectBatch.id}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: rejectReason.trim() || null }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to reject lot');
+      }
+      showToast(`Lot ${rejectBatch.batch_number} rejected`, 'success');
+      setRejectBatch(null);
+      setRejectReason('');
+      fetchBatches();
+    } catch (err: any) {
+      showToast(err.message, 'danger');
+    } finally {
+      setRejecting(false);
+    }
   };
 
   const toggleExpand = async (b: Batch) => {
@@ -425,6 +456,15 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                           <i className={`bi ${expandedRows[b.id] ? 'bi-chevron-up' : 'bi-diagram-3'}`} style={{ marginRight: 3 }} />
                           {expandedRows[b.id] ? 'Hide' : 'Details'}
                         </button>
+                        {b.quality_status !== 'REJECTED' && (
+                          <button
+                            style={xpBtn({ background: 'linear-gradient(to bottom, #ffe0b0, #e0a050)', fontSize: 10, padding: '2px 7px', marginRight: 4, color: '#663300' })}
+                            onClick={() => { setRejectBatch(b); setRejectReason(''); }}
+                            title="QC reject — lot drops out of good stock; produced qty returns to its MO"
+                          >
+                            Reject
+                          </button>
+                        )}
                         <button style={xpBtn({ background: 'linear-gradient(to bottom, #ffd0d0, #e08080)', fontSize: 10, padding: '2px 7px' })} onClick={() => handleDelete(b)}>
                           <i className="bi bi-trash" />
                         </button>
@@ -507,6 +547,15 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                           <i className={`bi ${expandedRows[b.id] ? 'bi-chevron-up' : 'bi-diagram-3'}`} />
                           {' '}Details
                         </button>
+                        {b.quality_status !== 'REJECTED' && (
+                          <button
+                            className="btn btn-sm btn-outline-warning me-1"
+                            onClick={() => { setRejectBatch(b); setRejectReason(''); }}
+                            title="QC reject — lot drops out of good stock; produced qty returns to its MO"
+                          >
+                            Reject
+                          </button>
+                        )}
                         <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(b)}>
                           <i className="bi bi-trash" />
                         </button>
@@ -561,6 +610,50 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
               value={createNotes}
               onChange={e => setCreateNotes(e.target.value)}
               placeholder="Optional notes..."
+            />
+          </div>
+        </ModalWrapper>
+      )}
+
+      {/* ── QC Reject Modal ── */}
+      {rejectBatch && (
+        <ModalWrapper
+          isOpen={!!rejectBatch}
+          onClose={() => setRejectBatch(null)}
+          title={`Reject Lot ${rejectBatch.batch_number}`}
+          size="sm"
+          footer={<>
+            <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setRejectBatch(null)}>Cancel</button>
+            <button
+              style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #f0b0b0, #d87070)', color: '#500', fontWeight: 'bold' }) : undefined}
+              className={classic ? '' : 'btn btn-sm btn-danger'}
+              onClick={handleReject}
+              disabled={rejecting}
+            >
+              {rejecting ? 'Rejecting...' : 'Confirm Reject'}
+            </button>
+          </>}
+        >
+          <div className="mb-2" style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>
+            <strong>{batchItemCode(rejectBatch)}</strong>
+            {rejectBatch.remaining != null && <> — {Number(rejectBatch.remaining).toFixed(2)} remaining</>}
+            {rejectBatch.mo_code && <> (MO {rejectBatch.mo_code})</>}
+          </div>
+          <div className="mb-3" style={classic ? { fontFamily: 'Tahoma', fontSize: 10, color: '#663300' } : { fontSize: 13, color: '#664d03' }}>
+            The lot is marked REJECTED: it stays in stock but is excluded from
+            availability and consumption. If it was produced by a work order log,
+            that quantity is returned to the MO's progress — create a new WO to
+            refill the shortfall.
+          </div>
+          <div className="mb-3">
+            <label style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>Reason</label>
+            <textarea
+              className={classic ? '' : 'form-control form-control-sm mt-1'}
+              style={classic ? { ...xpInput, width: '100%', height: 50, resize: 'vertical' } : {}}
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              placeholder="Defect, shade off, width out of spec..."
+              autoFocus
             />
           </div>
         </ModalWrapper>

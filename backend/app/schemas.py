@@ -335,7 +335,12 @@ class MOCompletionResponse(BaseModel):
     rejected_at: datetime | None = None
     rejected_by: str | None = None
 
+class BatchReject(BaseModel):
+    """QC-reject a produced lot (from the Lot Management page)."""
+    reason: str | None = None
+
 class MOCompletionReject(BaseModel):
+    """Completion-level reject (API/un-lotted outputs; lot page uses /batches/{id}/reject)."""
     reason: str | None = None
     # Legacy completions (pre output_batch_id link) can name the lot explicitly
     output_batch_id: UUID | None = None

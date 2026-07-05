@@ -4,6 +4,7 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload, joinedload, aliased
 from app.db.session import get_async_db
 from app.models.batch import Batch, BatchConsumption
+from app.models.manufacturing import MOCompletion
 from app.models.item import Item
 from app.models.stock_balance import StockBalance
 from app.models.location import Location
@@ -13,10 +14,11 @@ from app.models.production_run import ProductionRun
 from app.models.sales import SalesOrder
 from app.models.goods_receipt import GoodsReceipt, GoodsReceiptLine
 from app.models.purchase import PurchaseOrder
-from app.schemas import BatchCreate, BatchResponse, BatchTraceResponse, BatchConsumptionResponse, BatchTraceBackNode
+from app.schemas import BatchCreate, BatchReject, BatchResponse, BatchTraceResponse, BatchConsumptionResponse, BatchTraceBackNode
 from app.api.auth import get_current_user, require_permission
 from app.models.auth import User
-from app.services import audit_service
+from app.services import audit_service, kpi_service
+from app.core.ws_manager import manager
 from datetime import datetime, timezone
 import uuid
 
@@ -231,6 +233,76 @@ async def delete_batch(
         details=f"Deleted batch {batch.batch_number}"
     )
     return {"status": "success"}
+
+
+@router.post("/{batch_id}/reject", response_model=BatchResponse)
+async def reject_batch(
+    batch_id: uuid.UUID,
+    payload: BatchReject,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('inventory.manage')),
+):
+    """QC-reject a lot. The lot stays physically in stock but is flagged
+    REJECTED — excluded from good-stock netting and consumption pickers. If
+    the lot was born from a production completion, that completion stops
+    counting toward MO/WO progress and the MO reopens if it had
+    auto-completed; rework is a new WO created manually."""
+    result = await db.execute(select(Batch).options(joinedload(Batch.item)).filter(Batch.id == batch_id))
+    batch = result.scalars().first()
+    if not batch:
+        raise HTTPException(status_code=404, detail="Lot not found")
+    if batch.quality_status == "REJECTED":
+        raise HTTPException(status_code=400, detail="Lot is already rejected")
+
+    reason = (payload.reason or "").strip() or None
+    batch.quality_status = "REJECTED"
+
+    # Producing completion (if any): return the qty to MO progress.
+    comp = (await db.execute(
+        select(MOCompletion).filter(
+            MOCompletion.output_batch_id == batch.id,
+            MOCompletion.rejected == False,  # noqa: E712
+        )
+    )).scalars().first()
+    mo = None
+    if comp:
+        comp.rejected = True
+        comp.reject_reason = reason
+        comp.rejected_at = datetime.utcnow()
+        comp.rejected_by = current_user.username
+        await db.flush()
+
+        mo = (await db.execute(
+            select(ManufacturingOrder).filter(ManufacturingOrder.id == comp.mo_id)
+        )).scalars().first()
+        if mo:
+            total_good = float((await db.execute(
+                select(func.sum(MOCompletion.qty_completed))
+                .filter(MOCompletion.mo_id == mo.id, MOCompletion.rejected == False)  # noqa: E712
+            )).scalar() or 0)
+            if mo.status == "COMPLETED" and total_good < float(mo.qty):
+                mo.status = "IN_PROGRESS"
+                mo.actual_end_date = None
+
+    await db.commit()
+    await audit_service.log_activity(
+        db, current_user.id, "REJECT", "Batch", str(batch.id),
+        details=f"Rejected lot {batch.batch_number}"
+        + (f" (completion {float(comp.qty_completed):g} returned to {mo.code})" if comp and mo else "")
+        + (f": {reason}" if reason else ""),
+    )
+    await manager.broadcast({"type": "STOCK_UPDATE"})
+    if mo:
+        await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": str(mo.id), "status": mo.status, "code": mo.code})
+    try:
+        await kpi_service.invalidate_kpis_async(db)
+        await manager.broadcast({"type": "KPI_UPDATE"})
+    except Exception:
+        pass
+
+    batch.item_code = batch.item.code if batch.item else None
+    batch.item_name = batch.item.name if batch.item else None
+    return batch
 
 
 @router.get("/{batch_id}/trace", response_model=BatchTraceResponse)
