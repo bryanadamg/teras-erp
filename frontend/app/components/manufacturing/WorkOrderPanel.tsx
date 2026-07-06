@@ -82,8 +82,13 @@ export default function WorkOrderPanel({
 }: Props) {
     const { showToast } = useToast();
     const { operations: opMaster } = useData() as any;
-    const { hasPermission } = useUser();
+    const { hasPermission, hasWorkCenterScope } = useUser();
     const canManage = hasPermission('work_order.manage');
+    const canCreate = canManage || hasPermission('work_order.create');
+    const canLogBase = canManage || hasPermission('work_order.log');
+    const canEditBase = canManage || hasPermission('work_order.edit');
+    const canLog = (wo: any) => canLogBase && hasWorkCenterScope(wo.work_center_type);
+    const canEdit = (wo: any) => canEditBase && hasWorkCenterScope(wo.work_center_type);
     const [addingRow, setAddingRow] = useState(false);
     const [editId, setEditId] = useState<string | null>(null);
     const [form, setForm] = useState({ ...emptyForm });
@@ -267,7 +272,7 @@ export default function WorkOrderPanel({
                 <span style={{ fontWeight: 'bold', fontSize: 11, color: '#000080' }}>
                     Work Orders
                 </span>
-                {canManage && !addingRow && !editId && (
+                {canCreate && !addingRow && !editId && (
                     <div style={{ display: 'flex', gap: 4 }}>
                         <button
                             onClick={() => { setAddingRow(true); setEditId(null); }}
@@ -590,7 +595,7 @@ export default function WorkOrderPanel({
                                     <select
                                         value={wo.status}
                                         onChange={e => handleStatusChange(wo, e.target.value)}
-                                        disabled={!canManage}
+                                        disabled={!canLog(wo)}
                                         style={{
                                             fontFamily: xpFont, fontSize: 9, height: 16,
                                             border: '1px solid #aca899', background: '#ece9d8',
@@ -605,7 +610,7 @@ export default function WorkOrderPanel({
 
                                     {/* Actions */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                                        {canManage && (wo.bom_operation_id || (wo.work_center_type || '').toUpperCase() === 'WEAVING') && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
+                                        {canEdit(wo) && (wo.bom_operation_id || (wo.work_center_type || '').toUpperCase() === 'WEAVING') && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
                                             <button
                                                 onClick={() => setStageWO(wo)}
                                                 title="Issue this step's materials to the line"
@@ -618,7 +623,7 @@ export default function WorkOrderPanel({
                                                 Stage
                                             </button>
                                         )}
-                                        {canManage && ['WEAVING', 'TENUN'].includes((wo.work_center_type || '').toUpperCase()) && (wo.status === 'IN_PROGRESS' || wo.status === 'COMPLETED') && (
+                                        {canEdit(wo) && ['WEAVING', 'TENUN'].includes((wo.work_center_type || '').toUpperCase()) && (wo.status === 'IN_PROGRESS' || wo.status === 'COMPLETED') && (
                                             <button
                                                 onClick={() => setLeftoverWO(wo)}
                                                 title="Register leftover warp as a new beam lot"
@@ -631,7 +636,7 @@ export default function WorkOrderPanel({
                                                 Leftover
                                             </button>
                                         )}
-                                        {canManage && onLogWO && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
+                                        {canLog(wo) && onLogWO && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
                                             <button
                                                 onClick={() => onLogWO(wo)}
                                                 style={{
@@ -652,7 +657,7 @@ export default function WorkOrderPanel({
                                                 <i className="bi bi-printer" />
                                             </button>
                                         )}
-                                        {canManage && (
+                                        {canEdit(wo) && (
                                             <button
                                                 onClick={() => startEdit(wo)}
                                                 style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#0058e6', padding: '0 2px' }}
@@ -660,7 +665,7 @@ export default function WorkOrderPanel({
                                                 <i className="bi bi-pencil" />
                                             </button>
                                         )}
-                                        {canManage && (
+                                        {canEdit(wo) && (
                                             <button
                                                 onClick={() => onDelete(wo.id)}
                                                 style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#aa0000', padding: '0 2px' }}

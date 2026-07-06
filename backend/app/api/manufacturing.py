@@ -28,7 +28,7 @@ from app.schemas import (
 )
 from app.models.attribute import AttributeValue
 from app.models.auth import User
-from app.api.auth import get_current_user, require_permission
+from app.api.auth import get_current_user, require_permission, require_any_permission, wo_scope_ok
 from app.models.item import Item
 from app.models.stock_balance import StockBalance
 from app.models.batch import Batch, BatchConsumption
@@ -846,7 +846,7 @@ async def add_mo_completion(
     mo_id: str,
     payload: MOCompletionCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.log')),
 ):
     result = await db.execute(
         select(ManufacturingOrder)
@@ -871,6 +871,12 @@ async def add_mo_completion(
             raise HTTPException(status_code=400, detail="Work order does not belong to this MO")
         if wo.status in ("COMPLETED", "CANCELLED"):
             raise HTTPException(status_code=400, detail=f"Cannot log on a {wo.status} work order")
+        if wo.work_center_id:
+            wc_type_res = await db.execute(
+                select(WorkCenter.center_type).filter(WorkCenter.id == wo.work_center_id)
+            )
+            if not wo_scope_ok(current_user, wc_type_res.scalar()):
+                raise HTTPException(status_code=403, detail="Your role is not scoped to this work order's work center type")
 
     if mo.status == "PENDING":
         raise HTTPException(status_code=400, detail="MO must be started before logging completions")
@@ -1148,7 +1154,7 @@ async def reject_mo_completion(
     completion_id: str,
     payload: MOCompletionReject,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.edit')),
 ):
     """QC reject of a produced lot. The completion stops counting toward MO/WO
     progress (MO reopens if it had auto-completed) and the output lot is marked
@@ -1169,6 +1175,15 @@ async def reject_mo_completion(
         raise HTTPException(status_code=404, detail="Completion not found on this MO")
     if comp.rejected:
         raise HTTPException(status_code=400, detail="Completion is already rejected")
+
+    if comp.work_order_id:
+        wc_type_res = await db.execute(
+            select(WorkCenter.center_type)
+            .join(WorkOrderModel, WorkOrderModel.work_center_id == WorkCenter.id)
+            .filter(WorkOrderModel.id == comp.work_order_id)
+        )
+        if not wo_scope_ok(current_user, wc_type_res.scalar()):
+            raise HTTPException(status_code=403, detail="Your role is not scoped to this work order's work center type")
 
     # Resolve the output lot: linked at creation, or named explicitly for
     # legacy completions that predate the output_batch_id link.

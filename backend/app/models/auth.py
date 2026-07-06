@@ -39,6 +39,9 @@ class Role(Base):
     name: Mapped[str] = mapped_column(String(64), unique=True, index=True) # e.g. "Manager"
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
+    # Work-center-type restriction for work_order.* actions (If Null, allow all types).
+    allowed_work_center_types: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+
     permissions = relationship("Permission", secondary=role_permissions)
 
 class User(Base):

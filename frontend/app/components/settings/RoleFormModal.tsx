@@ -1,14 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import ModalWrapper from '../shared/ModalWrapper';
 import { xpBtn, xpInput, xpLabel } from '../shared/xpTheme';
 import PermissionsPicker, { PermissionOption } from './PermissionsPicker';
+import { useData } from '../../context/DataContext';
 
 export interface RoleFormPayload {
     name: string;
     description: string | null;
     permission_ids: string[];
+    allowed_work_center_types: string[] | null;
 }
 
 export interface RoleLike {
@@ -16,6 +18,7 @@ export interface RoleLike {
     name: string;
     description?: string | null;
     permissions: PermissionOption[];
+    allowed_work_center_types?: string[] | null;
 }
 
 export default function RoleFormModal({
@@ -29,9 +32,11 @@ export default function RoleFormModal({
     classic: boolean;
     onSubmit: (payload: RoleFormPayload) => Promise<{ ok: boolean; error?: string }>;
 }) {
+    const { workCenters } = useData();
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [permissionIds, setPermissionIds] = useState<string[]>([]);
+    const [allowedWcTypes, setAllowedWcTypes] = useState<string[]>([]);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
 
@@ -40,9 +45,27 @@ export default function RoleFormModal({
         setName(role?.name || '');
         setDescription(role?.description || '');
         setPermissionIds(role?.permissions?.map(p => p.id) || []);
+        setAllowedWcTypes(role?.allowed_work_center_types || []);
         setError('');
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, role?.id]);
+
+    const wcTypes = useMemo(() => {
+        const types = new Set<string>();
+        for (const wc of workCenters) {
+            if (wc.center_type) types.add(wc.center_type);
+        }
+        return Array.from(types).sort();
+    }, [workCenters]);
+
+    const hasWorkOrderPerm = useMemo(() => {
+        const selected = new Set(permissionIds);
+        return allPermissions.some(p => selected.has(p.id) && p.code.startsWith('work_order.'));
+    }, [permissionIds, allPermissions]);
+
+    const toggleWcType = (t: string) => {
+        setAllowedWcTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
+    };
 
     const handleSubmit = async () => {
         setError('');
@@ -51,7 +74,12 @@ export default function RoleFormModal({
             return;
         }
         setSubmitting(true);
-        const res = await onSubmit({ name: name.trim(), description: description.trim() || null, permission_ids: permissionIds });
+        const res = await onSubmit({
+            name: name.trim(),
+            description: description.trim() || null,
+            permission_ids: permissionIds,
+            allowed_work_center_types: allowedWcTypes.length ? allowedWcTypes : null,
+        });
         setSubmitting(false);
         if (res.ok) {
             onClose();
@@ -118,6 +146,23 @@ export default function RoleFormModal({
                     classic={classic}
                 />
             </div>
+
+            {hasWorkOrderPerm && wcTypes.length > 0 && (
+                <div className="mt-3">
+                    <label style={classic ? xpLabel() : undefined} className={classic ? '' : 'form-label small text-muted'}>Work Order Station Scope</label>
+                    <div className={classic ? '' : 'text-muted small mb-1'} style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 10, color: '#666', marginBottom: 4 } : undefined}>
+                        Leave all unchecked to allow this role's Work Order actions on any station. Check one or more to restrict.
+                    </div>
+                    <div style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 8, background: '#ffffff', border: '1px solid #b0a898', padding: 6 } : undefined} className={classic ? '' : 'border rounded bg-white p-2 d-flex flex-wrap gap-3'}>
+                        {wcTypes.map(t => (
+                            <label key={t} style={classic ? { display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 10, cursor: 'pointer' } : undefined} className={classic ? '' : 'form-check-label small d-flex align-items-center gap-1'}>
+                                <input type="checkbox" checked={allowedWcTypes.includes(t)} onChange={() => toggleWcType(t)} />
+                                {t}
+                            </label>
+                        ))}
+                    </div>
+                </div>
+            )}
         </ModalWrapper>
     );
 }

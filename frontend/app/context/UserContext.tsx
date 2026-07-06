@@ -12,6 +12,7 @@ interface Role {
     id: string;
     name: string;
     permissions: Permission[];
+    allowed_work_center_types?: string[] | null;
 }
 
 export interface User {
@@ -39,6 +40,7 @@ interface UserContextType {
     users: User[];
     setCurrentUser: (user: User) => void;
     hasPermission: (permissionCode: string) => boolean;
+    hasWorkCenterScope: (centerType?: string | null) => boolean;
     refreshUsers: () => Promise<void>;
     login: (username: string, password: string) => Promise<boolean | 'network_error'>;
     logout: () => void;
@@ -143,8 +145,14 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         return false;
     };
 
+    const hasWorkCenterScope = (centerType?: string | null): boolean => {
+        const allowed = currentUser?.role?.allowed_work_center_types;
+        if (!allowed || allowed.length === 0 || !centerType) return true;
+        return allowed.includes(centerType);
+    };
+
     return (
-        <UserContext.Provider value={{ currentUser, users, setCurrentUser, hasPermission, refreshUsers, login, logout, loading }}>
+        <UserContext.Provider value={{ currentUser, users, setCurrentUser, hasPermission, hasWorkCenterScope, refreshUsers, login, logout, loading }}>
             {children}
         </UserContext.Provider>
     );

@@ -20,7 +20,7 @@ from app.schemas import (
     LeftoverBeamCreate, BatchResponse, PutawayBinOption, PutawaySuggestionResponse,
 )
 from app.models.auth import User
-from app.api.auth import get_current_user, require_permission
+from app.api.auth import get_current_user, require_permission, require_any_permission, wo_scope_ok
 from app.api.batches import generate_batch_number
 from app.services import audit_service, stock_service, beam_service
 from app.core.ws_manager import manager
@@ -54,11 +54,23 @@ router = APIRouter()
 def _wo_options():
     return [joinedload(WorkOrder.work_center), selectinload(WorkOrder.completions)]
 
+async def _wc_type(db: AsyncSession, work_center_id) -> str | None:
+    """Fetch WorkCenter.center_type by id without relying on a lazy-loaded
+    relationship (async sessions can't lazy-load — see CLAUDE.md gotcha)."""
+    if not work_center_id:
+        return None
+    res = await db.execute(select(WorkCenter.center_type).filter(WorkCenter.id == work_center_id))
+    return res.scalar()
+
+def _require_wo_scope(current_user: User, center_type: str | None):
+    if not wo_scope_ok(current_user, center_type):
+        raise HTTPException(status_code=403, detail=f"Your role is not scoped to work center type '{center_type}'")
+
 @router.post("/work-orders", response_model=WorkOrderResponse)
 async def create_work_order(
     payload: WorkOrderCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.create')),
 ):
     mo_result = await db.execute(
         select(ManufacturingOrder)
@@ -88,6 +100,7 @@ async def create_work_order(
             select(WorkCenter).filter(WorkCenter.id == payload.work_center_id)
         )
         wc = wc_result.scalars().first()
+        _require_wo_scope(current_user, wc.center_type if wc else None)
 
         if wc and wc.center_type == "DYEING":
             mo_attr_ids = {av.id for av in mo.attribute_values}
@@ -200,7 +213,7 @@ async def update_work_order(
     wo_id: str,
     payload: WorkOrderCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.edit')),
 ):
     result = await db.execute(
         select(WorkOrder).options(*_wo_options()).filter(WorkOrder.id == wo_id)
@@ -208,6 +221,9 @@ async def update_work_order(
     wo = result.scalars().first()
     if not wo:
         raise HTTPException(status_code=404, detail="Work Order not found")
+    _require_wo_scope(current_user, wo.work_center.center_type if wo.work_center else None)
+    if payload.work_center_id != wo.work_center_id:
+        _require_wo_scope(current_user, await _wc_type(db, payload.work_center_id))
 
     wo.sequence = payload.sequence
     if payload.name is not None:
@@ -280,7 +296,7 @@ async def update_work_order_status(
     wo_id: str,
     status: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.log')),
 ):
     valid = {"PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"}
     if status not in valid:
@@ -292,6 +308,7 @@ async def update_work_order_status(
     wo = result.scalars().first()
     if not wo:
         raise HTTPException(status_code=404, detail="Work Order not found")
+    _require_wo_scope(current_user, wo.work_center.center_type if wo.work_center else None)
 
     wo.status = status
     if status == "IN_PROGRESS" and not wo.actual_start_date:
@@ -323,7 +340,7 @@ async def update_work_order_status(
 async def create_work_orders_bulk(
     payloads: list[WorkOrderCreate],
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.create')),
 ):
     if not payloads:
         return []
@@ -356,6 +373,9 @@ async def create_work_orders_bulk(
         wc_result = await db.execute(select(WorkCenter).filter(WorkCenter.id.in_(wc_ids)))
         for wc_row in wc_result.scalars().all():
             wc_cache[wc_row.id] = wc_row
+
+    for wc_id in wc_ids:
+        _require_wo_scope(current_user, wc_cache[wc_id].center_type if wc_id in wc_cache else None)
 
     created_wos = []
     for i, payload in enumerate(payloads):
@@ -780,9 +800,10 @@ async def stage_wo_materials(
     wo_id: str,
     payload: WOStagePayload,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.edit')),
 ):
     wo, mo = await _load_wo_and_mo(db, wo_id)
+    _require_wo_scope(current_user, await _wc_type(db, wo.work_center_id))
     if not wo.input_location_id:
         raise HTTPException(status_code=422, detail="Work Order has no input location — assign a machine with a supply area first")
 
@@ -864,7 +885,7 @@ async def create_leftover_beam(
     wo_id: str,
     payload: LeftoverBeamCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.edit')),
 ):
     """Re-lot leftover warp: move kg out of the WO input location's batch-less
     pool into a new trackable beam batch (born from this weaving WO)."""
@@ -872,6 +893,7 @@ async def create_leftover_beam(
     wo = result.scalars().first()
     if not wo:
         raise HTTPException(status_code=404, detail="Work Order not found")
+    _require_wo_scope(current_user, await _wc_type(db, wo.work_center_id))
     if not wo.input_location_id:
         raise HTTPException(status_code=422, detail="Work Order has no input location")
 
@@ -949,12 +971,13 @@ async def create_leftover_beam(
 async def delete_work_order(
     wo_id: str,
     db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(require_permission('work_order.manage')),
+    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.edit')),
 ):
     result = await db.execute(select(WorkOrder).filter(WorkOrder.id == wo_id))
     wo = result.scalars().first()
     if not wo:
         raise HTTPException(status_code=404, detail="Work Order not found")
+    _require_wo_scope(current_user, await _wc_type(db, wo.work_center_id))
     label = wo.code or wo.name
     await db.delete(wo)
     await db.commit()

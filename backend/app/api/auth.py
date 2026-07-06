@@ -57,6 +57,15 @@ def require_permission(code: str):
         return current_user
     return _dependency
 
+def wo_scope_ok(user: User, center_type: str | None) -> bool:
+    """Role.allowed_work_center_types restricts work_order.* actions to matching
+    WorkCenter.center_type values. None list = unrestricted. No center_type context
+    (e.g. an MO-level completion not tied to a WO) is never restricted."""
+    allowed = user.role.allowed_work_center_types if user.role else None
+    if not allowed or not center_type:
+        return True
+    return center_type in allowed
+
 def require_any_permission(*codes: str):
     """Dependency factory: 403s unless the current user has at least one of `codes`."""
     def _dependency(current_user: Annotated[User, Depends(get_current_user)]) -> User:
@@ -126,7 +135,10 @@ def create_role(payload: RoleCreate, db: Session = Depends(get_db), current_user
     from app.models.auth import Permission
     perms = db.query(Permission).filter(Permission.id.in_(payload.permission_ids)).all() if payload.permission_ids else []
 
-    role = Role(name=payload.name, description=payload.description, permissions=perms)
+    role = Role(
+        name=payload.name, description=payload.description, permissions=perms,
+        allowed_work_center_types=payload.allowed_work_center_types,
+    )
     db.add(role)
     db.commit()
     db.refresh(role)
@@ -150,6 +162,9 @@ def update_role(role_id: str, payload: RoleUpdate, db: Session = Depends(get_db)
     if payload.permission_ids is not None:
         from app.models.auth import Permission
         role.permissions = db.query(Permission).filter(Permission.id.in_(payload.permission_ids)).all()
+
+    if payload.allowed_work_center_types is not None:
+        role.allowed_work_center_types = payload.allowed_work_center_types or None
 
     db.commit()
     db.refresh(role)

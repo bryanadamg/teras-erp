@@ -143,6 +143,7 @@ export default function SettingsRolesTab() {
                                 <th style={classic ? xpThCell : undefined} className={classic ? '' : 'ps-4'}>Name</th>
                                 <th style={classic ? xpThCell : undefined}>Description</th>
                                 <th style={classic ? xpThCell : undefined}>Permissions</th>
+                                <th style={classic ? xpThCell : undefined}>Station Scope</th>
                                 <th style={classic ? { ...xpThCell, width: 90, textAlign: 'center' as const } : undefined}>Users</th>
                                 <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none' } : undefined} className={classic ? '' : 'text-end pe-4'}>Actions</th>
                             </tr>
@@ -179,6 +180,21 @@ export default function SettingsRolesTab() {
                                                         <span style={classic ? { fontSize: '9px', color: '#888', fontStyle: 'italic', fontFamily: 'Tahoma,Arial,sans-serif' } : undefined} className={classic ? '' : 'text-muted small fst-italic'}>None</span>
                                                     )}
                                                 </div>
+                                            )}
+                                        </td>
+                                        <td style={classic ? tdBase : undefined}>
+                                            {role.allowed_work_center_types && role.allowed_work_center_types.length > 0 ? (
+                                                <div style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 2 } : undefined} className={classic ? '' : 'd-flex flex-wrap gap-1'}>
+                                                    {role.allowed_work_center_types.map(t => (
+                                                        classic ? (
+                                                            <span key={t} style={{ background: '#fff3d6', border: '1px solid #c8a04a', color: '#5e3000', padding: '0 4px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif' }}>{t}</span>
+                                                        ) : (
+                                                            <span key={t} className="badge bg-warning bg-opacity-10 text-warning-emphasis border border-warning border-opacity-25" style={{ fontSize: '0.65rem' }}>{t}</span>
+                                                        )
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <span style={classic ? { fontSize: '9px', color: '#888', fontStyle: 'italic', fontFamily: 'Tahoma,Arial,sans-serif' } : undefined} className={classic ? '' : 'text-muted small fst-italic'}>All stations</span>
                                             )}
                                         </td>
                                         <td style={classic ? { ...tdBase, textAlign: 'center' as const } : undefined} className={classic ? '' : 'text-center'}>
@@ -228,7 +244,7 @@ export default function SettingsRolesTab() {
                             })}
                             {roles.length === 0 && (
                                 <tr>
-                                    <td colSpan={5} style={classic ? { ...tdBase, textAlign: 'center' as const, fontStyle: 'italic', color: '#888' } : undefined} className={classic ? '' : 'text-center text-muted py-4'}>
+                                    <td colSpan={6} style={classic ? { ...tdBase, textAlign: 'center' as const, fontStyle: 'italic', color: '#888' } : undefined} className={classic ? '' : 'text-center text-muted py-4'}>
                                         No roles defined yet.
                                     </td>
                                 </tr>

@@ -1432,6 +1432,7 @@ class PermissionResponse(PermissionBase):
 class RoleBase(BaseModel):
     name: str
     description: str | None = None
+    allowed_work_center_types: list[str] | None = None
 
 class RoleCreate(RoleBase):
     permission_ids: list[UUID] = []
@@ -1440,6 +1441,7 @@ class RoleUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     permission_ids: Optional[list[UUID]] = None
+    allowed_work_center_types: Optional[list[str]] = None
 
 class RoleResponse(RoleBase):
     id: UUID
