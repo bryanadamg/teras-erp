@@ -63,7 +63,7 @@ export default function KartuKerjaCardBeaming({
             {/* Header: title + identity fill the top-left; QR right */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #000', paddingBottom: '5px', marginBottom: '6px', gap: '8px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', minWidth: 0 }}>
-                    <div style={{ fontSize: '12px', fontFamily: 'monospace', fontWeight: 'bold' }}>{parentMO?.code || workOrder.mo_code || '—'}</div>
+                    <div style={{ fontSize: '12px', fontFamily: 'monospace', fontWeight: 'bold' }}>{workOrder.code || '—'}</div>
                     {displayCompany && <div style={{ fontSize: '8px', color: '#555', fontWeight: 'bold' }}>{displayCompany}</div>}
                     <div style={{ fontSize: '8px', color: '#666' }}>
                         {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })}
