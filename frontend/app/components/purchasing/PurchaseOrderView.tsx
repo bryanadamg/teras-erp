@@ -463,12 +463,12 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
            footer={classic ? (
                <>
                    <button type="button" style={xpBtn()} onClick={closeModal}>{t('cancel')}</button>
-                   <button type="button" style={xpBtn({background:'linear-gradient(to bottom,#5ec85e,#2d7a2d)',borderColor:'#1a5e1a #0a3e0a #0a3e0a #1a5e1a',color:'#ffffff',fontWeight:'bold',padding:'2px 16px'})} onClick={handleSubmit as any}><i className="bi bi-floppy" style={{marginRight:4}}></i>{editingPOId ? 'Update' : t('save')} PO</button>
+                   <button type="submit" form="create-po-form" style={xpBtn({background:'linear-gradient(to bottom,#5ec85e,#2d7a2d)',borderColor:'#1a5e1a #0a3e0a #0a3e0a #1a5e1a',color:'#ffffff',fontWeight:'bold',padding:'2px 16px'})}><i className="bi bi-floppy" style={{marginRight:4}}></i>{editingPOId ? 'Update' : t('save')} PO</button>
                </>
            ) : (
                <>
                    <button type="button" className="btn btn-sm btn-link text-muted" onClick={closeModal}>{t('cancel')}</button>
-                   <button type="button" className="btn btn-sm btn-success px-4 fw-bold" onClick={handleSubmit as any}>{editingPOId ? 'Update' : t('save')} PO</button>
+                   <button type="submit" form="create-po-form" className="btn btn-sm btn-success px-4 fw-bold">{editingPOId ? 'Update' : t('save')} PO</button>
                </>
            )}
        >
