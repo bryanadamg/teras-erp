@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '../shared/Toast';
 import ModalWrapper from '../shared/ModalWrapper';
+import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
 import { useConfirm } from '../../context/ConfirmContext';
 
@@ -71,9 +72,13 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
   const { confirm } = useConfirm();
   const classic = uiStyle === 'classic';
 
+  const PAGE_SIZE = 50;
   const [batches, setBatches] = useState<Batch[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [itemFilter, setItemFilter] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
   // Create form
@@ -91,14 +96,26 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
   const [rejectReason, setRejectReason] = useState('');
   const [rejecting, setRejecting] = useState(false);
 
+  // Debounce the search box 350ms before it drives a server fetch (matches item search).
+  useEffect(() => {
+    const id = setTimeout(() => setSearchTerm(searchInput), 350);
+    return () => clearTimeout(id);
+  }, [searchInput]);
+
+  useEffect(() => { setPage(1); }, [itemFilter, searchTerm]);
+
   const fetchBatches = async () => {
     setLoading(true);
     try {
-      const url = itemFilter
-        ? `${apiBase}/batches?item_id=${itemFilter}&limit=200`
-        : `${apiBase}/batches?limit=200`;
-      const res = await authFetch(url);
-      if (res.ok) setBatches(await res.json());
+      const params = new URLSearchParams({ page: String(page), size: String(PAGE_SIZE) });
+      if (itemFilter) params.set('item_id', itemFilter);
+      if (searchTerm) params.set('search', searchTerm);
+      const res = await authFetch(`${apiBase}/batches/paginated?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setBatches(data.items || []);
+        setTotal(data.total ?? 0);
+      }
     } catch {
       showToast('Failed to load lots', 'danger');
     } finally {
@@ -106,7 +123,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
     }
   };
 
-  useEffect(() => { fetchBatches(); }, [itemFilter]);
+  useEffect(() => { fetchBatches(); }, [itemFilter, searchTerm, page]);
 
   const handleCreate = async () => {
     if (!createItemId) { showToast('Select an item', 'warning'); return; }
@@ -323,16 +340,6 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
     );
   };
 
-  const filtered = batches.filter(b => {
-    if (!searchTerm) return true;
-    const s = searchTerm.toLowerCase();
-    return b.batch_number.toLowerCase().includes(s) ||
-      batchItemCode(b).toLowerCase().includes(s) ||
-      batchItemName(b).toLowerCase().includes(s) ||
-      (b.vendor_lot || '').toLowerCase().includes(s) ||
-      (b.po_number || '').toLowerCase().includes(s);
-  });
-
   // ── Styles ────────────────────────────────────────────────────────────────
   const xpBevel: React.CSSProperties = classic ? {
     border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
@@ -395,7 +402,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
               <option value="">All Items</option>
               {items.map(i => <option key={i.id} value={i.id}>{i.code} — {i.name}</option>)}
             </select>
-            <input style={{ ...xpInput, width: 160 }} placeholder="Search..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+            <input style={{ ...xpInput, width: 160 }} placeholder="Search..." value={searchInput} onChange={e => setSearchInput(e.target.value)} />
           </div>
 
           {/* ── Table ── */}
@@ -420,10 +427,10 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                 {loading && (
                   <tr><td colSpan={colSpan} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>Loading...</td></tr>
                 )}
-                {!loading && filtered.length === 0 && (
+                {!loading && batches.length === 0 && (
                   <tr><td colSpan={colSpan} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>No lots found.</td></tr>
                 )}
-                {filtered.map((b, i) => (
+                {batches.map((b, i) => (
                   <>
                     <tr key={b.id} style={{ background: expandedRows[b.id] ? '#d6e4f7' : i % 2 === 1 ? '#f0f0f8' : '#ffffff' }}>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>
@@ -482,6 +489,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
               </tbody>
             </table>
           </div>
+          <Pager page={page} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
         </div>
       ) : (
         <div className="card shadow-sm border-0" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
@@ -498,7 +506,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
               <option value="">All Items</option>
               {items.map(i => <option key={i.id} value={i.id}>{i.code} — {i.name}</option>)}
             </select>
-            <input className="form-control form-control-sm" style={{ width: 200 }} placeholder="Search lots..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+            <input className="form-control form-control-sm" style={{ width: 200 }} placeholder="Search lots..." value={searchInput} onChange={e => setSearchInput(e.target.value)} />
           </div>
 
           {/* ── Table ── */}
@@ -521,8 +529,8 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
               </thead>
               <tbody>
                 {loading && <tr><td colSpan={colSpan} className="text-center">Loading...</td></tr>}
-                {!loading && filtered.length === 0 && <tr><td colSpan={colSpan} className="text-center text-muted">No lots found.</td></tr>}
-                {filtered.map(b => (
+                {!loading && batches.length === 0 && <tr><td colSpan={colSpan} className="text-center text-muted">No lots found.</td></tr>}
+                {batches.map(b => (
                   <>
                     <tr key={b.id} className={expandedRows[b.id] ? 'table-primary bg-opacity-10' : ''}>
                       <td>
@@ -573,6 +581,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
               </tbody>
             </table>
           </div>
+          <Pager page={page} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
         </div>
       )}
 

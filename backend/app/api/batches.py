@@ -14,7 +14,7 @@ from app.models.production_run import ProductionRun
 from app.models.sales import SalesOrder
 from app.models.goods_receipt import GoodsReceipt, GoodsReceiptLine
 from app.models.purchase import PurchaseOrder
-from app.schemas import BatchCreate, BatchReject, BatchResponse, BatchTraceResponse, BatchConsumptionResponse, BatchTraceBackNode
+from app.schemas import BatchCreate, BatchReject, BatchResponse, BatchTraceResponse, BatchConsumptionResponse, BatchTraceBackNode, PaginatedBatchResponse
 from app.api.auth import get_current_user, require_permission
 from app.models.auth import User
 from app.services import audit_service, kpi_service
@@ -148,22 +148,13 @@ async def create_batch(
     return batch
 
 
-@router.get("", response_model=list[BatchResponse])
-async def list_batches(
-    item_id: uuid.UUID | None = Query(None),
-    location_id: uuid.UUID | None = Query(None),
-    skip: int = 0,
-    limit: int = 100,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
-):
-    query = select(Batch).options(joinedload(Batch.item)).order_by(Batch.created_at.desc())
-    if item_id:
-        query = query.filter(Batch.item_id == item_id)
-    result = await db.execute(query.offset(skip).limit(limit))
-    batches = result.scalars().all()
+async def _enrich_batches(db: AsyncSession, batches: list[Batch], location_id: uuid.UUID | None = None) -> list[Batch]:
+    """Attach remaining stock, current location, item code/name and origin lineage.
 
-    # Attach remaining stock per batch (optionally scoped to a location)
+    A location filter means "lots actually present there" (lot/batch pickers for
+    staging and completion pass location_id expecting only selectable options) —
+    without this, batches with zero stock at that location still show up.
+    """
     keys = [str(b.id) for b in batches]
     remaining_map: dict[str, float] = {}
     location_map: dict[str, tuple] = {}
@@ -189,9 +180,6 @@ async def list_batches(
         loc_res = await db.execute(loc_q)
         location_map = {row[0]: (row[1], row[2]) for row in loc_res.all()}
 
-    # A location filter means "lots actually present there" (lot/batch pickers for
-    # staging and completion pass location_id expecting only selectable options) —
-    # without this, batches with zero stock at that location still showed up.
     if location_id:
         batches = [b for b in batches if remaining_map.get(str(b.id), 0.0) > 0]
 
@@ -203,6 +191,69 @@ async def list_batches(
     await _resolve_gr_origins(db, list(batches))
     await _resolve_batch_origins(db, list(batches))
     return batches
+
+
+@router.get("", response_model=list[BatchResponse])
+async def list_batches(
+    item_id: uuid.UUID | None = Query(None),
+    location_id: uuid.UUID | None = Query(None),
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Raw, uncapped-total lot list — used by lot/batch pickers (staging, WO
+    completion, packing) that want "up to limit candidates for this item", not
+    a paged table. See list_batches_paginated for the Lot Management page."""
+    query = select(Batch).options(joinedload(Batch.item)).order_by(Batch.created_at.desc())
+    if item_id:
+        query = query.filter(Batch.item_id == item_id)
+    result = await db.execute(query.offset(skip).limit(limit))
+    batches = result.scalars().all()
+    return await _enrich_batches(db, batches, location_id)
+
+
+@router.get("/paginated", response_model=PaginatedBatchResponse)
+async def list_batches_paginated(
+    item_id: uuid.UUID | None = Query(None),
+    search: str | None = Query(None, description="Matches lot number, supplier lot, or item code/name"),
+    page: int = Query(1, ge=1),
+    size: int = Query(50, ge=1, le=500),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Server-paginated Lot Management list — mirrors the {items, total, page, size}
+    envelope used by other domains (Items, Stock Ledger, MO/PR) so the shared Pager
+    component can drive it."""
+    filters = []
+    if item_id:
+        filters.append(Batch.item_id == item_id)
+    if search:
+        pattern = f"%{search.strip()}%"
+        filters.append(
+            Batch.id.in_(
+                select(Batch.id)
+                .join(Item, Item.id == Batch.item_id)
+                .filter(
+                    Batch.batch_number.ilike(pattern)
+                    | Batch.vendor_lot.ilike(pattern)
+                    | Item.code.ilike(pattern)
+                    | Item.name.ilike(pattern)
+                )
+            )
+        )
+
+    count_query = select(func.count()).select_from(Batch)
+    query = select(Batch).options(joinedload(Batch.item)).order_by(Batch.created_at.desc())
+    for f in filters:
+        count_query = count_query.filter(f)
+        query = query.filter(f)
+
+    total = (await db.execute(count_query)).scalar() or 0
+    result = await db.execute(query.offset((page - 1) * size).limit(size))
+    batches = result.scalars().all()
+    batches = await _enrich_batches(db, batches)
+    return PaginatedBatchResponse(items=batches, total=total, page=page, size=size)
 
 
 @router.get("/{batch_id}", response_model=BatchResponse)

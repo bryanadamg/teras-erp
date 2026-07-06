@@ -5,7 +5,7 @@ from sqlalchemy import select, func
 from app.db.session import get_async_db, get_db
 from app.services import stock_service, audit_service, kpi_service
 from app.core.ws_manager import manager
-from app.schemas import StockLedgerResponse, StockBalanceResponse, PaginatedStockLedgerResponse, StockEntryCreate, StockTransferCreate, BookingStockRow, BookingDemandMO, BookingSupplyMO
+from app.schemas import StockLedgerResponse, StockBalanceResponse, PaginatedStockLedgerResponse, StockEntryCreate, StockTransferCreate, BookingStockRow, BookingDemandMO, BookingSupplyMO, PaginatedBookingStockResponse
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, get_current_admin
 from app.models.item import Item
@@ -262,9 +262,12 @@ async def get_stock_balance_api(db: AsyncSession = Depends(get_async_db), curren
     return await stock_service.get_all_stock_balances(db, user=current_user)
 
 
-@router.get("/stock/availability", response_model=list[BookingStockRow])
+@router.get("/stock/availability", response_model=PaginatedBookingStockResponse)
 async def get_stock_availability(
     location_id: Optional[str] = Query(None, description="Restrict to a single location"),
+    search: Optional[str] = Query(None, description="Matches item code or name"),
+    page: int = Query(1, ge=1),
+    size: int = Query(50, ge=1, le=500),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -351,7 +354,7 @@ async def get_stock_availability(
         ))
 
     if not demand:
-        return []
+        return PaginatedBookingStockResponse(items=[], total=0, page=page, size=size)
 
     # Display lookups: item code/name/uom.
     item_ids = {v["item_id"] for v in demand.values()}
@@ -396,9 +399,15 @@ async def get_stock_availability(
             supply_mos=sup["contributions"] if sup else [],
         ))
 
+    if search:
+        term = search.strip().lower()
+        rows = [r for r in rows if term in r.item_code.lower() or term in r.item_name.lower()]
+
     # Shortfalls first (most actionable), then by item code.
     rows.sort(key=lambda r: (r.qty_net_free >= 0, r.item_code))
-    return rows
+    total = len(rows)
+    start = (page - 1) * size
+    return PaginatedBookingStockResponse(items=rows[start:start + size], total=total, page=page, size=size)
 
 
 @router.post("/stock/balances/rebuild")

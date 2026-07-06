@@ -5,6 +5,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { xpFont, xpBtn, XPLoading, useSortable, SortMark } from '../shared/xpTheme';
+import Pager from '../shared/Pager';
 
 // Booking Stock: per-item material availability across all ongoing MOs.
 //   net_free = on_hand + incoming - required
@@ -50,26 +51,43 @@ export default function BookingStockView() {
         return env.replace(/\/api$/, '') + '/api';
     }, []);
 
+    const PAGE_SIZE = 50;
     const [rows, setRows] = useState<Row[]>([]);
+    const [total, setTotal] = useState(0);
+    const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [searchInput, setSearchInput] = useState('');
     const [search, setSearch] = useState('');
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+    // Debounce the search box 350ms before it drives a server fetch (matches item search).
+    useEffect(() => {
+        const id = setTimeout(() => setSearch(searchInput), 350);
+        return () => clearTimeout(id);
+    }, [searchInput]);
+
+    useEffect(() => { setPage(1); }, [search]);
 
     const fetchAvailability = useCallback(async () => {
         setLoading(true);
         setError('');
         try {
-            const res = await authFetch(`${API_BASE}/stock/availability`);
+            const params = new URLSearchParams({ page: String(page), size: String(PAGE_SIZE) });
+            if (search) params.set('search', search);
+            const res = await authFetch(`${API_BASE}/stock/availability?${params.toString()}`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            setRows(await res.json());
+            const data = await res.json();
+            setRows(data.items || []);
+            setTotal(data.total ?? 0);
         } catch (e: any) {
             setError(e.message || 'Failed to load booking stock');
             setRows([]);
+            setTotal(0);
         } finally {
             setLoading(false);
         }
-    }, [API_BASE, authFetch]);
+    }, [API_BASE, authFetch, page, search]);
 
     useEffect(() => { fetchAvailability(); }, [fetchAvailability]);
 
@@ -84,16 +102,7 @@ export default function BookingStockView() {
     const variantLabel = useCallback((ids: string[]) =>
         (ids && ids.length) ? ids.map(getAttrValueName).join(' / ') : '', [getAttrValueName]);
 
-    // Client-side item search over the server result.
-    const filtered = useMemo(() => {
-        const term = search.trim().toLowerCase();
-        if (!term) return rows;
-        return rows.filter(r =>
-            r.item_name.toLowerCase().includes(term) ||
-            r.item_code.toLowerCase().includes(term));
-    }, [rows, search]);
-
-    const { sorted, sort, toggle } = useSortable<Row>(filtered, {
+    const { sorted, sort, toggle } = useSortable<Row>(rows, {
         item: (r) => r.item_name,
         variant: (r) => variantLabel(r.attribute_value_ids),
         on_hand: (r) => r.qty_on_hand,
@@ -102,8 +111,8 @@ export default function BookingStockView() {
         net_free: (r) => r.qty_net_free,
     });
 
-    const shortfallCount = useMemo(() => filtered.filter(r => r.qty_net_free < -EPS).length, [filtered]);
-    const tightCount = useMemo(() => filtered.filter(r => r.qty_net_free >= -EPS && r.qty_net_free <= EPS).length, [filtered]);
+    const shortfallCount = useMemo(() => rows.filter(r => r.qty_net_free < -EPS).length, [rows]);
+    const tightCount = useMemo(() => rows.filter(r => r.qty_net_free >= -EPS && r.qty_net_free <= EPS).length, [rows]);
 
     const rowKey = (r: Row) => `${r.item_id}-${r.attribute_value_ids.join(',')}`;
     const toggleRow = (k: string) => setExpanded(prev => {
@@ -193,7 +202,7 @@ export default function BookingStockView() {
                 <div style={{ ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1 }}>
                     <div style={xpTitleBar}>
                         <span><i className="bi bi-bookmark-check" style={{ marginRight: 6 }} />{t('booking_stock') || 'Booking Stock'}</span>
-                        <span style={{ fontSize: '10px', opacity: 0.85 }}>{filtered.length} items</span>
+                        <span style={{ fontSize: '10px', opacity: 0.85 }}>{total} items</span>
                     </div>
 
                     <div style={xpToolbar}>
@@ -201,8 +210,8 @@ export default function BookingStockView() {
                         <input
                             style={{ ...xpInputS, width: 200 }}
                             placeholder="Search item..."
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
+                            value={searchInput}
+                            onChange={e => setSearchInput(e.target.value)}
                         />
                         <div style={xpSep} />
                         <button style={xpBtn()} onClick={fetchAvailability} title="Refresh">
@@ -294,12 +303,12 @@ export default function BookingStockView() {
                         padding: '2px 8px', display: 'flex', gap: 16, alignItems: 'center',
                         fontFamily: xpFont, fontSize: '11px', color: '#333',
                     }}>
-                        <span><b>{filtered.length}</b> items</span>
                         {shortfallCount > 0 && <span style={{ color: HEALTH.short.color }}><b>{shortfallCount}</b> shortfall</span>}
                         {tightCount > 0 && <span style={{ color: HEALTH.tight.color }}><b>{tightCount}</b> tight</span>}
                         {error && <span style={{ color: '#c00000' }}>· {error}</span>}
                         <span style={{ marginLeft: 'auto', color: '#666' }}>Net Free = On Hand + Incoming − Required</span>
                     </div>
+                    <Pager page={page} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
                 </div>
             </div>
         );
@@ -312,13 +321,13 @@ export default function BookingStockView() {
             <div className="card shadow-sm">
                 <div className="card-header d-flex align-items-center justify-content-between py-2">
                     <span className="fw-semibold"><i className="bi bi-bookmark-check me-2" />{t('booking_stock') || 'Booking Stock'}</span>
-                    <span className="badge bg-primary bg-opacity-25 text-primary-emphasis">{filtered.length} items</span>
+                    <span className="badge bg-primary bg-opacity-25 text-primary-emphasis">{total} items</span>
                 </div>
 
                 <div className="card-body py-2 d-flex flex-wrap align-items-center gap-2 border-bottom">
                     <div className="input-group input-group-sm" style={{ width: 240 }}>
                         <span className="input-group-text"><i className="bi bi-search" /></span>
-                        <input className="form-control" placeholder="Search item..." value={search} onChange={e => setSearch(e.target.value)} />
+                        <input className="form-control" placeholder="Search item..." value={searchInput} onChange={e => setSearchInput(e.target.value)} />
                     </div>
                     <button className="btn btn-sm btn-outline-secondary" onClick={fetchAvailability}>
                         <i className="bi bi-arrow-clockwise me-1" />Refresh
@@ -387,10 +396,12 @@ export default function BookingStockView() {
                 </div>
 
                 <div className="card-footer d-flex gap-3 small text-muted align-items-center">
-                    <span><b>{filtered.length}</b> items</span>
                     {shortfallCount > 0 && <span className="text-danger"><b>{shortfallCount}</b> shortfall</span>}
                     {tightCount > 0 && <span style={{ color: HEALTH.tight.color }}><b>{tightCount}</b> tight</span>}
                     <span className="ms-auto">Net Free = On Hand + Incoming − Required</span>
+                </div>
+                <div className="card-footer pt-0">
+                    <Pager page={page} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
                 </div>
             </div>
         </div>

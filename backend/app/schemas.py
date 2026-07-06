@@ -535,6 +535,12 @@ class BookingStockRow(BaseModel):
     demand_mos: list[BookingDemandMO]
     supply_mos: list[BookingSupplyMO]
 
+class PaginatedBookingStockResponse(BaseModel):
+    items: list[BookingStockRow]
+    total: int
+    page: int
+    size: int
+
 # ── Creation netting preview (dry-run; shows where each component nets from) ───
 class NettingPreviewNode(BaseModel):
     """One node in the dry-run explosion of a PR/MO about to be created.
@@ -1790,6 +1796,12 @@ class BatchResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class PaginatedBatchResponse(BaseModel):
+    items: list[BatchResponse]
+    total: int
+    page: int
+    size: int
 
 class BatchConsumptionResponse(BaseModel):
     id: UUID
