@@ -825,6 +825,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                    {lineageSO?.customer_name && <span style={{ fontWeight: 'normal', fontSize: '0.85em', marginLeft: 8, opacity: 0.9 }}>{lineageSO.customer_name}</span>}
                </>}
                size="xxl"
+               modeless
                footer={<button className={classic ? '' : 'btn btn-sm btn-secondary'} style={classic ? xpBtn() : undefined} onClick={() => { setLineageSO(null); setLineageData(null); }}>Close</button>}
            >
                        <div style={{ fontSize: classic ? 12 : 13, fontFamily: classic ? 'Tahoma,Arial,sans-serif' : undefined }}>

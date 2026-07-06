@@ -191,6 +191,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const itemIndexRef = useRef(itemIndex);
     useEffect(() => { itemIndexRef.current = itemIndex; }, [itemIndex]);
 
+    // Monotonic generation guard for the production-runs slice. Requests aren't
+    // cancelled, so e.g. a filtered fetch made while /production-runs?pr=X is
+    // mounted can resolve AFTER the corrective unfiltered fetch fired on unmount,
+    // silently re-narrowing productionRuns for every other page (SO's PR badges)
+    // with no further trigger to self-correct. Only the response from the most
+    // recently *dispatched* call is allowed to commit.
+    const prGenRef = useRef(0);
+
     const fetchData = useCallback((target?: string) => {
         if (!currentUser) return Promise.resolve();
         // In the new routing system, we can use the pathname or a passed target
@@ -226,6 +234,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
             const requests: Promise<any>[] = [];
             const requestTypes: string[] = [];
+            let myPrGen = 0;
 
             // 1. MASTER DATA (Locations, Partners, etc.)
             // Fetch if initial load OR explicitly targeted OR on Settings/Locations page
@@ -301,6 +310,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 if (!isDashboard) {
                     const prSkip = (prPage - 1) * pageSize;
                     const prSearchParam = prSearch ? `&search=${encodeURIComponent(prSearch)}` : '';
+                    myPrGen = ++prGenRef.current;
                     requests.push(fetch(`${API_BASE}/production-runs?skip=${prSkip}&limit=${pageSize}${prSearchParam}`, { headers }));
                     requestTypes.push('production-runs');
                 }
@@ -381,7 +391,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     case 'boms': setBoms(data); break;
                     case 'manufacturing-orders': setManufacturingOrders(data.items); setWoTotal(data.total); break;
                     case 'manufacturing-orders-slim': setDashboardWorkOrders(data.items); break;
-                    case 'production-runs': setProductionRuns(data.items); setPrTotal(data.total); break;
+                    case 'production-runs':
+                        if (myPrGen === prGenRef.current) { setProductionRuns(data.items); setPrTotal(data.total); }
+                        break;
                     case 'balance': setStockBalance(data); break;
                     case 'stock-ledger': setStockEntries(data.items || []); setReportTotal(data.total || 0); break;
                     case 'sales-orders': setSalesOrders(data); break;
@@ -434,12 +446,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             const moSearchParam = moSearch ? `&search=${encodeURIComponent(moSearch)}` : '';
             const prSkip = (prPage - 1) * pageSize;
             const prSearchParam = prSearch ? `&search=${encodeURIComponent(prSearch)}` : '';
+            const myPrGen = ++prGenRef.current;
             const [moRes, prRes] = await Promise.all([
                 fetch(`${API_BASE}/manufacturing-orders?skip=${moSkip}&limit=${pageSize}${moSearchParam}`, { headers }),
                 fetch(`${API_BASE}/production-runs?skip=${prSkip}&limit=${pageSize}${prSearchParam}`, { headers }),
             ]);
             if (moRes.ok) { const d = await moRes.json(); setManufacturingOrders(d.items); setWoTotal(d.total); }
-            if (prRes.ok) { const d = await prRes.json(); setProductionRuns(d.items); setPrTotal(d.total); }
+            if (prRes.ok && myPrGen === prGenRef.current) { const d = await prRes.json(); setProductionRuns(d.items); setPrTotal(d.total); }
         } catch (e) { console.error('refreshManufacturing error', e); }
     }, [currentUser, woPage, prPage, moSearch, prSearch, pageSize]);
 
@@ -565,6 +578,32 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const handleTabHover = (tab: string) => fetchData(tab);
 
     useEffect(() => { if (currentUser) fetchData(); }, [currentUser, itemPage, woPage, prPage, auditPage, reportPage, itemSearch, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData]);
+
+    // When the manufacturing PR filter is CLEARED (e.g. leaving /production-runs
+    // after a deep-link PR-badge click narrowed the shared list to one PR), the
+    // global productionRuns must be restored to the full set for every page that
+    // reads it (SO PR badges). The corrective fetchData() above can be swallowed
+    // by the target dedupe when a narrowed same-target fetch (nav hover-prefetch,
+    // sidebar click dispatched while prSearch was still set) is already in flight,
+    // leaving the list stuck narrowed until a hard refresh. This dedupe-free,
+    // generation-guarded refetch bumps the generation LAST and bypasses the dedupe,
+    // so the unfiltered result always wins over any stale narrowed fetch.
+    const prevPrSearchRef = useRef(prSearch);
+    useEffect(() => {
+        const prev = prevPrSearchRef.current;
+        prevPrSearchRef.current = prSearch;
+        if (!(prev && !prSearch && currentUser)) return;
+        (async () => {
+            try {
+                const token = localStorage.getItem('access_token');
+                const headers = { 'Authorization': `Bearer ${token}` };
+                const prSkip = (prPage - 1) * pageSize;
+                const myPrGen = ++prGenRef.current;
+                const res = await fetch(`${API_BASE}/production-runs?skip=${prSkip}&limit=${pageSize}`, { headers, cache: 'no-store' });
+                if (res.ok && myPrGen === prGenRef.current) { const d = await res.json(); setProductionRuns(d.items); setPrTotal(d.total); }
+            } catch (e) { console.error('restore productionRuns error', e); }
+        })();
+    }, [prSearch, currentUser, prPage, pageSize]);
 
     // WebSocket Logic
     const fetchDataRef = useRef(fetchData);

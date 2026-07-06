@@ -156,6 +156,17 @@ export default function ManufacturingView({
       return () => clearTimeout(id);
   }, [prSearch]);
 
+  // prSearchCtx lives in DataContext, so it outlives this view — leaving the page
+  // with a deep-link PR filter still applied (e.g. after clicking a PR badge from
+  // SO) would leave the shared productionRuns list narrowed to that one PR for
+  // every other page reading it. Clear it on unmount so the list goes back to unfiltered.
+  useEffect(() => {
+      // unconditional: the cleanup closure captures prSearchCtx from mount time,
+      // so checking it here would read a stale value instead of the latest one
+      return () => setPrSearchCtx('');
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Auto-expand the matching MO when arriving via a code deep-link
   useEffect(() => {
       if (!moCodeFilter || manufacturingOrders.length === 0) return;
