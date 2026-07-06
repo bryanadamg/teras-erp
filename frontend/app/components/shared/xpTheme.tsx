@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 
 /**
  * Shared Windows XP "classic" theme primitives.
@@ -305,6 +305,104 @@ export function XPEmptyState({ message, icon = 'bi-inbox', children }: { message
             <i className={`bi ${icon}`} style={{ fontSize: 22, color: '#a0a0a0', display: 'block', marginBottom: 6 }} />
             <div style={{ fontSize: 11, fontStyle: 'italic' }}>{message}</div>
             {children}
+        </div>
+    );
+}
+
+// ── Row-actions "more" menu (⋯) ─────────────────────────────────────────────
+// Fixed-position dropdown, keyed by row id, closed on outside click/scroll.
+// One id open at a time — fits table rows where only one menu should ever
+// be open. Was duplicated per-view (Samples' action dropdown, PO's ⋯ menu)
+// before being pulled out here; migrate a view's local copy when you touch it.
+
+export function useFloatingMenu(menuWidth = 175) {
+    const [openId, setOpenId] = useState<string | null>(null);
+    const [pos, setPos] = useState({ top: 0, left: 0 });
+
+    useEffect(() => {
+        const handleGlobalClick = (event: any) => {
+            if (!event.target.closest('.xp-menu-trigger') && !event.target.closest('.xp-floating-menu')) {
+                setOpenId(null);
+            }
+        };
+        const handleScroll = () => setOpenId(null);
+        document.addEventListener('click', handleGlobalClick);
+        window.addEventListener('scroll', handleScroll, true);
+        return () => {
+            document.removeEventListener('click', handleGlobalClick);
+            window.removeEventListener('scroll', handleScroll, true);
+        };
+    }, []);
+
+    const toggle = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (openId === id) { setOpenId(null); return; }
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        setPos({ top: rect.bottom + window.scrollY + 2, left: rect.right + window.scrollX - menuWidth });
+        setOpenId(id);
+    };
+
+    return { openId, pos, toggle, close: () => setOpenId(null) };
+}
+
+/** "⋯" trigger button — square icon button in classic, link-style in modern. Always tagged .xp-menu-trigger so useFloatingMenu's outside-click check sees it. */
+export function MenuTriggerButton({ classic, onClick, title = 'More actions' }: { classic: boolean; onClick: (e: React.MouseEvent) => void; title?: string }) {
+    if (classic) {
+        return (
+            <button
+                className="xp-menu-trigger"
+                title={title}
+                onClick={onClick}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', color: '#555', fontSize: '12px' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+            >
+                <i className="bi bi-three-dots"></i>
+            </button>
+        );
+    }
+    return (
+        <button className="btn btn-sm btn-link text-muted p-0 d-inline-flex align-items-center justify-content-center xp-menu-trigger" style={{ width: 26, height: 26 }} title={title} onClick={onClick}>
+            <i className="bi bi-three-dots fs-6"></i>
+        </button>
+    );
+}
+
+export type FloatingMenuItem = {
+    key: string;
+    label: React.ReactNode;
+    icon?: string;
+    onClick: () => void;
+    danger?: boolean;
+    title?: string;
+    hidden?: boolean;
+};
+
+/** Renders at `pos` (from useFloatingMenu) — pair with a `.xp-menu-trigger`-tagged button. */
+export function FloatingMenu({ pos, items, minWidth = 175 }: { pos: { top: number; left: number }; items: FloatingMenuItem[]; minWidth?: number }) {
+    const visible = items.filter(i => !i.hidden);
+    if (!visible.length) return null;
+    return (
+        <div
+            className="xp-floating-menu"
+            style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999, minWidth, background: '#fff', border: '1px solid #808080', boxShadow: '2px 2px 4px rgba(0,0,0,.25)' }}
+        >
+            {visible.map(item => (
+                <button
+                    key={item.key}
+                    title={item.title}
+                    onClick={item.onClick}
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: 7, width: '100%', textAlign: 'left' as const,
+                        background: 'none', border: 'none', padding: '6px 10px', fontSize: 11,
+                        fontFamily: xpFont, cursor: 'pointer', color: item.danger ? '#aa0000' : '#222',
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = item.danger ? '#fff0f0' : '#e8f0f8'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+                >
+                    {item.icon && <i className={`bi ${item.icon}`}></i>} {item.label}
+                </button>
+            ))}
         </div>
     );
 }

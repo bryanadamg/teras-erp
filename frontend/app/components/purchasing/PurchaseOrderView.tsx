@@ -10,7 +10,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, StatusChip, XPLoading, ProgressBar } from '../shared/xpTheme';
+import { useSortable, SortMark, StatusChip, XPLoading, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 
 const PO_PAGE_SIZE = 50;
@@ -49,31 +49,8 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
   // Expanded rows for order-line + receipt detail
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
 
-  // Floating "more actions" menu (Close PO / Print / Delete) — same pattern as
-  // SampleRequestView's action dropdown: fixed-position menu, closed on outside click/scroll.
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
-  useEffect(() => {
-      const handleGlobalClick = (event: any) => {
-          if (!event.target.closest('.po-menu-btn') && !event.target.closest('.po-fixed-menu')) {
-              setOpenMenuId(null);
-          }
-      };
-      const handleScroll = () => setOpenMenuId(null);
-      document.addEventListener('click', handleGlobalClick);
-      window.addEventListener('scroll', handleScroll, true);
-      return () => {
-          document.removeEventListener('click', handleGlobalClick);
-          window.removeEventListener('scroll', handleScroll, true);
-      };
-  }, []);
-  const toggleMenu = (id: string, e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (openMenuId === id) { setOpenMenuId(null); return; }
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-      setMenuPos({ top: rect.bottom + window.scrollY + 2, left: rect.right + window.scrollX - 170 });
-      setOpenMenuId(id);
-  };
+  // Floating "more actions" menu (Edit / Close PO / Print / Delete)
+  const { openId: openMenuId, pos: menuPos, toggle: toggleMenu, close: closeMenu } = useFloatingMenu();
 
   const openReceiptModal = (po: any) => {
     // Leave "This Receipt" blank — operator enters actual received qty manually.
@@ -1048,22 +1025,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                    </button>
                                                )
                                            )}
-                                           {classic ? (
-                                               <button
-                                                   className="po-menu-btn"
-                                                   title="More actions"
-                                                   onClick={(e) => toggleMenu(po.id, e)}
-                                                   style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', color: '#555', fontSize: '12px' }}
-                                                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
-                                                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-                                               >
-                                                   <i className="bi bi-three-dots"></i>
-                                               </button>
-                                           ) : (
-                                               <button className="btn btn-sm btn-link text-muted p-0 d-inline-flex align-items-center justify-content-center po-menu-btn" style={{width: 26, height: 26}} title="More actions" onClick={(e) => toggleMenu(po.id, e)}>
-                                                   <i className="bi bi-three-dots fs-6"></i>
-                                               </button>
-                                           )}
+                                           <MenuTriggerButton classic={classic} onClick={(e) => toggleMenu(po.id, e)} />
                                        </div>
                                    </td>
                                </tr>
@@ -1196,56 +1158,32 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
            {openMenuId && (() => {
                const menuPo = pageOrders.find((p: any) => p.id === openMenuId);
                if (!menuPo) return null;
-               const menuItemStyle = (danger?: boolean): React.CSSProperties => ({
-                   display: 'flex', alignItems: 'center', gap: 7, width: '100%', textAlign: 'left' as const,
-                   background: 'none', border: 'none', padding: '6px 10px', fontSize: 11,
-                   fontFamily: 'Tahoma, Arial, sans-serif', cursor: 'pointer', color: danger ? '#aa0000' : '#222',
-               });
                return (
-                   <div
-                       className="po-fixed-menu"
-                       style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, zIndex: 9999, minWidth: 175, background: '#fff', border: '1px solid #808080', boxShadow: '2px 2px 4px rgba(0,0,0,.25)' }}
-                   >
-                       {canManage && menuPo.status === 'DRAFT' && (
-                           <button
-                               style={menuItemStyle()}
-                               onClick={() => { setOpenMenuId(null); handleEditOpen(menuPo); }}
-                               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
-                               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-                           >
-                               <i className="bi bi-pencil"></i> Edit
-                           </button>
-                       )}
-                       {canManage && menuPo.status !== 'RECEIVED' && menuPo.status !== 'CANCELLED' && (
-                           <button
-                               style={menuItemStyle()}
-                               title="Close PO — mark as received even if quantities are short"
-                               onClick={() => { setOpenMenuId(null); onClosePO(menuPo.id); }}
-                               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
-                               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-                           >
-                               <i className="bi bi-check2-circle"></i> Close PO (short-received)
-                           </button>
-                       )}
-                       <button
-                           style={menuItemStyle()}
-                           onClick={() => { setOpenMenuId(null); handlePrintPO(menuPo); }}
-                           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
-                           onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-                       >
-                           <i className="bi bi-printer"></i> Print
-                       </button>
-                       {canManage && (
-                           <button
-                               style={menuItemStyle(true)}
-                               onClick={() => { setOpenMenuId(null); onDeletePO(menuPo.id); }}
-                               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#fff0f0'; }}
-                               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-                           >
-                               <i className="bi bi-trash"></i> Delete
-                           </button>
-                       )}
-                   </div>
+                   <FloatingMenu
+                       pos={menuPos}
+                       items={[
+                           {
+                               key: 'edit', icon: 'bi-pencil', label: 'Edit',
+                               hidden: !(canManage && menuPo.status === 'DRAFT'),
+                               onClick: () => { closeMenu(); handleEditOpen(menuPo); },
+                           },
+                           {
+                               key: 'close', icon: 'bi-check2-circle', label: 'Close PO (short-received)',
+                               title: 'Close PO — mark as received even if quantities are short',
+                               hidden: !(canManage && menuPo.status !== 'RECEIVED' && menuPo.status !== 'CANCELLED'),
+                               onClick: () => { closeMenu(); onClosePO(menuPo.id); },
+                           },
+                           {
+                               key: 'print', icon: 'bi-printer', label: 'Print',
+                               onClick: () => { closeMenu(); handlePrintPO(menuPo); },
+                           },
+                           {
+                               key: 'delete', icon: 'bi-trash', label: 'Delete', danger: true,
+                               hidden: !canManage,
+                               onClick: () => { closeMenu(); onDeletePO(menuPo.id); },
+                           },
+                       ]}
+                   />
                );
            })()}
 
