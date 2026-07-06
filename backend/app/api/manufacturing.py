@@ -899,10 +899,25 @@ async def add_mo_completion(
             select(WorkCenter.center_type).filter(WorkCenter.id == wo.work_center_id)
         )
         is_beam_output = (wc_res.scalar() or "").upper() == "BEAMING"
-    # Output lot: beams always get one; other items get one when lot_tracked.
+    # Beam lineage: beams already merged (Start-WO, or an earlier completion on
+    # this MO) peg to the MO with output_batch_id=None until a lot exists to
+    # claim them. If a beam is about to merge in THIS completion instead, it
+    # would peg the same way. Either case means the output must get a lot now,
+    # even if the item itself isn't flagged lot_tracked — otherwise the beam
+    # lineage is permanently orphaned with nothing to trace back from.
+    pending_beam_pegs = [c for c in mo.batch_consumptions if c.output_batch_id is None]
+    will_merge_beams = bool(wo and wo_input_loc and await beam_service.has_stageable_beams(db, wo))
+
+    # Output lot: beams always get one; other items get one when lot_tracked,
+    # or when this completion needs to claim/attach beam-consumption lineage.
     # The batch row is the identity/traceability record — created even when the WO
     # has no output location; stock booking below still requires the location.
-    needs_output_lot = is_beam_output or bool(mo.item and mo.item.lot_tracked)
+    needs_output_lot = (
+        is_beam_output
+        or bool(mo.item and mo.item.lot_tracked)
+        or bool(pending_beam_pegs)
+        or will_merge_beams
+    )
     output_batch = None
     if needs_output_lot:
         label = "Beam" if is_beam_output else "Lot"
@@ -931,6 +946,10 @@ async def add_mo_completion(
         )
         db.add(output_batch)
         await db.flush()
+        # Claim any beam pegs left dangling by an earlier merge (Start-WO or a
+        # prior completion) — direct FK lineage instead of the MO-level NULL fallback.
+        for c in pending_beam_pegs:
+            c.output_batch_id = output_batch.id
 
     # Input lots: selected batches matched to material lines by item
     input_batch_ids = list(payload.consumed_batches)
@@ -1000,7 +1019,7 @@ async def add_mo_completion(
     # batch-less kg pool now, so the deduction below draws plain pool kg —
     # no per-beam selection. Idempotent, self-guards on work center type.
     if wo and wo_input_loc:
-        await beam_service.merge_staged_beams(db, wo)
+        await beam_service.merge_staged_beams(db, wo, output_batch_id=output_batch.id if output_batch else None)
 
     # Save actual items used (substitutes)
     for ai in payload.actual_items:
