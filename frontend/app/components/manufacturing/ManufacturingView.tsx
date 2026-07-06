@@ -702,13 +702,27 @@ export default function ManufacturingView({
       return keys.size;
   };
 
+  // Batch-identity items (beams, other lot-tracked items) always book stock with
+  // attribute_value_ids=[] — the batch/lot itself is the identity, attrs are
+  // intentionally not stamped (see backend api/manufacturing.py, beam_service.py).
+  // A BOM line variant filter must not be applied to these or on-hand batch stock
+  // never matches and always reads as "No Stock".
+  const isBatchIdentityItem = (item_id: string) => {
+      const item = items.find((i: any) => String(i.id) === String(item_id));
+      if (!item) return false;
+      if (item.lot_tracked) return true;
+      const leafCategory = (item.category_path || [])[item.category_path?.length - 1];
+      return (leafCategory || '').toLowerCase() === 'beam';
+  };
+
   const getStockAcrossLocations = (item_id: string, attribute_value_ids: string[] = [], required_qty: number) => {
-      const targetKey = [...attribute_value_ids].map(String).sort().join(',');
+      const effectiveAttrIds = isBatchIdentityItem(item_id) ? [] : attribute_value_ids;
+      const targetKey = [...effectiveAttrIds].map(String).sort().join(',');
       const byLocation: Record<string, number> = {};
       for (const s of (stockBalance as any[])) {
           if (String(s.item_id) !== String(item_id)) continue;
           if (parseFloat(s.qty) <= 0) continue;
-          if (attribute_value_ids.length > 0) {
+          if (effectiveAttrIds.length > 0) {
               const sKey = [...(s.attribute_value_ids || [])].map(String).sort().join(',');
               if (sKey !== targetKey) continue;
           }
