@@ -237,18 +237,38 @@ async def create_goods_receipt(
         if rl.qty_received <= 0:
             raise HTTPException(status_code=400, detail="qty_received must be greater than 0")
 
-        # Resolve lot: auto-generate unique internal batch_number; store supplier's vendor_lot as reference
+        # Resolve lot: same supplier delivering the same vendor lot number for the same
+        # item merges into the existing internal lot instead of minting a new one.
         batch_id = rl.batch_id
         vendor_lot = (rl.vendor_lot or "").strip() or None
         is_lot_tracked = str(po_line.item_id) in lot_tracked_ids
         if not batch_id and (vendor_lot or is_lot_tracked):
             if is_lot_tracked and not vendor_lot:
                 raise HTTPException(status_code=400, detail="Item is lot-tracked — enter a supplier lot number for this receipt line")
-            internal_no = f"GR-{datetime.utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
-            b = Batch(batch_number=internal_no, vendor_lot=vendor_lot, item_id=po_line.item_id, created_by=current_user.username)
-            db.add(b)
-            await db.flush()
-            batch_id = b.id
+            if vendor_lot and po.supplier_id:
+                existing = await db.execute(
+                    select(Batch)
+                    .join(GoodsReceiptLine, GoodsReceiptLine.batch_id == Batch.id)
+                    .join(GoodsReceipt, GoodsReceipt.id == GoodsReceiptLine.receipt_id)
+                    .join(PurchaseOrder, PurchaseOrder.id == GoodsReceipt.po_id)
+                    .filter(
+                        Batch.item_id == po_line.item_id,
+                        Batch.vendor_lot == vendor_lot,
+                        Batch.quality_status == "GOOD",
+                        PurchaseOrder.supplier_id == po.supplier_id,
+                    )
+                    .order_by(Batch.created_at.desc())
+                    .limit(1)
+                )
+                matched_batch = existing.scalars().first()
+                if matched_batch is not None:
+                    batch_id = matched_batch.id
+            if batch_id is None:
+                internal_no = f"GR-{datetime.utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+                b = Batch(batch_number=internal_no, vendor_lot=vendor_lot, item_id=po_line.item_id, created_by=current_user.username)
+                db.add(b)
+                await db.flush()
+                batch_id = b.id
 
         gr_line = GoodsReceiptLine(
             receipt_id=gr.id,

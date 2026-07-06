@@ -1061,7 +1061,7 @@ class GoodsReceiptLineCreate(BaseModel):
     qty_cones: int | None = None  # raw material packaging
     qty_drums: int | None = None  # chemical/dye packaging
     batch_id: UUID | None = None
-    vendor_lot: str | None = None  # supplier's lot number — stored as reference; internal lot auto-generated
+    vendor_lot: str | None = None  # supplier's lot number; same supplier+item+lot merges into the existing internal lot, else one is auto-generated
 
 class GoodsReceiptCreate(BaseModel):
     receipt_date: datetime | None = None
