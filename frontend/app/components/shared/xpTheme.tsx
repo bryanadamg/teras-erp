@@ -251,8 +251,8 @@ function compareValues(a: any, b: any): number {
  * Sort rows client-side by a column key. `columns` maps key -> accessor.
  * toggle() cycles asc -> desc -> off per column. Empty values sort last in both directions.
  */
-export function useSortable<T>(rows: T[], columns: Record<string, (row: T) => any>) {
-    const [sort, setSort] = useState<SortState>(null);
+export function useSortable<T>(rows: T[], columns: Record<string, (row: T) => any>, initialSort: SortState = null) {
+    const [sort, setSort] = useState<SortState>(initialSort);
 
     const sorted = useMemo(() => {
         if (!sort || !columns[sort.key]) return rows;

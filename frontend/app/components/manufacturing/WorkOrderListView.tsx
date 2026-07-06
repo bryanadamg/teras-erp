@@ -212,16 +212,16 @@ export default function WorkOrderListView({
     const sortCols = useMemo(() => ({
         sequence: (wo: FlatWO) => wo.sequence,
         name:     (wo: FlatWO) => wo.name,
-        mo:       (wo: FlatWO) => (wo as any).mo_code,
         product:  (wo: FlatWO) => (wo as any).item_name,
         wc:       (wo: FlatWO) => wo.work_center_name,
         tstart:   (wo: FlatWO) => wo.target_start_date ?? null,
         tend:     (wo: FlatWO) => wo.target_end_date ?? null,
         astart:   (wo: FlatWO) => wo.actual_start_date ?? null,
         aend:     (wo: FlatWO) => wo.actual_end_date ?? null,
+        created:  (wo: FlatWO) => wo.created_at ?? null,
         status:   (wo: FlatWO) => wo.status,
     }), []);
-    const { sorted: sortedWOs, sort, toggle: toggleSort } = useSortable(filtered, sortCols);
+    const { sorted: sortedWOs, sort, toggle: toggleSort } = useSortable(filtered, sortCols, { key: 'created', dir: -1 });
 
     useEffect(() => {
         if (!highlightWOId || flatWOs.length === 0) return;
@@ -335,7 +335,18 @@ export default function WorkOrderListView({
                         {/* Timeline & Info — compact two-column key/value */}
                         <div style={{ borderRight: '1px solid #c0bdb5', padding: '6px 8px', background: '#f5f4ef' }}>
                             <div style={colHeaderStyle}>Info</div>
-                            {infoRow('MO', wo.mo_code)}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2, fontSize: 9 }}>
+                                <span style={{ color: '#888' }}>MO</span>
+                                <span
+                                    onClick={() => router.push(`/manufacturing-orders?mo=${encodeURIComponent(wo.mo_code)}`)}
+                                    title={`Go to ${wo.mo_code}`}
+                                    style={{
+                                        fontFamily: 'monospace', fontWeight: 'bold', fontSize: 9, color: '#0058e6',
+                                        background: '#e8f0fe', border: '1px solid #b0c8f8', borderRadius: 2,
+                                        padding: '0 5px', cursor: 'pointer',
+                                    }}
+                                >{wo.mo_code}</span>
+                            </div>
                             {infoRow('Product', wo.item_name || '—')}
                             {infoRow('Work Center', wo.work_center_name || '—')}
                             {(wo.input_location || wo.output_location) && (
@@ -352,6 +363,7 @@ export default function WorkOrderListView({
                                     </span>
                                 </div>
                             )}
+                            {infoRow('Created', fmtDateTime(wo.created_at))}
                             <div style={{ borderTop: '1px solid #e0ddd8', margin: '3px 0' }} />
                             {infoRow('Target Start', fmtDate(wo.target_start_date))}
                             {infoRow('Target End',   fmtDate(wo.target_end_date))}
@@ -580,15 +592,15 @@ export default function WorkOrderListView({
                                 <col style={{ width: 28 }} />   {/* checkbox */}
                                 <col style={{ width: 22 }} />   {/* chevron */}
                                 <col style={{ width: 34 }} />   {/* # */}
-                                <col style={{ width: '13%' }} />{/* Name */}
-                                <col style={{ width: '11%' }} />{/* MO */}
-                                <col style={{ width: '10%' }} />{/* Product */}
-                                <col style={{ width: '13%' }} />{/* Work Center */}
+                                <col style={{ width: '20%' }} />{/* Name */}
+                                <col style={{ width: '9%' }} /> {/* Product */}
+                                <col style={{ width: '12%' }} />{/* Work Center */}
                                 <col style={{ width: 86 }} />   {/* Target/Done */}
                                 <col style={{ width: 90 }} />   {/* Target Start */}
                                 <col style={{ width: 90 }} />   {/* Target End */}
                                 <col style={{ width: 98 }} />   {/* Actual Start */}
                                 <col style={{ width: 98 }} />   {/* Actual End */}
+                                <col style={{ width: 98 }} />   {/* Created */}
                                 <col style={{ width: 108 }} />  {/* Status */}
                                 <col style={{ width: 126 }} />  {/* Actions */}
                             </colgroup>
@@ -605,7 +617,7 @@ export default function WorkOrderListView({
                                         />
                                     </th>
                                     <th style={{ ...thStyle, width: 22, padding: '3px 4px' }} className={classic ? '' : 'ps-3'} />
-                                    {([['#', 'sequence'], ['Name', 'name'], ['MO', 'mo'], ['Product', 'product'], ['Work Center', 'wc'], ['Target / Done', ''], ['Target Start', 'tstart'], ['Target End', 'tend'], ['Actual Start', 'astart'], ['Actual End', 'aend'], ['Status', 'status'], ['', '']] as [string, string][]).map(([h, key], i) => (
+                                    {([['#', 'sequence'], ['Name', 'name'], ['Product', 'product'], ['Work Center', 'wc'], ['Target / Done', ''], ['Target Start', 'tstart'], ['Target End', 'tend'], ['Actual Start', 'astart'], ['Actual End', 'aend'], ['Created', 'created'], ['Status', 'status'], ['', '']] as [string, string][]).map(([h, key], i) => (
                                         <th key={`${h}-${i}`}
                                             style={{ ...thStyle, textAlign: h === '' ? 'right' : 'left', cursor: key ? 'pointer' : undefined, userSelect: 'none' }}
                                             className={classic ? '' : 'ps-3'}
@@ -644,8 +656,8 @@ export default function WorkOrderListView({
                                                         {(wo as any).code || wo.name}
                                                     </span>
                                                 </td>
-                                                <td style={tdBase} colSpan={2}>
-                                                    <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#555' }}>{wo.mo_code}</span>
+                                                <td style={tdBase}>
+                                                    <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#555' }}>{wo.item_name || '—'}</span>
                                                 </td>
                                                 <td style={tdBase}>
                                                     <select style={{ ...xpInput, width: '100%' }} value={form.work_center_id}
@@ -659,7 +671,7 @@ export default function WorkOrderListView({
                                                         value={form.planned_duration_hours}
                                                         onChange={e => setForm(f => ({ ...f, planned_duration_hours: e.target.value }))} />
                                                 </td>
-                                                <td style={tdBase} colSpan={4} />
+                                                <td style={tdBase} colSpan={5} />
                                                 <td style={tdBase} />
                                                 <td style={{ ...tdBase, textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                     <button onClick={() => handleSave(wo)} disabled={isSaving}
@@ -714,13 +726,6 @@ export default function WorkOrderListView({
                                                     title={(wo as any).code || wo.name}>
                                                     {(wo as any).code || wo.name}
                                                 </td>
-                                                <td
-                                                    style={{ ...tdBase, fontFamily: 'monospace', fontSize: classic ? 10 : 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#0058e6', textDecoration: 'underline', cursor: 'pointer' }}
-                                                    onClick={e => { e.stopPropagation(); router.push(`/manufacturing-orders?mo=${encodeURIComponent(wo.mo_code)}`); }}
-                                                    title={wo.mo_code}
-                                                >
-                                                    {wo.mo_code}
-                                                </td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11, color: '#444', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                                                     title={wo.item_name || ''}>{wo.item_name || '—'}</td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11, overflow: 'hidden' }}>
@@ -770,6 +775,7 @@ export default function WorkOrderListView({
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>{fmtDate(wo.target_end_date)}</td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>{fmtDateTime(wo.actual_start_date)}</td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>{fmtDateTime(wo.actual_end_date)}</td>
+                                                <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>{fmtDateTime(wo.created_at)}</td>
                                                 <td style={tdBase} onClick={e => e.stopPropagation()}>
                                                     {classic ? (
                                                         <select value={wo.status}
