@@ -11,7 +11,7 @@ const WOCompletionModal = dynamic(() => import('./WOCompletionModal'), { ssr: fa
 const WOStepPrintModal = dynamic(() => import('./WOStepPrintModal'), { ssr: false });
 const WOBulkPrintModal = dynamic(() => import('./WOBulkPrintModal'), { ssr: false });
 import { getChipStyle } from './WorkOrderPanel';
-import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import SearchableSelect from '../shared/SearchableSelect';
 import { Tabs, TabDef } from '../shared/Tabs';
@@ -117,6 +117,8 @@ export default function WorkOrderListView({
     const canManage = hasPermission('work_order.manage');
 
     const { showToast } = useToast();
+    // Floating "more actions" menu (Print / Edit / Delete)
+    const { openId: openMenuId, pos: menuPos, toggle: toggleMenu, close: closeMenu } = useFloatingMenu();
     const highlightedRowRef = useRef<HTMLTableRowElement | null>(null);
     const [highlightWOId, setHighlightWOId] = useState<string | null>(null);
 
@@ -802,21 +804,7 @@ export default function WorkOrderListView({
                                                                     Log
                                                                 </button>
                                                             )}
-                                                            <button onClick={() => { onFetchMO(wo.mo_id).then(mo => { setPrintWO(wo); setPrintMO(mo ?? null); }); }}
-                                                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#555', marginRight: 4 }}
-                                                                title="Print Kartu Kerja">
-                                                                <i className="bi bi-printer" />
-                                                            </button>
-                                                            {canManage && (
-                                                                <button onClick={() => startEdit(wo)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#0058e6', marginRight: 4 }}>
-                                                                    <i className="bi bi-pencil" />
-                                                                </button>
-                                                            )}
-                                                            {canManage && (
-                                                                <button onClick={() => onDelete(wo.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#a00' }}>
-                                                                    <i className="bi bi-trash" />
-                                                                </button>
-                                                            )}
+                                                            <MenuTriggerButton classic={classic} onClick={(e) => toggleMenu(wo.id, e)} />
                                                         </>
                                                     ) : (
                                                         <>
@@ -831,11 +819,7 @@ export default function WorkOrderListView({
                                                                     disabled={!canComplete(wo)} title={!canComplete(wo) ? `Target ${wo.qty} not reached` : undefined}
                                                                     onClick={() => onUpdateStatus(wo.id, 'COMPLETED')}>Finish</button>
                                                             )}
-                                                            <button className="btn btn-sm btn-link text-secondary p-0 me-1"
-                                                                onClick={() => { onFetchMO(wo.mo_id).then(mo => { setPrintWO(wo); setPrintMO(mo ?? null); }); }}
-                                                                title="Print Kartu Kerja"><i className="bi bi-printer fs-6" /></button>
-                                                            {canManage && <button className="btn btn-sm btn-link text-primary p-0 me-1" onClick={() => startEdit(wo)}><i className="bi bi-pencil fs-6" /></button>}
-                                                            {canManage && <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDelete(wo.id)}><i className="bi bi-trash fs-6" /></button>}
+                                                            <MenuTriggerButton classic={classic} onClick={(e) => toggleMenu(wo.id, e)} />
                                                         </>
                                                     )}
                                                 </td>
@@ -847,6 +831,33 @@ export default function WorkOrderListView({
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Floating "more actions" menu — Print / Edit / Delete */}
+                    {openMenuId && (() => {
+                        const menuWO = sortedWOs.find((w: any) => w.id === openMenuId);
+                        if (!menuWO) return null;
+                        return (
+                            <FloatingMenu
+                                pos={menuPos}
+                                items={[
+                                    {
+                                        key: 'print', icon: 'bi-printer', label: 'Print Kartu Kerja',
+                                        onClick: () => { closeMenu(); onFetchMO(menuWO.mo_id).then((mo: any) => { setPrintWO(menuWO); setPrintMO(mo ?? null); }); },
+                                    },
+                                    {
+                                        key: 'edit', icon: 'bi-pencil', label: 'Edit',
+                                        hidden: !canManage,
+                                        onClick: () => { closeMenu(); startEdit(menuWO); },
+                                    },
+                                    {
+                                        key: 'delete', icon: 'bi-trash', label: 'Delete', danger: true,
+                                        hidden: !canManage,
+                                        onClick: () => { closeMenu(); onDelete(menuWO.id); },
+                                    },
+                                ]}
+                            />
+                        );
+                    })()}
 
                     {total > 0 && (() => {
                         const pages = Math.max(1, Math.ceil(total / pageSize));

@@ -10,7 +10,7 @@ const SOTablePrintModal = dynamic(() => import('./SOTablePrintModal'), { ssr: fa
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, StatusChip, statusTint, XPLoading } from '../shared/xpTheme';
+import { useSortable, SortMark, StatusChip, statusTint, XPLoading, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import { useRouter } from 'next/navigation';
 
@@ -31,6 +31,9 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const { companyProfile, uoms, authFetch, itemIndex, loading: dataLoading } = useData();
   const { hasPermission } = useUser();
   const canManage = hasPermission('sales.manage');
+
+  // Floating "more actions" menu (Edit / Print / Delete)
+  const { openId: openMenuId, pos: menuPos, toggle: toggleMenu, close: closeMenu } = useFloatingMenu();
 
   // Lineage (SO → PR → MO → WO → beam) trace modal
   const router = useRouter();
@@ -1517,6 +1520,8 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                    ? { ...tdBase, background: rowBg, paddingTop: 3, paddingBottom: 3, fontSize: '10px', borderBottom: isLast ? '1px solid #c0bdb5' : 'none', borderTop: isFirst ? 'none' : '1px dashed #d0cdc8', ...extra }
                                    : { background: rowBg, padding: '3px 10px', fontSize: '0.78rem', borderBottom: isLast ? '1px solid #dee2e6' : 'none', borderTop: isFirst ? 'none' : '1px dashed #e4e4e4', ...extra };
 
+                               const soPRs = (productionRuns || []).filter((pr: any) => String(pr.sales_order_id) === String(so.id));
+
                                const poCellContent = (
                                    <>
                                        <div style={classic ? { fontFamily:"'Courier New',monospace", fontWeight:'bold', color:'#0058e6', fontSize:'11px' } : undefined} className={classic ? '' : 'fw-bold font-monospace text-primary small'}>
@@ -1525,6 +1530,21 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                        {so.customer_po_ref && (
                                            <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'10px', color:'#666', marginTop:1 }}>
                                                {so.customer_po_ref}
+                                           </div>
+                                       )}
+                                       {soPRs.length > 0 && (
+                                           <div style={{ display:'flex', flexWrap:'wrap' as const, gap:2, marginTop:3 }}>
+                                               {soPRs.map((pr: any) => classic ? (
+                                                   <span key={pr.id} onClick={() => goToPR(pr.code)} title={`Go to ${pr.code}`}
+                                                       style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', padding:'1px 5px', cursor:'pointer', whiteSpace:'nowrap' as const, background:'#e4f5e4', border:'1px solid #90c090', color:'#1a5e1a', fontWeight:'bold' }}>
+                                                       <i className="bi bi-check-circle" style={{ marginRight:2 }}></i>{pr.code}
+                                                   </span>
+                                               ) : (
+                                                   <span key={pr.id} onClick={() => goToPR(pr.code)} title={`Go to ${pr.code}`} role="button"
+                                                       style={{ fontSize:9, whiteSpace:'nowrap' as const, cursor:'pointer', background:'#d1e7dd', border:'1px solid #a3cfbb', color:'#0a3622', padding:'1px 5px', borderRadius:3, fontWeight:'bold' }}>
+                                                       <i className="bi bi-check-circle me-1"></i>{pr.code}
+                                                   </span>
+                                               ))}
                                            </div>
                                        )}
                                    </>
@@ -1536,8 +1556,6 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                        {so.delivered_at && <div className="extra-small text-muted mt-1" style={{ fontSize:'9px' }}>Del: {formatDate(so.delivered_at)}</div>}
                                    </>
                                );
-
-                               const soPRs = (productionRuns || []).filter((pr: any) => String(pr.sales_order_id) === String(so.id));
 
                                const actionsCellContent = (
                                    <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:3 }}>
@@ -1552,15 +1570,6 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                                    <button className="btn btn-sm btn-primary py-0 px-2" style={{ fontSize:10, whiteSpace:'nowrap' as const }} title="Create Production Run" onClick={() => onGenerateWO(so)}>
                                                        <i className="bi bi-collection-play me-1"></i>PR
                                                    </button>
-                                               ))}
-                                               {soPRs.map((pr: any) => classic ? (
-                                                   <span key={pr.id} style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', padding:'1px 5px', whiteSpace:'nowrap' as const, background:'#e4f5e4', border:'1px solid #90c090', color:'#1a5e1a', fontWeight:'bold' }}>
-                                                       <i className="bi bi-check-circle" style={{ marginRight:2 }}></i>{pr.code}
-                                                   </span>
-                                               ) : (
-                                                   <span key={pr.id} style={{ fontSize:9, whiteSpace:'nowrap' as const, background:'#d1e7dd', border:'1px solid #a3cfbb', color:'#0a3622', padding:'1px 5px', borderRadius:3, fontWeight:'bold' }}>
-                                                       <i className="bi bi-check-circle me-1"></i>{pr.code}
-                                                   </span>
                                                ))}
                                                {soPRs.length > 0 && (classic ? (
                                                    <button key="lineage" title="View full production lineage — PR, MO, WO and beams created for this SO" onClick={() => openLineage(so)}
@@ -1597,48 +1606,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                                </button>
                                            )
                                        )}
-                                       {classic ? (
-                                           <>
-                                               {canManage && (so.status === 'PENDING' || so.status === 'READY') && (
-                                                   <button title="Edit" onClick={() => handleEditOpen(so)}
-                                                       style={{ background:'none', border:'1px solid transparent', borderRadius:2, cursor:'pointer', padding:'1px 4px', color:'#005080', fontSize:'13px' }}
-                                                       onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor='#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background='#e8f0f8'; }}
-                                                       onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor='transparent'; (e.currentTarget as HTMLButtonElement).style.background='none'; }}>
-                                                       <i className="bi bi-pencil"></i>
-                                                   </button>
-                                               )}
-                                               <button title="Print" onClick={() => handlePrintSO(so)}
-                                                   style={{ background:'none', border:'1px solid transparent', borderRadius:2, cursor:'pointer', padding:'1px 4px', color:'#555', fontSize:'13px' }}
-                                                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor='#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background='#e8f0f8'; }}
-                                                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor='transparent'; (e.currentTarget as HTMLButtonElement).style.background='none'; }}>
-                                                   <i className="bi bi-printer"></i>
-                                               </button>
-                                               {canManage && (
-                                               <button title="Delete" onClick={() => onDeleteSO(so.id)}
-                                                   style={{ background:'none', border:'1px solid transparent', borderRadius:2, cursor:'pointer', padding:'1px 4px', color:'#aa0000', fontSize:'13px' }}
-                                                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor='#cc4444'; (e.currentTarget as HTMLButtonElement).style.background='#fff0f0'; }}
-                                                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor='transparent'; (e.currentTarget as HTMLButtonElement).style.background='none'; }}>
-                                                   <i className="bi bi-trash"></i>
-                                               </button>
-                                               )}
-                                           </>
-                                       ) : (
-                                           <>
-                                               {canManage && (so.status === 'PENDING' || so.status === 'READY') && (
-                                                   <button className="btn btn-sm btn-link text-primary p-0" title="Edit" onClick={() => handleEditOpen(so)}>
-                                                       <i className="bi bi-pencil fs-6"></i>
-                                                   </button>
-                                               )}
-                                               <button className="btn btn-sm btn-link text-muted p-0" title="Print" onClick={() => handlePrintSO(so)}>
-                                                   <i className="bi bi-printer fs-6"></i>
-                                               </button>
-                                               {canManage && (
-                                               <button className="btn btn-sm btn-link text-danger p-0" title="Delete" onClick={() => onDeleteSO(so.id)}>
-                                                   <i className="bi bi-trash fs-6"></i>
-                                               </button>
-                                               )}
-                                           </>
-                                       )}
+                                       <MenuTriggerButton classic={classic} onClick={(e) => toggleMenu(so.id, e)} />
                                        </div>
                                    </div>
                                );
@@ -1768,6 +1736,33 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                    </table>
                </div>
            </div>
+
+           {/* Floating "more actions" menu — Edit / Print / Delete */}
+           {openMenuId && (() => {
+               const menuSo = pageOrders.find((s: any) => s.id === openMenuId);
+               if (!menuSo) return null;
+               return (
+                   <FloatingMenu
+                       pos={menuPos}
+                       items={[
+                           {
+                               key: 'edit', icon: 'bi-pencil', label: 'Edit',
+                               hidden: !(canManage && (menuSo.status === 'PENDING' || menuSo.status === 'READY')),
+                               onClick: () => { closeMenu(); handleEditOpen(menuSo); },
+                           },
+                           {
+                               key: 'print', icon: 'bi-printer', label: 'Print',
+                               onClick: () => { closeMenu(); handlePrintSO(menuSo); },
+                           },
+                           {
+                               key: 'delete', icon: 'bi-trash', label: 'Delete', danger: true,
+                               hidden: !canManage,
+                               onClick: () => { closeMenu(); onDeleteSO(menuSo.id); },
+                           },
+                       ]}
+                   />
+               );
+           })()}
 
            <Pager page={clampedSoPage} total={sortedOrders.length} pageSize={SO_PAGE_SIZE} onPageChange={setSoPage} hideWhenEmpty />
 
