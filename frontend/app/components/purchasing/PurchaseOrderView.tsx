@@ -10,7 +10,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, StatusChip, XPLoading } from '../shared/xpTheme';
+import { useSortable, SortMark, StatusChip, XPLoading, ProgressBar } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 
 const PO_PAGE_SIZE = 50;
@@ -46,8 +46,34 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
   const [receiptDnDate, setReceiptDnDate] = useState('');
   const [receiptDnFile, setReceiptDnFile] = useState<File | null>(null);
 
-  // Expanded rows for receipt history
+  // Expanded rows for order-line + receipt detail
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+
+  // Floating "more actions" menu (Close PO / Print / Delete) — same pattern as
+  // SampleRequestView's action dropdown: fixed-position menu, closed on outside click/scroll.
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+  useEffect(() => {
+      const handleGlobalClick = (event: any) => {
+          if (!event.target.closest('.po-menu-btn') && !event.target.closest('.po-fixed-menu')) {
+              setOpenMenuId(null);
+          }
+      };
+      const handleScroll = () => setOpenMenuId(null);
+      document.addEventListener('click', handleGlobalClick);
+      window.addEventListener('scroll', handleScroll, true);
+      return () => {
+          document.removeEventListener('click', handleGlobalClick);
+          window.removeEventListener('scroll', handleScroll, true);
+      };
+  }, []);
+  const toggleMenu = (id: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (openMenuId === id) { setOpenMenuId(null); return; }
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      setMenuPos({ top: rect.bottom + window.scrollY + 2, left: rect.right + window.scrollX - 170 });
+      setOpenMenuId(id);
+  };
 
   const openReceiptModal = (po: any) => {
     // Leave "This Receipt" blank — operator enters actual received qty manually.
@@ -197,6 +223,10 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
       fontFamily: 'Tahoma, Arial, sans-serif',
       fontSize: '11px',
   };
+
+  // Order-lines mini-table inside the expanded row
+  const poLineThXp: React.CSSProperties = { padding: '2px 8px', fontSize: '10px', fontWeight: 'bold', color: '#1a3d6b', background: '#e4e0d4', borderBottom: '1px solid #b0a898', textAlign: 'left' as const };
+  const poLineTdXp: React.CSSProperties = { padding: '2px 8px', fontSize: '10px', color: '#333', borderTop: '1px solid #e6e3da' };
 
   // Shared label style for create-form fields (classic = XP look)
   const lblStyle: React.CSSProperties | undefined = classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined;
@@ -412,13 +442,48 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
 
   const locPickerTreeOptions = useMemo(() => buildLocationPickerTree(locations || []), [locations]);
 
+  // Value-weighted receiving progress — normalizes across lines of mismatched
+  // UOM (kg, cones, drums…) using line value instead of raw qty. Falls back to
+  // a plain fraction-of-lines-received when no line on the PO has a price.
+  const poProgress = (po: any) => {
+      const lines = po.lines || [];
+      const totalLines = lines.length;
+      const fullLines = lines.filter((l: any) => (l.qty_received || 0) >= l.qty).length;
+      const orderedValue = lines.reduce((s: number, l: any) => s + l.qty * (l.unit_price || 0), 0);
+      const receivedValue = lines.reduce((s: number, l: any) => s + Math.min(l.qty_received || 0, l.qty) * (l.unit_price || 0), 0);
+      const pct = totalLines === 0 ? 0 : orderedValue > 0 ? Math.round((receivedValue / orderedValue) * 100) : Math.round((fullLines / totalLines) * 100);
+      return { pct, fullLines, totalLines };
+  };
+
+  const poTotal = (po: any) => (po.lines || []).reduce((s: number, l: any) => s + l.qty * (l.unit_price || 0), 0);
+  const fmtRp = (n: number) => `Rp ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  // Days past the latest still-short line's due date — only meaningful while RECEIVING.
+  const poOverdueDays = (po: any): number | null => {
+      if (po.status !== 'RECEIVING') return null;
+      const today = Date.now();
+      let maxDays = 0;
+      for (const l of po.lines || []) {
+          if (!l.due_date || (l.qty_received || 0) >= l.qty) continue;
+          const days = Math.floor((today - new Date(l.due_date).getTime()) / 86400000);
+          if (days > maxDays) maxDays = days;
+      }
+      return maxDays > 0 ? maxDays : null;
+  };
+
+  const statusCounts = useMemo(() => Object.fromEntries(
+      STATUS_FILTERS.map(s => [s, s === 'ALL' ? purchaseOrders.length : purchaseOrders.filter((p: any) => p.status === s).length])
+  ), [purchaseOrders]);
+
   const poSortCols = useMemo(() => ({
       po:       (po: any) => po.po_number,
       supplier: (po: any) => getSupplierName(po.supplier_id),
       date:     (po: any) => po.order_date || po.created_at,
+      total:    (po: any) => poTotal(po),
+      received: (po: any) => poProgress(po).pct,
       status:   (po: any) => po.status,
       // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [partners]);
+  }), [partners, purchaseOrders]);
   const { sorted: sortedOrders, sort: poSort, toggle: togglePOSort } = useSortable(filteredOrders, poSortCols);
 
   useEffect(() => { setPoPage(1); }, [searchTerm, statusFilter]);
@@ -833,7 +898,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                            }
                            onClick={() => setStatusFilter(s)}
                        >
-                           {s}
+                           {s} <span style={{ opacity: 0.75, fontWeight: 'normal' }}>({statusCounts[s]})</span>
                        </button>
                    ))}
                    <div style={xpSep}></div>
@@ -861,7 +926,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                style={{ fontSize: 11 }}
                                onClick={() => setStatusFilter(s)}
                            >
-                               {s}
+                               {s} <span className="opacity-75">({statusCounts[s]})</span>
                            </button>
                        ))}
                    </div>
@@ -875,7 +940,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
            <div className={classic ? '' : 'card-body p-0'}>
                {/* vertical scroll must live on the same element as overflow-x,
                    otherwise sticky headers bind to the inner wrapper and never stick */}
-               <div className="table-responsive" style={classic ? { maxHeight: 'calc(100vh - 160px)', overflowY: 'auto' } : undefined}>
+               <div className="table-responsive" style={classic ? { height: 'calc(100vh - 160px)', overflowY: 'auto' } : undefined}>
                    <table
                        className={classic ? '' : 'table table-hover align-middle mb-0'}
                        style={classic ? { width: '100%', borderCollapse: 'collapse', background: '#fff' } : undefined}
@@ -886,9 +951,11 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                <th style={classic ? { ...xpThCell, width: '130px', cursor: 'pointer' } : { cursor: 'pointer' }} className={classic ? '' : 'ps-2'} onClick={() => togglePOSort('po')} title="Sort">PO Number<SortMark sort={poSort} colKey="po" /></th>
                                <th style={classic ? { ...xpThCell, cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => togglePOSort('supplier')} title="Sort">Supplier<SortMark sort={poSort} colKey="supplier" /></th>
                                <th style={classic ? { ...xpThCell, width: '90px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => togglePOSort('date')} title="Sort">Date<SortMark sort={poSort} colKey="date" /></th>
-                               <th style={classic ? xpThCell : undefined}>Items</th>
+                               <th style={classic ? { ...xpThCell, width: '70px' } : { width: 70 }}>Items</th>
+                               <th style={classic ? { ...xpThCell, width: '150px', cursor: 'pointer' } : { cursor: 'pointer', width: 150 }} onClick={() => togglePOSort('received')} title="Sort">Received<SortMark sort={poSort} colKey="received" /></th>
+                               <th style={classic ? { ...xpThCell, width: '110px', textAlign: 'right' as const, cursor: 'pointer' } : { cursor: 'pointer', textAlign: 'right' as const }} onClick={() => togglePOSort('total')} title="Sort">Total<SortMark sort={poSort} colKey="total" /></th>
                                <th style={classic ? { ...xpThCell, width: '90px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => togglePOSort('status')} title="Sort">Status<SortMark sort={poSort} colKey="status" /></th>
-                               <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '140px' } : undefined} className={classic ? '' : 'text-end pe-3'}>Actions</th>
+                               <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '96px' } : undefined} className={classic ? '' : 'text-end pe-3'}>Actions</th>
                            </tr>
                        </thead>
                        <tbody>
@@ -903,7 +970,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                            onClick={() => setExpandedRows(prev => ({ ...prev, [po.id]: !prev[po.id] }))}
                                            style={classic ? { background: 'none', border: 'none', cursor: 'pointer', fontSize: '10px', color: '#555', padding: '0 2px' } : undefined}
                                            className={classic ? '' : 'btn btn-sm btn-link p-0 text-muted'}
-                                           title={expandedRows[po.id] ? 'Hide receipts' : 'Show receipts'}
+                                           title={expandedRows[po.id] ? 'Hide items & receipts' : 'Show items & receipts'}
                                        >
                                            <i className={`bi bi-chevron-${expandedRows[po.id] ? 'down' : 'right'}`}></i>
                                        </button>
@@ -916,25 +983,48 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                        {new Date(po.order_date).toLocaleDateString()}
                                    </td>
                                    <td style={classic ? tdBase : undefined}>
-                                       <div>
-                                           {classic ? (
-                                               <span style={{ background: '#e8e8e8', border: '1px solid #6a6a6a', color: '#222', padding: '1px 5px', fontSize: '9px', fontFamily: 'Tahoma, Arial, sans-serif', fontWeight: 'bold' }}>
-                                                   {po.lines.length} item{po.lines.length !== 1 ? 's' : ''}
-                                               </span>
-                                           ) : (
-                                               <span className="badge bg-light text-dark border me-1">{po.lines.length} item{po.lines.length !== 1 ? 's' : ''}</span>
-                                           )}
-                                       </div>
-                                       <div style={{ marginTop: 2 }}>
-                                           {po.lines.map((line: any) => (
-                                               <div key={line.id} style={classic ? { fontSize: '10px', color: '#333', lineHeight: 1.4 } : undefined} className={classic ? '' : 'small text-muted'}>
-                                                   <span style={classic ? { fontWeight: 'bold' } : undefined} className={classic ? '' : 'fw-bold text-dark'}>{line.qty_received || 0}/{line.qty}</span> {line.item_name || getItemName(line.item_id)}
-                                               </div>
-                                           ))}
-                                       </div>
+                                       {classic ? (
+                                           <span
+                                               onClick={() => setExpandedRows(prev => ({ ...prev, [po.id]: !prev[po.id] }))}
+                                               style={{ background: '#e8e8e8', border: '1px solid #6a6a6a', color: '#222', padding: '1px 5px', fontSize: '9px', fontFamily: 'Tahoma, Arial, sans-serif', fontWeight: 'bold', cursor: 'pointer' }}
+                                               title="Click to view item breakdown"
+                                           >
+                                               {po.lines.length} item{po.lines.length !== 1 ? 's' : ''}
+                                           </span>
+                                       ) : (
+                                           <span
+                                               className="badge bg-light text-dark border"
+                                               role="button"
+                                               onClick={() => setExpandedRows(prev => ({ ...prev, [po.id]: !prev[po.id] }))}
+                                               title="Click to view item breakdown"
+                                           >
+                                               {po.lines.length} item{po.lines.length !== 1 ? 's' : ''}
+                                           </span>
+                                       )}
+                                   </td>
+                                   <td style={classic ? tdBase : undefined}>
+                                       {(() => {
+                                           const { pct, fullLines, totalLines } = poProgress(po);
+                                           return (
+                                               <>
+                                                   <ProgressBar pct={pct} />
+                                                   <div style={{ fontSize: '9px', color: '#666', marginTop: 2, fontFamily: 'Tahoma, Arial, sans-serif', fontVariantNumeric: 'tabular-nums' }}>
+                                                       {fullLines}/{totalLines} line{totalLines !== 1 ? 's' : ''} · {pct}%
+                                                   </div>
+                                               </>
+                                           );
+                                       })()}
+                                   </td>
+                                   <td style={classic ? { ...tdBase, textAlign: 'right' as const } : undefined} className={classic ? '' : 'text-end'}>
+                                       <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: classic ? '10px' : undefined }}>{fmtRp(poTotal(po))}</span>
                                    </td>
                                    <td style={classic ? tdBase : undefined}>
                                        {statusBadge(po.status)}
+                                       {poOverdueDays(po) != null && (
+                                           <span style={{ display: 'block', color: '#c00000', fontSize: '9px', fontWeight: 'bold', marginTop: 2, fontFamily: 'Tahoma, Arial, sans-serif' }}>
+                                               ● {poOverdueDays(po)}d overdue
+                                           </span>
+                                       )}
                                    </td>
                                    <td style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'right' as const } : undefined} className={classic ? '' : 'pe-4 text-end'}>
                                        <div style={classic ? { display: 'flex', gap: 2, justifyContent: 'flex-end', alignItems: 'center' } : undefined} className={classic ? '' : 'd-flex justify-content-end align-items-center gap-2'}>
@@ -958,158 +1048,125 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                    </button>
                                                )
                                            )}
-                                           {canManage && po.status !== 'RECEIVED' && po.status !== 'CANCELLED' && (
-                                               classic ? (
-                                                   <button
-                                                       style={xpBtn({ background: 'linear-gradient(to bottom, #f0c000, #c08000)', borderColor: '#a06000 #604000 #604000 #a06000', color: '#000', padding: 0, width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' })}
-                                                       title="Close PO — mark as received even if quantities are short"
-                                                       onClick={() => onClosePO(po.id)}
-                                                   >
-                                                       <i className="bi bi-check2-circle"></i>
-                                                   </button>
-                                               ) : (
-                                                   <button
-                                                       className="btn btn-sm btn-warning p-0 d-inline-flex align-items-center justify-content-center"
-                                                       style={{fontSize: 12, width: 26, height: 26}}
-                                                       title="Close PO — mark as received even if quantities are short"
-                                                       onClick={() => onClosePO(po.id)}
-                                                   >
-                                                       <i className="bi bi-check2-circle"></i>
-                                                   </button>
-                                               )
-                                           )}
                                            {classic ? (
-                                               <>
-                                                   {canManage && po.status === 'DRAFT' ? (
-                                                       <button
-                                                           title="Edit"
-                                                           onClick={() => handleEditOpen(po)}
-                                                           style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', color: '#555', fontSize: '12px' }}
-                                                           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
-                                                           onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-                                                       >
-                                                           <i className="bi bi-pencil"></i>
-                                                       </button>
-                                                   ) : (
-                                                       <span style={{ display: 'inline-block', width: 20, height: 20 }} />
-                                                   )}
-                                                   <button
-                                                       title="Print"
-                                                       onClick={() => handlePrintPO(po)}
-                                                       style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', color: '#555', fontSize: '12px' }}
-                                                       onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
-                                                       onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-                                                   >
-                                                       <i className="bi bi-printer"></i>
-                                                   </button>
-                                                   {canManage && (
-                                                   <button
-                                                       title="Delete"
-                                                       onClick={() => onDeletePO(po.id)}
-                                                       style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', color: '#aa0000', fontSize: '12px' }}
-                                                       onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#cc4444'; (e.currentTarget as HTMLButtonElement).style.background = '#fff0f0'; }}
-                                                       onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-                                                   >
-                                                       <i className="bi bi-trash"></i>
-                                                   </button>
-                                                   )}
-                                               </>
+                                               <button
+                                                   className="po-menu-btn"
+                                                   title="More actions"
+                                                   onClick={(e) => toggleMenu(po.id, e)}
+                                                   style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', color: '#555', fontSize: '12px' }}
+                                                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
+                                                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+                                               >
+                                                   <i className="bi bi-three-dots"></i>
+                                               </button>
                                            ) : (
-                                               <>
-                                                   {canManage && po.status === 'DRAFT' ? (
-                                                       <button className="btn btn-sm btn-link text-muted p-0 d-inline-flex align-items-center justify-content-center" style={{width: 26, height: 26}} title="Edit" onClick={() => handleEditOpen(po)}>
-                                                           <i className="bi bi-pencil fs-6"></i>
-                                                       </button>
-                                                   ) : (
-                                                       <span style={{ display: 'inline-block', width: 26, height: 26 }} />
-                                                   )}
-                                                   <button className="btn btn-sm btn-link text-muted p-0 d-inline-flex align-items-center justify-content-center" style={{width: 26, height: 26}} title="Print" onClick={() => handlePrintPO(po)}>
-                                                       <i className="bi bi-printer fs-6"></i>
-                                                   </button>
-                                                   {canManage && (
-                                                   <button className="btn btn-sm btn-link text-danger p-0 d-inline-flex align-items-center justify-content-center" style={{width: 26, height: 26}} title="Delete" onClick={() => onDeletePO(po.id)}>
-                                                       <i className="bi bi-trash fs-6"></i>
-                                                   </button>
-                                                   )}
-                                               </>
+                                               <button className="btn btn-sm btn-link text-muted p-0 d-inline-flex align-items-center justify-content-center po-menu-btn" style={{width: 26, height: 26}} title="More actions" onClick={(e) => toggleMenu(po.id, e)}>
+                                                   <i className="bi bi-three-dots fs-6"></i>
+                                               </button>
                                            )}
                                        </div>
                                    </td>
                                </tr>
-                               {/* Expanded: receipt history */}
+                               {/* Expanded: order lines + receipt history */}
                                {expandedRows[po.id] && (
                                    <tr key={`${po.id}-receipts`} style={classic ? { background: '#f0ede4', borderBottom: '1px solid #c0bdb5' } : undefined} className={classic ? '' : 'bg-light'}>
-                                       <td colSpan={7} style={classic ? { padding: '6px 16px 8px 32px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px' } : undefined} className={classic ? '' : 'px-4 py-3'}>
+                                       <td colSpan={9} style={classic ? { padding: '6px 16px 8px 32px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px' } : undefined} className={classic ? '' : 'px-4 py-3'}>
+                                           <div style={{ marginBottom: 10 }}>
+                                               <div style={classic ? { fontWeight: 'bold', fontSize: '10px', color: '#444', textTransform: 'uppercase', marginBottom: 4 } : undefined} className={classic ? '' : 'small fw-bold text-muted text-uppercase mb-2'}>
+                                                   Order Lines
+                                               </div>
+                                               <table style={classic ? { width: '100%', maxWidth: 560, borderCollapse: 'collapse', background: '#fff', border: '1px solid #c0bdb5' } : undefined} className={classic ? '' : 'table table-sm table-bordered bg-white mb-0 align-middle small'}>
+                                                   <thead>
+                                                       <tr className={classic ? '' : 'table-light'}>
+                                                           <th style={classic ? poLineThXp : undefined}>Item</th>
+                                                           <th style={classic ? { ...poLineThXp, textAlign: 'right' } : undefined} className={classic ? '' : 'text-end'}>Received</th>
+                                                           <th style={classic ? { ...poLineThXp, textAlign: 'right' } : undefined} className={classic ? '' : 'text-end'}>Ordered</th>
+                                                           <th style={classic ? poLineThXp : undefined}>Status</th>
+                                                       </tr>
+                                                   </thead>
+                                                   <tbody>
+                                                       {po.lines.map((line: any) => {
+                                                           const full = (line.qty_received || 0) >= line.qty;
+                                                           return (
+                                                               <tr key={line.id}>
+                                                                   <td style={classic ? poLineTdXp : undefined} className={classic ? '' : 'fw-semibold text-dark'}>{line.item_name || getItemName(line.item_id)}</td>
+                                                                   <td style={classic ? { ...poLineTdXp, textAlign: 'right', fontWeight: 'bold' } : undefined} className={classic ? '' : 'text-end fw-bold'}>{line.qty_received || 0}</td>
+                                                                   <td style={classic ? { ...poLineTdXp, textAlign: 'right' } : undefined} className={classic ? '' : 'text-end'}>{line.qty}</td>
+                                                                   <td style={classic ? { ...poLineTdXp, color: full ? '#2d7a2d' : '#b8860b', fontWeight: 'bold' } : undefined} className={classic ? '' : full ? 'text-success fw-bold' : 'text-warning fw-bold'}>
+                                                                       {full ? 'full' : 'short'}
+                                                                   </td>
+                                                               </tr>
+                                                           );
+                                                       })}
+                                                   </tbody>
+                                               </table>
+                                           </div>
                                            {(po.receipts || []).length === 0 ? (
                                                <span style={classic ? { color: '#888', fontStyle: 'italic' } : undefined} className={classic ? '' : 'text-muted fst-italic small'}>No receipts recorded yet.</span>
-                                           ) : (
-                                               <div>
-                                                   <div style={classic ? { fontWeight: 'bold', fontSize: '10px', color: '#444', textTransform: 'uppercase', marginBottom: 4 } : undefined} className={classic ? '' : 'small fw-bold text-muted text-uppercase mb-2'}>
-                                                       Receipt History — {(po.receipts || []).length} {(po.receipts || []).length === 1 ? 'delivery' : 'deliveries'}
+                                           ) : (() => {
+                                               // One row per delivered line, newest last — replaces a table-per-delivery
+                                               // layout that repeated the same header 7x for 7 single-line deliveries.
+                                               const allLines = (po.receipts || []).flatMap((receipt: any) =>
+                                                   (receipt.lines || []).map((l: any) => ({ ...l, _receipt: receipt }))
+                                               );
+                                               const hasDn = allLines.some((l: any) => l._receipt.delivery_note_number);
+                                               const hasBoxes = allLines.some((l: any) => l.qty_boxes != null);
+                                               const hasCones = allLines.some((l: any) => l.qty_cones != null);
+                                               const hasDrums = allLines.some((l: any) => l.qty_drums != null);
+                                               const hasLots = allLines.some((l: any) => l.vendor_lot);
+                                               const hasNotes = allLines.some((l: any) => l._receipt.notes);
+                                               const numR = { textAlign: 'right' as const };
+                                               return (
+                                                   <div>
+                                                       <div style={classic ? { fontWeight: 'bold', fontSize: '10px', color: '#444', textTransform: 'uppercase', marginBottom: 4 } : undefined} className={classic ? '' : 'small fw-bold text-muted text-uppercase mb-2'}>
+                                                           Receipt History — {(po.receipts || []).length} {(po.receipts || []).length === 1 ? 'delivery' : 'deliveries'}
+                                                       </div>
+                                                       <table style={classic ? { width: '100%', maxWidth: 760, borderCollapse: 'collapse', background: '#fff', border: '1px solid #c0bdb5' } : undefined} className={classic ? '' : 'table table-sm table-bordered bg-white mb-0 align-middle small'}>
+                                                           <thead>
+                                                               <tr className={classic ? '' : 'table-light'}>
+                                                                   <th style={classic ? poLineThXp : undefined}>Date</th>
+                                                                   {hasDn && <th style={classic ? poLineThXp : undefined}>DN</th>}
+                                                                   <th style={classic ? poLineThXp : undefined}>Item</th>
+                                                                   <th style={classic ? { ...poLineThXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>Received</th>
+                                                                   {hasBoxes && <th style={classic ? { ...poLineThXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>Boxes</th>}
+                                                                   {hasCones && <th style={classic ? { ...poLineThXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>Cones</th>}
+                                                                   {hasDrums && <th style={classic ? { ...poLineThXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>Drums</th>}
+                                                                   {hasLots && <th style={classic ? poLineThXp : undefined}>Supplier Lot</th>}
+                                                                   {hasNotes && <th style={classic ? poLineThXp : undefined}>Notes</th>}
+                                                               </tr>
+                                                           </thead>
+                                                           <tbody>
+                                                               {allLines.map((rl: any) => (
+                                                                   <tr key={rl.id}>
+                                                                       <td style={classic ? poLineTdXp : undefined} className={classic ? '' : 'small'}>{new Date(rl._receipt.receipt_date).toLocaleDateString()}</td>
+                                                                       {hasDn && (
+                                                                           <td style={classic ? poLineTdXp : undefined}>
+                                                                               {rl._receipt.delivery_note_number || <span style={{ color: '#bbb' }}>—</span>}
+                                                                               {rl._receipt.delivery_note_url && (
+                                                                                   <a href={`${STATIC_BASE}${rl._receipt.delivery_note_url}`} target="_blank" rel="noopener noreferrer" title="View DN"
+                                                                                      style={{ marginLeft: 4, color: '#0046d5' }}>
+                                                                                       <i className="bi bi-paperclip" />
+                                                                                   </a>
+                                                                               )}
+                                                                           </td>
+                                                                       )}
+                                                                       <td style={classic ? poLineTdXp : undefined} className={classic ? '' : 'fw-semibold text-dark'}>{rl.item_name || getItemName(rl.item_id)}</td>
+                                                                       <td style={classic ? { ...poLineTdXp, ...numR, fontWeight: 'bold' } : undefined} className={classic ? '' : 'text-end fw-bold'}>
+                                                                           {rl.qty_received}
+                                                                           <span style={{ marginLeft: 3, color: '#888', fontSize: '9px', textTransform: 'uppercase' }}>{rl.item_uom || getItemUom(rl.item_id)}</span>
+                                                                       </td>
+                                                                       {hasBoxes && <td style={classic ? { ...poLineTdXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>{rl.qty_boxes != null ? rl.qty_boxes : <span style={{ color: '#bbb' }}>—</span>}</td>}
+                                                                       {hasCones && <td style={classic ? { ...poLineTdXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>{rl.qty_cones != null ? rl.qty_cones : <span style={{ color: '#bbb' }}>—</span>}</td>}
+                                                                       {hasDrums && <td style={classic ? { ...poLineTdXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>{rl.qty_drums != null ? rl.qty_drums : <span style={{ color: '#bbb' }}>—</span>}</td>}
+                                                                       {hasLots && <td style={classic ? poLineTdXp : undefined}>{rl.vendor_lot || <span style={{ color: '#bbb' }}>—</span>}</td>}
+                                                                       {hasNotes && <td style={classic ? { ...poLineTdXp, fontStyle: 'italic', color: '#666' } : undefined} className={classic ? '' : 'text-muted fst-italic'}>{rl._receipt.notes || ''}</td>}
+                                                                   </tr>
+                                                               ))}
+                                                           </tbody>
+                                                       </table>
                                                    </div>
-                                                   {(po.receipts || []).map((receipt: any) => {
-                                                       const rlines = receipt.lines || [];
-                                                       const hasBoxes = rlines.some((l: any) => l.qty_boxes != null);
-                                                       const hasCones = rlines.some((l: any) => l.qty_cones != null);
-                                                       const hasDrums = rlines.some((l: any) => l.qty_drums != null);
-                                                       const hasLots = rlines.some((l: any) => l.vendor_lot);
-                                                       const thXp: React.CSSProperties = { padding: '2px 8px', fontSize: '10px', fontWeight: 'bold', color: '#1a3d6b', background: '#e4e0d4', borderBottom: '1px solid #b0a898', textAlign: 'left' };
-                                                       const tdXp: React.CSSProperties = { padding: '2px 8px', fontSize: '10px', color: '#333', borderTop: '1px solid #e6e3da' };
-                                                       const numR = { textAlign: 'right' as const };
-                                                       return (
-                                                           <div key={receipt.id} style={classic ? { marginBottom: 8 } : undefined} className={classic ? '' : 'mb-3'}>
-                                                               <div style={classic ? { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 2, gap: 8, flexWrap: 'wrap' } : undefined} className={classic ? '' : 'd-flex justify-content-between align-items-baseline mb-1 gap-2 flex-wrap'}>
-                                                                   <span style={classic ? { display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' } : undefined} className={classic ? '' : 'd-flex align-items-baseline gap-2 flex-wrap'}>
-                                                                       <span style={classic ? { fontWeight: 'bold', color: '#1a3d6b' } : undefined} className={classic ? '' : 'fw-bold'}>
-                                                                           {new Date(receipt.receipt_date).toLocaleDateString()}
-                                                                       </span>
-                                                                       {receipt.delivery_note_number && (
-                                                                           <span style={classic ? { fontSize: '10px', color: '#333' } : undefined} className={classic ? '' : 'small'}>
-                                                                               DN: <span style={{ fontWeight: 'bold' }}>{receipt.delivery_note_number}</span>
-                                                                               {receipt.delivery_note_date && <span style={{ color: '#777' }}> ({new Date(receipt.delivery_note_date).toLocaleDateString()})</span>}
-                                                                           </span>
-                                                                       )}
-                                                                       {receipt.delivery_note_url && (
-                                                                           <a href={`${STATIC_BASE}${receipt.delivery_note_url}`} target="_blank" rel="noopener noreferrer"
-                                                                              style={classic ? { fontSize: '10px', color: '#0046d5' } : undefined} className={classic ? '' : 'small'}>
-                                                                               <i className="bi bi-paperclip" /> View DN
-                                                                           </a>
-                                                                       )}
-                                                                   </span>
-                                                                   {receipt.notes && <span style={classic ? { color: '#666', fontStyle: 'italic', fontSize: '10px' } : undefined} className={classic ? '' : 'text-muted fst-italic small'}>{receipt.notes}</span>}
-                                                               </div>
-                                                               <table style={classic ? { width: '100%', borderCollapse: 'collapse', background: '#fff', border: '1px solid #c0bdb5' } : undefined} className={classic ? '' : 'table table-sm table-bordered bg-white mb-0 align-middle small'}>
-                                                                   <thead>
-                                                                       <tr className={classic ? '' : 'table-light'}>
-                                                                           <th style={classic ? thXp : undefined}>Item</th>
-                                                                           <th style={classic ? { ...thXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>Received</th>
-                                                                           {hasBoxes && <th style={classic ? { ...thXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>Boxes</th>}
-                                                                           {hasCones && <th style={classic ? { ...thXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>Cones</th>}
-                                                                           {hasDrums && <th style={classic ? { ...thXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>Drums</th>}
-                                                                           {hasLots && <th style={classic ? thXp : undefined}>Supplier Lot</th>}
-                                                                       </tr>
-                                                                   </thead>
-                                                                   <tbody>
-                                                                       {rlines.map((rl: any) => (
-                                                                           <tr key={rl.id}>
-                                                                               <td style={classic ? tdXp : undefined} className={classic ? '' : 'fw-semibold text-dark'}>{rl.item_name || getItemName(rl.item_id)}</td>
-                                                                               <td style={classic ? { ...tdXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>
-                                                                                   <span style={classic ? { fontWeight: 'bold' } : undefined} className={classic ? '' : 'fw-bold'}>{rl.qty_received}</span>
-                                                                                   <span style={{ marginLeft: 3, color: '#888', fontSize: '9px', textTransform: 'uppercase' }}>{rl.item_uom || getItemUom(rl.item_id)}</span>
-                                                                               </td>
-                                                                               {hasBoxes && <td style={classic ? { ...tdXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>{rl.qty_boxes != null ? rl.qty_boxes : <span style={{ color: '#bbb' }}>—</span>}</td>}
-                                                                               {hasCones && <td style={classic ? { ...tdXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>{rl.qty_cones != null ? rl.qty_cones : <span style={{ color: '#bbb' }}>—</span>}</td>}
-                                                                               {hasDrums && <td style={classic ? { ...tdXp, ...numR } : undefined} className={classic ? '' : 'text-end'}>{rl.qty_drums != null ? rl.qty_drums : <span style={{ color: '#bbb' }}>—</span>}</td>}
-                                                                               {hasLots && <td style={classic ? tdXp : undefined}>{rl.vendor_lot || <span style={{ color: '#bbb' }}>—</span>}</td>}
-                                                                           </tr>
-                                                                       ))}
-                                                                   </tbody>
-                                                               </table>
-                                                           </div>
-                                                       );
-                                                   })}
-                                               </div>
-                                           )}
+                                               );
+                                           })()}
                                        </td>
                                    </tr>
                                )}
@@ -1118,7 +1175,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                            {filteredOrders.length === 0 && (
                                <tr>
                                    <td
-                                       colSpan={7}
+                                       colSpan={9}
                                        style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'center', padding: '24px 8px', color: '#888', fontStyle: 'italic' } : undefined}
                                        className={classic ? '' : 'text-center py-5 text-muted'}
                                    >
@@ -1134,6 +1191,63 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                    </table>
                </div>
            </div>
+
+           {/* Floating "more actions" menu — Edit / Close PO / Print / Delete */}
+           {openMenuId && (() => {
+               const menuPo = pageOrders.find((p: any) => p.id === openMenuId);
+               if (!menuPo) return null;
+               const menuItemStyle = (danger?: boolean): React.CSSProperties => ({
+                   display: 'flex', alignItems: 'center', gap: 7, width: '100%', textAlign: 'left' as const,
+                   background: 'none', border: 'none', padding: '6px 10px', fontSize: 11,
+                   fontFamily: 'Tahoma, Arial, sans-serif', cursor: 'pointer', color: danger ? '#aa0000' : '#222',
+               });
+               return (
+                   <div
+                       className="po-fixed-menu"
+                       style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, zIndex: 9999, minWidth: 175, background: '#fff', border: '1px solid #808080', boxShadow: '2px 2px 4px rgba(0,0,0,.25)' }}
+                   >
+                       {canManage && menuPo.status === 'DRAFT' && (
+                           <button
+                               style={menuItemStyle()}
+                               onClick={() => { setOpenMenuId(null); handleEditOpen(menuPo); }}
+                               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
+                               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+                           >
+                               <i className="bi bi-pencil"></i> Edit
+                           </button>
+                       )}
+                       {canManage && menuPo.status !== 'RECEIVED' && menuPo.status !== 'CANCELLED' && (
+                           <button
+                               style={menuItemStyle()}
+                               title="Close PO — mark as received even if quantities are short"
+                               onClick={() => { setOpenMenuId(null); onClosePO(menuPo.id); }}
+                               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
+                               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+                           >
+                               <i className="bi bi-check2-circle"></i> Close PO (short-received)
+                           </button>
+                       )}
+                       <button
+                           style={menuItemStyle()}
+                           onClick={() => { setOpenMenuId(null); handlePrintPO(menuPo); }}
+                           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
+                           onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+                       >
+                           <i className="bi bi-printer"></i> Print
+                       </button>
+                       {canManage && (
+                           <button
+                               style={menuItemStyle(true)}
+                               onClick={() => { setOpenMenuId(null); onDeletePO(menuPo.id); }}
+                               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#fff0f0'; }}
+                               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+                           >
+                               <i className="bi bi-trash"></i> Delete
+                           </button>
+                       )}
+                   </div>
+               );
+           })()}
 
            <Pager page={clampedPoPage} total={sortedOrders.length} pageSize={PO_PAGE_SIZE} onPageChange={setPoPage} hideWhenEmpty />
 

@@ -86,6 +86,20 @@ export function StatusChip({ status, label, style, tint, title }: { status: stri
     );
 }
 
+// Recessed track + filled bar for at-a-glance completion (receiving progress,
+// MO/WO progress, lineage). Tone defaults by fill level so callers don't have
+// to compute it themselves; pass one explicitly to override (e.g. red = short).
+export function ProgressBar({ pct, tone, width, height, title }: { pct: number; tone?: StatusFamily; width?: number | string; height?: number; title?: string }) {
+    const t: StatusFamily = tone || (pct >= 100 ? 'green' : pct > 0 ? 'amber' : 'gray');
+    const fillDk: Record<StatusFamily, string> = { gray: '#c8c3b6', amber: '#c77800', blue: '#0058e6', green: '#2d7a2d', red: '#c00000' };
+    const fillLt: Record<StatusFamily, string> = { gray: '#c8c3b6', amber: '#f5d060', blue: '#4a8fe8', green: '#6fce6f', red: '#e88a8a' };
+    return (
+        <div title={title} style={{ background: '#e2ddd0', border: '1px solid #a89f8c', height: height ?? 10, width: width ?? '100%' }}>
+            <div style={{ height: '100%', width: `${Math.max(0, Math.min(100, pct))}%`, background: `linear-gradient(to bottom, ${fillLt[t]}, ${fillDk[t]})` }} />
+        </div>
+    );
+}
+
 // ── Inline style helpers (XP widgets) ────────────────────────────────────────
 
 export const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({

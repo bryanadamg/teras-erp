@@ -1110,6 +1110,7 @@ class GoodsReceiptResponse(BaseModel):
         from_attributes = True
 
 class PurchaseOrderResponse(PurchaseOrderCreate):
+    supplier_id: UUID | None = None  # legacy POs predating the required-supplier constraint have no supplier
     id: UUID
     status: str
     lines: list[PurchaseOrderLineResponse]
