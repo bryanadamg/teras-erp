@@ -865,6 +865,7 @@ async def add_mo_completion(
 
     # Validate WO if provided
     wo = None
+    wo_machine_assigned = None
     if payload.work_order_id:
         wo = next((w for w in mo.work_orders if str(w.id) == str(payload.work_order_id)), None)
         if not wo:
@@ -877,6 +878,29 @@ async def add_mo_completion(
             )
             if not wo_scope_ok(current_user, wc_type_res.scalar()):
                 raise HTTPException(status_code=403, detail="Your role is not scoped to this work order's work center type")
+
+        # WOs created without a machine have no input/output location, so
+        # completions would silently skip stock movement. Force the operator
+        # to pick a machine here and persist its locations onto the WO.
+        if not wo.input_location_id or not wo.output_location_id:
+            if not payload.work_center_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="This work order has no input/output location — select a Machine below to assign one before logging.",
+                )
+            wc_result = await db.execute(select(WorkCenter).filter(WorkCenter.id == payload.work_center_id))
+            wc = wc_result.scalars().first()
+            if not wc:
+                raise HTTPException(status_code=404, detail="Work center not found")
+            if not wc.input_location_id or not wc.output_location_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Machine '{wc.name}' has no input/output location configured — set it on the Work Center first.",
+                )
+            wo.work_center_id = wc.id
+            wo.input_location_id = wc.input_location_id
+            wo.output_location_id = wc.output_location_id
+            wo_machine_assigned = wc.name
 
     if mo.status == "PENDING":
         raise HTTPException(status_code=400, detail="MO must be started before logging completions")
@@ -1133,7 +1157,10 @@ async def add_mo_completion(
             wo.actual_end_date = datetime.utcnow()
 
     await db.commit()
-    await audit_service.log_activity(db, current_user.id, "COMPLETION", "ManufacturingOrder", mo_id, f"Logged {payload.qty_completed} completed (total {total_completed}/{mo.qty})")
+    completion_log_detail = f"Logged {payload.qty_completed} completed (total {total_completed}/{mo.qty})"
+    if wo_machine_assigned:
+        completion_log_detail += f" | Machine '{wo_machine_assigned}' assigned to WO {wo.code or wo.name}"
+    await audit_service.log_activity(db, current_user.id, "COMPLETION", "ManufacturingOrder", mo_id, completion_log_detail)
     await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": mo_id, "status": mo.status, "code": mo.code})
 
     try:

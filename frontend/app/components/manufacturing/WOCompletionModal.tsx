@@ -75,6 +75,13 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
         const it = findItem(itemId);
         return (it?.category_path || []).some((p: string) => (p || '').toLowerCase() === 'beam');
     };
+    // WOs created without a machine have no input/output location — stock
+    // movement would silently be skipped. Force a machine pick here so the
+    // backend can assign locations onto the WO before consuming/producing stock.
+    const woInputLocId = workOrder?.input_location_id || workOrder?.input_location?.id;
+    const woOutputLocId = workOrder?.output_location_id || workOrder?.output_location?.id;
+    const needsMachine = !!workOrder && (!woInputLocId || !woOutputLocId);
+
     // Lot output: WO produces a beam (Beam category / BEAM- code / BEAMING work center) or a lot-tracked item
     const woWcType = ((workCenters || []).find((wc: any) => wc.id === workOrder?.work_center_id)?.center_type || '').toUpperCase();
     const isBeamOutput = !!workOrder
@@ -179,6 +186,10 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
 
         // WO mode: validate material rows
         if (workOrder) {
+            if (needsMachine && !workCenterId) {
+                showToast('This work order has no input/output location — select a Machine to assign one before logging.', 'danger');
+                return;
+            }
             for (const row of materialRows) {
                 const v = parseFloat(row.actual_qty);
                 if (isNaN(v) || v < 0) {
@@ -398,13 +409,20 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                             </div>
                             {/* Work Center */}
                             <div>
-                                <label style={xpLabel}>Work Center / Machine</label>
+                                <label style={{ ...xpLabel, ...(needsMachine ? { fontWeight: 'bold', color: '#900' } : {}) }}>
+                                    Work Center / Machine{needsMachine ? ' (required — assigns stock locations)' : ''}
+                                </label>
                                 <SearchableSelect
                                     options={wcOptions}
                                     value={workCenterId}
                                     onChange={setWorkCenterId}
-                                    placeholder="Select machine (optional)…"
+                                    placeholder={needsMachine ? 'Select machine…' : 'Select machine (optional)…'}
                                 />
+                                {needsMachine && (
+                                    <div style={{ fontSize: 9, color: '#900', marginTop: 2 }}>
+                                        This work order has no input/output location yet. Pick a machine to assign one.
+                                    </div>
+                                )}
                             </div>
                         </div>
 
