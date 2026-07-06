@@ -35,7 +35,6 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
     const canRebuild = hasPermission('admin.access');
     const classic = uiStyle === 'classic';
 
-    const [batches, setBatches] = useState<any[]>([]);
     const [search, setSearch] = useState('');
     const [locationFilter, setLocationFilter] = useState('');
     const [warehouseFilter, setWarehouseFilter] = useState('');
@@ -270,19 +269,6 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
         }
     };
 
-    useEffect(() => {
-        authFetch(`${apiBase}/batches?limit=500`)
-            .then(r => r.ok ? r.json() : [])
-            .then(setBatches)
-            .catch(() => {});
-    }, [apiBase]);
-
-    const batchMap = useMemo(() => {
-        const m: Record<string, string> = {};
-        for (const b of batches) m[b.id] = b.batch_number;
-        return m;
-    }, [batches]);
-
     const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
 
     const locMap = useMemo(() => {
@@ -404,11 +390,11 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
             const itemCat = (bal.item_category_name || '').toLowerCase();
             const loc = (bal.location_name || getLocationName(bal.location_id)).toLowerCase();
             const wh = getWarehouseName(bal.location_id).toLowerCase();
-            const batch = bal.batch_key ? (batchMap[bal.batch_key] || bal.batch_key).toLowerCase() : '';
+            const batch = bal.batch_key ? (bal.batch_number || bal.batch_key).toLowerCase() : '';
             return name.includes(s) || code.includes(s) || itemCat.includes(s) || loc.includes(s) || wh.includes(s) || batch.includes(s);
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [stockBalance, search, locationFilter, warehouseFilter, catMatchSet, batchMap, locMap]);
+    }, [stockBalance, search, locationFilter, warehouseFilter, catMatchSet, locMap]);
 
     const negativeCount = filtered.filter((b: any) => b.qty < 0).length;
 
@@ -417,11 +403,11 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
         itemCategory: (b: any) => b.item_category_name || '',
         location: (b: any) => b.location_name || getLocationName(b.location_id),
         warehouse: (b: any) => getWarehouseName(b.location_id) || '',
-        batch:    (b: any) => b.batch_key ? (batchMap[b.batch_key] || b.batch_key) : null,
+        batch:    (b: any) => b.batch_key ? (b.batch_number || b.batch_key) : null,
         qty:      (b: any) => b.qty,
         packaging: (b: any) => pkgTotal(b),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }), [batchMap, locations, locMap]);
+    }), [locations, locMap]);
     const { sorted: sortedRows, sort, toggle: toggleSort } = useSortable(filtered, sortCols);
 
     // Client-side pagination — the fetch is still whole-table (DataContext), but
@@ -468,7 +454,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
     };
 
     const renderRow = (bal: any, i: number) => {
-        const batchLabel = bal.batch_key ? (batchMap[bal.batch_key] || bal.batch_key) : '-';
+        const batchLabel = bal.batch_key ? (bal.batch_number || bal.batch_key) : '-';
         const qtyColor = bal.qty < 0 ? '#c00000' : '#00008b';
 
         if (classic) {
@@ -644,7 +630,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                     <strong>{transferTarget.item_name}</strong>
                     <div style={{ fontSize: 10, color: '#666' }}>
                         From: {transferTarget.location_name || getLocationName(transferTarget.location_id)}
-                        {transferTarget.batch_key ? ` · Lot: ${batchMap[transferTarget.batch_key] || transferTarget.batch_key}` : ''}
+                        {transferTarget.batch_key ? ` · Lot: ${transferTarget.batch_number || transferTarget.batch_key}` : ''}
                         {' · '}Available: {transferTarget.qty} {transferTarget.item_uom || ''}
                     </div>
                 </div>
@@ -732,7 +718,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         <strong>{t.item_name}</strong>
                         <div style={{ fontSize: 10, color: '#666' }}>
                             {t.location_name || getLocationName(t.location_id)}
-                            {t.batch_key ? ` · Lot: ${batchMap[t.batch_key] || t.batch_key}` : ''}
+                            {t.batch_key ? ` · Lot: ${t.batch_number || t.batch_key}` : ''}
                             {' · '}On hand: {t.qty} {t.item_uom || ''}
                         </div>
                     </div>

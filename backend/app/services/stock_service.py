@@ -190,6 +190,24 @@ async def get_all_stock_balances(db: AsyncSession, user=None):
     ))
     results = result.scalars().all()
 
+    # batch_key is a plain string (str(batch_id) or ""), not a FK — resolve labels
+    # in one extra query instead of making the frontend page through /batches to
+    # build its own map (that list is capped and drops older lots/beams from it).
+    batch_ids = {r.batch_key for r in results if r.batch_key}
+    batch_number_map: dict[str, str] = {}
+    if batch_ids:
+        import uuid as _uuid
+        from app.models.batch import Batch
+        valid_ids = []
+        for bid in batch_ids:
+            try:
+                valid_ids.append(_uuid.UUID(bid))
+            except ValueError:
+                continue
+        if valid_ids:
+            batch_rows = await db.execute(select(Batch.id, Batch.batch_number).filter(Batch.id.in_(valid_ids)))
+            batch_number_map = {str(bid): bnum for bid, bnum in batch_rows.all()}
+
     return [
         {
             "item_id": r.item_id,
@@ -207,6 +225,7 @@ async def get_all_stock_balances(db: AsyncSession, user=None):
             "qty_boxes": int(r.qty_boxes or 0),
             "qty_drums": int(r.qty_drums or 0),
             "batch_key": r.batch_key,
+            "batch_number": batch_number_map.get(r.batch_key) if r.batch_key else None,
         }
         for r in results
         if r.qty != 0 or r.qty_cones or r.qty_boxes or r.qty_drums

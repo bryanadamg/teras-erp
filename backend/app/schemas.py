@@ -902,6 +902,7 @@ class StockBalanceResponse(BaseModel):
     qty_boxes: int = 0
     qty_drums: int = 0
     batch_key: str = ""
+    batch_number: str | None = None
 
 class UOMCreate(BaseModel):
     name: str
