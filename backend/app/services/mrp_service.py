@@ -182,8 +182,22 @@ async def create_consolidated_component_mos(
     sub-tree); a partially-covered one is resized to the shortfall and its pegging
     qty is scaled down proportionally. Deeper levels net via create_mo_recursive."""
 
-    # Aggregate demand: (item_id, sub_bom_id, src_loc_id) → {sub_bom_id, item_id, sub_attrs, total_qty, contributions}
+    # Aggregate demand keyed on (item_id, sub_bom_id, size_key).
+    #   size_key = None  -> pool across all roots (unsized/free sub-BOM, or size
+    #                       unresolved) — the color-variant greige case.
+    #   size_key = <greige BOMSize id> -> split: one component MO per size, so a
+    #                       sized greige (L=68cm vs M=64cm) is never merged across
+    #                       sizes. Its bom_size flows onto the component MO.
     demand: dict[tuple, dict] = {}
+
+    # Preload the parent BOMSize rows that the root MOs carry, so we can map each
+    # root's size identity onto the sub-BOM's own size rows (matched by shared
+    # Size master, else by label).
+    root_bs_ids = {rm.bom_size_id for _, rms in bom_ro_pairs for rm in rms if rm.bom_size_id}
+    root_bs_by_id: dict = {}
+    if root_bs_ids:
+        rows = await db.execute(select(BOMSize).filter(BOMSize.id.in_(root_bs_ids)))
+        root_bs_by_id = {bs.id: bs for bs in rows.scalars().all()}
 
     for bom, root_mos in bom_ro_pairs:
         bom_result = await db.execute(
@@ -197,7 +211,9 @@ async def create_consolidated_component_mos(
             if not line.percentage:
                 continue
             sub_bom_result = await db.execute(
-                select(BOM).options(selectinload(BOM.attribute_values))
+                select(BOM).options(
+                    selectinload(BOM.attribute_values), selectinload(BOM.sizes)
+                )
                 .filter(BOM.item_id == line.item_id, BOM.active == True).limit(1)
             )
             sub_bom = sub_bom_result.scalars().first()
@@ -216,20 +232,44 @@ async def create_consolidated_component_mos(
                 or item_default_src
                 or (source_location.id if source_location else None)
             )
-            key = (str(line.item_id), str(sub_bom.id))
 
-            if key not in demand:
-                demand[key] = {
-                    "sub_bom_id": sub_bom.id,
-                    "item_id": line.item_id,
-                    "sub_attrs": [str(v.id) for v in sub_bom.attribute_values],
-                    "total_qty": 0.0,
-                    "src_loc_id": src_loc_id,
-                    "contributions": {},
+            sub_attrs = [str(v.id) for v in sub_bom.attribute_values]
+            # Only split when the sub-BOM is itself size-differentiated.
+            sized = sub_bom.size_mode == 'sized'
+            greige_by_size_id = {}
+            greige_by_label = {}
+            if sized:
+                greige_by_size_id = {s.size_id: s for s in sub_bom.sizes if s.size_id}
+                greige_by_label = {
+                    (s.label or '').strip().lower(): s for s in sub_bom.sizes if s.label
                 }
 
             for root_mo in root_mos:
                 contrib_qty = (float(root_mo.qty) * float(line.percentage)) / 100
+
+                # Resolve this root's size onto a sub-BOM size row (sized only).
+                greige_bs = None
+                if sized:
+                    root_bs = root_bs_by_id.get(root_mo.bom_size_id)
+                    if root_bs is not None:
+                        if root_bs.size_id and root_bs.size_id in greige_by_size_id:
+                            greige_bs = greige_by_size_id[root_bs.size_id]
+                        elif root_bs.label:
+                            greige_bs = greige_by_label.get(root_bs.label.strip().lower())
+                size_key = str(greige_bs.id) if greige_bs is not None else None
+
+                key = (str(line.item_id), str(sub_bom.id), size_key)
+                if key not in demand:
+                    demand[key] = {
+                        "sub_bom_id": sub_bom.id,
+                        "item_id": line.item_id,
+                        "sub_attrs": sub_attrs,
+                        "total_qty": 0.0,
+                        "src_loc_id": src_loc_id,
+                        "bom_size_id": greige_bs.id if greige_bs is not None else None,
+                        "contributions": {},
+                    }
+
                 demand[key]["total_qty"] += contrib_qty
                 demand[key]["contributions"][root_mo.id] = demand[key]["contributions"].get(root_mo.id, 0.0) + contrib_qty
 
@@ -260,6 +300,7 @@ async def create_consolidated_component_mos(
             production_run_id=production_run_id,
             target_start_date=target_start_date,
             target_end_date=target_end_date,
+            bom_size_id=data["bom_size_id"],
             create_children=True,
             availability=availability,
         )
