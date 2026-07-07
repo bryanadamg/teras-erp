@@ -581,11 +581,37 @@ async def delete_production_run(
     if not pr:
         raise HTTPException(status_code=404, detail="Production Run not found")
     code = pr.code
+
+    # Delete every MO belonging to this PR (roots + children + consolidated
+    # shared-component MOs all carry production_run_id=pr.id). Delete children
+    # before parents to satisfy the parent_mo_id FK (no DB-level cascade on the
+    # self-reference); ORM cascades then remove WOs, completions, planned
+    # components, and MODependency rows.
+    mo_result = await db.execute(
+        select(ManufacturingOrder).filter(ManufacturingOrder.production_run_id == pr.id)
+    )
+    mos = {o.id: o for o in mo_result.scalars().all()}
+
+    def _depth(oid):
+        d, cur = 0, mos.get(oid)
+        seen = set()
+        while cur is not None and cur.parent_mo_id in mos and cur.parent_mo_id not in seen:
+            seen.add(cur.id)
+            d += 1
+            cur = mos.get(cur.parent_mo_id)
+        return d
+    for oid in sorted(mos.keys(), key=_depth, reverse=True):
+        await db.delete(mos[oid])
+    mo_count = len(mos)
+
     await db.delete(pr)
     await db.commit()
     await audit_service.log_activity(
         db, user_id=current_user.id, action="DELETE",
         entity_type="PRODUCTION_RUN", entity_id=pr_id,
-        details=f"Deleted Production Run {code}"
+        details=f"Deleted Production Run {code} and {mo_count} associated MO(s)"
     )
+    await manager.broadcast({"type": "PRODUCTION_RUN_UPDATE", "pr_id": pr_id, "status": "DELETED"})
+    if mo_count:
+        await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "status": "DELETED"})
     return {"status": "success"}

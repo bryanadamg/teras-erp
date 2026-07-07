@@ -84,7 +84,7 @@ export default function ManufacturingOrdersPage() {
     const handleDeleteMO = async (moId: string) => {
         const confirmed = await confirm({
             title: 'Delete Manufacturing Order',
-            message: 'Are you sure you want to delete this manufacturing order? This will remove it from the schedule.',
+            message: 'Are you sure you want to delete this manufacturing order? This also deletes all its child MOs, work orders, and completions. Consolidated component MOs are removed only if no other MO still depends on them. This cannot be undone.',
             confirmText: 'Delete',
             variant: 'danger'
         });
@@ -104,8 +104,16 @@ export default function ManufacturingOrdersPage() {
     };
 
     const handleDeleteProductionRun = async (id: string) => {
+        const confirmed = await confirm({
+            title: 'Delete Production Run',
+            message: 'Are you sure you want to delete this production run? This also deletes ALL associated Manufacturing Orders (roots, children, and consolidated component MOs), along with their work orders and completions. This cannot be undone.',
+            confirmText: 'Delete',
+            variant: 'danger'
+        });
+        if (!confirmed) return;
         const res = await authFetch(`${API_BASE}/production-runs/${id}`, { method: 'DELETE' });
-        if (res.ok) refreshManufacturing();
+        if (res.ok) { showToast('Production Run deleted', 'success'); refreshManufacturing(); }
+        else { const err = await res.json().catch(() => ({})); showToast(`Error: ${err.detail || 'Delete failed'}`, 'danger'); }
     };
 
     const handleUpdatePRStatus = async (id: string, status: string) => {

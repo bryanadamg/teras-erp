@@ -5,7 +5,7 @@ from sqlalchemy import select, func, or_, inspect
 from sqlalchemy.orm import selectinload, joinedload, attributes as sa_attributes
 from collections import defaultdict
 from app.db.session import get_async_db
-from app.models.manufacturing import ManufacturingOrder, MOCompletion, MOCompletionItem
+from app.models.manufacturing import ManufacturingOrder, MOCompletion, MOCompletionItem, MODependency
 from app.models.work_order import WorkOrder as WorkOrderModel
 from app.models.bom import BOM, BOMLine, BOMSize, BOMOperation
 from app.models.routing import Operation as OperationModel, WorkCenter
@@ -1371,15 +1371,97 @@ async def complete_manufacturing_order_with_batches(
     return {"status": "success", "message": "Completed with batch tracking"}
 
 
+async def _collect_mo_delete_set(db: AsyncSession, root_id: uuid.UUID) -> set:
+    """Collect the full set of MO ids to delete when deleting `root_id`:
+    - the parent->child subtree (via parent_mo_id), recursively
+    - any consolidated/shared component MOs pegged via MODependency, but ONLY
+      when every MO that still depends on them is already inside the delete set
+      (i.e. no surviving sibling root still needs them).
+    Iterates to a fixpoint so nested components are handled."""
+    delete_set: set = set()
+    # 1. parent->child subtree via BFS
+    frontier = [root_id]
+    while frontier:
+        current = frontier.pop()
+        if current in delete_set:
+            continue
+        delete_set.add(current)
+        rows = await db.execute(
+            select(ManufacturingOrder.id).filter(ManufacturingOrder.parent_mo_id == current)
+        )
+        frontier.extend(rows.scalars().all())
+
+    # 2. pull in exclusively-owned pegged component MOs, to a fixpoint
+    changed = True
+    while changed:
+        changed = False
+        # component MOs required by anything already in the delete set
+        dep_rows = await db.execute(
+            select(MODependency.required_mo_id).filter(
+                MODependency.dependent_mo_id.in_(delete_set)
+            )
+        )
+        candidates = {c for c in dep_rows.scalars().all() if c not in delete_set}
+        for comp_id in candidates:
+            # who still depends on this component?
+            dependents = await db.execute(
+                select(MODependency.dependent_mo_id).filter(
+                    MODependency.required_mo_id == comp_id
+                )
+            )
+            dependent_ids = set(dependents.scalars().all())
+            # exclusively owned by the delete set -> safe to delete (pull in its
+            # own subtree too via the outer loop)
+            if dependent_ids.issubset(delete_set):
+                # add component + its parent->child subtree
+                sub_frontier = [comp_id]
+                while sub_frontier:
+                    cur = sub_frontier.pop()
+                    if cur in delete_set:
+                        continue
+                    delete_set.add(cur)
+                    changed = True
+                    kids = await db.execute(
+                        select(ManufacturingOrder.id).filter(ManufacturingOrder.parent_mo_id == cur)
+                    )
+                    sub_frontier.extend(kids.scalars().all())
+    return delete_set
+
+
 @router.delete("/manufacturing-orders/{mo_id}")
 async def delete_manufacturing_order(mo_id: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('work_order.manage'))):
     result = await db.execute(select(ManufacturingOrder).filter(ManufacturingOrder.id == mo_id))
     mo = result.scalars().first()
     if not mo: raise HTTPException(status_code=404, detail="Not found")
     mo_code = mo.code
-    await db.delete(mo)
+
+    delete_ids = await _collect_mo_delete_set(db, mo.id)
+    # Load full objects so ORM cascades (work_orders, completions, planned_components,
+    # MODependency rows) fire; delete children before parents to satisfy the
+    # parent_mo_id FK (no DB-level ON DELETE CASCADE on the self-reference).
+    objs_result = await db.execute(
+        select(ManufacturingOrder).filter(ManufacturingOrder.id.in_(delete_ids))
+    )
+    objs = {o.id: o for o in objs_result.scalars().all()}
+
+    # topological order: deepest (leaf) first via parent chain depth
+    def _depth(oid):
+        d, cur = 0, objs.get(oid)
+        seen = set()
+        while cur is not None and cur.parent_mo_id in objs and cur.parent_mo_id not in seen:
+            seen.add(cur.id)
+            d += 1
+            cur = objs.get(cur.parent_mo_id)
+        return d
+    for oid in sorted(objs.keys(), key=_depth, reverse=True):
+        await db.delete(objs[oid])
+
     await db.commit()
-    await audit_service.log_activity(db, current_user.id, "DELETE", "manufacturing_order", mo_id, details=f"Deleted MO {mo_code}")
+    deleted_count = len(delete_ids)
+    await audit_service.log_activity(
+        db, current_user.id, "DELETE", "manufacturing_order", mo_id,
+        details=f"Deleted MO {mo_code} and {deleted_count - 1} descendant/component MO(s)"
+    )
 
     await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": mo_id, "status": "DELETED", "code": mo_code})
     try:

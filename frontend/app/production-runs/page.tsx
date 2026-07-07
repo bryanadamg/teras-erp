@@ -85,7 +85,7 @@ export default function ProductionRunsPage() {
     const handleDeleteMO = async (moId: string) => {
         const confirmed = await confirm({
             title: 'Delete Manufacturing Order',
-            message: 'Are you sure you want to delete this manufacturing order?',
+            message: 'Are you sure you want to delete this manufacturing order? This also deletes all its child MOs, work orders, and completions. Consolidated component MOs are removed only if no other MO still depends on them. This cannot be undone.',
             confirmText: 'Delete',
             variant: 'danger'
         });
@@ -105,7 +105,7 @@ export default function ProductionRunsPage() {
     const handleDeleteProductionRun = async (id: string) => {
         const confirmed = await confirm({
             title: 'Delete Production Run',
-            message: 'Are you sure you want to delete this production run? All associated Manufacturing Orders must be deleted first.',
+            message: 'Are you sure you want to delete this production run? This also deletes ALL associated Manufacturing Orders (roots, children, and consolidated component MOs), along with their work orders and completions. This cannot be undone.',
             confirmText: 'Delete',
             variant: 'danger'
         });
