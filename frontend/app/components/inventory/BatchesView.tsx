@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useToast } from '../shared/Toast';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
@@ -43,20 +43,24 @@ interface BatchConsumption {
   created_at: string;
 }
 
-interface BatchTrace {
-  batch: Batch;
-  consumptions: BatchConsumption[];
-}
-
 interface Item {
   id: string;
   code: string;
   name: string;
 }
 
+interface ForwardNode {
+  batch: Batch;
+  consumptions: ForwardEdge[];
+}
+
+interface ForwardEdge extends BatchConsumption {
+  child: ForwardNode | null;
+}
+
 interface RowTraceState {
-  trace: BatchTrace | null;
   traceBack: any | null;
+  forward: ForwardNode | null;
   loading: boolean;
 }
 
@@ -188,18 +192,35 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
     }
   };
 
+  // The forward endpoint only returns one hop (this batch -> what consumed it).
+  // To show the full downstream pipeline (Beam -> Greige -> Dyed Lot -> ...) we
+  // chase each resulting output batch's own /trace recursively, client-side —
+  // mirrors what trace-back already does server-side for the backward direction.
+  const fetchForwardTree = async (batchId: string, depth = 0, visited: Set<string> = new Set()): Promise<ForwardNode | null> => {
+    if (depth >= 6 || visited.has(batchId)) return null;
+    visited.add(batchId);
+    const res = await authFetch(`${apiBase}/batches/${batchId}/trace`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const consumptions: BatchConsumption[] = data.consumptions || [];
+    const edges: ForwardEdge[] = await Promise.all(consumptions.map(async c => ({
+      ...c,
+      child: c.output_batch_id ? await fetchForwardTree(c.output_batch_id, depth + 1, visited) : null,
+    })));
+    return { batch: data.batch, consumptions: edges };
+  };
+
   const toggleExpand = async (b: Batch) => {
     const wasOpen = !!expandedRows[b.id];
     setExpandedRows(prev => ({ ...prev, [b.id]: !wasOpen }));
     if (!wasOpen && !rowTraceData[b.id]) {
-      setRowTraceData(prev => ({ ...prev, [b.id]: { trace: null, traceBack: null, loading: true } }));
-      const [traceRes, traceBackRes] = await Promise.all([
-        authFetch(`${apiBase}/batches/${b.id}/trace`),
+      setRowTraceData(prev => ({ ...prev, [b.id]: { traceBack: null, forward: null, loading: true } }));
+      const [traceBackRes, forward] = await Promise.all([
         authFetch(`${apiBase}/batches/${b.id}/trace-back`),
+        fetchForwardTree(b.id),
       ]);
-      const trace = traceRes.ok ? await traceRes.json() : null;
       const traceBack = traceBackRes.ok ? await traceBackRes.json() : null;
-      setRowTraceData(prev => ({ ...prev, [b.id]: { trace, traceBack, loading: false } }));
+      setRowTraceData(prev => ({ ...prev, [b.id]: { traceBack, forward, loading: false } }));
     }
   };
 
@@ -245,97 +266,187 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
     );
   };
 
+  // Stage classification purely from the batch-number prefix — the manufacturing
+  // completion route stamps GR- (goods receipt), BM- (beam), GRG- (greige/weaving),
+  // DYE- (dyed lot), LOT-/BAT- (generic). Colors mirror the work-center chip
+  // palette used elsewhere (getChipStyle in WorkOrderPanel.tsx) for consistency.
+  type StageMeta = { label: string; bg: string; fg: string; border: string; icon: string };
+  const STAGE_META: Record<string, StageMeta> = {
+    GR:  { label: 'Goods Receipt', bg: '#fdf3d8', fg: '#7a4500', border: '#e0c080', icon: 'bi-truck' },
+    BM:  { label: 'Beam',          bg: '#fce8ff', fg: '#660088', border: '#dda8f0', icon: 'bi-record-circle' },
+    GRG: { label: 'Greige',        bg: '#e8d8ff', fg: '#440099', border: '#c4a8ee', icon: 'bi-layers' },
+    DYE: { label: 'Dyed Lot',      bg: '#cce4ff', fg: '#004b99', border: '#99c4ee', icon: 'bi-droplet-half' },
+    PACK:{ label: 'Packaging',     bg: '#d4f0d4', fg: '#005500', border: '#99cc99', icon: 'bi-box-seam' },
+  };
+  const DEFAULT_STAGE: StageMeta = { label: 'Lot', bg: '#e4e2dc', fg: '#444444', border: '#c4c2ba', icon: 'bi-tag' };
+  const classifyLot = (batchNumber?: string | null): StageMeta => {
+    const prefix = (batchNumber || '').split('-')[0].toUpperCase();
+    return STAGE_META[prefix] || DEFAULT_STAGE;
+  };
+
+  // Flatten a recursive tree into left-to-right levels via BFS, so each level
+  // renders as one column of connected boxes regardless of branching.
+  const levelsFrom = (roots: any[], getChildren: (n: any) => any[]): any[][] => {
+    const levels: any[][] = [];
+    let frontier = roots;
+    let guard = 0;
+    while (frontier.length && guard < 6) {
+      levels.push(frontier);
+      frontier = frontier.flatMap(getChildren);
+      guard++;
+    }
+    return levels;
+  };
+
   const renderExpandedPanel = (b: Batch) => {
     const state = rowTraceData[b.id];
     const fnt: React.CSSProperties = classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11 } : { fontSize: 13 };
-    const label: React.CSSProperties = { ...fnt, fontWeight: 'bold', color: '#444', textTransform: 'uppercase' as const, fontSize: classic ? 9 : 11, marginBottom: 4 };
-    const section: React.CSSProperties = { flex: 1, minWidth: 180, padding: '0 12px', borderRight: classic ? '1px solid #c8c8c8' : '1px solid #dee2e6' };
-    const lastSection: React.CSSProperties = { flex: 1, minWidth: 180, padding: '0 12px' };
+    const focalMeta = classifyLot(b.batch_number);
 
-    const renderNode = (node: any, depth: number): React.ReactNode => (
-      <div key={`${node.batch.id}-${depth}`}>
-        <div style={{ paddingLeft: depth * 16, ...fnt }}>
-          {depth > 0 && <span style={{ color: '#aaa' }}>{'+ '}</span>}
-          <strong>{node.batch.batch_number}</strong>
-          {node.batch.vendor_lot && <span style={{ color: '#888' }}> [{node.batch.vendor_lot}]</span>}
-          <span style={{ color: '#666' }}> ({node.batch.item_code || itemMap[node.batch.item_id]?.code || '?'})</span>
-          {node.qty_consumed != null && (
-            <span style={{ color: '#444' }}> — {node.qty_consumed} used{node.mo_code ? ` in ${node.mo_code}` : ''}</span>
-          )}
-          {node.batch.po_number && <span style={{ color: classic ? '#7a4500' : '#856404', marginLeft: 6 }}>PO: {node.batch.po_number}</span>}
+    // Ancestor levels: level 0 = immediate inputs, deepest last — reversed for
+    // left-to-right display (oldest/rawest material first).
+    const backLevels = levelsFrom(state?.traceBack?.inputs || [], (n: any) => n.inputs || []);
+    const ancestorLevels = [...backLevels].reverse();
+
+    // Descendant levels: level 0 = immediate consumption edges.
+    const fwdLevels = levelsFrom(state?.forward?.consumptions || [], (e: ForwardEdge) => e.child?.consumptions || []);
+    const lastFwdBatches = fwdLevels.length ? fwdLevels[fwdLevels.length - 1].map((e: ForwardEdge) => e.output_batch_number) : [];
+    const showPackagingGhost = focalMeta === STAGE_META.DYE && fwdLevels.length === 0;
+    const showPackagingContinuation = lastFwdBatches.some((n: string | null) => classifyLot(n) === STAGE_META.DYE);
+
+    const NodeBox = ({ meta, title, subtitle, tag, ghost, focal }: {
+      meta: StageMeta; title: React.ReactNode; subtitle?: React.ReactNode; tag?: React.ReactNode;
+      ghost?: boolean; focal?: boolean;
+    }) => (
+      <div style={{
+        ...fnt,
+        minWidth: 128, maxWidth: 168,
+        border: `1px solid ${ghost ? '#c8c8c8' : meta.border}`,
+        borderStyle: ghost ? 'dashed' : 'solid',
+        borderWidth: focal ? 2 : 1,
+        background: ghost ? (classic ? '#f0ede4' : '#f8f9fa') : meta.bg,
+        opacity: ghost ? 0.75 : 1,
+        boxShadow: focal ? '0 0 0 2px rgba(0,88,230,0.25)' : classic ? '1px 1px 2px rgba(0,0,0,0.15)' : '0 1px 2px rgba(0,0,0,0.08)',
+        padding: '5px 8px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: classic ? 8 : 9, fontWeight: 'bold', textTransform: 'uppercase', color: ghost ? '#999' : meta.fg, letterSpacing: 0.3, marginBottom: 2 }}>
+          <i className={`bi ${meta.icon}`} />
+          {meta.label}
         </div>
-        {(node.inputs || []).map((c: any) => renderNode(c, depth + 1))}
+        <div style={{ fontWeight: 'bold', color: ghost ? '#999' : '#000', fontStyle: ghost ? 'italic' : 'normal', wordBreak: 'break-word' }}>
+          {title}
+        </div>
+        {subtitle && <div style={{ color: '#666', fontSize: classic ? 9 : 11, marginTop: 1 }}>{subtitle}</div>}
+        {tag && <div style={{ color: '#888', fontSize: classic ? 9 : 11, marginTop: 1 }}>{tag}</div>}
       </div>
+    );
+
+    const Connector = () => (
+      <div style={{ display: 'flex', alignItems: 'center', color: '#aaa', fontSize: 16, flexShrink: 0, alignSelf: 'center' }}>
+        <i className="bi bi-chevron-right" />
+      </div>
+    );
+
+    const Column = ({ children }: { children: React.ReactNode }) => (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, justifyContent: 'center' }}>{children}</div>
     );
 
     return (
       <div style={{
         background: classic ? '#f0ede4' : '#f8f9fa',
         borderTop: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6',
-        padding: '8px 12px',
-        display: 'flex',
-        gap: 0,
+        padding: '12px 14px',
         ...fnt,
       }}>
-        {/* Origin */}
-        <div style={section}>
-          <div style={label}>Origin</div>
-          {b.po_number ? (
-            <div>
-              <div><span style={{ color: '#888' }}>PO:</span> <strong>{b.po_number}</strong></div>
-              {b.vendor_lot
-                ? <div><span style={{ color: '#888' }}>Supplier Lot:</span> <strong>{b.vendor_lot}</strong></div>
-                : <div style={{ color: '#bbb', fontStyle: 'italic' }}>No supplier lot recorded</div>
-              }
-            </div>
-          ) : b.mo_code || b.sales_order_code ? (
-            <div>
-              {b.sales_order_code && <div><span style={{ color: '#888' }}>SO:</span> <strong style={{ color: classic ? '#0058e6' : '#0d6efd' }}>{b.sales_order_code}</strong></div>}
-              {b.production_run_code && <div><span style={{ color: '#888' }}>PR:</span> {b.production_run_code}</div>}
-              {b.mo_code && <div><span style={{ color: '#888' }}>MO:</span> {b.mo_code}</div>}
-            </div>
-          ) : (
-            <div style={{ color: '#bbb', fontStyle: 'italic' }}>No origin recorded</div>
-          )}
+        <div style={{ fontWeight: 'bold', color: '#555', fontSize: classic ? 9 : 11, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 8 }}>
+          Lineage
         </div>
+        {state?.loading ? (
+          <div style={{ color: '#888', padding: 8 }}>Loading lineage...</div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'stretch', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+            {/* Ancestors: rawest material first, flowing toward the focal lot */}
+            {ancestorLevels.map((level, li) => (
+              <React.Fragment key={`anc-${li}`}>
+                <Column>
+                  {level.map((n: any, ni: number) => {
+                    const meta = classifyLot(n.batch.batch_number);
+                    return (
+                      <NodeBox
+                        key={`${n.batch.id}-${ni}`}
+                        meta={meta}
+                        title={n.batch.batch_number}
+                        subtitle={n.batch.item_code || itemMap[n.batch.item_id]?.code}
+                        tag={n.batch.po_number
+                          ? `PO ${n.batch.po_number}`
+                          : n.qty_consumed != null
+                            ? `${n.qty_consumed} used${n.mo_code ? ` in ${n.mo_code}` : ''}`
+                            : undefined}
+                      />
+                    );
+                  })}
+                </Column>
+                <Connector />
+              </React.Fragment>
+            ))}
 
-        {/* Used In (forward trace) */}
-        <div style={section}>
-          <div style={label}>Used In</div>
-          {state?.loading && <div style={{ color: '#888' }}>Loading...</div>}
-          {state && !state.loading && (!state.trace || state.trace.consumptions.length === 0) && (
-            <div style={{ color: '#bbb', fontStyle: 'italic' }}>Not consumed yet</div>
-          )}
-          {state?.trace && state.trace.consumptions.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {state.trace.consumptions.map(c => (
-                <div key={c.id}>
-                  <span style={{ fontFamily: 'monospace', color: classic ? '#0058e6' : '#0d6efd' }}>
-                    {c.mo_code || c.manufacturing_order_id.slice(0, 8)}
-                  </span>
-                  <span style={{ color: '#888', marginLeft: 6 }}>{c.qty_consumed} used</span>
-                  {c.output_batch_number && (
-                    <span style={{ color: '#555', marginLeft: 6 }}>
-                      {'→ '}<span style={{ fontFamily: 'monospace' }}>{c.output_batch_number}</span>
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+            {/* Focal lot — this row */}
+            <NodeBox
+              focal
+              meta={focalMeta}
+              title={b.batch_number}
+              subtitle={batchItemCode(b)}
+              tag={b.remaining != null ? `${Number(b.remaining).toFixed(2)} remaining` : undefined}
+            />
 
-        {/* Made From (backward trace) */}
-        <div style={lastSection}>
-          <div style={label}>Made From</div>
-          {state?.loading && <div style={{ color: '#888' }}>Loading...</div>}
-          {state && !state.loading && (!state.traceBack || state.traceBack.inputs.length === 0) && (
-            <div style={{ color: '#bbb', fontStyle: 'italic' }}>No input lots recorded</div>
-          )}
-          {state?.traceBack && state.traceBack.inputs.length > 0 && (
-            <div>{state.traceBack.inputs.map((n: any) => renderNode(n, 0))}</div>
-          )}
-        </div>
+            {/* Descendants: what this lot became, hop by hop */}
+            {fwdLevels.map((level, li) => (
+              <React.Fragment key={`fwd-${li}`}>
+                <Connector />
+                <Column>
+                  {level.map((e: ForwardEdge, ei: number) => {
+                    if (!e.output_batch_number) {
+                      return (
+                        <NodeBox
+                          key={e.id || ei}
+                          ghost
+                          meta={DEFAULT_STAGE}
+                          title="Consumed"
+                          subtitle={e.mo_code || undefined}
+                          tag={`${e.qty_consumed} used — no output lot`}
+                        />
+                      );
+                    }
+                    const meta = classifyLot(e.output_batch_number);
+                    return (
+                      <NodeBox
+                        key={e.id || ei}
+                        meta={meta}
+                        title={e.output_batch_number}
+                        subtitle={e.mo_code || undefined}
+                        tag={`${e.qty_consumed} used`}
+                      />
+                    );
+                  })}
+                </Column>
+              </React.Fragment>
+            ))}
+
+            {/* Future stage placeholder — Packaging isn't tracked as lots yet */}
+            {(showPackagingGhost || showPackagingContinuation) && (
+              <>
+                <Connector />
+                <NodeBox ghost meta={STAGE_META.PACK} title="Packaging" tag="Coming soon" />
+              </>
+            )}
+
+            {!ancestorLevels.length && !fwdLevels.length && !showPackagingGhost && (
+              <div style={{ color: '#bbb', fontStyle: 'italic', alignSelf: 'center', padding: '0 8px' }}>
+                No linked lots — nothing consumed to make this, not yet consumed by anything.
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   };
@@ -380,7 +491,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
     background: alt ? '#f0f0f8' : '#ffffff', verticalAlign: 'middle',
   } : { verticalAlign: 'middle' };
 
-  const colSpan = 11; // Lot Number, Item Code, Item Name, Origin, Location, Remaining, Ends, Notes, Created By, Created At, Actions
+  const colSpan = 12; // Chevron, Lot Number, Item Code, Item Name, Origin, Location, Remaining, Ends, Notes, Created By, Created At, Actions
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)' }}>
@@ -406,10 +517,11 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
           </div>
 
           {/* ── Table ── */}
-          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, background: '#ffffff' }}>
+          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, background: '#ffffff', scrollbarGutter: 'stable' } as React.CSSProperties}>
             <table style={xpTable}>
               <thead>
                 <tr>
+                  <th style={{ ...xpTh, width: 20 }}></th>
                   <th style={xpTh}>Lot Number</th>
                   <th style={xpTh}>Item Code</th>
                   <th style={xpTh}>Item Name</th>
@@ -432,7 +544,15 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                 )}
                 {batches.map((b, i) => (
                   <>
-                    <tr key={b.id} style={{ background: expandedRows[b.id] ? '#d6e4f7' : i % 2 === 1 ? '#f0f0f8' : '#ffffff' }}>
+                    <tr
+                      key={b.id}
+                      style={{ background: expandedRows[b.id] ? '#d6e4f7' : i % 2 === 1 ? '#f0f0f8' : '#ffffff', cursor: 'pointer' }}
+                      onClick={() => toggleExpand(b)}
+                      title="Show lot lineage"
+                    >
+                      <td style={{ ...xpTd(i % 2 === 1), textAlign: 'center', background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>
+                        <span style={{ fontSize: 10, color: '#555' }}>{expandedRows[b.id] ? '▼' : '►'}</span>
+                      </td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>
                         <strong>{b.batch_number}</strong>
                         {b.quality_status === 'REJECTED' && (
@@ -448,21 +568,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.notes || '-'}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.created_by || '-'}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{new Date(b.created_at).toLocaleDateString()}</td>
-                      <td style={{ ...xpTd(i % 2 === 1), whiteSpace: 'nowrap', background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>
-                        <button
-                          style={{
-                            ...xpBtn(), marginRight: 4, fontSize: 10, padding: '2px 7px',
-                            background: expandedRows[b.id]
-                              ? 'linear-gradient(to bottom,#d4d0c8,#fff)'
-                              : 'linear-gradient(to bottom,#fff,#d4d0c8)',
-                            borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-                          }}
-                          onClick={() => toggleExpand(b)}
-                          title="Show lot details, trace and genealogy"
-                        >
-                          <i className={`bi ${expandedRows[b.id] ? 'bi-chevron-up' : 'bi-diagram-3'}`} style={{ marginRight: 3 }} />
-                          {expandedRows[b.id] ? 'Hide' : 'Details'}
-                        </button>
+                      <td style={{ ...xpTd(i % 2 === 1), whiteSpace: 'nowrap', background: expandedRows[b.id] ? '#d6e4f7' : undefined }} onClick={e => e.stopPropagation()}>
                         {b.quality_status !== 'REJECTED' && (
                           <button
                             style={xpBtn({ background: 'linear-gradient(to bottom, #ffe0b0, #e0a050)', fontSize: 10, padding: '2px 7px', marginRight: 4, color: '#663300' })}
@@ -510,10 +616,11 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
           </div>
 
           {/* ── Table ── */}
-          <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+          <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0, scrollbarGutter: 'stable' } as React.CSSProperties}>
             <table className="table table-sm table-hover table-bordered mb-0">
               <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                 <tr>
+                  <th style={{ width: 24 }}></th>
                   <th>Lot Number</th>
                   <th>Item Code</th>
                   <th>Item Name</th>
@@ -532,7 +639,16 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                 {!loading && batches.length === 0 && <tr><td colSpan={colSpan} className="text-center text-muted">No lots found.</td></tr>}
                 {batches.map(b => (
                   <>
-                    <tr key={b.id} className={expandedRows[b.id] ? 'table-primary bg-opacity-10' : ''}>
+                    <tr
+                      key={b.id}
+                      className={expandedRows[b.id] ? 'table-primary bg-opacity-10' : ''}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => toggleExpand(b)}
+                      title="Show lot lineage"
+                    >
+                      <td className="text-center text-muted">
+                        <i className={`bi ${expandedRows[b.id] ? 'bi-chevron-down' : 'bi-chevron-right'}`} style={{ fontSize: 11 }} />
+                      </td>
                       <td>
                         <strong>{b.batch_number}</strong>
                         {b.quality_status === 'REJECTED' && <span className="badge bg-danger ms-1">REJECTED</span>}
@@ -546,15 +662,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                       <td>{b.notes || '-'}</td>
                       <td>{b.created_by || '-'}</td>
                       <td>{new Date(b.created_at).toLocaleDateString()}</td>
-                      <td style={{ whiteSpace: 'nowrap' }}>
-                        <button
-                          className={`btn btn-sm me-1 ${expandedRows[b.id] ? 'btn-secondary' : 'btn-outline-secondary'}`}
-                          onClick={() => toggleExpand(b)}
-                          title="Show lot details, trace and genealogy"
-                        >
-                          <i className={`bi ${expandedRows[b.id] ? 'bi-chevron-up' : 'bi-diagram-3'}`} />
-                          {' '}Details
-                        </button>
+                      <td style={{ whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
                         {b.quality_status !== 'REJECTED' && (
                           <button
                             className="btn btn-sm btn-outline-warning me-1"
