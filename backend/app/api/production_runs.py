@@ -506,8 +506,9 @@ async def create_production_run(
     # Reuses the same `availability` ledger Pass 1 netted roots against, so a
     # component can't claim stock a root already consumed (or vice versa).
     if bom_ro_pairs:
+        all_root_mos = [mo for _, root_mos in bom_ro_pairs for mo in root_mos]
         await mrp_service.create_consolidated_component_mos(
-            db, bom_ro_pairs, location, source_location,
+            db, all_root_mos, location, source_location,
             payload.sales_order_id, pr.id,
             payload.target_start_date, payload.target_end_date,
             current_user.id,

@@ -329,28 +329,6 @@ async def _active_sub_bom(db: AsyncSession, item_id):
     )).unique().scalars().first()
 
 
-async def _preview_children(db, avail, bom_id, parent_net, source_location_id, location_id, level, nodes, loc_names):
-    """Mirror of create_mo_recursive's child loop (read-only)."""
-    bom = (await db.execute(
-        select(BOM).options(selectinload(BOM.lines)).filter(BOM.id == bom_id)
-    )).scalars().first()
-    if not bom:
-        return
-    for line in bom.lines:
-        if not line.percentage:
-            continue
-        sub_bom = await _active_sub_bom(db, line.item_id)
-        if not sub_bom:
-            continue
-        gross = (parent_net * float(line.percentage)) / 100
-        sub_loc = source_location_id or location_id
-        attrs = [str(v.id) for v in sub_bom.attribute_values]
-        net, detail = await avail.consume_detailed(sub_bom.item_id, attrs, sub_loc, gross)
-        nodes.append(_component_node(sub_bom, level, sub_loc, gross, net, detail, loc_names))
-        if net > 0:
-            await _preview_children(db, avail, sub_bom.id, net, source_location_id, location_id, level + 1, nodes, loc_names)
-
-
 async def preview_production_run(db, bom_entries, location, source_location, exclude_pr_id=None) -> list[dict]:
     """Dry-run of create_production_run: netted roots (unless force_create) +
     consolidated, netted components + deeper netted sub-tree. Returns a flat
@@ -399,40 +377,72 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
         if net_qtys:
             bom_ro_pairs.append((bom, net_qtys))
 
-    # Pass 2: consolidate direct-component demand across all roots, then net.
-    demand: dict[tuple, dict] = {}
-    for bom, root_qtys in bom_ro_pairs:
-        bom_lines = (await db.execute(
-            select(BOM).options(selectinload(BOM.lines)).filter(BOM.id == bom.id)
-        )).scalars().first()
-        if not bom_lines:
-            continue
-        for line in bom_lines.lines:
-            if not line.percentage:
+    # Pass 2+: consolidate component demand level-by-level (breadth-first),
+    # mirroring the multi-level pooling the create path now does — a shared
+    # component's total demand across every branch is netted once, at every
+    # depth, not just directly below the roots.
+    current_gen = [(bom, qty) for bom, root_qtys in bom_ro_pairs for qty in root_qtys]
+    level = 1
+    while current_gen:
+        demand: dict[tuple, dict] = {}
+        for bom, qty in current_gen:
+            bom_lines = (await db.execute(
+                select(BOM).options(selectinload(BOM.lines)).filter(BOM.id == bom.id)
+            )).scalars().first()
+            if not bom_lines:
                 continue
-            sub_bom = await _active_sub_bom(db, line.item_id)
-            if not sub_bom:
-                continue
-            src = line.source_location_id or (source_location.id if source_location else (location.id if location else None))
-            # Plant-level netting: consolidate by (item, sub_bom) only — location is
-            # not part of the key. src is kept just for the display label.
-            key = (str(line.item_id), str(sub_bom.id))
-            if key not in demand:
-                demand[key] = {"sub_bom": sub_bom, "src": src, "total": 0.0,
-                               "attrs": [str(v.id) for v in sub_bom.attribute_values]}
-            for q in root_qtys:
-                demand[key]["total"] += (q * float(line.percentage)) / 100
+            for line in bom_lines.lines:
+                if not line.percentage:
+                    continue
+                sub_bom = await _active_sub_bom(db, line.item_id)
+                if not sub_bom:
+                    continue
+                src = line.source_location_id or (source_location.id if source_location else (location.id if location else None))
+                # Plant-level netting: consolidate by (item, sub_bom) only — location is
+                # not part of the key. src is kept just for the display label.
+                key = (str(line.item_id), str(sub_bom.id))
+                if key not in demand:
+                    demand[key] = {"sub_bom": sub_bom, "src": src, "total": 0.0,
+                                   "attrs": [str(v.id) for v in sub_bom.attribute_values]}
+                demand[key]["total"] += (qty * float(line.percentage)) / 100
 
-    for data in demand.values():
-        total = data["total"]
-        if total <= 0:
-            continue
-        net, detail = await avail.consume_detailed(data["sub_bom"].item_id, data["attrs"], data["src"], total)
-        nodes.append(_component_node(data["sub_bom"], 1, data["src"], total, net, detail, loc_names))
-        if net > 0:
-            await _preview_children(db, avail, data["sub_bom"].id, net, data["src"], (location.id if location else None), 2, nodes, loc_names)
+        next_gen = []
+        for data in demand.values():
+            total = data["total"]
+            if total <= 0:
+                continue
+            net, detail = await avail.consume_detailed(data["sub_bom"].item_id, data["attrs"], data["src"], total)
+            nodes.append(_component_node(data["sub_bom"], level, data["src"], total, net, detail, loc_names))
+            if net > 0:
+                next_gen.append((data["sub_bom"], net))
+        current_gen = next_gen
+        level += 1
 
     return nodes
+
+
+async def _preview_children(db, avail, bom_id, parent_net, source_location_id, location_id, level, nodes, loc_names):
+    """Mirror of create_mo_recursive's child loop (read-only), for a single
+    ad-hoc MO's own sub-tree — no cross-branch pooling applies here since
+    there is only one branch."""
+    bom = (await db.execute(
+        select(BOM).options(selectinload(BOM.lines)).filter(BOM.id == bom_id)
+    )).scalars().first()
+    if not bom:
+        return
+    for line in bom.lines:
+        if not line.percentage:
+            continue
+        sub_bom = await _active_sub_bom(db, line.item_id)
+        if not sub_bom:
+            continue
+        gross = (parent_net * float(line.percentage)) / 100
+        sub_loc = source_location_id or location_id
+        attrs = [str(v.id) for v in sub_bom.attribute_values]
+        net, detail = await avail.consume_detailed(sub_bom.item_id, attrs, sub_loc, gross)
+        nodes.append(_component_node(sub_bom, level, sub_loc, gross, net, detail, loc_names))
+        if net > 0:
+            await _preview_children(db, avail, sub_bom.id, net, source_location_id, location_id, level + 1, nodes, loc_names)
 
 
 async def preview_mo(db, bom_id, qty, location, source_location, create_nested=True, exclude_mo_ids=None) -> list[dict]:

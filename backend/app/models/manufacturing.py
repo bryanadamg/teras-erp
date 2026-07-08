@@ -23,7 +23,8 @@ manufacturing_order_values = Table(
 
 
 class MODependency(Base):
-    """Pegging record: a root MO (dependent) requires a shared component MO (required).
+    """Pegging record: an MO (dependent — root, or a shared component one level up)
+    requires a shared component MO (required) one level deeper.
     qty = how much of the required MO's output this dependent MO contributes."""
     __tablename__ = "mo_dependencies"
 

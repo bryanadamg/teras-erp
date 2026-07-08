@@ -162,7 +162,7 @@ async def create_mo_recursive(
 
 async def create_consolidated_component_mos(
     db: AsyncSession,
-    bom_ro_pairs: list[tuple],
+    root_mos: list,
     location,
     source_location,
     sales_order_id,
@@ -172,91 +172,106 @@ async def create_consolidated_component_mos(
     user_id,
     availability=None,
 ):
-    """Pass 2 of PR creation: walk all BOMs in the run, aggregate component demand across
-    ALL root MOs from ALL BOM entries, create ONE consolidated component MO per unique
-    sub-assembly (keyed on item_id + sub_bom_id + src_loc), and write MODependency
-    pegging records. This consolidates shared greige/base items across color variants.
+    """Pass 2 of PR creation: low-level-code style breadth-first MRP explosion.
+    Processes one generation (level) of parent MOs at a time. At each level,
+    aggregates component demand across ALL parent MOs from that level — regardless
+    of which root/branch they came from — into ONE consolidated component MO per
+    unique sub-assembly (keyed on item_id + sub_bom_id + size_key), pegs it to its
+    parents via MODependency, then treats the new component MOs as the next
+    generation and repeats. This is what lets a shared component (e.g. a greige
+    base, or a further sub-component below it) net once across every branch that
+    needs it, at every depth — not just at the first level below the roots.
 
     When ``availability`` is supplied, each consolidated demand is netted against
     net-free stock first: a component fully covered by stock gets no MO (and no
-    sub-tree); a partially-covered one is resized to the shortfall and its pegging
-    qty is scaled down proportionally. Deeper levels net via create_mo_recursive."""
+    further explosion); a partially-covered one is resized to the shortfall and
+    its pegging qty is scaled down proportionally."""
 
-    # Aggregate demand keyed on (item_id, sub_bom_id, size_key).
-    #   size_key = None  -> pool across all roots (unsized/free sub-BOM, or size
-    #                       unresolved) — the color-variant greige case.
-    #   size_key = <greige BOMSize id> -> split: one component MO per size, so a
-    #                       sized greige (L=68cm vs M=64cm) is never merged across
-    #                       sizes. Its bom_size flows onto the component MO.
-    demand: dict[tuple, dict] = {}
+    current_gen = list(root_mos)
 
-    # Preload the parent BOMSize rows that the root MOs carry, so we can map each
-    # root's size identity onto the sub-BOM's own size rows (matched by shared
-    # Size master, else by label).
-    root_bs_ids = {rm.bom_size_id for _, rms in bom_ro_pairs for rm in rms if rm.bom_size_id}
-    root_bs_by_id: dict = {}
-    if root_bs_ids:
-        rows = await db.execute(select(BOMSize).filter(BOMSize.id.in_(root_bs_ids)))
-        root_bs_by_id = {bs.id: bs for bs in rows.scalars().all()}
+    while current_gen:
+        # Preload the BOMSize rows this generation's MOs carry, so each parent's
+        # size identity can be mapped onto its sub-BOM's own size rows (matched by
+        # shared Size master, else by label).
+        bs_ids = {mo.bom_size_id for mo in current_gen if mo.bom_size_id}
+        bs_by_id: dict = {}
+        if bs_ids:
+            rows = await db.execute(select(BOMSize).filter(BOMSize.id.in_(bs_ids)))
+            bs_by_id = {bs.id: bs for bs in rows.scalars().all()}
 
-    for bom, root_mos in bom_ro_pairs:
-        bom_result = await db.execute(
-            select(BOM).options(selectinload(BOM.lines)).filter(BOM.id == bom.id)
-        )
-        bom_with_lines = bom_result.scalars().first()
-        if not bom_with_lines:
-            continue
+        # Cache each distinct BOM used by this generation (mo.bom_id), with lines.
+        bom_ids = {mo.bom_id for mo in current_gen}
+        boms_by_id: dict = {}
+        for bom_id in bom_ids:
+            bom_result = await db.execute(
+                select(BOM).options(selectinload(BOM.lines)).filter(BOM.id == bom_id)
+            )
+            b = bom_result.scalars().first()
+            if b:
+                boms_by_id[bom_id] = b
 
-        for line in bom_with_lines.lines:
-            if not line.percentage:
+        # Aggregate demand keyed on (item_id, sub_bom_id, size_key).
+        #   size_key = None  -> pool across all parents (unsized/free sub-BOM, or
+        #                       size unresolved) — the color-variant greige case.
+        #   size_key = <sub-BOM's own BOMSize id> -> split: one component MO per
+        #                       size, so a sized sub-assembly (L=68cm vs M=64cm) is
+        #                       never merged across sizes.
+        demand: dict[tuple, dict] = {}
+
+        for mo in current_gen:
+            bom = boms_by_id.get(mo.bom_id)
+            if not bom:
                 continue
-            sub_bom_result = await db.execute(
-                select(BOM).options(
-                    selectinload(BOM.attribute_values), selectinload(BOM.sizes)
+
+            for line in bom.lines:
+                if not line.percentage:
+                    continue
+                sub_bom_result = await db.execute(
+                    select(BOM).options(
+                        selectinload(BOM.attribute_values), selectinload(BOM.sizes)
+                    )
+                    .filter(BOM.item_id == line.item_id, BOM.active == True).limit(1)
                 )
-                .filter(BOM.item_id == line.item_id, BOM.active == True).limit(1)
-            )
-            sub_bom = sub_bom_result.scalars().first()
-            if not sub_bom:
-                continue
+                sub_bom = sub_bom_result.scalars().first()
+                if not sub_bom:
+                    continue
 
-            # Source kept only as the component MO's default source (staging
-            # cascade). Industry chain: BOM-line override -> item-master default ->
-            # PR source (legacy). Plant-level netting consolidates by (item, sub_bom)
-            # alone — location is not part of the key.
-            item_default_src = (await db.execute(
-                select(Item.default_source_location_id).filter(Item.id == line.item_id)
-            )).scalar()
-            src_loc_id = (
-                line.source_location_id
-                or item_default_src
-                or (source_location.id if source_location else None)
-            )
+                # Source kept only as the component MO's default source (staging
+                # cascade). Industry chain: BOM-line override -> item-master default ->
+                # PR source (legacy). Plant-level netting consolidates by (item, sub_bom)
+                # alone — location is not part of the key.
+                item_default_src = (await db.execute(
+                    select(Item.default_source_location_id).filter(Item.id == line.item_id)
+                )).scalar()
+                src_loc_id = (
+                    line.source_location_id
+                    or item_default_src
+                    or (source_location.id if source_location else None)
+                )
 
-            sub_attrs = [str(v.id) for v in sub_bom.attribute_values]
-            # Only split when the sub-BOM is itself size-differentiated.
-            sized = sub_bom.size_mode == 'sized'
-            greige_by_size_id = {}
-            greige_by_label = {}
-            if sized:
-                greige_by_size_id = {s.size_id: s for s in sub_bom.sizes if s.size_id}
-                greige_by_label = {
-                    (s.label or '').strip().lower(): s for s in sub_bom.sizes if s.label
-                }
-
-            for root_mo in root_mos:
-                contrib_qty = (float(root_mo.qty) * float(line.percentage)) / 100
-
-                # Resolve this root's size onto a sub-BOM size row (sized only).
-                greige_bs = None
+                sub_attrs = [str(v.id) for v in sub_bom.attribute_values]
+                # Only split when the sub-BOM is itself size-differentiated.
+                sized = sub_bom.size_mode == 'sized'
+                sub_by_size_id = {}
+                sub_by_label = {}
                 if sized:
-                    root_bs = root_bs_by_id.get(root_mo.bom_size_id)
-                    if root_bs is not None:
-                        if root_bs.size_id and root_bs.size_id in greige_by_size_id:
-                            greige_bs = greige_by_size_id[root_bs.size_id]
-                        elif root_bs.label:
-                            greige_bs = greige_by_label.get(root_bs.label.strip().lower())
-                size_key = str(greige_bs.id) if greige_bs is not None else None
+                    sub_by_size_id = {s.size_id: s for s in sub_bom.sizes if s.size_id}
+                    sub_by_label = {
+                        (s.label or '').strip().lower(): s for s in sub_bom.sizes if s.label
+                    }
+
+                contrib_qty = (float(mo.qty) * float(line.percentage)) / 100
+
+                # Resolve this parent's size onto a sub-BOM size row (sized only).
+                sub_bs = None
+                if sized:
+                    parent_bs = bs_by_id.get(mo.bom_size_id)
+                    if parent_bs is not None:
+                        if parent_bs.size_id and parent_bs.size_id in sub_by_size_id:
+                            sub_bs = sub_by_size_id[parent_bs.size_id]
+                        elif parent_bs.label:
+                            sub_bs = sub_by_label.get(parent_bs.label.strip().lower())
+                size_key = str(sub_bs.id) if sub_bs is not None else None
 
                 key = (str(line.item_id), str(sub_bom.id), size_key)
                 if key not in demand:
@@ -266,54 +281,59 @@ async def create_consolidated_component_mos(
                         "sub_attrs": sub_attrs,
                         "total_qty": 0.0,
                         "src_loc_id": src_loc_id,
-                        "bom_size_id": greige_bs.id if greige_bs is not None else None,
+                        "bom_size_id": sub_bs.id if sub_bs is not None else None,
                         "contributions": {},
                     }
 
                 demand[key]["total_qty"] += contrib_qty
-                demand[key]["contributions"][root_mo.id] = demand[key]["contributions"].get(root_mo.id, 0.0) + contrib_qty
+                demand[key]["contributions"][mo.id] = demand[key]["contributions"].get(mo.id, 0.0) + contrib_qty
 
-    # Create one consolidated component MO per unique sub-assembly, write pegging records
-    for data in demand.values():
-        total = data["total_qty"]
-        if total <= 0:
-            continue
+        # Create one consolidated component MO per unique sub-assembly at this
+        # level, write pegging records, and queue it as next generation's parent.
+        next_gen = []
+        for data in demand.values():
+            total = data["total_qty"]
+            if total <= 0:
+                continue
 
-        # Net consolidated demand against net-free stock at the planned source location.
-        net_qty = total
-        if availability is not None:
-            net_qty = await availability.consume(
-                data["item_id"], data["sub_attrs"], data["src_loc_id"], total
+            # Net consolidated demand against net-free stock at the planned source location.
+            net_qty = total
+            if availability is not None:
+                net_qty = await availability.consume(
+                    data["item_id"], data["sub_attrs"], data["src_loc_id"], total
+                )
+            if net_qty <= 0:
+                continue  # fully covered by stock -> no component MO, no pegging, no sub-tree
+
+            component_mo = await create_mo_recursive(
+                db,
+                data["sub_bom_id"],
+                net_qty,
+                location.id if location else None,
+                user_id,
+                parent_mo_id=None,
+                source_location_id=data["src_loc_id"],
+                sales_order_id=None,
+                production_run_id=production_run_id,
+                target_start_date=target_start_date,
+                target_end_date=target_end_date,
+                bom_size_id=data["bom_size_id"],
+                create_children=False,  # next level is exploded by this loop, not recursion
+                availability=availability,
             )
-        if net_qty <= 0:
-            continue  # fully covered by stock -> no component MO, no pegging, no sub-tree
+            component_mo.is_shared_component = True
+            await db.flush()
 
-        component_mo = await create_mo_recursive(
-            db,
-            data["sub_bom_id"],
-            net_qty,
-            location.id if location else None,
-            user_id,
-            parent_mo_id=None,
-            source_location_id=data["src_loc_id"],
-            sales_order_id=None,
-            production_run_id=production_run_id,
-            target_start_date=target_start_date,
-            target_end_date=target_end_date,
-            bom_size_id=data["bom_size_id"],
-            create_children=True,
-            availability=availability,
-        )
-        component_mo.is_shared_component = True
+            # Scale pegging to what this MO actually supplies (remainder is pegged to stock).
+            factor = net_qty / total
+            for parent_mo_id, contrib_qty in data["contributions"].items():
+                db.add(MODependency(
+                    dependent_mo_id=parent_mo_id,
+                    required_mo_id=component_mo.id,
+                    qty=contrib_qty * factor,
+                ))
+
+            next_gen.append(component_mo)
+
         await db.flush()
-
-        # Scale pegging to what this MO actually supplies (remainder is pegged to stock).
-        factor = net_qty / total
-        for root_mo_id, contrib_qty in data["contributions"].items():
-            db.add(MODependency(
-                dependent_mo_id=root_mo_id,
-                required_mo_id=component_mo.id,
-                qty=contrib_qty * factor,
-            ))
-
-    await db.flush()
+        current_gen = next_gen
