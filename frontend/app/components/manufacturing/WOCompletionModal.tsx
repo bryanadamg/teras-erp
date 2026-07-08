@@ -86,8 +86,15 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
     const woWcType = ((workCenters || []).find((wc: any) => wc.id === workOrder?.work_center_id)?.center_type || '').toUpperCase();
     const isBeamOutput = !!workOrder
         && (isBeamItem(mo.item_id) || (mo.item_code || '').startsWith('BEAM-') || woWcType === 'BEAMING');
-    const isLotOutput = isBeamOutput || (!!workOrder && !!findItem(mo.item_id)?.lot_tracked);
+    // Greige (weaving) and dyed (dyeing) output are always traceable lots on the
+    // backend now too — surface the same lot-number field for them here.
+    const isLotOutput = isBeamOutput || (!!workOrder && !!findItem(mo.item_id)?.lot_tracked)
+        || ['WEAVING', 'TENUN', 'DYEING', 'CELUP'].includes(woWcType);
     const isWeavingWO = woWcType === 'WEAVING' || woWcType === 'TENUN';
+    const isDyeingWO = woWcType === 'DYEING' || woWcType === 'CELUP';
+    // Mirrors the backend's prefix choice in manufacturing.py's log-completion route.
+    const lotLabel = isBeamOutput ? 'Beam' : isWeavingWO ? 'Greige' : isDyeingWO ? 'Dyed Lot' : 'Lot';
+    const lotPrefix = isBeamOutput ? 'BM' : isWeavingWO ? 'GRG' : isDyeingWO ? 'DYE' : 'LOT';
 
     // Lot input: each material line with batch stock at the input location gets a lot picker
     const materialItemIds = workOrder ? Array.from(new Set(materialRows.map(r => r.item_id))) : [];
@@ -353,13 +360,13 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                             </div>
                             {isLotOutput && (
                                 <div>
-                                    <label style={{ ...xpLabel, fontWeight: 'bold' }}>{isBeamOutput ? 'Beam No.' : 'Lot No.'}</label>
+                                    <label style={{ ...xpLabel, fontWeight: 'bold' }}>{lotLabel} No.</label>
                                     <input
                                         type="text"
                                         style={xpInput}
                                         value={beamNumber}
                                         onChange={e => setBeamNumber(e.target.value)}
-                                        placeholder={isBeamOutput ? 'Leave empty to auto-generate (BM-YYYYMMDD-NNNN)' : 'Leave empty to auto-generate (LOT-YYYYMMDD-NNNN)'}
+                                        placeholder={`Leave empty to auto-generate (${lotPrefix}-YYYYMMDD-NNNN)`}
                                     />
                                     <div style={{ fontSize: 9, color: '#888', marginTop: 2 }}>
                                         Output is registered as a stock lot. Auto-generated number is shown in the entry notes.

@@ -267,7 +267,7 @@ export default function WorkOrderListView({
     const canComplete = (wo: FlatWO) => !wo.qty || (wo.qty_completed_total ?? 0) >= wo.qty;
     const canStage = (wo: FlatWO) =>
         canManage &&
-        (wo.bom_operation_id || (wo.work_center_type || '').toUpperCase() === 'WEAVING') &&
+        (wo.bom_operation_id || ['WEAVING', 'DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase())) &&
         wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED';
 
     const openLog = async (wo: FlatWO) => {
@@ -756,7 +756,7 @@ export default function WorkOrderListView({
                                                             );
                                                         })()
                                                         : '—'}
-                                                    {wo.bom_operation_id && (
+                                                    {(wo.bom_operation_id || ['WEAVING', 'DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase())) && (
                                                         <span style={{
                                                             marginLeft: 4, padding: '0 4px', fontSize: 8, fontWeight: 'bold', whiteSpace: 'nowrap',
                                                             border: '1px solid',

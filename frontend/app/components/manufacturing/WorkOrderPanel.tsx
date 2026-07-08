@@ -542,8 +542,8 @@ export default function WorkOrderPanel({
                                         </span>
                                     )}
 
-                                    {/* Staging status badge (only when this WO has a routing step) */}
-                                    {wo.bom_operation_id && (
+                                    {/* Staging status badge (routing step, or a staging-capable center) */}
+                                    {(wo.bom_operation_id || ['WEAVING', 'DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase())) && (
                                         <span style={{
                                             padding: '0 5px', fontSize: 9, fontWeight: 'bold', whiteSpace: 'nowrap',
                                             border: '1px solid',
@@ -610,7 +610,7 @@ export default function WorkOrderPanel({
 
                                     {/* Actions */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                                        {canEdit(wo) && (wo.bom_operation_id || (wo.work_center_type || '').toUpperCase() === 'WEAVING') && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
+                                        {canEdit(wo) && (wo.bom_operation_id || ['WEAVING', 'DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase())) && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
                                             <button
                                                 onClick={() => setStageWO(wo)}
                                                 title="Issue this step's materials to the line"

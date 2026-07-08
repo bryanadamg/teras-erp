@@ -919,16 +919,20 @@ async def add_mo_completion(
             raise HTTPException(status_code=404, detail="Output location not found")
         wo_output_loc = payload.output_location_id
 
+    wo_wc_type = None
+    if wo and wo.work_center_id:
+        wc_type_res2 = await db.execute(
+            select(WorkCenter.center_type).filter(WorkCenter.id == wo.work_center_id)
+        )
+        wo_wc_type = (wc_type_res2.scalar() or "").upper()
+
     is_beam_output = bool(
         mo.item and mo.item.category and (mo.item.category.name or "").lower() == "beam"
     )
     # Beaming WOs can live on the produced item's MO (Plan Beaming flow) —
     # a completion on a BEAMING-type work center is also a beam birth.
-    if not is_beam_output and wo and wo.work_center_id:
-        wc_res = await db.execute(
-            select(WorkCenter.center_type).filter(WorkCenter.id == wo.work_center_id)
-        )
-        is_beam_output = (wc_res.scalar() or "").upper() == "BEAMING"
+    if not is_beam_output and wo_wc_type == "BEAMING":
+        is_beam_output = True
     # Beam lineage: beams already merged (Start-WO, or an earlier completion on
     # this MO) peg to the MO with output_batch_id=None until a lot exists to
     # claim them. If a beam is about to merge in THIS completion instead, it
@@ -947,17 +951,29 @@ async def add_mo_completion(
         or bool(mo.item and mo.item.lot_tracked)
         or bool(pending_beam_pegs)
         or will_merge_beams
+        # Greige (weaving) and dyed (dyeing) output are always traceable lots,
+        # even when the item itself isn't flagged lot_tracked.
+        or wo_wc_type in ("WEAVING", "DYEING", "CELUP")
     )
     output_batch = None
     if needs_output_lot:
-        label = "Beam" if is_beam_output else "Lot"
+        # Prefix communicates what the lot physically is at a glance (greige vs.
+        # dyed vs. generic) — lineage itself is tracked via source_wo_id regardless.
+        if is_beam_output:
+            label, lot_prefix = "Beam", "BM"
+        elif wo_wc_type == "WEAVING":
+            label, lot_prefix = "Greige", "GRG"
+        elif wo_wc_type in ("DYEING", "CELUP"):
+            label, lot_prefix = "Dyed Lot", "DYE"
+        else:
+            label, lot_prefix = "Lot", "LOT"
         lot_no = (payload.beam_number or "").strip()
         if lot_no:
             dup = await db.execute(select(Batch.id).filter(Batch.batch_number == lot_no).limit(1))
             if dup.scalars().first():
                 raise HTTPException(status_code=400, detail=f"{label} number '{lot_no}' already exists")
         else:
-            lot_no = await generate_batch_number(db, prefix="BM" if is_beam_output else "LOT")
+            lot_no = await generate_batch_number(db, prefix=lot_prefix)
             # surface the generated number to the operator via completion notes
             payload.notes = f"{payload.notes} [{label} {lot_no}]" if payload.notes else f"{label} {lot_no}"
         if not wo_output_loc:
@@ -1119,8 +1135,10 @@ async def add_mo_completion(
             qty_change=float(payload.qty_completed),
             reference_type="Manufacturing Order",
             reference_id=mo.code,
-            # beam batch rows carry no variant attrs — batch is the identity
-            attribute_value_ids=[] if output_batch else [v.id for v in mo.attribute_values],
+            # Beam batch rows carry no variant attrs — the batch is the identity.
+            # Other batched outputs (greige, dyed lots) keep their variant attrs
+            # alongside the batch so per-color netting still finds them.
+            attribute_value_ids=[] if is_beam_output else [v.id for v in mo.attribute_values],
             batch_id=output_batch.id if output_batch else None,
         )
 
