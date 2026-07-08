@@ -10,6 +10,7 @@ import { useToast } from '../shared/Toast';
 const WOCompletionModal = dynamic(() => import('./WOCompletionModal'), { ssr: false });
 const WOStepPrintModal = dynamic(() => import('./WOStepPrintModal'), { ssr: false });
 const WOBulkPrintModal = dynamic(() => import('./WOBulkPrintModal'), { ssr: false });
+const WOStagingModal = dynamic(() => import('./WOStagingModal'), { ssr: false });
 import { getChipStyle } from './WorkOrderPanel';
 import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
@@ -97,6 +98,7 @@ interface FlatWO {
     completions?: any[];
     bom_line_item_ids?: string[];
     bom_operation_id?: string | null;
+    staging_status?: string;
     mo_id: string;
     mo_code: string;
     item_name: string;
@@ -125,6 +127,7 @@ export default function WorkOrderListView({
     const [editId, setEditId] = useState<string | null>(null);
     const [completionMO, setCompletionMO] = useState<any>(null);
     const [completionWO, setCompletionWO] = useState<any>(null);
+    const [stageWO, setStageWO] = useState<FlatWO | null>(null);
     const [printWO, setPrintWO] = useState<FlatWO | null>(null);
     const [printMO, setPrintMO] = useState<any>(null);
     const [selectedWOIds, setSelectedWOIds] = useState<Set<string>>(new Set());
@@ -262,6 +265,10 @@ export default function WorkOrderListView({
     };
 
     const canComplete = (wo: FlatWO) => !wo.qty || (wo.qty_completed_total ?? 0) >= wo.qty;
+    const canStage = (wo: FlatWO) =>
+        canManage &&
+        (wo.bom_operation_id || (wo.work_center_type || '').toUpperCase() === 'WEAVING') &&
+        wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED';
 
     const openLog = async (wo: FlatWO) => {
         const mo = await onFetchMO(wo.mo_id);
@@ -749,6 +756,20 @@ export default function WorkOrderListView({
                                                             );
                                                         })()
                                                         : '—'}
+                                                    {wo.bom_operation_id && (
+                                                        <span style={{
+                                                            marginLeft: 4, padding: '0 4px', fontSize: 8, fontWeight: 'bold', whiteSpace: 'nowrap',
+                                                            border: '1px solid',
+                                                            ...(wo.staging_status === 'STAGED'
+                                                                ? { background: '#d4f0d4', color: '#005500', borderColor: '#99cc99' }
+                                                                : wo.staging_status === 'PARTIAL'
+                                                                    ? { background: '#fff3cc', color: '#664400', borderColor: '#f0d888' }
+                                                                    : { background: '#f0e0e0', color: '#883333', borderColor: '#d8b0b0' }),
+                                                        }}>
+                                                            {wo.staging_status === 'STAGED' ? 'STAGED'
+                                                                : wo.staging_status === 'PARTIAL' ? 'PART.' : 'NOT ST.'}
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>
                                                     {wo.qty != null ? (() => {
@@ -798,6 +819,13 @@ export default function WorkOrderListView({
                                                 <td style={{ ...tdBase, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
                                                     {classic ? (
                                                         <>
+                                                            {canStage(wo) && (
+                                                                <button onClick={() => setStageWO(wo)}
+                                                                    title="Issue this step's materials to the line"
+                                                                    style={{ fontFamily: xpFont, fontSize: 10, padding: '1px 6px', background: 'linear-gradient(to bottom, #cfe0ff, #8fb3e8)', border: '1px solid #335599', cursor: 'pointer', color: '#0a2a66', marginRight: 4 }}>
+                                                                    Stage
+                                                                </button>
+                                                            )}
                                                             {canManage && (wo.status === 'PENDING' || wo.status === 'IN_PROGRESS') && (
                                                                 <button onClick={() => openLog(wo)}
                                                                     style={{ fontFamily: xpFont, fontSize: 10, padding: '1px 6px', background: 'linear-gradient(to bottom,#b0e8b0,#70c870)', border: '1px solid #0a3e0a', cursor: 'pointer', color: '#004000', marginRight: 4 }}>
@@ -808,6 +836,9 @@ export default function WorkOrderListView({
                                                         </>
                                                     ) : (
                                                         <>
+                                                            {canStage(wo) && (
+                                                                <button className="btn btn-sm btn-outline-primary py-0 px-2 me-1" style={{ fontSize: '0.72rem' }} onClick={() => setStageWO(wo)}>Stage</button>
+                                                            )}
                                                             {canManage && wo.status === 'PENDING' && (
                                                                 <button className="btn btn-sm btn-primary py-0 px-2 me-1" style={{ fontSize: '0.72rem' }} onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>Start</button>
                                                             )}
@@ -904,6 +935,13 @@ export default function WorkOrderListView({
                 workOrder={completionWO ?? undefined}
                 onClose={() => { setCompletionMO(null); setCompletionWO(null); }}
                 onSaved={() => { setCompletionMO(null); setCompletionWO(null); onRefresh(); }}
+            />
+        )}
+        {stageWO && (
+            <WOStagingModal
+                wo={stageWO}
+                onClose={() => setStageWO(null)}
+                onStaged={() => { setStageWO(null); onRefresh(); }}
             />
         )}
         {printWO && printMO && (
