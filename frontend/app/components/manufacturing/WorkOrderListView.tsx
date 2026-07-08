@@ -12,7 +12,7 @@ const WOStepPrintModal = dynamic(() => import('./WOStepPrintModal'), { ssr: fals
 const WOBulkPrintModal = dynamic(() => import('./WOBulkPrintModal'), { ssr: false });
 const WOStagingModal = dynamic(() => import('./WOStagingModal'), { ssr: false });
 import { getChipStyle } from './WorkOrderPanel';
-import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, StatusChip, XPEmptyState, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import SearchableSelect from '../shared/SearchableSelect';
 import { Tabs, TabDef } from '../shared/Tabs';
@@ -121,6 +121,8 @@ export default function WorkOrderListView({
     const { showToast } = useToast();
     // Floating "more actions" menu (Print / Edit / Delete)
     const { openId: openMenuId, pos: menuPos, toggle: toggleMenu, close: closeMenu } = useFloatingMenu();
+    // Floating status menu — lists WO lifecycle statuses + staging state/action together
+    const { openId: openStatusMenuId, pos: statusMenuPos, toggle: toggleStatusMenu, close: closeStatusMenu } = useFloatingMenu();
     const highlightedRowRef = useRef<HTMLTableRowElement | null>(null);
     const [highlightWOId, setHighlightWOId] = useState<string | null>(null);
 
@@ -603,14 +605,14 @@ export default function WorkOrderListView({
                                 <col style={{ width: 34 }} />   {/* # */}
                                 <col style={{ width: '20%' }} />{/* Name */}
                                 <col style={{ width: '9%' }} /> {/* Product */}
-                                <col style={{ width: '12%' }} />{/* Work Center */}
+                                <col style={{ width: '10%' }} />{/* Work Center */}
                                 <col style={{ width: 86 }} />   {/* Target/Done */}
                                 <col style={{ width: 90 }} />   {/* Target Start */}
                                 <col style={{ width: 90 }} />   {/* Target End */}
                                 <col style={{ width: 98 }} />   {/* Actual Start */}
                                 <col style={{ width: 98 }} />   {/* Actual End */}
                                 <col style={{ width: 98 }} />   {/* Created */}
-                                <col style={{ width: 108 }} />  {/* Status */}
+                                <col style={{ width: 128 }} />  {/* Status */}
                                 <col style={{ width: 126 }} />  {/* Actions */}
                             </colgroup>
                             <thead>
@@ -756,20 +758,6 @@ export default function WorkOrderListView({
                                                             );
                                                         })()
                                                         : '—'}
-                                                    {(wo.bom_operation_id || ['WEAVING', 'DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase())) && (
-                                                        <span style={{
-                                                            marginLeft: 4, padding: '0 4px', fontSize: 8, fontWeight: 'bold', whiteSpace: 'nowrap',
-                                                            border: '1px solid',
-                                                            ...(wo.staging_status === 'STAGED'
-                                                                ? { background: '#d4f0d4', color: '#005500', borderColor: '#99cc99' }
-                                                                : wo.staging_status === 'PARTIAL'
-                                                                    ? { background: '#fff3cc', color: '#664400', borderColor: '#f0d888' }
-                                                                    : { background: '#f0e0e0', color: '#883333', borderColor: '#d8b0b0' }),
-                                                        }}>
-                                                            {wo.staging_status === 'STAGED' ? 'STAGED'
-                                                                : wo.staging_status === 'PARTIAL' ? 'PART.' : 'NOT ST.'}
-                                                        </span>
-                                                    )}
                                                 </td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>
                                                     {wo.qty != null ? (() => {
@@ -800,21 +788,27 @@ export default function WorkOrderListView({
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>{fmtDateTime(wo.actual_end_date)}</td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11 }}>{fmtDateTime(wo.created_at)}</td>
                                                 <td style={tdBase} onClick={e => e.stopPropagation()}>
-                                                    {classic ? (
-                                                        <select value={wo.status}
-                                                            disabled={!canManage}
-                                                            onChange={e => {
-                                                                const s = e.target.value;
-                                                                if (s === 'COMPLETED' && !canComplete(wo)) {
-                                                                    showToast(`Target not reached: ${(wo.qty_completed_total ?? 0).toFixed(2)} of ${wo.qty} produced. Log more output first.`, 'warning');
-                                                                    return;
-                                                                }
-                                                                onUpdateStatus(wo.id, s);
-                                                            }}
-                                                            style={{ fontFamily: xpFont, fontSize: 10, border: '1px solid #aca899', background: '#ece9d8', color: STATUS_COLORS[wo.status] || '#000', height: 18, padding: '0 2px' }}>
-                                                            {STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-                                                        </select>
-                                                    ) : statusChip(wo.status)}
+                                                    {(() => {
+                                                        const hasStaging = !!(wo.bom_operation_id || ['WEAVING', 'DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase()));
+                                                        return (
+                                                            <div
+                                                                className="xp-menu-trigger"
+                                                                onClick={e => toggleStatusMenu(wo.id, e)}
+                                                                style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start', cursor: 'pointer' }}
+                                                            >
+                                                                {statusChip(wo.status)}
+                                                                {hasStaging && (
+                                                                    <StatusChip
+                                                                        status={wo.staging_status || 'NOT_STAGED'}
+                                                                        label={wo.staging_status === 'STAGED' ? 'Staged' : wo.staging_status === 'PARTIAL' ? 'Partial' : 'Not Staged'}
+                                                                        tint
+                                                                        title="Material staging status"
+                                                                        style={{ fontSize: 8, padding: '0 4px' }}
+                                                                    />
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </td>
                                                 <td style={{ ...tdBase, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
                                                     {classic ? (
@@ -884,6 +878,46 @@ export default function WorkOrderListView({
                                         key: 'delete', icon: 'bi-trash', label: 'Delete', danger: true,
                                         hidden: !canManage,
                                         onClick: () => { closeMenu(); onDelete(menuWO.id); },
+                                    },
+                                ]}
+                            />
+                        );
+                    })()}
+
+                    {/* Floating status menu — WO lifecycle statuses + staging state/action together */}
+                    {openStatusMenuId && (() => {
+                        const menuWO = sortedWOs.find((w: any) => w.id === openStatusMenuId);
+                        if (!menuWO) return null;
+                        const hasStaging = !!(menuWO.bom_operation_id || ['WEAVING', 'DYEING', 'CELUP'].includes((menuWO.work_center_type || '').toUpperCase()));
+                        const stagingLabel = menuWO.staging_status === 'STAGED' ? 'Staged — materials issued'
+                            : menuWO.staging_status === 'PARTIAL' ? 'Partially staged' : 'Not staged';
+                        return (
+                            <FloatingMenu
+                                pos={statusMenuPos}
+                                items={[
+                                    ...STATUSES.map(s => ({
+                                        key: `status-${s}`,
+                                        icon: s === menuWO.status ? 'bi-check2' : undefined,
+                                        label: s.replace('_', ' '),
+                                        hidden: !canManage,
+                                        onClick: () => {
+                                            closeStatusMenu();
+                                            if (s === 'COMPLETED' && !canComplete(menuWO)) {
+                                                showToast(`Target not reached: ${(menuWO.qty_completed_total ?? 0).toFixed(2)} of ${menuWO.qty} produced. Log more output first.`, 'warning');
+                                                return;
+                                            }
+                                            onUpdateStatus(menuWO.id, s);
+                                        },
+                                    })),
+                                    {
+                                        key: 'staging-info', icon: 'bi-box-seam',
+                                        label: `Staging: ${stagingLabel}`,
+                                        hidden: !hasStaging,
+                                        title: canStage(menuWO) ? 'Click to stage materials for this step' : undefined,
+                                        onClick: () => {
+                                            closeStatusMenu();
+                                            if (canStage(menuWO)) setStageWO(menuWO);
+                                        },
                                     },
                                 ]}
                             />
