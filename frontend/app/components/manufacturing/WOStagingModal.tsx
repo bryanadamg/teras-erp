@@ -71,10 +71,11 @@ export default function WOStagingModal({ wo, onClose, onStaged }: Props) {
                 const q: Record<string, string> = {};
                 data.forEach(r => { q[r.item_id] = r.shortfall > 0 ? String(r.shortfall) : ''; });
                 setQtyToStage(q);
-                // fetch lots for lot-tracked rows at their source location
-                const lotRows = data.filter(r => r.lot_tracked && r.source_location_id);
+                // Fetch lots/beams for lot-tracked rows plant-wide, not scoped to one
+                // resolved location — a beam from another machine/MO is still valid stock.
+                const lotRows = data.filter(r => r.lot_tracked);
                 const entries = await Promise.all(lotRows.map(async r => {
-                    const b = await authFetch(`${API_BASE}/batches?item_id=${r.item_id}&location_id=${r.source_location_id}&limit=200`);
+                    const b = await authFetch(`${API_BASE}/batches?item_id=${r.item_id}&limit=200`);
                     const list = b.ok ? await b.json() : [];
                     return [r.item_id, (list || []).filter((x: any) => (x.remaining ?? 0) > 0 && x.quality_status !== 'REJECTED')] as const;
                 }));
@@ -115,7 +116,9 @@ export default function WOStagingModal({ wo, onClose, onStaged }: Props) {
                     .map((b: any) => ({
                         item_id: r.item_id,
                         qty: b.remaining ?? 0,
-                        source_location_id: r.source_location_id || sourceByItem[r.item_id] || null,
+                        // Each beam/lot carries its own actual location — may differ from
+                        // the row's default-resolved source if it sits at another machine.
+                        source_location_id: b.location_id || r.source_location_id || sourceByItem[r.item_id] || null,
                         batch_id: b.id,
                         attribute_value_ids: r.attribute_value_ids || [],
                     }));
@@ -273,6 +276,7 @@ export default function WOStagingModal({ wo, onClose, onStaged }: Props) {
                                                                         />
                                                                         {b.batch_number}
                                                         {b.wo_code ? <span style={{ color: '#777' }}> — {b.wo_code}</span> : null}
+                                                        {b.location_name ? <span style={{ color: '#0058e6' }}> @ {b.location_name}</span> : null}
                                                         {' '}({(b.remaining ?? 0).toFixed(1)})
                                                                     </label>
                                                                 );
