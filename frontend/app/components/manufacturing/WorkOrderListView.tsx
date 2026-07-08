@@ -12,7 +12,7 @@ const WOStepPrintModal = dynamic(() => import('./WOStepPrintModal'), { ssr: fals
 const WOBulkPrintModal = dynamic(() => import('./WOBulkPrintModal'), { ssr: false });
 const WOStagingModal = dynamic(() => import('./WOStagingModal'), { ssr: false });
 import { getChipStyle } from './WorkOrderPanel';
-import { STATUS_COLORS, statusChipStyle, StatusChip, XPEmptyState, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import SearchableSelect from '../shared/SearchableSelect';
 import { Tabs, TabDef } from '../shared/Tabs';
@@ -612,7 +612,7 @@ export default function WorkOrderListView({
                                 <col style={{ width: 98 }} />   {/* Actual Start */}
                                 <col style={{ width: 98 }} />   {/* Actual End */}
                                 <col style={{ width: 98 }} />   {/* Created */}
-                                <col style={{ width: 128 }} />  {/* Status */}
+                                <col style={{ width: 112 }} />  {/* Status */}
                                 <col style={{ width: 126 }} />  {/* Actions */}
                             </colgroup>
                             <thead>
@@ -790,21 +790,20 @@ export default function WorkOrderListView({
                                                 <td style={tdBase} onClick={e => e.stopPropagation()}>
                                                     {(() => {
                                                         const hasStaging = !!(wo.bom_operation_id || ['WEAVING', 'DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase()));
+                                                        const stagingLabel = wo.staging_status === 'STAGED' ? 'Staged — materials issued'
+                                                            : wo.staging_status === 'PARTIAL' ? 'Partially staged' : 'Not staged';
+                                                        const stagingColor = wo.staging_status === 'STAGED' ? '#0058e6' : wo.staging_status === 'PARTIAL' ? '#b8860b' : '#999';
                                                         return (
                                                             <div
                                                                 className="xp-menu-trigger"
                                                                 onClick={e => toggleStatusMenu(wo.id, e)}
-                                                                style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start', cursor: 'pointer' }}
+                                                                style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}
                                                             >
                                                                 {statusChip(wo.status)}
                                                                 {hasStaging && (
-                                                                    <StatusChip
-                                                                        status={wo.staging_status || 'NOT_STAGED'}
-                                                                        label={wo.staging_status === 'STAGED' ? 'Staged' : wo.staging_status === 'PARTIAL' ? 'Partial' : 'Not Staged'}
-                                                                        tint
-                                                                        title="Material staging status"
-                                                                        style={{ fontSize: 8, padding: '0 4px' }}
-                                                                    />
+                                                                    <i className={`bi ${wo.staging_status === 'STAGED' ? 'bi-box-seam-fill' : 'bi-box-seam'}`}
+                                                                        title={stagingLabel}
+                                                                        style={{ fontSize: 12, color: stagingColor, flexShrink: 0 }} />
                                                                 )}
                                                             </div>
                                                         );
