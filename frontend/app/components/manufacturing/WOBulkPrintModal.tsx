@@ -49,7 +49,7 @@ export default function WOBulkPrintModal({
     useEffect(() => {
         Promise.all(
             selectedWOs.map(wo =>
-                QRCode.toDataURL(wo.id, { margin: 1, width: 200 })
+                QRCode.toDataURL(wo.id, { margin: 4, width: 320, errorCorrectionLevel: 'H' })
                     .then(url => [wo.id, url] as [string, string])
                     .catch(() => [wo.id, ''] as [string, string])
             )

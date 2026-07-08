@@ -35,6 +35,18 @@ export default function QRScannerView({
     const [error, setError] = useState<string | null>(null);
     const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
+    // `workOrders` prop actually receives the MO tree (root MOs with nested
+    // child_mos + work_orders, all_levels=true) — flatten it to the real WOs,
+    // same shape the mobile scanner (components/mobile/ScannerView.tsx) uses.
+    // QR codes encode WO.id (a UUID), not WO.code — match on id.
+    const isUUID = (s: string) =>
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+    const flattenMOs = (mos: any[]): any[] =>
+        (mos || []).flatMap((mo: any) => [mo, ...flattenMOs(mo.child_mos || [])]);
+    const allWOs = flattenMOs(workOrders).flatMap((mo: any) =>
+        (mo.work_orders || []).map((wo: any) => ({ ...wo, _mo: mo }))
+    );
+
     // --- XP Style Constants ---
     const xpBevel: React.CSSProperties = {
         border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
@@ -84,11 +96,16 @@ export default function QRScannerView({
     };
 
     const validateMaterials = (wo: any) => {
-        const bom = boms.find(b => b.id === wo.bom_id);
+        // WOs don't carry bom_id directly — the recipe lives on the parent MO.
+        const bom = wo._mo?.bom || boms.find((b: any) => b.id === wo._mo?.bom_id);
         if (!bom) return { ok: false, missing: [] };
+        // A WO tied to a routing step only consumes that step's lines; unassigned WOs use the whole recipe.
+        const lines = wo.bom_operation_id
+            ? (bom.lines || []).filter((l: any) => l.bom_operation_id === wo.bom_operation_id)
+            : (bom.lines || []);
 
         const missing: any[] = [];
-        for (const line of bom.lines) {
+        for (const line of lines) {
             const required = calculateRequiredQty(wo.qty, line, bom);
             const checkLocId = line.source_location_id || wo.source_location_id || wo.location_id;
             const { isEnough } = checkStockAvailability(line.item_id, checkLocId, line.attribute_value_ids, required);
@@ -112,28 +129,37 @@ export default function QRScannerView({
 
             scanner = new Html5QrcodeScanner(
                 "reader",
-                { fps: 10, qrbox: { width: 250, height: 250 } },
+                {
+                    fps: 10,
+                    qrbox: { width: 250, height: 250 },
+                    // Native BarcodeDetector (where available) is far more reliable than the
+                    // JS fallback decoder, and a sharp continuous-autofocus 720p stream avoids
+                    // the low-res/hunting-focus default the library otherwise opens.
+                    useBarCodeDetectorIfSupported: true,
+                    videoConstraints: {
+                        facingMode: { ideal: 'environment' },
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        focusMode: 'continuous',
+                        advanced: [{ focusMode: 'continuous' } as any],
+                    } as MediaTrackConstraints,
+                },
                 false
             );
             scannerRef.current = scanner;
 
-            const findByCode = (nodes: any[], code: string): any => {
-                for (const wo of nodes) {
-                    if (wo.code === code) return wo;
-                    const child = findByCode(wo.child_wos || [], code);
-                    if (child) return child;
-                }
-                return null;
-            };
-
             const onScanSuccess = (decodedText: string) => {
-                const found = findByCode(workOrders, decodedText);
+                if (!isUUID(decodedText)) {
+                    setError('Not a valid Work Order QR code.');
+                    return;
+                }
+                const found = allWOs.find((wo: any) => wo.id === decodedText);
                 if (found) {
                     setScannedWO(found);
                     setError(null);
                     scanner?.clear().catch(console.error);
                 } else {
-                    setError(`Work Order "${decodedText}" not found.`);
+                    setError(`WO "${decodedText.slice(0, 8)}..." not found in active orders.`);
                 }
             };
 
@@ -214,7 +240,7 @@ export default function QRScannerView({
                                     <div style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#666' }}>Active Work Order</div>
                                     <div style={{ fontFamily: "'Courier New', monospace", fontSize: '20px', fontWeight: 'bold', color: '#0058e6' }}>{scannedWO.code}</div>
                                     <div style={{ marginTop: 4 }}>
-                                        <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#444', marginRight: 6 }}>{getItemName(scannedWO.item_id)}</span>
+                                        <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#444', marginRight: 6 }}>{getItemName(scannedWO._mo?.item_id)}</span>
                                         <span style={xpStatusBadge(scannedWO.status)}>{scannedWO.status}</span>
                                     </div>
                                 </div>
@@ -306,7 +332,7 @@ export default function QRScannerView({
                                 <div className="extra-small text-muted text-uppercase fw-bold">Active Work Order</div>
                                 <h2 className="fw-bold mb-0 font-monospace text-primary">{scannedWO.code}</h2>
                                 <div className="mt-1">
-                                    <span className="small text-muted me-2">{getItemName(scannedWO.item_id)}</span>
+                                    <span className="small text-muted me-2">{getItemName(scannedWO._mo?.item_id)}</span>
                                     <span className={`badge ${scannedWO.status === 'COMPLETED' ? 'bg-success' : 'bg-warning text-dark'} extra-small`}>{scannedWO.status}</span>
                                 </div>
                             </div>

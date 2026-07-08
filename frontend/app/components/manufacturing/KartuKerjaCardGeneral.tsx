@@ -65,10 +65,10 @@ export default function KartuKerjaCardGeneral({
                     </div>
                 </div>
                 {/* QR — operator scans to open the log form */}
-                <div style={{ border: '2px solid #000', padding: '2px', flexShrink: 0, textAlign: 'center' }}>
+                <div style={{ border: '2px solid #000', padding: '4px', flexShrink: 0, textAlign: 'center' }}>
                     {qrDataUrl
-                        ? <img src={qrDataUrl} alt="QR" style={{ width: '84px', height: '84px', display: 'block' }} />
-                        : <div style={{ width: '84px', height: '84px', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '7px', color: '#888' }}>...</div>
+                        ? <img src={qrDataUrl} alt="QR" style={{ width: '112px', height: '112px', display: 'block' }} />
+                        : <div style={{ width: '112px', height: '112px', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '7px', color: '#888' }}>...</div>
                     }
                     <div style={{ fontSize: '6px', color: '#555', marginTop: '1px' }}>Scan in ERP Scanner</div>
                 </div>

@@ -151,7 +151,7 @@ export default function WorkOrderListView({
 
     useEffect(() => {
         if (!expandedWOId || woQrUrls[expandedWOId]) return;
-        QRCode.toDataURL(expandedWOId, { margin: 1, width: 200 })
+        QRCode.toDataURL(expandedWOId, { margin: 4, width: 320, errorCorrectionLevel: 'H' })
             .then(url => setWoQrUrls(prev => ({ ...prev, [expandedWOId]: url })))
             .catch(() => {});
     }, [expandedWOId]);

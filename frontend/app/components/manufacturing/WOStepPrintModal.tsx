@@ -47,7 +47,7 @@ export default function WOStepPrintModal({
     }, []);
 
     useEffect(() => {
-        QRCode.toDataURL(workOrder.id, { margin: 1, width: 240 })
+        QRCode.toDataURL(workOrder.id, { margin: 4, width: 320, errorCorrectionLevel: 'H' })
             .then(setQrDataUrl)
             .catch(() => {});
     }, [workOrder.id]);
