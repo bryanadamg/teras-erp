@@ -75,7 +75,13 @@ export default function ItemMetadataView({
     const nextValForEdit = activeAttribute ? getNextValue(activeAttribute.values) : null;
 
     const filteredUOMs = (uoms || []).filter((u: any) => u.name.toLowerCase().includes(uomSearch.toLowerCase()));
-    const filteredAttrs = (attributes || []).filter((a: any) => a.name.toLowerCase().includes(attrSearch.toLowerCase()));
+    // Combo values are managed exclusively in the dedicated Combo Library (Inventory
+    // nav) — they run into the thousands and are the library's write surface. Hide the
+    // Combo (system_role='combo') attribute here so it is not hand-edited in two places.
+    // The attribute + its values still exist underneath (load-bearing for BOM gating).
+    const filteredAttrs = (attributes || [])
+        .filter((a: any) => a.system_role !== 'combo')
+        .filter((a: any) => a.name.toLowerCase().includes(attrSearch.toLowerCase()));
     const sortedFilteredUOMs = [
         ...filteredUOMs.filter((u: any) => u.is_system),
         ...filteredUOMs.filter((u: any) => !u.is_system),

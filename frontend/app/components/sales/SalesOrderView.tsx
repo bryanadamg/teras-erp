@@ -39,6 +39,26 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const router = useRouter();
   const lineageEnvBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
   const LINEAGE_API_BASE = lineageEnvBase.endsWith('/api') ? lineageEnvBase : `${lineageEnvBase}/api`;
+
+  // Combo values are governed by the Combo Library. The combo AttributeValues mirror
+  // the library 1:1, so attr.values already tracks it — except archive. Pull the
+  // (small) archived set and subtract it, so the SO Combo dropdown shows ONLY active
+  // library combos. Excluding archived (vs. fetching active) avoids any list-cap
+  // truncation when active combos number in the thousands.
+  const [archivedComboValueIds, setArchivedComboValueIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+      (async () => {
+          try {
+              const res = await authFetch(`${LINEAGE_API_BASE}/combos?status=archived&size=500`);
+              if (res.ok) {
+                  const d = await res.json();
+                  setArchivedComboValueIds(new Set(
+                      (d.items ?? []).map((c: any) => String(c.attribute_value_id)).filter((x: string) => x && x !== 'null')
+                  ));
+              }
+          } catch { /* silent */ }
+      })();
+  }, [authFetch]); // eslint-disable-line react-hooks/exhaustive-deps
   const [lineageSO, setLineageSO] = useState<any>(null);
   const [lineageData, setLineageData] = useState<any>(null);
   const [lineageLoading, setLineageLoading] = useState(false);
@@ -1221,19 +1241,27 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                <div style={{background:'#ffffff',border:classic?'1px solid #b0a898':'1px solid #dee2e6',padding:classic?'4px 6px':'8px'}}>
                                    <div style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',fontWeight:'bold',color:'#444',marginBottom:4} : undefined} className={classic ? '' : 'text-muted fw-bold mb-2 small'}>Variants</div>
                                    <div className="row g-2">
-                                       {currentBoundAttrs.map((attr: any) => (
+                                       {currentBoundAttrs.map((attr: any) => {
+                                           // For the Combo attribute, show only active library combos
+                                           // (drop archived); other attributes list all values.
+                                           const isCombo = comboAttr && attr.id === comboAttr.id;
+                                           const opts = isCombo
+                                               ? (attr.values || []).filter((v: any) => !archivedComboValueIds.has(String(v.id)))
+                                               : (attr.values || []);
+                                           return (
                                            <div key={attr.id} className="col-md-4">
                                                <select
                                                    className="form-select form-select-sm"
                                                    style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',border:'1px solid #7f9db9',height:'22px',borderRadius:0,padding:'1px 4px',background:'#ffffff',outline:'none'} : undefined}
-                                                   value={newLine.attribute_value_ids.find(vid => attr.values.some((v: any) => v.id === vid)) || ''}
+                                                   value={newLine.attribute_value_ids.find(vid => opts.some((v: any) => v.id === vid)) || ''}
                                                    onChange={e => handleValueChange(e.target.value, attr.id)}
                                                >
                                                    <option value="">Any {attr.name}</option>
-                                                   {attr.values.map((v: any) => <option key={v.id} value={v.id}>{v.value}</option>)}
+                                                   {opts.map((v: any) => <option key={v.id} value={v.id}>{v.value}</option>)}
                                                </select>
                                            </div>
-                                       ))}
+                                           );
+                                       })}
                                    </div>
                                </div>
                            </div>
