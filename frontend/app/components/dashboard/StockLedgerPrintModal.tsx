@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import PrintModalShell from '../shared/PrintModalShell';
 
 type RefMeta = { label: string; classic: { bg: string; border: string; color: string } };
 const REF_META: Record<string, RefMeta> = {
@@ -162,11 +163,6 @@ export default function StockLedgerPrintModal({
         window.print();
     };
 
-    const headerStyle: React.CSSProperties = isClassic
-        ? { background: 'linear-gradient(to right, #0058e6, #08a5ff)', color: '#fff', fontFamily: 'Tahoma', fontWeight: 'bold', fontSize: 12, padding: '5px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }
-        : {};
-    const headerClass = isClassic ? '' : 'bg-primary text-white px-3 py-2 d-flex justify-content-between align-items-center';
-
     const xpBtnGrey: React.CSSProperties = isClassic
         ? { fontFamily: 'Tahoma', fontSize: 11, padding: '3px 12px', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', color: '#000' }
         : {};
@@ -189,13 +185,14 @@ export default function StockLedgerPrintModal({
 
     return (
         <>
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
-                <div style={{ background: '#fff', width: '96vw', maxWidth: 1300, height: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }} onClick={e => e.stopPropagation()}>
-                    <div style={headerStyle} className={headerClass}>
-                        <span>Print Stock Ledger — {entries.length.toLocaleString()} movement(s){hiddenCount > 0 ? ` of ${totals.total.toLocaleString()}` : ''}</span>
-                        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'inherit', fontSize: 16, cursor: 'pointer', lineHeight: 1, fontWeight: 'bold' }}>X</button>
-                    </div>
-
+            <PrintModalShell
+                title={`Print Stock Ledger — ${entries.length.toLocaleString()} movement(s)${hiddenCount > 0 ? ` of ${totals.total.toLocaleString()}` : ''}`}
+                onClose={onClose}
+                width="96vw"
+                maxWidth={1300}
+                height="90vh"
+                bevel={false}
+            >
                     <div style={{ flex: 1, background: '#e0e0e0', overflowY: 'auto', overflowX: 'auto', padding: 16 }}>
                         <div className="stock-ledger-print-paper" style={{ background: '#fff', width: 1090, minWidth: 1090, padding: '12px 16px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', fontSize: '8px', lineHeight: 1.4, color: '#000', fontFamily: 'Arial, sans-serif' }}>
                             {docContent}
@@ -218,8 +215,7 @@ export default function StockLedgerPrintModal({
                             )}
                         </div>
                     </div>
-                </div>
-            </div>
+            </PrintModalShell>
 
             {createPortal(
                 <div className="stock-ledger-print-portal" style={{ display: 'none' }}>

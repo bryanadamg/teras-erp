@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import PrintModalShell from '../shared/PrintModalShell';
 
 const STATIC_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000').replace(/\/api$/, '');
 
@@ -149,13 +150,6 @@ export default function WOPrintModal({
 
     const isClassic = currentStyle === 'classic';
 
-    const xpBevelStyle: React.CSSProperties = isClassic
-        ? { border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf' }
-        : {};
-    const headerStyle = isClassic
-        ? { background: 'linear-gradient(to right, #0058e6, #08a5ff)', color: '#fff', font: 'bold 12px Tahoma', padding: '5px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } as React.CSSProperties
-        : {} as React.CSSProperties;
-    const headerClass = isClassic ? '' : 'bg-primary text-white px-3 py-2 d-flex justify-content-between align-items-center';
     const xpBtnGrey: React.CSSProperties = isClassic
         ? { fontFamily: 'Tahoma', fontSize: '11px', padding: '3px 12px', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer' }
         : {};
@@ -387,21 +381,7 @@ export default function WOPrintModal({
 
     return (
         <>
-            {/* Backdrop + modal */}
-            <div
-                style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                onClick={onClose}
-            >
-                <div
-                    style={{ background: '#fff', width: '90vw', maxWidth: '960px', height: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.4)', ...xpBevelStyle }}
-                    onClick={e => e.stopPropagation()}
-                >
-                    {/* Modal header */}
-                    <div style={headerStyle} className={headerClass}>
-                        <span>Print SPK Produksi — {wo.code}</span>
-                        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'inherit', fontSize: '14px', cursor: 'pointer', lineHeight: '1', fontWeight: 'bold' }}>X</button>
-                    </div>
-
+            <PrintModalShell title={`Print SPK Produksi — ${wo.code}`} onClose={onClose}>
                     {/* Body */}
                     <div style={{ display: 'flex', flexDirection: 'row', flex: 1, overflow: 'hidden' }}>
 
@@ -497,8 +477,7 @@ export default function WOPrintModal({
                         </div>
                     </div>
 
-                </div>
-            </div>
+            </PrintModalShell>
 
             {/* Print portal */}
             {createPortal(

@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import PrintModalShell from '../shared/PrintModalShell';
 
 const STATIC_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000').replace(/\/api$/, '');
 
@@ -343,16 +344,7 @@ export default function BOMPrintModal({ bom, companyProfile, getAttributeValueNa
 
     return (
         <>
-            {/* Backdrop + modal */}
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
-                <div style={{ background: '#fff', width: '90vw', maxWidth: 980, height: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.4)', border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf' }} onClick={e => e.stopPropagation()}>
-
-                    {/* Header */}
-                    <div style={{ background: 'linear-gradient(to right, #0058e6, #08a5ff)', color: '#fff', font: 'bold 12px Tahoma', padding: '5px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-                        <span>Print BOM — {bom.code}</span>
-                        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 14, cursor: 'pointer', fontWeight: 'bold' }}>X</button>
-                    </div>
-
+            <PrintModalShell title={`Print BOM — ${bom.code}`} onClose={onClose} width="90vw" maxWidth={980} height="88vh">
                     {/* Body */}
                     <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
@@ -449,8 +441,7 @@ export default function BOMPrintModal({ bom, companyProfile, getAttributeValueNa
                         </div>
                     </div>
 
-                </div>
-            </div>
+            </PrintModalShell>
 
             {/* Print portal — print CSS makes this the only visible element */}
             {createPortal(

@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
+import PrintModalShell from '../shared/PrintModalShell';
 
 interface SOPrintSettings {
     preparedBy: string;
@@ -268,11 +269,6 @@ export default function SalesPrintModal({
         window.print();
     };
 
-    const headerStyle: React.CSSProperties = isClassic
-        ? { background: 'linear-gradient(to right, #0058e6, #08a5ff)', color: '#fff', fontFamily: 'Tahoma', fontWeight: 'bold', fontSize: 12, padding: '5px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }
-        : {};
-    const headerClass = isClassic ? '' : 'bg-primary text-white px-3 py-2 d-flex justify-content-between align-items-center';
-
     const xpBtnGrey: React.CSSProperties = isClassic
         ? { fontFamily: 'Tahoma', fontSize: 11, padding: '3px 12px', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', color: '#000' }
         : {};
@@ -297,20 +293,14 @@ export default function SalesPrintModal({
 
     return (
         <>
-            <div
-                style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                onClick={onClose}
+            <PrintModalShell
+                title={`Print Sales Order Confirmation — ${so.po_number}`}
+                onClose={onClose}
+                width="92vw"
+                maxWidth={1020}
+                height="90vh"
+                bevel={false}
             >
-                <div
-                    style={{ background: '#fff', width: '92vw', maxWidth: 1020, height: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}
-                    onClick={e => e.stopPropagation()}
-                >
-                    {/* Header */}
-                    <div style={headerStyle} className={headerClass}>
-                        <span>Print Sales Order Confirmation — {so.po_number}</span>
-                        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'inherit', fontSize: 16, cursor: 'pointer', lineHeight: 1, fontWeight: 'bold' }}>X</button>
-                    </div>
-
                     {/* Body */}
                     <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
@@ -382,8 +372,7 @@ export default function SalesPrintModal({
                             )}
                         </div>
                     </div>
-                </div>
-            </div>
+            </PrintModalShell>
 
             {/* Print portal — rendered into body, shown only during actual print */}
             {createPortal(

@@ -6,6 +6,7 @@ import JsBarcode from 'jsbarcode';
 import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
 import BagLabelCard from './BagLabelCard';
+import PrintModalShell from '../shared/PrintModalShell';
 
 // Code 128 (1D) so the factory's existing laser barcode scanners can read the
 // lot number too — not everyone has a phone/2D imager. Rendered to a PNG data
@@ -87,33 +88,21 @@ export default function BagLabelPrintModal({
         </div>
     );
 
-    const headerStyle: React.CSSProperties = isClassic
-        ? { background: 'linear-gradient(to right, #0058e6, #08a5ff)', color: '#fff', font: 'bold 12px Tahoma', padding: '5px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }
-        : {};
-    const headerClass = isClassic ? '' : 'bg-primary text-white px-3 py-2 d-flex justify-content-between align-items-center';
     const xpBtnGrey: React.CSSProperties = isClassic
         ? { fontFamily: 'Tahoma', fontSize: '11px', padding: '3px 12px', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer' }
         : {};
     const xpBtnGreen: React.CSSProperties = isClassic
         ? { fontFamily: 'Tahoma', fontSize: '11px', padding: '3px 14px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }
         : {};
-    const xpBevelStyle: React.CSSProperties = isClassic ? { border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf' } : {};
-
     return (
         <>
-            <div
-                style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 20300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                onClick={onClose}
+            <PrintModalShell
+                title={`Print Bag Labels — ${bags.length} ${bags.length === 1 ? 'bag' : 'bags'} (${parentMO?.code})`}
+                onClose={onClose}
+                width="90vw"
+                maxWidth={880}
+                height="88vh"
             >
-                <div
-                    style={{ background: '#fff', width: '90vw', maxWidth: '880px', height: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.4)', ...xpBevelStyle }}
-                    onClick={e => e.stopPropagation()}
-                >
-                    <div style={headerStyle} className={headerClass}>
-                        <span>Print Bag Labels — {bags.length} {bags.length === 1 ? 'bag' : 'bags'} ({parentMO?.code})</span>
-                        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'inherit', fontSize: '14px', cursor: 'pointer', lineHeight: '1', fontWeight: 'bold' }}>X</button>
-                    </div>
-
                     <div style={{ flex: 1, background: '#e0e0e0', overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
                         {bags.length === 0 && (
                             <div style={{ color: '#555', fontSize: '12px', marginTop: '40px', fontFamily: 'Tahoma, sans-serif' }}>
@@ -142,8 +131,7 @@ export default function BagLabelPrintModal({
                             </>
                         )}
                     </div>
-                </div>
-            </div>
+            </PrintModalShell>
 
             {createPortal(
                 <div className="bag-label-print-portal" style={{ display: 'none' }}>

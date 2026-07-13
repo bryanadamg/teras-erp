@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
 import KartuKerjaCard from './KartuKerjaCard';
+import PrintModalShell from '../shared/PrintModalShell';
 
 interface PrintSettings {
     showMaterials: boolean;
@@ -100,27 +101,9 @@ export default function WOBulkPrintModal({
     const xpBtnGreen: React.CSSProperties = isClassicBool
         ? { fontFamily: 'Tahoma', fontSize: '11px', padding: '3px 14px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }
         : {};
-    const xpBevelStyle: React.CSSProperties = isClassicBool ? { border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf' } : {};
-    const headerStyle: React.CSSProperties = isClassicBool
-        ? { background: 'linear-gradient(to right, #0058e6, #08a5ff)', color: '#fff', font: 'bold 12px Tahoma', padding: '5px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }
-        : {};
-    const headerClass = isClassicBool ? '' : 'bg-primary text-white px-3 py-2 d-flex justify-content-between align-items-center';
-
     return (
         <>
-            <div
-                style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                onClick={onClose}
-            >
-                <div
-                    style={{ background: '#fff', width: '92vw', maxWidth: '960px', height: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.4)', ...xpBevelStyle }}
-                    onClick={e => e.stopPropagation()}
-                >
-                    <div style={headerStyle} className={headerClass}>
-                        <span>Bulk Print Kartu Kerja — {selectedWOs.length} WO</span>
-                        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'inherit', fontSize: '14px', cursor: 'pointer', lineHeight: '1', fontWeight: 'bold' }}>X</button>
-                    </div>
-
+            <PrintModalShell title={`Bulk Print Kartu Kerja — ${selectedWOs.length} WO`} onClose={onClose} width="92vw" height="90vh">
                     <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
                         {/* Settings panel */}
                         <div style={{ width: '200px', minWidth: '200px', borderRight: '1px solid #dee2e6', background: '#f8f9fa', padding: '14px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -186,8 +169,7 @@ export default function WOBulkPrintModal({
                             </>
                         )}
                     </div>
-                </div>
-            </div>
+            </PrintModalShell>
 
             {createPortal(
                 <div className="wo-bulk-print-portal" style={{ display: 'none' }}>

@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import PrintModalShell from '../shared/PrintModalShell';
 
 interface SamplePrintSettings {
     preparedBy: string;
@@ -300,14 +301,6 @@ export default function SamplePrintModal({
     }, []);
 
     // Shared style tokens
-    const modalBorder: React.CSSProperties = isClassic
-        ? { border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf' }
-        : {};
-    const headerStyle: React.CSSProperties = isClassic
-        ? { background: 'linear-gradient(to right, #0058e6, #08a5ff)', color: '#fff', fontFamily: 'Tahoma', fontWeight: 'bold', fontSize: 12, padding: '5px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }
-        : {};
-    const headerClass = isClassic ? '' : 'bg-primary text-white px-3 py-2 d-flex justify-content-between align-items-center';
-
     const xpBtnGrey: React.CSSProperties = isClassic
         ? { fontFamily: 'Tahoma', fontSize: 11, padding: '3px 12px', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', color: '#000' }
         : {};
@@ -347,21 +340,11 @@ export default function SamplePrintModal({
 
     return (
         <>
-            {/* ── Backdrop + modal ── */}
-            <div
-                style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                onClick={onClose}
+            <PrintModalShell
+                title={<><i className="bi bi-printer" style={{ marginRight: 4 }} />Print SPK Sample — {sample.code}</>}
+                onClose={onClose}
+                closeGlyph="✕"
             >
-                <div
-                    style={{ background: '#fff', width: '90vw', maxWidth: 960, height: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.4)', ...modalBorder }}
-                    onClick={e => e.stopPropagation()}
-                >
-                    {/* Header */}
-                    <div style={headerStyle} className={headerClass}>
-                        <span><i className="bi bi-printer" style={{ marginRight: 4 }} />Print SPK Sample — {sample.code}</span>
-                        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'inherit', fontSize: 14, cursor: 'pointer', lineHeight: 1 }}>✕</button>
-                    </div>
-
                     {/* Body */}
                     <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
@@ -434,8 +417,7 @@ export default function SamplePrintModal({
                         </div>
                     </div>
 
-                </div>
-            </div>
+            </PrintModalShell>
 
             {/* ── Print portal ── */}
             {createPortal(

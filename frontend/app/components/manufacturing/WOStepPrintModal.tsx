@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
 import KartuKerjaCard from './KartuKerjaCard';
+import PrintModalShell from '../shared/PrintModalShell';
 
 interface StepPrintSettings {
     showMaterials: boolean;
@@ -69,17 +70,12 @@ export default function WOStepPrintModal({
         />
     );
 
-    const headerStyle: React.CSSProperties = isClassic
-        ? { background: 'linear-gradient(to right, #0058e6, #08a5ff)', color: '#fff', font: 'bold 12px Tahoma', padding: '5px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }
-        : {};
-    const headerClass = isClassic ? '' : 'bg-primary text-white px-3 py-2 d-flex justify-content-between align-items-center';
     const xpBtnGrey: React.CSSProperties = isClassic
         ? { fontFamily: 'Tahoma', fontSize: '11px', padding: '3px 12px', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer' }
         : {};
     const xpBtnGreen: React.CSSProperties = isClassic
         ? { fontFamily: 'Tahoma', fontSize: '11px', padding: '3px 14px', background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', border: '1px solid', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }
         : {};
-    const xpBevelStyle: React.CSSProperties = isClassic ? { border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf' } : {};
     const sectionLabelStyle: React.CSSProperties = { fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', color: '#212529', letterSpacing: '0.5px', marginBottom: '6px' };
     const toggleLabelStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#212529', cursor: 'pointer' };
     const fieldLabelStyle: React.CSSProperties = { fontSize: '10px', color: '#212529', marginBottom: '3px', fontWeight: '500' };
@@ -87,19 +83,7 @@ export default function WOStepPrintModal({
 
     return (
         <>
-            <div
-                style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                onClick={onClose}
-            >
-                <div
-                    style={{ background: '#fff', width: '90vw', maxWidth: '880px', height: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.4)', ...xpBevelStyle }}
-                    onClick={e => e.stopPropagation()}
-                >
-                    <div style={headerStyle} className={headerClass}>
-                        <span>Print Kartu Kerja — {workOrder.name} ({parentMO?.code})</span>
-                        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'inherit', fontSize: '14px', cursor: 'pointer', lineHeight: '1', fontWeight: 'bold' }}>X</button>
-                    </div>
-
+            <PrintModalShell title={`Print Kartu Kerja — ${workOrder.name} (${parentMO?.code})`} onClose={onClose} width="90vw" maxWidth={880} height="88vh">
                     <div style={{ display: 'flex', flexDirection: 'row', flex: 1, overflow: 'hidden' }}>
                         {/* Settings panel */}
                         <div style={{ width: '200px', minWidth: '200px', borderRight: '1px solid #dee2e6', background: '#f8f9fa', padding: '14px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -152,8 +136,7 @@ export default function WOStepPrintModal({
                             </>
                         )}
                     </div>
-                </div>
-            </div>
+            </PrintModalShell>
 
             {createPortal(
                 <div className="wo-print-paper-portal" style={{ display: 'none' }}>
