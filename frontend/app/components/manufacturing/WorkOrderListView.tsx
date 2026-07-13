@@ -887,17 +887,10 @@ export default function WorkOrderListView({
                                                     {classic ? (
                                                         <>
                                                             {canStage(wo) && (
-                                                                <button onClick={() => setStageWO(wo)}
+                                                                <button onClick={() => (canScanStage(wo) ? setScanStageWO(wo) : setStageWO(wo))}
                                                                     title="Issue this step's materials to the line"
                                                                     style={{ fontFamily: xpFont, fontSize: 10, padding: '1px 6px', background: 'linear-gradient(to bottom, #cfe0ff, #8fb3e8)', border: '1px solid #335599', cursor: 'pointer', color: '#0a2a66', marginRight: 4 }}>
                                                                     Stage
-                                                                </button>
-                                                            )}
-                                                            {canScanStage(wo) && (
-                                                                <button onClick={() => setScanStageWO(wo)}
-                                                                    title="Scan greige bags to stage into dyeing"
-                                                                    style={{ fontFamily: xpFont, fontSize: 10, padding: '1px 6px', background: 'linear-gradient(to bottom, #d8ccf0, #a888e0)', border: '1px solid #5a3a99', cursor: 'pointer', color: '#2a0a66', marginRight: 4 }}>
-                                                                    Scan
                                                                 </button>
                                                             )}
                                                             {canManage && (wo.status === 'PENDING' || wo.status === 'IN_PROGRESS') && (
@@ -911,10 +904,7 @@ export default function WorkOrderListView({
                                                     ) : (
                                                         <>
                                                             {canStage(wo) && (
-                                                                <button className="btn btn-sm btn-outline-primary py-0 px-2 me-1" style={{ fontSize: '0.72rem' }} onClick={() => setStageWO(wo)}>Stage</button>
-                                                            )}
-                                                            {canScanStage(wo) && (
-                                                                <button className="btn btn-sm btn-outline-secondary py-0 px-2 me-1" style={{ fontSize: '0.72rem' }} onClick={() => setScanStageWO(wo)}>Scan</button>
+                                                                <button className="btn btn-sm btn-outline-primary py-0 px-2 me-1" style={{ fontSize: '0.72rem' }} onClick={() => (canScanStage(wo) ? setScanStageWO(wo) : setStageWO(wo))}>Stage</button>
                                                             )}
                                                             {canManage && wo.status === 'PENDING' && (
                                                                 <button className="btn btn-sm btn-primary py-0 px-2 me-1" style={{ fontSize: '0.72rem' }} onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>Start</button>
@@ -999,7 +989,8 @@ export default function WorkOrderListView({
                                         title: canStage(menuWO) ? 'Click to stage materials for this step' : undefined,
                                         onClick: () => {
                                             closeStatusMenu();
-                                            if (canStage(menuWO)) setStageWO(menuWO);
+                                            if (canScanStage(menuWO)) setScanStageWO(menuWO);
+                                            else if (canStage(menuWO)) setStageWO(menuWO);
                                         },
                                     },
                                 ]}
@@ -1059,6 +1050,7 @@ export default function WorkOrderListView({
                 wo={stageWO}
                 onClose={() => setStageWO(null)}
                 onStaged={() => { setStageWO(null); onRefresh(); }}
+                onScanMode={canScanStage(stageWO) ? () => { const w = stageWO; setStageWO(null); setScanStageWO(w); } : undefined}
             />
         )}
         {scanStageWO && (
@@ -1066,6 +1058,7 @@ export default function WorkOrderListView({
                 wo={scanStageWO}
                 onClose={() => setScanStageWO(null)}
                 onStaged={() => { setScanStageWO(null); onRefresh(); }}
+                onManualMode={() => { const w = scanStageWO; setScanStageWO(null); setStageWO(w); }}
             />
         )}
         {labelBags && labelMO && (

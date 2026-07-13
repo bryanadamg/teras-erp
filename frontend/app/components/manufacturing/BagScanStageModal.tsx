@@ -40,6 +40,7 @@ interface Props {
     wo: any;
     onClose: () => void;
     onStaged: (updatedWO: any) => void;
+    onManualMode?: () => void;   // switch to the manual (pick/qty) staging modal
 }
 
 /**
@@ -49,7 +50,7 @@ interface Props {
  * move (over-stage allowed, with a warning past the WO's required qty). Commits
  * through the standard POST /work-orders/{id}/stage with allow_overstage=true.
  */
-export default function BagScanStageModal({ wo, onClose, onStaged }: Props) {
+export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode }: Props) {
     const { authFetch } = useData() as any;
     const { showToast } = useToast();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
@@ -227,6 +228,12 @@ export default function BagScanStageModal({ wo, onClose, onStaged }: Props) {
             }
         >
             <div style={{ fontFamily: xpFont, fontSize: 11 }}>
+                {onManualMode && (
+                    <div style={{ display: 'flex', gap: 0, marginBottom: 8, border: '1px solid #7f9db9', width: 'fit-content' }}>
+                        <button onClick={onManualMode} style={{ ...xpBtn(false), border: 'none', borderRight: '1px solid #7f9db9', padding: '3px 12px' }}>Manual</button>
+                        <span style={{ padding: '3px 12px', fontWeight: 'bold', background: 'linear-gradient(to bottom,#cfe0ff,#8fb3e8)', color: '#0a2a66' }}>Scan bags</span>
+                    </div>
+                )}
                 <div style={{ fontSize: 10, color: '#555', marginBottom: 8 }}>
                     Scan each bag to stage it into this dyeing WO&apos;s input location
                     (<b>{wo.input_location?.code || wo.input_location_id || 'no input location'}</b>).

@@ -42,9 +42,10 @@ interface Props {
     wo: any;
     onClose: () => void;
     onStaged: (updatedWO: any) => void;
+    onScanMode?: () => void;   // switch to the scan-bags staging modal (dyeing)
 }
 
-export default function WOStagingModal({ wo, onClose, onStaged }: Props) {
+export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Props) {
     const { authFetch, locations } = useData() as any;
     const { showToast } = useToast();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
@@ -183,6 +184,12 @@ export default function WOStagingModal({ wo, onClose, onStaged }: Props) {
             }
         >
             <div style={{ fontFamily: xpFont, fontSize: 11 }}>
+                {onScanMode && (
+                    <div style={{ display: 'flex', gap: 0, marginBottom: 8, border: '1px solid #7f9db9', width: 'fit-content' }}>
+                        <span style={{ padding: '3px 12px', fontWeight: 'bold', background: 'linear-gradient(to bottom,#cfe0ff,#8fb3e8)', color: '#0a2a66' }}>Manual</span>
+                        <button onClick={onScanMode} style={{ ...xpBtn(false), border: 'none', borderLeft: '1px solid #7f9db9', padding: '3px 12px' }}>Scan bags</button>
+                    </div>
+                )}
                 <div style={{ fontSize: 10, color: '#555', marginBottom: 8 }}>
                     Moves each material from its source store into this work order&apos;s input location
                     (<b>{wo.input_location?.code || wo.input_location_id || 'no input location'}</b>).
