@@ -75,12 +75,16 @@ export default function ItemMetadataView({
     const nextValForEdit = activeAttribute ? getNextValue(activeAttribute.values) : null;
 
     const filteredUOMs = (uoms || []).filter((u: any) => u.name.toLowerCase().includes(uomSearch.toLowerCase()));
-    // Combo values are managed exclusively in the dedicated Combo Library (Inventory
-    // nav) — they run into the thousands and are the library's write surface. Hide the
-    // Combo (system_role='combo') attribute here so it is not hand-edited in two places.
-    // The attribute + its values still exist underneath (load-bearing for BOM gating).
+    // Reference lists that now have dedicated master libraries are hidden here so they
+    // are not hand-edited in two places:
+    //   - Combo (system_role='combo')          → Combo Library (Inventory nav)
+    //   - Color Code (system_role='labdip_color') → Color Library (Dyeing & Setting nav)
+    // Each attribute + its values still exist underneath (load-bearing: Combo gates BOM
+    // selection; labdip_color is the legacy fallback the libraries mirror to). The
+    // `Colors` variant + `Materials` attrs stay — they are managed here, not in a library.
+    const HIDDEN_LIBRARY_ROLES = ['combo', 'labdip_color'];
     const filteredAttrs = (attributes || [])
-        .filter((a: any) => a.system_role !== 'combo')
+        .filter((a: any) => !HIDDEN_LIBRARY_ROLES.includes(a.system_role))
         .filter((a: any) => a.name.toLowerCase().includes(attrSearch.toLowerCase()));
     const sortedFilteredUOMs = [
         ...filteredUOMs.filter((u: any) => u.is_system),

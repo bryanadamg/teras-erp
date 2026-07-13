@@ -178,7 +178,10 @@ export default function LabDipRequestView({
     // `labdip_color` attribute values only if the library has not been populated yet.
     const colorOptions = useMemo(() => {
         if (colors && colors.length) {
-            return colors.map((c: any) => ({ value: c.id, label: c.code ? `${c.code} — ${c.name}` : c.name }));
+            // Only offer active library colors; archived shades drop out of the picker.
+            return colors
+                .filter((c: any) => (c.status ?? 'active') === 'active')
+                .map((c: any) => ({ value: c.id, label: c.code ? `${c.code} — ${c.name}` : c.name }));
         }
         const attr = (attributes as any[]).find((a: any) => a.system_role === 'labdip_color');
         return (attr?.values ?? []).map((v: any) => ({ value: v.value, label: v.value }));
