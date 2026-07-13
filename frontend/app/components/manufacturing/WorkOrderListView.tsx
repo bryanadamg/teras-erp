@@ -12,6 +12,7 @@ const WOStepPrintModal = dynamic(() => import('./WOStepPrintModal'), { ssr: fals
 const WOBulkPrintModal = dynamic(() => import('./WOBulkPrintModal'), { ssr: false });
 const WOStagingModal = dynamic(() => import('./WOStagingModal'), { ssr: false });
 const BagLabelPrintModal = dynamic(() => import('./BagLabelPrintModal'), { ssr: false });
+const BagScanStageModal = dynamic(() => import('./BagScanStageModal'), { ssr: false });
 import { getChipStyle } from './WorkOrderPanel';
 import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
@@ -131,6 +132,7 @@ export default function WorkOrderListView({
     const [completionMO, setCompletionMO] = useState<any>(null);
     const [completionWO, setCompletionWO] = useState<any>(null);
     const [stageWO, setStageWO] = useState<FlatWO | null>(null);
+    const [scanStageWO, setScanStageWO] = useState<FlatWO | null>(null);
     const [printWO, setPrintWO] = useState<FlatWO | null>(null);
     const [printMO, setPrintMO] = useState<any>(null);
     const [selectedWOIds, setSelectedWOIds] = useState<Set<string>>(new Set());
@@ -280,6 +282,10 @@ export default function WorkOrderListView({
         canManage &&
         (wo.bom_operation_id || ['WEAVING', 'DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase())) &&
         wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED';
+    // Scan-to-stage is for dyeing, where the greige substrate arrives as many
+    // bagged lots the operator scans in rather than picking manually.
+    const canScanStage = (wo: FlatWO) =>
+        canStage(wo) && ['DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase());
 
     const openLog = async (wo: FlatWO) => {
         const mo = await onFetchMO(wo.mo_id);
@@ -887,6 +893,13 @@ export default function WorkOrderListView({
                                                                     Stage
                                                                 </button>
                                                             )}
+                                                            {canScanStage(wo) && (
+                                                                <button onClick={() => setScanStageWO(wo)}
+                                                                    title="Scan greige bags to stage into dyeing"
+                                                                    style={{ fontFamily: xpFont, fontSize: 10, padding: '1px 6px', background: 'linear-gradient(to bottom, #d8ccf0, #a888e0)', border: '1px solid #5a3a99', cursor: 'pointer', color: '#2a0a66', marginRight: 4 }}>
+                                                                    Scan
+                                                                </button>
+                                                            )}
                                                             {canManage && (wo.status === 'PENDING' || wo.status === 'IN_PROGRESS') && (
                                                                 <button onClick={() => openLog(wo)}
                                                                     style={{ fontFamily: xpFont, fontSize: 10, padding: '1px 6px', background: 'linear-gradient(to bottom,#b0e8b0,#70c870)', border: '1px solid #0a3e0a', cursor: 'pointer', color: '#004000', marginRight: 4 }}>
@@ -899,6 +912,9 @@ export default function WorkOrderListView({
                                                         <>
                                                             {canStage(wo) && (
                                                                 <button className="btn btn-sm btn-outline-primary py-0 px-2 me-1" style={{ fontSize: '0.72rem' }} onClick={() => setStageWO(wo)}>Stage</button>
+                                                            )}
+                                                            {canScanStage(wo) && (
+                                                                <button className="btn btn-sm btn-outline-secondary py-0 px-2 me-1" style={{ fontSize: '0.72rem' }} onClick={() => setScanStageWO(wo)}>Scan</button>
                                                             )}
                                                             {canManage && wo.status === 'PENDING' && (
                                                                 <button className="btn btn-sm btn-primary py-0 px-2 me-1" style={{ fontSize: '0.72rem' }} onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>Start</button>
@@ -1043,6 +1059,13 @@ export default function WorkOrderListView({
                 wo={stageWO}
                 onClose={() => setStageWO(null)}
                 onStaged={() => { setStageWO(null); onRefresh(); }}
+            />
+        )}
+        {scanStageWO && (
+            <BagScanStageModal
+                wo={scanStageWO}
+                onClose={() => setScanStageWO(null)}
+                onStaged={() => { setScanStageWO(null); onRefresh(); }}
             />
         )}
         {labelBags && labelMO && (

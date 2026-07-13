@@ -823,12 +823,16 @@ async def stage_wo_materials(
         if not rr:
             raise HTTPException(status_code=400, detail=f"Item {line.item_id} is not a material of this WO's step")
         # Cap top-up at the remaining shortfall so re-staging (or multiple batch
-        # lines for the same item) can't double-count.
+        # lines for the same item) can't double-count. Scan-to-stage sets
+        # allow_overstage to move whole physical lots even past the step's need.
         already_moved = moved_so_far.get(str(line.item_id), 0.0)
-        remaining = max(0.0, rr.required_qty - rr.staged - already_moved)
-        if remaining <= 0:
-            continue
-        move_qty = min(qty, remaining)
+        if payload.allow_overstage:
+            move_qty = qty
+        else:
+            remaining = max(0.0, rr.required_qty - rr.staged - already_moved)
+            if remaining <= 0:
+                continue
+            move_qty = min(qty, remaining)
         moved_so_far[str(line.item_id)] = already_moved + move_qty
         src = line.source_location_id or rr.source_location_id
         if not src:

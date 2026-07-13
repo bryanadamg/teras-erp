@@ -256,6 +256,26 @@ async def list_batches_paginated(
     return PaginatedBatchResponse(items=batches, total=total, page=page, size=size)
 
 
+@router.get("/resolve", response_model=BatchResponse)
+async def resolve_batch_by_number(
+    number: str = Query(..., description="Exact lot/batch number (from a scanned bag QR)"),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Resolve a scanned lot number to its enriched batch (remaining, current
+    location, item, quality). Powers scan-to-stage — the bag label QR encodes
+    the lot number. Exact match; 404 if unknown. Declared before /{batch_id} so
+    'resolve' isn't parsed as a UUID path param."""
+    result = await db.execute(
+        select(Batch).options(joinedload(Batch.item)).filter(Batch.batch_number == number.strip())
+    )
+    batch = result.scalars().first()
+    if not batch:
+        raise HTTPException(status_code=404, detail=f"Lot '{number}' not found")
+    enriched = await _enrich_batches(db, [batch])
+    return enriched[0]
+
+
 @router.get("/{batch_id}", response_model=BatchResponse)
 async def get_batch(
     batch_id: uuid.UUID,
