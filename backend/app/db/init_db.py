@@ -151,6 +151,47 @@ def seed_uoms(db):
         logger.warning(f"UOM seeding skipped: {e}")
 
 
+def backfill_combo_library(db):
+    """Copy existing `Combo` variant AttributeValues into the combos master table and
+    link each combo back to its source value. Idempotent — only inserts combos for
+    values not already mirrored. Runs every startup so any value added outside the
+    library (legacy path) is drawn into it. Combo values are large in count, so this
+    library is their permanent home; the inline attribute list is the legacy source."""
+    try:
+        from app.models.attribute import Attribute, AttributeValue
+        from app.models.combo import Combo
+
+        attr = db.query(Attribute).filter(Attribute.system_role == "combo").first()
+        if not attr:
+            return
+        values = db.query(AttributeValue).filter(AttributeValue.attribute_id == attr.id).all()
+        if not values:
+            return
+
+        linked_ids = {c.attribute_value_id for c in db.query(Combo).all() if c.attribute_value_id}
+        existing_codes = {c.code for c in db.query(Combo).all()}
+        created = 0
+        for av in values:
+            if av.id in linked_ids:
+                continue
+            # Derive a stable unique code from the value label; disambiguate collisions.
+            base = (av.value or "").strip() or f"COMBO-{str(av.id)[:8]}"
+            code = base
+            n = 1
+            while code in existing_codes:
+                n += 1
+                code = f"{base}-{n}"
+            existing_codes.add(code)
+            db.add(Combo(code=code, name=av.value, status="active", attribute_value_id=av.id))
+            created += 1
+        if created:
+            db.commit()
+            logger.info(f"Backfilled {created} combo(s) into the Combo library")
+    except Exception as e:
+        db.rollback()
+        logger.warning(f"Combo library backfill skipped: {e}")
+
+
 def seed_operations(db):
     try:
         from app.models.routing import Operation
@@ -393,6 +434,7 @@ def init_db() -> None:
         seed_operations(db)
         seed_rbac(db)
         seed_system_attributes(db)
+        backfill_combo_library(db)
         seed_sizes(db)
         seed_system_locations(db)
         backfill_mo_planned_components(db)

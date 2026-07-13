@@ -48,6 +48,7 @@ export const NAV_SECTIONS: NavSection[] = [
         items: [
             { tab: 'inventory', label: 'Item Inventory', i18nKey: 'item_inventory', icon: 'bi-list-check', permission: 'inventory.manage' },
             { tab: 'item-metadata', label: 'Attributes', i18nKey: 'attributes', icon: 'bi-tag', permission: 'inventory.manage' },
+            { tab: 'combos', label: 'Combo Library', icon: 'bi-grid-3x3-gap', permission: 'inventory.manage' },
             { tab: 'batches', label: 'Lot', icon: 'bi-upc-scan', permission: 'inventory.manage' },
             // Stock entry/transfer/adjust duties were merged into Stock On-Hand
             // (commit e6f38da) — /stock (StockEntryView) is desktop-deprecated.

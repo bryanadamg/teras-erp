@@ -1343,6 +1343,36 @@ class ColorListResponse(BaseModel):
     size: int = 50
 
 
+class ComboCreate(BaseModel):
+    code: str
+    name: str
+    description: Optional[str] = None
+    status: str = "active"
+
+class ComboUpdate(BaseModel):
+    code: Optional[str] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+
+class ComboResponse(BaseModel):
+    id: UUID
+    code: str
+    name: str
+    description: Optional[str] = None
+    status: str = "active"
+    attribute_value_id: Optional[UUID] = None
+    usage_count: int = 0
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class ComboListResponse(BaseModel):
+    items: list[ComboResponse] = []
+    total: int = 0
+    page: int = 1
+    size: int = 50
+
+
 class LabDipLineCreate(BaseModel):
     color_name: str
     color_id: Optional[UUID] = None
