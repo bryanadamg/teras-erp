@@ -115,7 +115,7 @@ export default function WOStepPrintModal({
 
                         {/* Preview — sized to A6 portrait (105×148mm) */}
                         <div style={{ flex: 1, background: '#e0e0e0', overflowY: 'auto', padding: '16px', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
-                            <div className="wo-print-paper wo-step-card" style={{ background: '#fff', width: '378px', minHeight: '535px', padding: '18px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', color: '#000', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
+                            <div className="wo-print-paper wo-step-card" style={{ background: '#fff', width: '378px', minHeight: '535px', padding: 0, boxShadow: '0 2px 10px rgba(0,0,0,0.25)', color: '#000', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
                                 {documentContent}
                             </div>
                         </div>
