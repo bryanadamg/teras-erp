@@ -75,14 +75,15 @@ export default function ItemMetadataView({
     const nextValForEdit = activeAttribute ? getNextValue(activeAttribute.values) : null;
 
     const filteredUOMs = (uoms || []).filter((u: any) => u.name.toLowerCase().includes(uomSearch.toLowerCase()));
-    // Reference lists that now have dedicated master libraries are hidden here so they
-    // are not hand-edited in two places:
-    //   - Combo (system_role='combo')          → Combo Library (Inventory nav)
-    //   - Color Code (system_role='labdip_color') → Color Library (Dyeing & Setting nav)
-    // Each attribute + its values still exist underneath (load-bearing: Combo gates BOM
-    // selection; labdip_color is the legacy fallback the libraries mirror to). The
-    // `Colors` variant + `Materials` attrs stay — they are managed here, not in a library.
-    const HIDDEN_LIBRARY_ROLES = ['combo', 'labdip_color'];
+    // Attributes with a dedicated management home are hidden here so they are not
+    // hand-edited in two places:
+    //   - Combo (system_role='combo')             → Combo Library (Inventory nav)
+    //   - Color Code (system_role='labdip_color') → Color Library, "Color Codes" tab
+    //   - Colors (system_role='color')            → Color Library, "Colors (Variant)" tab
+    // Each attribute + its values still exist underneath (load-bearing: Colors/Combo gate
+    // BOM selection + drive recipe-match / variant_key; labdip_color mirrors the library).
+    // `Materials` stays — it is managed here, no dedicated home.
+    const HIDDEN_LIBRARY_ROLES = ['combo', 'labdip_color', 'color'];
     const filteredAttrs = (attributes || [])
         .filter((a: any) => !HIDDEN_LIBRARY_ROLES.includes(a.system_role))
         .filter((a: any) => a.name.toLowerCase().includes(attrSearch.toLowerCase()));

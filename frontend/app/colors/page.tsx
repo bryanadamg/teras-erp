@@ -3,21 +3,33 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import ColorLibraryView from '../components/colors/ColorLibraryView';
+import ColorsVariantView from '../components/colors/ColorsVariantView';
 import { useData } from '../context/DataContext';
 import { useToast } from '../components/shared/Toast';
+import { useTheme } from '../context/ThemeContext';
+import { useUser } from '../context/UserContext';
 
 const PAGE_SIZE = 50;
 
 export default function ColorsPage() {
-    const { partners, authFetch } = useData();
+    const { partners, attributes, authFetch, refreshItemMetadata } = useData();
     const customers = (partners || []).filter((p: any) => p.type === 'CUSTOMER');
     const { showToast } = useToast();
+    const { uiStyle } = useTheme();
+    const classic = uiStyle === 'classic';
+    const { hasPermission } = useUser();
     const searchParams = useSearchParams();
     const router = useRouter();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
-    // Deep-link prefill from a LabDip "+ Color" action (mirrors sample -> item routing).
+    // Two panels under one "Colors" home (discoverability): the Color Code catalog
+    // (~30k library rows) and the small `Colors` variant list. Different data models —
+    // tabbed together only for a single management surface. A LabDip "+ Color" deep-link
+    // always targets the catalog tab.
+    const [tab, setTab] = useState<'codes' | 'variant'>('codes');
+
+    // ── Color Code catalog (library) ────────────────────────────────────────────
     const sourceLineId = searchParams.get('source_lab_dip_line_id');
     const prefill = useMemo(() => sourceLineId ? {
         source_lab_dip_line_id: sourceLineId,
@@ -31,6 +43,8 @@ export default function ColorsPage() {
             notes: searchParams.get('notes') || '',
         },
     } : null, [sourceLineId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => { if (sourceLineId) setTab('codes'); }, [sourceLineId]);
 
     const [colors, setColors] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
@@ -57,7 +71,6 @@ export default function ColorsPage() {
 
     useEffect(() => { fetchColors(); }, [fetchColors]);
 
-    // Reset to page 1 whenever a filter narrows the result set.
     const handleSearchChange = (s: string) => { setPage(1); setSearch(s); };
     const handleStatusChange = (s: string) => { setPage(1); setStatusFilter(s); };
 
@@ -66,7 +79,6 @@ export default function ColorsPage() {
         if (res.ok) {
             fetchColors();
             showToast(payload.source_lab_dip_line_id ? 'Color created from lab dip' : 'Color created', 'success');
-            // Strip deep-link params so a refresh doesn't reopen the prefilled modal.
             if (sourceLineId) router.replace('/colors');
         }
         else { const e = await res.json().catch(() => ({})); showToast(e.detail || 'Failed to create color', 'danger'); }
@@ -87,23 +99,106 @@ export default function ColorsPage() {
         } else showToast('Failed to remove color', 'danger');
     };
 
+    // ── Colors variant (system_role='color' attribute values) ────────────────────
+    const canManageVariant = hasPermission('inventory.manage');
+    const colorAttr = (attributes || []).find((a: any) => a.system_role === 'color');
+    const colorValues = colorAttr?.values ?? [];
+
+    const handleAddColorValue = async (value: string) => {
+        if (!colorAttr) return;
+        const res = await authFetch(`${API_BASE}/attributes/${colorAttr.id}/values`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value }),
+        });
+        if (res.ok) { refreshItemMetadata(); showToast('Color added', 'success'); }
+        else { const e = await res.json().catch(() => ({})); showToast(e.detail || 'Failed to add color', 'danger'); }
+    };
+
+    const handleRenameColorValue = async (valueId: string, value: string) => {
+        const res = await authFetch(`${API_BASE}/attributes/values/${valueId}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value }),
+        });
+        if (res.ok) { refreshItemMetadata(); showToast('Color renamed', 'success'); }
+        else { const e = await res.json().catch(() => ({})); showToast(e.detail || 'Failed to rename color', 'danger'); }
+    };
+
+    const handleDeleteColorValue = async (valueId: string) => {
+        const res = await authFetch(`${API_BASE}/attributes/values/${valueId}`, { method: 'DELETE' });
+        if (res.ok) { refreshItemMetadata(); showToast('Color deleted', 'success'); }
+        else { const e = await res.json().catch(() => ({})); showToast(e.detail || 'Failed to delete color', 'danger'); }
+    };
+
+    // ── Shell: title bar + tab bar wrapping the active panel ──────────────────────
+    const tabBtn = (key: 'codes' | 'variant', label: string) => {
+        const active = tab === key;
+        return (
+            <button
+                type="button"
+                onClick={() => setTab(key)}
+                style={classic ? {
+                    fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, padding: '3px 14px', cursor: 'pointer',
+                    border: '1px solid', borderBottom: active ? '2px solid #fff' : '1px solid #c0bdb5',
+                    marginBottom: active ? -2 : 0,
+                    borderColor: active ? '#808080 #c0bdb5 transparent #808080' : '#d0cfc8',
+                    background: active ? '#fff' : 'linear-gradient(to bottom, #f5f3ee, #e0dfd8)',
+                    color: active ? '#000' : '#555', fontWeight: active ? 'bold' : 'normal',
+                } : {
+                    fontFamily: 'system-ui, sans-serif', fontSize: 13, padding: '6px 16px', cursor: 'pointer',
+                    border: 'none', borderBottom: active ? '2px solid #2563eb' : '2px solid transparent',
+                    background: 'transparent', color: active ? '#2563eb' : '#64748b', fontWeight: active ? 700 : 500,
+                }}
+            >{label}</button>
+        );
+    };
+
     return (
-        <ColorLibraryView
-            colors={colors}
-            total={total}
-            page={page}
-            size={PAGE_SIZE}
-            search={search}
-            statusFilter={statusFilter}
-            customers={customers}
-            loading={loading}
-            onSearchChange={handleSearchChange}
-            onStatusChange={handleStatusChange}
-            onPageChange={setPage}
-            onCreate={handleCreate}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            prefill={prefill}
-        />
+        <div style={classic
+            ? { display: 'flex', flexDirection: 'column', height: '100%', border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
+            : { display: 'flex', flexDirection: 'column', height: '100%', border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
+
+            <div style={classic
+                ? { background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff', padding: '6px 12px', fontSize: 13, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }
+                : { background: '#f7f9fc', color: '#1e293b', borderBottom: '1px solid #dbe1ea', padding: '8px 12px', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                <i className="bi bi-palette2" style={classic ? { fontSize: 14 } : { fontSize: 14, color: '#2563eb' }} />
+                Colors
+            </div>
+
+            <div style={classic
+                ? { display: 'flex', gap: 2, padding: '4px 8px 0', borderBottom: '2px solid #c0bdb5', background: '#ece9d8', flexShrink: 0 }
+                : { display: 'flex', gap: 4, padding: '4px 10px 0', borderBottom: '1px solid #dbe1ea', background: '#fff', flexShrink: 0 }}>
+                {tabBtn('codes', 'Color Codes')}
+                {tabBtn('variant', 'Colors (Variant)')}
+            </div>
+
+            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                {tab === 'codes' ? (
+                    <ColorLibraryView
+                        colors={colors}
+                        total={total}
+                        page={page}
+                        size={PAGE_SIZE}
+                        search={search}
+                        statusFilter={statusFilter}
+                        customers={customers}
+                        loading={loading}
+                        onSearchChange={handleSearchChange}
+                        onStatusChange={handleStatusChange}
+                        onPageChange={setPage}
+                        onCreate={handleCreate}
+                        onEdit={handleEdit}
+                        onDelete={handleDelete}
+                        prefill={prefill}
+                        embedded
+                    />
+                ) : (
+                    <ColorsVariantView
+                        values={colorValues}
+                        canManage={canManageVariant}
+                        onAdd={handleAddColorValue}
+                        onRename={handleRenameColorValue}
+                        onDelete={handleDeleteColorValue}
+                    />
+                )}
+            </div>
+        </div>
     );
 }

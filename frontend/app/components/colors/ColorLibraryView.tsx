@@ -63,6 +63,7 @@ interface Props {
     onEdit: (id: string, payload: any) => void;
     onDelete: (id: string) => void;
     prefill?: { source_lab_dip_line_id: string; values: Record<string, string> } | null;
+    embedded?: boolean;   // when tabbed under the Colors shell, drop own title + outer frame
 }
 
 const emptyForm = () => ({
@@ -73,7 +74,7 @@ const emptyForm = () => ({
 
 export default function ColorLibraryView({
     colors, total, page, size, search, statusFilter, customers, loading,
-    onSearchChange, onStatusChange, onPageChange, onCreate, onEdit, onDelete, prefill,
+    onSearchChange, onStatusChange, onPageChange, onCreate, onEdit, onDelete, prefill, embedded,
 }: Props) {
     const { confirm } = useConfirm();
     const { uiStyle } = useTheme();
@@ -175,17 +176,21 @@ export default function ColorLibraryView({
     );
 
     return (
-        <div style={classic
+        <div style={embedded
+            ? { display: 'flex', flexDirection: 'column', height: '100%', fontFamily: classic ? xpFont : modernFont, background: '#fff' }
+            : classic
             ? { display: 'flex', flexDirection: 'column', height: '100%', fontFamily: xpFont, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
             : { display: 'flex', flexDirection: 'column', height: '100%', fontFamily: modernFont, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
 
-            {/* Title bar */}
+            {/* Title bar (hidden when embedded under the Colors tab shell) */}
+            {!embedded && (
             <div style={classic
                 ? { background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff', padding: '6px 12px', fontSize: 13, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }
                 : { background: '#f7f9fc', color: '#1e293b', borderBottom: '1px solid #dbe1ea', padding: '8px 12px', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                 <i className="bi bi-palette2" style={classic ? { fontSize: 14 } : { fontSize: 14, color: '#2563eb' }} />
                 Color Library
             </div>
+            )}
 
             {/* Toolbar */}
             <div style={classic
