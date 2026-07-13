@@ -13,6 +13,7 @@ export default function BagLabelCard({
     workOrder,
     parentMO,
     qrDataUrl,
+    barcodeDataUrl,
     bagSeq,
     companyName,
     attributes = [],
@@ -21,6 +22,7 @@ export default function BagLabelCard({
     workOrder: any;
     parentMO: any;
     qrDataUrl: string;
+    barcodeDataUrl?: string;
     bagSeq: number;
     companyName?: string;
     attributes?: any[];
@@ -66,10 +68,14 @@ export default function BagLabelCard({
                 </div>
             </div>
 
-            {/* Lot number hero — the bag's unique identity */}
+            {/* Lot number hero — the bag's unique identity. QR (2D) + Code 128 (1D)
+                so both phone/imager and old laser scanners can read the lot. */}
             <div style={{ border: '2px solid #000', padding: '4px 8px', marginBottom: '6px' }}>
                 <div style={heroLbl}>NO. LOT (KANTONG)</div>
-                <div style={{ fontSize: '20px', fontWeight: 'bold', lineHeight: 1.05, fontFamily: 'monospace', wordBreak: 'break-all' }}>{lotNo}</div>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', lineHeight: 1.05, fontFamily: 'monospace', wordBreak: 'break-all' }}>{lotNo}</div>
+                {barcodeDataUrl && (
+                    <img src={barcodeDataUrl} alt={`barcode ${lotNo}`} style={{ width: '100%', height: '40px', objectFit: 'contain', display: 'block', marginTop: '3px' }} />
+                )}
             </div>
 
             {/* Berat + Bag sequence hero */}

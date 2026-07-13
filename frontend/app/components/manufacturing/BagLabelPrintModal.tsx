@@ -1,10 +1,25 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import QRCode from 'qrcode';
+import JsBarcode from 'jsbarcode';
 import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
 import BagLabelCard from './BagLabelCard';
+
+// Code 128 (1D) so the factory's existing laser barcode scanners can read the
+// lot number too — not everyone has a phone/2D imager. Rendered to a PNG data
+// URL alongside the QR. Same payload as the QR: the lot number.
+function makeBarcodeDataUrl(text: string): string {
+    if (!text) return '';
+    try {
+        const canvas = document.createElement('canvas');
+        JsBarcode(canvas, text, { format: 'CODE128', displayValue: false, margin: 0, height: 70, width: 2 });
+        return canvas.toDataURL('image/png');
+    } catch {
+        return '';
+    }
+}
 
 /**
  * Bag label print — renders one output-bag sticker per MOCompletion (each bag
@@ -34,6 +49,12 @@ export default function BagLabelPrintModal({
     const isClassic = uiStyle === 'classic';
 
     const [qrUrls, setQrUrls] = useState<Record<string, string>>({});
+    // 1D barcodes are synchronous to generate — memoize per bag lot.
+    const barcodeUrls = useMemo(() => {
+        const map: Record<string, string> = {};
+        bags.forEach(b => { map[b.id] = makeBarcodeDataUrl(b.output_batch_number || String(b.id)); });
+        return map;
+    }, [bags]);
 
     useEffect(() => {
         document.body.classList.add('bag-label-print-active');
@@ -58,6 +79,7 @@ export default function BagLabelPrintModal({
                 workOrder={workOrder}
                 parentMO={parentMO}
                 qrDataUrl={qrUrls[bag.id] || ''}
+                barcodeDataUrl={barcodeUrls[bag.id] || ''}
                 bagSeq={seqStart + idx}
                 companyName={companyProfile?.name}
                 attributes={attributes}
