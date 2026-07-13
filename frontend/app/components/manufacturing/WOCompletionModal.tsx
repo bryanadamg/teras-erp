@@ -5,6 +5,7 @@ import { useData } from '../../context/DataContext';
 import { useToast } from '../shared/Toast';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
+import BagLabelPrintModal from './BagLabelPrintModal';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -69,6 +70,9 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
     const [beamNumber, setBeamNumber] = useState('');
     const [batchesByItem, setBatchesByItem] = useState<Record<string, any[]>>({});
     const [consumedBatches, setConsumedBatches] = useState<Record<string, string>>({});
+    // Bag labels: one sticker per weighed bag (= one lotted completion on this WO)
+    const [labelBags, setLabelBags] = useState<any[] | null>(null);
+    const [labelSeqStart, setLabelSeqStart] = useState(1);
 
     const findItem = (itemId: string) => (items || []).find((i: any) => i.id === itemId);
     const isBeamItem = (itemId: string) => {
@@ -258,6 +262,17 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
     };
 
     const completions = mo.completions ? [...mo.completions].reverse() : [];
+
+    // Bags = this WO's non-rejected, lotted completions in chronological order.
+    // Each is one weighed bag; its output lot is the bag's identity. Sequence
+    // number (bag #N) is assigned by log order and mapped back onto each row.
+    const woBags = workOrder
+        ? (mo.completions || [])
+            .filter((c: any) => String(c.work_order_id || '') === String(workOrder.id) && !c.rejected && c.output_batch_number)
+            .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+        : [];
+    const bagSeqById: Record<string, number> = {};
+    woBags.forEach((c: any, i: number) => { bagSeqById[String(c.id)] = i + 1; });
 
     const wcOptions = (workCenters || []).map((wc: any) => ({
         value: wc.id, label: wc.name, subLabel: wc.code,
@@ -617,6 +632,15 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                 <span style={{ position: 'absolute', top: -7, left: 8, background: '#f5f4ee', padding: '0 4px', fontSize: 10, fontWeight: 'bold', color: '#000080' }}>
                                     Previous Entries
                                 </span>
+                                {workOrder && woBags.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => { setLabelSeqStart(1); setLabelBags(woBags); }}
+                                        style={{ ...xpBtn(), position: 'absolute', top: -9, right: 6, fontSize: 10, padding: '1px 8px' }}
+                                    >
+                                        Print All Bag Labels ({woBags.length})
+                                    </button>
+                                )}
                                 <div style={{ maxHeight: 140, overflowY: 'auto' }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10, fontFamily: xpFont }}>
                                         <thead>
@@ -648,11 +672,20 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                                     <td style={{ padding: '2px 6px', color: '#555' }}>{new Date(c.created_at).toLocaleString()}</td>
                                                     <td style={{ padding: '2px 4px', textAlign: 'center' }}>
                                                         {/* QC disposition lives on the Lot Management page — read-only marker here */}
-                                                        {c.rejected && (
+                                                        {c.rejected ? (
                                                             <span style={{ fontSize: 9, fontWeight: 'bold', color: '#900' }} title={c.reject_reason || 'Rejected'}>
                                                                 REJECTED
                                                             </span>
-                                                        )}
+                                                        ) : bagSeqById[String(c.id)] ? (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => { setLabelSeqStart(bagSeqById[String(c.id)]); setLabelBags([c]); }}
+                                                                style={{ ...xpBtn(), fontSize: 9, padding: '0 6px' }}
+                                                                title={`Print label for bag #${bagSeqById[String(c.id)]} (lot ${c.output_batch_number})`}
+                                                            >
+                                                                Label
+                                                            </button>
+                                                        ) : null}
                                                     </td>
                                                 </tr>
                                             ))}
@@ -663,6 +696,15 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                         )}
                     </div>
                 </form>
+                {labelBags && (
+                    <BagLabelPrintModal
+                        bags={labelBags}
+                        workOrder={workOrder}
+                        parentMO={mo}
+                        seqStart={labelSeqStart}
+                        onClose={() => setLabelBags(null)}
+                    />
+                )}
         </ModalWrapper>
     );
 }

@@ -1232,6 +1232,43 @@ table {
     page-break-after: auto;
   }
 
+  /* Bag output labels — one sticker per bag/lot, one label per A6 sheet */
+  body.bag-label-print-active > *:not(.bag-label-print-portal) {
+    display: none !important;
+  }
+  body.bag-label-print-active .bag-label-print-portal {
+    display: block !important;
+    width: 100% !important;
+    page: baglabel;
+  }
+  body.bag-label-print-active .bag-label-card {
+    page: baglabel;
+    break-after: page;
+    page-break-after: always;
+    box-shadow: none !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 136mm; /* A6 (148mm) − 2×6mm margin */
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+  }
+  body.bag-label-print-active .bag-label-card:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+  body.bag-label-print-active {
+    width: auto !important;
+  }
+  html:has(body.bag-label-print-active) {
+    width: auto !important;
+  }
+  @page baglabel {
+    size: A6 portrait;
+    margin: 6mm;
+  }
+
   /* BOM print preview modal — hide everything except the paper portal */
   body.bom-print-preview-active > *:not(.bom-print-paper-portal) {
     display: none !important;
