@@ -1011,6 +1011,23 @@ async def add_mo_completion(
             batch_by_item[str(b.item_id)] = b
     consumed_by_batch: dict[str, float] = {}
 
+    # Multi-lot consumption (dyeing greige substrate): the operator scanned in
+    # many staged lots; each is consumed at an explicit qty. These override the
+    # BOM% deduction for their items — the physical lots loaded ARE the usage.
+    lots_by_item: dict[str, list[tuple[Batch, float]]] = {}
+    if payload.consumed_lots:
+        lot_ids = [cl.batch_id for cl in payload.consumed_lots]
+        lres = await db.execute(select(Batch).filter(Batch.id.in_(lot_ids)))
+        lot_map = {str(b.id): b for b in lres.scalars().all()}
+        if len(lot_map) != len({str(i) for i in lot_ids}):
+            raise HTTPException(status_code=404, detail="One or more consumed lots not found")
+        for cl in payload.consumed_lots:
+            if float(cl.qty) <= 0:
+                continue
+            b = lot_map[str(cl.batch_id)]
+            lots_by_item.setdefault(str(b.item_id), []).append((b, float(cl.qty)))
+    lot_item_ids = set(lots_by_item.keys())
+
     # Per-operation consumption: a WO only consumes the materials allocated to its
     # routing step (planned_component.bom_operation_id == wo.bom_operation_id).
     # If the WO has no step (legacy BOM with no operations), fall back to the whole
@@ -1029,7 +1046,8 @@ async def add_mo_completion(
             deducted_ids = {str(ai.item_id) for ai in payload.actual_items if float(ai.qty_used) > 0}
         else:
             deducted_ids = {str(c.item_id) for c in step_comps if c.percentage}
-        missing = [i for i in deducted_ids if i not in batch_by_item]
+        # Items supplied via explicit multi-lot consumption satisfy the requirement.
+        missing = [i for i in deducted_ids if i not in batch_by_item and i not in lot_item_ids]
         if missing:
             lt_res = await db.execute(
                 select(Item.code).filter(Item.id.in_(missing), Item.lot_tracked == True)  # noqa: E712
@@ -1077,8 +1095,25 @@ async def add_mo_completion(
 
     # Stock movement driven by WO locations only — no MO-level fallback
     if wo_input_loc:
+        # Explicit multi-lot consumption first (dyeing greige): deduct each lot at
+        # its own qty from the input location; these items are then skipped below.
+        for item_id, lots in lots_by_item.items():
+            for b, qty in lots:
+                await stock_service.add_stock_entry(
+                    db,
+                    item_id=uuid.UUID(item_id),
+                    location_id=wo_input_loc,
+                    qty_change=-qty,
+                    reference_type="Manufacturing Order",
+                    reference_id=mo.code,
+                    attribute_value_ids=[],
+                    batch_id=b.id,
+                )
+                consumed_by_batch[str(b.id)] = consumed_by_batch.get(str(b.id), 0.0) + qty
         if payload.actual_items:
             for ai in payload.actual_items:
+                if str(ai.item_id) in lot_item_ids:
+                    continue  # already consumed via explicit lots
                 in_batch = batch_by_item.get(str(ai.item_id))
                 await stock_service.add_stock_entry(
                     db,
@@ -1096,6 +1131,8 @@ async def add_mo_completion(
             for comp in step_comps:
                 if not comp.percentage:
                     continue
+                if str(comp.item_id) in lot_item_ids:
+                    continue  # supplied by explicit lots, not BOM% deduction
                 deduct_loc_id = comp.source_location_id or wo_input_loc
                 req = (float(payload.qty_completed) * float(comp.percentage)) / 100
                 in_batch = batch_by_item.get(str(comp.item_id))

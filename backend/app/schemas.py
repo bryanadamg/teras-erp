@@ -304,6 +304,10 @@ class MOCompletionItemResponse(BaseModel):
     item_name: str | None = None
     qty_used: float
 
+class ConsumedLot(BaseModel):
+    batch_id: UUID
+    qty: float                          # amount consumed from this specific lot
+
 class MOCompletionCreate(BaseModel):
     qty_completed: float
     operator_name: str | None = None
@@ -313,7 +317,9 @@ class MOCompletionCreate(BaseModel):
     actual_items: list[MOCompletionItemCreate] = []
     beam_number: str | None = None      # lot-tracked/beam output: batch number (blank = auto-generate)
     beam_batch_id: UUID | None = None   # legacy single input batch (kept for compat)
-    consumed_batches: list[UUID] = []   # input batches to consume from, matched to lines by item
+    consumed_batches: list[UUID] = []   # input batches to consume from, matched to lines by item (single lot per item)
+    consumed_lots: list[ConsumedLot] = []   # multi-lot input consumption with explicit per-lot qty (dyeing greige substrate);
+                                             # authoritatively deducts these lots and overrides the BOM% deduction for their items
     output_location_id: UUID | None = None  # putaway override: books output here instead of the WO's output location
 
 class MOCompletionResponse(BaseModel):

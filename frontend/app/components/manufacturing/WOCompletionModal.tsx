@@ -70,6 +70,9 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
     const [beamNumber, setBeamNumber] = useState('');
     const [batchesByItem, setBatchesByItem] = useState<Record<string, any[]>>({});
     const [consumedBatches, setConsumedBatches] = useState<Record<string, string>>({});
+    // Dyeing: greige substrate arrives as many scanned lots → consume multiple in
+    // full (item_id → selected batch ids). Single-lot materials keep the <select>.
+    const [selectedLots, setSelectedLots] = useState<Record<string, string[]>>({});
     // Bag labels: one sticker per weighed bag (= one lotted completion on this WO)
     const [labelBags, setLabelBags] = useState<any[] | null>(null);
     const [labelSeqStart, setLabelSeqStart] = useState(1);
@@ -96,6 +99,11 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
         || ['WEAVING', 'TENUN', 'DYEING', 'CELUP'].includes(woWcType);
     const isWeavingWO = woWcType === 'WEAVING' || woWcType === 'TENUN';
     const isDyeingWO = woWcType === 'DYEING' || woWcType === 'CELUP';
+    // Multi-lot consume: dyeing substrate staged as several bags (≥2 lots at the
+    // input location). One picker can't select 30 bags — use checkboxes and
+    // consume each selected lot in full. Single-lot materials (e.g. chemicals)
+    // keep the single <select> + BOM% deduction.
+    const isMultiLot = (itemId: string) => isDyeingWO && (batchesByItem[itemId]?.length || 0) >= 2;
     // Mirrors the backend's prefix choice in manufacturing.py's log-completion route.
     const lotLabel = isBeamOutput ? 'Beam' : isWeavingWO ? 'Greige' : isDyeingWO ? 'Dyed Lot' : 'Lot';
     const lotPrefix = isBeamOutput ? 'BM' : isWeavingWO ? 'GRG' : isDyeingWO ? 'DYE' : 'LOT';
@@ -125,8 +133,19 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                 for (const id of Object.keys(map)) { if (prev[id]) next[id] = prev[id]; }
                 return next;
             });
+            // Dyeing: default-select ALL staged lots for multi-lot items (operator
+            // consumes the whole substrate they scanned in; still deselectable).
+            setSelectedLots(prev => {
+                const next: Record<string, string[]> = {};
+                for (const id of Object.keys(map)) {
+                    if (isDyeingWO && map[id].length >= 2) {
+                        next[id] = prev[id]?.length ? prev[id] : map[id].map((b: any) => b.id);
+                    }
+                }
+                return next;
+            });
         });
-    }, [JSON.stringify(materialItemIds), workOrder?.id, isWeavingWO]);
+    }, [JSON.stringify(materialItemIds), workOrder?.id, isWeavingWO, isDyeingWO]);
 
     // Putaway destination is a planning decision carried by the MO — operator
     // only sees where the output goes; the backend books stock there.
@@ -209,8 +228,13 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                 }
             }
             for (const itemId of Object.keys(batchesByItem)) {
-                if (!consumedBatches[itemId]) {
-                    const code = findItem(itemId)?.code || 'material';
+                const code = findItem(itemId)?.code || 'material';
+                if (isMultiLot(itemId)) {
+                    if (!(selectedLots[itemId]?.length)) {
+                        showToast(`Select at least one lot to consume for ${code}`, 'danger');
+                        return;
+                    }
+                } else if (!consumedBatches[itemId]) {
                     showToast(`Select the lot/beam to consume for ${code}`, 'danger');
                     return;
                 }
@@ -226,11 +250,26 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
 
         setSubmitting(true);
         try {
+            // Multi-lot items (dyeing substrate) are consumed explicitly via
+            // consumed_lots (full remaining of each selected lot) — exclude them
+            // from the BOM%/actual_items path and the single-lot consumed_batches.
             const woActualItems = workOrder
                 ? materialRows
-                    .filter(row => parseFloat(row.actual_qty) > 0)
+                    .filter(row => parseFloat(row.actual_qty) > 0 && !isMultiLot(row.item_id))
                     .map(row => ({ item_id: row.item_id, qty_used: parseFloat(row.actual_qty) }))
                 : actualItems.map(ai => ({ item_id: ai.item_id, qty_used: parseFloat(ai.qty_used) }));
+
+            const consumedLots = Object.entries(selectedLots).flatMap(([itemId, batchIds]) =>
+                isMultiLot(itemId)
+                    ? (batchIds || []).map(bid => {
+                        const b = (batchesByItem[itemId] || []).find((x: any) => x.id === bid);
+                        return { batch_id: bid, qty: Number(b?.remaining || 0) };
+                    }).filter(l => l.qty > 0)
+                    : []
+            );
+            const consumedBatchIds = Object.entries(consumedBatches)
+                .filter(([itemId, bid]) => bid && !isMultiLot(itemId))
+                .map(([, bid]) => bid);
 
             const res = await authFetch(`${API_BASE}/manufacturing-orders/${mo.id}/completions`, {
                 method: 'POST',
@@ -243,7 +282,8 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                     work_order_id: workOrder?.id || null,
                     actual_items: woActualItems,
                     beam_number: isLotOutput ? (beamNumber.trim() || null) : null,
-                    consumed_batches: Object.values(consumedBatches).filter(Boolean),
+                    consumed_batches: consumedBatchIds,
+                    consumed_lots: consumedLots,
                 }),
             });
             if (!res.ok) {
@@ -399,6 +439,44 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                             {workOrder && Object.keys(batchesByItem).map(itemId => {
                                 const rowCode = materialRows.find(r => r.item_id === itemId)?.item_code;
                                 const code = rowCode || findItem(itemId)?.code || 'material';
+                                if (isMultiLot(itemId)) {
+                                    const sel = selectedLots[itemId] || [];
+                                    const selSet = new Set(sel);
+                                    const selKg = (batchesByItem[itemId] || [])
+                                        .filter((b: any) => selSet.has(b.id))
+                                        .reduce((s: number, b: any) => s + Number(b.remaining || 0), 0);
+                                    const allIds = (batchesByItem[itemId] || []).map((b: any) => b.id);
+                                    const allSelected = sel.length === allIds.length;
+                                    const toggle = (bid: string, on: boolean) => setSelectedLots(prev => {
+                                        const cur = prev[itemId] || [];
+                                        return { ...prev, [itemId]: on ? [...cur, bid] : cur.filter(id => id !== bid) };
+                                    });
+                                    return (
+                                        <div key={itemId}>
+                                            <label style={{ ...xpLabel, fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <span>Lots to Consume — {code}</span>
+                                                <span style={{ fontWeight: 'normal', color: '#555' }}>
+                                                    {sel.length} lot{sel.length === 1 ? '' : 's'} · {selKg.toFixed(2)} kg
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSelectedLots(prev => ({ ...prev, [itemId]: allSelected ? [] : allIds }))}
+                                                        style={{ ...xpBtn(), fontSize: 9, padding: '0 6px', marginLeft: 6 }}
+                                                    >{allSelected ? 'None' : 'All'}</button>
+                                                </span>
+                                            </label>
+                                            <div style={{ border: '1px solid #7f9db9', background: '#fff', maxHeight: 150, overflowY: 'auto' }}>
+                                                {(batchesByItem[itemId] || []).map((b: any) => (
+                                                    <label key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '2px 5px', fontSize: 10, cursor: 'pointer', background: selSet.has(b.id) ? '#e6f0ff' : 'transparent' }}>
+                                                        <input type="checkbox" checked={selSet.has(b.id)} onChange={e => toggle(b.id, e.target.checked)} />
+                                                        <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{b.batch_number}</span>
+                                                        <span style={{ color: '#555' }}>— {Number(b.remaining ?? 0).toFixed(2)} kg</span>
+                                                        {b.location_name && <span style={{ color: '#0058e6' }}>@ {b.location_name}</span>}
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                }
                                 return (
                                     <div key={itemId}>
                                         <label style={{ ...xpLabel, fontWeight: 'bold' }}>
