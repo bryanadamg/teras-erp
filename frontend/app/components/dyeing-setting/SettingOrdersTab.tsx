@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import Pager from '../shared/Pager';
+import ModalWrapper from '../shared/ModalWrapper';
 import { API_BASE } from '../shared/apiBase';
 
 // ── Fonts ───────────────────────────────────────────────────────────────────
@@ -553,124 +554,84 @@ export default function SettingOrdersTab({ items, authFetch }: Props) {
 
             {/* Complete Modal */}
             {showCompleteModal && (
-                <div
-                    style={{
-                        position: 'fixed', inset: 0, zIndex: 1050,
-                        background: 'rgba(0,0,0,0.4)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}
-                    onClick={e => { if (e.target === e.currentTarget) setShowCompleteModal(null); }}
-                >
-                    <div style={classic ? {
-                        background: '#ece9d8', border: '2px solid',
-                        borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-                        minWidth: 320, maxWidth: 420, fontFamily: xpFont,
-                    } : {
-                        background: '#fff', border: '1px solid #dbe1ea',
-                        borderRadius: 9, minWidth: 320, maxWidth: 420, fontFamily: modernFont,
-                        boxShadow: '0 10px 40px rgba(15,23,42,0.18)', overflow: 'hidden',
-                    }}>
-                        {/* Title bar */}
-                        <div style={classic ? {
-                            background: 'linear-gradient(to right, #0058e6, #08a5ff)',
-                            padding: '4px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        } : {
-                            background: '#f7f9fc', borderBottom: '1px solid #dbe1ea',
-                            padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        }}>
-                            <span style={classic ? { color: '#fff', fontWeight: 'bold', fontSize: 11, fontFamily: xpFont } : { color: '#1e293b', fontWeight: 700, fontSize: 13, fontFamily: modernFont }}>
-                                Complete Setting Run
-                            </span>
+                <ModalWrapper
+                    isOpen={!!showCompleteModal}
+                    onClose={() => setShowCompleteModal(null)}
+                    title="Complete Setting Run"
+                    size="sm"
+                    modeless
+                    footer={
+                        <>
                             <button
-                                onClick={() => setShowCompleteModal(null)}
+                                onClick={handleCompleteRun}
+                                disabled={completing || !completeForm.output_batch_number.trim()}
                                 style={classic ? {
-                                    background: 'linear-gradient(to bottom, #f0efe6, #c0bdb5)',
-                                    border: '1px solid #808080', color: '#000',
-                                    fontFamily: xpFont, fontSize: 10, cursor: 'pointer',
-                                    padding: '0 5px', lineHeight: '14px',
+                                    ...xpBtn(classic),
+                                    background: !completeForm.output_batch_number.trim()
+                                        ? '#d4d0c8'
+                                        : 'linear-gradient(to bottom, #b0e8b0, #70c870)',
+                                    borderColor: '#0a3e0a #1a5e1a #1a5e1a #0a3e0a',
+                                    color: !completeForm.output_batch_number.trim() ? '#888' : '#004000',
+                                    opacity: completing ? 0.7 : 1,
                                 } : {
-                                    background: '#fff', border: '1px solid #cbd3df', color: '#334155',
-                                    fontFamily: modernFont, fontSize: 12, cursor: 'pointer',
-                                    padding: '1px 7px', lineHeight: '16px', borderRadius: 6,
+                                    ...xpBtnPrimary(classic),
+                                    background: !completeForm.output_batch_number.trim() ? '#cbd5e1' : '#2563eb',
+                                    color: !completeForm.output_batch_number.trim() ? '#94a3b8' : '#fff',
+                                    cursor: !completeForm.output_batch_number.trim() ? 'default' : 'pointer',
+                                    opacity: completing ? 0.7 : 1,
                                 }}
                             >
-                                X
+                                {completing ? 'Completing...' : 'Complete Run'}
                             </button>
+                            <button onClick={() => setShowCompleteModal(null)} style={xpBtn(classic)}>
+                                Cancel
+                            </button>
+                        </>
+                    }
+                >
+                    {/* Output lot number — required */}
+                    <div style={{ marginBottom: 8 }}>
+                        <label style={labelStyle}>
+                            Output Lot Number <span style={{ color: classic ? '#c00' : '#dc2626' }}>*</span>
+                        </label>
+                        <input
+                            type="text"
+                            autoFocus
+                            style={{ ...xpInput(classic), width: '100%' }}
+                            value={completeForm.output_batch_number}
+                            onChange={e => setCompleteForm(f => ({ ...f, output_batch_number: e.target.value }))}
+                        />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0 8px' }}>
+                        <div>
+                            <label style={labelStyle}>Actual Width (cm)</label>
+                            <input
+                                type="number"
+                                style={{ ...xpInput(classic), width: '100%' }}
+                                value={completeForm.actual_width_cm}
+                                onChange={e => setCompleteForm(f => ({ ...f, actual_width_cm: e.target.value }))}
+                            />
                         </div>
-
-                        <div style={{ padding: 12 }}>
-                            {/* Output lot number — required */}
-                            <div style={{ marginBottom: 8 }}>
-                                <label style={labelStyle}>
-                                    Output Lot Number <span style={{ color: classic ? '#c00' : '#dc2626' }}>*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    autoFocus
-                                    style={{ ...xpInput(classic), width: '100%' }}
-                                    value={completeForm.output_batch_number}
-                                    onChange={e => setCompleteForm(f => ({ ...f, output_batch_number: e.target.value }))}
-                                />
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0 8px' }}>
-                                <div>
-                                    <label style={labelStyle}>Actual Width (cm)</label>
-                                    <input
-                                        type="number"
-                                        style={{ ...xpInput(classic), width: '100%' }}
-                                        value={completeForm.actual_width_cm}
-                                        onChange={e => setCompleteForm(f => ({ ...f, actual_width_cm: e.target.value }))}
-                                    />
-                                </div>
-                                <div>
-                                    <label style={labelStyle}>Actual GSM</label>
-                                    <input
-                                        type="number"
-                                        style={{ ...xpInput(classic), width: '100%' }}
-                                        value={completeForm.actual_gsm}
-                                        onChange={e => setCompleteForm(f => ({ ...f, actual_gsm: e.target.value }))}
-                                    />
-                                </div>
-                                <div>
-                                    <label style={labelStyle}>Actual Shrinkage (%)</label>
-                                    <input
-                                        type="number"
-                                        style={{ ...xpInput(classic), width: '100%' }}
-                                        value={completeForm.actual_shrinkage_pct}
-                                        onChange={e => setCompleteForm(f => ({ ...f, actual_shrinkage_pct: e.target.value }))}
-                                    />
-                                </div>
-                            </div>
-
-                            <div style={{ display: 'flex', gap: 4, marginTop: 12, justifyContent: 'flex-end' }}>
-                                <button
-                                    onClick={handleCompleteRun}
-                                    disabled={completing || !completeForm.output_batch_number.trim()}
-                                    style={classic ? {
-                                        ...xpBtn(classic),
-                                        background: !completeForm.output_batch_number.trim()
-                                            ? '#d4d0c8'
-                                            : 'linear-gradient(to bottom, #b0e8b0, #70c870)',
-                                        borderColor: '#0a3e0a #1a5e1a #1a5e1a #0a3e0a',
-                                        color: !completeForm.output_batch_number.trim() ? '#888' : '#004000',
-                                        opacity: completing ? 0.7 : 1,
-                                    } : {
-                                        ...xpBtnPrimary(classic),
-                                        background: !completeForm.output_batch_number.trim() ? '#cbd5e1' : '#2563eb',
-                                        color: !completeForm.output_batch_number.trim() ? '#94a3b8' : '#fff',
-                                        cursor: !completeForm.output_batch_number.trim() ? 'default' : 'pointer',
-                                        opacity: completing ? 0.7 : 1,
-                                    }}
-                                >
-                                    {completing ? 'Completing...' : 'Complete Run'}
-                                </button>
-                                <button onClick={() => setShowCompleteModal(null)} style={xpBtn(classic)}>
-                                    Cancel
-                                </button>
-                            </div>
+                        <div>
+                            <label style={labelStyle}>Actual GSM</label>
+                            <input
+                                type="number"
+                                style={{ ...xpInput(classic), width: '100%' }}
+                                value={completeForm.actual_gsm}
+                                onChange={e => setCompleteForm(f => ({ ...f, actual_gsm: e.target.value }))}
+                            />
+                        </div>
+                        <div>
+                            <label style={labelStyle}>Actual Shrinkage (%)</label>
+                            <input
+                                type="number"
+                                style={{ ...xpInput(classic), width: '100%' }}
+                                value={completeForm.actual_shrinkage_pct}
+                                onChange={e => setCompleteForm(f => ({ ...f, actual_shrinkage_pct: e.target.value }))}
+                            />
                         </div>
                     </div>
-                </div>
+                </ModalWrapper>
             )}
         </div>
     );

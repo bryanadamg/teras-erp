@@ -194,6 +194,7 @@ export default function ComboLibraryView({
                 onClose={() => setIsModalOpen(false)}
                 title={editing ? `Edit Combo — ${editing.code}` : 'New Combo'}
                 size="md"
+                modeless
                 footer={
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                         <button type="button" style={lvBtn(classic)} onClick={() => setIsModalOpen(false)}>Cancel</button>

@@ -247,6 +247,7 @@ export default function ColorLibraryView({
                 onClose={() => setIsModalOpen(false)}
                 title={editing ? `Edit Color — ${editing.code}` : 'New Color'}
                 size="lg"
+                modeless
                 footer={
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                         <button type="button" style={lvBtn(classic)} onClick={() => setIsModalOpen(false)}>Cancel</button>

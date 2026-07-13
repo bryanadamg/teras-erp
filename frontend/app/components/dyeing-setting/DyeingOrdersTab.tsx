@@ -840,6 +840,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
                     onClose={() => { setShowCompleteModal(null); setErrorMsg(null); }}
                     title={`Complete Dyeing Run ${showCompleteModal.run_number ?? showCompleteModal.run_code ?? `#${showCompleteModal.id}`}`}
                     size="lg"
+                    modeless
                     footer={<>
                         <button
                             style={classic ? { ...xpBtn, padding: '3px 16px' } : { ...xpPrimaryBtn, padding: '6px 18px' }}
