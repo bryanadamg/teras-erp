@@ -5,45 +5,10 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
-
-// ── dual-theme style constants (consistent with LabDipRequestView) ──────────
-const xpFont = 'Tahoma, "Segoe UI", sans-serif';
-const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-const inp = (classic: boolean): React.CSSProperties => classic ? {
-    fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
-    background: 'white', padding: '1px 6px', outline: 'none', height: 20, width: '100%', boxSizing: 'border-box',
-} : {
-    fontFamily: modernFont, fontSize: 13, border: '1px solid #cbd3df', borderRadius: 7,
-    padding: '4px 8px', background: '#fff', color: '#1e293b', outline: 'none', width: '100%', boxSizing: 'border-box',
-};
-const xpBtn = (classic: boolean, extra: React.CSSProperties = {}): React.CSSProperties => classic ? {
-    fontFamily: xpFont, fontSize: 11, padding: '2px 10px', cursor: 'pointer',
-    background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
-    border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000', ...extra,
-} : {
-    fontFamily: modernFont, fontSize: 12.5, fontWeight: 500, padding: '5px 12px', cursor: 'pointer',
-    background: '#fff', color: '#334155', border: '1px solid #cbd3df', borderRadius: 7, ...extra,
-};
-const modernPrimaryBtn: React.CSSProperties = { fontWeight: 600, background: '#2563eb', color: '#fff', border: 'none' };
-const lbl = (classic: boolean): React.CSSProperties => classic
-    ? { fontFamily: xpFont, fontSize: 11, color: '#000', display: 'block', marginBottom: 2 }
-    : { fontFamily: modernFont, fontSize: 12, color: '#475569', fontWeight: 600, display: 'block', marginBottom: 3 };
-const xpThCell = (classic: boolean): React.CSSProperties => classic ? {
-    padding: '3px 6px', borderRight: '1px solid #b0aaa0', textAlign: 'left', whiteSpace: 'nowrap',
-    fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#000',
-} : {
-    padding: '6px 10px', textAlign: 'left', whiteSpace: 'nowrap',
-    fontFamily: modernFont, fontSize: 11, fontWeight: 700, color: '#475569',
-    textTransform: 'uppercase', background: '#eef1f6', borderBottom: '1.5px solid #cbd3df',
-};
-const tdBase = (classic: boolean): React.CSSProperties => classic ? {
-    padding: '4px 6px', borderRight: '1px solid #c0bdb5', verticalAlign: 'middle',
-    fontFamily: xpFont, fontSize: 11,
-} : {
-    padding: '6px 10px', verticalAlign: 'middle', fontFamily: modernFont, fontSize: 13, color: '#334155',
-};
-const sep = (classic: boolean): React.CSSProperties =>
-    classic ? { width: 1, height: 20, background: '#a0988c', margin: '0 2px' } : { width: 1, height: 20, background: '#dbe1ea', margin: '0 2px' };
+import { StatusChip } from '../shared/xpTheme';
+import {
+    LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow,
+} from '../shared/listViewTheme';
 
 const STATUS_FILTERS = ['ALL', 'active', 'archived'];
 
@@ -152,10 +117,6 @@ export default function ColorLibraryView({
 
     const totalPages = Math.max(1, Math.ceil(total / size));
 
-    const primaryToolbarBtn = classic
-        ? xpBtn(true, { background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', color: '#fff', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', fontWeight: 'bold' })
-        : xpBtn(false, modernPrimaryBtn);
-
     const swatch = (hex?: string) => (
         <span style={{
             display: 'inline-block', width: 18, height: 18, borderRadius: classic ? 2 : 4,
@@ -165,22 +126,12 @@ export default function ColorLibraryView({
         }} title={hex || 'no swatch'} />
     );
 
-    const statusChip = (status: string) => (
-        <span style={{
-            fontFamily: classic ? xpFont : modernFont, fontSize: classic ? 10 : 11,
-            padding: classic ? '0 6px' : '1px 7px', borderRadius: classic ? 2 : 10, fontWeight: 'bold',
-            background: status === 'archived' ? '#fde8e8' : '#e6f4ea',
-            color: status === 'archived' ? '#b42318' : '#1a7f37',
-            border: `1px solid ${status === 'archived' ? '#f3c2c2' : '#abdbb6'}`,
-        }}>{status}</span>
-    );
-
     return (
         <div style={embedded
-            ? { display: 'flex', flexDirection: 'column', height: '100%', fontFamily: classic ? xpFont : modernFont, background: '#fff' }
+            ? { display: 'flex', flexDirection: 'column', height: '100%', fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT, background: '#fff' }
             : classic
-            ? { display: 'flex', flexDirection: 'column', height: '100%', fontFamily: xpFont, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
-            : { display: 'flex', flexDirection: 'column', height: '100%', fontFamily: modernFont, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
+            ? { display: 'flex', flexDirection: 'column', height: '100%', fontFamily: LV_XP_FONT, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
+            : { display: 'flex', flexDirection: 'column', height: '100%', fontFamily: LV_MODERN_FONT, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
 
             {/* Title bar (hidden when embedded under the Colors tab shell) */}
             {!embedded && (
@@ -197,20 +148,20 @@ export default function ColorLibraryView({
                 ? { background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }
                 : { background: '#fff', borderBottom: '1px solid #dbe1ea', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
                 {canManage && (
-                <button style={primaryToolbarBtn} onClick={openCreate}>
+                <button style={lvPrimaryBtn(classic)} onClick={openCreate}>
                     <i className="bi bi-plus-lg" /> New Color
                 </button>
                 )}
-                <span style={sep(classic)} />
+                <span style={lvSep(classic)} />
                 <input
-                    style={{ ...inp(classic), width: 240, flexBasis: 240 }}
+                    style={{ ...lvInput(classic), width: 240, flexBasis: 240 }}
                     placeholder="Search code, name, Pantone, customer code…"
                     value={searchInput}
                     onChange={e => setSearchInput(e.target.value)}
                 />
-                <span style={sep(classic)} />
+                <span style={lvSep(classic)} />
                 {STATUS_FILTERS.map(s => (
-                    <button key={s} style={statusFilter === s ? primaryToolbarBtn : xpBtn(classic)} onClick={() => onStatusChange(s)}>
+                    <button key={s} style={statusFilter === s ? lvPrimaryBtn(classic) : lvBtn(classic)} onClick={() => onStatusChange(s)}>
                         {s === 'ALL' ? 'All' : s}
                     </button>
                 ))}
@@ -226,44 +177,42 @@ export default function ColorLibraryView({
                         ? { background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080' }
                         : { background: '#eef1f6' }}>
                         <tr>
-                            <th style={{ ...xpThCell(classic), width: 34 }}></th>
-                            <th style={{ ...xpThCell(classic), width: 130 }}>Code</th>
-                            <th style={xpThCell(classic)}>Name</th>
-                            <th style={{ ...xpThCell(classic), width: 110 }}>Pantone</th>
-                            <th style={{ ...xpThCell(classic), width: 150 }}>Colour Index</th>
-                            <th style={{ ...xpThCell(classic), width: 90 }}>Substrate</th>
-                            <th style={{ ...xpThCell(classic), width: 120 }}>Customer</th>
-                            <th style={{ ...xpThCell(classic), width: 90 }}>Cust. Code</th>
-                            <th style={{ ...xpThCell(classic), width: 60, textAlign: 'center' }}>Recipes</th>
-                            <th style={{ ...xpThCell(classic), width: 80 }}>Status</th>
-                            <th style={{ ...xpThCell(classic), width: 120, textAlign: 'right', borderRight: 'none' }}>Actions</th>
+                            <th style={{ ...lvTh(classic), width: 34 }}></th>
+                            <th style={{ ...lvTh(classic), width: 130 }}>Code</th>
+                            <th style={lvTh(classic)}>Name</th>
+                            <th style={{ ...lvTh(classic), width: 110 }}>Pantone</th>
+                            <th style={{ ...lvTh(classic), width: 150 }}>Colour Index</th>
+                            <th style={{ ...lvTh(classic), width: 90 }}>Substrate</th>
+                            <th style={{ ...lvTh(classic), width: 120 }}>Customer</th>
+                            <th style={{ ...lvTh(classic), width: 90 }}>Cust. Code</th>
+                            <th style={{ ...lvTh(classic), width: 60, textAlign: 'center' }}>Recipes</th>
+                            <th style={{ ...lvTh(classic), width: 80 }}>Status</th>
+                            <th style={{ ...lvTh(classic), width: 120, textAlign: 'right', borderRight: 'none' }}>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {colors.length === 0 && (
-                            <tr><td colSpan={11} style={{ ...tdBase(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
+                            <tr><td colSpan={11} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
                                 {loading ? 'Loading…' : 'No colors found.'}
                             </td></tr>
                         )}
                         {colors.map((c, idx) => (
-                            <tr key={c.id} style={classic
-                                ? { background: idx % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' }
-                                : { background: idx % 2 === 0 ? '#fff' : '#f8fafc', borderBottom: '1px solid #e6eaf1' }}>
-                                <td style={{ ...tdBase(classic), textAlign: 'center' }}>{swatch(c.hex)}</td>
-                                <td style={tdBase(classic)}>
+                            <tr key={c.id} style={lvRow(classic, idx)}>
+                                <td style={{ ...lvTd(classic), textAlign: 'center' }}>{swatch(c.hex)}</td>
+                                <td style={lvTd(classic)}>
                                     <span style={classic
                                         ? { fontFamily: "'Courier New', monospace", fontWeight: 'bold', color: '#0047c8', fontSize: 11 }
                                         : { fontFamily: "'Courier New', monospace", fontWeight: 700, color: '#2563eb', fontSize: 12 }}>{c.code}</span>
                                 </td>
-                                <td style={tdBase(classic)}>{c.name}</td>
-                                <td style={tdBase(classic)}>{c.pantone_ref || <span style={{ color: '#aaa' }}>—</span>}</td>
-                                <td style={tdBase(classic)}>{c.colour_index || <span style={{ color: '#aaa' }}>—</span>}</td>
-                                <td style={tdBase(classic)}>{c.substrate || <span style={{ color: '#aaa' }}>—</span>}</td>
-                                <td style={tdBase(classic)}>{c.customer_name || <span style={{ color: '#aaa', fontStyle: 'italic' }}>House</span>}</td>
-                                <td style={tdBase(classic)}>{c.customer_color_code || <span style={{ color: '#aaa' }}>—</span>}</td>
-                                <td style={{ ...tdBase(classic), textAlign: 'center' }}>{c.recipe_count || 0}</td>
-                                <td style={tdBase(classic)}>{statusChip(c.status)}</td>
-                                <td style={{ ...tdBase(classic), borderRight: 'none', textAlign: 'right' }}>
+                                <td style={lvTd(classic)}>{c.name}</td>
+                                <td style={lvTd(classic)}>{c.pantone_ref || <span style={{ color: '#aaa' }}>—</span>}</td>
+                                <td style={lvTd(classic)}>{c.colour_index || <span style={{ color: '#aaa' }}>—</span>}</td>
+                                <td style={lvTd(classic)}>{c.substrate || <span style={{ color: '#aaa' }}>—</span>}</td>
+                                <td style={lvTd(classic)}>{c.customer_name || <span style={{ color: '#aaa', fontStyle: 'italic' }}>House</span>}</td>
+                                <td style={lvTd(classic)}>{c.customer_color_code || <span style={{ color: '#aaa' }}>—</span>}</td>
+                                <td style={{ ...lvTd(classic), textAlign: 'center' }}>{c.recipe_count || 0}</td>
+                                <td style={lvTd(classic)}><StatusChip status={c.status} /></td>
+                                <td style={{ ...lvTd(classic), borderRight: 'none', textAlign: 'right' }}>
                                     <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end', alignItems: 'center' }}>
                                         {canManage && (
                                         <button title="Edit" onClick={() => openEdit(c)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#555' : '#64748b', fontSize: 13 }}>
@@ -288,9 +237,9 @@ export default function ColorLibraryView({
                 ? { background: '#ece9d8', borderTop: '1px solid #b0a898', padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, fontSize: 11, color: '#333' }
                 : { background: '#fff', borderTop: '1px solid #dbe1ea', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, fontSize: 12, color: '#475569' }}>
                 <span style={{ marginLeft: 'auto' }} />
-                <button style={xpBtn(classic)} disabled={page <= 1} onClick={() => onPageChange(page - 1)}>◀ Prev</button>
+                <button style={lvBtn(classic)} disabled={page <= 1} onClick={() => onPageChange(page - 1)}>◀ Prev</button>
                 <span>Page {page} / {totalPages}</span>
-                <button style={xpBtn(classic)} disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>Next ▶</button>
+                <button style={lvBtn(classic)} disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>Next ▶</button>
             </div>
 
             <ModalWrapper
@@ -300,8 +249,8 @@ export default function ColorLibraryView({
                 size="lg"
                 footer={
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                        <button type="button" style={xpBtn(classic)} onClick={() => setIsModalOpen(false)}>Cancel</button>
-                        <button type="submit" form="color-form" style={xpBtn(classic, classic ? { background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', color: '#fff', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', fontWeight: 'bold' } : modernPrimaryBtn)}>
+                        <button type="button" style={lvBtn(classic)} onClick={() => setIsModalOpen(false)}>Cancel</button>
+                        <button type="submit" form="color-form" style={lvPrimaryBtn(classic)}>
                             {editing ? 'Save' : 'Create'}
                         </button>
                     </div>
@@ -310,52 +259,52 @@ export default function ColorLibraryView({
                 <form id="color-form" onSubmit={handleSubmit}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                         <div>
-                            <label style={lbl(classic)}>Code *</label>
-                            <input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} style={inp(classic)} required />
+                            <label style={lvLabel(classic)}>Code *</label>
+                            <input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} style={lvInput(classic)} required />
                         </div>
                         <div>
-                            <label style={lbl(classic)}>Name *</label>
-                            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={inp(classic)} required />
+                            <label style={lvLabel(classic)}>Name *</label>
+                            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={lvInput(classic)} required />
                         </div>
                         <div>
-                            <label style={lbl(classic)}>Pantone Ref</label>
-                            <input value={form.pantone_ref} onChange={e => setForm({ ...form, pantone_ref: e.target.value })} placeholder="e.g. 19-4052 TCX" style={inp(classic)} />
+                            <label style={lvLabel(classic)}>Pantone Ref</label>
+                            <input value={form.pantone_ref} onChange={e => setForm({ ...form, pantone_ref: e.target.value })} placeholder="e.g. 19-4052 TCX" style={lvInput(classic)} />
                         </div>
                         <div>
-                            <label style={lbl(classic)}>Colour Index (C.I.)</label>
-                            <input value={form.colour_index} onChange={e => setForm({ ...form, colour_index: e.target.value })} placeholder="e.g. C.I. Reactive Blue 19" style={inp(classic)} />
+                            <label style={lvLabel(classic)}>Colour Index (C.I.)</label>
+                            <input value={form.colour_index} onChange={e => setForm({ ...form, colour_index: e.target.value })} placeholder="e.g. C.I. Reactive Blue 19" style={lvInput(classic)} />
                         </div>
                         <div>
-                            <label style={lbl(classic)}>Swatch (hex)</label>
+                            <label style={lvLabel(classic)}>Swatch (hex)</label>
                             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                                 <input type="color" value={form.hex || '#ffffff'} onChange={e => setForm({ ...form, hex: e.target.value })} style={{ width: 36, height: 24, padding: 0, border: '1px solid #94a3b8', cursor: 'pointer' }} />
-                                <input value={form.hex} onChange={e => setForm({ ...form, hex: e.target.value })} placeholder="#RRGGBB" style={inp(classic)} />
+                                <input value={form.hex} onChange={e => setForm({ ...form, hex: e.target.value })} placeholder="#RRGGBB" style={lvInput(classic)} />
                             </div>
                         </div>
                         <div>
-                            <label style={lbl(classic)}>Substrate</label>
-                            <input value={form.substrate} onChange={e => setForm({ ...form, substrate: e.target.value })} placeholder="e.g. CVC, 100% Cotton" style={inp(classic)} />
+                            <label style={lvLabel(classic)}>Substrate</label>
+                            <input value={form.substrate} onChange={e => setForm({ ...form, substrate: e.target.value })} placeholder="e.g. CVC, 100% Cotton" style={lvInput(classic)} />
                         </div>
                         <div>
-                            <label style={lbl(classic)}>Customer</label>
+                            <label style={lvLabel(classic)}>Customer</label>
                             <SearchableSelect options={customerOptions} value={form.customer_id} onChange={v => setForm({ ...form, customer_id: v })} placeholder="House color" />
                         </div>
                         <div>
-                            <label style={lbl(classic)}>Customer Color Code</label>
-                            <input value={form.customer_color_code} onChange={e => setForm({ ...form, customer_color_code: e.target.value })} style={inp(classic)} />
+                            <label style={lvLabel(classic)}>Customer Color Code</label>
+                            <input value={form.customer_color_code} onChange={e => setForm({ ...form, customer_color_code: e.target.value })} style={lvInput(classic)} />
                         </div>
                         <div style={{ gridColumn: '1 / -1' }}>
-                            <label style={lbl(classic)}>Spectrophotometer Notes</label>
-                            <textarea value={form.spectro_notes} onChange={e => setForm({ ...form, spectro_notes: e.target.value })} rows={2} placeholder="Lab readings (L*a*b*), illuminant, tolerance…" style={{ ...inp(classic), height: 'auto', resize: 'vertical' }} />
+                            <label style={lvLabel(classic)}>Spectrophotometer Notes</label>
+                            <textarea value={form.spectro_notes} onChange={e => setForm({ ...form, spectro_notes: e.target.value })} rows={2} placeholder="Lab readings (L*a*b*), illuminant, tolerance…" style={{ ...lvInput(classic), height: 'auto', resize: 'vertical' }} />
                         </div>
                         <div style={{ gridColumn: '1 / -1' }}>
-                            <label style={lbl(classic)}>Notes</label>
-                            <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} style={{ ...inp(classic), height: 'auto', resize: 'vertical' }} />
+                            <label style={lvLabel(classic)}>Notes</label>
+                            <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} style={{ ...lvInput(classic), height: 'auto', resize: 'vertical' }} />
                         </div>
                         {editing && (
                             <div>
-                                <label style={lbl(classic)}>Status</label>
-                                <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} style={inp(classic)}>
+                                <label style={lvLabel(classic)}>Status</label>
+                                <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} style={lvInput(classic)}>
                                     <option value="active">active</option>
                                     <option value="archived">archived</option>
                                 </select>

@@ -11,6 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import { useSortable, SortMark, StatusChip, statusTint, XPLoading, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
+import { useArchivedComboValueIds } from '../shared/useArchivedCombos';
 import Pager from '../shared/Pager';
 import { useRouter } from 'next/navigation';
 
@@ -40,25 +41,9 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const lineageEnvBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
   const LINEAGE_API_BASE = lineageEnvBase.endsWith('/api') ? lineageEnvBase : `${lineageEnvBase}/api`;
 
-  // Combo values are governed by the Combo Library. The combo AttributeValues mirror
-  // the library 1:1, so attr.values already tracks it — except archive. Pull the
-  // (small) archived set and subtract it, so the SO Combo dropdown shows ONLY active
-  // library combos. Excluding archived (vs. fetching active) avoids any list-cap
-  // truncation when active combos number in the thousands.
-  const [archivedComboValueIds, setArchivedComboValueIds] = useState<Set<string>>(new Set());
-  useEffect(() => {
-      (async () => {
-          try {
-              const res = await authFetch(`${LINEAGE_API_BASE}/combos?status=archived&size=500`);
-              if (res.ok) {
-                  const d = await res.json();
-                  setArchivedComboValueIds(new Set(
-                      (d.items ?? []).map((c: any) => String(c.attribute_value_id)).filter((x: string) => x && x !== 'null')
-                  ));
-              }
-          } catch { /* silent */ }
-      })();
-  }, [authFetch]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Combo Library governs which combos are offered; shared hook subtracts archived so
+  // the Combo dropdown shows only active library combos (see useArchivedComboValueIds).
+  const archivedComboValueIds = useArchivedComboValueIds();
   const [lineageSO, setLineageSO] = useState<any>(null);
   const [lineageData, setLineageData] = useState<any>(null);
   const [lineageLoading, setLineageLoading] = useState(false);

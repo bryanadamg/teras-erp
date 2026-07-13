@@ -13,6 +13,7 @@ import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
 import { StatusChip, XPLoading } from '../shared/xpTheme';
+import { useArchivedComboValueIds } from '../shared/useArchivedCombos';
 import Pager from '../shared/Pager';
 import { STATIC_BASE } from '../shared/apiBase';
 
@@ -34,27 +35,11 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       });
       if (ok) onUpdateColorStatus(sampleId, colorId, 'APPROVED');
   };
-  const { companyProfile, attributes, authFetch, loading: dataLoading } = useData();
+  const { companyProfile, attributes, loading: dataLoading } = useData();
 
-  // Combo values are governed by the Combo Library; the combo attr mirrors it 1:1
-  // except archive. Pull the (small) archived set and subtract it so the sample Combo
-  // picker offers only active library combos — matching the Sales Order form.
-  const [archivedComboValueIds, setArchivedComboValueIds] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    (async () => {
-      try {
-        const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
-        const base = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
-        const res = await authFetch(`${base}/combos?status=archived&size=500`);
-        if (res.ok) {
-          const d = await res.json();
-          setArchivedComboValueIds(new Set(
-            (d.items ?? []).map((c: any) => String(c.attribute_value_id)).filter((x: string) => x && x !== 'null')
-          ));
-        }
-      } catch { /* silent */ }
-    })();
-  }, [authFetch]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Combo Library governs which combos are offered; shared hook subtracts archived so
+  // the sample Combo picker offers only active library combos — matching Sales Order.
+  const archivedComboValueIds = useArchivedComboValueIds();
   const colorOptions = useMemo(() => {
     const attr = (attributes as any[]).find((a: any) => a.system_role === 'color');
     return (attr?.values ?? []).map((v: any) => ({ value: v.value, label: v.value }));

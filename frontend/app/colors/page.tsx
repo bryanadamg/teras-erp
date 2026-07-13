@@ -8,6 +8,7 @@ import { useData } from '../context/DataContext';
 import { useToast } from '../components/shared/Toast';
 import { useTheme } from '../context/ThemeContext';
 import { useUser } from '../context/UserContext';
+import { LvTabBar } from '../components/shared/listViewTheme';
 
 const PAGE_SIZE = 50;
 
@@ -127,29 +128,6 @@ export default function ColorsPage() {
         else { const e = await res.json().catch(() => ({})); showToast(e.detail || 'Failed to delete color', 'danger'); }
     };
 
-    // ── Shell: title bar + tab bar wrapping the active panel ──────────────────────
-    const tabBtn = (key: 'codes' | 'variant', label: string) => {
-        const active = tab === key;
-        return (
-            <button
-                type="button"
-                onClick={() => setTab(key)}
-                style={classic ? {
-                    fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, padding: '3px 14px', cursor: 'pointer',
-                    border: '1px solid', borderBottom: active ? '2px solid #fff' : '1px solid #c0bdb5',
-                    marginBottom: active ? -2 : 0,
-                    borderColor: active ? '#808080 #c0bdb5 transparent #808080' : '#d0cfc8',
-                    background: active ? '#fff' : 'linear-gradient(to bottom, #f5f3ee, #e0dfd8)',
-                    color: active ? '#000' : '#555', fontWeight: active ? 'bold' : 'normal',
-                } : {
-                    fontFamily: 'system-ui, sans-serif', fontSize: 13, padding: '6px 16px', cursor: 'pointer',
-                    border: 'none', borderBottom: active ? '2px solid #2563eb' : '2px solid transparent',
-                    background: 'transparent', color: active ? '#2563eb' : '#64748b', fontWeight: active ? 700 : 500,
-                }}
-            >{label}</button>
-        );
-    };
-
     return (
         <div style={classic
             ? { display: 'flex', flexDirection: 'column', height: '100%', border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
@@ -162,12 +140,12 @@ export default function ColorsPage() {
                 Colors
             </div>
 
-            <div style={classic
-                ? { display: 'flex', gap: 2, padding: '4px 8px 0', borderBottom: '2px solid #c0bdb5', background: '#ece9d8', flexShrink: 0 }
-                : { display: 'flex', gap: 4, padding: '4px 10px 0', borderBottom: '1px solid #dbe1ea', background: '#fff', flexShrink: 0 }}>
-                {tabBtn('codes', 'Color Codes')}
-                {tabBtn('variant', 'Colors (Variant)')}
-            </div>
+            <LvTabBar
+                classic={classic}
+                active={tab}
+                onChange={(k) => setTab(k as 'codes' | 'variant')}
+                tabs={[{ key: 'codes', label: 'Color Codes' }, { key: 'variant', label: 'Colors (Variant)' }]}
+            />
 
             <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                 {tab === 'codes' ? (
