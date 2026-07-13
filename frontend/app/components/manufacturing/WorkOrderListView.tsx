@@ -11,6 +11,7 @@ const WOCompletionModal = dynamic(() => import('./WOCompletionModal'), { ssr: fa
 const WOStepPrintModal = dynamic(() => import('./WOStepPrintModal'), { ssr: false });
 const WOBulkPrintModal = dynamic(() => import('./WOBulkPrintModal'), { ssr: false });
 const WOStagingModal = dynamic(() => import('./WOStagingModal'), { ssr: false });
+const BagLabelPrintModal = dynamic(() => import('./BagLabelPrintModal'), { ssr: false });
 import { getChipStyle } from './WorkOrderPanel';
 import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
@@ -134,6 +135,14 @@ export default function WorkOrderListView({
     const [printMO, setPrintMO] = useState<any>(null);
     const [selectedWOIds, setSelectedWOIds] = useState<Set<string>>(new Set());
     const [bulkPrintOpen, setBulkPrintOpen] = useState(false);
+    // Bag labels: one sticker per weighed bag (= one lotted completion on this WO).
+    // The flat WO payload lacks lots/attrs/putaway the label needs, so fetch the
+    // full MO on demand and feed that to the label modal.
+    const [labelBags, setLabelBags] = useState<any[] | null>(null);
+    const [labelMO, setLabelMO] = useState<any>(null);
+    const [labelWO, setLabelWO] = useState<any>(null);
+    const [labelSeqStart, setLabelSeqStart] = useState(1);
+    const [labelLoadingWO, setLabelLoadingWO] = useState<string | null>(null);
     const [form, setForm] = useState({ sequence: '', name: '', work_center_id: '', planned_duration_hours: '' });
     const [isSaving, setIsSaving] = useState(false);
     const [expandedWOId, setExpandedWOId] = useState<string | null>(null);
@@ -278,6 +287,35 @@ export default function WorkOrderListView({
         setCompletionWO(wo);
     };
 
+    // Print bag labels straight from the expanded row — no need to reopen the log
+    // modal. Fetches the full MO (flat payload has no lots/bom/attrs), filters to
+    // this WO's non-rejected lotted completions (= bags) in log order. `onlyId`
+    // prints a single bag with its real sequence number; otherwise all bags.
+    const openBagLabels = async (wo: FlatWO, onlyId?: string) => {
+        setLabelLoadingWO(wo.id);
+        try {
+            const mo = await onFetchMO(wo.mo_id);
+            if (!mo) { showToast('Could not load MO for labels', 'danger'); return; }
+            const bags = (mo.completions || [])
+                .filter((c: any) => String(c.work_order_id || '') === String(wo.id) && !c.rejected && c.output_batch_number)
+                .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+            if (onlyId) {
+                const idx = bags.findIndex((c: any) => String(c.id) === String(onlyId));
+                if (idx < 0) { showToast('No lot/bag recorded for this entry yet', 'warning'); return; }
+                setLabelSeqStart(idx + 1);
+                setLabelBags([bags[idx]]);
+            } else {
+                if (!bags.length) { showToast('No weighed bags with lots on this WO yet', 'info'); return; }
+                setLabelSeqStart(1);
+                setLabelBags(bags);
+            }
+            setLabelMO(mo);
+            setLabelWO(wo);
+        } finally {
+            setLabelLoadingWO(null);
+        }
+    };
+
     const xpFont = 'Tahoma, "Segoe UI", sans-serif';
     const xpInput: React.CSSProperties = {
         fontFamily: xpFont, fontSize: 11,
@@ -309,6 +347,8 @@ export default function WorkOrderListView({
     const renderDetailPanel = (wo: FlatWO) => {
         const bomItemIds = new Set<string>(wo.bom_line_item_ids || []);
         const completions: any[] = wo.completions || [];
+        // Bag labels apply to lot-producing steps (each weighed bag = one lot).
+        const isLotWOType = ['WEAVING', 'TENUN', 'DYEING', 'CELUP', 'BEAMING'].includes((wo.work_center_type || '').toUpperCase());
 
         const components: any[] = woComponents[wo.id] || [];
         const componentsLoading = !!woComponentsLoading[wo.id];
@@ -413,7 +453,20 @@ export default function WorkOrderListView({
 
                         {/* Completion Log — compact table rows */}
                         <div style={{ padding: '6px 8px', background: '#f5f4ef', overflow: 'hidden' }}>
-                            <div style={colHeaderStyle}>Completion Log ({completions.length})</div>
+                            <div style={{ ...colHeaderStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+                                <span>Completion Log ({completions.length})</span>
+                                {isLotWOType && completions.some((c: any) => !c.rejected) && (
+                                    <button
+                                        type="button"
+                                        onClick={() => openBagLabels(wo)}
+                                        disabled={labelLoadingWO === wo.id}
+                                        style={{ fontFamily: xpFont, fontSize: 8, padding: '0 6px', cursor: 'pointer', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid #808080', color: '#000040', textTransform: 'none', letterSpacing: 0 }}
+                                        title="Print a sticker label for each weighed bag on this WO"
+                                    >
+                                        {labelLoadingWO === wo.id ? 'Loading…' : 'Bag Labels'}
+                                    </button>
+                                )}
+                            </div>
                             {completions.length === 0 ? (
                                 <div style={{ color: '#aaa', fontStyle: 'italic', fontSize: 9 }}>No entries yet.</div>
                             ) : (
@@ -446,7 +499,22 @@ export default function WorkOrderListView({
                                                                 {c.operator_name || '—'}
                                                                 {c.rejected && <span style={{ marginLeft: 5, fontSize: 8, fontWeight: 'bold', color: '#900', border: '1px solid #c88', background: '#fff', padding: '0 3px' }}>REJECTED</span>}
                                                             </td>
-                                                            <td style={{ padding: '2px 5px', color: '#555' }}>{c.work_center_name || '—'}</td>
+                                                            <td style={{ padding: '2px 5px', color: '#555' }}>
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>
+                                                                    <span>{c.work_center_name || '—'}</span>
+                                                                    {isLotWOType && !c.rejected && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => openBagLabels(wo, c.id)}
+                                                                            disabled={labelLoadingWO === wo.id}
+                                                                            style={{ fontFamily: xpFont, fontSize: 8, padding: '0 4px', cursor: 'pointer', background: 'linear-gradient(to bottom,#fff,#d4d0c8)', border: '1px solid #808080', color: '#000040' }}
+                                                                            title="Print this bag's label"
+                                                                        >
+                                                                            Label
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </td>
                                                         </tr>
                                                         {hasMeta && (
                                                             <tr style={{ background: ci % 2 === 0 ? '#fafaf7' : '#f0efe8', borderBottom: '1px solid #e8e6e0' }}>
@@ -975,6 +1043,15 @@ export default function WorkOrderListView({
                 wo={stageWO}
                 onClose={() => setStageWO(null)}
                 onStaged={() => { setStageWO(null); onRefresh(); }}
+            />
+        )}
+        {labelBags && labelMO && (
+            <BagLabelPrintModal
+                bags={labelBags}
+                workOrder={labelWO}
+                parentMO={labelMO}
+                seqStart={labelSeqStart}
+                onClose={() => { setLabelBags(null); setLabelMO(null); setLabelWO(null); }}
             />
         )}
         {printWO && printMO && (
