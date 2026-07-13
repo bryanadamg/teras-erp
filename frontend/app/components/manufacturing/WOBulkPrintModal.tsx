@@ -29,7 +29,7 @@ export default function WOBulkPrintModal({
     manufacturingOrders: any[];
     onClose: () => void;
 }) {
-    const { companyProfile } = useData() as any;
+    const { companyProfile, attributes } = useData() as any;
     const { uiStyle } = useTheme();
     const isClassic = uiStyle === 'classic';
 
@@ -81,6 +81,7 @@ export default function WOBulkPrintModal({
                     qrDataUrl={qrUrls[wo.id] || ''}
                     settings={settings}
                     companyName={companyProfile?.name}
+                    attributes={attributes}
                 />
             </div>
         );

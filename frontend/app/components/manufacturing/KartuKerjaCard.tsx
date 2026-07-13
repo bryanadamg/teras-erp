@@ -22,6 +22,7 @@ export default function KartuKerjaCard(props: {
     qrDataUrl: string;
     settings: KartuKerjaSettings;
     companyName?: string;
+    attributes?: any[];
 }) {
     const rawType = String(props.workOrder?.work_center_type || '').toUpperCase();
     // TENUN/CELUP are Indonesian aliases for WEAVING/DYEING work centers — see
@@ -33,7 +34,7 @@ export default function KartuKerjaCard(props: {
         case 'BEAMING':
             return <KartuKerjaCardBeaming {...props} />;
         case 'WEAVING':
-            return <KartuKerjaCardWeaving {...props} />;
+            return <KartuKerjaCardWeaving {...props} attributes={props.attributes || []} />;
         case 'DYEING':
             return <KartuKerjaCardDyeing {...props} />;
         // WARPING, SETTING, FINISHING: printout specifics TBD — use general layout for now.

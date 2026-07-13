@@ -29,7 +29,7 @@ export default function WOStepPrintModal({
     parentMO: any;
     onClose: () => void;
 }) {
-    const { companyProfile } = useData() as any;
+    const { companyProfile, attributes } = useData() as any;
     const { uiStyle } = useTheme();
     const isClassic = uiStyle === 'classic';
 
@@ -65,6 +65,7 @@ export default function WOStepPrintModal({
             qrDataUrl={qrDataUrl}
             settings={settings}
             companyName={companyProfile?.name}
+            attributes={attributes}
         />
     );
 

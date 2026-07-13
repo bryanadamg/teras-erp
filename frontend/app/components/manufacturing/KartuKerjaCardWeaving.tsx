@@ -3,8 +3,10 @@ import React from 'react';
 import type { KartuKerjaSettings } from './KartuKerjaCardBeaming';
 
 /**
- * Kartu Kerja (WO step card) body for WEAVING work centers — placeholder pass,
- * layout/fields to be refined later. Selected by ./KartuKerjaCard.
+ * Kartu Kerja (WO step card) body for WEAVING work centers — modeled on the
+ * factory's existing paper "kartu tenun" (SPK/Artikel/Warna/Lebar/Simpan-di-Rak
+ * fields, Operator + Kantong/Berat tally filled by hand). Selected by
+ * ./KartuKerjaCard.
  */
 export default function KartuKerjaCardWeaving({
     workOrder,
@@ -12,16 +14,30 @@ export default function KartuKerjaCardWeaving({
     qrDataUrl,
     settings,
     companyName,
+    attributes = [],
 }: {
     workOrder: any;
     parentMO: any;
     qrDataUrl: string;
     settings: KartuKerjaSettings;
     companyName?: string;
+    attributes?: any[];
 }) {
     const woQty = workOrder.qty ?? 0;
     const woEnds = workOrder.ends ?? null;
     const displayCompany = companyName || '';
+    const bom = parentMO?.bom;
+
+    // WARNA — resolve the system Colors attribute value carried by the MO.
+    const colorAttr = (attributes || []).find((a: any) => (a.system_role || '').toLowerCase() === 'color');
+    const moValueIds: string[] = parentMO?.attribute_value_ids || [];
+    const colorValue = colorAttr?.values?.find((v: any) => moValueIds.includes(v.id));
+    const colorName = colorValue?.value || null;
+
+    // LEBAR / TARIKAN — weaving measurement spec, carried on the BOM.
+    const lebar = bom?.mesin_lebar;
+    const tarikanSebelum = bom?.mesin_panjang_tarikan;
+    const tarikanSesudah = bom?.celup_panjang_tarikan;
 
     const allBomLines: any[] = parentMO?.bom?.lines || [];
     const bomOps: any[] = parentMO?.bom?.operations || [];
@@ -50,7 +66,7 @@ export default function KartuKerjaCardWeaving({
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #000', paddingBottom: '5px', marginBottom: '6px', gap: '8px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', minWidth: 0 }}>
-                    <div style={{ fontSize: '12px', fontFamily: 'monospace', fontWeight: 'bold' }}>{parentMO?.code || workOrder.mo_code || '—'}</div>
+                    <div style={{ fontSize: '12px', fontFamily: 'monospace', fontWeight: 'bold' }}>{workOrder.code || parentMO?.code || '—'}</div>
                     {displayCompany && <div style={{ fontSize: '8px', color: '#555', fontWeight: 'bold' }}>{displayCompany}</div>}
                     <div style={{ fontSize: '8px', color: '#666' }}>
                         {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })}
@@ -72,7 +88,7 @@ export default function KartuKerjaCardWeaving({
                     <div style={{ fontSize: '20px', fontWeight: 'bold', lineHeight: 1.05, wordBreak: 'break-word' }}>{workOrder.name}</div>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={heroLbl}>LOOM / MESIN</div>
+                    <div style={heroLbl}>NO. MESIN</div>
                     <div style={{ fontSize: '13px', fontWeight: 'bold' }}>{workOrder.work_center_name || '—'}</div>
                     <div style={{ fontSize: '9px', color: '#555' }}>Step {workOrder.sequence}</div>
                 </div>
@@ -96,9 +112,23 @@ export default function KartuKerjaCardWeaving({
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '6px' }}>
                 <tbody>
                     <tr>
-                        <td style={{ ...gridLbl, width: '24%' }}>Produk</td>
+                        <td style={{ ...gridLbl, width: '24%' }}>Artikel</td>
                         <td colSpan={3} style={{ ...gridVal, fontWeight: 'bold' }}>{parentMO?.item_name || workOrder.item_name || '—'}</td>
                     </tr>
+                    <tr>
+                        <td style={{ ...gridLbl, width: '24%' }}>Warna</td>
+                        <td style={{ ...gridVal, width: '26%' }}>{colorName || '—'}</td>
+                        <td style={{ ...gridLbl, width: '22%' }}>Lebar</td>
+                        <td style={gridVal}>{lebar != null ? `${lebar} cm` : '—'}</td>
+                    </tr>
+                    {(tarikanSebelum != null || tarikanSesudah != null) && (
+                        <tr>
+                            <td style={gridLbl}>Tarikan Sblm Celup/Setting</td>
+                            <td style={gridVal}>{tarikanSebelum != null ? tarikanSebelum : '—'}</td>
+                            <td style={gridLbl}>Tarikan Ssdh Celup/Setting</td>
+                            <td style={gridVal}>{tarikanSesudah != null ? tarikanSesudah : '—'}</td>
+                        </tr>
+                    )}
                     <tr>
                         <td style={{ ...gridLbl, width: '24%' }}>Status</td>
                         <td style={{ ...gridVal, width: '26%' }}>{workOrder.status}</td>
@@ -115,24 +145,46 @@ export default function KartuKerjaCardWeaving({
                     )}
                     {parentMO?.planned_putaway_location_name && (
                         <tr>
-                            <td style={gridLbl}>Simpan ke</td>
+                            <td style={gridLbl}>Simpan di Rak</td>
                             <td colSpan={3} style={{ ...gridVal, fontWeight: 'bold' }}>
                                 {parentMO.planned_putaway_location_name}
                             </td>
                         </tr>
                     )}
+                    <tr>
+                        <td style={gridLbl}>Operator</td>
+                        <td colSpan={3} style={{ ...gridVal, borderBottom: '1px solid #000' }}>&nbsp;</td>
+                    </tr>
                 </tbody>
             </table>
 
             <div style={{ marginBottom: '6px' }}>
-                <div style={{ fontSize: '8px', fontWeight: 'bold', color: '#555', marginBottom: '2px' }}>Cek / 10 mnt</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '2px' }}>
-                    {Array.from({ length: 12 }, (_, i) => (
-                        <div key={i} style={{ border: '1px solid #aaa', padding: '3px 4px', fontSize: '8px', color: '#555', minHeight: '22px' }}>
-                            {i + 1}:
-                        </div>
-                    ))}
-                </div>
+                <div style={{ fontSize: '8px', fontWeight: 'bold', color: '#555', marginBottom: '2px' }}>Jumlah Kantong/Box &amp; Berat</div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px' }}>
+                    <thead>
+                        <tr style={{ background: '#f0f0f0' }}>
+                            <th style={{ border: '1px solid #bbb', padding: '2px 5px', width: '14%' }}>No.</th>
+                            <th style={{ border: '1px solid #bbb', padding: '2px 5px' }}>Berat (kg)</th>
+                            <th style={{ border: '1px solid #bbb', padding: '2px 5px', width: '14%' }}>No.</th>
+                            <th style={{ border: '1px solid #bbb', padding: '2px 5px' }}>Berat (kg)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {[1, 2, 3].map(row => (
+                            <tr key={row}>
+                                <td style={{ border: '1px solid #bbb', padding: '3px 5px', textAlign: 'center', color: '#888' }}>{row * 2 - 1}</td>
+                                <td style={{ border: '1px solid #bbb', padding: '3px 5px' }}>&nbsp;</td>
+                                <td style={{ border: '1px solid #bbb', padding: '3px 5px', textAlign: 'center', color: '#888' }}>{row * 2}</td>
+                                <td style={{ border: '1px solid #bbb', padding: '3px 5px' }}>&nbsp;</td>
+                            </tr>
+                        ))}
+                        <tr>
+                            <td style={{ border: '1px solid #bbb', padding: '3px 5px', fontWeight: 'bold', textAlign: 'right' }} colSpan={2}>Jumlah</td>
+                            <td style={{ border: '1px solid #bbb', padding: '3px 5px', fontWeight: 'bold', textAlign: 'right' }}>Total</td>
+                            <td style={{ border: '1px solid #bbb', padding: '3px 5px' }}>&nbsp;</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
 
             {settings.showMaterials && bomLines.length > 0 && (
