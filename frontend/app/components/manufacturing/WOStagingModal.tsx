@@ -76,7 +76,7 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                 // resolved location — a beam from another machine/MO is still valid stock.
                 const lotRows = data.filter(r => r.lot_tracked);
                 const entries = await Promise.all(lotRows.map(async r => {
-                    const b = await authFetch(`${API_BASE}/batches?item_id=${r.item_id}&limit=200`);
+                    const b = await authFetch(`${API_BASE}/batches?item_id=${r.item_id}&limit=200&with_source_lots=true`);
                     const list = b.ok ? await b.json() : [];
                     return [r.item_id, (list || []).filter((x: any) => (x.remaining ?? 0) > 0 && x.quality_status !== 'REJECTED')] as const;
                 }));
@@ -281,10 +281,17 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                                                                                 return { ...p, [r.item_id]: next };
                                                                             })}
                                                                         />
-                                                                        {b.batch_number}
-                                                        {b.wo_code ? <span style={{ color: '#777' }}> — {b.wo_code}</span> : null}
-                                                        {b.location_name ? <span style={{ color: '#0058e6' }}> @ {b.location_name}</span> : null}
-                                                        {' '}({(b.remaining ?? 0).toFixed(1)})
+                                                                        <span>
+                                                            {b.batch_number}
+                                                            {b.wo_code ? <span style={{ color: '#777' }}> — {b.wo_code}</span> : null}
+                                                            {b.location_name ? <span style={{ color: '#0058e6' }}> @ {b.location_name}</span> : null}
+                                                            {' '}({(b.remaining ?? 0).toFixed(1)})
+                                                            {Array.isArray(b.source_lots) && b.source_lots.length > 0 ? (
+                                                                <span style={{ display: 'block', color: '#777', fontSize: 9, paddingLeft: 18 }}>
+                                                                    RM lot: {b.source_lots.join(', ')}
+                                                                </span>
+                                                            ) : null}
+                                                        </span>
                                                                     </label>
                                                                 );
                                                             })}

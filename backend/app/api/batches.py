@@ -96,6 +96,31 @@ async def _resolve_batch_origins(db: AsyncSession, batches: list[Batch]) -> None
                 setattr(b, k, v)
 
 
+async def _resolve_source_lots(db: AsyncSession, batches: list[Batch]) -> None:
+    """Populate source_lots: the immediate upstream lots each batch was made from.
+
+    One level back only. For a beam, its inputs (yarn) are pegged directly with
+    output_batch_id = beam.id at BEAMING completion, so a single grouped query
+    resolves every beam's raw-material/goods-receipt lot numbers — no N+1. This
+    is what surfaces RM-lot provenance to the stager, who owns lot granularity
+    when mounting beams onto a weaving WO.
+    """
+    made_ids = [b.id for b in batches if b.source_wo_id]
+    if not made_ids:
+        return
+    rows = await db.execute(
+        select(BatchConsumption.output_batch_id, Batch.batch_number)
+        .join(Batch, Batch.id == BatchConsumption.input_batch_id)
+        .filter(BatchConsumption.output_batch_id.in_(made_ids))
+    )
+    lot_map: dict = {}
+    for out_id, number in rows.all():
+        lot_map.setdefault(out_id, set()).add(number)
+    for b in batches:
+        if b.source_wo_id:
+            b.source_lots = sorted(lot_map.get(b.id, set()))
+
+
 def _build_batch_number(date_str: str, counter: int) -> str:
     return f"BAT-{date_str}-{str(counter).zfill(4)}"
 
@@ -148,7 +173,7 @@ async def create_batch(
     return batch
 
 
-async def _enrich_batches(db: AsyncSession, batches: list[Batch], location_id: uuid.UUID | None = None) -> list[Batch]:
+async def _enrich_batches(db: AsyncSession, batches: list[Batch], location_id: uuid.UUID | None = None, with_source_lots: bool = False) -> list[Batch]:
     """Attach remaining stock, current location, item code/name and origin lineage.
 
     A location filter means "lots actually present there" (lot/batch pickers for
@@ -190,6 +215,8 @@ async def _enrich_batches(db: AsyncSession, batches: list[Batch], location_id: u
         b.item_name = b.item.name if b.item else None
     await _resolve_gr_origins(db, list(batches))
     await _resolve_batch_origins(db, list(batches))
+    if with_source_lots:
+        await _resolve_source_lots(db, list(batches))
     return batches
 
 
@@ -197,6 +224,7 @@ async def _enrich_batches(db: AsyncSession, batches: list[Batch], location_id: u
 async def list_batches(
     item_id: uuid.UUID | None = Query(None),
     location_id: uuid.UUID | None = Query(None),
+    with_source_lots: bool = Query(False, description="Also resolve each batch's immediate upstream (RM) lots — used by the staging picker"),
     skip: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_async_db),
@@ -210,7 +238,7 @@ async def list_batches(
         query = query.filter(Batch.item_id == item_id)
     result = await db.execute(query.offset(skip).limit(limit))
     batches = result.scalars().all()
-    return await _enrich_batches(db, batches, location_id)
+    return await _enrich_batches(db, batches, location_id, with_source_lots=with_source_lots)
 
 
 @router.get("/paginated", response_model=PaginatedBatchResponse)

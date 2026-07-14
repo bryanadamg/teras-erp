@@ -1834,6 +1834,10 @@ class BatchResponse(BaseModel):
     # GR origin — resolved from GoodsReceiptLine → GoodsReceipt → PurchaseOrder
     po_id: Optional[UUID] = None
     po_number: Optional[str] = None
+    # Immediate upstream lots this batch was made from (one level back) — e.g. a
+    # beam's raw-material/yarn goods-receipt lots. Populated on demand only
+    # (with_source_lots=true) so it powers RM-lot visibility at staging.
+    source_lots: Optional[list[str]] = None
 
     class Config:
         from_attributes = True

@@ -992,10 +992,12 @@ async def add_mo_completion(
         )
         db.add(output_batch)
         await db.flush()
-        # Claim any beam pegs left dangling by an earlier merge (Start-WO or a
-        # prior completion) — direct FK lineage instead of the MO-level NULL fallback.
-        for c in pending_beam_pegs:
-            c.output_batch_id = output_batch.id
+        # Beam-merge consumptions stay pegged at MO level (output_batch_id NULL)
+        # on purpose — one beam merges into a kg pool that MULTIPLE output lots
+        # draw from, so the consumption is not owned by any single lot. Claiming
+        # the dangling pegs to THIS lot orphans every sibling lot's lineage:
+        # trace-back resolves beams via source_wo_id → MO → NULL-pegged rows, and
+        # those rows must stay NULL for all sibling lots on this WO to find them.
 
     # Input lots: selected batches matched to material lines by item
     input_batch_ids = list(payload.consumed_batches)
@@ -1083,7 +1085,10 @@ async def add_mo_completion(
     # batch-less kg pool now, so the deduction below draws plain pool kg —
     # no per-beam selection. Idempotent, self-guards on work center type.
     if wo and wo_input_loc:
-        await beam_service.merge_staged_beams(db, wo, output_batch_id=output_batch.id if output_batch else None)
+        # Peg at MO level (output_batch_id=None), NOT this completion's lot — the
+        # merged beam feeds a pool every output lot on this WO draws from, so no
+        # single lot owns it. See the beam-peg NOTE above.
+        await beam_service.merge_staged_beams(db, wo, output_batch_id=None)
 
     # Save actual items used (substitutes)
     for ai in payload.actual_items:
