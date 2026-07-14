@@ -99,7 +99,14 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
   // QC reject
   const [rejectBatch, setRejectBatch] = useState<Batch | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [rejectQty, setRejectQty] = useState('');
   const [rejecting, setRejecting] = useState(false);
+
+  const openReject = (b: Batch) => {
+    setRejectBatch(b);
+    setRejectReason('');
+    setRejectQty(b.remaining != null ? String(Number(b.remaining)) : '');
+  };
 
   // Debounce the search box 350ms before it drives a server fetch (matches item search).
   useEffect(() => {
@@ -172,12 +179,18 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
   // if it was born from a production log, that qty returns to the MO's progress.
   const handleReject = async () => {
     if (!rejectBatch) return;
+    const remaining = Number(rejectBatch.remaining ?? 0);
+    const q = parseFloat(rejectQty);
+    if (rejectQty !== '' && (isNaN(q) || q <= 0)) { showToast('Reject qty must be positive', 'warning'); return; }
+    if (!isNaN(q) && q > remaining + 1e-9) { showToast(`Reject qty exceeds remaining (${remaining})`, 'warning'); return; }
+    // Omit qty (full reject) when the field is blank or covers the whole balance.
+    const partial = rejectQty !== '' && !isNaN(q) && q < remaining - 1e-9;
     setRejecting(true);
     try {
       const res = await authFetch(`${apiBase}/batches/${rejectBatch.id}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: rejectReason.trim() || null }),
+        body: JSON.stringify({ reason: rejectReason.trim() || null, qty: partial ? q : null }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -585,7 +598,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                         {b.quality_status !== 'REJECTED' && (
                           <button
                             style={xpBtn({ background: 'linear-gradient(to bottom, #ffe0b0, #e0a050)', fontSize: 10, padding: '2px 7px', marginRight: 4, color: '#663300' })}
-                            onClick={() => { setRejectBatch(b); setRejectReason(''); }}
+                            onClick={() => openReject(b)}
                             title="QC reject — lot drops out of good stock; produced qty returns to its MO"
                           >
                             Reject
@@ -687,7 +700,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                         {b.quality_status !== 'REJECTED' && (
                           <button
                             className="btn btn-sm btn-outline-warning me-1"
-                            onClick={() => { setRejectBatch(b); setRejectReason(''); }}
+                            onClick={() => openReject(b)}
                             title="QC reject — lot drops out of good stock; produced qty returns to its MO"
                           >
                             Reject
@@ -754,12 +767,18 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
       )}
 
       {/* ── QC Reject Modal ── */}
-      {rejectBatch && (
+      {rejectBatch && (() => {
+        const rem = Number(rejectBatch.remaining ?? 0);
+        const q = parseFloat(rejectQty);
+        const partial = rejectQty !== '' && !isNaN(q) && q > 0 && q < rem - 1e-9;
+        const goodLeft = partial ? rem - q : 0;
+        return (
         <ModalWrapper
           isOpen={!!rejectBatch}
           onClose={() => setRejectBatch(null)}
           title={`Reject Lot ${rejectBatch.batch_number}`}
           size="sm"
+          modeless
           footer={<>
             <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setRejectBatch(null)}>Cancel</button>
             <button
@@ -768,20 +787,37 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
               onClick={handleReject}
               disabled={rejecting}
             >
-              {rejecting ? 'Rejecting...' : 'Confirm Reject'}
+              {rejecting ? 'Rejecting...' : partial ? 'Reject Portion' : 'Reject Whole Lot'}
             </button>
           </>}
         >
           <div className="mb-2" style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>
             <strong>{batchItemCode(rejectBatch)}</strong>
-            {rejectBatch.remaining != null && <> — {Number(rejectBatch.remaining).toFixed(2)} remaining</>}
+            {rejectBatch.remaining != null && <> — {rem.toFixed(2)} remaining</>}
             {rejectBatch.mo_code && <> (MO {rejectBatch.mo_code})</>}
           </div>
+          <div className="mb-3">
+            <label style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>Reject quantity</label>
+            <input
+              type="number"
+              min={0}
+              max={rem}
+              step="any"
+              className={classic ? '' : 'form-control form-control-sm mt-1'}
+              style={classic ? { ...xpInput, width: '100%', height: 22 } : {}}
+              value={rejectQty}
+              onChange={e => setRejectQty(e.target.value)}
+            />
+            <div style={classic ? { fontFamily: 'Tahoma', fontSize: 10, color: '#555', marginTop: 2 } : { fontSize: 12, color: '#666', marginTop: 2 }}>
+              {partial
+                ? `Splits off ${q.toFixed(2)} into a REJECTED sub-lot; ${goodLeft.toFixed(2)} stays active.`
+                : 'Full quantity — rejects the whole lot.'}
+            </div>
+          </div>
           <div className="mb-3" style={classic ? { fontFamily: 'Tahoma', fontSize: 10, color: '#663300' } : { fontSize: 13, color: '#664d03' }}>
-            The lot is marked REJECTED: it stays in stock but is excluded from
-            availability and consumption. If it was produced by a work order log,
-            that quantity is returned to the MO's progress — create a new WO to
-            refill the shortfall.
+            {partial
+              ? `The rejected ${q.toFixed(2)} moves to a new REJECTED sub-lot (excluded from availability/consumption) and is physically pulled out; the rest stays GOOD. If produced by a work order, that qty returns to the MO's progress — add a WO to refill.`
+              : `The lot is marked REJECTED: it stays in stock but is excluded from availability and consumption. If it was produced by a work order log, that quantity is returned to the MO's progress — create a new WO to refill the shortfall.`}
           </div>
           <div className="mb-3">
             <label style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>Reason</label>
@@ -791,11 +827,11 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
               value={rejectReason}
               onChange={e => setRejectReason(e.target.value)}
               placeholder="Defect, shade off, width out of spec..."
-              autoFocus
             />
           </div>
         </ModalWrapper>
-      )}
+        );
+      })()}
     </div>
   );
 }

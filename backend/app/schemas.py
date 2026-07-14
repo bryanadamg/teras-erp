@@ -347,6 +347,10 @@ class MOCompletionResponse(BaseModel):
 class BatchReject(BaseModel):
     """QC-reject a produced lot (from the Lot Management page)."""
     reason: str | None = None
+    # Partial reject: kg to reject. None or >= remaining = reject the whole lot
+    # (flag it REJECTED). A value below remaining splits off a REJECTED sub-lot
+    # for that qty and leaves the balance GOOD/active.
+    qty: float | None = None
 
 class MOCompletionReject(BaseModel):
     """Completion-level reject (API/un-lotted outputs; lot page uses /batches/{id}/reject)."""

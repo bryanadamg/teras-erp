@@ -17,7 +17,7 @@ from app.models.purchase import PurchaseOrder
 from app.schemas import BatchCreate, BatchReject, BatchResponse, BatchTraceResponse, BatchConsumptionResponse, BatchTraceBackNode, PaginatedBatchResponse
 from app.api.auth import get_current_user, require_permission
 from app.models.auth import User
-from app.services import audit_service, kpi_service
+from app.services import audit_service, kpi_service, stock_service
 from app.core.ws_manager import manager
 from datetime import datetime, timezone
 import uuid
@@ -376,9 +376,63 @@ async def reject_batch(
         raise HTTPException(status_code=400, detail="Lot is already rejected")
 
     reason = (payload.reason or "").strip() or None
-    batch.quality_status = "REJECTED"
 
-    # Producing completion (if any): return the qty to MO progress.
+    # Current on-hand across every balance row keyed to this lot.
+    bal_rows = (await db.execute(
+        select(StockBalance)
+        .filter(StockBalance.batch_key == str(batch.id), StockBalance.qty > 0)
+        .order_by(StockBalance.qty.desc())
+    )).scalars().all()
+    remaining = sum(float(r.qty) for r in bal_rows)
+
+    reject_qty = payload.qty
+    if reject_qty is not None:
+        if reject_qty <= 0:
+            raise HTTPException(status_code=400, detail="Reject qty must be positive")
+        if reject_qty > remaining + 1e-9:
+            raise HTTPException(status_code=400, detail=f"Reject qty {reject_qty:g} exceeds remaining {remaining:g}")
+    # Whole-lot reject when no qty given or it covers the entire remaining balance.
+    partial = reject_qty is not None and reject_qty < remaining - 1e-9
+
+    sub = None
+    if partial:
+        # Split: move reject_qty into a new REJECTED sub-lot (same item/location/
+        # variant), leaving the original lot GOOD/active for the good remainder.
+        seq = (await db.execute(
+            select(func.count()).select_from(Batch).filter(Batch.batch_number.like(f"{batch.batch_number}-R%"))
+        )).scalar() or 0
+        sub = Batch(
+            batch_number=f"{batch.batch_number}-R{seq + 1}",
+            item_id=batch.item_id,
+            quality_status="REJECTED",
+            source_wo_id=batch.source_wo_id,
+            notes=(f"QC reject of {batch.batch_number}" + (f": {reason}" if reason else "")),
+            created_by=current_user.username,
+        )
+        db.add(sub)
+        await db.flush()
+
+        to_move = float(reject_qty)
+        for r in bal_rows:
+            if to_move <= 1e-9:
+                break
+            portion = min(float(r.qty), to_move)
+            ids = [uuid.UUID(x) for x in (r.variant_key or "").split(",") if x]
+            await stock_service.add_stock_entry(
+                db, item_id=batch.item_id, location_id=r.location_id, qty_change=-portion,
+                reference_type="QC_REJECT", reference_id=sub.batch_number,
+                attribute_value_ids=ids, batch_id=batch.id,
+            )
+            await stock_service.add_stock_entry(
+                db, item_id=batch.item_id, location_id=r.location_id, qty_change=portion,
+                reference_type="QC_REJECT", reference_id=sub.batch_number,
+                attribute_value_ids=ids, batch_id=sub.id,
+            )
+            to_move -= portion
+    else:
+        batch.quality_status = "REJECTED"
+
+    # Producing completion (if any): return the rejected qty to MO progress.
     comp = (await db.execute(
         select(MOCompletion).filter(
             MOCompletion.output_batch_id == batch.id,
@@ -386,11 +440,25 @@ async def reject_batch(
         )
     )).scalars().first()
     mo = None
+    returned = 0.0
     if comp:
-        comp.rejected = True
-        comp.reject_reason = reason
-        comp.rejected_at = datetime.utcnow()
-        comp.rejected_by = current_user.username
+        if partial:
+            # Reduce the good qty this completion contributes; every MO/WO progress
+            # sum is sum(qty_completed where not rejected), so trimming this value
+            # rolls the rejected qty straight back into the shortfall.
+            returned = min(float(reject_qty), float(comp.qty_completed))
+            comp.qty_completed = float(comp.qty_completed) - returned
+            comp.reject_reason = reason
+            if float(comp.qty_completed) <= 1e-9:
+                comp.rejected = True
+                comp.rejected_at = datetime.utcnow()
+                comp.rejected_by = current_user.username
+        else:
+            returned = float(comp.qty_completed)
+            comp.rejected = True
+            comp.reject_reason = reason
+            comp.rejected_at = datetime.utcnow()
+            comp.rejected_by = current_user.username
         await db.flush()
 
         mo = (await db.execute(
@@ -408,8 +476,9 @@ async def reject_batch(
     await db.commit()
     await audit_service.log_activity(
         db, current_user.id, "REJECT", "Batch", str(batch.id),
-        details=f"Rejected lot {batch.batch_number}"
-        + (f" (completion {float(comp.qty_completed):g} returned to {mo.code})" if comp and mo else "")
+        details=(f"Rejected {reject_qty:g} of lot {batch.batch_number} → sub-lot {sub.batch_number}" if partial
+                 else f"Rejected lot {batch.batch_number}")
+        + (f" ({returned:g} returned to {mo.code})" if comp and mo and returned else "")
         + (f": {reason}" if reason else ""),
     )
     await manager.broadcast({"type": "STOCK_UPDATE"})
