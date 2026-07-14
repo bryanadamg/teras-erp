@@ -689,9 +689,9 @@ export default function WorkOrderListView({
                                 <col style={{ width: 28 }} />   {/* checkbox */}
                                 <col style={{ width: 22 }} />   {/* chevron */}
                                 <col style={{ width: 34 }} />   {/* # */}
-                                <col style={{ width: '20%' }} />{/* Name */}
+                                <col style={{ width: '24%' }} />{/* Name */}
                                 <col style={{ width: '9%' }} /> {/* Product */}
-                                <col style={{ width: '10%' }} />{/* Work Center */}
+                                <col style={{ width: '15%' }} />{/* Work Center */}
                                 <col style={{ width: 86 }} />   {/* Target/Done */}
                                 <col style={{ width: 90 }} />   {/* Target Start */}
                                 <col style={{ width: 90 }} />   {/* Target End */}
@@ -699,7 +699,7 @@ export default function WorkOrderListView({
                                 <col style={{ width: 98 }} />   {/* Actual End */}
                                 <col style={{ width: 98 }} />   {/* Created */}
                                 <col style={{ width: 112 }} />  {/* Status */}
-                                <col style={{ width: 126 }} />  {/* Actions */}
+                                <col style={{ width: 78 }} />   {/* Actions */}
                             </colgroup>
                             <thead>
                                 <tr className={classic ? '' : 'table-light'}>
@@ -822,10 +822,12 @@ export default function WorkOrderListView({
                                                 <td style={{ ...tdBase, fontFamily: 'monospace', fontWeight: 'bold', fontSize: classic ? 10 : 11, color: '#000080', overflow: 'hidden' }}
                                                     title={(wo as any).code || wo.name}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden' }}>
-                                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        <span style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                             {(wo as any).code || wo.name}
                                                         </span>
-                                                        <PrintChips wo={wo} />
+                                                        <span style={{ marginLeft: 'auto', flexShrink: 0 }}>
+                                                            <PrintChips wo={wo} />
+                                                        </span>
                                                     </div>
                                                 </td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11, color: '#444', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
@@ -888,7 +890,7 @@ export default function WorkOrderListView({
                                                             <div
                                                                 className="xp-menu-trigger"
                                                                 onClick={e => toggleStatusMenu(wo.id, e)}
-                                                                style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}
+                                                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 5, cursor: 'pointer' }}
                                                             >
                                                                 {statusChip(wo.status)}
                                                                 {hasStaging && (
@@ -905,15 +907,16 @@ export default function WorkOrderListView({
                                                         <>
                                                             {canStage(wo) && (
                                                                 <button onClick={() => (canScanStage(wo) ? setScanStageWO(wo) : setStageWO(wo))}
-                                                                    title="Issue this step's materials to the line"
-                                                                    style={{ fontFamily: xpFont, fontSize: 10, padding: '1px 6px', background: 'linear-gradient(to bottom, #cfe0ff, #8fb3e8)', border: '1px solid #335599', cursor: 'pointer', color: '#0a2a66', marginRight: 4 }}>
-                                                                    Stage
+                                                                    title="Stage — issue this step's materials to the line"
+                                                                    style={{ fontFamily: xpFont, fontSize: 11, lineHeight: 1, padding: '2px 4px', background: 'linear-gradient(to bottom, #cfe0ff, #8fb3e8)', border: '1px solid #335599', cursor: 'pointer', color: '#0a2a66', marginRight: 2 }}>
+                                                                    <i className="bi bi-box-seam" />
                                                                 </button>
                                                             )}
                                                             {canManage && (wo.status === 'PENDING' || wo.status === 'IN_PROGRESS') && (
                                                                 <button onClick={() => openLog(wo)}
-                                                                    style={{ fontFamily: xpFont, fontSize: 10, padding: '1px 6px', background: 'linear-gradient(to bottom,#b0e8b0,#70c870)', border: '1px solid #0a3e0a', cursor: 'pointer', color: '#004000', marginRight: 4 }}>
-                                                                    Log
+                                                                    title="Log production output"
+                                                                    style={{ fontFamily: xpFont, fontSize: 11, lineHeight: 1, padding: '2px 4px', background: 'linear-gradient(to bottom,#b0e8b0,#70c870)', border: '1px solid #0a3e0a', cursor: 'pointer', color: '#004000', marginRight: 2 }}>
+                                                                    <i className="bi bi-plus-lg" />
                                                                 </button>
                                                             )}
                                                             <MenuTriggerButton classic={classic} onClick={(e) => toggleMenu(wo.id, e)} />
@@ -921,18 +924,18 @@ export default function WorkOrderListView({
                                                     ) : (
                                                         <>
                                                             {canStage(wo) && (
-                                                                <button className="btn btn-sm btn-outline-primary py-0 px-2 me-1" style={{ fontSize: '0.72rem' }} onClick={() => (canScanStage(wo) ? setScanStageWO(wo) : setStageWO(wo))}>Stage</button>
+                                                                <button className="btn btn-sm btn-outline-primary py-0 px-2 me-1" title="Stage — issue this step's materials to the line" onClick={() => (canScanStage(wo) ? setScanStageWO(wo) : setStageWO(wo))}><i className="bi bi-box-seam" /></button>
                                                             )}
                                                             {canManage && wo.status === 'PENDING' && (
-                                                                <button className="btn btn-sm btn-primary py-0 px-2 me-1" style={{ fontSize: '0.72rem' }} onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>Start</button>
+                                                                <button className="btn btn-sm btn-primary py-0 px-2 me-1" title="Start work order" onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}><i className="bi bi-play-fill" /></button>
                                                             )}
                                                             {canManage && (wo.status === 'PENDING' || wo.status === 'IN_PROGRESS') && (
-                                                                <button className="btn btn-sm btn-success py-0 px-2 me-1" style={{ fontSize: '0.72rem' }} onClick={() => openLog(wo)}>Log</button>
+                                                                <button className="btn btn-sm btn-success py-0 px-2 me-1" title="Log production output" onClick={() => openLog(wo)}><i className="bi bi-plus-lg" /></button>
                                                             )}
                                                             {canManage && wo.status === 'IN_PROGRESS' && (
-                                                                <button className="btn btn-sm btn-outline-success py-0 px-2 me-1" style={{ fontSize: '0.72rem' }}
-                                                                    disabled={!canComplete(wo)} title={!canComplete(wo) ? `Target ${wo.qty} not reached` : undefined}
-                                                                    onClick={() => onUpdateStatus(wo.id, 'COMPLETED')}>Finish</button>
+                                                                <button className="btn btn-sm btn-outline-success py-0 px-2 me-1"
+                                                                    disabled={!canComplete(wo)} title={!canComplete(wo) ? `Target ${wo.qty} not reached` : 'Finish work order'}
+                                                                    onClick={() => onUpdateStatus(wo.id, 'COMPLETED')}><i className="bi bi-check-lg" /></button>
                                                             )}
                                                             <MenuTriggerButton classic={classic} onClick={(e) => toggleMenu(wo.id, e)} />
                                                         </>
