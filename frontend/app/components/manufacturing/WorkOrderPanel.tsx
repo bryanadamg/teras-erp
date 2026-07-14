@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 const WOStepPrintModal = dynamic(() => import('./WOStepPrintModal'), { ssr: false });
 import WOStagingModal from './WOStagingModal';
+import BagScanStageModal from './BagScanStageModal';
 import BeamPlanningModal from './BeamPlanningModal';
 import LeftoverBeamModal from './LeftoverBeamModal';
 import { useToast } from '../shared/Toast';
@@ -142,12 +143,18 @@ export default function WorkOrderPanel({
     const canEditBase = canManage || hasPermission('work_order.edit');
     const canLog = (wo: any) => canLogBase && hasWorkCenterScope(wo.work_center_type);
     const canEdit = (wo: any) => canEditBase && hasWorkCenterScope(wo.work_center_type);
+    // Scan-to-stage is for dyeing, where the greige substrate arrives as many
+    // bagged lots the operator scans in rather than picking manually.
+    const canScanStage = (wo: any) =>
+        ['DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase()) &&
+        wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED';
     const [addingRow, setAddingRow] = useState(false);
     const [editId, setEditId] = useState<string | null>(null);
     const [form, setForm] = useState({ ...emptyForm });
     const [isSaving, setIsSaving] = useState(false);
     const [printWO, setPrintWO] = useState<WO | null>(null);
     const [stageWO, setStageWO] = useState<WO | null>(null);
+    const [scanStageWO, setScanStageWO] = useState<WO | null>(null);
     const [leftoverWO, setLeftoverWO] = useState<WO | null>(null);
     const [overAssignWarning, setOverAssignWarning] = useState<{ totalAssigned: number; moQty: number } | null>(null);
     const [beamPlanOpen, setBeamPlanOpen] = useState(false);
@@ -668,7 +675,7 @@ export default function WorkOrderPanel({
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
                                         {canEdit(wo) && (wo.bom_operation_id || ['WEAVING', 'DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase())) && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
                                             <button
-                                                onClick={() => setStageWO(wo)}
+                                                onClick={() => (canScanStage(wo) ? setScanStageWO(wo) : setStageWO(wo))}
                                                 title="Issue this step's materials to the line"
                                                 style={{
                                                     fontFamily: xpFont, fontSize: 10, padding: '0px 6px',
@@ -917,6 +924,16 @@ export default function WorkOrderPanel({
                     wo={stageWO}
                     onClose={() => setStageWO(null)}
                     onStaged={() => { /* WO list refreshes via the WORK_ORDER_UPDATE broadcast */ }}
+                    onScanMode={canScanStage(stageWO) ? () => { const w = stageWO; setStageWO(null); setScanStageWO(w); } : undefined}
+                />
+            )}
+
+            {scanStageWO && (
+                <BagScanStageModal
+                    wo={scanStageWO}
+                    onClose={() => setScanStageWO(null)}
+                    onStaged={() => { /* WO list refreshes via the WORK_ORDER_UPDATE broadcast */ }}
+                    onManualMode={() => { const w = scanStageWO; setScanStageWO(null); setStageWO(w); }}
                 />
             )}
 
