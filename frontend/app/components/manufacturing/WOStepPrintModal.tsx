@@ -30,9 +30,18 @@ export default function WOStepPrintModal({
     parentMO: any;
     onClose: () => void;
 }) {
-    const { companyProfile, attributes } = useData() as any;
+    const { companyProfile, attributes, authFetch } = useData() as any;
     const { uiStyle } = useTheme();
     const isClassic = uiStyle === 'classic';
+
+    const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
+    // Fire-and-forget: mark the card printed the moment the operator commits to
+    // printing. Never block the browser print dialog on the network call.
+    const doPrint = () => {
+        try { authFetch(`${API_BASE}/work-orders/${workOrder.id}/mark-printed?kind=card`, { method: 'POST' }).catch(() => {}); } catch { /* noop */ }
+        window.addEventListener('afterprint', onClose, { once: true });
+        window.print();
+    };
 
     const [qrDataUrl, setQrDataUrl] = useState('');
     const [settings, setSettings] = useState<StepPrintSettings>(() => {
@@ -125,12 +134,12 @@ export default function WOStepPrintModal({
                         {isClassic ? (
                             <>
                                 <button style={xpBtnGrey} onClick={onClose}>Close</button>
-                                <button style={xpBtnGreen} onClick={() => { window.addEventListener('afterprint', onClose, { once: true }); window.print(); }}>Print</button>
+                                <button style={xpBtnGreen} onClick={doPrint}>Print</button>
                             </>
                         ) : (
                             <>
                                 <button className="btn btn-sm btn-secondary" onClick={onClose}>Close</button>
-                                <button className="btn btn-sm btn-success" onClick={() => { window.addEventListener('afterprint', onClose, { once: true }); window.print(); }}>
+                                <button className="btn btn-sm btn-success" onClick={doPrint}>
                                     <i className="bi bi-printer me-1"></i>Print
                                 </button>
                             </>

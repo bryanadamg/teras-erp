@@ -18,6 +18,7 @@ from app.models.dyeing_setting import DyeRecipe, DyeingRun, dye_recipe_attribute
 from app.schemas import (
     WorkOrderCreate, WorkOrderResponse, WORequiredMaterial, WOStagePayload,
     LeftoverBeamCreate, BatchResponse, PutawayBinOption, PutawaySuggestionResponse,
+    WorkOrderMarkPrintedBulk,
 )
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, require_any_permission, wo_scope_ok
@@ -335,6 +336,71 @@ async def update_work_order_status(
         select(WorkOrder).options(*_wo_options()).filter(WorkOrder.id == wo_id)
     )
     return result.scalars().first()
+
+@router.post("/work-orders/mark-printed-bulk")
+async def mark_work_orders_printed_bulk(
+    payload: WorkOrderMarkPrintedBulk,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.log')),
+):
+    """Stamp print time on many WOs at once (bulk Kartu Kerja print)."""
+    if payload.kind not in ("card", "labels"):
+        raise HTTPException(status_code=400, detail="kind must be 'card' or 'labels'")
+    if not payload.ids:
+        return {"updated": 0}
+    result = await db.execute(select(WorkOrder).filter(WorkOrder.id.in_(payload.ids)))
+    wos = result.scalars().all()
+    now = datetime.utcnow()
+    for wo in wos:
+        if payload.kind == "card":
+            wo.card_printed_at = now
+        else:
+            wo.labels_printed_at = now
+    await db.commit()
+    await audit_service.log_activity(
+        db, current_user.id, "PRINT", "WorkOrder", ",".join(str(w.id) for w in wos)[:255],
+        details=f"Bulk printed {'Kartu Kerja' if payload.kind == 'card' else 'bag labels'} ({len(wos)} WO)"
+    )
+    await manager.broadcast({"type": "WORK_ORDER_UPDATE", "bulk": True})
+    return {"updated": len(wos)}
+
+
+@router.post("/work-orders/{wo_id}/mark-printed", response_model=WorkOrderResponse)
+async def mark_work_order_printed(
+    wo_id: str,
+    kind: str = "card",
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.log')),
+):
+    """Stamp print time on a WO. kind='card' (Kartu Kerja) or 'labels' (bag labels).
+    Idempotent — reprints just overwrite with a newer timestamp."""
+    if kind not in ("card", "labels"):
+        raise HTTPException(status_code=400, detail="kind must be 'card' or 'labels'")
+    result = await db.execute(
+        select(WorkOrder).options(*_wo_options()).filter(WorkOrder.id == wo_id)
+    )
+    wo = result.scalars().first()
+    if not wo:
+        raise HTTPException(status_code=404, detail="Work Order not found")
+
+    now = datetime.utcnow()
+    if kind == "card":
+        wo.card_printed_at = now
+    else:
+        wo.labels_printed_at = now
+
+    await db.commit()
+    await audit_service.log_activity(
+        db, current_user.id, "PRINT", "WorkOrder", wo_id,
+        details=f"Printed {'Kartu Kerja' if kind == 'card' else 'bag labels'}"
+    )
+    await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": wo_id, "status": wo.status})
+
+    result = await db.execute(
+        select(WorkOrder).options(*_wo_options()).filter(WorkOrder.id == wo_id)
+    )
+    return result.scalars().first()
+
 
 @router.post("/work-orders/bulk", response_model=list[WorkOrderResponse])
 async def create_work_orders_bulk(

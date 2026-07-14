@@ -561,12 +561,35 @@ async def list_work_orders_flat(
     center_type: str = Query(""),
     search: str = Query(""),
     component_item_id: str = Query(""),
+    unprinted: bool = Query(False),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
     from sqlalchemy import and_
 
     conditions = []
+    if unprinted:
+        # "Not fully printed" = the Kartu Kerja card was never printed, OR this is a
+        # lot-producing WO that has weighed bags whose labels are unprinted / stale
+        # (bags logged after the last label print). Mirrors the client badge logic.
+        latest_bag = (
+            select(func.max(MOCompletion.created_at))
+            .where(MOCompletion.work_order_id == WorkOrderModel.id, MOCompletion.rejected == False)  # noqa: E712
+            .correlate(WorkOrderModel)
+            .scalar_subquery()
+        )
+        lot_wc_subq = select(WorkCenter.id).where(
+            func.upper(WorkCenter.center_type).in_(["WEAVING", "TENUN", "DYEING", "CELUP", "BEAMING"])
+        ).scalar_subquery()
+        labels_missing = and_(
+            WorkOrderModel.work_center_id.in_(lot_wc_subq),
+            latest_bag.isnot(None),
+            or_(
+                WorkOrderModel.labels_printed_at.is_(None),
+                WorkOrderModel.labels_printed_at < latest_bag,
+            ),
+        )
+        conditions.append(or_(WorkOrderModel.card_printed_at.is_(None), labels_missing))
     if component_item_id:
         bom_ids_subq = select(BOMLine.bom_id).where(BOMLine.item_id == component_item_id).scalar_subquery()
         mo_ids_subq = select(ManufacturingOrder.id).where(ManufacturingOrder.bom_id.in_(bom_ids_subq)).scalar_subquery()
@@ -672,6 +695,8 @@ async def list_work_orders_flat(
             target_end_date=wo.target_end_date,
             actual_start_date=wo.actual_start_date,
             actual_end_date=wo.actual_end_date,
+            card_printed_at=wo.card_printed_at,
+            labels_printed_at=wo.labels_printed_at,
             notes=wo.notes,
             created_at=wo.created_at,
             work_center_id=str(wo.work_center_id) if wo.work_center_id else None,

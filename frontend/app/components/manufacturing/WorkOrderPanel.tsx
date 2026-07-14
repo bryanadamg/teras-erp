@@ -36,6 +36,59 @@ export function getChipStyle(centerType?: string | null): React.CSSProperties {
     return { background: '#e4e2dc', color: '#444444', borderColor: '#c4c2ba' };
 }
 
+// Lot-producing work centers — these WOs emit weighed bags (one bag = one lot),
+// so bag labels apply to them. Others only ever print a Kartu Kerja card.
+const LOT_WC_TYPES = ['WEAVING', 'TENUN', 'DYEING', 'CELUP', 'BEAMING'];
+
+// Derive the print state for a WO row from its timestamps + completions.
+//  - cardPrinted: Kartu Kerja printed at least once.
+//  - hasBags: lot-type WO with ≥1 non-rejected completion (= a bag to label).
+//  - labelsPrinted: labels stamped AND not stale (no bag logged since the print).
+export function computePrintState(wo: any): { cardPrinted: boolean; hasBags: boolean; labelsPrinted: boolean } {
+    const type = (wo.work_center_type || '').toUpperCase();
+    const lotType = LOT_WC_TYPES.includes(type);
+    const bags = (wo.completions || []).filter((c: any) => !c.rejected);
+    const hasBags = lotType && bags.length > 0;
+    let newest = 0;
+    for (const c of bags) {
+        const t = new Date(c.created_at || 0).getTime();
+        if (!isNaN(t) && t > newest) newest = t;
+    }
+    const lp = wo.labels_printed_at ? new Date(wo.labels_printed_at).getTime() : 0;
+    const labelsPrinted = hasBags ? (lp > 0 && lp >= newest) : false;
+    return { cardPrinted: !!wo.card_printed_at, hasBags, labelsPrinted };
+}
+
+const _printChipFmt = (v: any) =>
+    v ? new Date(v).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+
+// Two small "printed" indicators for a WO row: Card (Kartu Kerja) + Label (bags).
+// Green = printed, gray = card not printed yet, amber = labels missing/stale.
+export function PrintChips({ wo }: { wo: any }) {
+    const { cardPrinted, hasBags, labelsPrinted } = computePrintState(wo);
+    const variantStyle = (v: 'green' | 'gray' | 'amber'): React.CSSProperties =>
+        v === 'green' ? { background: '#d4f0d4', color: '#005500', borderColor: '#99cc99' }
+            : v === 'amber' ? { background: '#fff3cc', color: '#664400', borderColor: '#f0d888' }
+                : { background: '#eae8e2', color: '#777', borderColor: '#c8c6be' };
+    const chip = (v: 'green' | 'gray' | 'amber', label: string, title: string) => (
+        <span title={title} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 2,
+            fontSize: 8, fontWeight: 'bold', padding: '0 3px', whiteSpace: 'nowrap',
+            border: '1px solid', ...variantStyle(v),
+        }}>
+            <i className="bi bi-printer" style={{ fontSize: 9 }} />{label}
+        </span>
+    );
+    return (
+        <span style={{ display: 'inline-flex', gap: 2, flexShrink: 0 }}>
+            {chip(cardPrinted ? 'green' : 'gray', 'Card',
+                cardPrinted ? `Kartu Kerja printed ${_printChipFmt(wo.card_printed_at)}` : 'Kartu Kerja not printed yet')}
+            {hasBags && chip(labelsPrinted ? 'green' : 'amber', 'Label',
+                labelsPrinted ? `Bag labels printed ${_printChipFmt(wo.labels_printed_at)}` : 'Bag labels not printed (or new bags since last print)')}
+        </span>
+    );
+}
+
 interface WO {
     id: string;
     sequence: number;
@@ -510,6 +563,9 @@ export default function WorkOrderPanel({
                                     >
                                         {wo.code || `Step ${wo.sequence}`}
                                     </span>
+
+                                    {/* Print status chips (Card / Label) */}
+                                    <PrintChips wo={wo} />
 
                                     {/* Work center type chip */}
                                     {wo.work_center_type && (

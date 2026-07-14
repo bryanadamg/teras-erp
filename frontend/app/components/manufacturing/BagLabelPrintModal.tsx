@@ -45,9 +45,20 @@ export default function BagLabelPrintModal({
     seqStart?: number;
     onClose: () => void;
 }) {
-    const { companyProfile, attributes } = useData() as any;
+    const { companyProfile, attributes, authFetch } = useData() as any;
     const { uiStyle } = useTheme();
     const isClassic = uiStyle === 'classic';
+
+    const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
+    // Stamp labels_printed_at when the operator prints. Compared against the newest
+    // bag time on the WO row so bags logged after this print re-flag as unprinted.
+    const doPrint = () => {
+        if (workOrder?.id) {
+            try { authFetch(`${API_BASE}/work-orders/${workOrder.id}/mark-printed?kind=labels`, { method: 'POST' }).catch(() => {}); } catch { /* noop */ }
+        }
+        window.addEventListener('afterprint', onClose, { once: true });
+        window.print();
+    };
 
     const [qrUrls, setQrUrls] = useState<Record<string, string>>({});
     // 1D barcodes are synchronous to generate — memoize per bag lot.
@@ -120,12 +131,12 @@ export default function BagLabelPrintModal({
                         {isClassic ? (
                             <>
                                 <button style={xpBtnGrey} onClick={onClose}>Close</button>
-                                <button style={{ ...xpBtnGreen, opacity: bags.length ? 1 : 0.5 }} disabled={!bags.length} onClick={() => { window.addEventListener('afterprint', onClose, { once: true }); window.print(); }}>Print</button>
+                                <button style={{ ...xpBtnGreen, opacity: bags.length ? 1 : 0.5 }} disabled={!bags.length} onClick={doPrint}>Print</button>
                             </>
                         ) : (
                             <>
                                 <button className="btn btn-sm btn-secondary" onClick={onClose}>Close</button>
-                                <button className="btn btn-sm btn-success" disabled={!bags.length} onClick={() => { window.addEventListener('afterprint', onClose, { once: true }); window.print(); }}>
+                                <button className="btn btn-sm btn-success" disabled={!bags.length} onClick={doPrint}>
                                     <i className="bi bi-printer me-1"></i>Print {bags.length} {bags.length === 1 ? 'Label' : 'Labels'}
                                 </button>
                             </>

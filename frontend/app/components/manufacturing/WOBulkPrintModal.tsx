@@ -30,9 +30,26 @@ export default function WOBulkPrintModal({
     manufacturingOrders: any[];
     onClose: () => void;
 }) {
-    const { companyProfile, attributes } = useData() as any;
+    const { companyProfile, attributes, authFetch } = useData() as any;
     const { uiStyle } = useTheme();
     const isClassic = uiStyle === 'classic';
+
+    const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
+    // Bulk print marks every included WO's card in one call.
+    const doPrint = () => {
+        const ids = selectedWOs.map(w => w.id).filter(Boolean);
+        if (ids.length) {
+            try {
+                authFetch(`${API_BASE}/work-orders/mark-printed-bulk`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids, kind: 'card' }),
+                }).catch(() => {});
+            } catch { /* noop */ }
+        }
+        window.addEventListener('afterprint', onClose, { once: true });
+        window.print();
+    };
 
     const [qrUrls, setQrUrls] = useState<Record<string, string>>({});
     const [settings, setSettings] = useState<PrintSettings>(() => {
@@ -158,12 +175,12 @@ export default function WOBulkPrintModal({
                         {isClassicBool ? (
                             <>
                                 <button style={xpBtnGrey} onClick={onClose}>Close</button>
-                                <button style={xpBtnGreen} onClick={() => { window.addEventListener('afterprint', onClose, { once: true }); window.print(); }}>Print</button>
+                                <button style={xpBtnGreen} onClick={doPrint}>Print</button>
                             </>
                         ) : (
                             <>
                                 <button className="btn btn-sm btn-secondary" onClick={onClose}>Close</button>
-                                <button className="btn btn-sm btn-success" onClick={() => { window.addEventListener('afterprint', onClose, { once: true }); window.print(); }}>
+                                <button className="btn btn-sm btn-success" onClick={doPrint}>
                                     <i className="bi bi-printer me-1" />Print {selectedWOs.length} WOs
                                 </button>
                             </>

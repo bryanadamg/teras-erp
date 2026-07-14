@@ -661,6 +661,8 @@ class WorkOrderResponse(BaseModel):
     target_end_date: datetime | None = None
     actual_start_date: datetime | None = None
     actual_end_date: datetime | None = None
+    card_printed_at: datetime | None = None
+    labels_printed_at: datetime | None = None
     created_at: datetime
 
 
@@ -746,6 +748,8 @@ class WorkOrderFlatResponse(BaseModel):
     target_end_date: datetime | None = None
     actual_start_date: datetime | None = None
     actual_end_date: datetime | None = None
+    card_printed_at: datetime | None = None
+    labels_printed_at: datetime | None = None
     notes: str | None = None
     created_at: datetime | None = None
     work_center_id: str | None = None
@@ -773,6 +777,11 @@ class WorkOrderFlatPageResponse(BaseModel):
     total: int
     page: int
     size: int
+
+
+class WorkOrderMarkPrintedBulk(BaseModel):
+    ids: list[str] = []
+    kind: str = "card"   # "card" (Kartu Kerja) | "labels" (bag labels)
 
 
 # Resolve forward references now that all referenced schemas are defined

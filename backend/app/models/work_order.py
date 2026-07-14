@@ -52,6 +52,11 @@ class WorkOrder(Base):
     target_end_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     actual_start_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     actual_end_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Print tracking (set to now() each time the operator prints from the ERP).
+    # Presence => "printed"; the labels timestamp is compared against the newest
+    # bag completion time to detect bags logged since the last label print.
+    card_printed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    labels_printed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     manufacturing_order: Mapped["ManufacturingOrder"] = relationship(

@@ -13,7 +13,7 @@ const WOBulkPrintModal = dynamic(() => import('./WOBulkPrintModal'), { ssr: fals
 const WOStagingModal = dynamic(() => import('./WOStagingModal'), { ssr: false });
 const BagLabelPrintModal = dynamic(() => import('./BagLabelPrintModal'), { ssr: false });
 const BagScanStageModal = dynamic(() => import('./BagScanStageModal'), { ssr: false });
-import { getChipStyle } from './WorkOrderPanel';
+import { getChipStyle, PrintChips } from './WorkOrderPanel';
 import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import SearchableSelect from '../shared/SearchableSelect';
@@ -56,10 +56,12 @@ interface Props {
     activeTab: string;
     itemIndex: Record<string, { name: string; code: string }>;
     filterComponentId: string;
+    filterUnprinted: boolean;
     onTabChange: (v: string) => void;
     onFilterStatus: (v: string) => void;
     onFilterWCChange: (groupId: string, wcId: string) => void;
     onFilterComponent: (itemId: string) => void;
+    onFilterUnprinted: (v: boolean) => void;
     onSearch: (v: string) => void;
     onClearFilters: () => void;
     onUpdate: (id: string, payload: any) => Promise<any>;
@@ -109,8 +111,8 @@ interface FlatWO {
 export default function WorkOrderListView({
     workOrders, total, page, pageSize, onPageChange,
     workCenters, filterStatus, filterGroup, filterWC, woSearch,
-    activeTab, itemIndex, filterComponentId, onTabChange,
-    onFilterStatus, onFilterWCChange, onFilterComponent, onSearch, onClearFilters,
+    activeTab, itemIndex, filterComponentId, filterUnprinted, onTabChange,
+    onFilterStatus, onFilterWCChange, onFilterComponent, onFilterUnprinted, onSearch, onClearFilters,
     onUpdate, onUpdateStatus, onDelete, onFetchMO, onRefresh,
     loading = false,
 }: Props) {
@@ -655,7 +657,19 @@ export default function WorkOrderListView({
                                 size={classic ? 'sm' : 'md'}
                             />
                         </div>
-                        {(filterStatus || filterGroup || filterWC || woSearch || filterComponentId) && (
+                        <label
+                            title="Show only work orders whose Kartu Kerja card or bag labels are not yet printed"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: classic ? 10 : 11, color: classic ? '#000' : '#555', whiteSpace: 'nowrap', cursor: 'pointer' }}>
+                            <input
+                                type="checkbox"
+                                checked={filterUnprinted}
+                                onChange={e => onFilterUnprinted(e.target.checked)}
+                                style={{ cursor: 'pointer' }}
+                            />
+                            <i className="bi bi-printer" style={{ fontSize: 11 }} />
+                            Un-printed only
+                        </label>
+                        {(filterStatus || filterGroup || filterWC || woSearch || filterComponentId || filterUnprinted) && (
                             <button onClick={onClearFilters}
                                 style={classic ? { ...xpInput, width: 'auto', cursor: 'pointer', height: 20 } : undefined}
                                 className={classic ? '' : 'btn btn-sm btn-outline-secondary'}>
@@ -807,9 +821,14 @@ export default function WorkOrderListView({
                                                     </span>
                                                 </td>
                                                 <td style={{ ...tdBase, color: '#888', width: 36 }} className={classic ? '' : 'ps-3'}>{wo.sequence}</td>
-                                                <td style={{ ...tdBase, fontFamily: 'monospace', fontWeight: 'bold', fontSize: classic ? 10 : 11, color: '#000080', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                                <td style={{ ...tdBase, fontFamily: 'monospace', fontWeight: 'bold', fontSize: classic ? 10 : 11, color: '#000080', overflow: 'hidden' }}
                                                     title={(wo as any).code || wo.name}>
-                                                    {(wo as any).code || wo.name}
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden' }}>
+                                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                            {(wo as any).code || wo.name}
+                                                        </span>
+                                                        <PrintChips wo={wo} />
+                                                    </div>
                                                 </td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11, color: '#444', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                                                     title={wo.item_name || ''}>{wo.item_name || '—'}</td>
