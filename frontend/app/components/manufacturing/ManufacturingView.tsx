@@ -18,7 +18,7 @@ import ProductionRunModal from './ProductionRunModal';
 import WorkOrderPanel from './WorkOrderPanel';
 const WOCompletionModal = dynamic(() => import('./WOCompletionModal'), { ssr: false });
 import MOCreationPreview from './MOCreationPreview';
-import { STATUS_COLORS, statusChipStyle, xpFont, xpInput, xpLabel } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, xpFont, xpInput, xpLabel, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 
 export default function ManufacturingView({
     items,
@@ -106,6 +106,7 @@ export default function ManufacturingView({
   const [printHideChildren, setPrintHideChildren] = useState(false);
   
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+  const { openId: openMoMenuId, pos: moMenuPos, toggle: toggleMoMenu, close: closeMoMenu } = useFloatingMenu();
   const [expandedPRs, setExpandedPRs] = useState<Record<string, boolean>>({});
   const [expandedDetailTabs, setExpandedDetailTabs] = useState<Record<string, 'bom' | 'steps'>>({});
   const [prMaterialReqs, setPrMaterialReqs] = useState<Record<string, any[]>>({});
@@ -1997,11 +1998,13 @@ export default function ManufacturingView({
                                   <colgroup>
                                       <col style={{ width: '195px' }} />
                                       <col />
-                                      <col style={{ width: '60px' }} />
-                                      <col style={{ width: '125px' }} />
-                                      <col style={{ width: '160px' }} />
+                                      <col style={{ width: '150px' }} />
                                       <col style={{ width: '90px' }} />
-                                      <col style={{ width: '125px' }} />
+                                      <col style={{ width: '120px' }} />
+                                      <col style={{ width: '120px' }} />
+                                      <col style={{ width: '120px' }} />
+                                      <col style={{ width: '90px' }} />
+                                      <col style={{ width: '78px' }} />
                                   </colgroup>
                                   <thead>
                                       <tr style={{
@@ -2012,10 +2015,12 @@ export default function ManufacturingView({
                                       }} className={currentStyle === 'classic' ? '' : 'table-light'}>
                                           {[
                                               { label: 'MO Code',           align: 'left',   cls: 'ps-3' },
-                                              { label: 'Product / Variant', align: 'left',   cls: '' },
+                                              { label: 'Product',           align: 'left',   cls: '' },
+                                              { label: 'BOM',               align: 'left',   cls: '' },
                                               { label: 'Qty',               align: 'center', cls: '' },
                                               { label: 'Target Timeline',   align: 'left',   cls: '' },
-                                              { label: 'Actual Progression',align: 'left',   cls: '' },
+                                              { label: 'Actual',            align: 'left',   cls: '' },
+                                              { label: 'Progress',          align: 'left',   cls: '' },
                                               { label: t('status'),         align: 'left',   cls: '' },
                                               { label: t('actions'),        align: 'right',  cls: 'pe-3 no-print' },
                                           ].map(({ label, align, cls }) => (
@@ -2033,7 +2038,7 @@ export default function ManufacturingView({
                                   </thead>
                                   <tbody>
                                       {filteredWorkOrders.length === 0 && (
-                                          <tr><td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#888', fontSize: currentStyle === 'classic' ? 11 : undefined }}>
+                                          <tr><td colSpan={9} style={{ padding: '24px', textAlign: 'center', color: '#888', fontSize: currentStyle === 'classic' ? 11 : undefined }}>
                                               {moCodeFilter
                                                   ? <>No Manufacturing Orders match "<strong>{moCodeFilter}</strong>".</>
                                                   : 'No Manufacturing Orders yet.'}
@@ -2051,7 +2056,8 @@ export default function ManufacturingView({
                                               padding: '4px 8px',
                                               color: '#000',
                                               verticalAlign: 'middle',
-                                          } : {};
+                                              height: 46,
+                                          } : { height: 46, verticalAlign: 'middle' };
 
                                           const isBlocked = wo.status === 'PENDING' && manufacturingOrders.some(
                                               (other: any) => other.manufacturing_order_id === wo.manufacturing_order_id
@@ -2102,51 +2108,55 @@ export default function ManufacturingView({
                                                       <span style={{ fontFamily: 'monospace', fontWeight: 'bold', fontSize: '11px', color: '#000' }}>{wo.code}</span>
                                                   </td>
 
-                                                  {/* Product / Variant — click to expand */}
+                                                  {/* Product — name (line 1) + variant chips (line 2); click to expand */}
                                                   <td style={{ ...tdStyle, cursor: 'pointer' }} onClick={() => toggleRow(wo.id)}>
-                                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                          <i className={`bi bi-chevron-${isExpanded ? 'down' : 'right'}`} style={{ color: '#555', fontSize: '10px' }}></i>
-                                                          <div>
-                                                              <div style={{ fontWeight: 'bold', color: '#000', fontSize: currentStyle === 'classic' ? '11px' : '9pt' }}>
+                                                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                                                          <i className={`bi bi-chevron-${isExpanded ? 'down' : 'right'}`} style={{ color: '#555', fontSize: '10px', marginTop: 2, flexShrink: 0 }}></i>
+                                                          <div style={{ minWidth: 0 }}>
+                                                              <div style={{ fontWeight: 'bold', color: '#000', fontSize: currentStyle === 'classic' ? '11px' : '9pt', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                                   {wo.item_name || getItemName(wo.item_id)}
                                                               </div>
                                                               {((wo.attribute_value_ids || []).length > 0 || wo.bom_size_id) && (
-                                                                  <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginBottom: 2 }}>
+                                                                  <div style={{ display: 'flex', gap: 3, flexWrap: 'nowrap', overflow: 'hidden', marginTop: 2 }}>
                                                                       {(wo.attribute_value_ids || []).map((id: string) => (
-                                                                          <span key={id} style={{ fontSize: '8px', padding: '1px 5px', background: currentStyle === 'classic' ? '#dce8ff' : '#dbeafe', color: currentStyle === 'classic' ? '#003ea6' : '#1d4ed8', border: `1px solid ${currentStyle === 'classic' ? '#9ab0e0' : '#93c5fd'}`, borderRadius: currentStyle === 'classic' ? 0 : 3, fontWeight: 700 }}>
+                                                                          <span key={id} style={{ fontSize: '9px', padding: '1px 5px', background: currentStyle === 'classic' ? '#dce8ff' : '#dbeafe', color: currentStyle === 'classic' ? '#003ea6' : '#1d4ed8', border: `1px solid ${currentStyle === 'classic' ? '#9ab0e0' : '#93c5fd'}`, borderRadius: currentStyle === 'classic' ? 0 : 3, fontWeight: 700, whiteSpace: 'nowrap' }}>
                                                                               {getAttributeValueName(id)}
                                                                           </span>
                                                                       ))}
                                                                       {wo.bom_size_id && (() => {
                                                                           const label = getBomSizeLabel(wo.bom_id, wo.bom_size_id);
                                                                           return label ? (
-                                                                              <span style={{ fontSize: '8px', padding: '1px 5px', background: currentStyle === 'classic' ? '#e4f5e4' : '#dcfce7', color: currentStyle === 'classic' ? '#1a5e1a' : '#15803d', border: `1px solid ${currentStyle === 'classic' ? '#90c090' : '#86efac'}`, borderRadius: currentStyle === 'classic' ? 0 : 3, fontWeight: 700 }}>
+                                                                              <span style={{ fontSize: '9px', padding: '1px 5px', background: currentStyle === 'classic' ? '#e4f5e4' : '#dcfce7', color: currentStyle === 'classic' ? '#1a5e1a' : '#15803d', border: `1px solid ${currentStyle === 'classic' ? '#90c090' : '#86efac'}`, borderRadius: currentStyle === 'classic' ? 0 : 3, fontWeight: 700, whiteSpace: 'nowrap' }}>
                                                                                   <i className="bi bi-rulers me-1" style={{ fontSize: '7px' }}></i>{label}
                                                                               </span>
                                                                           ) : null;
                                                                       })()}
                                                                   </div>
                                                               )}
-                                                              <div style={{ fontSize: '9px', color: '#555' }}>
-                                                                  BOM: {getBOMCode(wo.bom_id)}
-                                                                  {wo.sales_order_id && (
-                                                                      <span style={currentStyle === 'classic' ? {
-                                                                          marginLeft: 6, fontSize: '8px', background: '#dce8ff', border: '1px solid #9ab0e0',
-                                                                          color: '#003ea6', padding: '0 5px', fontWeight: 'bold', whiteSpace: 'nowrap',
-                                                                      } : {
-                                                                          marginLeft: 6, fontSize: '0.65rem', background: '#cfe2ff', border: '1px solid #9ec5fe',
-                                                                          color: '#0a58ca', padding: '1px 6px', borderRadius: 3, fontWeight: 'bold', whiteSpace: 'nowrap',
-                                                                      }} title="Originating Sales Order">
-                                                                          <i className="bi bi-receipt me-1" style={{ fontSize: currentStyle === 'classic' ? '7px' : undefined }}></i>SO: {wo.sales_order_code || '—'}
-                                                                      </span>
-                                                                  )}
-                                                                  {wo.child_mos && wo.child_mos.length > 0 && (
-                                                                      currentStyle === 'classic'
-                                                                          ? <span style={{ marginLeft: '6px', fontSize: '8px', background: '#fff3cd', border: '1px solid #b8860b', color: '#6b4e00', padding: '0 4px', fontWeight: 'bold' }}>NESTED x{wo.child_mos.length}</span>
-                                                                          : <span className="ms-2 badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" style={{fontSize: '0.65rem'}}>NESTED ({wo.child_mos.length})</span>
-                                                                  )}
-                                                              </div>
                                                           </div>
+                                                      </div>
+                                                  </td>
+
+                                                  {/* BOM — code + originating SO + nested marker */}
+                                                  <td style={tdStyle}>
+                                                      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, fontSize: '9px', color: '#555' }}>
+                                                          <span style={{ fontFamily: 'monospace', color: '#000' }}>{getBOMCode(wo.bom_id)}</span>
+                                                          {wo.sales_order_id && (
+                                                              <span style={currentStyle === 'classic' ? {
+                                                                  fontSize: '8px', background: '#dce8ff', border: '1px solid #9ab0e0',
+                                                                  color: '#003ea6', padding: '0 5px', fontWeight: 'bold', whiteSpace: 'nowrap',
+                                                              } : {
+                                                                  fontSize: '0.65rem', background: '#cfe2ff', border: '1px solid #9ec5fe',
+                                                                  color: '#0a58ca', padding: '1px 6px', borderRadius: 3, fontWeight: 'bold', whiteSpace: 'nowrap',
+                                                              }} title="Originating Sales Order">
+                                                                  <i className="bi bi-receipt me-1" style={{ fontSize: currentStyle === 'classic' ? '7px' : undefined }}></i>SO: {wo.sales_order_code || '—'}
+                                                              </span>
+                                                          )}
+                                                          {wo.child_mos && wo.child_mos.length > 0 && (
+                                                              currentStyle === 'classic'
+                                                                  ? <span style={{ fontSize: '8px', background: '#fff3cd', border: '1px solid #b8860b', color: '#6b4e00', padding: '0 4px', fontWeight: 'bold' }}>NESTED x{wo.child_mos.length}</span>
+                                                                  : <span className="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" style={{fontSize: '0.65rem'}}>NESTED ({wo.child_mos.length})</span>
+                                                          )}
                                                       </div>
                                                   </td>
 
@@ -2178,57 +2188,50 @@ export default function ManufacturingView({
                                                       </div>
                                                   </td>
 
-                                                  {/* Actual Progression */}
+                                                  {/* Actual — start / end only (2 lines) */}
                                                   <td style={tdStyle}>
-                                                      <div style={{ fontSize: currentStyle === 'classic' ? '10px' : undefined, display: 'flex', flexDirection: 'column', gap: '2px' }}
+                                                      <div style={{ fontSize: currentStyle === 'classic' ? '10px' : undefined, display: 'flex', flexDirection: 'column', gap: '1px' }}
                                                            className={currentStyle !== 'classic' ? 'extra-small text-muted' : ''}>
-                                                          <span style={{ color: '#555' }}>Start: {formatDateTime(wo.actual_start_date)}</span>
-                                                          <span style={{ color: '#555' }}>End: {formatDateTime(wo.actual_end_date)}</span>
-                                                          {(wo.qty_completed_total != null && wo.qty_completed_total > 0) && (() => {
-                                                              const pct = Math.min(100, Math.round((wo.qty_completed_total / wo.qty) * 100));
-                                                              return (
-                                                                  <div style={{ marginTop: '2px' }}>
-                                                                      <div className="progress" style={{ height: '5px', minWidth: '80px' }}>
-                                                                          <div className={`progress-bar ${pct >= 100 ? 'bg-success' : 'bg-primary'}`} style={{ width: `${pct}%` }} />
-                                                                      </div>
-                                                                      <span style={{ fontSize: '9px', color: '#555' }}>{parseFloat(wo.qty_completed_total).toFixed(2)} / {wo.qty} ({pct}%)</span>
-                                                                  </div>
-                                                              );
-                                                          })()}
+                                                          <span style={{ color: '#555' }}>S: {formatDateTime(wo.actual_start_date)}</span>
+                                                          <span style={{ color: '#555' }}>E: {formatDateTime(wo.actual_end_date)}</span>
                                                       </div>
+                                                  </td>
+
+                                                  {/* Progress — bar + completed / target (2 lines) */}
+                                                  <td style={tdStyle}>
+                                                      {(wo.qty_completed_total != null && wo.qty_completed_total > 0) ? (() => {
+                                                          const pct = Math.min(100, Math.round((wo.qty_completed_total / wo.qty) * 100));
+                                                          return (
+                                                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                                  <div className="progress" style={{ height: '6px', width: '100%' }}>
+                                                                      <div className={`progress-bar ${pct >= 100 ? 'bg-success' : 'bg-primary'}`} style={{ width: `${pct}%` }} />
+                                                                  </div>
+                                                                  <span style={{ fontSize: '9px', color: '#555' }}>{parseFloat(wo.qty_completed_total).toFixed(2)} / {wo.qty} ({pct}%)</span>
+                                                              </div>
+                                                          );
+                                                      })() : (
+                                                          <span style={{ color: '#999', fontSize: '10px' }}>-</span>
+                                                      )}
                                                   </td>
 
                                                   {/* Status */}
                                                   <td style={tdStyle}>{statusChip(wo.status)}</td>
 
-                                                  {/* Actions */}
-                                                  <td style={{ ...tdStyle, textAlign: 'right' }} className="no-print">
+                                                  {/* Actions — icon Start + [...] menu (Print / Delete) */}
+                                                  <td style={{ ...tdStyle, textAlign: 'right' }} className="no-print" onClick={(e) => e.stopPropagation()}>
                                                       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
-                                                          {currentStyle === 'classic' ? (
-                                                              <>
-                                                                  <span style={{ width: '48px', display: 'inline-flex' }}>
-                                                                      {canManage && wo.status === 'PENDING' && !isBlocked && xpBtn('Start',  'primary', () => onUpdateStatus(wo.id, 'IN_PROGRESS'))}
-                                                                  </span>
-                                                                  <span style={{ width: '26px', display: 'inline-flex' }}>
-                                                                      {xpBtn('', 'default', () => handlePrintWO(wo), 'Print Manufacturing Order', 'bi bi-printer')}
-                                                                  </span>
-                                                                  <span style={{ width: '26px', display: 'inline-flex' }}>
-                                                                      {canManage && xpBtn('', 'danger', () => onDeleteMO(wo.id), 'Delete', 'bi bi-trash')}
-                                                                  </span>
-                                                              </>
-                                                          ) : (
-                                                              <>
-                                                                  {canManage && wo.status === 'PENDING' && !isBlocked && <button className="btn btn-sm btn-primary py-0 px-2" style={{fontSize: '0.75rem'}} onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}>START</button>}
-                                                                  <button className="btn btn-sm btn-link text-primary p-0" onClick={() => handlePrintWO(wo)} title="Print Manufacturing Order"><i className="bi bi-printer fs-5"></i></button>
-                                                                  {canManage && <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDeleteMO(wo.id)} title="Delete"><i className="bi bi-trash fs-5"></i></button>}
-                                                              </>
+                                                          {canManage && wo.status === 'PENDING' && !isBlocked && (
+                                                              currentStyle === 'classic'
+                                                                  ? <span style={{ width: '26px', display: 'inline-flex' }}>{xpBtn('', 'primary', () => onUpdateStatus(wo.id, 'IN_PROGRESS'), 'Start production', 'bi bi-play-fill')}</span>
+                                                                  : <button className="btn btn-sm btn-primary py-0 px-2" title="Start production" onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}><i className="bi bi-play-fill" /></button>
                                                           )}
+                                                          <MenuTriggerButton classic={currentStyle === 'classic'} onClick={(e) => toggleMoMenu(wo.id, e)} />
                                                       </div>
                                                   </td>
                                               </tr>
                                               {isExpanded && (
                                                   <tr key={`${wo.id}-detail`}>
-                                                      <td colSpan={7} className="p-0 border-0">
+                                                      <td colSpan={9} className="p-0 border-0">
                                                           {renderWOExpandedPanel({
                                                               wo,
                                                               detailTab: expandedDetailTabs[wo.id] || 'bom',
@@ -2243,6 +2246,20 @@ export default function ManufacturingView({
                                   </tbody>
                               </table>
                               </div>
+                              {/* Floating "more actions" menu — Print / Delete */}
+                              {openMoMenuId && (() => {
+                                  const menuMO = filteredWorkOrders.find((m: any) => m.id === openMoMenuId);
+                                  if (!menuMO) return null;
+                                  return (
+                                      <FloatingMenu
+                                          pos={moMenuPos}
+                                          items={[
+                                              { key: 'print', icon: 'bi-printer', label: 'Print', onClick: () => { closeMoMenu(); handlePrintWO(menuMO); } },
+                                              { key: 'delete', icon: 'bi-trash', label: 'Delete', danger: true, hidden: !canManage, onClick: () => { closeMoMenu(); onDeleteMO(menuMO.id); } },
+                                          ]}
+                                      />
+                                  );
+                              })()}
                               {renderPager(currentPage, totalItems, onPageChange)}
                           </div>
                       )}
