@@ -30,6 +30,11 @@ export default function LoginPage() {
     useEffect(() => { setMounted(true); }, []);
 
     useEffect(() => {
+        const saved = window.localStorage.getItem('teras_last_username');
+        if (saved) setUsernameInput(saved);
+    }, []);
+
+    useEffect(() => {
         const t = setInterval(() => setCurrentTime(new Date()), 1000);
         return () => clearInterval(t);
     }, []);
@@ -48,6 +53,7 @@ export default function LoginPage() {
         setSelectedUsername(username);
         setStep('password');
         setLoginError('');
+        window.localStorage.setItem('teras_last_username', username);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -63,10 +69,10 @@ export default function LoginPage() {
 
     const handleBack = () => {
         setStep('username');
+        setUsernameInput(selectedUsername);
         setSelectedUsername('');
         setPassword('');
         setLoginError('');
-        setUsernameInput('');
         setTimeout(() => usernameRef.current?.focus(), 50);
     };
 
@@ -83,15 +89,15 @@ export default function LoginPage() {
         return (
             <div
                 style={{
-                    position: 'fixed', inset: 0,
+                    minHeight: '100vh', width: '100%',
                     background: 'linear-gradient(135deg, #0d1f5c 0%, #1a3fa8 40%, #0a246a 100%)',
                     fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-                    display: 'flex', flexDirection: 'column', overflow: 'auto',
+                    display: 'flex', flexDirection: 'column', overflowY: 'auto',
                 }}
             >
                 {/* Mobile header */}
                 <div style={{ padding: '32px 28px 20px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 28, fontWeight: 300, letterSpacing: 3, color: 'white', marginBottom: 4 }}>
+                    <div style={{ fontSize: 28, fontWeight: 600, letterSpacing: 1, color: 'white', marginBottom: 4 }}>
                         Teras ERP
                     </div>
                     <div style={{ fontSize: 11, color: '#a0c2f5', letterSpacing: 4, textTransform: 'uppercase' }}>
@@ -99,153 +105,175 @@ export default function LoginPage() {
                     </div>
                 </div>
 
-                {/* Mobile form card */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 28px 40px' }}>
+                {/* Mobile form */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20, padding: '0 28px 40px' }}>
+                    {/* Avatar */}
                     <div style={{
-                        background: 'rgba(255,255,255,0.07)',
-                        border: '1px solid rgba(166,202,240,0.2)',
-                        borderRadius: 12, padding: '28px 24px',
+                        width: 60, height: 60,
+                        background: '#c8d8f0',
+                        border: '2px solid',
+                        borderColor: '#fff #888 #888 #fff',
+                        boxShadow: 'inset 1px 1px 0 rgba(255,255,255,0.4)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                        {/* Avatar */}
-                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-                            <div style={{
-                                width: 60, height: 60,
-                                background: '#c8d8f0',
-                                border: '2px solid',
-                                borderColor: '#fff #888 #888 #fff',
-                                boxShadow: 'inset 1px 1px 0 rgba(255,255,255,0.4)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            }}>
-                                <PixelAvatar avatarId="1" size={48} />
-                            </div>
-                        </div>
+                        <PixelAvatar avatarId="1" size={48} />
+                    </div>
 
-                        {step === 'password' && (
-                            <div style={{ textAlign: 'center', fontSize: 16, color: 'white', fontWeight: 600, marginBottom: 16 }}>
-                                {selectedUsername}
+                    {step === 'password' && (
+                        <div style={{ textAlign: 'center', fontSize: 16, color: 'white', fontWeight: 600 }}>
+                            {selectedUsername}
+                        </div>
+                    )}
+
+                    <div style={{ fontSize: 13, color: '#b8ccf0', textAlign: 'center' }}>
+                        {step === 'username' ? 'Enter your username to sign in' : 'Enter your password to continue'}
+                    </div>
+
+                    <form
+                        onSubmit={step === 'password'
+                            ? handleSubmit
+                            : (e) => {
+                                e.preventDefault();
+                                if (usernameInput.trim()) confirmUsername(usernameInput.trim());
+                            }
+                        }
+                        style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}
+                    >
+                        {step === 'username' && (
+                            <div>
+                                <div style={{ fontSize: 12, color: '#c0d8f8', marginBottom: 6 }}>Username</div>
+                                <input
+                                    ref={usernameRef}
+                                    id="username-input"
+                                    data-testid="username-input"
+                                    type="text"
+                                    autoComplete="username"
+                                    value={usernameInput}
+                                    onChange={e => setUsernameInput(e.target.value)}
+                                    style={{
+                                        width: '100%', height: 48,
+                                        background: 'rgba(255,255,255,0.12)',
+                                        border: '1px solid rgba(166,202,240,0.6)',
+                                        borderRadius: 3, color: 'white', padding: '0 14px',
+                                        fontSize: 16, outline: 'none', boxSizing: 'border-box',
+                                    }}
+                                    required
+                                />
                             </div>
                         )}
 
-                        <div style={{ fontSize: 13, color: '#8aace0', textAlign: 'center', marginBottom: 20 }}>
-                            {step === 'username' ? 'Enter your username to sign in' : 'Enter your password to continue'}
-                        </div>
-
-                        <form
-                            onSubmit={step === 'password'
-                                ? handleSubmit
-                                : (e) => {
-                                    e.preventDefault();
-                                    if (usernameInput.trim()) confirmUsername(usernameInput.trim());
-                                }
-                            }
-                            style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
-                        >
-                            {step === 'username' && (
-                                <div>
-                                    <div style={{ fontSize: 12, color: '#c0d8f8', marginBottom: 6 }}>Username</div>
-                                    <input
-                                        ref={usernameRef}
-                                        id="username-input"
-                                        data-testid="username-input"
-                                        type="text"
-                                        autoComplete="username"
-                                        value={usernameInput}
-                                        onChange={e => setUsernameInput(e.target.value)}
-                                        style={{
-                                            width: '100%', height: 48,
-                                            background: 'rgba(255,255,255,0.12)',
-                                            border: '1px solid rgba(166,202,240,0.6)',
-                                            borderRadius: 6, color: 'white', padding: '0 14px',
-                                            fontSize: 16, outline: 'none', boxSizing: 'border-box',
-                                        }}
-                                        required
-                                    />
-                                </div>
-                            )}
-
-                            {step === 'password' && (
-                                <div>
-                                    <div style={{ fontSize: 12, color: '#e8c870', marginBottom: 6 }}>Password</div>
-                                    <input
-                                        ref={passwordRef}
-                                        id="password-input"
-                                        data-testid="password-input"
-                                        type="password"
-                                        autoComplete="current-password"
-                                        value={password}
-                                        onChange={e => setPassword(e.target.value)}
-                                        style={{
-                                            width: '100%', height: 48,
-                                            background: 'rgba(255,255,255,0.12)',
-                                            border: '1px solid rgba(232,200,112,0.5)',
-                                            borderRadius: 6, color: 'white', padding: '0 14px',
-                                            fontSize: 16, outline: 'none', boxSizing: 'border-box',
-                                        }}
-                                        required
-                                    />
-                                </div>
-                            )}
-
-                            {loginError && (
-                                <div
-                                    data-testid="login-error"
+                        {step === 'password' && (
+                            <div>
+                                <div style={{ fontSize: 12, color: '#e8c870', marginBottom: 6 }}>Password</div>
+                                <input
+                                    ref={passwordRef}
+                                    id="password-input"
+                                    data-testid="password-input"
+                                    type="password"
+                                    autoComplete="current-password"
+                                    value={password}
+                                    onChange={e => setPassword(e.target.value)}
                                     style={{
-                                        fontSize: 13, color: '#ff9080',
-                                        background: 'rgba(180,40,20,0.25)',
-                                        border: '1px solid rgba(180,40,20,0.4)',
-                                        borderRadius: 6, padding: '10px 12px',
+                                        width: '100%', height: 48,
+                                        background: 'rgba(255,255,255,0.12)',
+                                        border: '1px solid rgba(232,200,112,0.5)',
+                                        borderRadius: 3, color: 'white', padding: '0 14px',
+                                        fontSize: 16, outline: 'none', boxSizing: 'border-box',
                                     }}
-                                >
-                                    {loginError}
+                                    required
+                                />
+                                <div style={{ fontSize: 12, color: '#9fb8dc', marginTop: 8 }}>
+                                    Forgot your password? Contact your supervisor or IT.
                                 </div>
-                            )}
+                            </div>
+                        )}
 
-                            <div style={{
-                                display: 'flex',
-                                justifyContent: step === 'password' ? 'space-between' : 'flex-end',
-                                gap: 10, marginTop: 4,
-                            }}>
-                                {step === 'password' && (
-                                    <button
-                                        type="button"
-                                        onClick={handleBack}
-                                        style={{
-                                            background: 'linear-gradient(to bottom,#607090,#404860)',
-                                            border: '1px solid rgba(100,130,180,0.4)', borderRadius: 6,
-                                            color: 'white', fontSize: 14,
-                                            padding: '12px 20px',
-                                            cursor: 'pointer', flex: 1,
-                                        }}
-                                    >
-                                        ← Back
-                                    </button>
-                                )}
+                        {loginError && (
+                            <div
+                                data-testid="login-error"
+                                style={{
+                                    fontSize: 13, color: '#ff9080',
+                                    background: 'rgba(180,40,20,0.25)',
+                                    border: '1px solid rgba(180,40,20,0.4)',
+                                    borderRadius: 3, padding: '10px 12px',
+                                }}
+                            >
+                                <div>{loginError}</div>
                                 <button
-                                    type="submit"
-                                    data-testid="login-submit"
-                                    disabled={isLoggingIn}
+                                    type="button"
+                                    onClick={handleBack}
                                     style={{
-                                        background: isLoggingIn
-                                            ? 'linear-gradient(to bottom,#3a6090,#1a3a6a)'
-                                            : 'linear-gradient(to bottom,#4a90d9,#2563c4)',
-                                        border: '1px solid #0a246a', borderRadius: 6,
-                                        color: 'white', fontSize: 15, fontWeight: 600,
-                                        padding: '14px 20px',
-                                        cursor: isLoggingIn ? 'not-allowed' : 'pointer',
-                                        flex: 1,
-                                        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)',
+                                        background: 'none', border: 'none', padding: 0, marginTop: 6,
+                                        color: '#ffc0b0', textDecoration: 'underline', fontSize: 12,
+                                        cursor: 'pointer',
                                     }}
                                 >
-                                    {isLoggingIn ? 'Signing in...' : step === 'username' ? 'Next →' : 'Sign In →'}
+                                    <i className="bi bi-arrow-left" style={{ marginRight: 4 }} />Try a different username
                                 </button>
                             </div>
-                        </form>
-                    </div>
+                        )}
+
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: step === 'password' ? 'space-between' : 'flex-end',
+                            gap: 10, marginTop: 4,
+                        }}>
+                            {step === 'password' && (
+                                <button
+                                    type="button"
+                                    onClick={handleBack}
+                                    style={{
+                                        background: 'linear-gradient(to bottom,#607090,#404860)',
+                                        border: '1px solid rgba(100,130,180,0.4)', borderRadius: 3,
+                                        color: 'white', fontSize: 14,
+                                        padding: '0 20px', minHeight: 48,
+                                        cursor: 'pointer', flex: 1,
+                                    }}
+                                >
+                                    <i className="bi bi-arrow-left" style={{ marginRight: 6 }} />Back
+                                </button>
+                            )}
+                            <button
+                                type="submit"
+                                data-testid="login-submit"
+                                disabled={isLoggingIn}
+                                style={{
+                                    background: isLoggingIn
+                                        ? 'linear-gradient(to bottom,#3a6090,#1a3a6a)'
+                                        : 'linear-gradient(to bottom,#4a90d9,#2563c4)',
+                                    border: '1px solid #0a246a', borderRadius: 3,
+                                    color: 'white', fontSize: 15, fontWeight: 600,
+                                    padding: '0 20px', minHeight: 48,
+                                    cursor: isLoggingIn ? 'not-allowed' : 'pointer',
+                                    flex: 1,
+                                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)',
+                                }}
+                            >
+                                {isLoggingIn ? 'Signing in...' : step === 'username' ? (<>Next <i className="bi bi-arrow-right" style={{ marginLeft: 4 }} /></>) : (<>Sign In <i className="bi bi-arrow-right" style={{ marginLeft: 4 }} /></>)}
+                            </button>
+                        </div>
+                    </form>
                 </div>
 
-                {/* Mobile clock */}
-                <div style={{ padding: '0 28px 24px', textAlign: 'center', fontSize: 12, color: '#8aaac8', lineHeight: 1.6 }}>
+                {/* Mobile clock + docs */}
+                <div style={{ padding: '0 28px 24px', textAlign: 'center', fontSize: 12, color: '#a8bee0', lineHeight: 1.6 }}>
                     {formatTime(currentTime)} · {formatDate(currentTime)}
+                    <div style={{ marginTop: 8 }}>
+                        <a
+                            href="/docs"
+                            style={{
+                                fontSize: 12,
+                                color: '#a8cef2',
+                                textDecoration: 'none',
+                                border: '1px solid rgba(122,176,232,0.3)',
+                                borderRadius: 3,
+                                padding: '4px 10px',
+                                display: 'inline-block',
+                            }}
+                        >
+                            <i className="bi bi-journal-text" style={{ marginRight: 4 }} />View Documentation
+                        </a>
+                    </div>
                 </div>
             </div>
         );
@@ -255,32 +283,29 @@ export default function LoginPage() {
         flexShrink: 0,
         display: 'flex',
         alignItems: 'center',
-        padding: '0 6%',
+        padding: 'clamp(16px, 3vh, 40px) 6%',
     };
 
     return (
         <div
             style={{
-                position: 'fixed', inset: 0,
+                minHeight: '100vh', width: '100%',
                 background: 'linear-gradient(135deg, #0d1f5c 0%, #1a3fa8 40%, #0a246a 100%)',
                 fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-                display: 'flex', flexDirection: 'column', overflow: 'hidden',
-                userSelect: 'none',
+                display: 'flex', flexDirection: 'column', overflowY: 'auto',
             }}
         >
             {/* Top stripe */}
             <div style={{
                 ...stripeBase,
-                height: '22%',
                 background: 'linear-gradient(to bottom, rgba(255,255,255,0.08) 0%, transparent 100%)',
                 borderBottom: '1px solid rgba(166,202,240,0.15)',
                 justifyContent: 'space-between',
             }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <div style={{
-                        fontSize: 'clamp(20px,3.5vw,42px)', fontWeight: 300,
-                        letterSpacing: 3, color: 'white',
-                        textShadow: '0 2px 12px rgba(0,80,200,0.8)',
+                        fontSize: 'clamp(20px,3.5vw,42px)', fontWeight: 600,
+                        letterSpacing: 1, color: 'white',
                     }}>
                         Teras ERP
                     </div>
@@ -292,19 +317,19 @@ export default function LoginPage() {
                     </div>
                 </div>
                 <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                    <div style={{ fontSize: 'clamp(7px,0.9vw,11px)', color: '#6a8ab8', lineHeight: 1.9, letterSpacing: 1 }}>
+                    <div style={{ fontSize: 'clamp(7px,0.9vw,11px)', color: '#9fb8dc', lineHeight: 1.9, letterSpacing: 1 }}>
                         Production · Stock · Sales<br />
                         BOM · Work Orders · Reports
                     </div>
                     <a
                         href="/docs"
                         style={{
-                            fontSize: 'clamp(7px,0.85vw,10px)',
-                            color: '#7ab0e8',
+                            fontSize: 'clamp(9px,0.9vw,11px)',
+                            color: '#a8cef2',
                             textDecoration: 'none',
                             border: '1px solid rgba(122,176,232,0.3)',
-                            borderRadius: 2,
-                            padding: 'clamp(1px,0.3vw,3px) clamp(4px,0.8vw,8px)',
+                            borderRadius: 3,
+                            padding: 'clamp(2px,0.4vw,4px) clamp(6px,1vw,10px)',
                         }}
                     >
                         <i className="bi bi-journal-text" style={{ marginRight: 4 }} />View Documentation
@@ -324,7 +349,7 @@ export default function LoginPage() {
                         width: '60%', height: 1,
                         background: 'linear-gradient(to right, transparent, rgba(166,202,240,0.5), transparent)',
                     }} />
-                    <div style={{ fontSize: 'clamp(9px,1.2vw,14px)', color: '#8aace0', letterSpacing: 1 }}>
+                    <div style={{ fontSize: 'clamp(9px,1.2vw,14px)', color: '#b8ccf0', letterSpacing: 1 }}>
                         {step === 'username' ? 'Type your username to sign in' : 'Enter your password to continue'}
                     </div>
                 </div>
@@ -416,6 +441,9 @@ export default function LoginPage() {
                                     }}
                                     required
                                 />
+                                <div style={{ fontSize: 'clamp(8px,0.9vw,11px)', color: '#9fb8dc', marginTop: 6 }}>
+                                    Forgot your password? Contact your supervisor or IT.
+                                </div>
                             </div>
                         )}
 
@@ -429,7 +457,18 @@ export default function LoginPage() {
                                     borderRadius: 3, padding: '4px 8px',
                                 }}
                             >
-                                {loginError}
+                                <div>{loginError}</div>
+                                <button
+                                    type="button"
+                                    onClick={handleBack}
+                                    style={{
+                                        background: 'none', border: 'none', padding: 0, marginTop: 4,
+                                        color: '#ffc0b0', textDecoration: 'underline',
+                                        fontSize: 'clamp(8px,0.9vw,11px)', cursor: 'pointer',
+                                    }}
+                                >
+                                    <i className="bi bi-arrow-left" style={{ marginRight: 4 }} />Try a different username
+                                </button>
                             </div>
                         )}
 
@@ -450,7 +489,7 @@ export default function LoginPage() {
                                         cursor: 'pointer',
                                     }}
                                 >
-                                    ← Back
+                                    <i className="bi bi-arrow-left" style={{ marginRight: 6 }} />Back
                                 </button>
                             )}
                             <button
@@ -468,7 +507,7 @@ export default function LoginPage() {
                                     boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)',
                                 }}
                             >
-                                {isLoggingIn ? 'Signing in...' : step === 'username' ? 'Next →' : 'Sign In →'}
+                                {isLoggingIn ? 'Signing in...' : step === 'username' ? (<>Next <i className="bi bi-arrow-right" style={{ marginLeft: 4 }} /></>) : (<>Sign In <i className="bi bi-arrow-right" style={{ marginLeft: 4 }} /></>)}
                             </button>
                         </div>
                     </form>
@@ -478,12 +517,11 @@ export default function LoginPage() {
             {/* Bottom stripe: clock only */}
             <div style={{
                 ...stripeBase,
-                height: '12%',
                 background: 'linear-gradient(to top, rgba(0,0,60,0.7) 0%, transparent 100%)',
                 borderTop: '1px solid rgba(166,202,240,0.1)',
                 justifyContent: 'flex-end',
             }}>
-                <div style={{ textAlign: 'right', fontSize: 'clamp(8px,1vw,12px)', color: '#8aaac8', lineHeight: 1.6 }}>
+                <div style={{ textAlign: 'right', fontSize: 'clamp(8px,1vw,12px)', color: '#a8bee0', lineHeight: 1.6 }}>
                     {formatTime(currentTime)}<br />
                     {formatDate(currentTime)}
                 </div>

@@ -236,8 +236,11 @@ GEMINI.md
 .gemini/
 skills/
 CLAUDE.md
+DESIGN.md
+product.md
 .claude/
 .superpowers/
+.impeccable/
 docs/superpowers/
 
 # Playwright
