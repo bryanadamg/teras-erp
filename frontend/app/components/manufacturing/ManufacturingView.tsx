@@ -12,8 +12,8 @@ import { useUser } from '../../context/UserContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import PrintHeader from '../shared/PrintHeader';
-import type { PrintSettings } from './WOPrintModal';
-const WOPrintModal = dynamic(() => import('./WOPrintModal'), { ssr: false });
+import type { PrintSettings } from './MOPrintModal';
+const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
 import ProductionRunModal from './ProductionRunModal';
 import WorkOrderPanel from './WorkOrderPanel';
 const WOCompletionModal = dynamic(() => import('./WOCompletionModal'), { ssr: false });
@@ -1355,7 +1355,7 @@ export default function ManufacturingView({
   return (
       <div className="row g-4 fade-in print-container">
           {printPreviewWO && (
-            <WOPrintModal
+            <MOPrintModal
                 wo={printPreviewWO}
                 onClose={() => setPrintPreviewWO(null)}
                 printSettings={printSettings}

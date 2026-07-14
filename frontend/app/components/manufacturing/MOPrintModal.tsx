@@ -104,7 +104,7 @@ const renderChildWOsPrint = (
     );
 };
 
-export default function WOPrintModal({
+export default function MOPrintModal({
     wo,
     onClose,
     printSettings,

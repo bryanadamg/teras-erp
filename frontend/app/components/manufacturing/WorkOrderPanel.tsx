@@ -1,7 +1,8 @@
 'use client';
 import React, { useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-const WOStepPrintModal = dynamic(() => import('./WOStepPrintModal'), { ssr: false });
+// Single-WO Kartu Kerja printing goes through WOBulkPrintModal (n=1 -> A6 card).
+const WOBulkPrintModal = dynamic(() => import('./WOBulkPrintModal'), { ssr: false });
 import WOStagingModal from './WOStagingModal';
 import BagScanStageModal from './BagScanStageModal';
 import BeamPlanningModal from './BeamPlanningModal';
@@ -912,9 +913,9 @@ export default function WorkOrderPanel({
             </div>
 
             {printWO && parentMO && (
-                <WOStepPrintModal
-                    workOrder={printWO}
-                    parentMO={parentMO}
+                <WOBulkPrintModal
+                    selectedWOs={[{ ...printWO, mo_id: (printWO as any).mo_id ?? parentMO.id }]}
+                    manufacturingOrders={[parentMO]}
                     onClose={() => setPrintWO(null)}
                 />
             )}

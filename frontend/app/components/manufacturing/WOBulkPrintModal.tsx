@@ -59,10 +59,15 @@ export default function WOBulkPrintModal({
         } catch { return defaultSettings; }
     });
 
+    // n=1 prints as a single A6 card (reusing the wo-step print path); n>=2 as the
+    // A4 4-up grid. Keeps one modal for both instead of a separate single-WO modal.
+    const isSingle = selectedWOs.length === 1;
+
     useEffect(() => {
-        document.body.classList.add('wo-bulk-print-active');
-        return () => { document.body.classList.remove('wo-bulk-print-active'); };
-    }, []);
+        const cls = isSingle ? 'wo-step-print-active' : 'wo-bulk-print-active';
+        document.body.classList.add(cls);
+        return () => { document.body.classList.remove(cls); };
+    }, [isSingle]);
 
     useEffect(() => {
         Promise.all(
@@ -119,7 +124,7 @@ export default function WOBulkPrintModal({
         : {};
     return (
         <>
-            <PrintModalShell title={`Bulk Print Kartu Kerja — ${selectedWOs.length} WO`} onClose={onClose} width="92vw" height="90vh">
+            <PrintModalShell modeless title={isSingle ? `Print Kartu Kerja — ${selectedWOs[0].name}` : `Bulk Print Kartu Kerja — ${selectedWOs.length} WO`} onClose={onClose} width={isSingle ? '90vw' : '92vw'} maxWidth={isSingle ? 880 : undefined} height={isSingle ? '88vh' : '90vh'}>
                     <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
                         {/* Settings panel */}
                         <div style={{ width: '200px', minWidth: '200px', borderRight: '1px solid #dee2e6', background: '#f8f9fa', padding: '14px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -149,29 +154,46 @@ export default function WOBulkPrintModal({
                                 />
                             </div>
                             <div style={{ fontSize: '10px', color: '#888', marginTop: 'auto', paddingTop: '8px', borderTop: '1px solid #dee2e6' }}>
-                                4 cards per A4. Materials show only lines assigned to each WO's routing step.
+                                {isSingle ? 'One A6 card.' : '4 cards per A4.'} Materials show only lines assigned to each WO's routing step.
                             </div>
                         </div>
 
                         {/* Preview */}
-                        <div style={{ flex: 1, background: '#ccc', overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
-                            {pages.map((pageWOs, pi) => (
-                                <div key={pi}>
-                                    <div style={{ fontSize: '10px', color: '#555', marginBottom: '4px', textAlign: 'center' }}>
-                                        Page {pi + 1} of {pages.length}
-                                    </div>
-                                    {/* Real A4 portrait page (210×297mm → 794×1123px @96dpi) with the
-                                        same 8mm margin / 4mm gutter / 2×2 grid as @page print CSS, so the
-                                        preview is geometrically identical to the printout — cards sit in the
-                                        top half and content fits the A6 quarter without cropping. */}
-                                    <div style={{ background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,0.3)', width: '210mm', height: '297mm', padding: '8mm', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4mm', flex: 1, minHeight: 0 }}>
-                                            {pageWOs.map(wo => renderCard(wo, false))}
+                        {isSingle ? (
+                            /* Single WO — A6 portrait (105×148mm), same layout as the standalone
+                               single-card print, so one WO never wastes 3/4 of an A4 sheet. */
+                            <div style={{ flex: 1, background: '#e0e0e0', overflowY: 'auto', padding: '16px', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
+                                <div className="wo-print-paper wo-step-card" style={{ background: '#fff', width: '378px', minHeight: '535px', padding: 0, boxShadow: '0 2px 10px rgba(0,0,0,0.25)', color: '#000', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
+                                    <KartuKerjaCard
+                                        workOrder={selectedWOs[0]}
+                                        parentMO={manufacturingOrders.find(m => m.id === selectedWOs[0].mo_id)}
+                                        qrDataUrl={qrUrls[selectedWOs[0].id] || ''}
+                                        settings={settings}
+                                        companyName={companyProfile?.name}
+                                        attributes={attributes}
+                                    />
+                                </div>
+                            </div>
+                        ) : (
+                            <div style={{ flex: 1, background: '#ccc', overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+                                {pages.map((pageWOs, pi) => (
+                                    <div key={pi}>
+                                        <div style={{ fontSize: '10px', color: '#555', marginBottom: '4px', textAlign: 'center' }}>
+                                            Page {pi + 1} of {pages.length}
+                                        </div>
+                                        {/* Real A4 portrait page (210×297mm → 794×1123px @96dpi) with the
+                                            same 8mm margin / 4mm gutter / 2×2 grid as @page print CSS, so the
+                                            preview is geometrically identical to the printout — cards sit in the
+                                            top half and content fits the A6 quarter without cropping. */}
+                                        <div style={{ background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,0.3)', width: '210mm', height: '297mm', padding: '8mm', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4mm', flex: 1, minHeight: 0 }}>
+                                                {pageWOs.map(wo => renderCard(wo, false))}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     <div style={{ padding: '8px 12px', borderTop: '1px solid #dee2e6', background: '#f8f9fa', display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
@@ -184,23 +206,40 @@ export default function WOBulkPrintModal({
                             <>
                                 <button className="btn btn-sm btn-secondary" onClick={onClose}>Close</button>
                                 <button className="btn btn-sm btn-success" onClick={doPrint}>
-                                    <i className="bi bi-printer me-1" />Print {selectedWOs.length} WOs
+                                    <i className="bi bi-printer me-1" />{isSingle ? 'Print' : `Print ${selectedWOs.length} WOs`}
                                 </button>
                             </>
                         )}
                     </div>
             </PrintModalShell>
 
-            {createPortal(
-                <div className="wo-bulk-print-portal" style={{ display: 'none' }}>
-                    {pages.map((pageWOs, pi) => (
-                        <div key={pi} className="wo-bulk-page-group">
-                            {pageWOs.map(wo => renderCard(wo, true))}
+            {isSingle
+                ? createPortal(
+                    /* Single WO — A6 portal (wo-step CSS), no A4 4-up grouping. */
+                    <div className="wo-print-paper-portal" style={{ display: 'none' }}>
+                        <div className="wo-print-paper wo-step-card" style={{ background: '#fff', width: '100%', color: '#000', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: 'column' }}>
+                            <KartuKerjaCard
+                                workOrder={selectedWOs[0]}
+                                parentMO={manufacturingOrders.find(m => m.id === selectedWOs[0].mo_id)}
+                                qrDataUrl={qrUrls[selectedWOs[0].id] || ''}
+                                settings={settings}
+                                companyName={companyProfile?.name}
+                                attributes={attributes}
+                            />
                         </div>
-                    ))}
-                </div>,
-                document.body
-            )}
+                    </div>,
+                    document.body
+                )
+                : createPortal(
+                    <div className="wo-bulk-print-portal" style={{ display: 'none' }}>
+                        {pages.map((pageWOs, pi) => (
+                            <div key={pi} className="wo-bulk-page-group">
+                                {pageWOs.map(wo => renderCard(wo, true))}
+                            </div>
+                        ))}
+                    </div>,
+                    document.body
+                )}
         </>
     );
 }

@@ -8,7 +8,7 @@ import { useUser } from '../../context/UserContext';
 
 import { useToast } from '../shared/Toast';
 const WOCompletionModal = dynamic(() => import('./WOCompletionModal'), { ssr: false });
-const WOStepPrintModal = dynamic(() => import('./WOStepPrintModal'), { ssr: false });
+// Single-WO Kartu Kerja printing is handled by WOBulkPrintModal (n=1 -> A6); no separate single modal.
 const WOBulkPrintModal = dynamic(() => import('./WOBulkPrintModal'), { ssr: false });
 const WOStagingModal = dynamic(() => import('./WOStagingModal'), { ssr: false });
 const BagLabelPrintModal = dynamic(() => import('./BagLabelPrintModal'), { ssr: false });
@@ -135,8 +135,6 @@ export default function WorkOrderListView({
     const [completionWO, setCompletionWO] = useState<any>(null);
     const [stageWO, setStageWO] = useState<FlatWO | null>(null);
     const [scanStageWO, setScanStageWO] = useState<FlatWO | null>(null);
-    const [printWO, setPrintWO] = useState<FlatWO | null>(null);
-    const [printMO, setPrintMO] = useState<any>(null);
     const [selectedWOIds, setSelectedWOIds] = useState<Set<string>>(new Set());
     const [bulkPrintOpen, setBulkPrintOpen] = useState(false);
     // Bag labels: one sticker per weighed bag (= one lotted completion on this WO).
@@ -958,10 +956,6 @@ export default function WorkOrderListView({
                                 pos={menuPos}
                                 items={[
                                     {
-                                        key: 'print', icon: 'bi-printer', label: 'Print Kartu Kerja',
-                                        onClick: () => { closeMenu(); onFetchMO(menuWO.mo_id).then((mo: any) => { setPrintWO(menuWO); setPrintMO(mo ?? null); }); },
-                                    },
-                                    {
                                         key: 'edit', icon: 'bi-pencil', label: 'Edit',
                                         hidden: !canManage,
                                         onClick: () => { closeMenu(); startEdit(menuWO); },
@@ -1087,13 +1081,6 @@ export default function WorkOrderListView({
                 parentMO={labelMO}
                 seqStart={labelSeqStart}
                 onClose={() => { setLabelBags(null); setLabelMO(null); setLabelWO(null); }}
-            />
-        )}
-        {printWO && printMO && (
-            <WOStepPrintModal
-                workOrder={printWO}
-                parentMO={printMO}
-                onClose={() => { setPrintWO(null); setPrintMO(null); }}
             />
         )}
         {bulkPrintOpen && (
