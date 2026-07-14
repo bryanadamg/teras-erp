@@ -268,6 +268,7 @@ class BOMUpdate(BaseModel):
     tolerance_percentage: float | None = None
     active: bool | None = None
     size_mode: str | None = None
+    attribute_value_ids: list[UUID] | None = None
     lines: list[BOMLineCreate] | None = None
     operations: list[BOMOperationCreate] | None = None
     sizes: list[BOMSizeCreate] | None = None

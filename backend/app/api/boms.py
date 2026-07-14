@@ -509,6 +509,17 @@ async def update_bom(
         if val is not None:
             setattr(bom, field, val)
 
+    # Replace BOM-header (variant) attribute values. `is not None` so an empty
+    # list clears them; the frontend always sends the full current set.
+    if payload.attribute_value_ids is not None:
+        if payload.attribute_value_ids:
+            av_result = await db.execute(
+                select(AttributeValue).filter(AttributeValue.id.in_(payload.attribute_value_ids))
+            )
+            bom.attribute_values = av_result.scalars().all()
+        else:
+            bom.attribute_values = []
+
     # Replace operations first so lines can reference them by sequence
     seq_to_op_id: dict[int, any] = {}
     if payload.operations is not None:
