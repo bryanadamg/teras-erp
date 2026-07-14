@@ -457,7 +457,7 @@ export default function BOMView({
 
         return (
             <tr key={`${bom.id}-detail`}>
-                <td colSpan={6} style={{ padding: 0, borderTop: 'none' }}>
+                <td colSpan={8} style={{ padding: 0, borderTop: 'none' }}>
                     <div style={{ display: 'flex', height: 420, background: '#ece9d8', borderTop: '2px solid #0058e6', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11 }}>
 
                         {/* LEFT: Tree */}
