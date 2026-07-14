@@ -576,28 +576,63 @@ async def _wo_staged_by_item(db: AsyncSession, wo: WorkOrder) -> dict[str, float
 
 
 async def _wo_step_components(db: AsyncSession, wo: WorkOrder, mo: ManufacturingOrder) -> list:
-    """Planned components allocated to this WO's routing step.
+    """Planned components this WO should stage/consume.
 
-    A WEAVING-center WO with no bom_operation_id runs the whole MO's beam
-    consumption (no per-step split) — fall back to the MO's beam-category
-    components directly, keyed by work center type rather than a BOM step."""
+    Detection is layered, most-specific first, so a WO always resolves its
+    materials even when the BOM routing step isn't wired up perfectly:
+      1. Exact routing step — material pegged to this WO's bom_operation_id.
+      2. Work-center TYPE — material whose BOM operation runs on the same kind
+         of work center as this WO (DYEING, SETTING, etc.). This mirrors how WO
+         type is detected elsewhere and covers the common case where the WO
+         wasn't handed the exact bom_operation_id but the work center matches.
+      3. WEAVING beam special-case — beams are plant-level and usually untagged;
+         a WEAVING WO consumes the MO's beam-category components directly.
+      4. Step-agnostic materials — BOM lines pinned to no operation belong to
+         any step, so surface them rather than leave the WO with nothing."""
+    comps = list(mo.planned_components or [])
+    if not comps:
+        return []
+
+    # 1) Exact routing-step match.
     if wo.bom_operation_id:
-        return [
-            c for c in mo.planned_components
+        exact = [
+            c for c in comps
             if c.bom_operation_id and str(c.bom_operation_id) == str(wo.bom_operation_id)
         ]
-    if not wo.work_center_id or not mo.planned_components:
+        if exact:
+            return exact
+
+    if not wo.work_center_id:
         return []
-    wc = (await db.execute(select(WorkCenter).filter(WorkCenter.id == wo.work_center_id))).scalars().first()
-    if not wc or (wc.center_type or "").upper() != "WEAVING":
-        return []
-    item_ids = [c.item_id for c in mo.planned_components]
-    beam_res = await db.execute(
-        select(Item.id).outerjoin(Category, Item.category_id == Category.id)
-        .where(Item.id.in_(item_ids), (Item.ends.isnot(None)) | (func.lower(Category.name) == "beam"))
-    )
-    beam_item_ids = {str(r[0]) for r in beam_res.all()}
-    return [c for c in mo.planned_components if str(c.item_id) in beam_item_ids]
+    wc_type = (await _wc_type(db, wo.work_center_id)) or ""
+
+    # 2) Work-center-type match (operation-agnostic detection).
+    op_ids = [c.bom_operation_id for c in comps if c.bom_operation_id]
+    if wc_type and op_ids:
+        rows = await db.execute(
+            select(BOMOperation.id, WorkCenter.center_type)
+            .join(WorkCenter, BOMOperation.work_center_id == WorkCenter.id)
+            .where(BOMOperation.id.in_(op_ids))
+        )
+        same_ops = {str(oid) for oid, ct in rows.all() if (ct or "") == wc_type}
+        by_type = [c for c in comps if c.bom_operation_id and str(c.bom_operation_id) in same_ops]
+        if by_type:
+            return by_type
+
+    # 3) WEAVING beam special-case.
+    if wc_type.upper() == "WEAVING":
+        item_ids = [c.item_id for c in comps]
+        beam_res = await db.execute(
+            select(Item.id).outerjoin(Category, Item.category_id == Category.id)
+            .where(Item.id.in_(item_ids), (Item.ends.isnot(None)) | (func.lower(Category.name) == "beam"))
+        )
+        beam_item_ids = {str(r[0]) for r in beam_res.all()}
+        beams = [c for c in comps if str(c.item_id) in beam_item_ids]
+        if beams:
+            return beams
+
+    # 4) Step-agnostic materials (not pinned to any operation).
+    return [c for c in comps if not c.bom_operation_id]
 
 
 async def _suggest_beam_batch(db: AsyncSession, mo: ManufacturingOrder, item_id) -> uuid.UUID | None:

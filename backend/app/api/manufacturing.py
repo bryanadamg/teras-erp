@@ -1064,6 +1064,12 @@ async def add_mo_completion(
             c for c in mo.planned_components
             if c.bom_operation_id and str(c.bom_operation_id) == str(wo.bom_operation_id)
         ]
+        # Step assigned on the WO but no BOM line pegged to it (routing not fully
+        # wired): consume the whole recipe rather than nothing. Mirrors the
+        # work-center-type/step-agnostic fallback used at staging so materials
+        # staged for this WO are actually recognized here.
+        if not step_comps:
+            step_comps = list(mo.planned_components)
     else:
         step_comps = list(mo.planned_components)
 
