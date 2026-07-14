@@ -99,6 +99,10 @@ class BOM(Base):
     def work_center_name(self) -> Optional[str]:
         return self.work_center.name if self.work_center else None
 
+    @property
+    def work_center_type(self) -> Optional[str]:
+        return self.work_center.center_type if self.work_center else None
+
 
 class BOMLine(Base):
     __tablename__ = "bom_lines"

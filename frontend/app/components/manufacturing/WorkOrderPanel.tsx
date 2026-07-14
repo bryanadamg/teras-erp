@@ -10,7 +10,7 @@ import LeftoverBeamModal from './LeftoverBeamModal';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { STATUS_COLORS as STATUS_BORDER } from '../shared/xpTheme';
+import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle } from '../shared/xpTheme';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -18,24 +18,10 @@ const xpInput: React.CSSProperties = {
     background: 'white', height: 20, padding: '0 4px', outline: 'none',
 };
 
-// Work center type chip colors keyed on center_type string (case-insensitive match)
+// Work-center type chip colors. Thin re-export of the shared palette in
+// xpTheme so the WO panel/list and BOM list stay in lockstep (no per-view copy).
 export function getChipStyle(centerType?: string | null): React.CSSProperties {
-    const t = (centerType || '').toUpperCase();
-    if (t === 'BEAMING')
-        return { background: '#fce8ff', color: '#660088', borderColor: '#dda8f0' };
-    if (t === 'WARPING')
-        return { background: '#fff3cc', color: '#664400', borderColor: '#f0d888' };
-    if (t === 'DYEING' || t === 'CELUP')
-        return { background: '#cce4ff', color: '#004b99', borderColor: '#99c4ee' };
-    if (t === 'SETTING')
-        return { background: '#ffeacc', color: '#994d00', borderColor: '#e8c488' };
-    if (t === 'WEAVING' || t === 'TENUN')
-        return { background: '#e8d8ff', color: '#440099', borderColor: '#c4a8ee' };
-    if (t === 'FINISHING' || t === 'FINISH')
-        return { background: '#d4f0d4', color: '#005500', borderColor: '#99cc99' };
-    if (t === 'CUTTING' || t === 'POTONG')
-        return { background: '#fff0cc', color: '#886600', borderColor: '#ddcc88' };
-    return { background: '#e4e2dc', color: '#444444', borderColor: '#c4c2ba' };
+    return workCenterChipStyle(centerType);
 }
 
 // Lot-producing work centers — these WOs emit weighed bags (one bag = one lot),

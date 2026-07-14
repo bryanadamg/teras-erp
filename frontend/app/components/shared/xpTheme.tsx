@@ -88,6 +88,36 @@ export function StatusChip({ status, label, style, tint, title }: { status: stri
     );
 }
 
+// Work-center chip palette keyed on center_type (case-insensitive). Falls back
+// to sniffing the work-center *name* for a process word when the type is
+// GENERAL/blank, then to a neutral gray. Single source for the WO panel/list
+// and the BOM list — do not hand-copy this palette per view.
+const WC_CHIP: Record<string, { background: string; color: string; borderColor: string }> = {
+    BEAMING:   { background: '#fce8ff', color: '#660088', borderColor: '#dda8f0' },
+    WARPING:   { background: '#fff3cc', color: '#664400', borderColor: '#f0d888' },
+    DYEING:    { background: '#cce4ff', color: '#004b99', borderColor: '#99c4ee' },
+    SETTING:   { background: '#ffeacc', color: '#994d00', borderColor: '#e8c488' },
+    WEAVING:   { background: '#e8d8ff', color: '#440099', borderColor: '#c4a8ee' },
+    FINISHING: { background: '#d4f0d4', color: '#005500', borderColor: '#99cc99' },
+    CUTTING:   { background: '#fff0cc', color: '#886600', borderColor: '#ddcc88' },
+};
+// Process synonyms (incl. Indonesian) aliased onto the canonical keys above.
+const WC_ALIAS: Record<string, keyof typeof WC_CHIP> = {
+    CELUP: 'DYEING', TENUN: 'WEAVING', FINISH: 'FINISHING', POTONG: 'CUTTING',
+};
+const WC_NEUTRAL = { background: '#e4e2dc', color: '#444444', borderColor: '#c4c2ba' };
+
+export function workCenterChipStyle(centerType?: string | null, name?: string | null): React.CSSProperties {
+    const t = (centerType || '').toUpperCase();
+    const hit = WC_CHIP[t] || (WC_ALIAS[t] && WC_CHIP[WC_ALIAS[t]]);
+    if (hit) return { ...hit };
+    // type gave nothing (GENERAL/blank) — sniff the name for a known process word
+    const n = (name || '').toUpperCase();
+    for (const key of Object.keys(WC_CHIP)) if (n.includes(key)) return { ...WC_CHIP[key] };
+    for (const alias of Object.keys(WC_ALIAS)) if (n.includes(alias)) return { ...WC_CHIP[WC_ALIAS[alias]] };
+    return { ...WC_NEUTRAL };
+}
+
 // Recessed track + filled bar for at-a-glance completion (receiving progress,
 // MO/WO progress, lineage). Tone defaults by fill level so callers don't have
 // to compute it themselves; pass one explicitly to override (e.g. red = short).

@@ -180,6 +180,7 @@ class BOMResponse(BaseModel):
     customer_name: Optional[str] = None
     work_center_id: Optional[UUID] = None
     work_center_name: Optional[str] = None
+    work_center_type: Optional[str] = None
     berat_bahan_mateng: float | None = None
     berat_bahan_mentah_pelesan: float | None = None
     mesin_lebar: float | None = None
@@ -227,6 +228,7 @@ class BOMSummaryResponse(BaseModel):
     customer_name: Optional[str] = None
     work_center_id: Optional[UUID] = None
     work_center_name: Optional[str] = None
+    work_center_type: Optional[str] = None
     berat_bahan_mateng: float | None = None
     berat_bahan_mentah_pelesan: float | None = None
     mesin_lebar: float | None = None

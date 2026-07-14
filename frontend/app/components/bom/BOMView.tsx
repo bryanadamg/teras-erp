@@ -10,6 +10,7 @@ import { MODAL_Z } from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
+import { workCenterChipStyle, xpFont } from '../shared/xpTheme';
 
 const xpTh: React.CSSProperties = {
     background: 'linear-gradient(to bottom, #fff, #d4d0c8)',
@@ -50,6 +51,55 @@ const xpSectionHdr: React.CSSProperties = {
     marginBottom: 3,
     fontFamily: 'Tahoma, Arial, sans-serif',
 };
+
+// --- Dense-row display helpers -----------------------------------------
+// AttributeValue has no stored hex, so variant color swatches are derived
+// from the value text via this EN+ID name map (display aid only; the text
+// label always stays for unmapped values).
+const COLOR_HEX: Record<string, string> = {
+    red: '#d32f2f', merah: '#d32f2f',
+    blue: '#1565c0', biru: '#1565c0',
+    green: '#2e7d32', hijau: '#2e7d32',
+    yellow: '#f9a825', kuning: '#f9a825',
+    black: '#111111', hitam: '#111111',
+    white: '#fbfbf7', putih: '#fbfbf7',
+    grey: '#757575', gray: '#757575', abu: '#757575',
+    orange: '#ef6c00', oranye: '#ef6c00', jingga: '#ef6c00',
+    purple: '#6a1b9a', ungu: '#6a1b9a',
+    pink: '#ec407a',
+    brown: '#5d4037', coklat: '#5d4037', cokelat: '#5d4037',
+    navy: '#1a237e', dongker: '#1a237e',
+    gold: '#c9a227', emas: '#c9a227',
+    silver: '#b0bec5', perak: '#b0bec5',
+    cream: '#efe7d2', krem: '#efe7d2',
+    maroon: '#7b1f2b', marun: '#7b1f2b',
+    tosca: '#12a4a4', toska: '#12a4a4',
+    tan: '#d2b48c', beige: '#e8dcc0',
+};
+function colorHexFor(name?: string): string | null {
+    if (!name) return null;
+    const k = name.trim().toLowerCase();
+    if (COLOR_HEX[k]) return COLOR_HEX[k];
+    for (const tok of k.split(/[\s\-_/]+/)) if (COLOR_HEX[tok]) return COLOR_HEX[tok];
+    return null;
+}
+
+// "S–XL" range from a BOM's sizes (ordered by sort_order); count fallback.
+function sizeTag(sizes: any[]): string {
+    if (!sizes?.length) return '';
+    const sorted = [...sizes].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    const names = sorted.map((s) => s.size_name || s.label).filter(Boolean);
+    if (!names.length) return `${sizes.length} sz`;
+    if (names.length === 1) return names[0];
+    return `${names[0]}–${names[names.length - 1]}`;
+}
+
+// Does this BOM carry any weaving/textile technical spec?
+function hasTeknisFor(b: any): boolean {
+    return b.kerapatan_picks != null || b.sisir_no != null || !!b.pemakaian_obat
+        || b.berat_bahan_mateng != null || b.berat_bahan_mentah_pelesan != null
+        || b.mesin_lebar != null || b.celup_lebar != null;
+}
 
 export default function BOMView({
     items, boms, locations, attributes, sizes, workCenters, operations, partners,
@@ -871,8 +921,10 @@ export default function BOMView({
                                         <th style={classic ? { width: '40px', padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : { width: '40px' }} className={classic ? '' : 'ps-3'}>
                                             <input className="form-check-input" type="checkbox" checked={allSelected} ref={el => { if (el) el.indeterminate = someSelected; }} onChange={toggleSelectAll} />
                                         </th>
-                                        <th style={classic ? { padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : undefined} className={classic ? '' : 'ps-2'}>{t('item_code')}</th>
+                                        <th style={classic ? { padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : undefined} className={classic ? '' : 'ps-2'}>BOM Code</th>
                                         <th style={classic ? { padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : undefined}>{t('finished_good')}</th>
+                                        <th style={classic ? { padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : undefined}>Code</th>
+                                        <th style={classic ? { padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : undefined}>Variant</th>
                                         <th style={classic ? { padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : undefined}>Machine</th>
                                         <th style={classic ? { padding: '4px 6px', borderRight: '1px solid #b0aaa0' } : undefined}>Summary</th>
                                         <th style={classic ? { width: '50px', padding: '4px 6px' } : { width: '50px' }} />
@@ -881,9 +933,9 @@ export default function BOMView({
 
                                 <tbody>
                                     {boms.length === 0 && bomSearch.trim() ? (
-                                        <tr><td colSpan={6} style={{ textAlign: 'center', padding: '16px', color: '#555', fontSize: '11px' }}>No BOMs match your search.</td></tr>
+                                        <tr><td colSpan={8} style={{ textAlign: 'center', padding: '16px', color: '#555', fontSize: '11px' }}>No BOMs match your search.</td></tr>
                                     ) : boms.length === 0 ? (
-                                        <tr><td colSpan={6} style={{ textAlign: 'center', padding: '16px', color: '#555', fontSize: '11px' }}>
+                                        <tr><td colSpan={8} style={{ textAlign: 'center', padding: '16px', color: '#555', fontSize: '11px' }}>
                                             {bomLoading ? 'Loading...' : 'No BOMs yet. Click Create Recipe to get started.'}
                                         </td></tr>
                                     ) : (
@@ -900,77 +952,98 @@ export default function BOMView({
                                                     className={classic ? '' : (selectedIds.has(bom.id) ? 'table-active' : '')}
                                                     style={classic ? { background: rowBg, borderBottom: isExpanded ? 'none' : '1px solid #c0bdb5' } : undefined}
                                                 >
-                                                    <td style={classic ? { padding: '5px 6px', borderRight: '1px solid #c0bdb5', verticalAlign: 'top' } : undefined} className={classic ? '' : 'ps-3 align-top'}>
+                                                    <td style={classic ? { padding: '7px 6px', borderRight: '1px solid #c0bdb5', verticalAlign: 'middle' } : undefined} className={classic ? '' : 'ps-3'}>
                                                         <input className="form-check-input" type="checkbox" checked={selectedIds.has(bom.id)} onChange={() => toggleSelect(bom.id)} />
                                                     </td>
                                                     {/* BOM Code — click to expand */}
                                                     <td
                                                         onClick={() => toggleBOMRow(bom.id, bom.item_id)}
-                                                        style={classic ? { padding: '5px 6px', borderRight: '1px solid #c0bdb5', verticalAlign: 'top', cursor: 'pointer' } : { cursor: 'pointer' }}
-                                                        className={classic ? '' : 'ps-2 align-top'}
+                                                        style={classic ? { padding: '7px 6px', borderRight: '1px solid #c0bdb5', verticalAlign: 'middle', cursor: 'pointer' } : { cursor: 'pointer' }}
+                                                        className={classic ? '' : 'ps-2'}
                                                         title="Click to expand BOM details"
                                                     >
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                            <i className={`bi bi-chevron-${isExpanded ? 'down' : 'right'}`} style={{ fontSize: '10px', color: '#0058e6', flexShrink: 0 }} />
-                                                            <span style={classic ? { fontFamily: "'Courier New', monospace", fontSize: '10px', background: '#fff', border: '1px solid #888', padding: '1px 5px', color: '#000', whiteSpace: 'nowrap' } : undefined} className={classic ? '' : 'badge bg-light text-dark border font-monospace'}>
+                                                            <i className={`bi bi-chevron-${isExpanded ? 'down' : 'right'}`} style={{ fontSize: '9px', color: '#0058e6', flexShrink: 0 }} />
+                                                            <span style={classic ? { fontFamily: "'Courier New', monospace", fontSize: '10px', background: '#fff', border: '1px solid #888', padding: '0 4px', color: '#000', whiteSpace: 'nowrap' } : undefined} className={classic ? '' : 'badge bg-light text-dark border font-monospace'}>
                                                                 {bom.code}
                                                             </span>
                                                         </div>
                                                     </td>
-                                                    {/* Finished Good — also clickable */}
+                                                    {/* Finished Good — item name */}
                                                     <td
                                                         onClick={() => toggleBOMRow(bom.id, bom.item_id)}
-                                                        style={classic ? { padding: '5px 6px', borderRight: '1px solid #c0bdb5', verticalAlign: 'top', cursor: 'pointer' } : { cursor: 'pointer' }}
-                                                        className={classic ? '' : 'align-top'}
+                                                        style={classic ? { padding: '7px 8px', borderRight: '1px solid #c0bdb5', verticalAlign: 'middle', cursor: 'pointer' } : { cursor: 'pointer' }}
                                                     >
-                                                        <div style={{ fontWeight: 'bold', color: '#000', fontSize: 11, fontFamily: 'Tahoma, Arial, sans-serif' }}>
+                                                        <span style={{ fontWeight: 'bold', color: '#000', fontSize: 11, fontFamily: 'Tahoma, Arial, sans-serif' }}>
                                                             {getItemName(bom.item_id, bom.item_name)}
-                                                        </div>
-                                                        <div style={{ marginTop: 2 }}>
-                                                            <span style={{ fontFamily: "'Courier New', monospace", fontSize: 10, background: '#fff', border: '1px solid #aaa', padding: '0 4px', color: '#000055', whiteSpace: 'nowrap' }}>
-                                                                {getItemCode(bom.item_id, bom.item_code)}
-                                                            </span>
-                                                        </div>
-                                                        {(bom.attribute_value_ids || []).length > 0 && (
-                                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 3 }}>
-                                                                {(bom.attribute_value_ids || []).map((valId: string) => (
-                                                                    <span key={valId} style={{ background: '#e8e4d8', border: '1px solid #b0aaa0', color: '#333', fontSize: 10, padding: '1px 5px', fontFamily: 'Tahoma, Arial, sans-serif', whiteSpace: 'nowrap' }}>
-                                                                        {getAttributeValueName(valId)}
-                                                                    </span>
-                                                                ))}
+                                                        </span>
+                                                    </td>
+                                                    {/* Item code */}
+                                                    <td
+                                                        onClick={() => toggleBOMRow(bom.id, bom.item_id)}
+                                                        style={classic ? { padding: '7px 8px', borderRight: '1px solid #c0bdb5', verticalAlign: 'middle', cursor: 'pointer' } : { cursor: 'pointer' }}
+                                                    >
+                                                        <span style={{ fontFamily: "'Courier New', monospace", fontSize: 10, color: '#000055', background: '#fff', border: '1px solid #aaa', padding: '1px 5px', whiteSpace: 'nowrap' }}>
+                                                            {getItemCode(bom.item_id, bom.item_code)}
+                                                        </span>
+                                                    </td>
+                                                    {/* Variant — color swatches + combo values */}
+                                                    <td style={classic ? { padding: '7px 8px', borderRight: '1px solid #c0bdb5', verticalAlign: 'middle' } : undefined}>
+                                                        {(bom.attribute_value_ids || []).length > 0 ? (
+                                                            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 3 }}>
+                                                                {(bom.attribute_value_ids || []).map((valId: string) => {
+                                                                    const label = getAttributeValueName(valId);
+                                                                    const hex = colorHexFor(label);
+                                                                    return (
+                                                                        <span key={valId} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: '#e8e4d8', border: '1px solid #b0aaa0', color: '#333', fontSize: 10, padding: '1px 5px', fontFamily: 'Tahoma, Arial, sans-serif', whiteSpace: 'nowrap' }}>
+                                                                            {hex && <span style={{ width: 10, height: 10, background: hex, border: '1px solid rgba(0,0,0,0.35)', flexShrink: 0, display: 'inline-block' }} />}
+                                                                            {label}
+                                                                        </span>
+                                                                    );
+                                                                })}
                                                             </div>
-                                                        )}
-                                                    </td>
-                                                    <td style={classic ? { padding: '5px 6px', borderRight: '1px solid #c0bdb5', verticalAlign: 'top', fontSize: '10px', color: '#333' } : undefined} className={classic ? '' : 'align-top'}>
-                                                        {bom.work_center_name ? (
-                                                            <span style={{ color: '#333' }}>{bom.work_center_name}</span>
                                                         ) : (
-                                                            <span style={{ color: '#888' }} className={classic ? '' : 'text-muted small'}>-</span>
+                                                            <span style={{ color: '#999', fontSize: 10 }} className={classic ? '' : 'text-muted small'}>-</span>
                                                         )}
                                                     </td>
-                                                    <td style={classic ? { padding: '5px 8px', borderRight: '1px solid #c0bdb5', verticalAlign: 'middle' } : undefined} className={classic ? '' : 'align-middle'}>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', fontFamily: 'Tahoma, Arial, sans-serif' }}>
-                                                            <span title="Components" style={{ background: '#e6eeff', border: '1px solid #0058e6', color: '#003080', fontSize: 10, padding: '1px 6px', whiteSpace: 'nowrap' }}>
-                                                                <i className="bi bi-gear-fill" style={{ marginRight: 3 }} />{bom.lines?.length ?? 0} mat{bom.lines?.length !== 1 ? 's' : ''}
+                                                    {/* Machine — hue-coded by work-center type */}
+                                                    <td style={classic ? { padding: '7px 6px', borderRight: '1px solid #c0bdb5', verticalAlign: 'middle' } : undefined}>
+                                                        {bom.work_center_name ? (
+                                                            <span style={{ ...workCenterChipStyle(bom.work_center_type, bom.work_center_name), borderWidth: 1, borderStyle: 'solid', fontSize: 9, padding: '1px 6px', whiteSpace: 'nowrap', fontFamily: xpFont, fontWeight: 'bold' }}>{bom.work_center_name}</span>
+                                                        ) : (
+                                                            <span style={{ color: '#999', fontSize: 10 }} className={classic ? '' : 'text-muted small'}>-</span>
+                                                        )}
+                                                    </td>
+                                                    {/* Smart stats — glyph shows only when it carries signal */}
+                                                    <td style={classic ? { padding: '7px 8px', borderRight: '1px solid #c0bdb5', verticalAlign: 'middle' } : undefined} className={classic ? '' : 'align-middle'}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 9, fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10, color: '#555' }}>
+                                                            <span title="Components (materials)" style={{ whiteSpace: 'nowrap', color: '#003080' }}>
+                                                                <i className="bi bi-gear-fill" style={{ marginRight: 2, fontSize: 9 }} />{bom.lines?.length ?? 0}
                                                             </span>
-                                                            {(() => { const opCount = bom.operation_count ?? bom.operations?.length ?? 0; return (
-                                                            <span title="Operations" style={{ background: '#e8f5e8', border: '1px solid #2d7a2d', color: '#1a4d1a', fontSize: 10, padding: '1px 6px', whiteSpace: 'nowrap' }}>
-                                                                <i className="bi bi-wrench" style={{ marginRight: 3 }} />{opCount} op{opCount !== 1 ? 's' : ''}
-                                                            </span>
-                                                            ); })()}
+                                                            {(() => { const c = bom.operation_count ?? bom.operations?.length ?? 0; return c > 0 ? (
+                                                                <span title={`${c} routing operation${c !== 1 ? 's' : ''}`} style={{ whiteSpace: 'nowrap', color: '#1a4d1a' }}>
+                                                                    <i className="bi bi-wrench" style={{ marginRight: 2, fontSize: 9 }} />{c}
+                                                                </span>
+                                                            ) : null; })()}
                                                             {getItemEnds(bom.item_id) != null ? (
-                                                                <span title="Warp ends (utas)" style={{ background: '#e6f4ea', border: '1px solid #4caf50', color: '#1a6e2e', fontWeight: 'bold', fontSize: 10, padding: '1px 6px', whiteSpace: 'nowrap' }}>
-                                                                    <i className="bi bi-bezier2" style={{ marginRight: 3 }} />{Math.round(Number(bom.qty ?? 1))} ends
+                                                                <span title="Warp ends (utas)" style={{ whiteSpace: 'nowrap', color: '#1a6e2e', fontWeight: 'bold' }}>
+                                                                    <i className="bi bi-bezier2" style={{ marginRight: 2, fontSize: 9 }} />{Math.round(Number(bom.qty ?? 1))}
                                                                 </span>
                                                             ) : (
-                                                                <span title="Batch output" style={{ background: '#f5f3ee', border: '1px solid #b0aaa0', color: '#333', fontSize: 10, padding: '1px 6px', whiteSpace: 'nowrap' }}>
-                                                                    <i className="bi bi-box-seam" style={{ marginRight: 3 }} />{Number(bom.qty ?? 1).toFixed(2)}
+                                                                <span title="Batch output" style={{ whiteSpace: 'nowrap' }}>
+                                                                    <i className="bi bi-box-seam" style={{ marginRight: 2, fontSize: 9 }} />{Number(bom.qty ?? 1).toFixed(2)}
                                                                 </span>
                                                             )}
-                                                            <span title={bom.active ? 'Active' : 'Inactive'} style={{ display: 'inline-block', width: 8, height: 8, background: bom.active ? '#00aa00' : '#cc0000', border: `1px solid ${bom.active ? '#005500' : '#660000'}`, flexShrink: 0 }} />
+                                                            {bom.size_mode === 'sized' && (bom.sizes || []).length > 0 && (
+                                                                <span title="Sized BOM" style={{ whiteSpace: 'nowrap', background: '#eef0fa', border: '1px solid #99a6cc', color: '#334', padding: '0 4px', fontSize: 9 }}>{sizeTag(bom.sizes)}</span>
+                                                            )}
+                                                            {hasTeknisFor(bom) && (
+                                                                <span title="Has weaving/textile spec" style={{ width: 7, height: 7, borderRadius: '50%', background: '#b46a00', display: 'inline-block', flexShrink: 0 }} />
+                                                            )}
+                                                            <span title={bom.active ? 'Active' : 'Inactive'} style={{ display: 'inline-block', width: 8, height: 8, background: bom.active ? '#00aa00' : '#cc0000', border: `1px solid ${bom.active ? '#005500' : '#660000'}`, flexShrink: 0, marginLeft: 'auto' }} />
                                                         </div>
                                                     </td>
-                                                    <td style={classic ? { padding: '5px 6px', textAlign: 'right', verticalAlign: 'top' } : undefined} className={classic ? '' : 'pe-4 text-end align-top'}>
+                                                    <td style={classic ? { padding: '7px 6px', textAlign: 'right', verticalAlign: 'middle' } : undefined} className={classic ? '' : 'pe-4 text-end'}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'flex-end' }}>
                                                             {canManage && (
                                                                 <button
