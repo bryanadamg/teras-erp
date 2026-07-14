@@ -85,13 +85,12 @@ export default function WOBulkPrintModal({
         return (
             <div key={wo.id} style={{
                 border: '1px solid #888',
-                padding: forPortal ? '4mm' : '10px',
+                padding: '4mm',
                 overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
                 background: '#fff',
                 breakInside: 'avoid' as any,
-                ...(forPortal ? {} : { minHeight: '352px' }),
             }}>
                 <KartuKerjaCard
                     workOrder={wo}
@@ -161,8 +160,12 @@ export default function WOBulkPrintModal({
                                     <div style={{ fontSize: '10px', color: '#555', marginBottom: '4px', textAlign: 'center' }}>
                                         Page {pi + 1} of {pages.length}
                                     </div>
-                                    <div style={{ background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,0.3)', padding: '8px', width: '520px' }}>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                                    {/* Real A4 portrait page (210×297mm → 794×1123px @96dpi) with the
+                                        same 8mm margin / 4mm gutter / 2×2 grid as @page print CSS, so the
+                                        preview is geometrically identical to the printout — cards sit in the
+                                        top half and content fits the A6 quarter without cropping. */}
+                                    <div style={{ background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,0.3)', width: '210mm', height: '297mm', padding: '8mm', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4mm', flex: 1, minHeight: 0 }}>
                                             {pageWOs.map(wo => renderCard(wo, false))}
                                         </div>
                                     </div>

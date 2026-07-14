@@ -820,7 +820,12 @@ export default function ManufacturingView({
   };
 
   // --- Work Order Expanded Panel (Tree + Detail) ---
-  const WOExpandedPanel = ({ wo, detailTab, setDetailTab }: { wo: any; detailTab: 'bom' | 'steps'; setDetailTab: (t: 'bom' | 'steps') => void }) => {
+  // NOTE: invoked as a plain function call (renderWOExpandedPanel({...})), NOT as <JSX/>.
+  // Defined inside the parent body, so as a JSX element it would get a fresh component
+  // identity every parent render and React would remount its whole subtree — wiping
+  // WorkOrderPanel's local add-WO form state (the "add row flashes and disappears" bug).
+  // Calling it as a function inlines the output and keeps child state stable.
+  const renderWOExpandedPanel = ({ wo, detailTab, setDetailTab }: { wo: any; detailTab: 'bom' | 'steps'; setDetailTab: (t: 'bom' | 'steps') => void }) => {
       const selectedNodeId = selectedTreeNodes[wo.id] ?? wo.id;
 
       // Build a map of all MOs in the same PR so required component MOs appear in the tree
@@ -2224,11 +2229,11 @@ export default function ManufacturingView({
                                               {isExpanded && (
                                                   <tr key={`${wo.id}-detail`}>
                                                       <td colSpan={7} className="p-0 border-0">
-                                                          <WOExpandedPanel
-                                                              wo={wo}
-                                                              detailTab={expandedDetailTabs[wo.id] || 'bom'}
-                                                              setDetailTab={(t) => setExpandedDetailTabs(prev => ({ ...prev, [wo.id]: t }))}
-                                                          />
+                                                          {renderWOExpandedPanel({
+                                                              wo,
+                                                              detailTab: expandedDetailTabs[wo.id] || 'bom',
+                                                              setDetailTab: (t) => setExpandedDetailTabs(prev => ({ ...prev, [wo.id]: t })),
+                                                          })}
                                                       </td>
                                                   </tr>
                                               )}
