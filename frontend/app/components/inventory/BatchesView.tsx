@@ -82,6 +82,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [itemFilter, setItemFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'depleted'>('active');
   const [searchInput, setSearchInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -106,13 +107,14 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
     return () => clearTimeout(id);
   }, [searchInput]);
 
-  useEffect(() => { setPage(1); }, [itemFilter, searchTerm]);
+  useEffect(() => { setPage(1); }, [itemFilter, statusFilter, searchTerm]);
 
   const fetchBatches = async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page), size: String(PAGE_SIZE) });
       if (itemFilter) params.set('item_id', itemFilter);
+      if (statusFilter) params.set('status', statusFilter);
       if (searchTerm) params.set('search', searchTerm);
       const res = await authFetch(`${apiBase}/batches/paginated?${params.toString()}`);
       if (res.ok) {
@@ -127,7 +129,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
     }
   };
 
-  useEffect(() => { fetchBatches(); }, [itemFilter, searchTerm, page]);
+  useEffect(() => { fetchBatches(); }, [itemFilter, statusFilter, searchTerm, page]);
 
   const handleCreate = async () => {
     if (!createItemId) { showToast('Select an item', 'warning'); return; }
@@ -225,6 +227,8 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
   };
 
   const itemMap = Object.fromEntries(items.map(i => [i.id, i]));
+
+  const isDepleted = (b: Batch) => (b.remaining ?? 0) <= 0;
 
   const batchItemCode = (b: Batch) => b.item_code || itemMap[b.item_id]?.code || '-';
   const batchItemName = (b: Batch) => b.item_name || itemMap[b.item_id]?.name || '-';
@@ -513,6 +517,12 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
               <option value="">All Items</option>
               {items.map(i => <option key={i.id} value={i.id}>{i.code} — {i.name}</option>)}
             </select>
+            <span style={{ fontFamily: 'Tahoma', fontSize: 11 }}>Status:</span>
+            <select style={{ ...xpInput, width: 110 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value as any)}>
+              <option value="active">Active</option>
+              <option value="depleted">Depleted</option>
+              <option value="">All</option>
+            </select>
             <input style={{ ...xpInput, width: 160 }} placeholder="Search..." value={searchInput} onChange={e => setSearchInput(e.target.value)} />
           </div>
 
@@ -546,9 +556,9 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                   <>
                     <tr
                       key={b.id}
-                      style={{ background: expandedRows[b.id] ? '#d6e4f7' : i % 2 === 1 ? '#f0f0f8' : '#ffffff', cursor: 'pointer' }}
+                      style={{ background: expandedRows[b.id] ? '#d6e4f7' : i % 2 === 1 ? '#f0f0f8' : '#ffffff', cursor: 'pointer', color: isDepleted(b) ? '#9a9a9a' : undefined }}
                       onClick={() => toggleExpand(b)}
-                      title="Show lot lineage"
+                      title={isDepleted(b) ? 'Depleted lot — 0 remaining' : 'Show lot lineage'}
                     >
                       <td style={{ ...xpTd(i % 2 === 1), textAlign: 'center', background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>
                         <span style={{ fontSize: 10, color: '#555' }}>{expandedRows[b.id] ? '▼' : '►'}</span>
@@ -563,7 +573,10 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{batchItemName(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{originCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.location_name || <span style={{ color: '#ccc' }}>—</span>}</td>
-                      <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right', background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right', background: expandedRows[b.id] ? '#d6e4f7' : undefined, whiteSpace: 'nowrap' }}>
+                        <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', marginRight: 5, verticalAlign: 'middle', background: isDepleted(b) ? '#b8b8b8' : '#3a9b3a', border: isDepleted(b) ? '1px solid #999' : '1px solid #2a7a2a' }} />
+                        {b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}
+                      </td>
                       <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right', background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.ends ?? '-'}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.notes || '-'}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.created_by || '-'}</td>
@@ -612,6 +625,11 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
               <option value="">All Items</option>
               {items.map(i => <option key={i.id} value={i.id}>{i.code} — {i.name}</option>)}
             </select>
+            <select className="form-select form-select-sm" style={{ width: 130 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value as any)}>
+              <option value="active">Active</option>
+              <option value="depleted">Depleted</option>
+              <option value="">All statuses</option>
+            </select>
             <input className="form-control form-control-sm" style={{ width: 200 }} placeholder="Search lots..." value={searchInput} onChange={e => setSearchInput(e.target.value)} />
           </div>
 
@@ -642,9 +660,9 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                     <tr
                       key={b.id}
                       className={expandedRows[b.id] ? 'table-primary bg-opacity-10' : ''}
-                      style={{ cursor: 'pointer' }}
+                      style={{ cursor: 'pointer', color: isDepleted(b) ? '#9a9a9a' : undefined }}
                       onClick={() => toggleExpand(b)}
-                      title="Show lot lineage"
+                      title={isDepleted(b) ? 'Depleted lot — 0 remaining' : 'Show lot lineage'}
                     >
                       <td className="text-center text-muted">
                         <i className={`bi ${expandedRows[b.id] ? 'bi-chevron-down' : 'bi-chevron-right'}`} style={{ fontSize: 11 }} />
@@ -657,7 +675,10 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                       <td>{batchItemName(b)}</td>
                       <td>{originCell(b)}</td>
                       <td>{b.location_name || <span className="text-muted">—</span>}</td>
-                      <td className="text-end">{b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}</td>
+                      <td className="text-end" style={{ whiteSpace: 'nowrap' }}>
+                        <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', marginRight: 5, verticalAlign: 'middle', background: isDepleted(b) ? '#b8b8b8' : '#3a9b3a' }} />
+                        {b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}
+                      </td>
                       <td className="text-end">{b.ends ?? '-'}</td>
                       <td>{b.notes || '-'}</td>
                       <td>{b.created_by || '-'}</td>

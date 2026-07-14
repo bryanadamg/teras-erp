@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, cast, String
 from sqlalchemy.orm import selectinload, joinedload, aliased
 from app.db.session import get_async_db
 from app.models.batch import Batch, BatchConsumption
@@ -245,6 +245,7 @@ async def list_batches(
 async def list_batches_paginated(
     item_id: uuid.UUID | None = Query(None),
     search: str | None = Query(None, description="Matches lot number, supplier lot, or item code/name"),
+    status: str | None = Query(None, description="'active' (remaining > 0) or 'depleted' (0 remaining); None = all"),
     page: int = Query(1, ge=1),
     size: int = Query(50, ge=1, le=500),
     db: AsyncSession = Depends(get_async_db),
@@ -256,6 +257,19 @@ async def list_batches_paginated(
     filters = []
     if item_id:
         filters.append(Batch.item_id == item_id)
+    if status in ("active", "depleted"):
+        # remaining = sum of StockBalance rows keyed by str(batch id). "active" =
+        # any positive balance; "depleted" = no positive balance (summed <= 0 or
+        # never had a balance row). batch_key is text, so cast Batch.id to match.
+        active_keys = (
+            select(StockBalance.batch_key)
+            .group_by(StockBalance.batch_key)
+            .having(func.sum(StockBalance.qty) > 0)
+        )
+        if status == "active":
+            filters.append(cast(Batch.id, String).in_(active_keys))
+        else:
+            filters.append(cast(Batch.id, String).not_in(active_keys))
     if search:
         pattern = f"%{search.strip()}%"
         filters.append(
