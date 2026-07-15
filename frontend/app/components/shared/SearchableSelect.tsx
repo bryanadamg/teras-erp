@@ -25,6 +25,10 @@ interface SearchableSelectProps {
 
 const font = 'Tahoma, "Segoe UI", sans-serif';
 const DROPDOWN_MAX_HEIGHT = 280;
+// Cap rendered rows to keep the DOM bounded for large lists (combos number in the
+// thousands). Anything past the cap is reachable by typing — the footer hint tells
+// the user how many are hidden so beyond-cap entries aren't silently unreachable.
+const RENDER_CAP = 100;
 
 export default function SearchableSelect({
     options, value, onChange, placeholder, disabled, className,
@@ -102,13 +106,18 @@ export default function SearchableSelect({
         };
     }, [isOpen]);
 
-    const filteredOptions = useMemo(() => {
-        let result = activeCategory ? options.filter(o => o.category === activeCategory) : options;
+    const { filteredOptions, hiddenCount } = useMemo(() => {
+        const base = activeCategory ? options.filter(o => o.category === activeCategory) : options;
         const q = searchTerm.toLowerCase();
-        return result.filter(o =>
-            o.label.toLowerCase().includes(q) ||
-            (o.subLabel && o.subLabel.toLowerCase().includes(q))
-        ).slice(0, 50);
+        const matched = q
+            ? base.filter(o =>
+                o.label.toLowerCase().includes(q) ||
+                (o.subLabel && o.subLabel.toLowerCase().includes(q)))
+            : base;
+        return {
+            filteredOptions: matched.slice(0, RENDER_CAP),
+            hiddenCount: Math.max(0, matched.length - RENDER_CAP),
+        };
     }, [options, searchTerm, activeCategory]);
 
     const handleSelect = (val: string) => {
@@ -240,6 +249,16 @@ export default function SearchableSelect({
                             </div>
                         );
                     })
+                )}
+                {hiddenCount > 0 && (
+                    <div style={{
+                        padding: '3px 8px', fontSize: 9, color: '#666',
+                        fontStyle: 'italic', fontFamily: font,
+                        background: '#f5f4ee', borderTop: '1px solid #c0bdb5',
+                        textAlign: 'center', position: 'sticky', bottom: 0,
+                    }}>
+                        {hiddenCount} more — type to narrow
+                    </div>
                 )}
             </div>
         </div>

@@ -13,9 +13,8 @@ import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
 import { StatusChip, XPLoading } from '../shared/xpTheme';
-import { useArchivedComboValueIds } from '../shared/useArchivedCombos';
 import Pager from '../shared/Pager';
-import { STATIC_BASE } from '../shared/apiBase';
+import { STATIC_BASE, API_BASE } from '../shared/apiBase';
 
 const SAMPLE_PAGE_SIZE = 50;
 
@@ -35,11 +34,10 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       });
       if (ok) onUpdateColorStatus(sampleId, colorId, 'APPROVED');
   };
-  const { companyProfile, attributes, loading: dataLoading } = useData();
+  const { companyProfile, attributes, loading: dataLoading, authFetch } = useData();
 
-  // Combo Library governs which combos are offered; shared hook subtracts archived so
-  // the sample Combo picker offers only active library combos — matching Sales Order.
-  const archivedComboValueIds = useArchivedComboValueIds();
+  // Combos are fetched via server-side typeahead (see comboResults below) rather than
+  // the combo variant attribute's values — the library is too large to ship inline.
   const colorOptions = useMemo(() => {
     const attr = (attributes as any[]).find((a: any) => a.system_role === 'color');
     return (attr?.values ?? []).map((v: any) => ({ value: v.value, label: v.value }));
@@ -47,12 +45,6 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
   const colorsAttrName = useMemo(() => {
     return (attributes as any[]).find((a: any) => a.system_role === 'color')?.name ?? null;
   }, [attributes]);
-  const comboOptions = useMemo(() => {
-    const attr = (attributes as any[]).find((a: any) => a.system_role === 'combo');
-    return (attr?.values ?? [])
-      .filter((v: any) => !archivedComboValueIds.has(String(v.id)))
-      .map((v: any) => ({ value: v.value, label: v.value }));
-  }, [attributes, archivedComboValueIds]);
   const comboAttrName = useMemo(() => {
     return (attributes as any[]).find((a: any) => a.system_role === 'combo')?.name ?? null;
   }, [attributes]);
@@ -344,6 +336,33 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       notes: '',
   });
   const [newSample, setNewSample] = useState(emptyForm());
+
+  // Server-side combo typeahead. The Combo Library can hold thousands of values —
+  // too many to ship to every client via /attributes — so the combo picker queries
+  // /combos on each keystroke instead of filtering an in-memory list. This guarantees
+  // a typed combo resolves regardless of library size. (status=active excludes
+  // archived server-side; colors stay client-side, being a bounded variant attr.)
+  const [comboQuery, setComboQuery] = useState('');
+  const [comboResults, setComboResults] = useState<{ value: string; label: string; subLabel?: string }[]>([]);
+  useEffect(() => {
+      if (!isCreateOpen || newSample.variant_type !== 'combo') return;
+      let cancelled = false;
+      const handle = setTimeout(async () => {
+          try {
+              const params = new URLSearchParams({ status: 'active', size: '50' });
+              const q = comboQuery.trim();
+              if (q) params.set('search', q);
+              const res = await authFetch(`${API_BASE}/combos?${params.toString()}`);
+              if (!res.ok || cancelled) return;
+              const d = await res.json();
+              if (cancelled) return;
+              setComboResults((d.items ?? []).map((c: any) => ({
+                  value: c.name, label: c.name, subLabel: c.code,
+              })));
+          } catch { /* silent */ }
+      }, 300);
+      return () => { cancelled = true; clearTimeout(handle); };
+  }, [comboQuery, isCreateOpen, newSample.variant_type, authFetch]);
 
   const removeColorRow = (idx: number) =>
       setNewSample(prev => ({ ...prev, colors: prev.colors.filter((_, i) => i !== idx) }));
@@ -775,7 +794,10 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                {(() => {
                    const isColor = newSample.variant_type === 'color';
                    const addedNames = new Set(newSample.colors.map(c => c.name.toLowerCase()));
-                   const activeOptions = (isColor ? colorOptions : comboOptions).filter(o => !addedNames.has(o.value.toLowerCase()));
+                   // Colors filter client-side (bounded); combos come pre-filtered from the
+                   // server typeahead so the list works regardless of library size.
+                   const activeOptions = (isColor ? colorOptions : comboResults).filter(o => !addedNames.has(o.value.toLowerCase()));
+                   const activeOnSearch = isColor ? undefined : setComboQuery;
                    const activeAttrName = isColor ? colorsAttrName : comboAttrName;
                    const switchTab = (tab: 'color' | 'combo') => {
                        if (tab === newSample.variant_type) return;
@@ -853,6 +875,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                            options={activeOptions}
                                            value={pendingColorName}
                                            onChange={setPendingColorName}
+                                           onSearch={activeOnSearch}
                                            placeholder={`Select ${isColor ? 'color' : 'combo'}…`}
                                            size="sm"
                                        />
@@ -921,6 +944,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                            options={activeOptions}
                                            value={pendingColorName}
                                            onChange={setPendingColorName}
+                                           onSearch={activeOnSearch}
                                            placeholder={`Select ${isColor ? 'color' : 'combo'}…`}
                                            size="sm"
                                        />
