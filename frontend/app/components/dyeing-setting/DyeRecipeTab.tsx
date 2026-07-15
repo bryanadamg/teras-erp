@@ -10,6 +10,8 @@ import CodeConfigModal, { CodeConfig, buildCodeParts, buildCodeWithCounter } fro
 import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import Pager from '../shared/Pager';
+import { StatusChip } from '../shared/xpTheme';
+import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow } from '../shared/listViewTheme';
 import { API_BASE } from '../shared/apiBase';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
@@ -116,7 +118,12 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
     const [form, setForm] = useState<RecipeForm>(emptyForm());
     const [saving, setSaving] = useState(false);
     const [searchText, setSearchText] = useState('');
-    const [hoveredId, setHoveredId] = useState<string | null>(null);
+    const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+    const toggleExpand = (id: string) => setExpandedIds(prev => {
+        const next = new Set(prev);
+        next.has(id) ? next.delete(id) : next.add(id);
+        return next;
+    });
     const [washBaths, setWashBaths] = useState<Array<{bath_number: number; description: string}>>([]);
     const [finishingSteps, setFinishingSteps] = useState<Array<{description: string; sort_order: number}>>([]);
     const [showPrint, setShowPrint] = useState(false);
@@ -378,126 +385,266 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
         }));
     };
 
-    // Shared cell border / header styles for tables (theme-aware)
+    // Table header cells build on the shared listViewTheme `lvTh` so nested recipe
+    // tables match the library tables; classic adds the XP thead gradient/underline
+    // that lvTh leaves to the parent thead.
     const thStyle = (extra?: React.CSSProperties): React.CSSProperties => classic
-        ? {
-            background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
-            borderBottom: '2px solid #808080', borderRight: '1px solid #b0aaa0',
-            padding: '3px 6px', textAlign: 'left', whiteSpace: 'nowrap',
-            fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#000',
-            ...extra,
-        }
-        : {
-            background: '#eef1f6', color: '#475569', textTransform: 'uppercase',
-            fontSize: 11, fontWeight: 700, padding: '6px 10px',
-            borderBottom: '1.5px solid #cbd3df', fontFamily: modernFont, textAlign: 'left',
-            ...extra,
+        ? { ...lvTh(true), background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080', ...extra }
+        : { ...lvTh(false), ...extra };
+
+    // Expandable-row detail: full recipe breakdown (chemical lines, wash baths,
+    // finishing, attribute matches) shown inline under the table row.
+    const renderDetail = (recipe: any) => {
+        const sectionHeader = (label: string): React.CSSProperties => classic ? {
+            background: '#dde8f5', borderBottom: '1px solid #7f9db9',
+            padding: '2px 6px', fontWeight: 'bold', fontSize: 11, color: '#1a1a1a',
+            border: '1px solid #7f9db9',
+        } : {
+            background: '#eef1f6', borderBottom: '1px solid #dbe1ea',
+            padding: '7px 12px', fontWeight: 700, fontSize: 11, color: '#475569',
+            textTransform: 'uppercase', letterSpacing: '0.04em',
+            border: '1px solid #dbe1ea', borderTopLeftRadius: 9, borderTopRightRadius: 9,
         };
+        const panelBox: React.CSSProperties = classic
+            ? { border: '1px solid #7f9db9', borderTop: 'none' }
+            : { border: '1px solid #dbe1ea', borderTop: 'none', borderBottomLeftRadius: 9, borderBottomRightRadius: 9, overflow: 'hidden' };
+        const labelStyle: React.CSSProperties = { fontSize: classic ? 10 : 12, color: classic ? '#555' : '#64748b', marginBottom: 2 };
+        const emptyStyle: React.CSSProperties = { color: classic ? '#888' : '#64748b', fontSize: classic ? 10 : 12 };
+        return (
+            <div style={{ padding: classic ? '8px 12px' : '10px 14px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1fr)', gap: 12, alignItems: 'start' }}>
+
+                    {/* ── Column 1: Recipe Info ── */}
+                    <div>
+                        <div style={sectionHeader('Recipe Info')}>Recipe Info</div>
+                        <div style={{ ...panelBox, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <DetailField label="Color Standard" value={recipe.color_standard} classic={classic} />
+                            <DetailField label="Substrate Type" value={recipe.substrate_type} classic={classic} />
+                            <DetailField label="Notes" value={recipe.notes} classic={classic} />
+                            {recipe.attribute_value_ids?.length > 0 && (
+                                <div>
+                                    <div style={labelStyle}>Attribute Match</div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 6px' }}>
+                                        {recipe.attribute_value_ids.map((vid: string) => {
+                                            let label = vid;
+                                            for (const attr of attributes) {
+                                                const v = (attr.values || []).find((av: any) => String(av.id) === String(vid));
+                                                if (v) { label = `${attr.name}: ${v.value}`; break; }
+                                            }
+                                            return (
+                                                <span key={vid} style={classic ? {
+                                                    background: '#dde8f5', border: '1px solid #7fa8e8',
+                                                    padding: '1px 6px', borderRadius: 2, fontSize: 10, color: '#1a3d90',
+                                                } : {
+                                                    background: '#eff6ff', border: '1px solid #bfd3f5',
+                                                    padding: '2px 8px', borderRadius: 6, fontSize: 12, color: '#1d4ed8', fontWeight: 500,
+                                                }}>{label}</span>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* ── Column 2: Chemical Lines ── */}
+                    <div>
+                        <div style={sectionHeader('Chemical Lines')}>Chemical Lines</div>
+                        <div style={{ ...panelBox, overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: classic ? 10 : 13 }}>
+                                <thead>
+                                    <tr style={classic ? { background: '#eef2f8' } : {}}>
+                                        <th style={thStyle({ width: 28 })}>#</th>
+                                        <th style={thStyle({ width: 70 })}>Type</th>
+                                        <th style={thStyle()}>Item</th>
+                                        <th style={thStyle({ textAlign: 'right', width: 80 })}>Qty/100kg</th>
+                                        <th style={thStyle({ width: 50 })}>UOM</th>
+                                        <th style={thStyle({ textAlign: 'center', width: 44 })}>Sort</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {(!recipe.lines || recipe.lines.length === 0) && (
+                                        <tr>
+                                            <td colSpan={6} style={{ padding: '8px', color: classic ? '#888' : '#64748b', textAlign: 'center' }}>
+                                                No chemical lines defined.
+                                            </td>
+                                        </tr>
+                                    )}
+                                    {(recipe.lines || []).map((line: any, idx: number) => {
+                                        const linkedItem = items.find(it => String(it.id) === String(line.item_id));
+                                        return (
+                                            <tr key={idx} style={{ background: classic ? (idx % 2 === 0 ? 'white' : '#f7f9fc') : (idx % 2 === 0 ? '#fff' : '#f8fafc') }}>
+                                                <td style={{ padding: classic ? '3px 6px' : '6px 10px', color: classic ? '#666' : '#64748b', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>{idx + 1}</td>
+                                                <td style={{ padding: classic ? '3px 6px' : '6px 10px', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
+                                                    <span style={{
+                                                        background: typeColor(line.chemical_type, classic).bg,
+                                                        color: typeColor(line.chemical_type, classic).fg,
+                                                        padding: classic ? '1px 5px' : '2px 7px', borderRadius: classic ? 2 : 6,
+                                                        fontWeight: classic ? 'bold' : 600, fontSize: classic ? 9 : 11,
+                                                        border: `1px solid ${typeColor(line.chemical_type, classic).border}`,
+                                                    }}>
+                                                        {line.chemical_type || '-'}
+                                                    </span>
+                                                </td>
+                                                <td style={{ padding: classic ? '3px 6px' : '6px 10px', color: classic ? undefined : '#334155', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
+                                                    {line.item_name || linkedItem?.name || (line.item_id || '-')}
+                                                </td>
+                                                <td style={{ padding: classic ? '3px 6px' : '6px 10px', textAlign: 'right', color: classic ? undefined : '#334155', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
+                                                    {line.qty_per_100kg != null ? Number(line.qty_per_100kg).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '-'}
+                                                </td>
+                                                <td style={{ padding: classic ? '3px 6px' : '6px 10px', color: classic ? undefined : '#334155', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>{line.uom_name || '-'}</td>
+                                                <td style={{ padding: classic ? '3px 6px' : '6px 10px', textAlign: 'center', color: classic ? undefined : '#334155', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>{line.sort_order ?? '-'}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* ── Column 3: Wash Baths + Finishing ── */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div>
+                            <div style={sectionHeader('Bak Cuci')}>Bak Cuci</div>
+                            <div style={{ ...panelBox, padding: '6px 8px' }}>
+                                {(!recipe.wash_baths || recipe.wash_baths.length === 0)
+                                    ? <span style={emptyStyle}>None.</span>
+                                    : (recipe.wash_baths || []).map((wb: any, i: number) => (
+                                        <div key={i} style={{ fontSize: classic ? 10 : 12, color: classic ? '#1a1a1a' : '#334155', padding: '1px 0' }}>
+                                            <b>{wb.bath_number}.</b> {wb.description || '-'}
+                                        </div>
+                                    ))}
+                            </div>
+                        </div>
+                        <div>
+                            <div style={sectionHeader('Finishing')}>Finishing</div>
+                            <div style={{ ...panelBox, padding: '6px 8px' }}>
+                                {(!recipe.finishing_steps || recipe.finishing_steps.length === 0)
+                                    ? <span style={emptyStyle}>None.</span>
+                                    : (recipe.finishing_steps || []).map((fs: any, i: number) => (
+                                        <div key={i} style={{ fontSize: classic ? 10 : 12, color: classic ? '#1a1a1a' : '#334155', padding: '1px 0' }}>
+                                            {i + 1}. {fs.description || '-'}
+                                        </div>
+                                    ))}
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        );
+    };
 
     return (
         <>
-        <div style={{ display: 'flex', height: '100%', gap: 0, fontFamily: classic ? xpFont : modernFont, fontSize: classic ? 11 : 13, ...(classic ? {} : { background: '#f8fafc', color: '#1e293b' }) }}>
-            {/* Left Panel */}
+        <div style={classic
+            ? { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, ...xpPanel, border: 'none' }
+            : { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, background: '#fff' }
+        }>
+            {/* Toolbar */}
             <div style={classic
-                ? { width: 280, minWidth: 280, display: 'flex', flexDirection: 'column', ...xpPanel, borderRight: '1px solid #7f9db9' }
-                : { width: 280, minWidth: 280, display: 'flex', flexDirection: 'column', background: '#fff', borderRight: '1px solid #dbe1ea' }
-            }>
-                <div style={classic ? xpSectionHeader : modernSectionHeader}>Dye Recipe Library</div>
-                <div style={{ padding: '4px 4px 2px 4px', borderBottom: classic ? '1px solid #c0d4e8' : '1px solid #e6eaf1' }}>
-                    <input
-                        style={{ ...inputStyle(classic), width: '100%', boxSizing: 'border-box' }}
-                        placeholder="Search code or name..."
-                        value={searchText}
-                        onChange={e => setSearchText(e.target.value)}
-                    />
-                </div>
-                <div style={{ flex: 1, overflowY: 'auto' }}>
-                    {loading && (
-                        <div style={{ padding: '8px', color: classic ? '#555' : '#64748b', fontSize: classic ? 10 : 12 }}>Loading...</div>
-                    )}
-                    {!loading && filteredRecipes.length === 0 && (
-                        <div style={{ padding: '8px', color: classic ? '#888' : '#64748b', fontSize: classic ? 10 : 12 }}>No recipes found.</div>
-                    )}
-                    {pagedRecipes.map((recipe, idx) => {
-                        const isSelected = String(recipe.id) === String(selectedId);
-                        const isHovered = String(recipe.id) === String(hoveredId);
-                        const isEven = idx % 2 === 0;
-                        let bg = classic
-                            ? (isEven ? '#f7f9fc' : 'white')
-                            : (isEven ? '#f8fafc' : '#fff');
-                        if (isHovered && !isSelected) bg = classic ? '#d4e4f7' : '#e7eefc';
-                        if (isSelected) bg = classic ? '#3060b8' : '#eff6ff';
-                        return (
-                            <div
-                                key={recipe.id}
-                                onClick={() => { setSelectedId(String(recipe.id)); setShowForm(false); }}
-                                onMouseEnter={() => setHoveredId(String(recipe.id))}
-                                onMouseLeave={() => setHoveredId(null)}
-                                style={{
-                                    padding: '4px 8px',
-                                    cursor: 'pointer',
-                                    background: bg,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    borderBottom: classic ? '1px solid #e8eef5' : '1px solid #e6eaf1',
-                                    userSelect: 'none',
-                                    ...(classic || !isSelected ? {} : { boxShadow: 'inset 3px 0 0 #2563eb' }),
-                                }}
-                            >
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontWeight: 'bold', fontSize: classic ? 11 : 13, color: classic ? (isSelected ? 'white' : '#1a1a1a') : (isSelected ? '#1d4ed8' : '#1e293b'), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {recipe.code}
-                                    </div>
-                                    <div style={{ fontSize: classic ? 10 : 12, color: classic ? (isSelected ? '#c8daff' : '#666') : (isSelected ? '#3b82f6' : '#64748b'), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {recipe.name}
-                                    </div>
-                                </div>
-                                <div style={{ marginLeft: 6, flexShrink: 0 }}>
-                                    {recipe.is_active !== false ? (
-                                        <span style={classic ? {
-                                            display: 'inline-block', width: 8, height: 8,
-                                            borderRadius: '50%', background: '#2a9a2a',
-                                            border: '1px solid #1d6b1d',
-                                        } : {
-                                            display: 'inline-block', width: 8, height: 8,
-                                            borderRadius: '50%', background: '#22c55e',
-                                            border: '1px solid #16a34a',
-                                        }} title="Active" />
-                                    ) : (
-                                        <span style={classic ? {
-                                            fontSize: 9, background: '#ccc', color: '#444',
-                                            padding: '1px 3px', border: '1px solid #999',
-                                            borderRadius: 2,
-                                        } : {
-                                            fontSize: 10, background: '#f1f5f9', color: '#64748b',
-                                            padding: '1px 5px', border: '1px solid #cbd3df',
-                                            borderRadius: 6, fontWeight: 600,
-                                        }}>INACTIVE</span>
-                                    )}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-                <Pager page={clampedPage} total={filteredRecipes.length} pageSize={RECIPE_PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
+                ? { background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }
+                : { background: '#fff', borderBottom: '1px solid #dbe1ea', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
                 {canManage && (
-                <div style={{ padding: '4px 6px', borderTop: classic ? '1px solid #c0d4e8' : '1px solid #e6eaf1', background: classic ? '#eef2f8' : '#f8fafc' }}>
-                    <button style={{ ...primaryBtnStyle(classic) }} onClick={openCreate}>+ New Recipe</button>
-                </div>
+                <button style={lvPrimaryBtn(classic)} onClick={openCreate}>
+                    <i className="bi bi-plus-lg" /> New Recipe
+                </button>
                 )}
+                <span style={lvSep(classic)} />
+                <input
+                    style={{ ...lvInput(classic), width: 240, flexBasis: 240 }}
+                    placeholder="Search code or name…"
+                    value={searchText}
+                    onChange={e => setSearchText(e.target.value)}
+                />
+                <span style={classic ? { marginLeft: 'auto', fontSize: 11, color: '#333' } : { marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>
+                    {filteredRecipes.length.toLocaleString()} recipe{filteredRecipes.length !== 1 ? 's' : ''}
+                </span>
             </div>
 
-            {/* Right Panel */}
-            <div style={classic
-                ? { flex: 1, display: 'flex', flexDirection: 'column', ...xpPanel, borderLeft: 'none', minWidth: 0 }
-                : { flex: 1, display: 'flex', flexDirection: 'column', background: '#fff', borderLeft: 'none', minWidth: 0 }
-            }>
-                {!selectedId && (
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: classic ? '#888' : '#64748b', fontSize: classic ? 12 : 14 }}>
-                        Select a recipe or create new
-                    </div>
-                )}
+            {/* Table */}
+            <div style={{ flex: 1, minHeight: 0, background: '#fff', overflow: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
+                    <thead style={classic
+                        ? { background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080' }
+                        : { background: '#eef1f6' }}>
+                        <tr>
+                            <th style={{ ...lvTh(classic), width: 30 }}></th>
+                            <th style={{ ...lvTh(classic), width: 150 }}>Code</th>
+                            <th style={lvTh(classic)}>Name</th>
+                            <th style={{ ...lvTh(classic), width: 170 }}>Color Standard</th>
+                            <th style={{ ...lvTh(classic), width: 120 }}>Substrate</th>
+                            <th style={{ ...lvTh(classic), width: 55, textAlign: 'center' }}>Lines</th>
+                            <th style={{ ...lvTh(classic), width: 80 }}>Status</th>
+                            <th style={{ ...lvTh(classic), width: 130, textAlign: 'right', borderRight: 'none' }}>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filteredRecipes.length === 0 && (
+                            <tr><td colSpan={8} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
+                                {loading ? 'Loading…' : 'No recipes found.'}
+                            </td></tr>
+                        )}
+                        {pagedRecipes.map((recipe, idx) => {
+                            const rid = String(recipe.id);
+                            const expanded = expandedIds.has(rid);
+                            const lineCount = (recipe.lines || []).length;
+                            return (
+                                <React.Fragment key={rid}>
+                                    <tr style={{ ...lvRow(classic, idx), cursor: 'pointer' }} onClick={() => toggleExpand(rid)}>
+                                        <td style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#555' : '#64748b' }}>
+                                            <i className={expanded ? 'bi bi-caret-down-fill' : 'bi bi-caret-right-fill'} style={{ fontSize: 10 }} />
+                                        </td>
+                                        <td style={lvTd(classic)}>
+                                            <span style={classic
+                                                ? { fontFamily: "'Courier New', monospace", fontWeight: 'bold', color: '#0047c8', fontSize: 11 }
+                                                : { fontFamily: "'Courier New', monospace", fontWeight: 700, color: '#2563eb', fontSize: 12 }}>{recipe.code}</span>
+                                        </td>
+                                        <td style={lvTd(classic)}>{recipe.name}</td>
+                                        <td style={lvTd(classic)}>{recipe.color_standard || <span style={{ color: '#aaa' }}>—</span>}</td>
+                                        <td style={lvTd(classic)}>{recipe.substrate_type || <span style={{ color: '#aaa' }}>—</span>}</td>
+                                        <td style={{ ...lvTd(classic), textAlign: 'center' }}>{lineCount}</td>
+                                        <td style={lvTd(classic)}>
+                                            <StatusChip status={recipe.is_active !== false ? 'active' : 'inactive'} />
+                                        </td>
+                                        <td style={{ ...lvTd(classic), borderRight: 'none', textAlign: 'right' }} onClick={e => e.stopPropagation()}>
+                                            <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end', alignItems: 'center' }}>
+                                                {canManage && (
+                                                <button title="Edit" onClick={() => openEdit(recipe)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#555' : '#64748b', fontSize: 13 }}>
+                                                    <i className="bi bi-pencil" />
+                                                </button>
+                                                )}
+                                                <button title="Print Recipe Card" onClick={() => { setSelectedId(rid); setShowPrint(true); }} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#555' : '#64748b', fontSize: 13 }}>
+                                                    <i className="bi bi-printer" />
+                                                </button>
+                                                {canManage && (
+                                                <button title="Delete" onClick={() => handleDelete(recipe)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#a00' : '#dc2626', fontSize: 13 }}>
+                                                    <i className="bi bi-trash" />
+                                                </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {expanded && (
+                                        <tr>
+                                            <td colSpan={8} style={{
+                                                padding: 0,
+                                                background: classic ? '#ece9d8' : '#eef2f7',
+                                                borderBottom: classic ? '1px solid #808080' : '1px solid #cbd3df',
+                                                boxShadow: classic ? 'inset 0 2px 4px rgba(0,0,0,0.12)' : 'inset 0 2px 4px rgba(15,23,42,0.06)',
+                                            }}>
+                                                {renderDetail(recipe)}
+                                            </td>
+                                        </tr>
+                                    )}
+                                </React.Fragment>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+
+            <Pager page={clampedPage} total={filteredRecipes.length} pageSize={RECIPE_PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
 
                 <ModalWrapper
                     isOpen={showForm}
@@ -861,159 +1008,6 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
 
                 </ModalWrapper>
 
-                {selectedId && selectedRecipe && (
-                    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-                        <div style={{ ...(classic ? xpSectionHeader : modernSectionHeader), display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span>Recipe Detail</span>
-                            <div style={{ display: 'flex', gap: 4 }}>
-                                {canManage && (
-                                <button
-                                    style={classic ? {
-                                        ...xpBtn,
-                                        fontSize: 10, padding: '1px 8px',
-                                        background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-                                        color: '#1a1a1a',
-                                    } : { ...modernBtn }}
-                                    onClick={() => openEdit(selectedRecipe)}
-                                >Edit</button>
-                                )}
-                                <button
-                                    style={classic ? { ...xpBtn, fontSize: 10, padding: '1px 8px' } : { ...modernBtn }}
-                                    onClick={() => setShowPrint(true)}
-                                    title="Print Recipe Card"
-                                >Print</button>
-                                {canManage && (
-                                <button
-                                    style={classic ? {
-                                        ...xpBtn,
-                                        fontSize: 10, padding: '1px 8px',
-                                        background: 'linear-gradient(to bottom, #e08080, #c04040)',
-                                        color: 'white',
-                                        borderColor: '#a03030 #601010 #601010 #a03030',
-                                    } : {
-                                        ...modernBtn,
-                                        background: '#dc2626', color: '#fff', border: 'none', fontWeight: 600,
-                                    }}
-                                    onClick={() => handleDelete(selectedRecipe)}
-                                >Delete</button>
-                                )}
-                            </div>
-                        </div>
-
-                        <div style={{ flex: 1, overflowY: 'auto', padding: '10px 14px' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 20px', marginBottom: 12 }}>
-                                <DetailField label="Code" value={selectedRecipe.code} classic={classic} />
-                                <DetailField label="Name" value={selectedRecipe.name} classic={classic} />
-                                <DetailField label="Color Standard" value={selectedRecipe.color_standard} classic={classic} />
-                                <DetailField label="Substrate Type" value={selectedRecipe.substrate_type} classic={classic} />
-                                <div style={{ gridColumn: '1 / -1' }}>
-                                    <DetailField label="Notes" value={selectedRecipe.notes} classic={classic} />
-                                </div>
-                                <div>
-                                    <span style={{ color: classic ? '#555' : '#64748b', fontSize: classic ? 10 : 12 }}>Status: </span>
-                                    {selectedRecipe.is_active !== false ? (
-                                        <span style={{ color: classic ? '#1a6a1a' : '#16a34a', fontWeight: 'bold', fontSize: classic ? 11 : 13 }}>Active</span>
-                                    ) : (
-                                        <span style={{ color: classic ? '#aa4400' : '#d97706', fontWeight: 'bold', fontSize: classic ? 11 : 13 }}>Inactive</span>
-                                    )}
-                                </div>
-                                {selectedRecipe.attribute_value_ids?.length > 0 && (
-                                    <div style={{ gridColumn: '1 / -1' }}>
-                                        <div style={{ fontSize: classic ? 10 : 12, color: classic ? '#555' : '#64748b', marginBottom: 2 }}>Attribute Match</div>
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 6px' }}>
-                                            {selectedRecipe.attribute_value_ids.map((vid: string) => {
-                                                let label = vid;
-                                                for (const attr of attributes) {
-                                                    const v = (attr.values || []).find((av: any) => String(av.id) === String(vid));
-                                                    if (v) { label = `${attr.name}: ${v.value}`; break; }
-                                                }
-                                                return (
-                                                    <span key={vid} style={classic ? {
-                                                        background: '#dde8f5', border: '1px solid #7fa8e8',
-                                                        padding: '1px 6px', borderRadius: 2, fontSize: 10, color: '#1a3d90',
-                                                    } : {
-                                                        background: '#eff6ff', border: '1px solid #bfd3f5',
-                                                        padding: '2px 8px', borderRadius: 6, fontSize: 12, color: '#1d4ed8', fontWeight: 500,
-                                                    }}>{label}</span>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Lines read-only table */}
-                            <div style={{ marginBottom: 8 }}>
-                                <div style={classic ? {
-                                    background: '#dde8f5', borderBottom: '1px solid #7f9db9',
-                                    padding: '2px 6px', fontWeight: 'bold', fontSize: 11, color: '#1a1a1a',
-                                    border: '1px solid #7f9db9',
-                                } : {
-                                    background: '#eef1f6', borderBottom: '1px solid #dbe1ea',
-                                    padding: '7px 12px', fontWeight: 700, fontSize: 11, color: '#475569',
-                                    textTransform: 'uppercase', letterSpacing: '0.04em',
-                                    border: '1px solid #dbe1ea', borderTopLeftRadius: 9, borderTopRightRadius: 9,
-                                }}>
-                                    Chemical Lines
-                                </div>
-                                <div style={classic
-                                    ? { border: '1px solid #7f9db9', borderTop: 'none' }
-                                    : { border: '1px solid #dbe1ea', borderTop: 'none', borderBottomLeftRadius: 9, borderBottomRightRadius: 9, overflow: 'hidden' }
-                                }>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: classic ? 10 : 13 }}>
-                                        <thead>
-                                            <tr style={classic ? { background: '#eef2f8' } : {}}>
-                                                <th style={thStyle({ width: 28 })}>#</th>
-                                                <th style={thStyle({ width: 80 })}>Type</th>
-                                                <th style={thStyle()}>Item</th>
-                                                <th style={thStyle({ textAlign: 'right', width: 90 })}>Qty/100kg</th>
-                                                <th style={thStyle({ width: 60 })}>UOM</th>
-                                                <th style={thStyle({ textAlign: 'center', width: 50 })}>Sort</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {(!selectedRecipe.lines || selectedRecipe.lines.length === 0) && (
-                                                <tr>
-                                                    <td colSpan={6} style={{ padding: '8px', color: classic ? '#888' : '#64748b', textAlign: 'center' }}>
-                                                        No chemical lines defined.
-                                                    </td>
-                                                </tr>
-                                            )}
-                                            {(selectedRecipe.lines || []).map((line: any, idx: number) => {
-                                                const linkedItem = items.find(it => String(it.id) === String(line.item_id));
-                                                return (
-                                                    <tr key={idx} style={{ background: classic ? (idx % 2 === 0 ? 'white' : '#f7f9fc') : (idx % 2 === 0 ? '#fff' : '#f8fafc') }}>
-                                                        <td style={{ padding: classic ? '3px 6px' : '6px 10px', color: classic ? '#666' : '#64748b', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>{idx + 1}</td>
-                                                        <td style={{ padding: classic ? '3px 6px' : '6px 10px', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
-                                                            <span style={{
-                                                                background: typeColor(line.chemical_type, classic).bg,
-                                                                color: typeColor(line.chemical_type, classic).fg,
-                                                                padding: classic ? '1px 5px' : '2px 7px', borderRadius: classic ? 2 : 6,
-                                                                fontWeight: classic ? 'bold' : 600, fontSize: classic ? 9 : 11,
-                                                                border: `1px solid ${typeColor(line.chemical_type, classic).border}`,
-                                                            }}>
-                                                                {line.chemical_type || '-'}
-                                                            </span>
-                                                        </td>
-                                                        <td style={{ padding: classic ? '3px 6px' : '6px 10px', color: classic ? undefined : '#334155', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
-                                                            {line.item_name || linkedItem?.name || (line.item_id || '-')}
-                                                        </td>
-                                                        <td style={{ padding: classic ? '3px 6px' : '6px 10px', textAlign: 'right', color: classic ? undefined : '#334155', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
-                                                            {line.qty_per_100kg != null ? Number(line.qty_per_100kg).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '-'}
-                                                        </td>
-                                                        <td style={{ padding: classic ? '3px 6px' : '6px 10px', color: classic ? undefined : '#334155', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>{line.uom_name || '-'}</td>
-                                                        <td style={{ padding: classic ? '3px 6px' : '6px 10px', textAlign: 'center', color: classic ? undefined : '#334155', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>{line.sort_order ?? '-'}</td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
         </div>
 
         {showPrint && selectedRecipe && (

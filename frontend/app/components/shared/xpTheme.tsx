@@ -24,7 +24,7 @@ export const STATUS_FAMILY: Record<string, StatusFamily> = {
     COMPLETED: 'green', DONE: 'green', DELIVERED: 'green', RECEIVED: 'green', APPROVED: 'green',
     ACTIVE: 'green',
     CANCELLED: 'red', REJECTED: 'red',
-    ARCHIVED: 'gray',
+    ARCHIVED: 'gray', INACTIVE: 'gray',
 };
 
 const FAMILY_SOLID: Record<StatusFamily, string> = {
