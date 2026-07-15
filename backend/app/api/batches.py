@@ -14,7 +14,7 @@ from app.models.production_run import ProductionRun
 from app.models.sales import SalesOrder
 from app.models.goods_receipt import GoodsReceipt, GoodsReceiptLine
 from app.models.purchase import PurchaseOrder
-from app.schemas import BatchCreate, BatchReject, BatchResponse, BatchTraceResponse, BatchConsumptionResponse, BatchTraceBackNode, PaginatedBatchResponse
+from app.schemas import BatchCreate, BatchReject, BatchSplit, BatchResponse, BatchTraceResponse, BatchConsumptionResponse, BatchTraceBackNode, PaginatedBatchResponse
 from app.api.auth import get_current_user, require_permission
 from app.models.auth import User
 from app.services import audit_service, kpi_service, stock_service
@@ -356,6 +356,105 @@ async def delete_batch(
     return {"status": "success"}
 
 
+async def _batch_remaining(db: AsyncSession, batch_id) -> float:
+    return float((await db.execute(
+        select(func.sum(StockBalance.qty)).filter(StockBalance.batch_key == str(batch_id), StockBalance.qty > 0)
+    )).scalar() or 0.0)
+
+
+async def _move_batch_stock(db: AsyncSession, *, item_id, src_batch_id, dst_batch_id, qty: float, reference_type: str, reference_id: str) -> float:
+    """Move up to ``qty`` of on-hand from one lot to another, preserving each
+    source row's location and variant (variant ids recovered from the balance
+    row's variant_key). Two-sided per row so the balance table stays consistent.
+    Returns kg actually moved. Shared by QC reject (→ REJECTED sub-lot) and lot
+    split (→ new GOOD sub-lot)."""
+    rows = (await db.execute(
+        select(StockBalance)
+        .filter(StockBalance.batch_key == str(src_batch_id), StockBalance.qty > 0)
+        .order_by(StockBalance.qty.desc())
+    )).scalars().all()
+    to_move = float(qty)
+    moved = 0.0
+    for r in rows:
+        if to_move <= 1e-9:
+            break
+        portion = min(float(r.qty), to_move)
+        ids = [uuid.UUID(x) for x in (r.variant_key or "").split(",") if x]
+        await stock_service.add_stock_entry(
+            db, item_id=item_id, location_id=r.location_id, qty_change=-portion,
+            reference_type=reference_type, reference_id=reference_id,
+            attribute_value_ids=ids, batch_id=src_batch_id,
+        )
+        await stock_service.add_stock_entry(
+            db, item_id=item_id, location_id=r.location_id, qty_change=portion,
+            reference_type=reference_type, reference_id=reference_id,
+            attribute_value_ids=ids, batch_id=dst_batch_id,
+        )
+        to_move -= portion
+        moved += portion
+    return moved
+
+
+@router.post("/{batch_id}/split", response_model=BatchResponse)
+async def split_batch(
+    batch_id: uuid.UUID,
+    payload: BatchSplit,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('inventory.manage')),
+):
+    """Peel ``qty`` off a GOOD lot into a new GOOD sub-lot (``{orig}-S{n}``) at the
+    same location/variant, leaving the original with the remainder. Both stay
+    GOOD/active. The sub-lot copies ``source_wo_id`` so its production origin
+    (e.g. the weaving WO) still traces. Used when only part of a physical bag is
+    staged/consumed and the rest goes back to stock as its own trackable bag."""
+    result = await db.execute(select(Batch).options(joinedload(Batch.item)).filter(Batch.id == batch_id))
+    batch = result.scalars().first()
+    if not batch:
+        raise HTTPException(status_code=404, detail="Lot not found")
+    if batch.quality_status == "REJECTED":
+        raise HTTPException(status_code=400, detail="Cannot split a rejected lot")
+
+    qty = float(payload.qty or 0)
+    if qty <= 0:
+        raise HTTPException(status_code=400, detail="Split qty must be positive")
+    remaining = await _batch_remaining(db, batch.id)
+    if qty >= remaining - 1e-9:
+        raise HTTPException(status_code=400, detail=f"Split qty {qty:g} must be less than remaining {remaining:g}")
+
+    seq = (await db.execute(
+        select(func.count()).select_from(Batch).filter(Batch.batch_number.like(f"{batch.batch_number}-S%"))
+    )).scalar() or 0
+    reason = (payload.reason or "").strip() or None
+    sub = Batch(
+        batch_number=f"{batch.batch_number}-S{seq + 1}",
+        item_id=batch.item_id,
+        quality_status="GOOD",
+        source_wo_id=batch.source_wo_id,
+        ends=batch.ends,
+        notes=(f"Split from {batch.batch_number}" + (f": {reason}" if reason else "")),
+        created_by=current_user.username,
+    )
+    db.add(sub)
+    await db.flush()
+
+    moved = await _move_batch_stock(
+        db, item_id=batch.item_id, src_batch_id=batch.id, dst_batch_id=sub.id,
+        qty=qty, reference_type="Split", reference_id=sub.batch_number,
+    )
+    await db.commit()
+    await audit_service.log_activity(
+        db, current_user.id, "SPLIT", "Batch", str(batch.id),
+        details=f"Split {moved:g} off lot {batch.batch_number} → new lot {sub.batch_number}"
+        + (f": {reason}" if reason else ""),
+    )
+    await manager.broadcast({"type": "STOCK_UPDATE"})
+
+    reloaded = (await db.execute(
+        select(Batch).options(joinedload(Batch.item)).filter(Batch.id == sub.id)
+    )).scalars().first()
+    return (await _enrich_batches(db, [reloaded]))[0]
+
+
 @router.post("/{batch_id}/reject", response_model=BatchResponse)
 async def reject_batch(
     batch_id: uuid.UUID,
@@ -411,24 +510,10 @@ async def reject_batch(
         )
         db.add(sub)
         await db.flush()
-
-        to_move = float(reject_qty)
-        for r in bal_rows:
-            if to_move <= 1e-9:
-                break
-            portion = min(float(r.qty), to_move)
-            ids = [uuid.UUID(x) for x in (r.variant_key or "").split(",") if x]
-            await stock_service.add_stock_entry(
-                db, item_id=batch.item_id, location_id=r.location_id, qty_change=-portion,
-                reference_type="QC_REJECT", reference_id=sub.batch_number,
-                attribute_value_ids=ids, batch_id=batch.id,
-            )
-            await stock_service.add_stock_entry(
-                db, item_id=batch.item_id, location_id=r.location_id, qty_change=portion,
-                reference_type="QC_REJECT", reference_id=sub.batch_number,
-                attribute_value_ids=ids, batch_id=sub.id,
-            )
-            to_move -= portion
+        await _move_batch_stock(
+            db, item_id=batch.item_id, src_batch_id=batch.id, dst_batch_id=sub.id,
+            qty=float(reject_qty), reference_type="QC_REJECT", reference_id=sub.batch_number,
+        )
     else:
         batch.quality_status = "REJECTED"
 

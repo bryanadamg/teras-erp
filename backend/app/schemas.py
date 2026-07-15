@@ -352,6 +352,13 @@ class BatchReject(BaseModel):
     # for that qty and leaves the balance GOOD/active.
     qty: float | None = None
 
+class BatchSplit(BaseModel):
+    """Split a GOOD lot: move `qty` off into a new GOOD sub-lot (same item,
+    location, variant), leaving the original with the remainder. Used to peel a
+    leftover off a bag when only part of it is staged/consumed."""
+    qty: float
+    reason: str | None = None
+
 class MOCompletionReject(BaseModel):
     """Completion-level reject (API/un-lotted outputs; lot page uses /batches/{id}/reject)."""
     reason: str | None = None

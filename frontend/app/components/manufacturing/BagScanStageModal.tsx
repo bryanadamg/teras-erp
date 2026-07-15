@@ -5,6 +5,7 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../shared/Toast';
 import ModalWrapper from '../shared/ModalWrapper';
+import LotLabelPrintModal from './LotLabelPrintModal';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -59,9 +60,11 @@ export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode 
     const [rows, setRows] = useState<RequiredMaterial[]>([]);
     const [loading, setLoading] = useState(true);
     const [cart, setCart] = useState<any[]>([]);       // resolved batch objects
+    const [stageQtys, setStageQtys] = useState<Record<string, string>>({});  // batch id -> kg to stage (blank = full)
     const [scanValue, setScanValue] = useState('');
     const [cameraOn, setCameraOn] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [labelLots, setLabelLots] = useState<any[] | null>(null);  // leftover lots to relabel after a split
 
     const inputRef = useRef<HTMLInputElement | null>(null);
     const scannerRef = useRef<Html5QrcodeScanner | null>(null);
@@ -74,9 +77,17 @@ export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode 
         return m;
     }, [rows]);
 
+    // kg to stage for a bag: the edited value, or the full remaining if untouched.
+    const stagedOf = (b: any) => {
+        const raw = stageQtys[b.id];
+        if (raw === undefined || raw === '') return Number(b.remaining || 0);
+        const n = parseFloat(raw);
+        return isNaN(n) ? 0 : n;
+    };
+
     // Required reference = remaining shortfall summed across this step's materials.
     const totalShortfall = useMemo(() => rows.reduce((s, r) => s + Math.max(0, r.shortfall), 0), [rows]);
-    const cartKg = cart.reduce((s, b) => s + Number(b.remaining || 0), 0);
+    const cartKg = cart.reduce((s, b) => s + stagedOf(b), 0);
     const overRequired = totalShortfall > 0 && cartKg > totalShortfall + 1e-6;
 
     useEffect(() => {
@@ -141,6 +152,7 @@ export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode 
     const removeFromCart = (id: string) => {
         cartIdsRef.current.delete(id);
         setCart(prev => prev.filter(b => b.id !== id));
+        setStageQtys(prev => { const n = { ...prev }; delete n[id]; return n; });
     };
 
     // Camera lifecycle
@@ -174,24 +186,51 @@ export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode 
 
     const submit = async () => {
         if (!cart.length) { showToast('Scan at least one bag first', 'danger'); return; }
-        const lines = cart.map(b => {
-            const rr = reqByItem[String(b.item_id)];
-            return {
-                item_id: b.item_id,
-                qty: Number(b.remaining || 0),
-                source_location_id: b.location_id || rr?.source_location_id || null,
-                batch_id: b.id,
-                attribute_value_ids: rr?.attribute_value_ids || [],
-            };
-        });
-        const missingSrc = lines.find(l => !l.source_location_id);
-        if (missingSrc) {
-            const b = cart.find(x => x.id === missingSrc.batch_id);
-            showToast(`${b?.batch_number || 'A lot'} has no source location`, 'danger');
-            return;
+
+        // Validate each bag's stage qty (0 < qty <= remaining).
+        for (const b of cart) {
+            const rem = Number(b.remaining || 0);
+            const q = stagedOf(b);
+            if (q <= 0) { showToast(`${b.batch_number}: stage qty must be positive`, 'warning'); return; }
+            if (q > rem + 1e-6) { showToast(`${b.batch_number}: stage qty exceeds ${rem.toFixed(2)} kg`, 'warning'); return; }
         }
+
+        const missingSrc = cart.find(b => !(b.location_id || reqByItem[String(b.item_id)]?.source_location_id));
+        if (missingSrc) { showToast(`${missingSrc.batch_number || 'A lot'} has no source location`, 'danger'); return; }
+
         setSubmitting(true);
         try {
+            // Partial bags: peel the leftover into a new GOOD lot first, so the
+            // original is reduced to exactly the staged qty before we move it.
+            const leftovers: any[] = [];
+            for (const b of cart) {
+                const rem = Number(b.remaining || 0);
+                const q = stagedOf(b);
+                if (q < rem - 1e-6) {
+                    const res = await authFetch(`${API_BASE}/batches/${b.id}/split`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ qty: rem - q, reason: `Leftover staging ${wo.code || ''}`.trim() }),
+                    });
+                    if (!res.ok) {
+                        const err = await res.json().catch(() => null);
+                        showToast(`Split failed for ${b.batch_number}: ${err?.detail || ''}`, 'danger');
+                        return;
+                    }
+                    leftovers.push(await res.json());
+                }
+            }
+
+            const lines = cart.map(b => {
+                const rr = reqByItem[String(b.item_id)];
+                return {
+                    item_id: b.item_id,
+                    qty: stagedOf(b),
+                    source_location_id: b.location_id || rr?.source_location_id || null,
+                    batch_id: b.id,
+                    attribute_value_ids: rr?.attribute_value_ids || [],
+                };
+            });
             const res = await authFetch(`${API_BASE}/work-orders/${wo.id}/stage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -205,13 +244,16 @@ export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode 
             const updated = await res.json().catch(() => null);
             showToast(`Staged ${cart.length} bag${cart.length === 1 ? '' : 's'} (${cartKg.toFixed(2)} kg) to dyeing`, 'success');
             onStaged(updated);
-            onClose();
+            // Relabel any leftover bags before closing; else close straight away.
+            if (leftovers.length) setLabelLots(leftovers);
+            else onClose();
         } finally {
             setSubmitting(false);
         }
     };
 
     return (
+      <>
         <ModalWrapper
             isOpen
             onClose={onClose}
@@ -237,7 +279,8 @@ export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode 
                 <div style={{ fontSize: 10, color: '#555', marginBottom: 8 }}>
                     Scan each bag to stage it into this dyeing WO&apos;s input location
                     (<b>{wo.input_location?.code || wo.input_location_id || 'no input location'}</b>).
-                    Whole lots move — lot number is captured automatically.
+                    Lot number is captured automatically. Lower a bag&apos;s kg to stage only part of it —
+                    the remainder splits off as a new leftover lot (relabel prompt after).
                 </div>
 
                 {loading ? (
@@ -311,7 +354,23 @@ export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode 
                                             <td style={{ padding: '3px 5px', fontFamily: 'monospace', fontWeight: 'bold' }}>{b.batch_number}</td>
                                             <td style={{ padding: '3px 5px' }}>{b.item_code || b.item_name || '—'}</td>
                                             <td style={{ padding: '3px 5px', color: '#0058e6' }}>{b.location_name || '—'}</td>
-                                            <td style={{ padding: '3px 5px', textAlign: 'right', fontWeight: 'bold' }}>{Number(b.remaining || 0).toFixed(2)}</td>
+                                            <td style={{ padding: '3px 5px', textAlign: 'right' }}>
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    max={Number(b.remaining || 0)}
+                                                    step="any"
+                                                    value={stageQtys[b.id] ?? String(Number(b.remaining || 0))}
+                                                    onChange={e => setStageQtys(prev => ({ ...prev, [b.id]: e.target.value }))}
+                                                    style={{ width: 62, textAlign: 'right', fontFamily: xpFont, fontSize: 10, border: '1px solid #7f9db9', padding: '1px 4px', fontWeight: 'bold' }}
+                                                />
+                                                <span style={{ color: '#888', marginLeft: 3 }}>/ {Number(b.remaining || 0).toFixed(2)}</span>
+                                                {stagedOf(b) < Number(b.remaining || 0) - 1e-6 && (
+                                                    <div style={{ color: '#7a5000', fontSize: 9 }}>
+                                                        splits {(Number(b.remaining || 0) - stagedOf(b)).toFixed(2)} leftover
+                                                    </div>
+                                                )}
+                                            </td>
                                             <td style={{ padding: '3px 5px', textAlign: 'center' }}>
                                                 <button
                                                     onClick={() => removeFromCart(b.id)}
@@ -328,5 +387,14 @@ export default function BagScanStageModal({ wo, onClose, onStaged, onManualMode 
                 )}
             </div>
         </ModalWrapper>
+
+        {labelLots && (
+            <LotLabelPrintModal
+                lots={labelLots}
+                heading="SISA GREIGE / LEFTOVER"
+                onClose={() => { setLabelLots(null); onClose(); }}
+            />
+        )}
+      </>
     );
 }
