@@ -85,10 +85,10 @@ export default function ComboLibraryView({
 
     return (
         <div style={embedded
-            ? { display: 'flex', flexDirection: 'column', height: '100%', fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT, background: '#fff' }
+            ? { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, fontFamily: classic ? LV_XP_FONT : LV_MODERN_FONT, background: '#fff' }
             : classic
-            ? { display: 'flex', flexDirection: 'column', height: '100%', fontFamily: LV_XP_FONT, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
-            : { display: 'flex', flexDirection: 'column', height: '100%', fontFamily: LV_MODERN_FONT, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
+            ? { display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', minHeight: 0, fontFamily: LV_XP_FONT, border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', background: '#ece9d8' }
+            : { display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', minHeight: 0, fontFamily: LV_MODERN_FONT, border: '1px solid #dbe1ea', borderRadius: 9, background: '#f8fafc', overflow: 'hidden' }}>
 
             {/* Title bar (hidden when embedded under a tab shell) */}
             {!embedded && (
@@ -128,7 +128,7 @@ export default function ComboLibraryView({
             </div>
 
             {/* Table */}
-            <div style={{ flex: 1, background: '#fff', overflow: 'auto' }}>
+            <div style={{ flex: 1, minHeight: 0, background: '#fff', overflow: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
                     <thead style={classic
                         ? { background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080' }

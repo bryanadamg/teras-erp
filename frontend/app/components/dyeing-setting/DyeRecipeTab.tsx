@@ -7,6 +7,7 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import CodeConfigModal, { CodeConfig, buildCodeParts, buildCodeWithCounter } from '../shared/CodeConfigModal';
+import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import Pager from '../shared/Pager';
 import { API_BASE } from '../shared/apiBase';
@@ -492,18 +493,45 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                 ? { flex: 1, display: 'flex', flexDirection: 'column', ...xpPanel, borderLeft: 'none', minWidth: 0 }
                 : { flex: 1, display: 'flex', flexDirection: 'column', background: '#fff', borderLeft: 'none', minWidth: 0 }
             }>
-                {!showForm && !selectedId && (
+                {!selectedId && (
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: classic ? '#888' : '#64748b', fontSize: classic ? 12 : 14 }}>
                         Select a recipe or create new
                     </div>
                 )}
 
-                {showForm && (
-                    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-                        <div style={classic ? xpSectionHeader : modernSectionHeader}>
-                            {editingRecipe ? 'Edit Recipe' : 'New Recipe'}
-                        </div>
-                        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px' }}>
+                <ModalWrapper
+                    isOpen={showForm}
+                    onClose={handleCancel}
+                    modeless
+                    size="xl"
+                    title={editingRecipe ? 'Edit Recipe' : 'New Recipe'}
+                    footer={
+                        <>
+                            <button style={classic ? { ...xpBtn, padding: '3px 10px' } : { ...modernBtn }} onClick={handleCancel} disabled={saving}>
+                                Cancel
+                            </button>
+                            <button
+                                style={classic ? {
+                                    ...xpBtn,
+                                    background: saving ? '#b0b8d0' : 'linear-gradient(to bottom, #4a7fd0, #2a5ab0)',
+                                    color: 'white',
+                                    borderColor: '#1a3d90 #0a1e60 #0a1e60 #1a3d90',
+                                    fontWeight: 'bold',
+                                    padding: '3px 14px',
+                                } : {
+                                    ...primaryBtnStyle(false),
+                                    background: saving ? '#93b4f5' : '#2563eb',
+                                    cursor: saving ? 'default' : 'pointer',
+                                }}
+                                onClick={handleSave}
+                                disabled={saving}
+                            >
+                                {saving ? 'Saving...' : 'Save'}
+                            </button>
+                        </>
+                    }
+                >
+                    <div>
                             {/* Basic fields grid */}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', marginBottom: 10 }}>
                                 <div>
@@ -831,37 +859,9 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                                 onClick={() => setFinishingSteps([...finishingSteps, { description: '', sort_order: finishingSteps.length }])}>+ Add Finishing Step</button>
                         </div>
 
-                        {/* Save / Cancel */}
-                        <div style={{
-                            display: 'flex', gap: 6, padding: '6px 12px',
-                            borderTop: classic ? '1px solid #c0d4e8' : '1px solid #e6eaf1', background: classic ? '#eef2f8' : '#f8fafc',
-                        }}>
-                            <button
-                                style={classic ? {
-                                    ...xpBtn,
-                                    background: saving ? '#b0b8d0' : 'linear-gradient(to bottom, #4a7fd0, #2a5ab0)',
-                                    color: 'white',
-                                    borderColor: '#1a3d90 #0a1e60 #0a1e60 #1a3d90',
-                                    fontWeight: 'bold',
-                                    padding: '3px 14px',
-                                } : {
-                                    ...primaryBtnStyle(false),
-                                    background: saving ? '#93b4f5' : '#2563eb',
-                                    cursor: saving ? 'default' : 'pointer',
-                                }}
-                                onClick={handleSave}
-                                disabled={saving}
-                            >
-                                {saving ? 'Saving...' : 'Save'}
-                            </button>
-                            <button style={classic ? { ...xpBtn, padding: '3px 10px' } : { ...modernBtn }} onClick={handleCancel} disabled={saving}>
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
-                )}
+                </ModalWrapper>
 
-                {!showForm && selectedId && selectedRecipe && (
+                {selectedId && selectedRecipe && (
                     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
                         <div style={{ ...(classic ? xpSectionHeader : modernSectionHeader), display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span>Recipe Detail</span>
