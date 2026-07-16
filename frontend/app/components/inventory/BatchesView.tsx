@@ -7,9 +7,40 @@ import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
+import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
 import { useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 
 const REJECT_TITLE = 'QC reject — lot drops out of good stock; produced qty returns to its MO';
+const SPLIT_TITLE = 'Split — peel a portion off into a new lot (prints a label)';
+
+// Split action — icon-only button; native title tooltip explains it.
+function SplitIconButton({ classic, onClick }: { classic: boolean; onClick: () => void }) {
+  if (classic) {
+    return (
+      <button
+        onClick={onClick}
+        title={SPLIT_TITLE}
+        style={{
+          fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, padding: '2px 7px', cursor: 'pointer',
+          background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
+          border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000040',
+          display: 'inline-flex', alignItems: 'center', borderRadius: 0,
+        }}
+      >
+        <i className="bi bi-scissors" />
+      </button>
+    );
+  }
+  return (
+    <button
+      className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center"
+      onClick={onClick}
+      title={SPLIT_TITLE}
+    >
+      <i className="bi bi-scissors" />
+    </button>
+  );
+}
 
 // Reject action — icon-only button; native title tooltip explains it, matching
 // the WO action buttons.
@@ -141,6 +172,49 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
     setRejectBatch(b);
     setRejectReason('');
     setRejectQty(b.remaining != null ? String(Number(b.remaining)) : '');
+  };
+
+  // Split — peel a portion of a lot into a new GOOD sub-lot, then offer to print
+  // its label. Same /batches/{id}/split the dyeing stager uses for leftovers.
+  const [splitBatch, setSplitBatch] = useState<Batch | null>(null);
+  const [splitQty, setSplitQty] = useState('');
+  const [splitReason, setSplitReason] = useState('');
+  const [splitting, setSplitting] = useState(false);
+  const [lotLabels, setLotLabels] = useState<any[] | null>(null);
+
+  const openSplit = (b: Batch) => {
+    setSplitBatch(b);
+    setSplitQty('');
+    setSplitReason('');
+  };
+
+  const handleSplit = async () => {
+    if (!splitBatch) return;
+    const rem = Number(splitBatch.remaining ?? 0);
+    const q = parseFloat(splitQty);
+    if (isNaN(q) || q <= 0) { showToast('Split qty must be positive', 'warning'); return; }
+    if (q >= rem - 1e-9) { showToast(`Split qty must be less than remaining (${rem.toFixed(2)})`, 'warning'); return; }
+    setSplitting(true);
+    try {
+      const res = await authFetch(`${apiBase}/batches/${splitBatch.id}/split`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ qty: q, reason: splitReason.trim() || null }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Split failed');
+      }
+      const sub = await res.json();
+      showToast(`Split ${q.toFixed(2)} off → ${sub.batch_number}`, 'success');
+      setSplitBatch(null);
+      fetchBatches();
+      setLotLabels([sub]);   // auto-open the print preview for the new leftover lot
+    } catch (e: any) {
+      showToast(e.message, 'danger');
+    } finally {
+      setSplitting(false);
+    }
   };
 
   // Bag-label reprint. GRG (greige) lots are born as weaving MOCompletions; fetch
@@ -655,6 +729,9 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{new Date(b.created_at).toLocaleDateString()}</td>
                       <td style={{ ...xpTd(i % 2 === 1), whiteSpace: 'nowrap', textAlign: 'right', background: expandedRows[b.id] ? '#d6e4f7' : undefined }} onClick={e => e.stopPropagation()}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+                          {b.quality_status !== 'REJECTED' && (b.remaining ?? 0) > 0 && (
+                            <SplitIconButton classic onClick={() => openSplit(b)} />
+                          )}
                           {b.quality_status !== 'REJECTED' && (
                             <RejectIconButton classic onClick={() => openReject(b)} />
                           )}
@@ -751,6 +828,9 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                       <td>{new Date(b.created_at).toLocaleDateString()}</td>
                       <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }} onClick={e => e.stopPropagation()}>
                         <div className="d-inline-flex align-items-center gap-1 justify-content-end">
+                          {b.quality_status !== 'REJECTED' && (b.remaining ?? 0) > 0 && (
+                            <SplitIconButton classic={false} onClick={() => openSplit(b)} />
+                          )}
                           {b.quality_status !== 'REJECTED' && (
                             <RejectIconButton classic={false} onClick={() => openReject(b)} />
                           )}
@@ -880,6 +960,68 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
         );
       })()}
 
+      {/* ── Split Modal ── */}
+      {splitBatch && (() => {
+        const rem = Number(splitBatch.remaining ?? 0);
+        const q = parseFloat(splitQty);
+        const valid = !isNaN(q) && q > 0 && q < rem - 1e-9;
+        const origLeft = valid ? rem - q : rem;
+        return (
+        <ModalWrapper
+          isOpen={!!splitBatch}
+          onClose={() => setSplitBatch(null)}
+          title={`Split Lot ${splitBatch.batch_number}`}
+          size="sm"
+          modeless
+          footer={<>
+            <button style={classic ? xpBtn() : undefined} className={classic ? '' : 'btn btn-sm btn-secondary'} onClick={() => setSplitBatch(null)}>Cancel</button>
+            <button
+              style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', fontWeight: 'bold' }) : undefined}
+              className={classic ? '' : 'btn btn-sm btn-primary'}
+              onClick={handleSplit}
+              disabled={splitting || !valid}
+            >
+              {splitting ? 'Splitting...' : 'Split & Print Label'}
+            </button>
+          </>}
+        >
+          <div className="mb-2" style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>
+            <strong>{batchItemCode(splitBatch)}</strong>
+            {splitBatch.remaining != null && <> — {rem.toFixed(2)} remaining</>}
+          </div>
+          <div className="mb-3">
+            <label style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>Quantity to peel off</label>
+            <input
+              type="number"
+              min={0}
+              max={rem}
+              step="any"
+              className={classic ? '' : 'form-control form-control-sm mt-1'}
+              style={classic ? { ...xpInput, width: '100%', height: 22 } : {}}
+              value={splitQty}
+              onChange={e => setSplitQty(e.target.value)}
+              placeholder={`0 – ${rem.toFixed(2)}`}
+            />
+            <div style={classic ? { fontFamily: 'Tahoma', fontSize: 10, color: '#555', marginTop: 2 } : { fontSize: 12, color: '#666', marginTop: 2 }}>
+              {valid
+                ? `Peels ${q.toFixed(2)} into a new GOOD lot; original keeps ${origLeft.toFixed(2)}.`
+                : `Enter a qty between 0 and ${rem.toFixed(2)}.`}
+            </div>
+          </div>
+          <div className="mb-3">
+            <label style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>Reason (optional)</label>
+            <textarea
+              className={classic ? '' : 'form-control form-control-sm mt-1'}
+              style={classic ? { ...xpInput, width: '100%', height: 50, resize: 'vertical' } : {}}
+              value={splitReason}
+              onChange={e => setSplitReason(e.target.value)}
+              placeholder="Leftover after partial use..."
+            />
+          </div>
+        </ModalWrapper>
+        );
+      })()}
+
       {/* ── Row ⋯ menu: Print Label (GRG only) + Delete ── */}
       {openId && (() => {
         const b = batches.find(x => x.id === openId);
@@ -905,6 +1047,11 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
           seqStart={labelData.seqStart}
           onClose={() => setLabelData(null)}
         />
+      )}
+
+      {/* ── Lot Label Print (split leftovers) ── */}
+      {lotLabels && (
+        <LotLabelPrintModal lots={lotLabels} onClose={() => setLotLabels(null)} />
       )}
     </div>
   );
