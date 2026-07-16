@@ -853,6 +853,9 @@ export default function ManufacturingView({
       const bom = boms.find((b: any) => b.id === selectedNode.bom_id);
       const isScanActive = scanningWOId === wo.id;
       const classic = currentStyle === 'classic';
+      // Fixed body height for both tabs → no jittery resize when switching BOM/WO.
+      // Inner sections scroll instead of flexing the panel taller.
+      const PANEL_BODY_H = 360;
 
       // Compute per-parent-MO breakdown for shared component MOs (⇒ nodes)
       const parentMOBreakdown: Array<{ mo: any; qty: number }> = [];
@@ -878,7 +881,15 @@ export default function ManufacturingView({
       };
 
       return (
-          <>
+          <div style={{
+              border: classic ? '1px solid #808080' : '1px solid #ced4da',
+              background: classic ? '#d8d3c8' : '#e9edf1',
+              boxShadow: classic
+                  ? 'inset 0 2px 5px rgba(0,0,0,0.28), inset 0 -2px 5px rgba(0,0,0,0.16)'
+                  : 'inset 0 2px 6px rgba(0,0,0,0.18), inset 0 -2px 6px rgba(0,0,0,0.10)',
+              padding: 5,
+              marginBottom: 6,
+          }}>
           {/* ── TABS ── */}
           <div style={{
               display: 'flex',
@@ -919,7 +930,7 @@ export default function ManufacturingView({
           </div>
 
           {detailTab === 'bom' && (
-          <div style={{ display: 'flex', minHeight: '280px', background: classic ? '#f5f3ee' : '#f8f9fa', border: classic ? '1px solid #808080' : undefined }}>
+          <div style={{ display: 'flex', height: PANEL_BODY_H, background: classic ? '#f5f3ee' : '#f8f9fa', border: classic ? '1px solid #808080' : undefined }}>
 
               {/* ── LEFT: MO Tree ── */}
               <div style={{
@@ -1217,7 +1228,7 @@ export default function ManufacturingView({
                   width: '170px', minWidth: '170px',
                   borderLeft: classic ? '2px solid #808080' : '1px solid #dee2e6',
                   background: classic ? '#fafaf7' : '#fff',
-                  display: 'flex', flexDirection: 'column'
+                  display: 'flex', flexDirection: 'column', overflowY: 'auto'
               }}>
                   {/* Timeline */}
                   <div style={{ borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '6px 8px' }}>
@@ -1334,7 +1345,7 @@ export default function ManufacturingView({
           )}
 
           {detailTab === 'steps' && (
-              <div style={{ padding: '8px 12px' }}>
+              <div style={{ padding: '8px 12px', height: PANEL_BODY_H, overflowY: 'auto', boxSizing: 'border-box' }}>
                   <WorkOrderPanel
                       manufacturingOrderId={selectedNode.id}
                       workOrders={selectedNode.work_orders || []}
@@ -1349,7 +1360,7 @@ export default function ManufacturingView({
                   />
               </div>
           )}
-      </>
+      </div>
       );
   };
 
