@@ -9,6 +9,7 @@ import { useConfirm } from '../../context/ConfirmContext';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
 import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark, XPActionButton } from '../shared/xpTheme';
+import TreeSelect, { buildLocationFilterTree, expandLocationFilterValue } from '../shared/TreeSelect';
 
 const REJECT_TITLE = 'QC reject — lot drops out of good stock; produced qty returns to its MO';
 const SPLIT_TITLE = 'Split — peel a portion off into a new lot (prints a label)';
@@ -75,11 +76,12 @@ interface RowTraceState {
 
 interface BatchesViewProps {
   items: Item[];
+  locations: any[];
   authFetch: (url: string, opts?: RequestInit) => Promise<Response>;
   apiBase: string;
 }
 
-export default function BatchesView({ items, authFetch, apiBase }: BatchesViewProps) {
+export default function BatchesView({ items, locations, authFetch, apiBase }: BatchesViewProps) {
   const { showToast } = useToast();
   const { uiStyle } = useTheme();
   const { confirm } = useConfirm();
@@ -92,8 +94,11 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
   const [loading, setLoading] = useState(false);
   const [itemFilter, setItemFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'depleted'>('active');
+  const [locationFilter, setLocationFilter] = useState('');  // '' | 'wh:<id>' | 'loc:<id>'
   const [searchInput, setSearchInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+
+  const locationTree = React.useMemo(() => buildLocationFilterTree(locations || []), [locations]);
 
   // Create form
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -199,7 +204,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
     return () => clearTimeout(id);
   }, [searchInput]);
 
-  useEffect(() => { setPage(1); }, [itemFilter, statusFilter, searchTerm]);
+  useEffect(() => { setPage(1); }, [itemFilter, statusFilter, locationFilter, searchTerm]);
 
   const fetchBatches = async () => {
     setLoading(true);
@@ -208,6 +213,13 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
       if (itemFilter) params.set('item_id', itemFilter);
       if (statusFilter) params.set('status', statusFilter);
       if (searchTerm) params.set('search', searchTerm);
+      if (locationFilter) {
+        // Expand the picked warehouse/zone/bin into its full descendant leaf set
+        // so a lot recorded at any depth below it still matches.
+        for (const id of expandLocationFilterValue(locations || [], locationFilter)) {
+          params.append('location_id', id);
+        }
+      }
       const res = await authFetch(`${apiBase}/batches/paginated?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
@@ -221,7 +233,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
     }
   };
 
-  useEffect(() => { fetchBatches(); }, [itemFilter, statusFilter, searchTerm, page]);
+  useEffect(() => { fetchBatches(); }, [itemFilter, statusFilter, locationFilter, searchTerm, page]);
 
   const handleCreate = async () => {
     if (!createItemId) { showToast('Select an item', 'warning'); return; }
@@ -688,22 +700,35 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)' }}>
       {classic ? (
         <div style={{ ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          {/* ── Header ── */}
+          {/* ── Title bar (actions live here) ── */}
           <div style={xpTitleBar}>
             <span>Lot Management</span>
+            <span style={{ display: 'inline-flex', gap: 4 }}>
+              <button style={xpBtn()} onClick={() => setIsCreateOpen(true)}>
+                <i className="bi bi-plus" /> New Lot
+              </button>
+              <button style={xpBtn()} onClick={fetchBatches}>
+                <i className="bi bi-arrow-clockwise" /> Refresh
+              </button>
+            </span>
           </div>
+          {/* ── Filter/search bar ── */}
           <div style={{ padding: '6px 8px', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', flexShrink: 0 }}>
-            <button style={xpBtn()} onClick={() => setIsCreateOpen(true)}>
-              <i className="bi bi-plus" /> New Lot
-            </button>
-            <button style={xpBtn()} onClick={fetchBatches}>
-              <i className="bi bi-arrow-clockwise" /> Refresh
-            </button>
-            <span style={{ marginLeft: 8, fontFamily: 'Tahoma', fontSize: 11 }}>Filter by Item:</span>
+            <span style={{ fontFamily: 'Tahoma', fontSize: 11 }}>Item:</span>
             <select style={{ ...xpInput, width: 200 }} value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
               <option value="">All Items</option>
               {items.map(i => <option key={i.id} value={i.id}>{i.code} — {i.name}</option>)}
             </select>
+            <span style={{ fontFamily: 'Tahoma', fontSize: 11 }}>Location:</span>
+            <TreeSelect
+              options={locationTree}
+              value={locationFilter}
+              onChange={setLocationFilter}
+              allowEmpty
+              emptyLabel="All Locations"
+              placeholder="All Locations"
+              style={{ width: 200 }}
+            />
             <span style={{ fontFamily: 'Tahoma', fontSize: 11 }}>Status:</span>
             <select style={{ ...xpInput, width: 110 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value as any)}>
               <option value="active">Active</option>
@@ -797,19 +822,34 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
         </div>
       ) : (
         <div className="card shadow-sm border-0" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          {/* ── Header ── */}
-          <div className="card-header d-flex align-items-center gap-2 flex-wrap" style={{ flexShrink: 0 }}>
+          {/* ── Title bar (actions live here) ── */}
+          <div className="card-header d-flex align-items-center gap-2" style={{ flexShrink: 0 }}>
             <h5 className="mb-0 fw-bold">Lot Management</h5>
-            <button className="btn btn-sm btn-primary" onClick={() => setIsCreateOpen(true)}>
-              <i className="bi bi-plus" /> New Lot
-            </button>
-            <button className="btn btn-sm btn-outline-secondary" onClick={fetchBatches}>
-              <i className="bi bi-arrow-clockwise" />
-            </button>
+            <div className="ms-auto d-flex gap-2">
+              <button className="btn btn-sm btn-primary" onClick={() => setIsCreateOpen(true)}>
+                <i className="bi bi-plus" /> New Lot
+              </button>
+              <button className="btn btn-sm btn-outline-secondary" title="Refresh" onClick={fetchBatches}>
+                <i className="bi bi-arrow-clockwise" />
+              </button>
+            </div>
+          </div>
+          {/* ── Filter/search bar ── */}
+          <div className="d-flex align-items-center gap-2 flex-wrap px-3 py-2 border-bottom" style={{ flexShrink: 0, background: '#f8f9fa' }}>
             <select className="form-select form-select-sm" style={{ width: 200 }} value={itemFilter} onChange={e => setItemFilter(e.target.value)}>
               <option value="">All Items</option>
               {items.map(i => <option key={i.id} value={i.id}>{i.code} — {i.name}</option>)}
             </select>
+            <TreeSelect
+              options={locationTree}
+              value={locationFilter}
+              onChange={setLocationFilter}
+              allowEmpty
+              emptyLabel="All Locations"
+              placeholder="All Locations"
+              size="sm"
+              style={{ width: 200 }}
+            />
             <select className="form-select form-select-sm" style={{ width: 130 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value as any)}>
               <option value="active">Active</option>
               <option value="depleted">Depleted</option>
