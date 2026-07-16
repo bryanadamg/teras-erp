@@ -208,9 +208,30 @@ async def _enrich_batches(db: AsyncSession, batches: list[Batch], location_id: u
     if location_id:
         batches = [b for b in batches if remaining_map.get(str(b.id), 0.0) > 0]
 
+    # Location hierarchy (root-first: warehouse → zone → bin) for the current leaf.
+    # Load the whole (small) location table once and walk parents in-memory —
+    # touching Location.parent directly would trip async lazy-load (MissingGreenlet).
+    loc_lookup: dict = {}
+    if location_map:
+        loc_rows = (await db.execute(select(Location.id, Location.name, Location.parent_id))).all()
+        loc_lookup = {row[0]: (row[1], row[2]) for row in loc_rows}
+
+    def _build_path(lid):
+        chain, seen, cur = [], set(), lid
+        while cur and cur not in seen:
+            seen.add(cur)
+            entry = loc_lookup.get(cur)
+            if not entry:
+                break
+            name, parent = entry
+            chain.append(name)
+            cur = parent
+        return list(reversed(chain)) or None
+
     for b in batches:
         b.remaining = remaining_map.get(str(b.id), 0.0)
         b.location_id, b.location_name = location_map.get(str(b.id), (None, None))
+        b.location_path = _build_path(b.location_id) if b.location_id else None
         b.item_code = b.item.code if b.item else None
         b.item_name = b.item.name if b.item else None
     await _resolve_gr_origins(db, list(batches))

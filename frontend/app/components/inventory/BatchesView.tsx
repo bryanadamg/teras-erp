@@ -8,7 +8,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
-import { useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
+import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark } from '../shared/xpTheme';
 
 const REJECT_TITLE = 'QC reject — lot drops out of good stock; produced qty returns to its MO';
 const SPLIT_TITLE = 'Split — peel a portion off into a new lot (prints a label)';
@@ -21,9 +21,9 @@ function SplitIconButton({ classic, onClick }: { classic: boolean; onClick: () =
         onClick={onClick}
         title={SPLIT_TITLE}
         style={{
-          fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, padding: '2px 7px', cursor: 'pointer',
-          background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
-          border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000040',
+          fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, lineHeight: 1, padding: '2px 4px', cursor: 'pointer',
+          background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
+          border: '1px solid #909090', color: '#333333',
           display: 'inline-flex', alignItems: 'center', borderRadius: 0,
         }}
       >
@@ -33,7 +33,8 @@ function SplitIconButton({ classic, onClick }: { classic: boolean; onClick: () =
   }
   return (
     <button
-      className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center"
+      className="btn btn-outline-secondary d-inline-flex align-items-center py-0 px-1"
+      style={{ fontSize: 11 }}
       onClick={onClick}
       title={SPLIT_TITLE}
     >
@@ -51,9 +52,9 @@ function RejectIconButton({ classic, onClick }: { classic: boolean; onClick: () 
         onClick={onClick}
         title={REJECT_TITLE}
         style={{
-          fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, padding: '2px 7px', cursor: 'pointer',
-          background: 'linear-gradient(to bottom, #ffe0b0, #e0a050)',
-          border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#663300',
+          fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, lineHeight: 1, padding: '2px 4px', cursor: 'pointer',
+          background: 'linear-gradient(to bottom, #ffe0b0, #e8b060)',
+          border: '1px solid #99631a', color: '#663300',
           display: 'inline-flex', alignItems: 'center', borderRadius: 0,
         }}
       >
@@ -63,7 +64,8 @@ function RejectIconButton({ classic, onClick }: { classic: boolean; onClick: () 
   }
   return (
     <button
-      className="btn btn-sm btn-outline-warning d-inline-flex align-items-center"
+      className="btn btn-outline-warning d-inline-flex align-items-center py-0 px-1"
+      style={{ fontSize: 11 }}
       onClick={onClick}
       title={REJECT_TITLE}
     >
@@ -82,9 +84,9 @@ function DisposeIconButton({ classic, onClick }: { classic: boolean; onClick: ()
         onClick={onClick}
         title={DISPOSE_TITLE}
         style={{
-          fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, padding: '2px 7px', cursor: 'pointer',
-          background: 'linear-gradient(to bottom, #f0d0d0, #c07070)',
-          border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#600',
+          fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, lineHeight: 1, padding: '2px 4px', cursor: 'pointer',
+          background: 'linear-gradient(to bottom, #f0c0c0, #d07070)',
+          border: '1px solid #992222', color: '#600000',
           display: 'inline-flex', alignItems: 'center', borderRadius: 0,
         }}
       >
@@ -94,7 +96,8 @@ function DisposeIconButton({ classic, onClick }: { classic: boolean; onClick: ()
   }
   return (
     <button
-      className="btn btn-sm btn-outline-danger d-inline-flex align-items-center"
+      className="btn btn-outline-danger d-inline-flex align-items-center py-0 px-1"
+      style={{ fontSize: 11 }}
       onClick={onClick}
       title={DISPOSE_TITLE}
     >
@@ -118,6 +121,7 @@ interface Batch {
   remaining: number | null;
   location_id: string | null;
   location_name: string | null;
+  location_path: string[] | null;  // root-first [store, zone, bin]
   quality_status?: string;   // GOOD | REJECTED
   // Production origin (beam batches)
   mo_id: string | null;
@@ -445,44 +449,102 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
   const isDepleted = (b: Batch) => (b.remaining ?? 0) <= 0;
 
   const batchItemCode = (b: Batch) => b.item_code || itemMap[b.item_id]?.code || '-';
-  const batchItemName = (b: Batch) => b.item_name || itemMap[b.item_id]?.name || '-';
 
+  // Client-side sort of the current page (list is server-paginated). Mirrors the
+  // WO table: click a header to toggle asc → desc → off, SortMark shows the arrow.
+  const sortCols = React.useMemo(() => ({
+    lot:       (b: Batch) => b.batch_number,
+    product:   (b: Batch) => batchItemCode(b),
+    origin:    (b: Batch) => b.sales_order_code || b.po_number || null,
+    mopr:      (b: Batch) => b.mo_code || b.production_run_code || null,
+    location:  (b: Batch) => (b.location_path && b.location_path.join(' / ')) || b.location_name || null,
+    remaining: (b: Batch) => b.remaining ?? null,
+    ends:      (b: Batch) => b.ends ?? null,
+    notes:     (b: Batch) => b.notes || null,
+    created:   (b: Batch) => b.created_at || null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [itemMap]);
+  const { sorted: sortedBatches, sort, toggle: toggleSort } = useSortable(batches, sortCols, null);
+
+  // Small pill/chip — the shared shape for Origin (SO/PO), MO/PR, and Location
+  // badges. Square in classic (XP), rounded in modern. Kept on a single line so
+  // every table row holds a consistent height.
+  const chip = (
+    label: React.ReactNode,
+    fg: string, bg: string, border: string,
+    opts: { mono?: boolean; title?: string } = {},
+  ) => (
+    <span
+      title={opts.title}
+      style={{
+        display: 'inline-block', fontSize: classic ? 9 : 10, fontWeight: 'bold',
+        padding: '0 5px', borderRadius: classic ? 0 : 8, lineHeight: classic ? '14px' : '16px',
+        color: fg, background: bg, border: `1px solid ${border}`, whiteSpace: 'nowrap',
+        fontFamily: opts.mono ? 'monospace' : undefined,
+      }}
+    >
+      {label}
+    </span>
+  );
+
+  const chipRow = (children: React.ReactNode) => (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center' }}>{children}</div>
+  );
+
+  const emDash = <span style={{ color: '#ccc' }}>—</span>;
+
+  // Origin — customer/supplier source only (SO + PO), as badges.
   const originCell = (b: Batch) => {
-    if (b.po_number) {
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, lineHeight: 1.2 }}>
-          <span style={{ fontWeight: 'bold', color: classic ? '#7a4500' : '#856404', fontSize: classic ? 10 : undefined }}>
-            PO: {b.po_number}
-          </span>
-          {b.vendor_lot && (
-            <span style={{ color: '#666', fontFamily: 'monospace', fontSize: classic ? 9 : 11 }}>
-              Supplier Lot: {b.vendor_lot}
-            </span>
-          )}
-        </div>
-      );
-    }
-    if (!b.sales_order_code && !b.production_run_code && !b.mo_code) {
-      return <span style={{ color: '#ccc' }}>—</span>;
-    }
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 1, lineHeight: 1.2 }}>
-        {b.sales_order_code && (
-          <span style={{ fontWeight: 'bold', color: classic ? '#0058e6' : '#0d6efd', fontSize: classic ? 10 : undefined }}>
-            SO: {b.sales_order_code}
-          </span>
-        )}
-        {b.mo_code && (
-          <span style={{ color: '#555', fontFamily: 'monospace', fontSize: classic ? 9 : 11 }}>
-            {b.mo_code}{b.production_run_code ? ` · ${b.production_run_code}` : ''}
-          </span>
-        )}
-        {!b.sales_order_code && !b.mo_code && b.production_run_code && (
-          <span style={{ color: '#888', fontSize: classic ? 9 : 11 }}>PR: {b.production_run_code}</span>
-        )}
-      </div>
-    );
+    const chips: React.ReactNode[] = [];
+    if (b.sales_order_code) chips.push(chip(`SO ${b.sales_order_code}`, '#0058e6', '#e8f0ff', '#a8c8f0'));
+    if (b.po_number) chips.push(chip(`PO ${b.po_number}`, '#7a4500', '#fdf3d8', '#e0c080',
+      { title: b.vendor_lot ? `Supplier Lot: ${b.vendor_lot}` : undefined }));
+    return chips.length ? chipRow(chips.map((c, i) => <React.Fragment key={i}>{c}</React.Fragment>)) : emDash;
   };
+
+  // MO / PR — internal production origin, as small chips.
+  const moPrCell = (b: Batch) => {
+    const chips: React.ReactNode[] = [];
+    if (b.mo_code) chips.push(chip(b.mo_code, '#444', '#eceae2', '#c4c2ba', { mono: true }));
+    if (b.production_run_code) chips.push(chip(`PR ${b.production_run_code}`, '#5a4499', '#efeaff', '#cabbec', { mono: true }));
+    return chips.length ? chipRow(chips.map((c, i) => <React.Fragment key={i}>{c}</React.Fragment>)) : emDash;
+  };
+
+  // Location — Store / Zone / Bin as distinct badges (root-first hierarchy).
+  const LOC_LEVEL = [
+    { fg: '#33506e', bg: '#e2e9f2', border: '#a8bcd0' },  // Store (warehouse)
+    { fg: '#2e6070', bg: '#e2eef0', border: '#a8ccd0' },  // Zone
+    { fg: '#3a6b2a', bg: '#e8f0e2', border: '#b8d0a8' },  // Bin
+  ];
+  const locationCell = (b: Batch) => {
+    const path = b.location_path && b.location_path.length ? b.location_path : (b.location_name ? [b.location_name] : []);
+    if (!path.length) return emDash;
+    return chipRow(path.map((name, i) => {
+      const lvl = LOC_LEVEL[Math.min(i, LOC_LEVEL.length - 1)];
+      return <React.Fragment key={i}>{chip(name, lvl.fg, lvl.bg, lvl.border)}</React.Fragment>;
+    }));
+  };
+
+  // Created — date on line 1, created-by as a small chip underneath.
+  const createdCell = (b: Batch) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, lineHeight: 1.2, alignItems: 'flex-start' }}>
+      <span>{new Date(b.created_at).toLocaleDateString()}</span>
+      {b.created_by && chip(b.created_by, '#555', '#eceae2', '#c4c2ba')}
+    </div>
+  );
+
+  // Remaining — value with the green (or gray, if depleted) status dot pinned to
+  // the far right so every row's dot aligns in a column.
+  const remainingCell = (b: Batch) => (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+      <span>{b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}</span>
+      <span style={{
+        display: 'inline-block', width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+        background: isDepleted(b) ? '#b8b8b8' : '#3a9b3a',
+        border: isDepleted(b) ? '1px solid #999' : '1px solid #2a7a2a',
+      }} />
+    </div>
+  );
 
   // Stage classification purely from the batch-number prefix — the manufacturing
   // completion route stamps GR- (goods receipt), BM- (beam), GRG- (greige/weaving),
@@ -709,7 +771,10 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
     background: alt ? '#f0f0f8' : '#ffffff', verticalAlign: 'middle',
   } : { verticalAlign: 'middle' };
 
-  const colSpan = 12; // Chevron, Lot Number, Item Code, Item Name, Origin, Location, Remaining, Ends, Notes, Created By, Created At, Actions
+  const colSpan = 11; // Chevron, Lot Number, Product, Origin, MO/PR, Location, Remaining, Ends, Notes, Created, Actions
+
+  // Fixed row height keeps the table visually even despite multi-badge cells.
+  const ROW_H = classic ? 40 : 44;
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)' }}>
@@ -746,16 +811,15 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
               <thead>
                 <tr>
                   <th style={{ ...xpTh, width: 20 }}></th>
-                  <th style={xpTh}>Lot Number</th>
-                  <th style={xpTh}>Item Code</th>
-                  <th style={xpTh}>Item Name</th>
-                  <th style={xpTh}>Origin</th>
-                  <th style={xpTh}>Location</th>
-                  <th style={{ ...xpTh, textAlign: 'right' }}>Remaining</th>
-                  <th style={{ ...xpTh, textAlign: 'right' }}>Ends</th>
-                  <th style={xpTh}>Notes</th>
-                  <th style={xpTh}>Created By</th>
-                  <th style={xpTh}>Created At</th>
+                  <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('lot')} title="Sort">Lot Number<SortMark sort={sort} colKey="lot" /></th>
+                  <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('product')} title="Sort">Product<SortMark sort={sort} colKey="product" /></th>
+                  <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('origin')} title="Sort">Origin<SortMark sort={sort} colKey="origin" /></th>
+                  <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('mopr')} title="Sort">MO/PR<SortMark sort={sort} colKey="mopr" /></th>
+                  <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('location')} title="Sort">Location<SortMark sort={sort} colKey="location" /></th>
+                  <th style={{ ...xpTh, textAlign: 'right', cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('remaining')} title="Sort">Remaining<SortMark sort={sort} colKey="remaining" /></th>
+                  <th style={{ ...xpTh, textAlign: 'right', cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('ends')} title="Sort">Ends<SortMark sort={sort} colKey="ends" /></th>
+                  <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('notes')} title="Sort">Notes<SortMark sort={sort} colKey="notes" /></th>
+                  <th style={{ ...xpTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('created')} title="Sort">Created<SortMark sort={sort} colKey="created" /></th>
                   <th style={xpTh}></th>
                 </tr>
               </thead>
@@ -766,11 +830,11 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                 {!loading && batches.length === 0 && (
                   <tr><td colSpan={colSpan} style={{ ...xpTd(false), textAlign: 'center', padding: 8 }}>No lots found.</td></tr>
                 )}
-                {batches.map((b, i) => (
+                {sortedBatches.map((b, i) => (
                   <>
                     <tr
                       key={b.id}
-                      style={{ background: expandedRows[b.id] ? '#d6e4f7' : i % 2 === 1 ? '#f0f0f8' : '#ffffff', cursor: 'pointer', color: isDepleted(b) ? '#9a9a9a' : undefined }}
+                      style={{ background: expandedRows[b.id] ? '#d6e4f7' : i % 2 === 1 ? '#f0f0f8' : '#ffffff', cursor: 'pointer', color: isDepleted(b) ? '#9a9a9a' : undefined, height: ROW_H }}
                       onClick={() => toggleExpand(b)}
                       title={isDepleted(b) ? 'Depleted lot — 0 remaining' : 'Show lot lineage'}
                     >
@@ -787,17 +851,13 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                         )}
                       </td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{batchItemCode(b)}</td>
-                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{batchItemName(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{originCell(b)}</td>
-                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.location_name || <span style={{ color: '#ccc' }}>—</span>}</td>
-                      <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right', background: expandedRows[b.id] ? '#d6e4f7' : undefined, whiteSpace: 'nowrap' }}>
-                        <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', marginRight: 5, verticalAlign: 'middle', background: isDepleted(b) ? '#b8b8b8' : '#3a9b3a', border: isDepleted(b) ? '1px solid #999' : '1px solid #2a7a2a' }} />
-                        {b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}
-                      </td>
+                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{moPrCell(b)}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{locationCell(b)}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right', background: expandedRows[b.id] ? '#d6e4f7' : undefined, whiteSpace: 'nowrap' }}>{remainingCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), textAlign: 'right', background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.ends ?? '-'}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.notes || '-'}</td>
-                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.created_by || '-'}</td>
-                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{new Date(b.created_at).toLocaleDateString()}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{createdCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), whiteSpace: 'nowrap', textAlign: 'right', background: expandedRows[b.id] ? '#d6e4f7' : undefined }} onClick={e => e.stopPropagation()}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
                           {b.quality_status !== 'REJECTED' && (b.remaining ?? 0) > 0 && (
@@ -856,28 +916,27 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
               <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                 <tr>
                   <th style={{ width: 24 }}></th>
-                  <th>Lot Number</th>
-                  <th>Item Code</th>
-                  <th>Item Name</th>
-                  <th>Origin</th>
-                  <th>Location</th>
-                  <th className="text-end">Remaining</th>
-                  <th className="text-end">Ends</th>
-                  <th>Notes</th>
-                  <th>Created By</th>
-                  <th>Created At</th>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('lot')} title="Sort">Lot Number<SortMark sort={sort} colKey="lot" /></th>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('product')} title="Sort">Product<SortMark sort={sort} colKey="product" /></th>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('origin')} title="Sort">Origin<SortMark sort={sort} colKey="origin" /></th>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('mopr')} title="Sort">MO/PR<SortMark sort={sort} colKey="mopr" /></th>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('location')} title="Sort">Location<SortMark sort={sort} colKey="location" /></th>
+                  <th className="text-end" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('remaining')} title="Sort">Remaining<SortMark sort={sort} colKey="remaining" /></th>
+                  <th className="text-end" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('ends')} title="Sort">Ends<SortMark sort={sort} colKey="ends" /></th>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('notes')} title="Sort">Notes<SortMark sort={sort} colKey="notes" /></th>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('created')} title="Sort">Created<SortMark sort={sort} colKey="created" /></th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 {loading && <tr><td colSpan={colSpan} className="text-center">Loading...</td></tr>}
                 {!loading && batches.length === 0 && <tr><td colSpan={colSpan} className="text-center text-muted">No lots found.</td></tr>}
-                {batches.map(b => (
+                {sortedBatches.map(b => (
                   <>
                     <tr
                       key={b.id}
                       className={expandedRows[b.id] ? 'table-primary bg-opacity-10' : ''}
-                      style={{ cursor: 'pointer', color: isDepleted(b) ? '#9a9a9a' : undefined }}
+                      style={{ cursor: 'pointer', color: isDepleted(b) ? '#9a9a9a' : undefined, height: ROW_H }}
                       onClick={() => toggleExpand(b)}
                       title={isDepleted(b) ? 'Depleted lot — 0 remaining' : 'Show lot lineage'}
                     >
@@ -890,17 +949,13 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                         {b.quality_status === 'DISPOSED' && <span className="badge bg-secondary ms-1">DISPOSED</span>}
                       </td>
                       <td>{batchItemCode(b)}</td>
-                      <td>{batchItemName(b)}</td>
                       <td>{originCell(b)}</td>
-                      <td>{b.location_name || <span className="text-muted">—</span>}</td>
-                      <td className="text-end" style={{ whiteSpace: 'nowrap' }}>
-                        <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', marginRight: 5, verticalAlign: 'middle', background: isDepleted(b) ? '#b8b8b8' : '#3a9b3a' }} />
-                        {b.remaining != null ? Number(b.remaining).toFixed(2) : '-'}
-                      </td>
+                      <td>{moPrCell(b)}</td>
+                      <td>{locationCell(b)}</td>
+                      <td className="text-end" style={{ whiteSpace: 'nowrap' }}>{remainingCell(b)}</td>
                       <td className="text-end">{b.ends ?? '-'}</td>
                       <td>{b.notes || '-'}</td>
-                      <td>{b.created_by || '-'}</td>
-                      <td>{new Date(b.created_at).toLocaleDateString()}</td>
+                      <td>{createdCell(b)}</td>
                       <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }} onClick={e => e.stopPropagation()}>
                         <div className="d-inline-flex align-items-center gap-1 justify-content-end">
                           {b.quality_status !== 'REJECTED' && (b.remaining ?? 0) > 0 && (
