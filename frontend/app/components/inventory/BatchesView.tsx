@@ -255,21 +255,30 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
   const { openId, pos, toggle, close } = useFloatingMenu(160);
 
   const openBatchLabel = async (b: Batch) => {
-    if (!b.mo_id) { showToast('No production origin for this lot', 'warning'); return; }
-    const res = await authFetch(`${apiBase}/manufacturing-orders/${b.mo_id}`);
-    if (!res.ok) { showToast('Could not load MO for label', 'danger'); return; }
-    const mo = await res.json();
-    const comps = (mo.completions || []).filter((c: any) => !c.rejected && c.output_batch_number);
-    const comp = comps.find((c: any) => String(c.output_batch_id || '') === String(b.id))
-      || comps.find((c: any) => c.output_batch_number === b.batch_number);
-    if (!comp) { showToast('No bag completion found for this lot', 'warning'); return; }
-    const wo = (mo.work_orders || []).find((w: any) => String(w.id) === String(comp.work_order_id || b.source_wo_id || '')) || null;
-    // Bag sequence = this completion's order among its WO's non-rejected lotted bags.
-    const woBags = comps
-      .filter((c: any) => String(c.work_order_id || '') === String(comp.work_order_id || ''))
-      .sort((a: any, c: any) => new Date(a.created_at).getTime() - new Date(c.created_at).getTime());
-    const seqStart = Math.max(1, woBags.findIndex((c: any) => String(c.id) === String(comp.id)) + 1);
-    setLabelData({ bags: [comp], wo, mo, seqStart });
+    // Try for the rich weaving bag label (Warna/Lebar/Rak/bag#), which needs the
+    // originating MOCompletion. Split leftovers (GRG-…-S1) and manual lots have no
+    // completion of their own — fall back to the generic lot label off the Batch.
+    if (b.mo_id) {
+      const res = await authFetch(`${apiBase}/manufacturing-orders/${b.mo_id}`);
+      if (res.ok) {
+        const mo = await res.json();
+        const comps = (mo.completions || []).filter((c: any) => !c.rejected && c.output_batch_number);
+        const comp = comps.find((c: any) => String(c.output_batch_id || '') === String(b.id))
+          || comps.find((c: any) => c.output_batch_number === b.batch_number);
+        if (comp) {
+          const wo = (mo.work_orders || []).find((w: any) => String(w.id) === String(comp.work_order_id || b.source_wo_id || '')) || null;
+          // Bag sequence = this completion's order among its WO's non-rejected lotted bags.
+          const woBags = comps
+            .filter((c: any) => String(c.work_order_id || '') === String(comp.work_order_id || ''))
+            .sort((a: any, c: any) => new Date(a.created_at).getTime() - new Date(c.created_at).getTime());
+          const seqStart = Math.max(1, woBags.findIndex((c: any) => String(c.id) === String(comp.id)) + 1);
+          setLabelData({ bags: [comp], wo, mo, seqStart });
+          return;
+        }
+      }
+    }
+    // Fallback: plain lot sticker straight off the Batch (split leftovers etc.).
+    setLotLabels([b]);
   };
 
   // Debounce the search box 350ms before it drives a server fetch (matches item search).

@@ -679,6 +679,7 @@ async def list_work_orders_flat(
                 actual_items=items_flat,
                 rejected=bool(c.rejected),
                 reject_reason=c.reject_reason,
+                output_batch_number=c.output_batch_number,
             ))
 
         result.append(WorkOrderFlatResponse(

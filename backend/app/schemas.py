@@ -752,6 +752,7 @@ class WorkOrderCompletionFlat(BaseModel):
     actual_items: list[WorkOrderCompletionItemFlat] = []
     rejected: bool = False
     reject_reason: str | None = None
+    output_batch_number: str | None = None   # output lot; drives per-bag label reprint on the WO list
 
 
 class WorkOrderFlatResponse(BaseModel):
