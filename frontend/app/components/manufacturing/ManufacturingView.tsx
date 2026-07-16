@@ -498,6 +498,15 @@ export default function ManufacturingView({
       setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  // From the calendar: jump to the MO's list row, expand it, and scroll it into view.
+  const openMOFromCalendar = (id: string) => {
+      setViewMode('list');
+      setExpandedRows(prev => ({ ...prev, [id]: true }));
+      setTimeout(() => {
+          document.getElementById(`mo-row-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+  };
+
   // Helpers
   const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || itemIndex?.[String(id)]?.name || id;
   const getItemCode = (id: string) => items.find((i: any) => i.id === id)?.code || itemIndex?.[String(id)]?.code || id;
@@ -1989,7 +1998,7 @@ export default function ManufacturingView({
 
                       {/* Manufacturing Orders tab content */}
                       {activeTab === 'manufacturing-orders' && viewMode === 'calendar' ? (
-                          <div className="p-3"><CalendarView workOrders={manufacturingOrders} items={items} /></div>
+                          <div className="p-3"><CalendarView workOrders={manufacturingOrders} items={items} onMOClick={openMOFromCalendar} endField="target_end_date" startField="target_start_date" showHolidays filterable showLoad /></div>
                       ) : activeTab === 'manufacturing-orders' && (
                           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                               {renderSearchBar(
@@ -2110,7 +2119,7 @@ export default function ManufacturingView({
 
                                           return (
                                               <>
-                                              <tr key={wo.id} style={{ background: rowBg, cursor: 'default' }}
+                                              <tr key={wo.id} id={`mo-row-${wo.id}`} style={{ background: rowBg, cursor: 'default' }}
                                                   className={currentStyle !== 'classic' && isExpanded ? 'table-primary bg-opacity-10' : ''}>
 
                                                   {/* MO Code */}
