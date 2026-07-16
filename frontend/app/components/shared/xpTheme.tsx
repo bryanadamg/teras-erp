@@ -400,6 +400,73 @@ export function MenuTriggerButton({ classic, onClick, title = 'More actions' }: 
     );
 }
 
+// ── Flat table-row action button ────────────────────────────────────────────
+// The compact, flat (non-beveled) icon/label button used in table action
+// columns — WO table, Lot Management, dyeing Stage/Log. Classic renders a
+// single-border flat button (NOT the raised 4-color XP bevel, which reads as
+// chunky/glossy at this size); modern maps the tone onto btn-outline-*.
+// Pair with MenuTriggerButton for the "⋯" overflow in the same column.
+export type XPActionTone = 'neutral' | 'primary' | 'success' | 'warning' | 'danger';
+
+const XP_ACTION_TONES: Record<XPActionTone, { bg: string; border: string; fg: string }> = {
+    neutral: { bg: 'linear-gradient(to bottom, #f0efe6, #dddbd0)', border: '#909090', fg: '#333333' },
+    primary: { bg: 'linear-gradient(to bottom, #cfe0ff, #8fb3e8)', border: '#335599', fg: '#0a2a66' },
+    success: { bg: 'linear-gradient(to bottom, #b0e8b0, #70c870)', border: '#0a3e0a', fg: '#004000' },
+    warning: { bg: 'linear-gradient(to bottom, #ffe0b0, #e8b060)', border: '#99631a', fg: '#663300' },
+    danger:  { bg: 'linear-gradient(to bottom, #f0c0c0, #d07070)', border: '#992222', fg: '#600000' },
+};
+
+const XP_ACTION_MODERN: Record<XPActionTone, string> = {
+    neutral: 'btn-outline-secondary',
+    primary: 'btn-outline-primary',
+    success: 'btn-outline-success',
+    warning: 'btn-outline-warning',
+    danger:  'btn-outline-danger',
+};
+
+export function XPActionButton({
+    classic, tone = 'neutral', icon, label, title, onClick, disabled = false,
+}: {
+    classic: boolean;
+    tone?: XPActionTone;
+    icon?: string;               // bootstrap-icon class, e.g. 'bi-box-seam'
+    label?: React.ReactNode;     // optional text; icon-only when omitted
+    title?: string;
+    onClick: (e: React.MouseEvent) => void;
+    disabled?: boolean;
+}) {
+    const iconEl = icon ? <i className={`bi ${icon}`} /> : null;
+    if (classic) {
+        const t = XP_ACTION_TONES[tone];
+        return (
+            <button
+                onClick={onClick}
+                title={title}
+                disabled={disabled}
+                style={{
+                    fontFamily: xpFont, fontSize: 11, lineHeight: 1, padding: '2px 4px',
+                    cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1,
+                    background: t.bg, border: `1px solid ${t.border}`, color: t.fg,
+                    display: 'inline-flex', alignItems: 'center', gap: 4, borderRadius: 0,
+                }}
+            >
+                {iconEl}{label}
+            </button>
+        );
+    }
+    return (
+        <button
+            className={`btn ${XP_ACTION_MODERN[tone]} d-inline-flex align-items-center py-0 px-1`}
+            style={{ fontSize: 11, gap: 4 }}
+            onClick={onClick}
+            title={title}
+            disabled={disabled}
+        >
+            {iconEl}{label}
+        </button>
+    );
+}
+
 export type FloatingMenuItem = {
     key: string;
     label: React.ReactNode;

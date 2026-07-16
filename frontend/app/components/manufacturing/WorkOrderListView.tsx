@@ -14,7 +14,7 @@ const WOStagingModal = dynamic(() => import('./WOStagingModal'), { ssr: false })
 const BagLabelPrintModal = dynamic(() => import('./BagLabelPrintModal'), { ssr: false });
 const BagScanStageModal = dynamic(() => import('./BagScanStageModal'), { ssr: false });
 import { getChipStyle, PrintChips } from './WorkOrderPanel';
-import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import SearchableSelect from '../shared/SearchableSelect';
 import { Tabs, TabDef } from '../shared/Tabs';
@@ -906,18 +906,14 @@ export default function WorkOrderListView({
                                                     {classic ? (
                                                         <>
                                                             {canStage(wo) && (
-                                                                <button onClick={() => (canScanStage(wo) ? setScanStageWO(wo) : setStageWO(wo))}
-                                                                    title="Stage — issue this step's materials to the line"
-                                                                    style={{ fontFamily: xpFont, fontSize: 11, lineHeight: 1, padding: '2px 4px', background: 'linear-gradient(to bottom, #cfe0ff, #8fb3e8)', border: '1px solid #335599', cursor: 'pointer', color: '#0a2a66', marginRight: 2 }}>
-                                                                    <i className="bi bi-box-seam" />
-                                                                </button>
+                                                                <span style={{ marginRight: 2 }}>
+                                                                    <XPActionButton classic tone="primary" icon="bi-box-seam" title="Stage — issue this step's materials to the line" onClick={() => (canScanStage(wo) ? setScanStageWO(wo) : setStageWO(wo))} />
+                                                                </span>
                                                             )}
                                                             {canManage && (wo.status === 'PENDING' || wo.status === 'IN_PROGRESS') && (
-                                                                <button onClick={() => openLog(wo)}
-                                                                    title="Log production output"
-                                                                    style={{ fontFamily: xpFont, fontSize: 11, lineHeight: 1, padding: '2px 4px', background: 'linear-gradient(to bottom,#b0e8b0,#70c870)', border: '1px solid #0a3e0a', cursor: 'pointer', color: '#004000', marginRight: 2 }}>
-                                                                    <i className="bi bi-plus-lg" />
-                                                                </button>
+                                                                <span style={{ marginRight: 2 }}>
+                                                                    <XPActionButton classic tone="success" icon="bi-plus-lg" title="Log production output" onClick={() => openLog(wo)} />
+                                                                </span>
                                                             )}
                                                             <MenuTriggerButton classic={classic} onClick={(e) => toggleMenu(wo.id, e)} />
                                                         </>

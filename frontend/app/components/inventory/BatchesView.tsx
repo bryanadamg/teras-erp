@@ -8,103 +8,11 @@ import { useTheme } from '../../context/ThemeContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
-import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark } from '../shared/xpTheme';
+import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark, XPActionButton } from '../shared/xpTheme';
 
 const REJECT_TITLE = 'QC reject — lot drops out of good stock; produced qty returns to its MO';
 const SPLIT_TITLE = 'Split — peel a portion off into a new lot (prints a label)';
-
-// Split action — icon-only button; native title tooltip explains it.
-function SplitIconButton({ classic, onClick }: { classic: boolean; onClick: () => void }) {
-  if (classic) {
-    return (
-      <button
-        onClick={onClick}
-        title={SPLIT_TITLE}
-        style={{
-          fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, lineHeight: 1, padding: '2px 4px', cursor: 'pointer',
-          background: 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-          border: '1px solid #909090', color: '#333333',
-          display: 'inline-flex', alignItems: 'center', borderRadius: 0,
-        }}
-      >
-        <i className="bi bi-scissors" />
-      </button>
-    );
-  }
-  return (
-    <button
-      className="btn btn-outline-secondary d-inline-flex align-items-center py-0 px-1"
-      style={{ fontSize: 11 }}
-      onClick={onClick}
-      title={SPLIT_TITLE}
-    >
-      <i className="bi bi-scissors" />
-    </button>
-  );
-}
-
-// Reject action — icon-only button; native title tooltip explains it, matching
-// the WO action buttons.
-function RejectIconButton({ classic, onClick }: { classic: boolean; onClick: () => void }) {
-  if (classic) {
-    return (
-      <button
-        onClick={onClick}
-        title={REJECT_TITLE}
-        style={{
-          fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, lineHeight: 1, padding: '2px 4px', cursor: 'pointer',
-          background: 'linear-gradient(to bottom, #ffe0b0, #e8b060)',
-          border: '1px solid #99631a', color: '#663300',
-          display: 'inline-flex', alignItems: 'center', borderRadius: 0,
-        }}
-      >
-        <i className="bi bi-slash-circle" />
-      </button>
-    );
-  }
-  return (
-    <button
-      className="btn btn-outline-warning d-inline-flex align-items-center py-0 px-1"
-      style={{ fontSize: 11 }}
-      onClick={onClick}
-      title={REJECT_TITLE}
-    >
-      <i className="bi bi-slash-circle" />
-    </button>
-  );
-}
-
 const DISPOSE_TITLE = 'Dispose rejected lot — physically write off its remaining stock (deducts from on-hand)';
-
-// Dispose action — only on REJECTED lots; scraps remaining stock, like a consumed beam.
-function DisposeIconButton({ classic, onClick }: { classic: boolean; onClick: () => void }) {
-  if (classic) {
-    return (
-      <button
-        onClick={onClick}
-        title={DISPOSE_TITLE}
-        style={{
-          fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, lineHeight: 1, padding: '2px 4px', cursor: 'pointer',
-          background: 'linear-gradient(to bottom, #f0c0c0, #d07070)',
-          border: '1px solid #992222', color: '#600000',
-          display: 'inline-flex', alignItems: 'center', borderRadius: 0,
-        }}
-      >
-        <i className="bi bi-trash" />
-      </button>
-    );
-  }
-  return (
-    <button
-      className="btn btn-outline-danger d-inline-flex align-items-center py-0 px-1"
-      style={{ fontSize: 11 }}
-      onClick={onClick}
-      title={DISPOSE_TITLE}
-    >
-      <i className="bi bi-trash" />
-    </button>
-  );
-}
 
 interface Batch {
   id: string;
@@ -861,13 +769,13 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                       <td style={{ ...xpTd(i % 2 === 1), whiteSpace: 'nowrap', textAlign: 'right', background: expandedRows[b.id] ? '#d6e4f7' : undefined }} onClick={e => e.stopPropagation()}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
                           {b.quality_status !== 'REJECTED' && (b.remaining ?? 0) > 0 && (
-                            <SplitIconButton classic onClick={() => openSplit(b)} />
+                            <XPActionButton classic tone="neutral" icon="bi-scissors" title={SPLIT_TITLE} onClick={() => openSplit(b)} />
                           )}
                           {b.quality_status !== 'REJECTED' && b.quality_status !== 'DISPOSED' && (
-                            <RejectIconButton classic onClick={() => openReject(b)} />
+                            <XPActionButton classic tone="warning" icon="bi-slash-circle" title={REJECT_TITLE} onClick={() => openReject(b)} />
                           )}
                           {b.quality_status === 'REJECTED' && (b.remaining ?? 0) > 0 && (
-                            <DisposeIconButton classic onClick={() => handleDispose(b)} />
+                            <XPActionButton classic tone="danger" icon="bi-trash" title={DISPOSE_TITLE} onClick={() => handleDispose(b)} />
                           )}
                           <MenuTriggerButton classic onClick={e => toggle(b.id, e)} />
                         </div>
@@ -959,13 +867,13 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                       <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }} onClick={e => e.stopPropagation()}>
                         <div className="d-inline-flex align-items-center gap-1 justify-content-end">
                           {b.quality_status !== 'REJECTED' && (b.remaining ?? 0) > 0 && (
-                            <SplitIconButton classic={false} onClick={() => openSplit(b)} />
+                            <XPActionButton classic={false} tone="neutral" icon="bi-scissors" title={SPLIT_TITLE} onClick={() => openSplit(b)} />
                           )}
                           {b.quality_status !== 'REJECTED' && b.quality_status !== 'DISPOSED' && (
-                            <RejectIconButton classic={false} onClick={() => openReject(b)} />
+                            <XPActionButton classic={false} tone="warning" icon="bi-slash-circle" title={REJECT_TITLE} onClick={() => openReject(b)} />
                           )}
                           {b.quality_status === 'REJECTED' && (b.remaining ?? 0) > 0 && (
-                            <DisposeIconButton classic={false} onClick={() => handleDispose(b)} />
+                            <XPActionButton classic={false} tone="danger" icon="bi-trash" title={DISPOSE_TITLE} onClick={() => handleDispose(b)} />
                           )}
                           <MenuTriggerButton classic={false} onClick={e => toggle(b.id, e)} />
                         </div>
