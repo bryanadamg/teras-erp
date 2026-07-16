@@ -57,7 +57,6 @@ export default function CalendarView({
     const dotColor = (status: string) => statusColor(status);
 
     const getEnd = (wo: any) => dayKey(wo[endField]) || (startField ? dayKey(wo[startField]) : null);
-    const getStart = (wo: any) => (startField ? dayKey(wo[startField]) : null);
 
     // ── Holidays (national) ──────────────────────────────────────────────────
     useEffect(() => {
@@ -92,33 +91,22 @@ export default function CalendarView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [workOrders, statusFilter, search, items]);
 
-    // ── Build per-day index: deadline chips ("end") + lead-time trail ("span") ─
+    // ── Build per-day index: deadline chips, keyed on the deadline day ─────────
     const { byDay, maxLoad } = useMemo(() => {
-        const map: Record<string, { end: any[]; span: any[] }> = {};
-        const bucket = (k: string) => (map[k] ??= { end: [], span: [] });
+        const map: Record<string, any[]> = {};
         for (const wo of filtered) {
             const e = getEnd(wo);
             if (!e) continue;
-            bucket(e).end.push(wo);
-            const s = getStart(wo);
-            if (s && s < e) {
-                const cur = new Date(`${s}T00:00:00`);
-                const stop = new Date(`${e}T00:00:00`);
-                while (cur < stop) {
-                    const k = fmt(cur);
-                    if (k !== e) bucket(k).span.push(wo);
-                    cur.setDate(cur.getDate() + 1);
-                }
-            }
+            (map[e] ??= []).push(wo);
         }
         let max = 0;
         for (const k in map) {
-            const q = map[k].end.reduce((a, w) => a + (Number(w.qty) || 0), 0);
+            const q = map[k].reduce((a, w) => a + (Number(w.qty) || 0), 0);
             if (q > max) max = q;
         }
         return { byDay: map, maxLoad: max };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [filtered, endField, startField]);
+    }, [filtered, endField]);
 
     // ── XP nav button ──────────────────────────────────────────────────────
     const xpNavBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
@@ -131,12 +119,13 @@ export default function CalendarView({
     const todayStr = fmt(new Date());
     const days: React.ReactNode[] = [];
 
-    // Empty leading cells
+    // Empty leading cells — recede quietly (light diagonal hatch), not a heavy slab.
+    const emptyHatch = 'repeating-linear-gradient(45deg, #f7f5f0, #f7f5f0 6px, #f1eee7 6px, #f1eee7 12px)';
     for (let i = 0; i < firstDay; i++) {
         days.push(
             classic
-                ? <div key={`empty-${i}`} style={{ background: '#f0ede6', border: '1px solid #c0bdb5', minHeight: compact ? 34 : 100, opacity: 0.5 }}></div>
-                : <div key={`empty-${i}`} className={`calendar-day empty bg-light border opacity-25 ${compact ? 'py-1' : ''}`}></div>
+                ? <div key={`empty-${i}`} style={{ background: emptyHatch, border: '1px solid #d8d4cc', minHeight: compact ? 34 : 100 }}></div>
+                : <div key={`empty-${i}`} className={`calendar-day empty border ${compact ? 'py-1' : ''}`} style={{ background: emptyHatch }}></div>
         );
     }
 
@@ -145,54 +134,50 @@ export default function CalendarView({
         const dateStr = `${year}-${pad(month + 1)}-${pad(day)}`;
         const isToday = todayStr === dateStr;
         const holidayName = showHolidays ? holidays[dateStr] : undefined;
-        const cell = byDay[dateStr];
-        const endWOs = cell?.end || [];
-        const spanWOs = cell?.span || [];
-        const dayQty = showLoad ? endWOs.reduce((a, w) => a + (Number(w.qty) || 0), 0) : 0;
-        const loadPct = showLoad && maxLoad > 0 ? Math.max(6, Math.round((dayQty / maxLoad) * 100)) : 0;
+        const endWOs = byDay[dateStr] || [];
+        const dayQty = showLoad ? endWOs.reduce((a: number, w: any) => a + (Number(w.qty) || 0), 0) : 0;
+        const loadPct = showLoad && maxLoad > 0 ? Math.max(8, Math.round((dayQty / maxLoad) * 100)) : 0;
 
         if (classic) {
             const bg = isToday ? '#dde8f5' : holidayName ? '#ffe9c7' : '#ffffff';
             days.push(
                 <div key={day} title={holidayName || undefined}
-                    style={{ background: bg, border: isToday ? '1px solid #316ac5' : '1px solid #c0bdb5', minHeight: compact ? 34 : 100, padding: compact ? '2px 3px' : '4px 5px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: compact ? 2 : 3 }}>
-                        <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: compact ? '9px' : '10px', fontWeight: 'bold', color: holidayName ? '#994d00' : isToday ? '#0058e6' : '#333' }}>{day}</span>
-                        {!compact && (showLoad
-                            ? (endWOs.length > 0 && <span style={{ background: '#e8e8e8', border: '1px solid #6a6a6a', color: '#333', padding: '0 4px', fontSize: '8px', fontFamily: 'Tahoma, Arial, sans-serif', fontWeight: 'bold' }}>{endWOs.length} / {dayQty}</span>)
-                            : (endWOs.length > 0 && <span style={{ background: '#e8e8e8', border: '1px solid #6a6a6a', color: '#333', padding: '0 4px', fontSize: '8px', fontFamily: 'Tahoma, Arial, sans-serif', fontWeight: 'bold' }}>{endWOs.length} Due</span>))}
+                    style={{ background: bg, border: isToday ? '1px solid #316ac5' : '1px solid #c0bdb5', minHeight: compact ? 34 : 100, padding: compact ? '2px 3px' : '4px 6px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: compact ? 2 : 4, minHeight: compact ? undefined : 14 }}>
+                        <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: compact ? '9px' : '11px', fontWeight: 'bold', color: holidayName ? '#994d00' : isToday ? '#0058e6' : '#555' }}>{day}</span>
+                        {!compact && endWOs.length > 0 && (
+                            <span title={showLoad ? `${endWOs.length} MO · qty ${dayQty}` : `${endWOs.length} due`}
+                                style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                {showLoad && maxLoad > 0 && (
+                                    <span style={{ display: 'inline-block', width: 22, height: 4, background: '#e2ddd2' }}>
+                                        <span style={{ display: 'block', height: '100%', width: `${loadPct}%`, background: statusColor('IN_PROGRESS') }}></span>
+                                    </span>
+                                )}
+                                <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '9px', fontWeight: 'bold', color: '#888' }}>{endWOs.length}</span>
+                            </span>
+                        )}
                     </div>
-                    {!compact && showLoad && loadPct > 0 && (
-                        <div style={{ height: 3, background: '#d8d4cc', marginBottom: 3 }}>
-                            <div style={{ height: '100%', width: `${loadPct}%`, background: statusColor('IN_PROGRESS') }}></div>
-                        </div>
-                    )}
-                    <div style={{ display: 'flex', flexDirection: compact ? 'row' : 'column', gap: 2, overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', flexDirection: compact ? 'row' : 'column', gap: compact ? 2 : 3, overflow: 'hidden' }}>
                         {compact ? (
                             endWOs.slice(0, 3).map((wo: any) => (
                                 <div key={wo.id} title={wo.code} style={{ width: 5, height: 5, background: dotColor(wo.status), border: '1px solid rgba(0,0,0,0.2)' }}></div>
                             ))
-                        ) : (<>
-                            {spanWOs.slice(0, MAX_VISIBLE).map((wo: any) => (
-                                <div key={`s-${wo.id}`} title={`${wo.code} (in progress)`}
-                                    onClick={onMOClick ? () => onMOClick(wo.id) : undefined}
-                                    style={{ height: 4, background: statusTint(wo.status).borderColor, opacity: 0.55, cursor: onMOClick ? 'pointer' : 'default' }}></div>
-                            ))}
-                            {endWOs.slice(0, MAX_VISIBLE).map((wo: any) => {
+                        ) : (
+                            endWOs.slice(0, MAX_VISIBLE).map((wo: any) => {
                                 const name = getItemName(wo.item_id);
                                 return (
                                     <div key={wo.id} title={`${wo.code}${name ? ': ' + name : ''}`}
                                         onClick={onMOClick ? () => onMOClick(wo.id) : undefined}
-                                        style={{ ...chipStyle(wo.status), padding: '1px 4px', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '9px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: onMOClick ? 'pointer' : 'default' }}>
-                                        <div style={{ fontWeight: 'bold', fontSize: '8px', lineHeight: 1.2 }}>{wo.code}</div>
-                                        {name && <div style={{ fontSize: '9px', lineHeight: 1.2 }}>{name}</div>}
+                                        style={{ ...chipStyle(wo.status), padding: '2px 5px', fontFamily: 'Tahoma, Arial, sans-serif', overflow: 'hidden', cursor: onMOClick ? 'pointer' : 'default' }}>
+                                        <div style={{ fontWeight: 'bold', fontSize: '9px', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wo.code}</div>
+                                        {name && <div style={{ fontSize: '9px', lineHeight: 1.3, opacity: 0.8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>}
                                     </div>
                                 );
-                            })}
-                        </>)}
+                            })
+                        )}
                         {compact && endWOs.length > 3 && <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '8px', color: '#666' }}>+</span>}
                         {!compact && endWOs.length > MAX_VISIBLE && (
-                            <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '8px', color: '#666', paddingLeft: 2 }}>+{endWOs.length - MAX_VISIBLE} more</span>
+                            <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '9px', color: '#888', paddingLeft: 2 }}>+{endWOs.length - MAX_VISIBLE} more</span>
                         )}
                     </div>
                 </div>
@@ -201,42 +186,41 @@ export default function CalendarView({
             const bgCls = isToday ? 'bg-primary bg-opacity-10 border-primary' : holidayName ? 'bg-warning bg-opacity-10' : 'bg-white';
             days.push(
                 <div key={day} className={`calendar-day border p-1 ${bgCls}`} style={{ minHeight: compact ? '40px' : '120px' }} title={holidayName || undefined}>
-                    <div className="d-flex justify-content-between align-items-center mb-1">
-                        <span className={`fw-bold ${compact ? 'extra-small' : 'small'} ${holidayName ? 'text-warning' : isToday ? 'text-primary' : 'text-muted'}`} style={{ fontSize: compact ? '0.6rem' : 'inherit' }}>{day}</span>
-                        {!compact && endWOs.length > 0 && <span className="badge bg-secondary text-white" style={{ fontSize: '0.6rem' }}>{showLoad ? `${endWOs.length} / ${dayQty}` : `${endWOs.length} Due`}</span>}
+                    <div className="d-flex justify-content-between align-items-center mb-1" style={{ minHeight: compact ? undefined : 16 }}>
+                        <span className={`fw-bold ${compact ? 'extra-small' : 'small'} ${holidayName ? 'text-warning' : isToday ? 'text-primary' : 'text-secondary'}`} style={{ fontSize: compact ? '0.6rem' : 'inherit' }}>{day}</span>
+                        {!compact && endWOs.length > 0 && (
+                            <span className="d-flex align-items-center gap-1" title={showLoad ? `${endWOs.length} MO · qty ${dayQty}` : `${endWOs.length} due`}>
+                                {showLoad && maxLoad > 0 && (
+                                    <span style={{ display: 'inline-block', width: 22, height: 4, background: '#e5e7eb', borderRadius: 2 }}>
+                                        <span style={{ display: 'block', height: '100%', width: `${loadPct}%`, background: statusColor('IN_PROGRESS'), borderRadius: 2 }}></span>
+                                    </span>
+                                )}
+                                <span className="text-muted fw-bold" style={{ fontSize: '0.6rem' }}>{endWOs.length}</span>
+                            </span>
+                        )}
                     </div>
-                    {!compact && showLoad && loadPct > 0 && (
-                        <div className="mb-1" style={{ height: 3, background: '#e5e7eb' }}>
-                            <div style={{ height: '100%', width: `${loadPct}%`, background: statusColor('IN_PROGRESS') }}></div>
-                        </div>
-                    )}
                     <div className={`d-flex ${compact ? 'flex-row justify-content-center' : 'flex-column'} gap-1 overflow-hidden`}>
                         {compact ? (
                             endWOs.slice(0, 3).map((wo: any) => (
                                 <div key={wo.id} className="rounded-circle" style={{ width: '4px', height: '4px', background: dotColor(wo.status) }} title={wo.code}></div>
                             ))
-                        ) : (<>
-                            {spanWOs.slice(0, MAX_VISIBLE).map((wo: any) => (
-                                <div key={`s-${wo.id}`} title={`${wo.code} (in progress)`}
-                                    onClick={onMOClick ? () => onMOClick(wo.id) : undefined}
-                                    style={{ height: 4, borderRadius: 2, background: statusTint(wo.status).borderColor, opacity: 0.55, cursor: onMOClick ? 'pointer' : 'default' }}></div>
-                            ))}
-                            {endWOs.slice(0, MAX_VISIBLE).map((wo: any) => {
+                        ) : (
+                            endWOs.slice(0, MAX_VISIBLE).map((wo: any) => {
                                 const name = getItemName(wo.item_id);
                                 return (
-                                    <div key={wo.id} className="badge text-start fw-normal text-truncate w-100 p-1"
-                                        style={{ ...chipStyle(wo.status), cursor: onMOClick ? 'pointer' : 'default' }}
+                                    <div key={wo.id} className="text-start text-truncate w-100"
+                                        style={{ ...chipStyle(wo.status), borderRadius: 3, padding: '2px 6px', cursor: onMOClick ? 'pointer' : 'default' }}
                                         title={`${wo.code}${name ? ': ' + name : ''}`}
                                         onClick={onMOClick ? () => onMOClick(wo.id) : undefined}>
-                                        <div style={{ fontSize: '0.65rem', lineHeight: '1.1' }}>{wo.code}</div>
-                                        {name && <div style={{ fontSize: '0.7rem' }}>{name}</div>}
+                                        <div className="text-truncate fw-bold" style={{ fontSize: '0.65rem', lineHeight: '1.3' }}>{wo.code}</div>
+                                        {name && <div className="text-truncate" style={{ fontSize: '0.68rem', lineHeight: '1.3', opacity: 0.8 }}>{name}</div>}
                                     </div>
                                 );
-                            })}
-                        </>)}
+                            })
+                        )}
                         {compact && endWOs.length > 3 && <div className="text-muted" style={{ fontSize: '0.5rem' }}>+</div>}
                         {!compact && endWOs.length > MAX_VISIBLE && (
-                            <div className="text-muted" style={{ fontSize: '0.6rem' }}>+{endWOs.length - MAX_VISIBLE} more</div>
+                            <div className="text-muted" style={{ fontSize: '0.65rem' }}>+{endWOs.length - MAX_VISIBLE} more</div>
                         )}
                     </div>
                 </div>
