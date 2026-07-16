@@ -14,7 +14,7 @@ from app.models.production_run import ProductionRun
 from app.models.sales import SalesOrder
 from app.models.goods_receipt import GoodsReceipt, GoodsReceiptLine
 from app.models.purchase import PurchaseOrder
-from app.schemas import BatchCreate, BatchReject, BatchSplit, BatchResponse, BatchTraceResponse, BatchConsumptionResponse, BatchTraceBackNode, PaginatedBatchResponse
+from app.schemas import BatchCreate, BatchReject, BatchSplit, BatchDispose, BatchResponse, BatchTraceResponse, BatchConsumptionResponse, BatchTraceBackNode, PaginatedBatchResponse
 from app.api.auth import get_current_user, require_permission
 from app.models.auth import User
 from app.services import audit_service, kpi_service, stock_service
@@ -569,6 +569,63 @@ async def reject_batch(
     await manager.broadcast({"type": "STOCK_UPDATE"})
     if mo:
         await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": str(mo.id), "status": mo.status, "code": mo.code})
+    try:
+        await kpi_service.invalidate_kpis_async(db)
+        await manager.broadcast({"type": "KPI_UPDATE"})
+    except Exception:
+        pass
+
+    batch.item_code = batch.item.code if batch.item else None
+    batch.item_name = batch.item.name if batch.item else None
+    return batch
+
+
+@router.post("/{batch_id}/dispose", response_model=BatchResponse)
+async def dispose_batch(
+    batch_id: uuid.UUID,
+    payload: BatchDispose | None = None,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('inventory.manage')),
+):
+    """Dispose/scrap a REJECTED lot: physically write off its remaining stock
+    (posts every balance row OUT so the qty leaves stock-on-hand) and mark the
+    lot DISPOSED. Only rejected lots can be disposed — reject first. Mirrors the
+    consumed-beam write-off. Irreversible."""
+    result = await db.execute(select(Batch).options(joinedload(Batch.item)).filter(Batch.id == batch_id))
+    batch = result.scalars().first()
+    if not batch:
+        raise HTTPException(status_code=404, detail="Lot not found")
+    if batch.quality_status != "REJECTED":
+        raise HTTPException(status_code=400, detail="Only rejected lots can be disposed")
+
+    reason = (payload.reason if payload else None) or None
+    reason = reason.strip() or None if reason else None
+
+    # Post out every balance row keyed to this lot (preserving each row's
+    # location + variant), moving exactly the on-hand so it can't go negative.
+    rows = (await db.execute(
+        select(StockBalance)
+        .filter(StockBalance.batch_key == str(batch.id), StockBalance.qty > 0)
+    )).scalars().all()
+    disposed = 0.0
+    for r in rows:
+        portion = float(r.qty)
+        ids = [uuid.UUID(x) for x in (r.variant_key or "").split(",") if x]
+        await stock_service.add_stock_entry(
+            db, item_id=batch.item_id, location_id=r.location_id, qty_change=-portion,
+            reference_type="QC Dispose", reference_id=batch.batch_number,
+            attribute_value_ids=ids, batch_id=batch.id,
+        )
+        disposed += portion
+
+    batch.quality_status = "DISPOSED"
+    await db.commit()
+    await audit_service.log_activity(
+        db, current_user.id, "DISPOSE", "Batch", str(batch.id),
+        details=f"Disposed rejected lot {batch.batch_number} ({disposed:g} written off)"
+        + (f": {reason}" if reason else ""),
+    )
+    await manager.broadcast({"type": "STOCK_UPDATE"})
     try:
         await kpi_service.invalidate_kpis_async(db)
         await manager.broadcast({"type": "KPI_UPDATE"})

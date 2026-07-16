@@ -359,6 +359,12 @@ class BatchSplit(BaseModel):
     qty: float
     reason: str | None = None
 
+
+class BatchDispose(BaseModel):
+    """Dispose/scrap a REJECTED lot: physically write off its remaining stock
+    (posts it OUT of every balance row) and mark the lot DISPOSED. Irreversible."""
+    reason: str | None = None
+
 class MOCompletionReject(BaseModel):
     """Completion-level reject (API/un-lotted outputs; lot page uses /batches/{id}/reject)."""
     reason: str | None = None

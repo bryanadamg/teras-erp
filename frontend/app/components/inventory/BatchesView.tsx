@@ -72,6 +72,37 @@ function RejectIconButton({ classic, onClick }: { classic: boolean; onClick: () 
   );
 }
 
+const DISPOSE_TITLE = 'Dispose rejected lot — physically write off its remaining stock (deducts from on-hand)';
+
+// Dispose action — only on REJECTED lots; scraps remaining stock, like a consumed beam.
+function DisposeIconButton({ classic, onClick }: { classic: boolean; onClick: () => void }) {
+  if (classic) {
+    return (
+      <button
+        onClick={onClick}
+        title={DISPOSE_TITLE}
+        style={{
+          fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, padding: '2px 7px', cursor: 'pointer',
+          background: 'linear-gradient(to bottom, #f0d0d0, #c07070)',
+          border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#600',
+          display: 'inline-flex', alignItems: 'center', borderRadius: 0,
+        }}
+      >
+        <i className="bi bi-trash" />
+      </button>
+    );
+  }
+  return (
+    <button
+      className="btn btn-sm btn-outline-danger d-inline-flex align-items-center"
+      onClick={onClick}
+      title={DISPOSE_TITLE}
+    >
+      <i className="bi bi-trash" />
+    </button>
+  );
+}
+
 interface Batch {
   id: string;
   batch_number: string;
@@ -337,6 +368,34 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
       showToast(err.message, 'danger');
     } finally {
       setRejecting(false);
+    }
+  };
+
+  // Dispose a rejected lot: physically write off its remaining stock (deducts
+  // from on-hand), like a consumed beam. Only offered on REJECTED lots.
+  const handleDispose = async (batch: Batch) => {
+    const rem = Number(batch.remaining ?? 0);
+    const ok = await confirm({
+      title: 'Dispose Rejected Lot',
+      message: `Dispose lot ${batch.batch_number}? Its remaining ${rem.toFixed(2)} will be physically written off and deducted from stock on-hand. This cannot be undone.`,
+      confirmText: 'Dispose',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    try {
+      const res = await authFetch(`${apiBase}/batches/${batch.id}/dispose`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: null }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to dispose lot');
+      }
+      showToast(`Lot ${batch.batch_number} disposed`, 'success');
+      fetchBatches();
+    } catch (err: any) {
+      showToast(err.message, 'danger');
     }
   };
 
@@ -714,6 +773,9 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                         {b.quality_status === 'REJECTED' && (
                           <span style={{ marginLeft: 5, fontSize: 9, fontWeight: 'bold', color: '#900', border: '1px solid #c88', background: '#fbe4e4', padding: '0 3px' }}>REJECTED</span>
                         )}
+                        {b.quality_status === 'DISPOSED' && (
+                          <span style={{ marginLeft: 5, fontSize: 9, fontWeight: 'bold', color: '#555', border: '1px solid #aaa', background: '#eee', padding: '0 3px' }}>DISPOSED</span>
+                        )}
                       </td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{batchItemCode(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{batchItemName(b)}</td>
@@ -732,8 +794,11 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                           {b.quality_status !== 'REJECTED' && (b.remaining ?? 0) > 0 && (
                             <SplitIconButton classic onClick={() => openSplit(b)} />
                           )}
-                          {b.quality_status !== 'REJECTED' && (
+                          {b.quality_status !== 'REJECTED' && b.quality_status !== 'DISPOSED' && (
                             <RejectIconButton classic onClick={() => openReject(b)} />
+                          )}
+                          {b.quality_status === 'REJECTED' && (b.remaining ?? 0) > 0 && (
+                            <DisposeIconButton classic onClick={() => handleDispose(b)} />
                           )}
                           <MenuTriggerButton classic onClick={e => toggle(b.id, e)} />
                         </div>
@@ -813,6 +878,7 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                       <td>
                         <strong>{b.batch_number}</strong>
                         {b.quality_status === 'REJECTED' && <span className="badge bg-danger ms-1">REJECTED</span>}
+                        {b.quality_status === 'DISPOSED' && <span className="badge bg-secondary ms-1">DISPOSED</span>}
                       </td>
                       <td>{batchItemCode(b)}</td>
                       <td>{batchItemName(b)}</td>
@@ -831,8 +897,11 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                           {b.quality_status !== 'REJECTED' && (b.remaining ?? 0) > 0 && (
                             <SplitIconButton classic={false} onClick={() => openSplit(b)} />
                           )}
-                          {b.quality_status !== 'REJECTED' && (
+                          {b.quality_status !== 'REJECTED' && b.quality_status !== 'DISPOSED' && (
                             <RejectIconButton classic={false} onClick={() => openReject(b)} />
+                          )}
+                          {b.quality_status === 'REJECTED' && (b.remaining ?? 0) > 0 && (
+                            <DisposeIconButton classic={false} onClick={() => handleDispose(b)} />
                           )}
                           <MenuTriggerButton classic={false} onClick={e => toggle(b.id, e)} />
                         </div>

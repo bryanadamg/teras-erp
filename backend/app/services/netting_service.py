@@ -58,9 +58,10 @@ from app.services.stock_service import _generate_variant_key
 
 
 def rejected_batch_keys():
-    """Subquery of batch_keys whose lot is QC-REJECTED — their stock is
-    physically present but must never count as good/available."""
-    return select(cast(Batch.id, String)).where(Batch.quality_status == "REJECTED")
+    """Subquery of batch_keys whose lot is QC-REJECTED or DISPOSED — their stock
+    is physically present (rejected) or being written off (disposed) but must
+    never count as good/available."""
+    return select(cast(Batch.id, String)).where(Batch.quality_status.in_(("REJECTED", "DISPOSED")))
 
 ONGOING = ("PENDING", "IN_PROGRESS")
 
