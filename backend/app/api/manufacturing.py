@@ -544,9 +544,12 @@ async def get_manufacturing_order(
     current_user: User = Depends(get_current_user),
 ):
     mo_map = await load_mo_tree(db, [mo_id])
-    if not mo_map:
+    # load_mo_tree returns the whole tree (requested MO + descendants) keyed by id in
+    # arbitrary DB order — pick the REQUESTED mo, not list(keys)[0], which could be a
+    # child MO whose .completions omit this WO's bags (broke per-bag label reprint).
+    mo = next((m for m in mo_map.values() if str(m.id) == str(mo_id)), None)
+    if mo is None:
         raise HTTPException(status_code=404, detail="Manufacturing order not found")
-    mo = mo_map[list(mo_map.keys())[0]]
     populate_mo_ids(mo)
     return mo
 
