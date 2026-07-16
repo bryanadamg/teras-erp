@@ -113,6 +113,7 @@ export default function BagLabelPrintModal({
                 width="90vw"
                 maxWidth={880}
                 height="88vh"
+                modeless
             >
                     <div style={{ flex: 1, background: '#e0e0e0', overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
                         {bags.length === 0 && (

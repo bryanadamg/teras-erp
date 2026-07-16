@@ -6,6 +6,40 @@ import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
 import { useConfirm } from '../../context/ConfirmContext';
+import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
+import { useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
+
+const REJECT_TITLE = 'QC reject — lot drops out of good stock; produced qty returns to its MO';
+
+// Reject action — icon-only button; native title tooltip explains it, matching
+// the WO action buttons.
+function RejectIconButton({ classic, onClick }: { classic: boolean; onClick: () => void }) {
+  if (classic) {
+    return (
+      <button
+        onClick={onClick}
+        title={REJECT_TITLE}
+        style={{
+          fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, padding: '2px 7px', cursor: 'pointer',
+          background: 'linear-gradient(to bottom, #ffe0b0, #e0a050)',
+          border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#663300',
+          display: 'inline-flex', alignItems: 'center', borderRadius: 0,
+        }}
+      >
+        <i className="bi bi-slash-circle" />
+      </button>
+    );
+  }
+  return (
+    <button
+      className="btn btn-sm btn-outline-warning d-inline-flex align-items-center"
+      onClick={onClick}
+      title={REJECT_TITLE}
+    >
+      <i className="bi bi-slash-circle" />
+    </button>
+  );
+}
 
 interface Batch {
   id: string;
@@ -24,6 +58,7 @@ interface Batch {
   location_name: string | null;
   quality_status?: string;   // GOOD | REJECTED
   // Production origin (beam batches)
+  mo_id: string | null;
   mo_code: string | null;
   production_run_code: string | null;
   sales_order_code: string | null;
@@ -106,6 +141,30 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
     setRejectBatch(b);
     setRejectReason('');
     setRejectQty(b.remaining != null ? String(Number(b.remaining)) : '');
+  };
+
+  // Bag-label reprint. GRG (greige) lots are born as weaving MOCompletions; fetch
+  // the origin MO, find the completion that produced this lot, and hand it to the
+  // same BagLabelPrintModal the WO page uses — full-fidelity label, no new payload.
+  const [labelData, setLabelData] = useState<{ bags: any[]; wo: any; mo: any; seqStart: number } | null>(null);
+  const { openId, pos, toggle, close } = useFloatingMenu(160);
+
+  const openBatchLabel = async (b: Batch) => {
+    if (!b.mo_id) { showToast('No production origin for this lot', 'warning'); return; }
+    const res = await authFetch(`${apiBase}/manufacturing-orders/${b.mo_id}`);
+    if (!res.ok) { showToast('Could not load MO for label', 'danger'); return; }
+    const mo = await res.json();
+    const comps = (mo.completions || []).filter((c: any) => !c.rejected && c.output_batch_number);
+    const comp = comps.find((c: any) => String(c.output_batch_id || '') === String(b.id))
+      || comps.find((c: any) => c.output_batch_number === b.batch_number);
+    if (!comp) { showToast('No bag completion found for this lot', 'warning'); return; }
+    const wo = (mo.work_orders || []).find((w: any) => String(w.id) === String(comp.work_order_id || b.source_wo_id || '')) || null;
+    // Bag sequence = this completion's order among its WO's non-rejected lotted bags.
+    const woBags = comps
+      .filter((c: any) => String(c.work_order_id || '') === String(comp.work_order_id || ''))
+      .sort((a: any, c: any) => new Date(a.created_at).getTime() - new Date(c.created_at).getTime());
+    const seqStart = Math.max(1, woBags.findIndex((c: any) => String(c.id) === String(comp.id)) + 1);
+    setLabelData({ bags: [comp], wo, mo, seqStart });
   };
 
   // Debounce the search box 350ms before it drives a server fetch (matches item search).
@@ -594,19 +653,13 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.notes || '-'}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{b.created_by || '-'}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{new Date(b.created_at).toLocaleDateString()}</td>
-                      <td style={{ ...xpTd(i % 2 === 1), whiteSpace: 'nowrap', background: expandedRows[b.id] ? '#d6e4f7' : undefined }} onClick={e => e.stopPropagation()}>
-                        {b.quality_status !== 'REJECTED' && (
-                          <button
-                            style={xpBtn({ background: 'linear-gradient(to bottom, #ffe0b0, #e0a050)', fontSize: 10, padding: '2px 7px', marginRight: 4, color: '#663300' })}
-                            onClick={() => openReject(b)}
-                            title="QC reject — lot drops out of good stock; produced qty returns to its MO"
-                          >
-                            Reject
-                          </button>
-                        )}
-                        <button style={xpBtn({ background: 'linear-gradient(to bottom, #ffd0d0, #e08080)', fontSize: 10, padding: '2px 7px' })} onClick={() => handleDelete(b)}>
-                          <i className="bi bi-trash" />
-                        </button>
+                      <td style={{ ...xpTd(i % 2 === 1), whiteSpace: 'nowrap', textAlign: 'right', background: expandedRows[b.id] ? '#d6e4f7' : undefined }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+                          {b.quality_status !== 'REJECTED' && (
+                            <RejectIconButton classic onClick={() => openReject(b)} />
+                          )}
+                          <MenuTriggerButton classic onClick={e => toggle(b.id, e)} />
+                        </div>
                       </td>
                     </tr>
                     {expandedRows[b.id] && (
@@ -696,19 +749,13 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
                       <td>{b.notes || '-'}</td>
                       <td>{b.created_by || '-'}</td>
                       <td>{new Date(b.created_at).toLocaleDateString()}</td>
-                      <td style={{ whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
-                        {b.quality_status !== 'REJECTED' && (
-                          <button
-                            className="btn btn-sm btn-outline-warning me-1"
-                            onClick={() => openReject(b)}
-                            title="QC reject — lot drops out of good stock; produced qty returns to its MO"
-                          >
-                            Reject
-                          </button>
-                        )}
-                        <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(b)}>
-                          <i className="bi bi-trash" />
-                        </button>
+                      <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }} onClick={e => e.stopPropagation()}>
+                        <div className="d-inline-flex align-items-center gap-1 justify-content-end">
+                          {b.quality_status !== 'REJECTED' && (
+                            <RejectIconButton classic={false} onClick={() => openReject(b)} />
+                          )}
+                          <MenuTriggerButton classic={false} onClick={e => toggle(b.id, e)} />
+                        </div>
                       </td>
                     </tr>
                     {expandedRows[b.id] && (
@@ -832,6 +879,33 @@ export default function BatchesView({ items, authFetch, apiBase }: BatchesViewPr
         </ModalWrapper>
         );
       })()}
+
+      {/* ── Row ⋯ menu: Print Label (GRG only) + Delete ── */}
+      {openId && (() => {
+        const b = batches.find(x => x.id === openId);
+        if (!b) return null;
+        const canLabel = classifyLot(b.batch_number) === STAGE_META.GRG;
+        return (
+          <FloatingMenu
+            pos={pos}
+            items={[
+              { key: 'label', label: 'Print Label', icon: 'bi-printer', hidden: !canLabel, title: "Print this greige bag's label", onClick: () => { close(); openBatchLabel(b); } },
+              { key: 'delete', label: 'Delete', icon: 'bi-trash', danger: true, onClick: () => { close(); handleDelete(b); } },
+            ]}
+          />
+        );
+      })()}
+
+      {/* ── Bag Label Print (greige lots) ── */}
+      {labelData && (
+        <BagLabelPrintModal
+          bags={labelData.bags}
+          workOrder={labelData.wo}
+          parentMO={labelData.mo}
+          seqStart={labelData.seqStart}
+          onClose={() => setLabelData(null)}
+        />
+      )}
     </div>
   );
 }

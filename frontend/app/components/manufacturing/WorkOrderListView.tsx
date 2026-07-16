@@ -508,7 +508,7 @@ export default function WorkOrderListView({
                                                             <td style={{ padding: '2px 5px', color: '#555' }}>
                                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>
                                                                     <span>{c.work_center_name || '—'}</span>
-                                                                    {isLotWOType && !c.rejected && (
+                                                                    {isLotWOType && !c.rejected && c.output_batch_number && (
                                                                         <button
                                                                             type="button"
                                                                             onClick={() => openBagLabels(wo, c.id)}
