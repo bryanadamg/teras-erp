@@ -6,6 +6,8 @@ import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
+import { StatusChip } from '../shared/xpTheme';
+import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 
 // ── XP style constants (consistent with DyeingSettingView) ──────────────────
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
@@ -473,8 +475,8 @@ export default function LabDipRequestView({
                                                         ? 'inset 0 2px 5px rgba(0,0,0,0.28), inset 0 -2px 5px rgba(0,0,0,0.16)'
                                                         : 'inset 0 2px 6px rgba(0,0,0,0.18), inset 0 -2px 6px rgba(0,0,0,0.10)',
                                                     ...(classic
-                                                        ? { background: '#ece9d8', border: '1px solid #808080', display: 'flex', minHeight: 170, overflow: 'hidden' }
-                                                        : { background: '#f8fafc', border: '1px solid #ced4da', borderRadius: 8, display: 'flex', minHeight: 170, overflow: 'hidden' }),
+                                                        ? { background: '#d8d3c8', border: '1px solid #808080', display: 'flex', minHeight: 170, overflow: 'hidden' }
+                                                        : { background: '#e9edf1', border: '1px solid #ced4da', display: 'flex', minHeight: 170, overflow: 'hidden' }),
                                                 }}>
                                                     {/* LEFT — Item variants + status */}
                                                     <div style={{ width: '48%', borderRight: classic ? '1px solid #a0988c' : '1px solid #dbe1ea', display: 'flex', flexDirection: 'column' }}>
