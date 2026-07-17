@@ -1372,6 +1372,10 @@ class ColorResponse(BaseModel):
     status: str = "active"
     attribute_value_id: Optional[UUID] = None
     source_lab_dip_line_id: Optional[UUID] = None
+    # Provenance: the LabDip request this shade was minted from (approval) or spawned
+    # from (manual "+ Color"). Derived in the list endpoint, not stored on the row.
+    source_lab_dip_request_id: Optional[UUID] = None
+    source_lab_dip_code: Optional[str] = None
     recipe_count: int = 0
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)

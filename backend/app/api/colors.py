@@ -8,7 +8,7 @@ from app.db.session import get_async_db
 from app.models.color import Color
 from app.models.attribute import Attribute, AttributeValue
 from app.models.dyeing_setting import DyeRecipe
-from app.models.lab_dip import LabDipRequest, LabDipLine
+from app.models.lab_dip import LabDipRequest, LabDipLine, LabDipItem
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission
 from app.services import audit_service
@@ -41,10 +41,39 @@ async def _recipe_counts(db: AsyncSession, color_ids: list[uuid.UUID]) -> dict:
     return {row[0]: row[1] for row in result.all()}
 
 
-def _serialize(c: Color, recipe_count: int = 0) -> dict:
+async def _lab_dip_provenance(db: AsyncSession, color_ids: list[uuid.UUID]) -> dict:
+    """Map color_id → (request_id, request_code) of the LabDip it came from.
+    Two paths: approval-minted (LabDipItem.approved_color_id) takes priority; manual
+    "+ Color" spawns (Color.source_lab_dip_line_id → line → request) fill the rest."""
+    if not color_ids:
+        return {}
+    prov: dict = {}
+    # Fallback path first so the priority path overwrites it.
+    line_rows = (await db.execute(
+        select(Color.id, LabDipRequest.id, LabDipRequest.code)
+        .join(LabDipLine, Color.source_lab_dip_line_id == LabDipLine.id)
+        .join(LabDipRequest, LabDipLine.lab_dip_request_id == LabDipRequest.id)
+        .filter(Color.id.in_(color_ids))
+    )).all()
+    for cid, rid, code in line_rows:
+        prov[cid] = (rid, code)
+    # Priority path: the variant approval that minted the shade.
+    item_rows = (await db.execute(
+        select(LabDipItem.approved_color_id, LabDipRequest.id, LabDipRequest.code)
+        .join(LabDipRequest, LabDipItem.lab_dip_request_id == LabDipRequest.id)
+        .filter(LabDipItem.approved_color_id.in_(color_ids))
+    )).all()
+    for cid, rid, code in item_rows:
+        prov[cid] = (rid, code)
+    return prov
+
+
+def _serialize(c: Color, recipe_count: int = 0, provenance: tuple | None = None) -> dict:
     d = {col.name: getattr(c, col.name) for col in c.__table__.columns}
     d["customer_name"] = c.customer.name if c.customer else None
     d["recipe_count"] = recipe_count
+    d["source_lab_dip_request_id"] = provenance[0] if provenance else None
+    d["source_lab_dip_code"] = provenance[1] if provenance else None
     return d
 
 
@@ -82,9 +111,11 @@ async def list_colors(
     q = q.order_by(Color.code).offset((page - 1) * size).limit(size)
     colors = (await db.execute(q)).scalars().all()
 
-    counts = await _recipe_counts(db, [c.id for c in colors])
+    color_ids = [c.id for c in colors]
+    counts = await _recipe_counts(db, color_ids)
+    prov = await _lab_dip_provenance(db, color_ids)
     return {
-        "items": [_serialize(c, counts.get(c.id, 0)) for c in colors],
+        "items": [_serialize(c, counts.get(c.id, 0), prov.get(c.id)) for c in colors],
         "total": total,
         "page": page,
         "size": size,
