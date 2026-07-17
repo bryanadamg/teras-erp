@@ -6,12 +6,12 @@ import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import CodeConfigModal, { CodeConfig, buildCodeParts, buildCodeWithCounter } from '../shared/CodeConfigModal';
+import CodeConfigModal, { CodeConfig } from '../shared/CodeConfigModal';
 import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import Pager from '../shared/Pager';
-import { StatusChip } from '../shared/xpTheme';
-import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow } from '../shared/listViewTheme';
+import { StatusChip, FormSection } from '../shared/xpTheme';
+import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvLabel } from '../shared/listViewTheme';
 import { API_BASE } from '../shared/apiBase';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
@@ -84,7 +84,6 @@ interface RecipeForm {
     notes: string;
     is_active: boolean;
     lines: RecipeLine[];
-    attribute_value_ids: string[];
 }
 
 const emptyForm = (): RecipeForm => ({
@@ -96,7 +95,6 @@ const emptyForm = (): RecipeForm => ({
     notes: '',
     is_active: true,
     lines: [],
-    attribute_value_ids: [],
 });
 
 interface Props {
@@ -187,22 +185,29 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
         loadRecipes();
     }, [loadRecipes]);
 
-    // Auto-generate code from config + selected attribute values (new recipes only)
+    // Recipe code base = configurable prefix + selected color's code (Configure edits
+    // prefix/separator). Counter is a 5-digit suffix, incremented per base.
+    const recipeCodeBase = useCallback((colorCode: string): string => {
+        const sep = codeConfig?.separator || '-';
+        const prefix = codeConfig?.prefix || 'DR';
+        return [prefix, colorCode].filter(Boolean).join(sep);
+    }, [codeConfig]);
+
+    // Auto-generate code + derive name/standard from the selected Library Color
+    // (new recipes only — a recipe is made FOR one color code).
     useEffect(() => {
-        if (!codeConfig) return;
         if (editingRecipe) return;
-        const variantNames: string[] = (codeConfig.variantAttributeNames || []).map((attrName: string) => {
-            const attr = attributes.find((a: any) => a.name === attrName);
-            if (!attr) return '';
-            const sel = (attr.values || []).find((v: any) => form.attribute_value_ids.includes(String(v.id)));
-            return sel?.value || '';
-        }).filter(Boolean);
-        const parts = buildCodeParts(codeConfig, '', variantNames);
-        const base = parts.join(codeConfig.separator);
+        const color = colors.find((c: any) => String(c.id) === String(form.color_id));
+        if (!color) {
+            setForm(f => (f.code || f.name ? { ...f, code: '', name: '', color_standard: '' } : f));
+            return;
+        }
+        const sep = codeConfig?.separator || '-';
+        const base = recipeCodeBase(color.code || '');
         const matchingCounters = recipes
             .filter(r => {
                 if (!r.code) return false;
-                const m = r.code.match(/^(.+)-(\d{5})$/);
+                const m = r.code.match(/^(.+)[-_ ](\d{5})$/);
                 return m && m[1] === base;
             })
             .map(r => {
@@ -210,9 +215,14 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                 return m ? parseInt(m[1], 10) : 0;
             });
         const counter = matchingCounters.length > 0 ? Math.max(...matchingCounters) + 1 : 1;
-        setForm(f => ({ ...f, code: buildCodeWithCounter(codeConfig, counter, '', variantNames) }));
+        setForm(f => ({
+            ...f,
+            code: [base, String(counter).padStart(5, '0')].join(sep),
+            name: color.name || color.code || '',
+            color_standard: color.pantone_ref || color.code || '',
+        }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [form.attribute_value_ids, codeConfig, editingRecipe]);
+    }, [form.color_id, codeConfig, editingRecipe, colors]);
 
     const selectedRecipe = recipes.find(r => String(r.id) === String(selectedId)) || null;
 
@@ -257,7 +267,6 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                 uom_id: l.uom_id || null,
                 sort_order: l.sort_order ?? '',
             })),
-            attribute_value_ids: (recipe.attribute_value_ids || []).map(String),
         });
         setWashBaths((recipe.wash_baths || []).map((wb: any) => ({
             bath_number: wb.bath_number,
@@ -279,8 +288,12 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
     };
 
     const handleSave = async () => {
+        if (!form.color_id) {
+            showToast('Select a Library Color to create a recipe for.', 'warning');
+            return;
+        }
         if (!form.code.trim() || !form.name.trim()) {
-            showToast('Code and Name are required.', 'warning');
+            showToast('Code could not be generated — pick a color with a code.', 'warning');
             return;
         }
         setSaving(true);
@@ -296,7 +309,6 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                 })),
                 wash_baths: washBaths,
                 finishing_steps: finishingSteps,
-                attribute_value_ids: form.attribute_value_ids,
             };
             let res;
             if (editingRecipe) {
@@ -678,19 +690,35 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                         </>
                     }
                 >
-                    <div>
-                            {/* Basic fields grid */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', marginBottom: 10 }}>
+                    {/* ── Recipe Info ── */}
+                    {/* A recipe is made FOR one Library Color. The color drives the recipe
+                        code + name + color standard, so those are read-only here — the
+                        panel only asks for the color plus recipe-specific fields. */}
+                    <FormSection title="Recipe Info" classic={classic}>
+                        <div style={{ marginBottom: 8 }}>
+                            <label style={lvLabel(classic)}>
+                                Library Color <span style={{ color: classic ? 'red' : '#dc2626' }}>*</span>
+                            </label>
+                            <SearchableSelect
+                                options={colorOptions}
+                                value={form.color_id}
+                                onChange={(v: string) => setForm(f => ({ ...f, color_id: v }))}
+                                placeholder="Select color code to make recipe for…"
+                            />
+                            <div style={{ fontSize: classic ? 10 : 12, color: classic ? '#666' : '#64748b', marginTop: 3 }}>
+                                Recipe code, name and color standard are taken from the selected color.
+                            </div>
+                        </div>
+                        {form.color_id && (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', marginBottom: 8 }}>
                                 <div>
-                                    <label style={{ display: 'block', marginBottom: 2, color: classic ? '#333' : '#475569', fontSize: classic ? undefined : 12, fontWeight: classic ? undefined : 600 }}>
-                                        Code <span style={{ color: classic ? 'red' : '#dc2626' }}>*</span>
-                                    </label>
+                                    <label style={lvLabel(classic)}>Recipe Code</label>
                                     <div style={{ display: 'flex', gap: 4 }}>
                                         <input
-                                            style={{ ...inputStyle(classic), flex: 1 }}
+                                            readOnly
+                                            style={{ ...inputStyle(classic), flex: 1, background: classic ? '#ece9d8' : '#f1f5f9', color: classic ? '#333' : '#475569' }}
                                             value={form.code}
-                                            onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
-                                            placeholder="e.g. DR-001"
+                                            placeholder="(auto)"
                                         />
                                         <button
                                             type="button"
@@ -704,58 +732,26 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                                     </div>
                                 </div>
                                 <div>
-                                    <label style={{ display: 'block', marginBottom: 2, color: classic ? '#333' : '#475569', fontSize: classic ? undefined : 12, fontWeight: classic ? undefined : 600 }}>
-                                        Name <span style={{ color: classic ? 'red' : '#dc2626' }}>*</span>
-                                    </label>
+                                    <label style={lvLabel(classic)}>Color Standard</label>
                                     <input
-                                        style={{ ...inputStyle(classic), width: '100%', boxSizing: 'border-box' }}
-                                        value={form.name}
-                                        onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                                        placeholder="Recipe name"
-                                    />
-                                </div>
-                                <div>
-                                    <label style={{ display: 'block', marginBottom: 2, color: classic ? '#333' : '#475569', fontSize: classic ? undefined : 12, fontWeight: classic ? undefined : 600 }}>Library Color</label>
-                                    <SearchableSelect
-                                        options={colorOptions}
-                                        value={form.color_id}
-                                        onChange={(v: string) => setForm(f => ({ ...f, color_id: v }))}
-                                        placeholder="Link to Color Library…"
-                                    />
-                                </div>
-                                <div>
-                                    <label style={{ display: 'block', marginBottom: 2, color: classic ? '#333' : '#475569', fontSize: classic ? undefined : 12, fontWeight: classic ? undefined : 600 }}>Color Standard</label>
-                                    <input
-                                        style={{ ...inputStyle(classic), width: '100%', boxSizing: 'border-box' }}
-                                        value={form.color_standard}
-                                        onChange={e => setForm(f => ({ ...f, color_standard: e.target.value }))}
-                                        placeholder="e.g. Pantone 18-1550"
-                                    />
-                                </div>
-                                <div>
-                                    <label style={{ display: 'block', marginBottom: 2, color: classic ? '#333' : '#475569', fontSize: classic ? undefined : 12, fontWeight: classic ? undefined : 600 }}>Substrate Type</label>
-                                    <input
-                                        style={{ ...inputStyle(classic), width: '100%', boxSizing: 'border-box' }}
-                                        value={form.substrate_type}
-                                        onChange={e => setForm(f => ({ ...f, substrate_type: e.target.value }))}
-                                        placeholder="e.g. Cotton, Polyester"
+                                        readOnly
+                                        style={{ ...inputStyle(classic), width: '100%', boxSizing: 'border-box', background: classic ? '#ece9d8' : '#f1f5f9', color: classic ? '#333' : '#475569' }}
+                                        value={form.color_standard || '—'}
                                     />
                                 </div>
                             </div>
-                            <div style={{ marginBottom: 8 }}>
-                                <label style={{ display: 'block', marginBottom: 2, color: classic ? '#333' : '#475569', fontSize: classic ? undefined : 12, fontWeight: classic ? undefined : 600 }}>Notes</label>
-                                <textarea
-                                    style={{
-                                        ...inputStyle(classic), height: 'auto', width: '100%',
-                                        boxSizing: 'border-box', resize: 'vertical', minHeight: 48, padding: classic ? '2px 4px' : '4px 8px',
-                                    }}
-                                    value={form.notes}
-                                    onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                                    rows={3}
-                                    placeholder="Optional notes"
+                        )}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px' }}>
+                            <div>
+                                <label style={lvLabel(classic)}>Substrate Type</label>
+                                <input
+                                    style={{ ...inputStyle(classic), width: '100%', boxSizing: 'border-box' }}
+                                    value={form.substrate_type}
+                                    onChange={e => setForm(f => ({ ...f, substrate_type: e.target.value }))}
+                                    placeholder="e.g. Cotton, Polyester"
                                 />
                             </div>
-                            <div style={{ marginBottom: 10 }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 2 }}>
                                 <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', color: classic ? '#333' : '#334155', fontSize: classic ? undefined : 13 }}>
                                     <input
                                         type="checkbox"
@@ -766,245 +762,183 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                                     Active
                                 </label>
                             </div>
-
-                            {/* Attribute Matching */}
-                            {attributes.length > 0 && (
-                                <div style={{ marginBottom: 10 }}>
-                                    <div style={classic ? {
-                                        background: '#dde8f5', border: '1px solid #7f9db9',
-                                        padding: '2px 6px', fontWeight: 'bold', fontSize: 11,
-                                        color: '#1a1a1a', marginBottom: 4,
-                                    } : {
-                                        background: '#eef1f6', border: '1px solid #dbe1ea',
-                                        borderRadius: 7,
-                                        padding: '6px 10px', fontWeight: 700, fontSize: 11,
-                                        textTransform: 'uppercase', letterSpacing: '0.04em',
-                                        color: '#475569', marginBottom: 6,
-                                    }}>
-                                        Attribute Match (for auto-suggest)
-                                    </div>
-                                    <div style={classic
-                                        ? { border: '1px solid #c0d4e8', padding: '6px 8px', background: '#f7f9fc' }
-                                        : { border: '1px solid #dbe1ea', borderRadius: 9, padding: '8px 10px', background: '#f8fafc' }
-                                    }>
-                                        <div style={{ fontSize: classic ? 10 : 12, color: classic ? '#666' : '#64748b', marginBottom: 6 }}>
-                                            Link this recipe to attribute values. The system will suggest it when a Work Order matches all selected values.
-                                        </div>
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '4px 12px' }}>
-                                            {attributes.map((attr: any) => {
-                                                if (!attr.values?.length) return null;
-                                                const selectedId = (attr.values as any[]).find(
-                                                    (v: any) => form.attribute_value_ids.includes(String(v.id))
-                                                )?.id?.toString() || '';
-                                                return (
-                                                    <div key={attr.id}>
-                                                        <div style={{ fontSize: classic ? 10 : 12, color: classic ? '#555' : '#64748b', marginBottom: 2 }}>{attr.name}</div>
-                                                        <select
-                                                            style={{ ...inputStyle(classic), height: classic ? 22 : 'auto', width: '100%' }}
-                                                            value={selectedId}
-                                                            onChange={e => {
-                                                                const newValId = e.target.value;
-                                                                const attrValIds = (attr.values as any[]).map((v: any) => String(v.id));
-                                                                setForm(f => ({
-                                                                    ...f,
-                                                                    attribute_value_ids: [
-                                                                        ...f.attribute_value_ids.filter(x => !attrValIds.includes(x)),
-                                                                        ...(newValId ? [newValId] : []),
-                                                                    ],
-                                                                }));
-                                                            }}
-                                                        >
-                                                            <option value="">-- none --</option>
-                                                            {(attr.values as any[]).map((val: any) => (
-                                                                <option key={val.id} value={String(val.id)}>{val.value}</option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Chemical Lines */}
-                            <div style={{ marginBottom: 8 }}>
-                                <div style={classic ? {
-                                    background: '#dde8f5', borderBottom: '1px solid #7f9db9',
-                                    padding: '2px 6px', fontWeight: 'bold', fontSize: 11, color: '#1a1a1a',
-                                    border: '1px solid #7f9db9', borderTopLeftRadius: 2, borderTopRightRadius: 2,
-                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                } : {
-                                    background: '#eef1f6', borderBottom: '1px solid #dbe1ea',
-                                    padding: '7px 12px', fontWeight: 700, fontSize: 11, color: '#475569',
-                                    textTransform: 'uppercase', letterSpacing: '0.04em',
-                                    border: '1px solid #dbe1ea', borderTopLeftRadius: 9, borderTopRightRadius: 9,
-                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                }}>
-                                    <span>Chemical Lines</span>
-                                </div>
-                                <div style={classic
-                                    ? { border: '1px solid #7f9db9', borderTop: 'none' }
-                                    : { border: '1px solid #dbe1ea', borderTop: 'none', borderBottomLeftRadius: 9, borderBottomRightRadius: 9, overflow: 'hidden' }
-                                }>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: classic ? 10 : 13 }}>
-                                        <thead>
-                                            <tr style={classic ? { background: '#eef2f8' } : {}}>
-                                                <th style={thStyle({ width: 24 })}>#</th>
-                                                <th style={thStyle({ width: 80 })}>Type</th>
-                                                <th style={thStyle()}>Item</th>
-                                                <th style={thStyle({ width: 80 })}>Qty/100kg</th>
-                                                <th style={thStyle({ width: 80, fontSize: classic ? 11 : 11 })}>g/L</th>
-                                                <th style={thStyle({ width: 50 })}>Sort</th>
-                                                <th style={thStyle({ textAlign: 'center', width: 28 })}></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {form.lines.length === 0 && (
-                                                <tr>
-                                                    <td colSpan={7} style={{ padding: '6px', color: classic ? '#888' : '#64748b', textAlign: 'center' }}>
-                                                        No lines. Click "Add Line" to begin.
-                                                    </td>
-                                                </tr>
-                                            )}
-                                            {form.lines.map((line, idx) => (
-                                                <tr key={idx} style={{ background: classic ? (idx % 2 === 0 ? 'white' : '#f7f9fc') : (idx % 2 === 0 ? '#fff' : '#f8fafc') }}>
-                                                    <td style={{ padding: classic ? '2px 4px' : '6px 10px', color: classic ? '#666' : '#64748b', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>{idx + 1}</td>
-                                                    <td style={{ padding: classic ? '2px 4px' : '6px 10px', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
-                                                        <select
-                                                            style={{ ...inputStyle(classic), height: classic ? 20 : 'auto', width: '100%' }}
-                                                            value={line.chemical_type}
-                                                            onChange={e => updateLine(idx, 'chemical_type', e.target.value)}
-                                                        >
-                                                            {LINE_TYPES.map(t => (
-                                                                <option key={t} value={t}>{t}</option>
-                                                            ))}
-                                                        </select>
-                                                    </td>
-                                                    <td style={{ padding: classic ? '2px 4px' : '6px 10px', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
-                                                        <SearchableSelect
-                                                            options={allChemicalItems.map((item: any) => ({
-                                                                value: String(item.id),
-                                                                label: item.name,
-                                                                subLabel: item.code,
-                                                            }))}
-                                                            value={line.item_id}
-                                                            onChange={val => updateLine(idx, 'item_id', val)}
-                                                            placeholder="-- select item --"
-                                                            size="sm"
-                                                        />
-                                                    </td>
-                                                    <td style={{ padding: classic ? '2px 4px' : '6px 10px', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
-                                                        <input
-                                                            type="number"
-                                                            style={{ ...inputStyle(classic), width: '100%' }}
-                                                            value={line.qty_per_100kg}
-                                                            onChange={e => updateLine(idx, 'qty_per_100kg', e.target.value)}
-                                                            placeholder="0"
-                                                            min={0}
-                                                            step="any"
-                                                        />
-                                                    </td>
-                                                    <td style={{ padding: classic ? '2px 4px' : '6px 10px', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
-                                                        <input
-                                                            type="number"
-                                                            style={{ ...inputStyle(classic), width: '100%' }}
-                                                            value={line.qty_per_liter ?? ''}
-                                                            onChange={e => updateLine(idx, 'qty_per_liter', e.target.value ? parseFloat(e.target.value) : null)}
-                                                            placeholder="0"
-                                                            min={0}
-                                                            step="any"
-                                                        />
-                                                    </td>
-                                                    <td style={{ padding: classic ? '2px 4px' : '6px 10px', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
-                                                        <input
-                                                            type="number"
-                                                            style={{ ...inputStyle(classic), width: '100%' }}
-                                                            value={line.sort_order}
-                                                            onChange={e => updateLine(idx, 'sort_order', e.target.value)}
-                                                            placeholder={String(idx + 1)}
-                                                            min={1}
-                                                        />
-                                                    </td>
-                                                    <td style={{ padding: classic ? '2px 4px' : '6px 10px', textAlign: 'center', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
-                                                        <button
-                                                            style={classic
-                                                                ? { ...xpBtn, padding: '0px 5px', fontSize: 10, color: '#aa0000' }
-                                                                : { ...modernBtn, padding: '3px 8px', fontSize: 12, color: '#dc2626', borderColor: '#f0c5c5' }
-                                                            }
-                                                            onClick={() => removeLine(idx)}
-                                                            title="Remove line"
-                                                        >X</button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                    <div style={{ padding: '4px 6px', borderTop: classic ? '1px solid #e8eef5' : '1px solid #e6eaf1', background: classic ? '#f7f9fc' : '#f8fafc' }}>
-                                        <button style={btnStyle(classic)} onClick={addLine}>Add Line</button>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
+                        <div style={{ marginTop: 8 }}>
+                            <label style={lvLabel(classic)}>Notes</label>
+                            <textarea
+                                style={{
+                                    ...inputStyle(classic), height: 'auto', width: '100%',
+                                    boxSizing: 'border-box', resize: 'vertical', minHeight: 48, padding: classic ? '2px 4px' : '4px 8px',
+                                }}
+                                value={form.notes}
+                                onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                                rows={3}
+                                placeholder="Optional notes"
+                            />
+                        </div>
+                    </FormSection>
 
-                        {/* BAK CUCI */}
-                        <div style={{ padding: '8px 12px', borderTop: classic ? '1px solid #c0d4e8' : '1px solid #e6eaf1' }}>
-                            <div style={{ fontWeight: classic ? 600 : 700, fontSize: 11, marginBottom: 6, textTransform: 'uppercase', letterSpacing: classic ? 1 : '0.04em', color: classic ? undefined : '#475569' }}>Bak Cuci</div>
+                    {/* ── Chemical Lines ── */}
+                    <FormSection title="Chemical Lines" classic={classic}>
+                        <div style={classic
+                            ? { border: '1px solid #7f9db9' }
+                            : { border: '1px solid #dbe1ea', borderRadius: 9, overflow: 'hidden' }
+                        }>
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: classic ? 10 : 13 }}>
                                 <thead>
                                     <tr style={classic ? { background: '#eef2f8' } : {}}>
-                                        <th style={thStyle({ width: 50 })}>No.</th>
-                                        <th style={thStyle()}>Description</th>
-                                        <th style={thStyle({ width: 36 })}></th>
+                                        <th style={thStyle({ width: 24 })}>#</th>
+                                        <th style={thStyle({ width: 80 })}>Type</th>
+                                        <th style={thStyle()}>Item</th>
+                                        <th style={thStyle({ width: 80 })}>Qty/100kg</th>
+                                        <th style={thStyle({ width: 80, fontSize: classic ? 11 : 11 })}>g/L</th>
+                                        <th style={thStyle({ width: 50 })}>Sort</th>
+                                        <th style={thStyle({ textAlign: 'center', width: 28 })}></th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {washBaths.map((wb, i) => (
-                                        <tr key={i} style={{ background: classic ? (i % 2 === 0 ? 'white' : '#f7f9fc') : (i % 2 === 0 ? '#fff' : '#f8fafc') }}>
+                                    {form.lines.length === 0 && (
+                                        <tr>
+                                            <td colSpan={7} style={{ padding: '6px', color: classic ? '#888' : '#64748b', textAlign: 'center' }}>
+                                                No lines. Click "Add Line" to begin.
+                                            </td>
+                                        </tr>
+                                    )}
+                                    {form.lines.map((line, idx) => (
+                                        <tr key={idx} style={{ background: classic ? (idx % 2 === 0 ? 'white' : '#f7f9fc') : (idx % 2 === 0 ? '#fff' : '#f8fafc') }}>
+                                            <td style={{ padding: classic ? '2px 4px' : '6px 10px', color: classic ? '#666' : '#64748b', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>{idx + 1}</td>
                                             <td style={{ padding: classic ? '2px 4px' : '6px 10px', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
-                                                <input type="number" style={{ ...inputStyle(classic), width: '100%' }}
-                                                    value={wb.bath_number}
-                                                    onChange={e => { const u = [...washBaths]; u[i] = { ...u[i], bath_number: parseInt(e.target.value) || i + 1 }; setWashBaths(u); }} />
+                                                <select
+                                                    style={{ ...inputStyle(classic), height: classic ? 20 : 'auto', width: '100%' }}
+                                                    value={line.chemical_type}
+                                                    onChange={e => updateLine(idx, 'chemical_type', e.target.value)}
+                                                >
+                                                    {LINE_TYPES.map(t => (
+                                                        <option key={t} value={t}>{t}</option>
+                                                    ))}
+                                                </select>
                                             </td>
                                             <td style={{ padding: classic ? '2px 4px' : '6px 10px', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
-                                                <input type="text" style={{ ...inputStyle(classic), width: '100%' }}
-                                                    value={wb.description}
-                                                    onChange={e => { const u = [...washBaths]; u[i] = { ...u[i], description: e.target.value }; setWashBaths(u); }} />
+                                                <SearchableSelect
+                                                    options={allChemicalItems.map((item: any) => ({
+                                                        value: String(item.id),
+                                                        label: item.name,
+                                                        subLabel: item.code,
+                                                    }))}
+                                                    value={line.item_id}
+                                                    onChange={val => updateLine(idx, 'item_id', val)}
+                                                    placeholder="-- select item --"
+                                                    size="sm"
+                                                />
+                                            </td>
+                                            <td style={{ padding: classic ? '2px 4px' : '6px 10px', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
+                                                <input
+                                                    type="number"
+                                                    style={{ ...inputStyle(classic), width: '100%' }}
+                                                    value={line.qty_per_100kg}
+                                                    onChange={e => updateLine(idx, 'qty_per_100kg', e.target.value)}
+                                                    placeholder="0"
+                                                    min={0}
+                                                    step="any"
+                                                />
+                                            </td>
+                                            <td style={{ padding: classic ? '2px 4px' : '6px 10px', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
+                                                <input
+                                                    type="number"
+                                                    style={{ ...inputStyle(classic), width: '100%' }}
+                                                    value={line.qty_per_liter ?? ''}
+                                                    onChange={e => updateLine(idx, 'qty_per_liter', e.target.value ? parseFloat(e.target.value) : null)}
+                                                    placeholder="0"
+                                                    min={0}
+                                                    step="any"
+                                                />
+                                            </td>
+                                            <td style={{ padding: classic ? '2px 4px' : '6px 10px', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
+                                                <input
+                                                    type="number"
+                                                    style={{ ...inputStyle(classic), width: '100%' }}
+                                                    value={line.sort_order}
+                                                    onChange={e => updateLine(idx, 'sort_order', e.target.value)}
+                                                    placeholder={String(idx + 1)}
+                                                    min={1}
+                                                />
                                             </td>
                                             <td style={{ padding: classic ? '2px 4px' : '6px 10px', textAlign: 'center', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
-                                                <button style={classic
-                                                    ? { ...xpBtn, padding: '0px 5px', fontSize: 10, color: '#aa0000' }
-                                                    : { ...modernBtn, padding: '3px 8px', fontSize: 12, color: '#dc2626', borderColor: '#f0c5c5' }
-                                                }
-                                                    onClick={() => setWashBaths(washBaths.filter((_, j) => j !== i))}>×</button>
+                                                <button
+                                                    style={classic
+                                                        ? { ...xpBtn, padding: '0px 5px', fontSize: 10, color: '#aa0000' }
+                                                        : { ...modernBtn, padding: '3px 8px', fontSize: 12, color: '#dc2626', borderColor: '#f0c5c5' }
+                                                    }
+                                                    onClick={() => removeLine(idx)}
+                                                    title="Remove line"
+                                                >X</button>
                                             </td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
-                            <button style={classic ? { ...xpBtn, marginTop: 4, fontSize: 10 } : { ...modernBtn, marginTop: 4 }}
-                                onClick={() => setWashBaths([...washBaths, { bath_number: washBaths.length + 1, description: '' }])}>+ Add Bath</button>
+                            <div style={{ padding: '4px 6px', borderTop: classic ? '1px solid #e8eef5' : '1px solid #e6eaf1', background: classic ? '#f7f9fc' : '#f8fafc' }}>
+                                <button style={btnStyle(classic)} onClick={addLine}>Add Line</button>
+                            </div>
                         </div>
+                    </FormSection>
 
-                        {/* FINISHING */}
-                        <div style={{ padding: '8px 12px', borderTop: classic ? '1px solid #c0d4e8' : '1px solid #e6eaf1' }}>
-                            <div style={{ fontWeight: classic ? 600 : 700, fontSize: 11, marginBottom: 6, textTransform: 'uppercase', letterSpacing: classic ? 1 : '0.04em', color: classic ? undefined : '#475569' }}>Finishing</div>
-                            {finishingSteps.map((fs, i) => (
-                                <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 4, alignItems: 'center' }}>
-                                    <input type="text" style={{ ...inputStyle(classic), flex: 1 }}
-                                        value={fs.description}
-                                        onChange={e => { const u = [...finishingSteps]; u[i] = { ...u[i], description: e.target.value }; setFinishingSteps(u); }}
-                                        placeholder="e.g. TALASOFT NI 20cc/l CHROMAFIX FRD 10cc/l" />
-                                    <button style={classic
-                                        ? { ...xpBtn, padding: '0px 5px', fontSize: 10, color: '#aa0000', flexShrink: 0 }
-                                        : { ...modernBtn, padding: '3px 8px', fontSize: 12, color: '#dc2626', borderColor: '#f0c5c5', flexShrink: 0 }
-                                    }
-                                        onClick={() => setFinishingSteps(finishingSteps.filter((_, j) => j !== i))}>×</button>
-                                </div>
-                            ))}
-                            <button style={classic ? { ...xpBtn, fontSize: 10 } : { ...modernBtn }}
-                                onClick={() => setFinishingSteps([...finishingSteps, { description: '', sort_order: finishingSteps.length }])}>+ Add Finishing Step</button>
-                        </div>
+                    {/* ── Bak Cuci ── */}
+                    <FormSection title="Bak Cuci" classic={classic}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: classic ? 10 : 13 }}>
+                            <thead>
+                                <tr style={classic ? { background: '#eef2f8' } : {}}>
+                                    <th style={thStyle({ width: 50 })}>No.</th>
+                                    <th style={thStyle()}>Description</th>
+                                    <th style={thStyle({ width: 36 })}></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {washBaths.map((wb, i) => (
+                                    <tr key={i} style={{ background: classic ? (i % 2 === 0 ? 'white' : '#f7f9fc') : (i % 2 === 0 ? '#fff' : '#f8fafc') }}>
+                                        <td style={{ padding: classic ? '2px 4px' : '6px 10px', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
+                                            <input type="number" style={{ ...inputStyle(classic), width: '100%' }}
+                                                value={wb.bath_number}
+                                                onChange={e => { const u = [...washBaths]; u[i] = { ...u[i], bath_number: parseInt(e.target.value) || i + 1 }; setWashBaths(u); }} />
+                                        </td>
+                                        <td style={{ padding: classic ? '2px 4px' : '6px 10px', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
+                                            <input type="text" style={{ ...inputStyle(classic), width: '100%' }}
+                                                value={wb.description}
+                                                onChange={e => { const u = [...washBaths]; u[i] = { ...u[i], description: e.target.value }; setWashBaths(u); }} />
+                                        </td>
+                                        <td style={{ padding: classic ? '2px 4px' : '6px 10px', textAlign: 'center', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
+                                            <button style={classic
+                                                ? { ...xpBtn, padding: '0px 5px', fontSize: 10, color: '#aa0000' }
+                                                : { ...modernBtn, padding: '3px 8px', fontSize: 12, color: '#dc2626', borderColor: '#f0c5c5' }
+                                            }
+                                                onClick={() => setWashBaths(washBaths.filter((_, j) => j !== i))}>×</button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        <button style={classic ? { ...xpBtn, marginTop: 4, fontSize: 10 } : { ...modernBtn, marginTop: 4 }}
+                            onClick={() => setWashBaths([...washBaths, { bath_number: washBaths.length + 1, description: '' }])}>+ Add Bath</button>
+                    </FormSection>
+
+                    {/* ── Finishing ── */}
+                    <FormSection title="Finishing" classic={classic}>
+                        {finishingSteps.map((fs, i) => (
+                            <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 4, alignItems: 'center' }}>
+                                <input type="text" style={{ ...inputStyle(classic), flex: 1 }}
+                                    value={fs.description}
+                                    onChange={e => { const u = [...finishingSteps]; u[i] = { ...u[i], description: e.target.value }; setFinishingSteps(u); }}
+                                    placeholder="e.g. TALASOFT NI 20cc/l CHROMAFIX FRD 10cc/l" />
+                                <button style={classic
+                                    ? { ...xpBtn, padding: '0px 5px', fontSize: 10, color: '#aa0000', flexShrink: 0 }
+                                    : { ...modernBtn, padding: '3px 8px', fontSize: 12, color: '#dc2626', borderColor: '#f0c5c5', flexShrink: 0 }
+                                }
+                                    onClick={() => setFinishingSteps(finishingSteps.filter((_, j) => j !== i))}>×</button>
+                            </div>
+                        ))}
+                        <button style={classic ? { ...xpBtn, fontSize: 10 } : { ...modernBtn }}
+                            onClick={() => setFinishingSteps([...finishingSteps, { description: '', sort_order: finishingSteps.length }])}>+ Add Finishing Step</button>
+                    </FormSection>
 
                 </ModalWrapper>
 
