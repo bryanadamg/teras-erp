@@ -11,7 +11,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
-import { StatusChip, XPLoading } from '../shared/xpTheme';
+import { StatusChip, XPLoading, FormSection } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { STATIC_BASE, API_BASE } from '../shared/apiBase';
@@ -187,26 +187,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       }, 150);
   }, [highlightId, samples?.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── XP group box styles (create modal) ──────────────────────────────────
-  const xpGroupBox: React.CSSProperties = {
-      border: '1px solid #c0bdb5',
-      boxShadow: 'inset 1px 1px 0 #fff, 1px 1px 0 #c0bdb5',
-      marginBottom: 10,
-  };
-  const xpGroupHeader: React.CSSProperties = {
-      background: 'linear-gradient(to right, #3a6fc4 0%, #6a9fd8 60%, #a8c8f0 100%)',
-      color: '#fff',
-      fontFamily: 'Tahoma, Arial, sans-serif',
-      fontSize: '10px',
-      fontWeight: 'bold',
-      padding: '3px 8px',
-      letterSpacing: '0.5px',
-      textTransform: 'uppercase' as const,
-  };
-  const xpGroupBody: React.CSSProperties = {
-      background: '#fff',
-      padding: '10px 10px 8px',
-  };
+  // Section chrome now comes from the shared <FormSection> (xpTheme).
   const xpLbl: React.CSSProperties = {
       fontFamily: 'Tahoma, Arial, sans-serif',
       fontSize: '11px',
@@ -694,10 +675,8 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
            <form onSubmit={handleSubmit} id="create-sample-form">
 
                {/* ══ ① Identity ══ */}
+               <FormSection title="① Identity" classic={classic}>
                {classic ? (
-                   <div style={xpGroupBox}>
-                       <div style={xpGroupHeader}>① Identity</div>
-                       <div style={xpGroupBody}>
                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
                                <div>
                                    <label style={{ ...xpLbl, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -741,12 +720,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                           placeholder="Bola Intan ref code" />
                                </div>
                            </div>
-                       </div>
-                   </div>
                ) : (
-                   <div className="card border-0 mb-3">
-                       <div className="card-header py-1 px-2 text-white small fw-bold" style={{ background: 'linear-gradient(to right, #2a5fbe, #4a8fd8)' }}>① Identity</div>
-                       <div className="card-body p-2">
                            <div className="row g-2">
                                <div className="col-md-6">
                                    <label className="form-label d-flex justify-content-between align-items-center small text-muted">
@@ -780,9 +754,8 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                    <input className="form-control form-control-sm" value={newSample.internal_article_code} onChange={e => setNewSample({ ...newSample, internal_article_code: e.target.value })} placeholder="Bola Intan ref code" />
                                </div>
                            </div>
-                       </div>
-                   </div>
                )}
+               </FormSection>
 
                {/* ══ ② Colors & Specs ══ */}
                {(() => {
@@ -799,10 +772,10 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                        setPendingColorName('');
                        setPendingColorIsRepeat(false);
                    };
-                   return classic ? (
-                       <div style={xpGroupBox}>
-                           <div style={xpGroupHeader}>② Colors &amp; Specs</div>
-                           <div style={xpGroupBody}>
+                   return (
+                       <FormSection title="② Colors & Specs" classic={classic}>
+                       {classic ? (
+                           <>
                                <div style={{ marginBottom: 10 }}>
                                    <label style={xpLbl}>Width</label>
                                    <input style={{ ...xpInput, width: 130 }}
@@ -887,12 +860,9 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                        <i className="bi bi-plus-lg" /> Add
                                    </button>
                                </div>
-                           </div>
-                       </div>
-                   ) : (
-                       <div className="card border-0 mb-3">
-                           <div className="card-header py-1 px-2 text-white small fw-bold" style={{ background: 'linear-gradient(to right, #2a5fbe, #4a8fd8)' }}>② Colors &amp; Specs</div>
-                           <div className="card-body p-2">
+                           </>
+                       ) : (
+                           <>
                                <div className="mb-2">
                                    <label className="form-label small text-muted">Width</label>
                                    <input className="form-control form-control-sm" style={{ maxWidth: 160 }} value={newSample.width} onChange={e => setNewSample({ ...newSample, width: e.target.value })} placeholder="e.g. 8 mm" />
@@ -950,16 +920,16 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                        <i className="bi bi-plus-lg me-1" />Add
                                    </button>
                                </div>
-                           </div>
-                       </div>
+                           </>
+                       )}
+                       </FormSection>
                    );
                })()}
 
                {/* ══ ③ Materials ══ */}
+               <FormSection title="③ Materials" classic={classic}>
                {classic ? (
-                   <div style={xpGroupBox}>
-                       <div style={xpGroupHeader}>③ Materials</div>
-                       <div style={xpGroupBody}>
+                           <>
                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px 12px', marginBottom: 8 }}>
                                {[
                                    { key: 'main_material', label: 'Main Material' },
@@ -1037,12 +1007,9 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                              placeholder="e.g. PRINTING ROTARY" />
                                </div>
                            </div>
-                       </div>
-                   </div>
+                           </>
                ) : (
-                   <div className="card border-0 mb-3">
-                       <div className="card-header py-1 px-2 text-white small fw-bold" style={{ background: 'linear-gradient(to right, #2a5fbe, #4a8fd8)' }}>③ Materials</div>
-                       <div className="card-body p-2">
+                           <>
                            <div className="row g-2 mb-2">
                                {[
                                    { key: 'main_material', label: 'Main Material' },
@@ -1112,15 +1079,13 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                    <textarea className="form-control form-control-sm" rows={2} value={newSample.additional_info} onChange={e => setNewSample({ ...newSample, additional_info: e.target.value })} placeholder="e.g. PRINTING ROTARY" />
                                </div>
                            </div>
-                       </div>
-                   </div>
+                           </>
                )}
+               </FormSection>
 
                {/* ══ ④ Logistics ══ */}
+               <FormSection title="④ Logistics" classic={classic}>
                {classic ? (
-                   <div style={{ ...xpGroupBox, marginBottom: 0 }}>
-                       <div style={xpGroupHeader}>④ Logistics</div>
-                       <div style={xpGroupBody}>
                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
                                <div>
                                    <label style={xpLbl}>Sample Quantity</label>
@@ -1181,12 +1146,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                    </div>
                                </div>
                            </div>
-                       </div>
-                   </div>
                ) : (
-                   <div className="card border-0 mb-0">
-                       <div className="card-header py-1 px-2 text-white small fw-bold" style={{ background: 'linear-gradient(to right, #2a5fbe, #4a8fd8)' }}>④ Logistics</div>
-                       <div className="card-body p-2">
                            <div className="row g-2">
                                <div className="col-md-6">
                                    <label className="form-label small text-muted">Sample Quantity</label>
@@ -1223,9 +1183,8 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                    )}
                                </div>
                            </div>
-                       </div>
-                   </div>
                )}
+               </FormSection>
            </form>
        </ModalWrapper>
 

@@ -9,6 +9,7 @@ import React, { useMemo, useState, useEffect } from 'react';
  */
 
 export const xpFont = 'Tahoma, "Segoe UI", Arial, sans-serif';
+export const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
 // Every domain status collapses into one of five semantic families, so a status
 // means the same color everywhere regardless of which module (SO/PO/MO/sample)
@@ -166,42 +167,23 @@ export const xpPanel = (extra: React.CSSProperties = {}): React.CSSProperties =>
 });
 
 // Groups related fields in a create/edit form under a labeled section.
-// Classic: recessed panel with an Explorer-taskpane-style gradient header bar
-// (distinct fill + inset shadow so it reads as a surface, not just a divider).
-// Modern: matching light-blue header bar over a bordered card.
+// THE standard section chrome for every sectioned create/edit panel (Colors, Lab Dip,
+// Sample Request, Inventory, …). Classic: raised bevel box with a solid-blue gradient
+// header bar (white text). Modern: neutral header bar over a bordered white card.
+// Do not hand-roll per-page group boxes — use this so all forms stay identical.
 export function FormSection({ title, classic, children }: { title: React.ReactNode; classic: boolean; children: React.ReactNode }) {
-    if (classic) {
-        return (
-            <div style={{
-                border: '1px solid #a89f8c', borderRadius: 2,
-                marginTop: 12, marginBottom: 16,
-                background: '#f6f4ec',
-                boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.10)',
-                overflow: 'hidden',
-            }}>
-                <div style={{
-                    background: 'linear-gradient(to bottom, #eef3fc 0%, #d3ddf0 100%)',
-                    borderBottom: '1px solid #a9b8d4',
-                    padding: '4px 10px',
-                    fontFamily: xpFont, fontSize: 10, fontWeight: 'bold',
-                    color: '#1a3d6e', textTransform: 'uppercase' as const, letterSpacing: '0.5px',
-                }}>
-                    {title}
-                </div>
-                <div style={{ padding: '12px 12px 2px' }}>
-                    {children}
-                </div>
-            </div>
-        );
-    }
+    const box: React.CSSProperties = classic
+        ? { border: '1px solid #c0bdb5', boxShadow: 'inset 1px 1px 0 #fff, 1px 1px 0 #c0bdb5', marginBottom: 10 }
+        : { background: '#fff', border: '1px solid #dbe1ea', borderRadius: 9, marginBottom: 10, overflow: 'hidden' };
+    // Blue header in BOTH themes so every sectioned form reads the same:
+    // classic = XP solid-blue gradient, modern = flat blue gradient. White text both.
+    const header: React.CSSProperties = classic
+        ? { background: 'linear-gradient(to right, #3a6fc4 0%, #6a9fd8 60%, #a8c8f0 100%)', color: '#fff', fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', padding: '3px 8px', letterSpacing: '0.5px', textTransform: 'uppercase' as const }
+        : { background: 'linear-gradient(to right, #2a5fbe, #4a8fd8)', color: '#fff', fontFamily: modernFont, fontSize: 11, fontWeight: 700, padding: '6px 12px', letterSpacing: '0.04em', textTransform: 'uppercase' as const };
     return (
-        <div className="mb-4 rounded-2 border overflow-hidden">
-            <div className="px-3 py-2 border-bottom" style={{ background: 'linear-gradient(to bottom, #eef4ff, #dce8fb)' }}>
-                <h6 className="text-uppercase mb-0 fw-bold" style={{ fontSize: 11, letterSpacing: '0.5px', color: '#1a4a8a' }}>{title}</h6>
-            </div>
-            <div className="p-3 pb-1">
-                {children}
-            </div>
+        <div style={box}>
+            <div style={header}>{title}</div>
+            <div style={{ background: '#fff', padding: '10px' }}>{children}</div>
         </div>
     );
 }

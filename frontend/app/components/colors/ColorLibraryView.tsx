@@ -5,7 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
-import { StatusChip } from '../shared/xpTheme';
+import { StatusChip, FormSection } from '../shared/xpTheme';
 import {
     LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow,
 } from '../shared/listViewTheme';
@@ -126,21 +126,6 @@ export default function ColorLibraryView({
     };
 
     const totalPages = Math.max(1, Math.ceil(total / size));
-
-    // Form section groupbox. `accent` = the emphasized (blue) CIELAB section.
-    const Section = ({ title, icon, accent, children }: { title: string; icon: string; accent?: boolean; children: React.ReactNode }) => (
-        <div style={classic
-            ? { border: `1px solid ${accent ? '#7f9db9' : '#c0bdb5'}`, background: accent ? '#eef4fb' : '#fff', marginBottom: 12, boxShadow: 'inset 1px 1px 0 #fff' }
-            : { border: `1px solid ${accent ? '#bcd0ec' : '#dbe1ea'}`, background: accent ? '#f5f9ff' : '#fff', borderRadius: 9, marginBottom: 14, overflow: 'hidden' }}>
-            <div style={classic
-                ? { display: 'flex', alignItems: 'center', gap: 6, background: accent ? 'linear-gradient(to bottom, #4b8ad6, #2f6fc0)' : 'linear-gradient(to bottom, #e4e1d8, #d5d2c8)', color: accent ? '#fff' : '#111', padding: '3px 8px', fontSize: 11, fontWeight: 'bold' }
-                : { display: 'flex', alignItems: 'center', gap: 8, background: accent ? '#e7f0fd' : '#f1f5f9', color: accent ? '#1e40af' : '#334155', padding: '7px 12px', fontSize: 13, fontWeight: 700, borderBottom: `1px solid ${accent ? '#bcd0ec' : '#e2e8f0'}` }}>
-                <i className={`bi ${icon}`} />
-                <span>{title}</span>
-            </div>
-            <div style={{ padding: classic ? '8px' : '10px 12px' }}>{children}</div>
-        </div>
-    );
 
     const swatch = (hex?: string) => (
         <span style={{
@@ -289,105 +274,104 @@ export default function ColorLibraryView({
                 }
             >
                 <form id="color-form" onSubmit={handleSubmit}>
-                    {/* CIELAB — promoted to the top as the primary, structured shade identity
-                        the client completes after approval (not buried in free-text notes). */}
-                    <div style={classic
-                        ? { border: '1px solid #7f9db9', background: '#eef4fb', marginBottom: 12, boxShadow: 'inset 1px 1px 0 #fff' }
-                        : { border: '1px solid #bcd0ec', background: '#f5f9ff', borderRadius: 9, marginBottom: 14, overflow: 'hidden' }}>
-                        <div style={classic
-                            ? { display: 'flex', alignItems: 'center', gap: 6, background: 'linear-gradient(to bottom, #4b8ad6, #2f6fc0)', color: '#fff', padding: '3px 8px', fontSize: 11, fontWeight: 'bold' }
-                            : { display: 'flex', alignItems: 'center', gap: 8, background: '#e7f0fd', color: '#1e40af', padding: '7px 12px', fontSize: 13, fontWeight: 700, borderBottom: '1px solid #bcd0ec' }}>
-                            <i className="bi bi-eyedropper" />
-                            <span>CIELAB (L*a*b*) — Objective Shade Identity</span>
-                        </div>
-                        <div style={{ padding: classic ? '8px' : '10px 12px' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr) 1.3fr', gap: 10, alignItems: 'end' }}>
-                                {([
-                                    { key: 'l_star', axis: 'L*', hint: 'Lightness · 0–100', min: 0, max: 100 },
-                                    { key: 'a_star', axis: 'a*', hint: 'Green ↔ Red · −128…127', min: -128, max: 127 },
-                                    { key: 'b_star', axis: 'b*', hint: 'Blue ↔ Yellow · −128…127', min: -128, max: 127 },
-                                ] as const).map(f => (
-                                    <div key={f.key}>
-                                        <label style={{ ...lvLabel(classic), display: 'flex', alignItems: 'baseline', gap: 5 }}>
-                                            <span style={{ fontWeight: 'bold', fontSize: classic ? 13 : 15, fontFamily: "'Courier New', monospace", color: classic ? '#0047c8' : '#2563eb' }}>{f.axis}</span>
-                                        </label>
-                                        <input
-                                            type="number" inputMode="decimal" step="0.01" min={f.min} max={f.max}
-                                            value={(form as any)[f.key]}
-                                            onChange={e => setForm({ ...form, [f.key]: e.target.value })}
-                                            placeholder="—"
-                                            style={{ ...lvInput(classic), textAlign: 'center', fontFamily: "'Courier New', monospace", fontWeight: 700, fontSize: classic ? 13 : 15 }}
-                                        />
-                                        <div style={{ marginTop: 3, fontSize: classic ? 9 : 10, color: classic ? '#556' : '#64748b' }}>{f.hint}</div>
-                                    </div>
-                                ))}
+                    {/* 1. Identity — code + name (+ status when editing) always top-most. */}
+                    <FormSection title="Identity" classic={classic}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                            <div>
+                                <label style={lvLabel(classic)}>Code *</label>
+                                <input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} style={lvInput(classic)} required />
+                            </div>
+                            <div>
+                                <label style={lvLabel(classic)}>Name *</label>
+                                <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={lvInput(classic)} required />
+                            </div>
+                            {editing && (
                                 <div>
-                                    <label style={lvLabel(classic)}>Illuminant / Observer</label>
+                                    <label style={lvLabel(classic)}>Status</label>
+                                    <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} style={lvInput(classic)}>
+                                        <option value="active">active</option>
+                                        <option value="archived">archived</option>
+                                    </select>
+                                </div>
+                            )}
+                        </div>
+                    </FormSection>
+
+                    {/* 2. CIELAB — the structured shade identity the client completes after approval. */}
+                    <FormSection title="CIELAB (L*a*b*) — Objective Shade Identity" classic={classic}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr) 1.3fr', gap: 10, alignItems: 'end' }}>
+                            {([
+                                { key: 'l_star', axis: 'L*', hint: 'Lightness · 0–100', min: 0, max: 100 },
+                                { key: 'a_star', axis: 'a*', hint: 'Green ↔ Red · −128…127', min: -128, max: 127 },
+                                { key: 'b_star', axis: 'b*', hint: 'Blue ↔ Yellow · −128…127', min: -128, max: 127 },
+                            ] as const).map(f => (
+                                <div key={f.key}>
+                                    <label style={{ ...lvLabel(classic), display: 'flex', alignItems: 'baseline', gap: 5 }}>
+                                        <span style={{ fontWeight: 'bold', fontSize: classic ? 13 : 15, fontFamily: "'Courier New', monospace", color: classic ? '#0047c8' : '#2563eb' }}>{f.axis}</span>
+                                    </label>
                                     <input
-                                        value={form.lab_illuminant}
-                                        onChange={e => setForm({ ...form, lab_illuminant: e.target.value })}
-                                        placeholder="e.g. D65 / 10°"
-                                        style={lvInput(classic)}
+                                        type="number" inputMode="decimal" step="0.01" min={f.min} max={f.max}
+                                        value={(form as any)[f.key]}
+                                        onChange={e => setForm({ ...form, [f.key]: e.target.value })}
+                                        placeholder="—"
+                                        style={{ ...lvInput(classic), textAlign: 'center', fontFamily: "'Courier New', monospace", fontWeight: 700, fontSize: classic ? 13 : 15 }}
                                     />
-                                    <div style={{ marginTop: 3, fontSize: classic ? 9 : 10, color: classic ? '#556' : '#64748b' }}>Measurement condition</div>
+                                    <div style={{ marginTop: 3, fontSize: classic ? 9 : 10, color: classic ? '#556' : '#64748b' }}>{f.hint}</div>
+                                </div>
+                            ))}
+                            <div>
+                                <label style={lvLabel(classic)}>Illuminant / Observer</label>
+                                <input
+                                    value={form.lab_illuminant}
+                                    onChange={e => setForm({ ...form, lab_illuminant: e.target.value })}
+                                    placeholder="e.g. D65 / 10°"
+                                    style={lvInput(classic)}
+                                />
+                                <div style={{ marginTop: 3, fontSize: classic ? 9 : 10, color: classic ? '#556' : '#64748b' }}>Measurement condition</div>
+                            </div>
+                        </div>
+                    </FormSection>
+
+                    {/* 3. Details — everything else. */}
+                    <FormSection title="Details" classic={classic}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                            <div>
+                                <label style={lvLabel(classic)}>Pantone Ref</label>
+                                <input value={form.pantone_ref} onChange={e => setForm({ ...form, pantone_ref: e.target.value })} placeholder="e.g. 19-4052 TCX" style={lvInput(classic)} />
+                            </div>
+                            <div>
+                                <label style={lvLabel(classic)}>Colour Index (C.I.)</label>
+                                <input value={form.colour_index} onChange={e => setForm({ ...form, colour_index: e.target.value })} placeholder="e.g. C.I. Reactive Blue 19" style={lvInput(classic)} />
+                            </div>
+                            <div>
+                                <label style={lvLabel(classic)}>Swatch (hex)</label>
+                                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                    <input type="color" value={form.hex || '#ffffff'} onChange={e => setForm({ ...form, hex: e.target.value })} style={{ width: 36, height: 24, padding: 0, border: '1px solid #94a3b8', cursor: 'pointer' }} />
+                                    <input value={form.hex} onChange={e => setForm({ ...form, hex: e.target.value })} placeholder="#RRGGBB" style={lvInput(classic)} />
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                        <div>
-                            <label style={lvLabel(classic)}>Code *</label>
-                            <input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} style={lvInput(classic)} required />
-                        </div>
-                        <div>
-                            <label style={lvLabel(classic)}>Name *</label>
-                            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={lvInput(classic)} required />
-                        </div>
-                        <div>
-                            <label style={lvLabel(classic)}>Pantone Ref</label>
-                            <input value={form.pantone_ref} onChange={e => setForm({ ...form, pantone_ref: e.target.value })} placeholder="e.g. 19-4052 TCX" style={lvInput(classic)} />
-                        </div>
-                        <div>
-                            <label style={lvLabel(classic)}>Colour Index (C.I.)</label>
-                            <input value={form.colour_index} onChange={e => setForm({ ...form, colour_index: e.target.value })} placeholder="e.g. C.I. Reactive Blue 19" style={lvInput(classic)} />
-                        </div>
-                        <div>
-                            <label style={lvLabel(classic)}>Swatch (hex)</label>
-                            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                <input type="color" value={form.hex || '#ffffff'} onChange={e => setForm({ ...form, hex: e.target.value })} style={{ width: 36, height: 24, padding: 0, border: '1px solid #94a3b8', cursor: 'pointer' }} />
-                                <input value={form.hex} onChange={e => setForm({ ...form, hex: e.target.value })} placeholder="#RRGGBB" style={lvInput(classic)} />
-                            </div>
-                        </div>
-                        <div>
-                            <label style={lvLabel(classic)}>Substrate</label>
-                            <input value={form.substrate} onChange={e => setForm({ ...form, substrate: e.target.value })} placeholder="e.g. CVC, 100% Cotton" style={lvInput(classic)} />
-                        </div>
-                        <div>
-                            <label style={lvLabel(classic)}>Customer</label>
-                            <SearchableSelect options={customerOptions} value={form.customer_id} onChange={v => setForm({ ...form, customer_id: v })} placeholder="House color" />
-                        </div>
-                        <div>
-                            <label style={lvLabel(classic)}>Customer Color Code</label>
-                            <input value={form.customer_color_code} onChange={e => setForm({ ...form, customer_color_code: e.target.value })} style={lvInput(classic)} />
-                        </div>
-                        <div style={{ gridColumn: '1 / -1' }}>
-                            <label style={lvLabel(classic)}>Spectrophotometer Notes</label>
-                            <textarea value={form.spectro_notes} onChange={e => setForm({ ...form, spectro_notes: e.target.value })} rows={2} placeholder="Tolerance (ΔE), geometry, extra readings…" style={{ ...lvInput(classic), height: 'auto', resize: 'vertical' }} />
-                        </div>
-                        <div style={{ gridColumn: '1 / -1' }}>
-                            <label style={lvLabel(classic)}>Notes</label>
-                            <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} style={{ ...lvInput(classic), height: 'auto', resize: 'vertical' }} />
-                        </div>
-                        {editing && (
                             <div>
-                                <label style={lvLabel(classic)}>Status</label>
-                                <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} style={lvInput(classic)}>
-                                    <option value="active">active</option>
-                                    <option value="archived">archived</option>
-                                </select>
+                                <label style={lvLabel(classic)}>Substrate</label>
+                                <input value={form.substrate} onChange={e => setForm({ ...form, substrate: e.target.value })} placeholder="e.g. CVC, 100% Cotton" style={lvInput(classic)} />
                             </div>
-                        )}
-                    </div>
+                            <div>
+                                <label style={lvLabel(classic)}>Customer</label>
+                                <SearchableSelect options={customerOptions} value={form.customer_id} onChange={v => setForm({ ...form, customer_id: v })} placeholder="House color" />
+                            </div>
+                            <div>
+                                <label style={lvLabel(classic)}>Customer Color Code</label>
+                                <input value={form.customer_color_code} onChange={e => setForm({ ...form, customer_color_code: e.target.value })} style={lvInput(classic)} />
+                            </div>
+                            <div style={{ gridColumn: '1 / -1' }}>
+                                <label style={lvLabel(classic)}>Spectrophotometer Notes</label>
+                                <textarea value={form.spectro_notes} onChange={e => setForm({ ...form, spectro_notes: e.target.value })} rows={2} placeholder="Tolerance (ΔE), geometry, extra readings…" style={{ ...lvInput(classic), height: 'auto', resize: 'vertical' }} />
+                            </div>
+                            <div style={{ gridColumn: '1 / -1' }}>
+                                <label style={lvLabel(classic)}>Notes</label>
+                                <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} style={{ ...lvInput(classic), height: 'auto', resize: 'vertical' }} />
+                            </div>
+                        </div>
+                    </FormSection>
                 </form>
             </ModalWrapper>
         </div>

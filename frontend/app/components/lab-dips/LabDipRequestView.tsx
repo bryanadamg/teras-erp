@@ -7,7 +7,7 @@ import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip } from '../shared/xpTheme';
+import { StatusChip, FormSection } from '../shared/xpTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 
 // ── XP style constants (consistent with DyeingSettingView) ──────────────────
@@ -34,23 +34,6 @@ const xpBtn = (classic: boolean, extra: React.CSSProperties = {}): React.CSSProp
 const modernPrimaryBtn: React.CSSProperties = {
     fontWeight: 600, background: '#2563eb', color: '#fff', border: 'none',
 };
-const xpGroupBox = (classic: boolean): React.CSSProperties => classic ? {
-    border: '1px solid #c0bdb5', boxShadow: 'inset 1px 1px 0 #fff, 1px 1px 0 #c0bdb5', marginBottom: 10,
-} : {
-    background: '#fff', border: '1px solid #dbe1ea', borderRadius: 9, marginBottom: 10, overflow: 'hidden',
-};
-const xpGroupHeader = (classic: boolean): React.CSSProperties => classic ? {
-    background: 'linear-gradient(to right, #3a6fc4 0%, #6a9fd8 60%, #a8c8f0 100%)',
-    color: '#fff', fontFamily: xpFont, fontSize: 10, fontWeight: 'bold',
-    padding: '3px 8px', letterSpacing: '0.5px', textTransform: 'uppercase' as const,
-} : {
-    background: '#eef1f6', color: '#475569', fontFamily: modernFont, fontSize: 11, fontWeight: 700,
-    padding: '7px 12px', letterSpacing: '0.04em', textTransform: 'uppercase' as const,
-    borderBottom: '1px solid #dbe1ea',
-};
-const xpGroupBody = (classic: boolean): React.CSSProperties => classic
-    ? { background: '#fff', padding: '10px' }
-    : { background: '#fff', padding: '10px' };
 const xpLbl = (classic: boolean): React.CSSProperties => classic
     ? { fontFamily: xpFont, fontSize: 11, color: '#000', display: 'block', marginBottom: 2 }
     : { fontFamily: modernFont, fontSize: 12, color: '#475569', fontWeight: 600, display: 'block', marginBottom: 3 };
@@ -599,9 +582,7 @@ export default function LabDipRequestView({
             >
                 <form onSubmit={handleSubmit} id="create-lab-dip-form">
                     {/* ① Identity */}
-                    <div style={xpGroupBox(classic)}>
-                        <div style={xpGroupHeader(classic)}>① Identity</div>
-                        <div style={xpGroupBody(classic)}>
+                    <FormSection title="① Identity" classic={classic}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
                                 <div>
                                     <label style={xpLbl(classic)}>Request Code</label>
@@ -636,13 +617,10 @@ export default function LabDipRequestView({
                                     <input style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const }} value={form.season} onChange={e => setField('season', e.target.value)} placeholder="e.g. Spring 2026" />
                                 </div>
                             </div>
-                        </div>
-                    </div>
+                    </FormSection>
 
                     {/* ② Items */}
-                    <div style={xpGroupBox(classic)}>
-                        <div style={xpGroupHeader(classic)}>② Items</div>
-                        <div style={xpGroupBody(classic)}>
+                    <FormSection title="② Items" classic={classic}>
                             {/* Add finished-good item */}
                             <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10 }}>
                                 <div style={{ flex: 1 }}>
@@ -687,13 +665,10 @@ export default function LabDipRequestView({
                                 );
                                 });
                             })()}
-                        </div>
-                    </div>
+                    </FormSection>
 
                     {/* ③ Recipe link & notes */}
-                    <div style={xpGroupBox(classic)}>
-                        <div style={xpGroupHeader(classic)}>③ Approved Recipe &amp; Notes</div>
-                        <div style={xpGroupBody(classic)}>
+                    <FormSection title="③ Approved Recipe & Notes" classic={classic}>
                             <div style={{ marginBottom: 8 }}>
                                 <label style={xpLbl(classic)}>Approved Dye Recipe (Optional)</label>
                                 <SearchableSelect options={[{ value: '', label: 'Not yet linked' }, ...recipeOptions]} value={form.approved_recipe_id} onChange={(v: string) => setField('approved_recipe_id', v)} placeholder="Link approved recipe…" />
@@ -702,8 +677,7 @@ export default function LabDipRequestView({
                                 <label style={xpLbl(classic)}>Notes</label>
                                 <textarea style={{ ...xpInput(classic), height: 'auto', padding: '4px 6px', width: '100%', resize: 'vertical' as const, boxSizing: 'border-box' as const }} rows={2} value={form.notes} onChange={e => setField('notes', e.target.value)} />
                             </div>
-                        </div>
-                    </div>
+                    </FormSection>
                 </form>
             </ModalWrapper>
 
