@@ -72,7 +72,10 @@ export default function WOBulkPrintModal({
     useEffect(() => {
         Promise.all(
             selectedWOs.map(wo =>
-                QRCode.toDataURL(wo.id, { margin: 4, width: 320, errorCorrectionLevel: 'H' })
+                // ECC 'M' (not 'H') keeps the module count low (29×29 for a UUID) so each
+                // module prints large enough to survive impact/dot-matrix output; width 512
+                // gives a crisp raster. Displayed pixelated at 140px in the card (~1mm modules).
+                QRCode.toDataURL(wo.id, { margin: 4, width: 512, errorCorrectionLevel: 'M' })
                     .then(url => [wo.id, url] as [string, string])
                     .catch(() => [wo.id, ''] as [string, string])
             )

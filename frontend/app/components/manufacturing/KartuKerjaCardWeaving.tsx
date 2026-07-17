@@ -75,8 +75,8 @@ export default function KartuKerjaCardWeaving({
                 </div>
                 <div style={{ border: '2px solid #000', padding: '4px', flexShrink: 0, textAlign: 'center' }}>
                     {qrDataUrl
-                        ? <img src={qrDataUrl} alt="QR" style={{ width: '112px', height: '112px', display: 'block' }} />
-                        : <div style={{ width: '112px', height: '112px', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '7px', color: '#888' }}>...</div>
+                        ? <img src={qrDataUrl} alt="QR" style={{ width: '140px', height: '140px', display: 'block', imageRendering: 'pixelated' }} />
+                        : <div style={{ width: '140px', height: '140px', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '7px', color: '#888' }}>...</div>
                     }
                     <div style={{ fontSize: '6px', color: '#555', marginTop: '1px' }}>Scan in ERP Scanner</div>
                 </div>
