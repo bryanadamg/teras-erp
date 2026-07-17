@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, text
 from sqlalchemy.orm import joinedload
 from app.db.session import get_async_db
 from app.models.lab_dip import LabDipRequest, LabDipItem, LabDipLine
@@ -49,15 +49,27 @@ def _decorate(req: LabDipRequest) -> LabDipRequest:
     return req
 
 
+async def _next_code(db: AsyncSession) -> str:
+    """Mint the next request code from a persistent DB sequence.
+
+    A plain COUNT(*)+1 (or max+1) frees a number when a request is deleted, so a
+    later create can reuse it — colliding with the UNIQUE constraint (deleting a
+    middle row) or silently reissuing an old item code (deleting the top row).
+    `lab_dip_request_seq` only ever advances, so a number is never handed out
+    twice regardless of deletions, and nextval is atomic under concurrency.
+    """
+    result = await db.execute(text("SELECT nextval('lab_dip_request_seq')"))
+    n = result.scalar_one()
+    return f"LD-{datetime.now().year}-{str(n).zfill(5)}"
+
+
 @router.post("/lab-dips", response_model=LabDipRequestResponse)
 async def create_lab_dip_request(
     payload: LabDipRequestCreate,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission('dyeing.manage')),
 ):
-    count_result = await db.execute(select(func.count()).select_from(LabDipRequest))
-    count = count_result.scalar_one()
-    code = f"LD-{datetime.now().year}-{str(count + 1).zfill(5)}"
+    code = await _next_code(db)
 
     now = datetime.utcnow()
     req = LabDipRequest(

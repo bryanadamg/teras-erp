@@ -131,7 +131,22 @@ const variantLetter = (seq: number): string => {
 };
 // Numeric portion of the request code: "LD-2026-00001" → "00001".
 const seqPart = (code?: string): string => (code || '').split('-').pop() || '';
-const variantCode = (code: string | undefined, seq: number): string => `${seqPart(code)}-${variantLetter(seq)}`;
+
+// Two distinct chips: the request sequence (neutral) and the item's variant letter (accent).
+const seqBadge = (classic: boolean): React.CSSProperties => classic ? {
+    fontFamily: "'Courier New', monospace", fontSize: 11, fontWeight: 'bold', color: '#333',
+    background: '#e4e1d8', border: '1px solid #a0988c', padding: '1px 7px', whiteSpace: 'nowrap' as const,
+} : {
+    fontFamily: "'Courier New', monospace", fontSize: 12, fontWeight: 700, color: '#475569',
+    background: '#eef1f6', border: '1px solid #d4dce6', borderRadius: 5, padding: '2px 9px', whiteSpace: 'nowrap' as const,
+};
+const variantBadge = (classic: boolean): React.CSSProperties => classic ? {
+    fontFamily: xpFont, fontSize: 11, fontWeight: 'bold', color: '#fff',
+    background: '#3a6fc4', border: '1px solid #1a4a8a', padding: '1px 7px', whiteSpace: 'nowrap' as const,
+} : {
+    fontFamily: modernFont, fontSize: 12, fontWeight: 700, color: '#1e40af',
+    background: '#dbe7fb', border: '1px solid #bcd0f5', borderRadius: 5, padding: '2px 9px', whiteSpace: 'nowrap' as const,
+};
 
 const emptyForm = () => ({
     request_date: today(),
@@ -287,9 +302,14 @@ export default function LabDipRequestView({
 
     const setField = (k: string, v: any) => setForm(prev => ({ ...prev, [k]: v }));
 
-    // Request code: real code when editing; else the server's next code (LD-{year}-{total+1}),
-    // predicted from the loaded list so the code and per-item variants preview accurately.
-    const nextCode = `LD-${new Date().getFullYear()}-${String((labDips?.length || 0) + 1).padStart(5, '0')}`;
+    // Request code: real code when editing; else a best-effort preview of the next code.
+    // The server mints from a monotonic DB sequence, so this max+1 estimate is a lower bound
+    // (it can trail the true value after the top request is deleted) — hence the "(on save)" note.
+    const maxSeq = (labDips || []).reduce((m: number, r: any) => {
+        const n = parseInt(seqPart(r.code), 10);
+        return Number.isFinite(n) && n > m ? n : m;
+    }, 0);
+    const nextCode = `LD-${new Date().getFullYear()}-${String(maxSeq + 1).padStart(5, '0')}`;
     const displayCode = editing ? editing.code : nextCode;
 
     // ── Dip status buttons (mirror SampleColor approval UI) ──
@@ -412,12 +432,12 @@ export default function LabDipRequestView({
                                                 const its = r.items || [];
                                                 if (!its.length) return <span style={{ fontSize: classic ? 9 : 12, color: classic ? '#888' : '#94a3b8', fontStyle: 'italic' }}>—</span>;
                                                 const first = its[0];
-                                                const code = first.variant_code || variantCode(r.code, first.variant_seq ?? 0);
                                                 return (
                                                     <>
-                                                        <div style={{ fontWeight: 'bold', fontSize: classic ? 11 : 13 }}>
-                                                            <span style={{ fontFamily: "'Courier New', monospace", color: classic ? '#0047c8' : '#2563eb', marginRight: 5 }}>{code}</span>
-                                                            {itemNameById[first.item_id] || '—'}
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                            <span style={{ ...seqBadge(classic), fontSize: classic ? 9 : 11, padding: '0 5px' }}>{seqPart(r.code)}</span>
+                                                            <span style={{ ...variantBadge(classic), fontSize: classic ? 9 : 11, padding: '0 5px' }}>{variantLetter(first.variant_seq ?? 0)}</span>
+                                                            <span style={{ fontWeight: 'bold', fontSize: classic ? 11 : 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{itemNameById[first.item_id] || '—'}</span>
                                                         </div>
                                                         {its.length > 1 && <div style={{ fontSize: classic ? 9 : 11, color: classic ? '#555' : '#64748b' }}>+{its.length - 1} more</div>}
                                                     </>
@@ -460,11 +480,11 @@ export default function LabDipRequestView({
                                             ? { fontFamily: xpFont, fontSize: 11, color: '#000' }
                                             : { fontFamily: modernFont, fontSize: 12.5, color: '#1e293b' };
                                         // Dips grouped by item, plus any legacy ungrouped dips.
-                                        const dipGroups: { key: string; name: string; code: string; dips: any[] }[] = [
-                                            ...(r.items || []).map((it: any) => ({ key: it.id, name: itemNameById[it.item_id] || '—', code: it.variant_code || variantCode(r.code, it.variant_seq ?? 0), dips: it.dips || [] })),
+                                        const dipGroups: { key: string; name: string; seq: string; variant: string; dips: any[] }[] = [
+                                            ...(r.items || []).map((it: any) => ({ key: it.id, name: itemNameById[it.item_id] || '—', seq: seqPart(r.code), variant: variantLetter(it.variant_seq ?? 0), dips: it.dips || [] })),
                                         ];
                                         const ungrouped = (r.dips || []).filter((d: any) => !d.lab_dip_item_id);
-                                        if (ungrouped.length) dipGroups.push({ key: 'ungrouped', name: 'Ungrouped', code: '', dips: ungrouped });
+                                        if (ungrouped.length) dipGroups.push({ key: 'ungrouped', name: 'Ungrouped', seq: '', variant: '', dips: ungrouped });
                                         const renderDipRow = (d: any, isLast: boolean) => {
                                             const st = d.status || 'PENDING';
                                             const isApproved = st === 'APPROVED';
@@ -542,7 +562,8 @@ export default function LabDipRequestView({
                                                                                     <td colSpan={4} style={classic
                                                                                         ? { background: '#eef3fb', borderBottom: '1px solid #c8d4e8', borderTop: '1px solid #c8d4e8', padding: '2px 8px', fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#0d3a8a' }
                                                                                         : { background: '#f1f5fb', borderBottom: '1px solid #dbe1ea', borderTop: '1px solid #dbe1ea', padding: '4px 10px', fontFamily: modernFont, fontSize: 11.5, fontWeight: 700, color: '#1e40af' }}>
-                                                                                        {g.code && <span style={{ fontFamily: "'Courier New', monospace", marginRight: 6 }}>{g.code}</span>}
+                                                                                        {g.seq && <span style={{ ...seqBadge(classic), fontSize: classic ? 9 : 10, padding: '0 5px', marginRight: 4 }}>{g.seq}</span>}
+                                                                                        {g.variant && <span style={{ ...variantBadge(classic), fontSize: classic ? 9 : 10, padding: '0 5px', marginRight: 6 }}>{g.variant}</span>}
                                                                                         <i className="bi bi-box-seam" style={{ marginRight: 5 }} />{g.name}
                                                                                         <span style={{ fontWeight: 'normal', color: classic ? '#555' : '#64748b', marginLeft: 6 }}>· {g.dips.length} dip{g.dips.length !== 1 ? 's' : ''}</span>
                                                                                     </td>
@@ -688,7 +709,6 @@ export default function LabDipRequestView({
                                 let np = keptSeqs.length ? Math.max(...keptSeqs) + 1 : 0;
                                 return form.items.map(it => {
                                 const seq = it.variant_seq !== undefined ? it.variant_seq : np++;
-                                const codeLabel = variantCode(displayCode, seq);
                                 return (
                                     <div key={it.item_id} style={classic
                                         ? { border: '1px solid #b0c8e8', background: '#f5f9ff', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8, padding: '4px 8px' }
@@ -697,10 +717,9 @@ export default function LabDipRequestView({
                                         <span style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: classic ? 11 : 13, color: classic ? '#0d3a8a' : '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
                                             <i className="bi bi-box-seam" style={{ marginRight: 5, color: classic ? '#3a6fc4' : '#2563eb' }} />{itemNameById[it.item_id] || it.item_id}
                                         </span>
-                                        {/* Assigned code + variant (right) */}
-                                        <span style={classic
-                                            ? { fontFamily: "'Courier New', monospace", fontSize: 11, fontWeight: 'bold', color: '#fff', background: '#3a6fc4', border: '1px solid #1a4a8a', padding: '1px 7px', whiteSpace: 'nowrap' as const }
-                                            : { fontFamily: "'Courier New', monospace", fontSize: 12, fontWeight: 700, color: '#1e40af', background: '#dbe7fb', borderRadius: 5, padding: '2px 9px', whiteSpace: 'nowrap' as const }}>{codeLabel}</span>
+                                        {/* Two distinct badges: sequence + variant (right) */}
+                                        <span title="Request sequence" style={seqBadge(classic)}>{seqPart(displayCode)}</span>
+                                        <span title="Variant" style={variantBadge(classic)}>{variantLetter(seq)}</span>
                                         <button type="button" title="Remove item" onClick={() => removeItem(it.item_id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: classic ? '#a00' : '#dc2626', fontSize: 15, fontWeight: 'bold', lineHeight: 1, padding: '0 2px' }}>×</button>
                                     </div>
                                 );
