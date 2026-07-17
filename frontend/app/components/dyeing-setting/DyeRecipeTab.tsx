@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import DyeRecipePrintView from './DyeRecipePrintView';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
@@ -101,10 +102,15 @@ interface Props {
     items: any[];
     attributes: any[];
     authFetch: Function;
+    // Deep-link from Color Library "create recipe for this color" button: opens the
+    // create panel pre-selected on this color. Cleared via onColorConsumed once opened.
+    initialColorId?: string | null;
+    onColorConsumed?: () => void;
 }
 
-export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
+export default function DyeRecipeTab({ items, attributes, authFetch, initialColorId, onColorConsumed }: Props) {
     const { uiStyle } = useTheme();
+    const router = useRouter();
     const classic = uiStyle === 'classic';
     const { hasPermission } = useUser();
     const canManage = hasPermission('dyeing.manage');
@@ -224,6 +230,37 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
         }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [form.color_id, codeConfig, editingRecipe, colors]);
+
+    // Deep-link prefill: Color Library sends a color_id → open the create panel
+    // pre-selected on it. Ensure the color is in the picker list (fetch the single
+    // color if it's outside the capped active-colors page), then open + consume.
+    useEffect(() => {
+        if (!initialColorId) return;
+        let cancelled = false;
+        (async () => {
+            if (!colors.some((c: any) => String(c.id) === String(initialColorId))) {
+                try {
+                    const res = await authFetch(`${API_BASE}/colors/${initialColorId}`);
+                    if (res.ok) {
+                        const c = await res.json();
+                        if (!cancelled && c?.id) {
+                            setColors(prev => prev.some(p => String(p.id) === String(c.id)) ? prev : [c, ...prev]);
+                        }
+                    }
+                } catch { /* ignore — badge/code just won't derive */ }
+            }
+            if (cancelled) return;
+            setEditingRecipe(null);
+            setWashBaths([]);
+            setFinishingSteps([]);
+            setForm({ ...emptyForm(), color_id: String(initialColorId) });
+            setSelectedId(null);
+            setShowForm(true);
+            onColorConsumed?.();
+        })();
+        return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [initialColorId]);
 
     const selectedRecipe = recipes.find(r => String(r.id) === String(selectedId)) || null;
 
@@ -584,17 +621,18 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                         <tr>
                             <th style={{ ...lvTh(classic), width: 30 }}></th>
                             <th style={{ ...lvTh(classic), width: 150 }}>Code</th>
+                            <th style={{ ...lvTh(classic), width: 130 }}>Color Code</th>
                             <th style={lvTh(classic)}>Name</th>
-                            <th style={{ ...lvTh(classic), width: 170 }}>Color Standard</th>
-                            <th style={{ ...lvTh(classic), width: 120 }}>Substrate</th>
+                            <th style={{ ...lvTh(classic), width: 150 }}>Color Standard</th>
+                            <th style={{ ...lvTh(classic), width: 110 }}>Substrate</th>
                             <th style={{ ...lvTh(classic), width: 55, textAlign: 'center' }}>Lines</th>
                             <th style={{ ...lvTh(classic), width: 80 }}>Status</th>
-                            <th style={{ ...lvTh(classic), width: 130, textAlign: 'right', borderRight: 'none' }}>Actions</th>
+                            <th style={{ ...lvTh(classic), width: 44, textAlign: 'right', borderRight: 'none' }}></th>
                         </tr>
                     </thead>
                     <tbody>
                         {filteredRecipes.length === 0 && (
-                            <tr><td colSpan={8} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
+                            <tr><td colSpan={9} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
                                 {loading ? 'Loading…' : 'No recipes found.'}
                             </td></tr>
                         )}
@@ -613,6 +651,26 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                                                 ? { fontFamily: "'Courier New', monospace", fontWeight: 'bold', color: '#0047c8', fontSize: 11 }
                                                 : { fontFamily: "'Courier New', monospace", fontWeight: 700, color: '#2563eb', fontSize: 12 }}>{recipe.code}</span>
                                         </td>
+                                        <td style={lvTd(classic)}>
+                                            {recipe.color_code ? (
+                                                <span
+                                                    onClick={e => { e.stopPropagation(); router.push(`/colors?search=${encodeURIComponent(recipe.color_code)}`); }}
+                                                    title={`Open ${recipe.color_code} in the Color Library`}
+                                                    style={classic ? {
+                                                        display: 'inline-flex', alignItems: 'center', gap: 3, cursor: 'pointer',
+                                                        fontFamily: "'Courier New', monospace", fontWeight: 'bold', fontSize: 10, color: '#1a3d90',
+                                                        background: '#dde8f5', border: '1px solid #7fa8e8', borderRadius: 2, padding: '1px 6px',
+                                                    } : {
+                                                        display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer',
+                                                        fontFamily: "'Courier New', monospace", fontWeight: 600, fontSize: 12, color: '#1d4ed8',
+                                                        background: '#eff6ff', border: '1px solid #bfd3f5', borderRadius: 6, padding: '2px 8px',
+                                                    }}
+                                                >
+                                                    <i className="bi bi-palette" style={{ fontSize: classic ? 9 : 11 }} />
+                                                    {recipe.color_code}
+                                                </span>
+                                            ) : <span style={{ color: '#aaa' }}>—</span>}
+                                        </td>
                                         <td style={lvTd(classic)}>{recipe.name}</td>
                                         <td style={lvTd(classic)}>{recipe.color_standard || <span style={{ color: '#aaa' }}>—</span>}</td>
                                         <td style={lvTd(classic)}>{recipe.substrate_type || <span style={{ color: '#aaa' }}>—</span>}</td>
@@ -628,7 +686,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                                     </tr>
                                     {expanded && (
                                         <tr>
-                                            <td colSpan={8} style={{
+                                            <td colSpan={9} style={{
                                                 padding: 0,
                                                 background: classic ? '#ece9d8' : '#eef2f7',
                                                 borderBottom: classic ? '1px solid #808080' : '1px solid #cbd3df',

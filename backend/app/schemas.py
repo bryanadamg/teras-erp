@@ -1722,6 +1722,7 @@ class DyeRecipeResponse(BaseModel):
     color_standard: str | None = None
     color_id: UUID | None = None
     color_name: str | None = None
+    color_code: str | None = None
     substrate_type: str | None = None
     notes: str | None = None
     is_active: bool

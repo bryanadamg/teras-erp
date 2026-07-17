@@ -371,7 +371,7 @@ export default function LabDipRequestView({
                             <th style={{ ...xpThCell(classic), width: 90 }}>Type</th>
                             <th style={{ ...xpThCell(classic), width: 110 }}>Status</th>
                             <th style={{ ...xpThCell(classic), width: 90 }}>Variants</th>
-                            <th style={{ ...xpThCell(classic), width: 130, textAlign: 'right' as const, borderRight: 'none' }}>Actions</th>
+                            <th style={{ ...xpThCell(classic), width: 44, textAlign: 'right' as const, borderRight: 'none' }}></th>
                         </tr>
                     </thead>
                     <tbody>

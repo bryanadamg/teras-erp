@@ -63,6 +63,7 @@ def _serialize_recipe(r: DyeRecipe) -> dict:
     ]
     rd["attribute_value_ids"] = [str(v.id) for v in r.attribute_values]
     rd["color_name"] = r.color.name if r.color else None
+    rd["color_code"] = r.color.code if r.color else None
     return rd
 
 

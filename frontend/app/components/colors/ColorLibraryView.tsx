@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
@@ -47,7 +48,11 @@ export default function ColorLibraryView({
     const classic = uiStyle === 'classic';
     const { hasPermission } = useUser();
     const canManage = hasPermission('dyeing.manage');
+    const router = useRouter();
     const { openId: menuOpenId, pos: menuPos, toggle: menuToggle, close: menuClose } = useFloatingMenu(160);
+
+    // Jump to Dyeing & Setting with this color pre-selected in a new recipe.
+    const createRecipeForColor = (c: any) => router.push(`/dyeing-setting?recipe_color_id=${encodeURIComponent(c.id)}`);
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editing, setEditing] = useState<any>(null);
@@ -199,7 +204,7 @@ export default function ColorLibraryView({
                             <th style={{ ...lvTh(classic), width: 110 }}>From Lab Dip</th>
                             <th style={{ ...lvTh(classic), width: 60, textAlign: 'center' }}>Recipes</th>
                             <th style={{ ...lvTh(classic), width: 80 }}>Status</th>
-                            <th style={{ ...lvTh(classic), width: 120, textAlign: 'right', borderRight: 'none' }}>Actions</th>
+                            <th style={{ ...lvTh(classic), width: 70, textAlign: 'right', borderRight: 'none' }}></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -231,6 +236,15 @@ export default function ColorLibraryView({
                                 <td style={lvTd(classic)}><StatusChip status={c.status} /></td>
                                 <td style={{ ...lvTd(classic), borderRight: 'none', textAlign: 'right' }}>
                                     <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end', alignItems: 'center' }}>
+                                        {canManage && (
+                                        <button
+                                            title="Create dyeing recipe for this color"
+                                            onClick={() => createRecipeForColor(c)}
+                                            style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#1a3d90' : '#2563eb', fontSize: 13 }}
+                                        >
+                                            <i className="bi bi-droplet-half" />
+                                        </button>
+                                        )}
                                         <MenuTriggerButton classic={classic} onClick={e => menuToggle(String(c.id), e)} />
                                     </div>
                                 </td>

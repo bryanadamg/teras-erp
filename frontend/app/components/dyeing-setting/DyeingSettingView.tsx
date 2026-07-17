@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
 import { Tabs, TabDef } from '../shared/Tabs';
@@ -42,8 +43,15 @@ export default function DyeingSettingView() {
     const { authFetch, items, attributes } = useData();
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
+    const searchParams = useSearchParams();
+    const router = useRouter();
     const [activeTab, setActiveTab] = useState<TabKey>('recipes');
     const [recipes, setRecipes] = useState<any[]>([]);
+
+    // Deep-link from Color Library "create recipe for this color": force the recipes
+    // tab and hand the color id to DyeRecipeTab, which opens its create panel on it.
+    const recipeColorId = searchParams.get('recipe_color_id');
+    useEffect(() => { if (recipeColorId) setActiveTab('recipes'); }, [recipeColorId]);
 
     // ── Fetch recipes ─────────────────────────────────────────────────────────
     const fetchRecipes = useCallback(async () => {
@@ -135,6 +143,8 @@ export default function DyeingSettingView() {
                         items={items}
                         attributes={attributes || []}
                         authFetch={authFetch}
+                        initialColorId={recipeColorId}
+                        onColorConsumed={() => router.replace('/dyeing-setting')}
                     />
                 )}
                 {activeTab === 'dyeing' && (
