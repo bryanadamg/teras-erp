@@ -1455,6 +1455,8 @@ class LabDipItemResponse(BaseModel):
     id: UUID
     item_id: UUID
     order: int = 0
+    variant_seq: int = 0
+    variant_code: Optional[str] = None  # e.g. "00001-A"; set by the API layer.
     dips: list[LabDipLineResponse] = []
     model_config = ConfigDict(from_attributes=True)
 

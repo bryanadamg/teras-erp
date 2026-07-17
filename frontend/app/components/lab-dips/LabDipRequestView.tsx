@@ -121,7 +121,17 @@ const today = () => new Date().toISOString().split('T')[0];
 const LABDIP_PAGE_SIZE = 20;
 
 type DipDraft = { id?: string; color_name: string; color_id?: string | null; submission_round: number; recipe_ref?: string };
-type ItemDraft = { id?: string; item_id: string; dips: DipDraft[] };
+type ItemDraft = { id?: string; item_id: string; variant_seq?: number; dips: DipDraft[] };
+
+// 0 → A, 1 → B, … 25 → Z, 26 → AA (spreadsheet-column style).
+const variantLetter = (seq: number): string => {
+    let s = '', n = seq + 1;
+    while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
+    return s;
+};
+// Numeric portion of the request code: "LD-2026-00001" → "00001".
+const seqPart = (code?: string): string => (code || '').split('-').pop() || '';
+const variantCode = (code: string | undefined, seq: number): string => `${seqPart(code)}-${variantLetter(seq)}`;
 
 const emptyForm = () => ({
     request_date: today(),
@@ -233,7 +243,7 @@ export default function LabDipRequestView({
             season: r.season || '',
             request_type: r.request_type || 'NEW',
             notes: r.notes || '',
-            items: (r.items || []).map((it: any) => ({ id: it.id, item_id: it.item_id, dips: (it.dips || []).map(mapDip) })),
+            items: (r.items || []).map((it: any) => ({ id: it.id, item_id: it.item_id, variant_seq: it.variant_seq, dips: (it.dips || []).map(mapDip) })),
             legacyDips: (r.dips || []).filter((d: any) => !d.lab_dip_item_id).map(mapDip),
         });
         setPendingItem(''); setPending({});
@@ -438,12 +448,17 @@ export default function LabDipRequestView({
                                         </td>
                                         <td style={tdBase(classic)}>
                                             {(() => {
-                                                const names = (r.items || []).map((it: any) => itemNameById[it.item_id] || '—');
-                                                if (!names.length) return <span style={{ fontSize: classic ? 9 : 12, color: classic ? '#888' : '#94a3b8', fontStyle: 'italic' }}>—</span>;
+                                                const its = r.items || [];
+                                                if (!its.length) return <span style={{ fontSize: classic ? 9 : 12, color: classic ? '#888' : '#94a3b8', fontStyle: 'italic' }}>—</span>;
+                                                const first = its[0];
+                                                const code = first.variant_code || variantCode(r.code, first.variant_seq ?? 0);
                                                 return (
                                                     <>
-                                                        <div style={{ fontWeight: 'bold', fontSize: classic ? 11 : 13 }}>{names[0]}</div>
-                                                        {names.length > 1 && <div style={{ fontSize: classic ? 9 : 11, color: classic ? '#555' : '#64748b' }}>+{names.length - 1} more</div>}
+                                                        <div style={{ fontWeight: 'bold', fontSize: classic ? 11 : 13 }}>
+                                                            <span style={{ fontFamily: "'Courier New', monospace", color: classic ? '#0047c8' : '#2563eb', marginRight: 5 }}>{code}</span>
+                                                            {itemNameById[first.item_id] || '—'}
+                                                        </div>
+                                                        {its.length > 1 && <div style={{ fontSize: classic ? 9 : 11, color: classic ? '#555' : '#64748b' }}>+{its.length - 1} more</div>}
                                                     </>
                                                 );
                                             })()}
@@ -484,11 +499,11 @@ export default function LabDipRequestView({
                                             ? { fontFamily: xpFont, fontSize: 11, color: '#000' }
                                             : { fontFamily: modernFont, fontSize: 12.5, color: '#1e293b' };
                                         // Dips grouped by item, plus any legacy ungrouped dips.
-                                        const dipGroups: { key: string; name: string; dips: any[] }[] = [
-                                            ...(r.items || []).map((it: any) => ({ key: it.id, name: itemNameById[it.item_id] || '—', dips: it.dips || [] })),
+                                        const dipGroups: { key: string; name: string; code: string; dips: any[] }[] = [
+                                            ...(r.items || []).map((it: any) => ({ key: it.id, name: itemNameById[it.item_id] || '—', code: it.variant_code || variantCode(r.code, it.variant_seq ?? 0), dips: it.dips || [] })),
                                         ];
                                         const ungrouped = (r.dips || []).filter((d: any) => !d.lab_dip_item_id);
-                                        if (ungrouped.length) dipGroups.push({ key: 'ungrouped', name: 'Ungrouped', dips: ungrouped });
+                                        if (ungrouped.length) dipGroups.push({ key: 'ungrouped', name: 'Ungrouped', code: '', dips: ungrouped });
                                         const renderDipRow = (d: any, isLast: boolean) => {
                                             const st = d.status || 'PENDING';
                                             const isApproved = st === 'APPROVED';
@@ -566,6 +581,7 @@ export default function LabDipRequestView({
                                                                                     <td colSpan={4} style={classic
                                                                                         ? { background: '#eef3fb', borderBottom: '1px solid #c8d4e8', borderTop: '1px solid #c8d4e8', padding: '2px 8px', fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#0d3a8a' }
                                                                                         : { background: '#f1f5fb', borderBottom: '1px solid #dbe1ea', borderTop: '1px solid #dbe1ea', padding: '4px 10px', fontFamily: modernFont, fontSize: 11.5, fontWeight: 700, color: '#1e40af' }}>
+                                                                                        {g.code && <span style={{ fontFamily: "'Courier New', monospace", marginRight: 6 }}>{g.code}</span>}
                                                                                         <i className="bi bi-box-seam" style={{ marginRight: 5 }} />{g.name}
                                                                                         <span style={{ fontWeight: 'normal', color: classic ? '#555' : '#64748b', marginLeft: 6 }}>· {g.dips.length} dip{g.dips.length !== 1 ? 's' : ''}</span>
                                                                                     </td>
@@ -690,7 +706,14 @@ export default function LabDipRequestView({
                                 </div>
                             )}
 
-                            {form.items.map(it => {
+                            {(() => {
+                                // Preview variant_seq per item: existing keep theirs; new items take
+                                // the next index above the max kept seq (matches the server's rule).
+                                const keptSeqs = form.items.filter(it => it.variant_seq !== undefined).map(it => it.variant_seq as number);
+                                let np = keptSeqs.length ? Math.max(...keptSeqs) + 1 : 0;
+                                return form.items.map(it => {
+                                const seq = it.variant_seq !== undefined ? it.variant_seq : np++;
+                                const codeLabel = editing ? variantCode(editing.code, seq) : `Variant ${variantLetter(seq)}`;
                                 const p = getPending(it.item_id);
                                 return (
                                     <div key={it.item_id} style={classic
@@ -698,8 +721,13 @@ export default function LabDipRequestView({
                                         : { border: '1px solid #dbe1ea', background: '#f8fafc', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
                                         {/* Item header */}
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, padding: classic ? '3px 8px' : '6px 10px', background: classic ? '#e4ecf8' : '#eef3fb', borderBottom: classic ? '1px solid #b0c8e8' : '1px solid #dbe1ea' }}>
-                                            <span style={{ fontWeight: 700, fontSize: classic ? 11 : 13, color: classic ? '#0d3a8a' : '#1e40af' }}>
-                                                <i className="bi bi-box-seam" style={{ marginRight: 5 }} />{itemNameById[it.item_id] || it.item_id}
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                                                <span style={classic
+                                                    ? { fontFamily: "'Courier New', monospace", fontSize: 10, fontWeight: 'bold', color: '#fff', background: '#3a6fc4', border: '1px solid #1a4a8a', padding: '0 5px', whiteSpace: 'nowrap' as const }
+                                                    : { fontFamily: "'Courier New', monospace", fontSize: 11, fontWeight: 700, color: '#1e40af', background: '#dbe7fb', borderRadius: 5, padding: '1px 7px', whiteSpace: 'nowrap' as const }}>{codeLabel}</span>
+                                                <span style={{ fontWeight: 700, fontSize: classic ? 11 : 13, color: classic ? '#0d3a8a' : '#1e40af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                                                    <i className="bi bi-box-seam" style={{ marginRight: 5 }} />{itemNameById[it.item_id] || it.item_id}
+                                                </span>
                                             </span>
                                             <button type="button" title="Remove item" onClick={() => removeItem(it.item_id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: classic ? '#a00' : '#dc2626', fontSize: 14, fontWeight: 'bold', lineHeight: 1 }}>×</button>
                                         </div>
@@ -731,7 +759,8 @@ export default function LabDipRequestView({
                                         </div>
                                     </div>
                                 );
-                            })}
+                                });
+                            })()}
                         </div>
                     </div>
 

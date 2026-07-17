@@ -60,6 +60,9 @@ class LabDipItem(Base):
         UUID(as_uuid=True), ForeignKey("items.id"), index=True
     )
     order: Mapped[int] = mapped_column(Integer, default=0)
+    # Stable 0-based index used to derive the item's variant letter (A, B, C…).
+    # Assigned once when the item is added; never re-indexed when siblings are removed.
+    variant_seq: Mapped[int] = mapped_column(Integer, default=0)
 
     item = relationship("Item", foreign_keys=[item_id])
     # Read-only grouping of this item's dips. Lines are owned by LabDipRequest.dips

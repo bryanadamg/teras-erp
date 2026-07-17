@@ -31,6 +31,24 @@ def _load_full(request_id):
     )
 
 
+def _variant_letter(seq: int) -> str:
+    """0 → A, 1 → B, … 25 → Z, 26 → AA (spreadsheet-column style)."""
+    s = ""
+    n = seq + 1
+    while n > 0:
+        n, r = divmod(n - 1, 26)
+        s = chr(65 + r) + s
+    return s
+
+
+def _decorate(req: LabDipRequest) -> LabDipRequest:
+    """Attach the derived variant_code (e.g. '00001-A') to each item for serialization."""
+    seq_part = req.code.rsplit("-", 1)[-1] if req.code else ""
+    for it in (req.items or []):
+        it.variant_code = f"{seq_part}-{_variant_letter(it.variant_seq)}"
+    return req
+
+
 @router.post("/lab-dips", response_model=LabDipRequestResponse)
 async def create_lab_dip_request(
     payload: LabDipRequestCreate,
@@ -64,9 +82,9 @@ async def create_lab_dip_request(
     db.add(req)
     await db.flush()
 
-    # Per-item groups, each with its own dips.
+    # Per-item groups, each with its own dips. New request → variant_seq == position.
     for gi, group in enumerate(payload.items):
-        item = LabDipItem(lab_dip_request_id=req.id, item_id=group.item_id, order=gi)
+        item = LabDipItem(lab_dip_request_id=req.id, item_id=group.item_id, order=gi, variant_seq=gi)
         db.add(item)
         await db.flush()
         for i, dip in enumerate(group.dips):
@@ -107,7 +125,7 @@ async def create_lab_dip_request(
         details=f"Created Lab Dip Request {req.code}",
         changes={"code": req.code, "color_standard": req.color_standard},
     )
-    return req
+    return _decorate(req)
 
 
 @router.get("/lab-dips", response_model=list[LabDipRequestResponse])
@@ -127,7 +145,7 @@ async def get_lab_dips(
         .offset(skip)
         .limit(limit)
     )
-    return result.unique().scalars().all()
+    return [_decorate(r) for r in result.unique().scalars().all()]
 
 
 @router.put("/lab-dips/{request_id}", response_model=LabDipRequestResponse)
@@ -197,13 +215,20 @@ async def update_lab_dip_request(
                 order=order,
             ))
 
+    # New items get a fresh variant_seq above every kept item's, so letters never
+    # collide with or reshuffle existing ones (stable assignment).
+    kept_seqs = [existing_items[str(g.id)].variant_seq for g in payload.items
+                 if g.id is not None and str(g.id) in existing_items]
+    next_seq = (max(kept_seqs) + 1) if kept_seqs else 0
+
     for gi, group in enumerate(payload.items):
         if group.id is not None and str(group.id) in existing_items:
             item = existing_items[str(group.id)]
             item.item_id = group.item_id
             item.order = gi
         else:
-            item = LabDipItem(lab_dip_request_id=req.id, item_id=group.item_id, order=gi)
+            item = LabDipItem(lab_dip_request_id=req.id, item_id=group.item_id, order=gi, variant_seq=next_seq)
+            next_seq += 1
             db.add(item)
             await db.flush()
         for i, dip in enumerate(group.dips):
@@ -232,7 +257,7 @@ async def update_lab_dip_request(
         details=f"Updated Lab Dip Request {req.code}",
         changes={"color_standard": req.color_standard},
     )
-    return req
+    return _decorate(req)
 
 
 @router.put("/lab-dips/{request_id}/status")
