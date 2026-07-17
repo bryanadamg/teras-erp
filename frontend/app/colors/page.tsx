@@ -50,9 +50,15 @@ export default function ColorsPage() {
     const [colors, setColors] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
-    const [search, setSearch] = useState('');
+    const [search, setSearch] = useState(searchParams.get('search') || '');
     const [statusFilter, setStatusFilter] = useState('ALL');
     const [loading, setLoading] = useState(false);
+
+    // Deep-link from LabDip approved-color button: /colors?search=<code> focuses the catalog on that code.
+    useEffect(() => {
+        const s = searchParams.get('search');
+        if (s) { setTab('codes'); setStatusFilter('ALL'); setSearch(s); setPage(1); }
+    }, [searchParams]);
 
     const fetchColors = useCallback(async () => {
         setLoading(true);

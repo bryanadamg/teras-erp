@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { useToast } from '../shared/Toast';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
@@ -160,6 +161,7 @@ export default function LabDipRequestView({
     onCreate, onEdit, onUpdateStatus, onUpdateItemStatus, onDelete,
 }: any) {
     useToast();
+    const router = useRouter();
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
     const { hasPermission } = useUser();
@@ -474,6 +476,7 @@ export default function LabDipRequestView({
                                             { header: 'Code', width: 104 },
                                             { header: 'Status', width: 96 },
                                             { header: 'Update Status', width: 224, align: 'center' as const },
+                                            { header: '', width: 40, align: 'center' as const },
                                         ];
 
                                         // One row per selected item: item name, color code+variant, status, update control.
@@ -500,9 +503,19 @@ export default function LabDipRequestView({
                                                             <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'IN_PROGRESS', 'progress'), ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => setItemStatus(it.id, status, 'IN_PROGRESS')}>Progress</button>
                                                             <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'APPROVED', 'approved'), ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => openApproval(r.id, { id: it.id, status, seq: seqPart(r.code), variant: variantLetter(it.variant_seq ?? 0) })}>Approved</button>
                                                             <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'REJECTED', 'rejected'), borderRight: '1px solid', ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => openReject(r.id, { id: it.id, status, seq: seqPart(r.code), variant: variantLetter(it.variant_seq ?? 0) })}>Rejected</button>
-                                                            {locked && <i className="bi bi-lock-fill" title="Decision locked" style={{ marginLeft: 6, alignSelf: 'center', fontSize: classic ? 10 : 12, color: classic ? '#777' : '#94a3b8' }} />}
                                                         </div>
                                                     ) : <span style={{ color: '#999' }}>—</span>,
+                                                    // Jump to the minted color code in the Color Library (approved variants only).
+                                                    (status === 'APPROVED' && it.approved_color_code) ? (
+                                                        <button
+                                                            type="button"
+                                                            title={`Open color code ${it.approved_color_code} in library`}
+                                                            style={{ ...xpBtn(classic, { padding: classic ? '1px 5px' : '3px 7px', lineHeight: 1, color: classic ? '#0d3a8a' : '#2563eb' }) }}
+                                                            onClick={() => router.push(`/colors?search=${encodeURIComponent(it.approved_color_code)}`)}
+                                                        >
+                                                            <i className="bi bi-box-arrow-up-right" style={{ fontSize: classic ? 10 : 12 }} />
+                                                        </button>
+                                                    ) : <span style={{ color: '#bbb' }}>—</span>,
                                                 ],
                                             };
                                         });
