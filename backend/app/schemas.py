@@ -1336,6 +1336,10 @@ class ColorCreate(BaseModel):
     colour_index: Optional[str] = None
     hex: Optional[str] = None
     substrate: Optional[str] = None
+    l_star: Optional[float] = None
+    a_star: Optional[float] = None
+    b_star: Optional[float] = None
+    lab_illuminant: Optional[str] = None
     customer_id: Optional[UUID] = None
     customer_color_code: Optional[str] = None
     spectro_notes: Optional[str] = None
@@ -1350,6 +1354,10 @@ class ColorUpdate(BaseModel):
     colour_index: Optional[str] = None
     hex: Optional[str] = None
     substrate: Optional[str] = None
+    l_star: Optional[float] = None
+    a_star: Optional[float] = None
+    b_star: Optional[float] = None
+    lab_illuminant: Optional[str] = None
     customer_id: Optional[UUID] = None
     customer_color_code: Optional[str] = None
     spectro_notes: Optional[str] = None
@@ -1364,6 +1372,10 @@ class ColorResponse(BaseModel):
     colour_index: Optional[str] = None
     hex: Optional[str] = None
     substrate: Optional[str] = None
+    l_star: Optional[float] = None
+    a_star: Optional[float] = None
+    b_star: Optional[float] = None
+    lab_illuminant: Optional[str] = None
     customer_id: Optional[UUID] = None
     customer_name: Optional[str] = None
     customer_color_code: Optional[str] = None

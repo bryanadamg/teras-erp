@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import Optional, List
-from sqlalchemy import String, Text, DateTime, ForeignKey, func
+from sqlalchemy import String, Text, DateTime, ForeignKey, Float, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
@@ -23,6 +23,13 @@ class Color(Base):
     colour_index: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     hex: Mapped[Optional[str]] = mapped_column(String(9), nullable=True)
     substrate: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    # CIELAB (L*a*b*) — the critical objective shade identity the client completes after
+    # approval. L* 0–100 (lightness), a*/b* ≈ −128..127 (green↔red / blue↔yellow).
+    # Meaningless without the measurement condition, so illuminant/observer is stored too.
+    l_star: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    a_star: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    b_star: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    lab_illuminant: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     customer_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("partners.id"), nullable=True, index=True
     )
