@@ -3,6 +3,7 @@
 import SalesOrderView from '../components/sales/SalesOrderView';
 import { useData } from '../context/DataContext';
 import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '../components/shared/Toast';
 import { useConfirm } from '../context/ConfirmContext';
 
@@ -14,6 +15,27 @@ export default function SalesOrdersPage() {
 
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
+
+    // Server-side, Finished-Goods-scoped typeahead for the SO item picker, so it scales
+    // past the DataContext paginated `items` page. Display/print still use context `items`
+    // (+ embedded line data + itemIndex), so those paths are unchanged.
+    const [itemResults, setItemResults] = useState<any[]>([]);
+    const itemSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const fetchItemResults = useCallback(async (search = '') => {
+        try {
+            const q = search ? `&search=${encodeURIComponent(search)}` : '';
+            const res = await authFetch(`${API_BASE}/items?finished_goods=true&limit=50${q}`);
+            if (res.ok) {
+                const data = await res.json();
+                setItemResults(Array.isArray(data) ? data : (data.items ?? []));
+            }
+        } catch { /* silent */ }
+    }, [authFetch, API_BASE]);
+    const handleItemSearch = useCallback((term: string) => {
+        if (itemSearchTimer.current) clearTimeout(itemSearchTimer.current);
+        itemSearchTimer.current = setTimeout(() => fetchItemResults(term), 300);
+    }, [fetchItemResults]);
+    useEffect(() => { fetchItemResults(); return () => { if (itemSearchTimer.current) clearTimeout(itemSearchTimer.current); }; }, [fetchItemResults]);
 
     const handleCreateSO = async (p: any) => {
         const res = await authFetch(`${API_BASE}/sales-orders`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
@@ -161,6 +183,8 @@ export default function SalesOrdersPage() {
     return (
             <SalesOrderView
                 items={items}
+                itemResults={itemResults}
+                onSearchItems={handleItemSearch}
                 attributes={attributes}
                 boms={boms}
                 salesOrders={salesOrders}

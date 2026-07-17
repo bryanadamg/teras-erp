@@ -17,7 +17,7 @@ import { useRouter } from 'next/navigation';
 
 const SO_PAGE_SIZE = 50;
 
-export default function SalesOrderView({ items, attributes, boms, salesOrders, partners, onCreateSO, onDeleteSO, onEditSO, onUpdateSOStatus, onGenerateWO, productionRuns }: any) {
+export default function SalesOrderView({ items, itemResults, onSearchItems, attributes, boms, salesOrders, partners, onCreateSO, onDeleteSO, onEditSO, onUpdateSOStatus, onGenerateWO, productionRuns }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -402,8 +402,23 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       setNewLine({ ...newLine, attribute_value_ids: newAttrValues, ...bomOverride });
   };
 
-  const getItemWeight = (id: string) => items.find((i: any) => i.id === id)?.weight_per_unit ?? null;
-  const getItemWeightUnit = (id: string): string => items.find((i: any) => i.id === id)?.weight_unit ?? '';
+  // The item picker is a server-side, finished-goods-scoped typeahead (itemResults + onSearchItems),
+  // so it scales past any client-side cap. Accumulate every item seen (the context page plus each
+  // search page) into a cache so the creation modal's weight / attribute / BOM lookups keep
+  // resolving items that fall outside the current search page.
+  const [itemCache, setItemCache] = useState<Record<string, any>>({});
+  useEffect(() => {
+      const merge = (arr: any[]) => {
+          if (!arr?.length) return;
+          setItemCache(prev => { const n = { ...prev }; for (const it of arr) n[it.id] = it; return n; });
+      };
+      merge(items); merge(itemResults);
+  }, [items, itemResults]);
+  const resolveItem = (id: string) =>
+      itemCache[id] || (items || []).find((i: any) => i.id === id) || (itemResults || []).find((i: any) => i.id === id);
+
+  const getItemWeight = (id: string) => resolveItem(id)?.weight_per_unit ?? null;
+  const getItemWeightUnit = (id: string): string => resolveItem(id)?.weight_unit ?? '';
 
   // Only g/y and g/m can auto-calculate KG from a length qty alone.
   // gsm / g/m² require fabric width, so auto-calc is disabled for those.
@@ -446,7 +461,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       const itemBoms = (boms || []).filter((b: any) => b.item_id === val);
       const autoBomId = itemBoms.length === 1 ? itemBoms[0].id : '';
       setNewLine({ ...newLine, item_id: val, attribute_value_ids: [], bom_id: autoBomId, bom_size_id: '', qty_kg: kg !== null ? kg : newLine.qty_kg });
-      const selectedItem = items.find((i: any) => i.id === val);
+      const selectedItem = resolveItem(val);
       const factorIds = (selectedItem?.packaging_factor_ids || []).map(String);
       const allFactors = uoms.flatMap((u: any) => u.factors || []);
       const itemFactors = allFactors.filter((f: any) => factorIds.includes(String(f.id)));
@@ -710,9 +725,9 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       }
   };
 
-  const getItemName = (id: string, embedded?: string) => items.find((i: any) => i.id === id)?.name || embedded || itemIndex?.[String(id)]?.name || id;
-  const getItemCode = (id: string, embedded?: string) => items.find((i: any) => i.id === id)?.code || embedded || itemIndex?.[String(id)]?.code || id;
-  const isSample = (id: string) => items.find((i: any) => i.id === id)?.category === 'Sample';
+  const getItemName = (id: string, embedded?: string) => resolveItem(id)?.name || embedded || itemIndex?.[String(id)]?.name || id;
+  const getItemCode = (id: string, embedded?: string) => resolveItem(id)?.code || embedded || itemIndex?.[String(id)]?.code || id;
+  const isSample = (id: string) => resolveItem(id)?.category === 'Sample';
 
   const formatDate = (date: string | null) => {
       if (!date) return '—';
@@ -737,7 +752,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
       }).filter(Boolean).join(', ');
 
   const getBoundAttributes = (itemId: string) => {
-      const item = items.find((i: any) => i.id === itemId);
+      const item = resolveItem(itemId);
       if (!item || !item.attribute_ids) return [];
       return attributes.filter((a: any) => item.attribute_ids.includes(a.id));
   };
@@ -759,9 +774,11 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
   const customers = partners.filter((p: any) => p.type === 'CUSTOMER' && p.active);
   // SO lines can only order Finished Goods — raw/WIP/sample/chemical items are not orderable.
   // Items expose category_path (root-first list of names), not a flat category string.
+  // Picker options come from the server typeahead page (already Finished-Goods-scoped);
+  // the defensive category filter keeps it correct even if the server contract changes.
   const finishedGoodsItems = useMemo(
-      () => items.filter((i: any) => (i.category_path || []).includes('Finished Goods')),
-      [items]
+      () => (itemResults || []).filter((i: any) => (i.category_path || []).includes('Finished Goods')),
+      [itemResults]
   );
   const STATUS_FILTERS = ['ALL', 'PENDING', 'READY', 'PARTIAL', 'SENT', 'DELIVERED'];
 
@@ -972,6 +989,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                options={finishedGoodsItems.map((item: any) => ({ value: item.id, label: item.name, subLabel: item.code }))}
                                value={newLine.item_id}
                                onChange={handleLineItemChange}
+                               onSearch={onSearchItems}
                                placeholder="Select Item…"
                            />
                        </div>
@@ -1015,7 +1033,7 @@ export default function SalesOrderView({ items, attributes, boms, salesOrders, p
                                            {(['Roll', 'Pic'] as const).map(uomName => {
                                                const uomObj = uoms.find((u: any) => u.name === uomName);
                                                const allUomFactors = uomObj?.factors || [];
-                                               const selItem = items.find((i: any) => i.id === newLine.item_id);
+                                               const selItem = resolveItem(newLine.item_id);
                                                const itemFactorIds = (selItem?.packaging_factor_ids || []).map(String);
                                                const factors = newLine.item_id && itemFactorIds.length > 0
                                                    ? allUomFactors.filter((f: any) => itemFactorIds.includes(String(f.id)))
