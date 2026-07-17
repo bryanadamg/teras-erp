@@ -278,6 +278,13 @@ export default function WorkOrderListView({
     };
 
     const canComplete = (wo: FlatWO) => !wo.qty || (wo.qty_completed_total ?? 0) >= wo.qty;
+    // Manual complete allowed below target — warn, then proceed.
+    const handleComplete = (wo: FlatWO) => {
+        if (!canComplete(wo)) {
+            showToast(`Note: ${(wo.qty_completed_total ?? 0).toFixed(2)} of ${wo.qty} logged — marking complete anyway.`, 'warning');
+        }
+        onUpdateStatus(wo.id, 'COMPLETED');
+    };
     const canStage = (wo: FlatWO) =>
         canManage &&
         (wo.bom_operation_id || ['WEAVING', 'DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase())) &&
@@ -930,8 +937,8 @@ export default function WorkOrderListView({
                                                             )}
                                                             {canManage && wo.status === 'IN_PROGRESS' && (
                                                                 <button className="btn btn-sm btn-outline-success py-0 px-2 me-1"
-                                                                    disabled={!canComplete(wo)} title={!canComplete(wo) ? `Target ${wo.qty} not reached` : 'Finish work order'}
-                                                                    onClick={() => onUpdateStatus(wo.id, 'COMPLETED')}><i className="bi bi-check-lg" /></button>
+                                                                    title={!canComplete(wo) ? `Target ${wo.qty} not reached — mark complete anyway` : 'Finish work order'}
+                                                                    onClick={() => handleComplete(wo)}><i className="bi bi-check-lg" /></button>
                                                             )}
                                                             <MenuTriggerButton classic={classic} onClick={(e) => toggleMenu(wo.id, e)} />
                                                         </>
@@ -987,10 +994,7 @@ export default function WorkOrderListView({
                                         hidden: !canManage,
                                         onClick: () => {
                                             closeStatusMenu();
-                                            if (s === 'COMPLETED' && !canComplete(menuWO)) {
-                                                showToast(`Target not reached: ${(menuWO.qty_completed_total ?? 0).toFixed(2)} of ${menuWO.qty} produced. Log more output first.`, 'warning');
-                                                return;
-                                            }
+                                            if (s === 'COMPLETED') { handleComplete(menuWO); return; }
                                             onUpdateStatus(menuWO.id, s);
                                         },
                                     })),
