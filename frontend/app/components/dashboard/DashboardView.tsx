@@ -70,6 +70,7 @@ const xpTh: React.CSSProperties = {
     borderBottom: '2px solid #808080',
     borderRight: '1px solid #b0aaa0',
     padding: '3px 6px', fontWeight: 'bold', color: '#000', textAlign: 'left',
+    position: 'sticky', top: 0, zIndex: 1,
 };
 
 const xpTd = (isEven: boolean): React.CSSProperties => ({
@@ -840,10 +841,10 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
             </div>
 
             {/* ── Row 3: Action Items (left) + WO Table (right) ── */}
-            <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '6px', height: '220px' }}>
 
                 {/* Action Items pane */}
-                <div style={{ ...xpBevel(), width: '260px', flexShrink: 0 }}>
+                <div style={{ ...xpBevel(), width: '260px', flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
                     <div style={xpTitleBar('red')}>
                         <span><i className="bi bi-list-check" style={{ marginRight: 4 }} aria-hidden="true" />{t('action_items')}</span>
                         {(critCount > 0 || warnCount > 0) && (
@@ -852,7 +853,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                             </span>
                         )}
                     </div>
-                    <div>
+                    <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
                         {actionItems.length === 0 ? (
                             <div style={{ padding: '16px', textAlign: 'center', fontStyle: 'italic', color: '#666', fontSize: '10px', background: '#f0fff0', borderLeft: '3px solid #228822' }}>
                                 <i className="bi bi-check-circle" style={{ marginRight: 4, color: '#228822' }} aria-hidden="true" />{t('all_systems_nominal')}
@@ -902,7 +903,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                             {metrics.activeWO} active · {metrics.pendingWO} pending
                         </span>
                     </div>
-                    <div style={{ overflowX: 'auto', flex: 1 }}>
+                    <div style={{ overflow: 'auto', flex: 1, minHeight: 0 }}>
                         <table style={xpTable}>
                             <thead>
                                 <tr>
@@ -953,14 +954,14 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
             </div>
 
             {/* ── Row 4: Recent Movements (left) + Warehouse Distribution (right) ── */}
-            <div style={{ display: 'flex', gap: '6px' }}>
+            <div style={{ display: 'flex', gap: '6px', height: '200px' }}>
 
                 {/* Recent stock movements */}
-                <div style={{ ...xpBevel(), flex: 1, minWidth: 0 }}>
+                <div style={{ ...xpBevel(), flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                     <div style={xpTitleBar('grey')}>
                         <span><i className="bi bi-clock-history" style={{ marginRight: 4 }} aria-hidden="true" />{t('recent_stock_movements')}</span>
                     </div>
-                    <div style={{ overflowX: 'auto' }}>
+                    <div style={{ overflow: 'auto', flex: 1, minHeight: 0 }}>
                         <table style={xpTable}>
                             <thead>
                                 <tr>
@@ -994,11 +995,11 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                 </div>
 
                 {/* Warehouse distribution */}
-                <div style={{ ...xpBevel(), width: '240px', flexShrink: 0 }}>
+                <div style={{ ...xpBevel(), width: '240px', flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
                     <div style={xpTitleBar('grey')}>
                         <span><i className="bi bi-building" style={{ marginRight: 4 }} aria-hidden="true" />{t('warehouse_distribution')}</span>
                     </div>
-                    <div style={{ padding: '6px 8px', background: '#f0efe8' }}>
+                    <div style={{ padding: '6px 8px', background: '#f0efe8', flex: 1, overflowY: 'auto', minHeight: 0 }}>
                         {groupedStats.length === 0 ? (
                             <div style={{ textAlign: 'center', padding: '12px', color: '#888', fontStyle: 'italic', fontSize: '10px' }}>{t('no_inventory_recorded')}</div>
                         ) : (
