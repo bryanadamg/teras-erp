@@ -76,22 +76,24 @@ const REQUEST_STATUSES = ['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED'];
 const statusStyle = (status: string, classic: boolean): React.CSSProperties => {
     if (classic) {
         const map: Record<string, { bg: string; border: string; color: string }> = {
-            APPROVED:  { bg: '#d4edda', border: '#27713a', color: '#0c3a1a' },
-            REJECTED:  { bg: '#f8d7da', border: '#a01a1a', color: '#4a0000' },
-            SUBMITTED: { bg: '#dce4f5', border: '#3a5faa', color: '#0d2a6e' },
-            RESUBMIT:  { bg: '#fff3cd', border: '#b8860b', color: '#3e2000' },
-            PENDING:   { bg: '#e8e8e8', border: '#7a7a7a', color: '#111' },
+            APPROVED:    { bg: '#d4edda', border: '#27713a', color: '#0c3a1a' },
+            REJECTED:    { bg: '#f8d7da', border: '#a01a1a', color: '#4a0000' },
+            SUBMITTED:   { bg: '#dce4f5', border: '#3a5faa', color: '#0d2a6e' },
+            RESUBMIT:    { bg: '#fff3cd', border: '#b8860b', color: '#3e2000' },
+            IN_PROGRESS: { bg: '#fff3cd', border: '#b8860b', color: '#3e2000' },
+            PENDING:     { bg: '#e8e8e8', border: '#7a7a7a', color: '#111' },
         };
         const s = map[status] || { bg: '#e8e8e8', border: '#7a7a7a', color: '#111' };
         return { background: s.bg, border: `1px solid ${s.border}`, color: s.color, padding: '1px 5px', fontSize: 9, fontFamily: xpFont, fontWeight: 'bold', whiteSpace: 'nowrap' as const };
     }
     // Modern: semantic colors preserved, softer bg + matching text/border, rounded 6px.
     const map: Record<string, { bg: string; border: string; color: string }> = {
-        APPROVED:  { bg: '#ecfdf3', border: '#abdfc0', color: '#15803d' },
-        REJECTED:  { bg: '#fef2f2', border: '#f3c4c4', color: '#dc2626' },
-        SUBMITTED: { bg: '#eff6ff', border: '#bfd3f5', color: '#1d4ed8' },
-        RESUBMIT:  { bg: '#fffbeb', border: '#fce3a6', color: '#b45309' },
-        PENDING:   { bg: '#f1f5f9', border: '#d4dce6', color: '#475569' },
+        APPROVED:    { bg: '#ecfdf3', border: '#abdfc0', color: '#15803d' },
+        REJECTED:    { bg: '#fef2f2', border: '#f3c4c4', color: '#dc2626' },
+        SUBMITTED:   { bg: '#eff6ff', border: '#bfd3f5', color: '#1d4ed8' },
+        RESUBMIT:    { bg: '#fffbeb', border: '#fce3a6', color: '#b45309' },
+        IN_PROGRESS: { bg: '#fffbeb', border: '#fce3a6', color: '#b45309' },
+        PENDING:     { bg: '#f1f5f9', border: '#d4dce6', color: '#475569' },
     };
     const s = map[status] || { bg: '#f1f5f9', border: '#d4dce6', color: '#475569' };
     return { display: 'inline-block', background: s.bg, border: `1px solid ${s.border}`, color: s.color, borderRadius: 6, padding: '2px 8px', fontSize: 11, fontFamily: modernFont, fontWeight: 600, whiteSpace: 'nowrap' as const };
@@ -162,7 +164,7 @@ const emptyForm = () => ({
 
 export default function LabDipRequestView({
     labDips, customers, items, onSearchItems, recipes, attributes, colors,
-    onCreate, onEdit, onUpdateStatus, onUpdateDipStatus, onDelete,
+    onCreate, onEdit, onUpdateStatus, onUpdateDipStatus, onUpdateItemStatus, onDelete,
 }: any) {
     const { confirm } = useConfirm();
     useToast();
@@ -338,6 +340,37 @@ export default function LabDipRequestView({
         whiteSpace: 'nowrap' as const, background: '#fff', borderColor: '#cbd3df', color: '#64748b', fontWeight: 500,
     };
 
+    // Segmented per-variant status control (Progress / Approved / Rejected).
+    const itemStatusBtn = (active: boolean, kind: 'progress' | 'approved' | 'rejected'): React.CSSProperties => {
+        if (classic) {
+            const map = {
+                progress: { on: 'linear-gradient(to bottom, #ffe082, #c77800)', border: '#a06000 #603000 #603000 #a06000', color: '#3e2000' },
+                approved: { on: 'linear-gradient(to bottom, #7bd88f, #1b7a34)', border: '#0f5a22 #073d15 #073d15 #0f5a22', color: '#04220c' },
+                rejected: { on: 'linear-gradient(to bottom, #d32f2f, #8b0000)', border: '#7f0000 #4a0000 #4a0000 #7f0000', color: '#fff' },
+            };
+            const p = map[kind];
+            return {
+                fontFamily: xpFont, fontSize: 10, padding: '1px 8px', cursor: 'pointer', border: '1px solid',
+                borderRight: 'none', whiteSpace: 'nowrap' as const,
+                background: active ? p.on : 'linear-gradient(to bottom, #f5f5f5, #e0dfd8)',
+                borderColor: active ? p.border : '#d0cfc8 #a0a09a #a0a09a #d0cfc8',
+                color: active ? p.color : '#666', fontWeight: active ? 'bold' : 'normal',
+            };
+        }
+        const map = {
+            progress: { onBg: '#fffbeb', onBorder: '#fce3a6', onColor: '#b45309' },
+            approved: { onBg: '#ecfdf3', onBorder: '#abdfc0', onColor: '#15803d' },
+            rejected: { onBg: '#fef2f2', onBorder: '#f3c4c4', onColor: '#dc2626' },
+        };
+        const p = map[kind];
+        return {
+            fontFamily: modernFont, fontSize: 12, padding: '4px 11px', cursor: 'pointer', border: '1px solid',
+            borderRight: 'none', whiteSpace: 'nowrap' as const,
+            background: active ? p.onBg : '#fff', borderColor: active ? p.onBorder : '#cbd3df',
+            color: active ? p.onColor : '#64748b', fontWeight: active ? 600 : 500,
+        };
+    };
+
     const primaryToolbarBtn = classic
         ? xpBtn(true, { background: 'linear-gradient(to bottom, #316ac5, #1a4a8a)', color: '#fff', borderColor: '#1a3a7a #0a1a4a #0a1a4a #1a3a7a', fontWeight: 'bold' })
         : xpBtn(false, modernPrimaryBtn);
@@ -386,7 +419,7 @@ export default function LabDipRequestView({
                             <th style={xpThCell(classic)}>Items</th>
                             <th style={{ ...xpThCell(classic), width: 90 }}>Type</th>
                             <th style={{ ...xpThCell(classic), width: 110 }}>Status</th>
-                            <th style={{ ...xpThCell(classic), width: 90 }}>Dips</th>
+                            <th style={{ ...xpThCell(classic), width: 90 }}>Variants</th>
                             <th style={{ ...xpThCell(classic), width: 130, textAlign: 'right' as const, borderRight: 'none' }}>Actions</th>
                         </tr>
                     </thead>
@@ -395,8 +428,8 @@ export default function LabDipRequestView({
                             <tr><td colSpan={7} style={{ ...tdBase(classic), textAlign: 'center' as const, color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>No lab dip requests yet.</td></tr>
                         )}
                         {paged.map((r: any, idx: number) => {
-                            const approved = (r.dips || []).filter((d: any) => d.status === 'APPROVED').length;
-                            const total = (r.dips || []).length;
+                            const approved = (r.items || []).filter((it: any) => it.status === 'APPROVED').length;
+                            const total = (r.items || []).length;
                             return (
                                 <React.Fragment key={r.id}>
                                     <tr onClick={() => toggleExpand(r.id)} style={classic
@@ -470,46 +503,17 @@ export default function LabDipRequestView({
                                         const detailVal: React.CSSProperties = classic
                                             ? { fontFamily: xpFont, fontSize: 11, color: '#000' }
                                             : { fontFamily: modernFont, fontSize: 12.5, color: '#1e293b' };
-                                        // Dips grouped by item, plus any legacy ungrouped dips.
-                                        const dipGroups: { key: string; name: string; seq: string; variant: string; dips: any[] }[] = [
-                                            ...(r.items || []).map((it: any) => ({ key: it.id, name: it.item_name || it.item_code || '—', seq: seqPart(r.code), variant: variantLetter(it.variant_seq ?? 0), dips: it.dips || [] })),
-                                        ];
-                                        const ungrouped = (r.dips || []).filter((d: any) => !d.lab_dip_item_id);
-                                        if (ungrouped.length) dipGroups.push({ key: 'ungrouped', name: 'Ungrouped', seq: '', variant: '', dips: ungrouped });
-                                        const renderDipRow = (d: any, isLast: boolean) => {
-                                            const st = d.status || 'PENDING';
-                                            const isApproved = st === 'APPROVED';
-                                            const rs = dipRowStyle(st, classic);
-                                            const rowTd: React.CSSProperties = { ...tdBase(classic), background: rs.background, borderBottom: isLast ? 'none' : tdBase(classic).borderBottom };
-                                            return (
-                                                <tr key={d.id} style={{ background: rs.background }}>
-                                                    <td style={{ ...rowTd, borderLeft: `4px solid ${rs.borderLeftColor}`, fontWeight: 'bold' }}>
-                                                        {d.color_name}
-                                                        {d.recipe_ref && <div style={{ fontSize: classic ? 9 : 11, fontWeight: 'normal', color: classic ? '#555' : '#64748b' }}>{d.recipe_ref}</div>}
-                                                    </td>
-                                                    <td style={rowTd}>#{d.submission_round}</td>
-                                                    <td style={rowTd}><span style={statusStyle(st, classic)}>{st}</span></td>
-                                                    <td style={{ ...rowTd, borderRight: 'none', textAlign: 'center' as const }}>
-                                                        {isApproved ? (
-                                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                                                                <span style={{ fontSize: classic ? 10 : 12, color: classic ? '#1b5e20' : '#15803d', fontWeight: classic ? 'bold' : 600 }}>Approved</span>
-                                                                {d.color_id ? (
-                                                                    <span title="Added to Color Library" style={{ fontSize: classic ? 9 : 11, color: classic ? '#555' : '#64748b', display: 'inline-flex', alignItems: 'center', gap: 2 }}><i className="bi bi-check-circle-fill" /> In Library</span>
-                                                                ) : canManage ? (
-                                                                    <button type="button" title="Create a Color Library record from this shade" style={approveBtn()} onClick={() => createColorFromDip(r, d)}><i className="bi bi-plus-lg" /> Color</button>
-                                                                ) : null}
-                                                            </div>
-                                                        ) : canManage ? (
-                                                            <div style={{ display: 'inline-flex' }}>
-                                                                <button type="button" style={dipBtn(st === 'RESUBMIT', 'resubmit')} onClick={() => onUpdateDipStatus(r.id, d.id, st === 'RESUBMIT' ? 'PENDING' : 'RESUBMIT')}>Resubmit</button>
-                                                                <button type="button" style={{ ...approveBtn(), borderRight: 'none' }} onClick={() => handleApproveDip(r.id, d.id, d.color_name)}>Approve</button>
-                                                                <button type="button" style={dipBtn(st === 'REJECTED', 'reject')} onClick={() => onUpdateDipStatus(r.id, d.id, st === 'REJECTED' ? 'PENDING' : 'REJECTED')}>Reject</button>
-                                                            </div>
-                                                        ) : null}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        };
+                                        // One row per selected item: code + variant badges, item name, status control.
+                                        const variantRows = (r.items || []).map((it: any) => ({
+                                            id: it.id,
+                                            name: it.item_name || it.item_code || '—',
+                                            seq: seqPart(r.code),
+                                            variant: variantLetter(it.variant_seq ?? 0),
+                                            status: it.status || 'PENDING',
+                                        }));
+                                        // Toggle a status button: clicking the active one reverts to PENDING.
+                                        const setItemStatus = (itemId: string, cur: string, next: string) =>
+                                            onUpdateItemStatus(r.id, itemId, cur === next ? 'PENDING' : next);
                                         const sections: { title: string; fields: any[][] }[] = [
                                             { title: '① Identity', fields: [
                                                 ['Customer', r.customer_id ? getCustomerName(r.customer_id) : 'Internal'],
@@ -528,48 +532,36 @@ export default function LabDipRequestView({
                                                 <div style={classic
                                                     ? { background: '#ece9d8', borderTop: '2px solid #0058e6', display: 'flex', minHeight: 170 }
                                                     : { background: '#f8fafc', borderTop: '2px solid #2563eb', display: 'flex', minHeight: 170 }}>
-                                                    {/* LEFT — Dips table */}
+                                                    {/* LEFT — Item variants + status */}
                                                     <div style={{ width: '48%', borderRight: classic ? '1px solid #a0988c' : '1px solid #dbe1ea', display: 'flex', flexDirection: 'column' }}>
                                                         <div style={classic
                                                             ? { background: 'linear-gradient(to bottom, #e4e1d8, #d5d2c8)', borderBottom: '1px solid #9a9690', padding: '2px 8px', fontSize: 10, fontWeight: 'bold', color: '#111', display: 'flex', alignItems: 'center', gap: 6, fontFamily: xpFont, flexShrink: 0 }
                                                             : { background: '#eef1f6', borderBottom: '1px solid #dbe1ea', padding: '7px 12px', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase' as const, letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                                                            <i className="bi bi-palette" /> Dips — {total} total · {approved} approved
+                                                            <i className="bi bi-box-seam" /> Variants — {total} total · {approved} approved
                                                         </div>
                                                         {total > 0 ? (
-                                                            <div style={{ overflowY: 'auto', flex: 1 }}>
-                                                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                                                    <thead>
-                                                                        <tr>
-                                                                            <th style={{ ...xpThCell(classic), fontSize: classic ? 9 : 11 }}>Color / Shade</th>
-                                                                            <th style={{ ...xpThCell(classic), fontSize: classic ? 9 : 11, width: 56 }}>Round</th>
-                                                                            <th style={{ ...xpThCell(classic), fontSize: classic ? 9 : 11, width: 84 }}>Status</th>
-                                                                            <th style={{ ...xpThCell(classic), fontSize: classic ? 9 : 11, textAlign: 'center' as const, borderRight: 'none', width: 210 }}>Update Status</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody>
-                                                                        {dipGroups.map(g => (
-                                                                            <React.Fragment key={g.key}>
-                                                                                <tr>
-                                                                                    <td colSpan={4} style={classic
-                                                                                        ? { background: '#eef3fb', borderBottom: '1px solid #c8d4e8', borderTop: '1px solid #c8d4e8', padding: '2px 8px', fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#0d3a8a' }
-                                                                                        : { background: '#f1f5fb', borderBottom: '1px solid #dbe1ea', borderTop: '1px solid #dbe1ea', padding: '4px 10px', fontFamily: modernFont, fontSize: 11.5, fontWeight: 700, color: '#1e40af' }}>
-                                                                                        {g.seq && <span style={{ ...seqBadge(classic), fontSize: classic ? 9 : 10, padding: '0 5px', marginRight: 4 }}>{g.seq}</span>}
-                                                                                        {g.variant && <span style={{ ...variantBadge(classic), fontSize: classic ? 9 : 10, padding: '0 5px', marginRight: 6 }}>{g.variant}</span>}
-                                                                                        <i className="bi bi-box-seam" style={{ marginRight: 5 }} />{g.name}
-                                                                                        <span style={{ fontWeight: 'normal', color: classic ? '#555' : '#64748b', marginLeft: 6 }}>· {g.dips.length} dip{g.dips.length !== 1 ? 's' : ''}</span>
-                                                                                    </td>
-                                                                                </tr>
-                                                                                {g.dips.length === 0
-                                                                                    ? <tr><td colSpan={4} style={{ ...tdBase(classic), fontStyle: 'italic', color: classic ? '#888' : '#94a3b8', fontSize: classic ? 10 : 12 }}>No dips yet</td></tr>
-                                                                                    : g.dips.map((d: any, dipIdx: number) => renderDipRow(d, dipIdx === g.dips.length - 1))
-                                                                                }
-                                                                            </React.Fragment>
-                                                                        ))}
-                                                                    </tbody>
-                                                                </table>
+                                                            <div style={{ overflowY: 'auto', flex: 1, padding: classic ? '4px 6px' : '8px 10px' }}>
+                                                                {variantRows.map((v: any) => (
+                                                                    <div key={v.id} style={classic
+                                                                        ? { border: '1px solid #b0c8e8', background: '#f5f9ff', marginBottom: 5, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const }
+                                                                        : { border: '1px solid #dbe1ea', background: '#fff', borderRadius: 8, marginBottom: 6, padding: '7px 9px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const }}>
+                                                                        <span style={{ ...seqBadge(classic), fontSize: classic ? 9 : 11, padding: '0 5px' }}>{v.seq}</span>
+                                                                        <span style={{ ...variantBadge(classic), fontSize: classic ? 9 : 11, padding: '0 5px' }}>{v.variant}</span>
+                                                                        <span style={{ flex: 1, minWidth: 90, fontWeight: 700, fontSize: classic ? 11 : 13, color: classic ? '#0d3a8a' : '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{v.name}</span>
+                                                                        {canManage ? (
+                                                                            <div style={{ display: 'inline-flex' }}>
+                                                                                <button type="button" style={itemStatusBtn(v.status === 'IN_PROGRESS', 'progress')} onClick={() => setItemStatus(v.id, v.status, 'IN_PROGRESS')}>Progress</button>
+                                                                                <button type="button" style={itemStatusBtn(v.status === 'APPROVED', 'approved')} onClick={() => setItemStatus(v.id, v.status, 'APPROVED')}>Approved</button>
+                                                                                <button type="button" style={{ ...itemStatusBtn(v.status === 'REJECTED', 'rejected'), borderRight: '1px solid' }} onClick={() => setItemStatus(v.id, v.status, 'REJECTED')}>Rejected</button>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <span style={statusStyle(v.status, classic)}>{v.status.replace('_', ' ')}</span>
+                                                                        )}
+                                                                    </div>
+                                                                ))}
                                                             </div>
                                                         ) : (
-                                                            <div style={{ padding: 10, fontSize: classic ? 11 : 13, color: classic ? '#888' : '#64748b', fontStyle: 'italic' }}>No dips on this request.</div>
+                                                            <div style={{ padding: 10, fontSize: classic ? 11 : 13, color: classic ? '#888' : '#64748b', fontStyle: 'italic' }}>No items on this request.</div>
                                                         )}
                                                     </div>
                                                     {/* RIGHT — Request details */}

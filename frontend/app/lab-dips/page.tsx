@@ -97,6 +97,11 @@ export default function LabDipsPage() {
         if (res.ok) fetchLabDips();
     };
 
+    const handleUpdateItemStatus = async (reqId: string, itemId: string, status: string) => {
+        const res = await authFetch(`${API_BASE}/lab-dips/${reqId}/items/${itemId}/status?status=${status}`, { method: 'PUT' });
+        if (res.ok) fetchLabDips();
+    };
+
     const handleDelete = async (id: string) => {
         const ok = await confirm({
             title: 'Delete Lab Dip Request',
@@ -123,6 +128,7 @@ export default function LabDipsPage() {
             onEdit={handleEdit}
             onUpdateStatus={handleUpdateStatus}
             onUpdateDipStatus={handleUpdateDipStatus}
+            onUpdateItemStatus={handleUpdateItemStatus}
             onDelete={handleDelete}
         />
     );

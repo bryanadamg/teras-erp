@@ -276,6 +276,47 @@ async def update_lab_dip_request(
     return _decorate(req)
 
 
+@router.put("/lab-dips/{request_id}/items/{item_id}/status")
+async def update_lab_dip_item_status(
+    request_id: str,
+    item_id: str,
+    status: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('dyeing.manage')),
+):
+    result = await db.execute(
+        select(LabDipItem).filter(LabDipItem.id == item_id, LabDipItem.lab_dip_request_id == request_id)
+    )
+    item = result.scalars().first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Lab dip item not found")
+
+    valid_statuses = ["PENDING", "IN_PROGRESS", "APPROVED", "REJECTED"]
+    if status not in valid_statuses:
+        raise HTTPException(status_code=400, detail="Invalid status")
+
+    previous_status = item.status
+    item.status = status
+
+    parent_result = await db.execute(select(LabDipRequest).filter(LabDipRequest.id == request_id))
+    parent = parent_result.scalars().first()
+    if parent:
+        parent.updated_at = datetime.utcnow()
+
+    await db.commit()
+
+    await audit_service.log_activity(
+        db,
+        user_id=current_user.id,
+        action="UPDATE_ITEM_STATUS",
+        entity_type="LabDipItem",
+        entity_id=item_id,
+        details=f"Updated lab dip item variant status from {previous_status} to {status}",
+        changes={"status": status, "previous_status": previous_status},
+    )
+    return {"status": "success"}
+
+
 @router.put("/lab-dips/{request_id}/status")
 async def update_lab_dip_status(
     request_id: str,
