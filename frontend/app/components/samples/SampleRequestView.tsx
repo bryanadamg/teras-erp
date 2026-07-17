@@ -3,7 +3,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../shared/Toast';
-import { useConfirm } from '../../context/ConfirmContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
@@ -20,19 +19,12 @@ const SAMPLE_PAGE_SIZE = 50;
 
 export default function SampleRequestView({ samples, customers, onCreateSample, onEditSample, onUpdateStatus, onUpdateColorStatus, onDeleteSample, onMarkRead, onMarkUnread, onMarkAllRead }: any) {
   const { showToast } = useToast();
-  const { confirm } = useConfirm();
   const { t } = useLanguage();
   const { hasPermission } = useUser();
   const canManage = hasPermission('sales.manage');
 
-  const handleApproveColor = async (sampleId: string, colorId: string, colorName: string) => {
-      const ok = await confirm({
-          title: 'Approve Color',
-          message: `Approve "${colorName}"? Status will be locked and cannot be changed after approval.`,
-          confirmText: 'Approve',
-          variant: 'success',
-      });
-      if (ok) onUpdateColorStatus(sampleId, colorId, 'APPROVED');
+  const handleApproveColor = (sampleId: string, colorId: string, colorName: string) => {
+      setApproveTarget({ sampleId, colorId, colorName });
   };
   const { companyProfile, attributes, loading: dataLoading, authFetch } = useData();
 
@@ -112,6 +104,14 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       if (!rejectTarget) return;
       onUpdateColorStatus(rejectTarget.sampleId, rejectTarget.colorId, 'REJECTED', rejectReason, rejectNotes);
       setRejectTarget(null);
+  };
+
+  // ── Approve confirmation ────────────────────────────────────────────────
+  const [approveTarget, setApproveTarget] = useState<{ sampleId: string; colorId: string; colorName: string } | null>(null);
+  const confirmApprove = () => {
+      if (!approveTarget) return;
+      onUpdateColorStatus(approveTarget.sampleId, approveTarget.colorId, 'APPROVED');
+      setApproveTarget(null);
   };
 
   // Build a revision-indexed code from a parent: ROOT-R1, ROOT-R2, …
@@ -630,9 +630,38 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
            attributes={[]}
        />
 
+       {/* Approve Color Modal */}
+       <ModalWrapper
+           isOpen={!!approveTarget}
+           modeless
+           onClose={() => setApproveTarget(null)}
+           title={<><i className="bi bi-check-circle me-2"></i>Approve Color{approveTarget ? ` — ${approveTarget.colorName}` : ''}</>}
+           variant="success"
+           size="md"
+           footer={
+               <>
+                   <button type="button"
+                       style={classic ? xpBtn() : undefined}
+                       className={classic ? '' : 'btn btn-sm btn-link text-muted'}
+                       onClick={() => setApproveTarget(null)}>{t('cancel')}</button>
+                   <button type="button"
+                       style={classic ? xpBtn({ background: 'linear-gradient(to bottom, #2e7d32, #1b5e20)', borderColor: '#155016 #0d3810 #0d3810 #155016', color: '#fff', fontWeight: 'bold' }) : undefined}
+                       className={classic ? '' : 'btn btn-sm btn-success px-4 fw-bold'}
+                       onClick={confirmApprove}>Approve</button>
+               </>
+           }
+       >
+           <div style={{ fontSize: 12 }}>
+               <p className="mb-0">
+                   Approve {approveTarget ? <strong>&quot;{approveTarget.colorName}&quot;</strong> : 'this color'}? Status will be locked and cannot be changed after approval.
+               </p>
+           </div>
+       </ModalWrapper>
+
        {/* Reject Color Modal — reason + optional notes */}
        <ModalWrapper
            isOpen={!!rejectTarget}
+           modeless
            onClose={() => setRejectTarget(null)}
            title={<><i className="bi bi-x-octagon me-2"></i>Reject Color{rejectTarget ? ` — ${rejectTarget.colorName}` : ''}</>}
            variant="danger"

@@ -1,8 +1,6 @@
 'use client';
 import React, { useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
 import { useToast } from '../shared/Toast';
-import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
@@ -99,26 +97,6 @@ const statusStyle = (status: string, classic: boolean): React.CSSProperties => {
     return { display: 'inline-block', background: s.bg, border: `1px solid ${s.border}`, color: s.color, borderRadius: 6, padding: '2px 8px', fontSize: 11, fontFamily: modernFont, fontWeight: 600, whiteSpace: 'nowrap' as const };
 };
 
-// Left-border + row background per dip status (mirrors SampleRequest colorRowStyle)
-const dipRowStyle = (status: string, classic: boolean): { borderLeftColor: string; background: string } => {
-    if (classic) {
-        const map: Record<string, { borderLeftColor: string; background: string }> = {
-            PENDING:  { borderLeftColor: '#9e9e9e', background: '#fdfdfd' },
-            RESUBMIT: { borderLeftColor: '#c77800', background: '#fffdf8' },
-            APPROVED: { borderLeftColor: '#27713a', background: '#f8fff8' },
-            REJECTED: { borderLeftColor: '#a01a1a', background: '#fff8f8' },
-        };
-        return map[status] || map['PENDING'];
-    }
-    const map: Record<string, { borderLeftColor: string; background: string }> = {
-        PENDING:  { borderLeftColor: '#cbd5e1', background: '#ffffff' },
-        RESUBMIT: { borderLeftColor: '#f59e0b', background: '#fffbeb' },
-        APPROVED: { borderLeftColor: '#22c55e', background: '#f0fdf4' },
-        REJECTED: { borderLeftColor: '#ef4444', background: '#fef2f2' },
-    };
-    return map[status] || map['PENDING'];
-};
-
 const today = () => new Date().toISOString().split('T')[0];
 const LABDIP_PAGE_SIZE = 20;
 
@@ -163,31 +141,14 @@ const emptyForm = () => ({
 });
 
 export default function LabDipRequestView({
-    labDips, customers, items, onSearchItems, recipes, attributes, colors,
-    onCreate, onEdit, onUpdateStatus, onUpdateDipStatus, onUpdateItemStatus, onDelete,
+    labDips, customers, items, onSearchItems, recipes,
+    onCreate, onEdit, onUpdateStatus, onUpdateItemStatus, onDelete,
 }: any) {
-    const { confirm } = useConfirm();
     useToast();
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
-    const router = useRouter();
     const { hasPermission } = useUser();
     const canManage = hasPermission('dyeing.manage');
-
-    // Spawn a Color Library record from an approved dip — mirrors the sample "+ Item"
-    // flow: route to /colors with prefill params; the page opens the create modal filled.
-    const createColorFromDip = (r: any, d: any) => {
-        const params = new URLSearchParams();
-        params.set('source_lab_dip_line_id', d.id);
-        params.set('name', d.color_name || '');
-        params.set('suggested_code', `${r.code}-${d.color_name || ''}`.replace(/\s+/g, '-').toUpperCase());
-        if (r.customer_id) params.set('customer_id', r.customer_id);
-        if (r.substrate) params.set('substrate', r.substrate);
-        if (r.color_standard) params.set('pantone', r.color_standard);
-        if (r.customer_article_code) params.set('customer_color_code', r.customer_article_code);
-        params.set('notes', `From Lab Dip ${r.code}, round ${d.submission_round}`);
-        router.push(`/colors?${params.toString()}`);
-    };
 
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('ALL');
@@ -268,16 +229,6 @@ export default function LabDipRequestView({
         setForm(emptyForm());
     };
 
-    const handleApproveDip = async (reqId: string, lineId: string, name: string) => {
-        const ok = await confirm({
-            title: 'Approve Dip',
-            message: `Approve "${name}"? Status will be locked and cannot be changed after approval.`,
-            confirmText: 'Approve',
-            variant: 'success',
-        });
-        if (ok) onUpdateDipStatus(reqId, lineId, 'APPROVED');
-    };
-
     const filtered = (labDips || []).filter((r: any) => {
         const matchSearch = !searchTerm ||
             r.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -304,41 +255,6 @@ export default function LabDipRequestView({
     }, 0);
     const nextCode = `LD-${new Date().getFullYear()}-${String(maxSeq + 1).padStart(5, '0')}`;
     const displayCode = editing ? editing.code : nextCode;
-
-    // ── Dip status buttons (mirror SampleColor approval UI) ──
-    const dipBtn = (active: boolean, kind: 'reject' | 'resubmit'): React.CSSProperties => {
-        if (classic) {
-            const palette = kind === 'reject'
-                ? { on: 'linear-gradient(to bottom, #d32f2f, #8b0000)', border: '#7f0000 #4a0000 #4a0000 #7f0000', color: '#fff' }
-                : { on: 'linear-gradient(to bottom, #ffe082, #c77800)', border: '#a06000 #603000 #603000 #a06000', color: '#3e2000' };
-            return {
-                fontFamily: xpFont, fontSize: 10, padding: '1px 7px', cursor: 'pointer', border: '1px solid',
-                borderRight: 'none', whiteSpace: 'nowrap' as const,
-                background: active ? palette.on : 'linear-gradient(to bottom, #f5f5f5, #e0dfd8)',
-                borderColor: active ? palette.border : '#d0cfc8 #a0a09a #a0a09a #d0cfc8',
-                color: active ? palette.color : '#666', fontWeight: active ? 'bold' : 'normal',
-            };
-        }
-        // Modern: segmented control look; active state keeps the semantic color.
-        const palette = kind === 'reject'
-            ? { onBg: '#fef2f2', onBorder: '#f3c4c4', onColor: '#dc2626' }
-            : { onBg: '#fffbeb', onBorder: '#fce3a6', onColor: '#b45309' };
-        return {
-            fontFamily: modernFont, fontSize: 12, padding: '4px 10px', cursor: 'pointer',
-            border: '1px solid', borderRight: 'none', whiteSpace: 'nowrap' as const,
-            background: active ? palette.onBg : '#fff',
-            borderColor: active ? palette.onBorder : '#cbd3df',
-            color: active ? palette.onColor : '#64748b', fontWeight: active ? 600 : 500,
-        };
-    };
-    const approveBtn = (): React.CSSProperties => classic ? {
-        fontFamily: xpFont, fontSize: 10, padding: '1px 7px', cursor: 'pointer', border: '1px solid',
-        whiteSpace: 'nowrap' as const, background: 'linear-gradient(to bottom, #f5f5f5, #e0dfd8)',
-        borderColor: '#d0cfc8 #a0a09a #a0a09a #d0cfc8', color: '#666',
-    } : {
-        fontFamily: modernFont, fontSize: 12, padding: '4px 10px', cursor: 'pointer', border: '1px solid',
-        whiteSpace: 'nowrap' as const, background: '#fff', borderColor: '#cbd3df', color: '#64748b', fontWeight: 500,
-    };
 
     // Segmented per-variant status control (Progress / Approved / Rejected).
     const itemStatusBtn = (active: boolean, kind: 'progress' | 'approved' | 'rejected'): React.CSSProperties => {
@@ -528,10 +444,17 @@ export default function LabDipRequestView({
                                         ];
                                         return (
                                         <tr>
-                                            <td colSpan={7} style={classic ? { padding: 0, borderBottom: '2px solid #9a9690' } : { padding: 0, borderBottom: '1px solid #dbe1ea' }}>
-                                                <div style={classic
-                                                    ? { background: '#ece9d8', borderTop: '2px solid #0058e6', display: 'flex', minHeight: 170 }
-                                                    : { background: '#f8fafc', borderTop: '2px solid #2563eb', display: 'flex', minHeight: 170 }}>
+                                            <td colSpan={7} style={classic
+                                                ? { padding: 6, borderBottom: '2px solid #9a9690', background: '#d8d3c8' }
+                                                : { padding: 8, borderBottom: '1px solid #dbe1ea', background: '#e9edf1' }}>
+                                                <div style={{
+                                                    boxShadow: classic
+                                                        ? 'inset 0 2px 5px rgba(0,0,0,0.28), inset 0 -2px 5px rgba(0,0,0,0.16)'
+                                                        : 'inset 0 2px 6px rgba(0,0,0,0.18), inset 0 -2px 6px rgba(0,0,0,0.10)',
+                                                    ...(classic
+                                                        ? { background: '#ece9d8', border: '1px solid #808080', display: 'flex', minHeight: 170, overflow: 'hidden' }
+                                                        : { background: '#f8fafc', border: '1px solid #ced4da', borderRadius: 8, display: 'flex', minHeight: 170, overflow: 'hidden' }),
+                                                }}>
                                                     {/* LEFT — Item variants + status */}
                                                     <div style={{ width: '48%', borderRight: classic ? '1px solid #a0988c' : '1px solid #dbe1ea', display: 'flex', flexDirection: 'column' }}>
                                                         <div style={classic

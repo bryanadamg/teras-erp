@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import LabDipRequestView from '../components/lab-dips/LabDipRequestView';
 import { useData } from '../context/DataContext';
+import { useFinishedGoodsSearch } from '../components/shared/useFinishedGoodsSearch';
 import { useToast } from '../components/shared/Toast';
 import { useConfirm } from '../context/ConfirmContext';
 
@@ -17,29 +18,8 @@ export default function LabDipsPage() {
     const [labDips, setLabDips] = useState<any[]>([]);
     const [recipes, setRecipes] = useState<any[]>([]);
     const [colors, setColors] = useState<any[]>([]);
-    // Finished-good items for the picker come from a server-side typeahead so the
-    // catalog can grow past any client-side cap: the backend scopes to the Finished
-    // Goods subtree and matches search on code/name, returning one bounded page.
-    const [items, setItems] = useState<any[]>([]);
-    const itemSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    const fetchItems = useCallback(async (search = '') => {
-        try {
-            const q = search ? `&search=${encodeURIComponent(search)}` : '';
-            const res = await authFetch(`${API_BASE}/items?finished_goods=true&limit=50${q}`);
-            if (res.ok) {
-                const data = await res.json();
-                setItems(Array.isArray(data) ? data : (data.items ?? []));
-            }
-        } catch { /* silent */ }
-    }, [authFetch, API_BASE]);
-
-    // Debounced typeahead handler passed to the item picker.
-    const handleItemSearch = useCallback((term: string) => {
-        if (itemSearchTimer.current) clearTimeout(itemSearchTimer.current);
-        itemSearchTimer.current = setTimeout(() => fetchItems(term), 300);
-    }, [fetchItems]);
-    useEffect(() => () => { if (itemSearchTimer.current) clearTimeout(itemSearchTimer.current); }, []);
+    // Finished-goods item picker: shared server-side typeahead (scales past any client cap).
+    const { results: items, onSearch: handleItemSearch } = useFinishedGoodsSearch();
 
     const fetchLabDips = useCallback(async () => {
         try {
@@ -73,7 +53,7 @@ export default function LabDipsPage() {
         } catch { /* silent */ }
     }, [authFetch, API_BASE]);
 
-    useEffect(() => { fetchLabDips(); fetchRecipes(); fetchColors(); fetchItems(); }, [fetchLabDips, fetchRecipes, fetchColors, fetchItems]);
+    useEffect(() => { fetchLabDips(); fetchRecipes(); fetchColors(); }, [fetchLabDips, fetchRecipes, fetchColors]);
 
     const handleCreate = async (payload: any) => {
         const res = await authFetch(`${API_BASE}/lab-dips`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -89,11 +69,6 @@ export default function LabDipsPage() {
 
     const handleUpdateStatus = async (id: string, status: string) => {
         const res = await authFetch(`${API_BASE}/lab-dips/${id}/status?status=${status}`, { method: 'PUT' });
-        if (res.ok) fetchLabDips();
-    };
-
-    const handleUpdateDipStatus = async (reqId: string, lineId: string, status: string) => {
-        const res = await authFetch(`${API_BASE}/lab-dips/${reqId}/dips/${lineId}/status?status=${status}`, { method: 'PUT' });
         if (res.ok) fetchLabDips();
     };
 
@@ -127,7 +102,6 @@ export default function LabDipsPage() {
             onCreate={handleCreate}
             onEdit={handleEdit}
             onUpdateStatus={handleUpdateStatus}
-            onUpdateDipStatus={handleUpdateDipStatus}
             onUpdateItemStatus={handleUpdateItemStatus}
             onDelete={handleDelete}
         />
