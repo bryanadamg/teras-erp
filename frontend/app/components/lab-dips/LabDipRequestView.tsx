@@ -73,6 +73,19 @@ const REQUEST_TYPES = ['NEW', 'RESUBMIT', 'STRIKE_OFF'];
 const STATUS_FILTERS = ['ALL', 'DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED'];
 const REQUEST_STATUSES = ['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED'];
 
+// Reject confirmation reasons — mirrors the sample-request reject flow.
+const REJECT_REASONS = [
+    'Color mismatch',
+    'Shade too dark',
+    'Shade too light',
+    'Quality defect',
+    'Wrong material',
+    'Measurement out of spec',
+    'Hand-feel / texture',
+    'Customer changed requirement',
+    'Other',
+];
+
 const statusStyle = (status: string, classic: boolean): React.CSSProperties => {
     if (classic) {
         const map: Record<string, { bg: string; border: string; color: string }> = {
@@ -176,6 +189,23 @@ export default function LabDipRequestView({
         if (!approval || !approvalSet.trim()) return;
         onUpdateItemStatus(approval.reqId, approval.itemId, 'APPROVED', { set: approvalSet.trim(), notes: approvalNotes.trim() || undefined });
         setApproval(null);
+    };
+
+    // Reject dialog: confirm before locking a variant, capturing a reason + optional notes
+    // (mirrors the sample-request reject flow).
+    const [reject, setReject] = useState<{ reqId: string; itemId: string; seq: string; variant: string } | null>(null);
+    const [rejectReason, setRejectReason] = useState(REJECT_REASONS[0]);
+    const [rejectNotes, setRejectNotes] = useState('');
+    const openReject = (reqId: string, v: any) => {
+        if (v.status === 'APPROVED' || v.status === 'REJECTED') return; // locked
+        setReject({ reqId, itemId: v.id, seq: v.seq, variant: v.variant });
+        setRejectReason(REJECT_REASONS[0]);
+        setRejectNotes('');
+    };
+    const confirmReject = () => {
+        if (!reject) return;
+        onUpdateItemStatus(reject.reqId, reject.itemId, 'REJECTED', { reason: rejectReason, notes: rejectNotes.trim() || undefined });
+        setReject(null);
     };
 
     // `items` is the server-side typeahead result page (already scoped to Finished Goods).
@@ -469,7 +499,7 @@ export default function LabDipRequestView({
                                                         <div style={{ display: 'inline-flex', opacity: locked ? 0.85 : 1 }}>
                                                             <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'IN_PROGRESS', 'progress'), ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => setItemStatus(it.id, status, 'IN_PROGRESS')}>Progress</button>
                                                             <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'APPROVED', 'approved'), ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => openApproval(r.id, { id: it.id, status, seq: seqPart(r.code), variant: variantLetter(it.variant_seq ?? 0) })}>Approved</button>
-                                                            <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'REJECTED', 'rejected'), borderRight: '1px solid', ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => setItemStatus(it.id, status, 'REJECTED')}>Rejected</button>
+                                                            <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'REJECTED', 'rejected'), borderRight: '1px solid', ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => openReject(r.id, { id: it.id, status, seq: seqPart(r.code), variant: variantLetter(it.variant_seq ?? 0) })}>Rejected</button>
                                                             {locked && <i className="bi bi-lock-fill" title="Decision locked" style={{ marginLeft: 6, alignSelf: 'center', fontSize: classic ? 10 : 12, color: classic ? '#777' : '#94a3b8' }} />}
                                                         </div>
                                                     ) : <span style={{ color: '#999' }}>—</span>,
@@ -667,6 +697,7 @@ export default function LabDipRequestView({
             {/* Approve variant → capture the "set" index, mint the color code */}
             <ModalWrapper
                 isOpen={!!approval}
+                modeless
                 onClose={() => setApproval(null)}
                 title={<><i className="bi bi-check2-circle me-2" />Approve Variant</>}
                 variant="success"
@@ -704,6 +735,48 @@ export default function LabDipRequestView({
                         </div>
                         <label style={xpLbl(classic)}>Notes (optional)</label>
                         <textarea style={{ ...xpInput(classic), height: 'auto', padding: '4px 6px', width: '100%', resize: 'vertical' as const, boxSizing: 'border-box' as const }} rows={2} value={approvalNotes} onChange={e => setApprovalNotes(e.target.value)} placeholder="Optional note carried onto the color entry…" />
+                    </div>
+                )}
+            </ModalWrapper>
+
+            {/* Reject variant → confirm with a reason + optional notes */}
+            <ModalWrapper
+                isOpen={!!reject}
+                modeless
+                onClose={() => setReject(null)}
+                title={<><i className="bi bi-x-octagon me-2" />Reject Variant</>}
+                variant="danger"
+                size="sm"
+                footer={
+                    <>
+                        <button type="button" style={xpBtn(classic)} onClick={() => setReject(null)}>Cancel</button>
+                        <button type="button" style={classic
+                            ? xpBtn(true, { background: 'linear-gradient(to bottom, #d32f2f, #8b0000)', borderColor: '#7f0000 #4a0000 #4a0000 #7f0000', color: '#fff', fontWeight: 'bold' })
+                            : xpBtn(false, { fontWeight: 600, background: '#dc2626', color: '#fff', border: 'none' })}
+                            onClick={confirmReject}>
+                            Reject Variant
+                        </button>
+                    </>
+                }
+            >
+                {reject && (
+                    <div style={{ padding: '2px 2px 4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                            <span style={{ ...seqBadge(classic), fontSize: classic ? 11 : 13 }}>{reject.seq}</span>
+                            <span style={{ ...variantBadge(classic), fontSize: classic ? 11 : 13 }}>{reject.variant}</span>
+                        </div>
+                        <div style={{ fontSize: classic ? 11 : 12, color: classic ? '#555' : '#64748b', marginBottom: 10 }}>
+                            Rejecting locks this variant — its status cannot be changed afterwards.
+                        </div>
+                        <label style={xpLbl(classic)}>Rejection Reason</label>
+                        <select style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const, marginBottom: 10 }}
+                            value={rejectReason} onChange={e => setRejectReason(e.target.value)}>
+                            {REJECT_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                        <label style={xpLbl(classic)}>Notes (optional)</label>
+                        <textarea style={{ ...xpInput(classic), height: 'auto', padding: '4px 6px', width: '100%', resize: 'vertical' as const, boxSizing: 'border-box' as const }} rows={2}
+                            value={rejectNotes} onChange={e => setRejectNotes(e.target.value)}
+                            placeholder="Extra detail for this rejection…" />
                     </div>
                 )}
             </ModalWrapper>

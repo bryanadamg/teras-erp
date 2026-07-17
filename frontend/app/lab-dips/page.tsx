@@ -72,10 +72,11 @@ export default function LabDipsPage() {
         if (res.ok) fetchLabDips();
     };
 
-    const handleUpdateItemStatus = async (reqId: string, itemId: string, status: string, extra?: { set?: string; notes?: string }) => {
+    const handleUpdateItemStatus = async (reqId: string, itemId: string, status: string, extra?: { set?: string; notes?: string; reason?: string }) => {
         let url = `${API_BASE}/lab-dips/${reqId}/items/${itemId}/status?status=${status}`;
         if (extra?.set) url += `&set_value=${encodeURIComponent(extra.set)}`;
         if (extra?.notes) url += `&notes=${encodeURIComponent(extra.notes)}`;
+        if (extra?.reason) url += `&reason=${encodeURIComponent(extra.reason)}`;
         const res = await authFetch(url, { method: 'PUT' });
         if (res.ok) {
             fetchLabDips();

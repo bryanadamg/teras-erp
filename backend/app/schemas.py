@@ -1463,6 +1463,8 @@ class LabDipItemResponse(BaseModel):
     approved_set: Optional[str] = None
     approved_color_id: Optional[UUID] = None
     approved_color_code: Optional[str] = None  # e.g. "00001-A-5"; set by the API layer.
+    rejection_reason: Optional[str] = None
+    rejection_notes: Optional[str] = None
     dips: list[LabDipLineResponse] = []
     model_config = ConfigDict(from_attributes=True)
 

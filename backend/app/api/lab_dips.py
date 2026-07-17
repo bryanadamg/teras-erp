@@ -287,6 +287,7 @@ async def update_lab_dip_item_status(
     status: str,
     set_value: str | None = None,
     notes: str | None = None,
+    reason: str | None = None,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission('dyeing.manage')),
 ):
@@ -344,6 +345,10 @@ async def update_lab_dip_item_status(
         item.approved_set = set_value
         item.approved_color_id = color.id
         minted_color_code = code
+
+    if status == "REJECTED":
+        item.rejection_reason = (reason or "").strip() or None
+        item.rejection_notes = (notes or "").strip() or None
 
     previous_status = item.status
     item.status = status

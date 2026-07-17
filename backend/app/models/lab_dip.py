@@ -73,6 +73,9 @@ class LabDipItem(Base):
     approved_color_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("colors.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # Captured when a variant is rejected (mirrors the sample-request reject flow).
+    rejection_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    rejection_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     item = relationship("Item", foreign_keys=[item_id])
     approved_color = relationship("Color", foreign_keys=[approved_color_id])
