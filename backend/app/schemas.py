@@ -1454,6 +1454,8 @@ class LabDipItemUpdate(BaseModel):
 class LabDipItemResponse(BaseModel):
     id: UUID
     item_id: UUID
+    item_code: Optional[str] = None  # denormalized so display never needs the full catalog.
+    item_name: Optional[str] = None
     order: int = 0
     variant_seq: int = 0
     variant_code: Optional[str] = None  # e.g. "00001-A"; set by the API layer.

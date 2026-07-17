@@ -121,7 +121,7 @@ const today = () => new Date().toISOString().split('T')[0];
 const LABDIP_PAGE_SIZE = 20;
 
 type DipDraft = { id?: string; color_name: string; color_id?: string | null; submission_round: number; recipe_ref?: string };
-type ItemDraft = { id?: string; item_id: string; variant_seq?: number; dips: DipDraft[] };
+type ItemDraft = { id?: string; item_id: string; item_label?: string; variant_seq?: number; dips: DipDraft[] };
 
 // 0 → A, 1 → B, … 25 → Z, 26 → AA (spreadsheet-column style).
 const variantLetter = (seq: number): string => {
@@ -161,7 +161,7 @@ const emptyForm = () => ({
 });
 
 export default function LabDipRequestView({
-    labDips, customers, items, recipes, attributes, colors,
+    labDips, customers, items, onSearchItems, recipes, attributes, colors,
     onCreate, onEdit, onUpdateStatus, onUpdateDipStatus, onDelete,
 }: any) {
     const { confirm } = useConfirm();
@@ -196,21 +196,11 @@ export default function LabDipRequestView({
     const [pendingItem, setPendingItem] = useState('');
     const [page, setPage] = useState(1);
 
-    // Lab dips test finished-good items only — mirror SalesOrderView's category gate.
-    const finishedGoodsItems = useMemo(() =>
-        (items || []).filter((i: any) => (i.category_path || []).includes('Finished Goods')),
-    [items]);
-
+    // `items` is the server-side typeahead result page (already scoped to Finished Goods).
+    const itemLabel = (it: any) => it.code ? `${it.code} — ${it.name}` : it.name;
     const itemOptions = useMemo(() =>
-        finishedGoodsItems.map((it: any) => ({ value: it.id, label: it.code ? `${it.code} — ${it.name}` : it.name })),
-    [finishedGoodsItems]);
-
-    // Full lookup (all items, not just finished goods) so existing/edited rows still resolve names.
-    const itemNameById = useMemo(() => {
-        const m: Record<string, string> = {};
-        (items || []).forEach((it: any) => { m[it.id] = it.code ? `${it.code} — ${it.name}` : it.name; });
-        return m;
-    }, [items]);
+        (items || []).map((it: any) => ({ value: it.id, label: itemLabel(it) })),
+    [items]);
 
     const recipeOptions = useMemo(() =>
         (recipes || []).map((r: any) => ({ value: r.id, label: r.code ? `${r.code} — ${r.name}` : r.name })),
@@ -237,7 +227,7 @@ export default function LabDipRequestView({
             season: r.season || '',
             request_type: r.request_type || 'NEW',
             notes: r.notes || '',
-            items: (r.items || []).map((it: any) => ({ id: it.id, item_id: it.item_id, variant_seq: it.variant_seq, dips: (it.dips || []).map(mapDip) })),
+            items: (r.items || []).map((it: any) => ({ id: it.id, item_id: it.item_id, item_label: it.item_code ? `${it.item_code} — ${it.item_name}` : it.item_name, variant_seq: it.variant_seq, dips: (it.dips || []).map(mapDip) })),
             legacyDips: (r.dips || []).filter((d: any) => !d.lab_dip_item_id).map(mapDip),
         });
         setPendingItem('');
@@ -247,7 +237,8 @@ export default function LabDipRequestView({
     const addItem = () => {
         if (!pendingItem) return;
         if (form.items.some(it => it.item_id === pendingItem)) { setPendingItem(''); return; }
-        setForm(prev => ({ ...prev, items: [...prev.items, { item_id: pendingItem, dips: [] }] }));
+        const label = itemOptions.find((o: any) => o.value === pendingItem)?.label || pendingItem;
+        setForm(prev => ({ ...prev, items: [...prev.items, { item_id: pendingItem, item_label: label, dips: [] }] }));
         setPendingItem('');
     };
     const removeItem = (itemId: string) => setForm(prev => ({ ...prev, items: prev.items.filter(it => it.item_id !== itemId) }));
@@ -437,7 +428,7 @@ export default function LabDipRequestView({
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                                             <span style={{ ...seqBadge(classic), fontSize: classic ? 9 : 11, padding: '0 5px' }}>{seqPart(r.code)}</span>
                                                             <span style={{ ...variantBadge(classic), fontSize: classic ? 9 : 11, padding: '0 5px' }}>{variantLetter(first.variant_seq ?? 0)}</span>
-                                                            <span style={{ fontWeight: 'bold', fontSize: classic ? 11 : 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{itemNameById[first.item_id] || '—'}</span>
+                                                            <span style={{ fontWeight: 'bold', fontSize: classic ? 11 : 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{first.item_name || first.item_code || '—'}</span>
                                                         </div>
                                                         {its.length > 1 && <div style={{ fontSize: classic ? 9 : 11, color: classic ? '#555' : '#64748b' }}>+{its.length - 1} more</div>}
                                                     </>
@@ -481,7 +472,7 @@ export default function LabDipRequestView({
                                             : { fontFamily: modernFont, fontSize: 12.5, color: '#1e293b' };
                                         // Dips grouped by item, plus any legacy ungrouped dips.
                                         const dipGroups: { key: string; name: string; seq: string; variant: string; dips: any[] }[] = [
-                                            ...(r.items || []).map((it: any) => ({ key: it.id, name: itemNameById[it.item_id] || '—', seq: seqPart(r.code), variant: variantLetter(it.variant_seq ?? 0), dips: it.dips || [] })),
+                                            ...(r.items || []).map((it: any) => ({ key: it.id, name: it.item_name || it.item_code || '—', seq: seqPart(r.code), variant: variantLetter(it.variant_seq ?? 0), dips: it.dips || [] })),
                                         ];
                                         const ungrouped = (r.dips || []).filter((d: any) => !d.lab_dip_item_id);
                                         if (ungrouped.length) dipGroups.push({ key: 'ungrouped', name: 'Ungrouped', seq: '', variant: '', dips: ungrouped });
@@ -689,6 +680,7 @@ export default function LabDipRequestView({
                                         options={itemOptions.filter((o: any) => !form.items.some(it => it.item_id === o.value))}
                                         value={pendingItem}
                                         onChange={setPendingItem}
+                                        onSearch={onSearchItems}
                                         placeholder="Add finished-good item…"
                                         size="sm"
                                     />
@@ -715,7 +707,7 @@ export default function LabDipRequestView({
                                         : { border: '1px solid #dbe1ea', background: '#fff', borderRadius: 8, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px' }}>
                                         {/* Item name (left) */}
                                         <span style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: classic ? 11 : 13, color: classic ? '#0d3a8a' : '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
-                                            <i className="bi bi-box-seam" style={{ marginRight: 5, color: classic ? '#3a6fc4' : '#2563eb' }} />{itemNameById[it.item_id] || it.item_id}
+                                            <i className="bi bi-box-seam" style={{ marginRight: 5, color: classic ? '#3a6fc4' : '#2563eb' }} />{it.item_label || it.item_id}
                                         </span>
                                         {/* Two distinct badges: sequence + variant (right) */}
                                         <span title="Request sequence" style={seqBadge(classic)}>{seqPart(displayCode)}</span>

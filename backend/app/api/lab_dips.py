@@ -25,6 +25,7 @@ def _load_full(request_id):
         select(LabDipRequest)
         .options(
             joinedload(LabDipRequest.items).joinedload(LabDipItem.dips),
+            joinedload(LabDipRequest.items).joinedload(LabDipItem.item),
             joinedload(LabDipRequest.dips),
         )
         .filter(LabDipRequest.id == request_id)
@@ -42,10 +43,12 @@ def _variant_letter(seq: int) -> str:
 
 
 def _decorate(req: LabDipRequest) -> LabDipRequest:
-    """Attach the derived variant_code (e.g. '00001-A') to each item for serialization."""
+    """Attach the derived variant_code (e.g. '00001-A') and denormalized item name/code."""
     seq_part = req.code.rsplit("-", 1)[-1] if req.code else ""
     for it in (req.items or []):
         it.variant_code = f"{seq_part}-{_variant_letter(it.variant_seq)}"
+        it.item_code = it.item.code if it.item else None
+        it.item_name = it.item.name if it.item else None
     return req
 
 
@@ -151,6 +154,7 @@ async def get_lab_dips(
         select(LabDipRequest)
         .options(
             joinedload(LabDipRequest.items).joinedload(LabDipItem.dips),
+            joinedload(LabDipRequest.items).joinedload(LabDipItem.item),
             joinedload(LabDipRequest.dips),
         )
         .order_by(LabDipRequest.created_at.desc())

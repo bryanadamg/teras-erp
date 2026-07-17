@@ -7,6 +7,7 @@ from app.db.session import get_async_db
 from app.services import item_service, stock_service, import_service, audit_service
 from app.schemas import ItemCreate, ItemResponse, StockEntryCreate, ItemUpdate, VariantCreate, PaginatedItemResponse
 from app.models.location import Location
+from app.models.category import Category
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission
 from sqlalchemy import select
@@ -89,9 +90,21 @@ async def get_items_api(
     limit: int = 100,
     search: str | None = None,
     category_id: uuid.UUID | None = None,
+    finished_goods: bool = False,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
+    # `finished_goods=true` scopes the search to the "Finished Goods" category subtree
+    # server-side, so large catalogs stay a typeahead instead of a client-side fetch-all.
+    if finished_goods and category_id is None:
+        fg = await db.execute(
+            select(Category).filter(Category.name == "Finished Goods").order_by(Category.parent_id.nulls_first())
+        )
+        fg_cat = fg.scalars().first()
+        if fg_cat is None:
+            return {"items": [], "total": 0, "page": 1, "size": 0}
+        category_id = fg_cat.id
+
     items, total = await item_service.get_items(db, skip=skip, limit=limit, user=current_user, search=search, category_id=category_id)
     for item in items:
         _populate_source_info(item)
