@@ -432,39 +432,73 @@ export default function LabDipRequestView({
                                     {expandedIds.has(r.id) && (() => {
                                         const fmt = (d: any) => d ? new Date(d).toLocaleDateString() : '—';
                                         const recipeLabel = recipeOptions.find((o: any) => o.value === r.approved_recipe_id)?.label;
-                                        const detailLbl: React.CSSProperties = classic
-                                            ? { fontFamily: xpFont, fontSize: 10, color: '#333', fontWeight: 'bold', minWidth: 92, flexShrink: 0 }
-                                            : { fontFamily: modernFont, fontSize: 11, color: '#475569', fontWeight: 600, minWidth: 92, flexShrink: 0 };
-                                        const detailVal: React.CSSProperties = classic
-                                            ? { fontFamily: xpFont, fontSize: 11, color: '#000' }
-                                            : { fontFamily: modernFont, fontSize: 12.5, color: '#1e293b' };
-                                        // One row per selected item: code + variant badges, item name, status control.
-                                        const variantRows = (r.items || []).map((it: any) => ({
-                                            id: it.id,
-                                            name: it.item_name || it.item_code || '—',
-                                            seq: seqPart(r.code),
-                                            variant: variantLetter(it.variant_seq ?? 0),
-                                            status: it.status || 'PENDING',
-                                            approvedCode: it.approved_color_code || null,
-                                        }));
                                         // Progress/Reject toggle: clicking the active one reverts to PENDING.
                                         // APPROVED/REJECTED are terminal (locked) — guarded here and on the server.
                                         const setItemStatus = (itemId: string, cur: string, next: string) => {
                                             if (cur === 'APPROVED' || cur === 'REJECTED') return;
                                             onUpdateItemStatus(r.id, itemId, cur === next ? 'PENDING' : next);
                                         };
-                                        const sections: { title: string; fields: any[][] }[] = [
+
+                                        const columns = [
+                                            { header: 'Item' },
+                                            { header: 'Code', width: 104 },
+                                            { header: 'Status', width: 96 },
+                                            { header: 'Update Status', width: 224, align: 'center' as const },
+                                        ];
+
+                                        // One row per selected item: item name, color code+variant, status, update control.
+                                        const rows = (r.items || []).map((it: any) => {
+                                            const status = it.status || 'PENDING';
+                                            const locked = status === 'APPROVED' || status === 'REJECTED';
+                                            const variantCode = `${seqPart(r.code)}-${variantLetter(it.variant_seq ?? 0)}`;
+                                            const stripe = getStatusStripe(status);
+                                            return {
+                                                key: it.id,
+                                                stripeColor: stripe.borderLeftColor,
+                                                background: stripe.background,
+                                                cells: [
+                                                    <span style={{ fontWeight: 'bold', color: classic ? '#0d3a8a' : '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, display: 'block' }}>{it.item_name || it.item_code || '—'}</span>,
+                                                    // Color code + variant; the full approved code once approved.
+                                                    it.approved_color_code ? (
+                                                        <span title="Approved color code (saved to library)" style={{ ...variantBadge(classic), fontSize: classic ? 9 : 11, padding: '0 6px', background: classic ? '#1b7a34' : '#dcfce7', color: classic ? '#fff' : '#166534', borderColor: classic ? '#0f5a22' : '#a7e3bf' }}>{it.approved_color_code}</span>
+                                                    ) : (
+                                                        <span style={{ ...seqBadge(classic), fontFamily: "'Courier New', monospace", fontSize: classic ? 10 : 11 }}>{variantCode}</span>
+                                                    ),
+                                                    <StatusChip status={status} tint />,
+                                                    canManage ? (
+                                                        <div style={{ display: 'inline-flex', opacity: locked ? 0.85 : 1 }}>
+                                                            <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'IN_PROGRESS', 'progress'), ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => setItemStatus(it.id, status, 'IN_PROGRESS')}>Progress</button>
+                                                            <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'APPROVED', 'approved'), ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => openApproval(r.id, { id: it.id, status, seq: seqPart(r.code), variant: variantLetter(it.variant_seq ?? 0) })}>Approved</button>
+                                                            <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'REJECTED', 'rejected'), borderRight: '1px solid', ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => setItemStatus(it.id, status, 'REJECTED')}>Rejected</button>
+                                                            {locked && <i className="bi bi-lock-fill" title="Decision locked" style={{ marginLeft: 6, alignSelf: 'center', fontSize: classic ? 10 : 12, color: classic ? '#777' : '#94a3b8' }} />}
+                                                        </div>
+                                                    ) : <span style={{ color: '#999' }}>—</span>,
+                                                ],
+                                            };
+                                        });
+
+                                        const sections = [
                                             { title: '① Identity', fields: [
-                                                ['Customer', r.customer_id ? getCustomerName(r.customer_id) : 'Internal'],
-                                                ['Season / Project', r.season || '—'],
-                                                ['Request Type', r.request_type || '—'],
-                                                ['Request Date', fmt(r.request_date)],
+                                                { label: 'Customer', value: r.customer_id ? getCustomerName(r.customer_id) : 'Internal' },
+                                                { label: 'Season / Project', value: r.season || '—' },
+                                                { label: 'Request Type', value: r.request_type || '—' },
+                                                { label: 'Request Date', value: fmt(r.request_date) },
                                             ]},
                                             { title: '② Recipe & Notes', fields: [
-                                                ['Approved Recipe', recipeLabel || '—', true],
-                                                ['Notes', r.notes || '—', true],
+                                                { label: 'Approved Recipe', value: recipeLabel || '—', full: true },
+                                                { label: 'Notes', value: r.notes || '—', full: true },
                                             ]},
                                         ];
+
+                                        const rightHeader = (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', flexWrap: 'wrap' as const, borderBottom: classic ? '1px solid #d0cdc8' : '1px solid #dee2e6', background: '#fff' }}>
+                                                <span style={{ fontSize: classic ? 10 : 11, fontWeight: classic ? 'bold' : 600, color: classic ? '#111' : '#444' }}>Request Status:</span>
+                                                <select style={{ ...xpInput(classic), width: 140 }} value={r.status} disabled={!canManage} onChange={e => onUpdateStatus(r.id, e.target.value)}>
+                                                    {REQUEST_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                                                </select>
+                                            </div>
+                                        );
+
                                         return (
                                         <tr>
                                             <td colSpan={7} style={classic
@@ -474,76 +508,20 @@ export default function LabDipRequestView({
                                                     boxShadow: classic
                                                         ? 'inset 0 2px 5px rgba(0,0,0,0.28), inset 0 -2px 5px rgba(0,0,0,0.16)'
                                                         : 'inset 0 2px 6px rgba(0,0,0,0.18), inset 0 -2px 6px rgba(0,0,0,0.10)',
-                                                    ...(classic
-                                                        ? { background: '#d8d3c8', border: '1px solid #808080', display: 'flex', minHeight: 170, overflow: 'hidden' }
-                                                        : { background: '#e9edf1', border: '1px solid #ced4da', display: 'flex', minHeight: 170, overflow: 'hidden' }),
+                                                    border: classic ? '1px solid #808080' : '1px solid #ced4da',
+                                                    overflow: 'hidden',
                                                 }}>
-                                                    {/* LEFT — Item variants + status */}
-                                                    <div style={{ width: '48%', borderRight: classic ? '1px solid #a0988c' : '1px solid #dbe1ea', display: 'flex', flexDirection: 'column' }}>
-                                                        <div style={classic
-                                                            ? { background: 'linear-gradient(to bottom, #e4e1d8, #d5d2c8)', borderBottom: '1px solid #9a9690', padding: '2px 8px', fontSize: 10, fontWeight: 'bold', color: '#111', display: 'flex', alignItems: 'center', gap: 6, fontFamily: xpFont, flexShrink: 0 }
-                                                            : { background: '#eef1f6', borderBottom: '1px solid #dbe1ea', padding: '7px 12px', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase' as const, letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                                                            <i className="bi bi-box-seam" /> Variants — {total} total · {approved} approved
-                                                        </div>
-                                                        {total > 0 ? (
-                                                            <div style={{ overflowY: 'auto', flex: 1, padding: classic ? '4px 6px' : '8px 10px' }}>
-                                                                {variantRows.map((v: any) => {
-                                                                    const locked = v.status === 'APPROVED' || v.status === 'REJECTED';
-                                                                    return (
-                                                                    <div key={v.id} style={classic
-                                                                        ? { border: '1px solid #b0c8e8', background: '#f5f9ff', marginBottom: 5, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const }
-                                                                        : { border: '1px solid #dbe1ea', background: '#fff', borderRadius: 8, marginBottom: 6, padding: '7px 9px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const }}>
-                                                                        {/* Item name (left) */}
-                                                                        <span style={{ flex: 1, minWidth: 90, fontWeight: 700, fontSize: classic ? 11 : 13, color: classic ? '#0d3a8a' : '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{v.name}</span>
-                                                                        {/* Code + variant (right, before the status control). When approved, the
-                                                                            variant badge shows the full approved color code (e.g. 00006-A-5). */}
-                                                                        <span style={{ ...seqBadge(classic), fontSize: classic ? 9 : 11, padding: '0 5px' }}>{v.seq}</span>
-                                                                        {v.approvedCode ? (
-                                                                            <span title="Approved color code (saved to library)" style={{ ...variantBadge(classic), fontSize: classic ? 9 : 11, padding: '0 6px', background: classic ? '#1b7a34' : '#dcfce7', color: classic ? '#fff' : '#166534', borderColor: classic ? '#0f5a22' : '#a7e3bf' }}>{v.approvedCode}</span>
-                                                                        ) : (
-                                                                            <span style={{ ...variantBadge(classic), fontSize: classic ? 9 : 11, padding: '0 5px' }}>{v.variant}</span>
-                                                                        )}
-                                                                        {canManage ? (
-                                                                            <div style={{ display: 'inline-flex', opacity: locked ? 0.85 : 1 }}>
-                                                                                <button type="button" disabled={locked} style={{ ...itemStatusBtn(v.status === 'IN_PROGRESS', 'progress'), ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => setItemStatus(v.id, v.status, 'IN_PROGRESS')}>Progress</button>
-                                                                                <button type="button" disabled={locked} style={{ ...itemStatusBtn(v.status === 'APPROVED', 'approved'), ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => openApproval(r.id, v)}>Approved</button>
-                                                                                <button type="button" disabled={locked} style={{ ...itemStatusBtn(v.status === 'REJECTED', 'rejected'), borderRight: '1px solid', ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => setItemStatus(v.id, v.status, 'REJECTED')}>Rejected</button>
-                                                                                {locked && <i className="bi bi-lock-fill" title="Decision locked" style={{ marginLeft: 6, alignSelf: 'center', fontSize: classic ? 10 : 12, color: classic ? '#777' : '#94a3b8' }} />}
-                                                                            </div>
-                                                                        ) : (
-                                                                            <span style={statusStyle(v.status, classic)}>{v.status.replace('_', ' ')}</span>
-                                                                        )}
-                                                                    </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        ) : (
-                                                            <div style={{ padding: 10, fontSize: classic ? 11 : 13, color: classic ? '#888' : '#64748b', fontStyle: 'italic' }}>No items on this request.</div>
-                                                        )}
-                                                    </div>
-                                                    {/* RIGHT — Request details */}
-                                                    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-                                                        {/* Request status control */}
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', flexWrap: 'wrap' as const, borderBottom: classic ? '1px solid #d0cdc8' : '1px solid #e6eaf1', background: '#fff' }}>
-                                                            <span style={{ fontSize: classic ? 10 : 12, fontWeight: classic ? 'bold' : 600, color: classic ? '#111' : '#475569' }}>Request Status:</span>
-                                                            <select style={{ ...xpInput(classic), width: 140 }} value={r.status} disabled={!canManage} onChange={e => onUpdateStatus(r.id, e.target.value)}>
-                                                                {REQUEST_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                                                            </select>
-                                                        </div>
-                                                        {sections.map(({ title, fields }) => (
-                                                            <div key={title}>
-                                                                <div style={xpGroupHeader(classic)}>{title}</div>
-                                                                <div style={{ padding: '6px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 16px', background: '#fff', borderBottom: classic ? '1px solid #d0cdc8' : '1px solid #e6eaf1' }}>
-                                                                    {fields.map(([label, value, full]: any) => (
-                                                                        <div key={label} style={{ display: 'flex', gap: 6, alignItems: 'flex-start', ...(full ? { gridColumn: '1 / -1' } : {}) }}>
-                                                                            <span style={detailLbl}>{label}</span>
-                                                                            <span style={{ ...detailVal, whiteSpace: full ? 'pre-wrap' as const : undefined }}>{value}</span>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
+                                                    <RequestDetailPanel
+                                                        classic={classic}
+                                                        leftTitle={<><i className="bi bi-box-seam" /> Variants — {total} total · {approved} approved</>}
+                                                        leftWidth="48%"
+                                                        columns={columns}
+                                                        rows={rows}
+                                                        emptyText="No items on this request."
+                                                        sections={sections}
+                                                        rightHeader={rightHeader}
+                                                        minHeight={170}
+                                                    />
                                                 </div>
                                             </td>
                                         </tr>
