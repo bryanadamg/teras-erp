@@ -5,7 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
-import { StatusChip, FormSection } from '../shared/xpTheme';
+import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import {
     LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow,
 } from '../shared/listViewTheme';
@@ -47,6 +47,7 @@ export default function ColorLibraryView({
     const classic = uiStyle === 'classic';
     const { hasPermission } = useUser();
     const canManage = hasPermission('dyeing.manage');
+    const { openId: menuOpenId, pos: menuPos, toggle: menuToggle, close: menuClose } = useFloatingMenu(160);
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editing, setEditing] = useState<any>(null);
@@ -230,16 +231,7 @@ export default function ColorLibraryView({
                                 <td style={lvTd(classic)}><StatusChip status={c.status} /></td>
                                 <td style={{ ...lvTd(classic), borderRight: 'none', textAlign: 'right' }}>
                                     <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end', alignItems: 'center' }}>
-                                        {canManage && (
-                                        <button title="Edit" onClick={() => openEdit(c)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#555' : '#64748b', fontSize: 13 }}>
-                                            <i className="bi bi-pencil" />
-                                        </button>
-                                        )}
-                                        {canManage && (
-                                        <button title={c.recipe_count > 0 ? 'Archive' : 'Delete'} onClick={() => handleDelete(c)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#a00' : '#dc2626', fontSize: 13 }}>
-                                            <i className={c.recipe_count > 0 ? 'bi bi-archive' : 'bi bi-trash'} />
-                                        </button>
-                                        )}
+                                        <MenuTriggerButton classic={classic} onClick={e => menuToggle(String(c.id), e)} />
                                     </div>
                                 </td>
                             </tr>
@@ -257,6 +249,21 @@ export default function ColorLibraryView({
                 <span>Page {page} / {totalPages}</span>
                 <button style={lvBtn(classic)} disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>Next ▶</button>
             </div>
+
+            {/* ── Row ⋯ menu: Edit / Archive-Delete ── */}
+            {menuOpenId && (() => {
+                const c = colors.find(x => String(x.id) === menuOpenId);
+                if (!c || !canManage) return null;
+                return (
+                    <FloatingMenu
+                        pos={menuPos}
+                        items={[
+                            { key: 'edit', label: 'Edit', icon: 'bi-pencil', onClick: () => { menuClose(); openEdit(c); } },
+                            { key: 'delete', label: c.recipe_count > 0 ? 'Archive' : 'Delete', icon: c.recipe_count > 0 ? 'bi-archive' : 'bi-trash', danger: true, onClick: () => { menuClose(); handleDelete(c); } },
+                        ]}
+                    />
+                );
+            })()}
 
             <ModalWrapper
                 isOpen={isModalOpen}

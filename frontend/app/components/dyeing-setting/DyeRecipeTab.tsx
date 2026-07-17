@@ -10,7 +10,7 @@ import CodeConfigModal, { CodeConfig } from '../shared/CodeConfigModal';
 import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import Pager from '../shared/Pager';
-import { StatusChip, FormSection } from '../shared/xpTheme';
+import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvSep, lvRow, lvLabel } from '../shared/listViewTheme';
 import { API_BASE } from '../shared/apiBase';
 
@@ -132,6 +132,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
     const [page, setPage] = useState(1);
     const { showToast } = useToast();
     const { confirm } = useConfirm();
+    const { openId: menuOpenId, pos: menuPos, toggle: menuToggle, close: menuClose } = useFloatingMenu(160);
 
     useEffect(() => {
         // Active colors for the recipe's shade picker (capped; future: server typeahead at 30k).
@@ -621,19 +622,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
                                         </td>
                                         <td style={{ ...lvTd(classic), borderRight: 'none', textAlign: 'right' }} onClick={e => e.stopPropagation()}>
                                             <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end', alignItems: 'center' }}>
-                                                {canManage && (
-                                                <button title="Edit" onClick={() => openEdit(recipe)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#555' : '#64748b', fontSize: 13 }}>
-                                                    <i className="bi bi-pencil" />
-                                                </button>
-                                                )}
-                                                <button title="Print Recipe Card" onClick={() => { setSelectedId(rid); setShowPrint(true); }} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#555' : '#64748b', fontSize: 13 }}>
-                                                    <i className="bi bi-printer" />
-                                                </button>
-                                                {canManage && (
-                                                <button title="Delete" onClick={() => handleDelete(recipe)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#a00' : '#dc2626', fontSize: 13 }}>
-                                                    <i className="bi bi-trash" />
-                                                </button>
-                                                )}
+                                                <MenuTriggerButton classic={classic} onClick={e => menuToggle(rid, e)} />
                                             </div>
                                         </td>
                                     </tr>
@@ -657,6 +646,22 @@ export default function DyeRecipeTab({ items, attributes, authFetch }: Props) {
             </div>
 
             <Pager page={clampedPage} total={filteredRecipes.length} pageSize={RECIPE_PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
+
+            {/* ── Row ⋯ menu: Edit / Print / Delete ── */}
+            {menuOpenId && (() => {
+                const recipe = recipes.find(r => String(r.id) === menuOpenId);
+                if (!recipe) return null;
+                return (
+                    <FloatingMenu
+                        pos={menuPos}
+                        items={[
+                            { key: 'edit', label: 'Edit', icon: 'bi-pencil', hidden: !canManage, onClick: () => { menuClose(); openEdit(recipe); } },
+                            { key: 'print', label: 'Print Recipe Card', icon: 'bi-printer', onClick: () => { menuClose(); setSelectedId(String(recipe.id)); setShowPrint(true); } },
+                            { key: 'delete', label: 'Delete', icon: 'bi-trash', danger: true, hidden: !canManage, onClick: () => { menuClose(); handleDelete(recipe); } },
+                        ]}
+                    />
+                );
+            })()}
 
                 <ModalWrapper
                     isOpen={showForm}

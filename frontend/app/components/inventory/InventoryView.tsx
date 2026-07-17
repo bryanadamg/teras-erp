@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, memo } from 'react';
+import React, { useState, useEffect, useMemo, memo, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import CodeConfigModal, { CodeConfig, buildCodeWithCounter } from '../shared/CodeConfigModal';
 import BulkImportModal from './BulkImportModal';
@@ -23,6 +23,92 @@ function getCategoryXPStyle(category: string): { bg: string; border: string; col
     if (l.includes('semi'))  return { bg: '#fff8e1', border: '#c77800', color: '#4a3000' };
     return { bg: '#e8e8e8', border: '#6a6a6a', color: '#222222' };
 }
+
+// Floating [...] action menu — aggregates row actions (except the always-visible
+// Event Log button). Rendered in a fixed-position overlay so table overflow
+// never clips it.
+const RowActionMenu = memo(({ items, classic, isSelected }: { items: { label: string; icon: string; danger?: boolean; onClick: () => void }[]; classic: boolean; isSelected: boolean }) => {
+    const [open, setOpen] = useState(false);
+    const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+    const btnRef = useRef<HTMLButtonElement>(null);
+
+    useEffect(() => {
+        if (!open) return;
+        const close = () => setOpen(false);
+        window.addEventListener('scroll', close, true);
+        window.addEventListener('resize', close);
+        document.addEventListener('mousedown', close);
+        return () => {
+            window.removeEventListener('scroll', close, true);
+            window.removeEventListener('resize', close);
+            document.removeEventListener('mousedown', close);
+        };
+    }, [open]);
+
+    const toggle = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (open) { setOpen(false); return; }
+        const r = btnRef.current?.getBoundingClientRect();
+        if (r) setPos({ top: r.bottom + 2, right: Math.max(4, window.innerWidth - r.right) });
+        setOpen(true);
+    };
+
+    if (items.length === 0) return null;
+
+    const menu = open && pos ? (
+        <div
+            onMouseDown={e => e.stopPropagation()}
+            style={{
+                position: 'fixed', top: pos.top, right: pos.right, zIndex: 1200, minWidth: 130,
+                background: '#fff',
+                border: classic ? '1px solid #808080' : '1px solid #d0d0d0',
+                boxShadow: '2px 3px 8px rgba(0,0,0,0.3)',
+                borderRadius: classic ? 0 : 4,
+                padding: '2px 0',
+                fontFamily: classic ? 'Tahoma, Arial, sans-serif' : undefined,
+                fontSize: classic ? '11px' : '13px',
+            }}
+        >
+            {items.map(it => (
+                <button
+                    key={it.label}
+                    onClick={e => { e.stopPropagation(); setOpen(false); it.onClick(); }}
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        padding: classic ? '4px 12px' : '6px 14px',
+                        color: it.danger ? '#aa0000' : '#000',
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = it.danger ? '#ffe8e8' : (classic ? '#316ac5' : '#eef3fb'); if (!it.danger && classic) (e.currentTarget as HTMLButtonElement).style.color = '#fff'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; (e.currentTarget as HTMLButtonElement).style.color = it.danger ? '#aa0000' : '#000'; }}
+                >
+                    <i className={`bi ${it.icon}`}></i>
+                    <span>{it.label}</span>
+                </button>
+            ))}
+        </div>
+    ) : null;
+
+    return (
+        <>
+            <button
+                ref={btnRef}
+                title="More actions"
+                onClick={toggle}
+                style={classic
+                    ? { background: open ? (isSelected ? 'rgba(255,255,255,0.15)' : '#e8f0f8') : 'none', border: '1px solid ' + (open ? '#7f9db9' : 'transparent'), borderRadius: '2px', cursor: 'pointer', padding: '3px 6px', color: isSelected ? '#fff' : '#555', fontSize: '12px' }
+                    : undefined}
+                className={classic ? '' : 'btn btn-sm btn-link text-secondary p-0'}
+                onMouseEnter={classic ? (e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = isSelected ? 'rgba(255,255,255,0.15)' : '#e8f0f8'; }) : undefined}
+                onMouseLeave={classic ? (e => { if (!open) { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; } }) : undefined}
+            >
+                <i className="bi bi-three-dots"></i>
+            </button>
+            {menu}
+        </>
+    );
+});
+RowActionMenu.displayName = 'RowActionMenu';
 
 // Memoized Row Component
 const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSelect, onEdit, onDelete, onViewHistory, getAttributeList, classic }: any) => {
@@ -178,44 +264,28 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
                             >
                                 <i className="bi bi-clock-history"></i>
                             </button>
-                            {canManage && (
-                                <button
-                                    title="Edit"
-                                    onClick={() => onEdit(item)}
-                                    style={{ background: 'none', border: '1px solid transparent', borderRadius: '2px', cursor: 'pointer', padding: '3px 6px', color: isSelected ? '#fff' : '#00309c', fontSize: '12px' }}
-                                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = isSelected ? 'rgba(255,255,255,0.15)' : '#e8f0f8'; }}
-                                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-                                >
-                                    <i className="bi bi-pencil-square"></i>
-                                </button>
-                            )}
-                            {canDelete && (
-                                <button
-                                    title="Delete"
-                                    onClick={() => onDelete(item.id)}
-                                    style={{ background: 'none', border: '1px solid transparent', borderRadius: '2px', cursor: 'pointer', padding: '3px 6px', color: isSelected ? '#ffcccc' : '#aa0000', fontSize: '12px' }}
-                                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#cc8888'; (e.currentTarget as HTMLButtonElement).style.background = isSelected ? 'rgba(255,100,100,0.2)' : '#ffe8e8'; }}
-                                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-                                >
-                                    <i className="bi bi-trash"></i>
-                                </button>
-                            )}
+                            <RowActionMenu
+                                classic={classic}
+                                isSelected={isSelected}
+                                items={[
+                                    ...(canManage ? [{ label: 'Edit', icon: 'bi-pencil-square', onClick: () => onEdit(item) }] : []),
+                                    ...(canDelete ? [{ label: 'Delete', icon: 'bi-trash', danger: true, onClick: () => onDelete(item.id) }] : []),
+                                ]}
+                            />
                         </>
                     ) : (
                         <>
                             <button className="btn btn-sm btn-link text-info p-0" title="View History" onClick={() => onViewHistory(item.id)}>
                                 <i className="bi bi-clock-history"></i>
                             </button>
-                            {canManage && (
-                                <button className="btn btn-sm btn-link text-primary p-0" onClick={() => onEdit(item)}>
-                                    <i className="bi bi-pencil-square"></i>
-                                </button>
-                            )}
-                            {canDelete && (
-                                <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDelete(item.id)}>
-                                    <i className="bi bi-trash"></i>
-                                </button>
-                            )}
+                            <RowActionMenu
+                                classic={classic}
+                                isSelected={isSelected}
+                                items={[
+                                    ...(canManage ? [{ label: 'Edit', icon: 'bi-pencil-square', onClick: () => onEdit(item) }] : []),
+                                    ...(canDelete ? [{ label: 'Delete', icon: 'bi-trash', danger: true, onClick: () => onDelete(item.id) }] : []),
+                                ]}
+                            />
                         </>
                     )}
                 </div>
@@ -760,40 +830,45 @@ export default function InventoryView({
       >
           <form id="create-item-form" onSubmit={handleSubmitItem} data-testid="create-item-modal">
             <FormSection title="Basic Info" classic={classic}>
-              <div className="mb-3">
-                  <FieldLabel classic={classic} right={<i className="bi bi-gear-fill text-muted" style={{cursor: 'pointer'}} onClick={() => setIsConfigOpen(true)} title="Configure Auto-Suggestion"></i>}>
-                      {t('item_code')}
-                  </FieldLabel>
-                  <input data-testid="item-code-input" style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} placeholder="ITM-001" value={newItem.code} onChange={e => {
-                      const code = e.target.value;
-                      setNewItem(prev => ({ ...prev, code, name: nameManuallyEdited ? prev.name : code }));
-                  }} required />
+              <div className="mb-3" style={{ display: 'flex', gap: '12px' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                      <FieldLabel classic={classic}>{t('item_code')}</FieldLabel>
+                      <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                          <input data-testid="item-code-input" style={classic ? { ...xpInput, flex: 1, minWidth: 0 } : undefined} className={classic ? '' : 'form-control'} placeholder="ITM-001" value={newItem.code} onChange={e => {
+                              const code = e.target.value;
+                              setNewItem(prev => ({ ...prev, code, name: nameManuallyEdited ? prev.name : code }));
+                          }} required />
+                          <i className="bi bi-gear-fill text-muted" style={{cursor: 'pointer', flexShrink: 0}} onClick={() => setIsConfigOpen(true)} title="Configure Auto-Suggestion"></i>
+                      </div>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                      <FieldLabel classic={classic}>{t('item_name')}</FieldLabel>
+                      <input data-testid="item-name-input" style={classic ? { ...xpInput, width: '100%' } : undefined} className={classic ? '' : 'form-control'} placeholder="Product Name" value={newItem.name} onChange={e => {
+                          setNameManuallyEdited(true);
+                          setNewItem(prev => ({ ...prev, name: e.target.value }));
+                      }} required />
+                  </div>
               </div>
-              <div className="mb-3">
-                  <FieldLabel classic={classic}>{t('item_name')}</FieldLabel>
-                  <input data-testid="item-name-input" style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} placeholder="Product Name" value={newItem.name} onChange={e => {
-                      setNameManuallyEdited(true);
-                      setNewItem(prev => ({ ...prev, name: e.target.value }));
-                  }} required />
-              </div>
-              <div className="mb-3">
-                  <FieldLabel classic={classic}>{t('categories')}</FieldLabel>
-                  <TreeSelect
-                      options={catTreeOptions}
-                      value={effectiveFormCategoryId || ''}
-                      onChange={handleFormCategoryChange}
-                      allowEmpty
-                      emptyLabel="— None —"
-                      size="sm"
-                      style={{ width: '100%' }}
-                  />
-              </div>
-              <div className="mb-1">
-                  <FieldLabel classic={classic}>{t('uom')}</FieldLabel>
-                  <select data-testid="uom-select" style={classic ? { ...xpInput, height: 'auto', padding: '2px 4px', width: '100%' } : undefined} className={classic ? '' : 'form-select'} value={newItem.uom} onChange={e => setNewItem({...newItem, uom: e.target.value, packaging_factor_ids: []})} required>
-                      <option value="">Unit...</option>
-                      {(uoms || []).map((u: any) => <option key={u.id} value={u.name}>{u.name}</option>)}
-                  </select>
+              <div className="mb-1" style={{ display: 'flex', gap: '12px' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                      <FieldLabel classic={classic}>{t('categories')}</FieldLabel>
+                      <TreeSelect
+                          options={catTreeOptions}
+                          value={effectiveFormCategoryId || ''}
+                          onChange={handleFormCategoryChange}
+                          allowEmpty
+                          emptyLabel="— None —"
+                          size="sm"
+                          style={{ width: '100%' }}
+                      />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                      <FieldLabel classic={classic}>{t('uom')}</FieldLabel>
+                      <select data-testid="uom-select" style={classic ? { ...xpInput, height: 'auto', padding: '2px 4px', width: '100%' } : undefined} className={classic ? '' : 'form-select'} value={newItem.uom} onChange={e => setNewItem({...newItem, uom: e.target.value, packaging_factor_ids: []})} required>
+                          <option value="">Unit...</option>
+                          {(uoms || []).map((u: any) => <option key={u.id} value={u.name}>{u.name}</option>)}
+                      </select>
+                  </div>
               </div>
             </FormSection>
 
