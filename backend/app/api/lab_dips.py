@@ -4,6 +4,8 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import joinedload
 from app.db.session import get_async_db
 from app.models.lab_dip import LabDipRequest, LabDipItem, LabDipLine
+from app.models.color import Color
+from app.models.attribute import Attribute, AttributeValue
 from app.schemas import (
     LabDipRequestCreate, LabDipRequestUpdate, LabDipRequestResponse, LabDipLineResponse,
 )
@@ -47,6 +49,8 @@ def _decorate(req: LabDipRequest) -> LabDipRequest:
     seq_part = req.code.rsplit("-", 1)[-1] if req.code else ""
     for it in (req.items or []):
         it.variant_code = f"{seq_part}-{_variant_letter(it.variant_seq)}"
+        # Full approved code appends the free-text "set" captured at approval.
+        it.approved_color_code = f"{it.variant_code}-{it.approved_set}" if it.approved_set else None
         it.item_code = it.item.code if it.item else None
         it.item_name = it.item.name if it.item else None
     return req
@@ -281,6 +285,8 @@ async def update_lab_dip_item_status(
     request_id: str,
     item_id: str,
     status: str,
+    set_value: str | None = None,
+    notes: str | None = None,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission('dyeing.manage')),
 ):
@@ -295,11 +301,53 @@ async def update_lab_dip_item_status(
     if status not in valid_statuses:
         raise HTTPException(status_code=400, detail="Invalid status")
 
-    previous_status = item.status
-    item.status = status
+    # APPROVED / REJECTED are terminal — a decided variant can never be re-opened.
+    if item.status in ("APPROVED", "REJECTED"):
+        raise HTTPException(status_code=400, detail=f"Variant is {item.status} and locked; its status cannot be changed")
 
     parent_result = await db.execute(select(LabDipRequest).filter(LabDipRequest.id == request_id))
     parent = parent_result.scalars().first()
+
+    minted_color_code = None
+    if status == "APPROVED":
+        set_value = (set_value or "").strip()
+        if not set_value:
+            raise HTTPException(status_code=400, detail="A set index is required to approve a variant")
+
+        seq_part = parent.code.rsplit("-", 1)[-1] if parent and parent.code else ""
+        code = f"{seq_part}-{_variant_letter(item.variant_seq)}-{set_value}"
+
+        dup = await db.execute(select(Color).filter(Color.code == code))
+        if dup.scalars().first():
+            raise HTTPException(status_code=400, detail=f"Color code '{code}' already exists in the library")
+
+        color = Color(
+            code=code,
+            name=code,  # the code is the shade identity; a friendly name is optional.
+            notes=(notes or None),
+            status="active",
+        )
+        db.add(color)
+        await db.flush()
+
+        # Option-A mirror: create + link a `Color Code` (labdip_color) AttributeValue so the
+        # legacy LabDip color dropdown keeps resolving during the transition to the library.
+        attr_id = (await db.execute(
+            select(Attribute.id).filter(Attribute.system_role == "labdip_color")
+        )).scalars().first()
+        if attr_id is not None:
+            av = AttributeValue(attribute_id=attr_id, value=code)
+            db.add(av)
+            await db.flush()
+            color.attribute_value_id = av.id
+
+        item.approved_set = set_value
+        item.approved_color_id = color.id
+        minted_color_code = code
+
+    previous_status = item.status
+    item.status = status
+
     if parent:
         parent.updated_at = datetime.utcnow()
 
@@ -311,10 +359,11 @@ async def update_lab_dip_item_status(
         action="UPDATE_ITEM_STATUS",
         entity_type="LabDipItem",
         entity_id=item_id,
-        details=f"Updated lab dip item variant status from {previous_status} to {status}",
-        changes={"status": status, "previous_status": previous_status},
+        details=f"Updated lab dip item variant status from {previous_status} to {status}"
+                + (f"; minted color {minted_color_code}" if minted_color_code else ""),
+        changes={"status": status, "previous_status": previous_status, "approved_color_code": minted_color_code},
     )
-    return {"status": "success"}
+    return {"status": "success", "color_code": minted_color_code}
 
 
 @router.put("/lab-dips/{request_id}/status")

@@ -1460,6 +1460,9 @@ class LabDipItemResponse(BaseModel):
     variant_seq: int = 0
     variant_code: Optional[str] = None  # e.g. "00001-A"; set by the API layer.
     status: str = "PENDING"
+    approved_set: Optional[str] = None
+    approved_color_id: Optional[UUID] = None
+    approved_color_code: Optional[str] = None  # e.g. "00001-A-5"; set by the API layer.
     dips: list[LabDipLineResponse] = []
     model_config = ConfigDict(from_attributes=True)
 

@@ -64,9 +64,18 @@ class LabDipItem(Base):
     # Assigned once when the item is added; never re-indexed when siblings are removed.
     variant_seq: Mapped[int] = mapped_column(Integer, default=0)
     # Per-variant progress: PENDING → IN_PROGRESS → APPROVED / REJECTED.
+    # APPROVED and REJECTED are terminal: once set, the status is locked.
     status: Mapped[str] = mapped_column(String(32), default="PENDING")
+    # Free-text "set" index captured on approval; completes the approved color code
+    # (e.g. request seq "00006" + variant "A" + set "5" → "00006-A-5").
+    approved_set: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # The Color library shade minted for this variant when it was approved.
+    approved_color_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("colors.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     item = relationship("Item", foreign_keys=[item_id])
+    approved_color = relationship("Color", foreign_keys=[approved_color_id])
     # Read-only grouping of this item's dips. Lines are owned by LabDipRequest.dips
     # (every line always has lab_dip_request_id) to keep a single cascade owner.
     dips = relationship(

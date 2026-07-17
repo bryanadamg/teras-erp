@@ -159,6 +159,23 @@ export default function LabDipRequestView({
     const [pendingItem, setPendingItem] = useState('');
     const [page, setPage] = useState(1);
 
+    // Approval dialog: captures the "set" index (+ optional notes) that completes the
+    // approved color code, then mints a Color library entry via onUpdateItemStatus.
+    const [approval, setApproval] = useState<{ reqId: string; itemId: string; seq: string; variant: string } | null>(null);
+    const [approvalSet, setApprovalSet] = useState('');
+    const [approvalNotes, setApprovalNotes] = useState('');
+    const openApproval = (reqId: string, v: any) => {
+        if (v.status === 'APPROVED' || v.status === 'REJECTED') return; // locked
+        setApproval({ reqId, itemId: v.id, seq: v.seq, variant: v.variant });
+        setApprovalSet('');
+        setApprovalNotes('');
+    };
+    const confirmApproval = () => {
+        if (!approval || !approvalSet.trim()) return;
+        onUpdateItemStatus(approval.reqId, approval.itemId, 'APPROVED', { set: approvalSet.trim(), notes: approvalNotes.trim() || undefined });
+        setApproval(null);
+    };
+
     // `items` is the server-side typeahead result page (already scoped to Finished Goods).
     const itemLabel = (it: any) => it.code ? `${it.code} — ${it.name}` : it.name;
     const itemOptions = useMemo(() =>
@@ -426,10 +443,14 @@ export default function LabDipRequestView({
                                             seq: seqPart(r.code),
                                             variant: variantLetter(it.variant_seq ?? 0),
                                             status: it.status || 'PENDING',
+                                            approvedCode: it.approved_color_code || null,
                                         }));
-                                        // Toggle a status button: clicking the active one reverts to PENDING.
-                                        const setItemStatus = (itemId: string, cur: string, next: string) =>
+                                        // Progress/Reject toggle: clicking the active one reverts to PENDING.
+                                        // APPROVED/REJECTED are terminal (locked) — guarded here and on the server.
+                                        const setItemStatus = (itemId: string, cur: string, next: string) => {
+                                            if (cur === 'APPROVED' || cur === 'REJECTED') return;
                                             onUpdateItemStatus(r.id, itemId, cur === next ? 'PENDING' : next);
+                                        };
                                         const sections: { title: string; fields: any[][] }[] = [
                                             { title: '① Identity', fields: [
                                                 ['Customer', r.customer_id ? getCustomerName(r.customer_id) : 'Internal'],
@@ -464,24 +485,35 @@ export default function LabDipRequestView({
                                                         </div>
                                                         {total > 0 ? (
                                                             <div style={{ overflowY: 'auto', flex: 1, padding: classic ? '4px 6px' : '8px 10px' }}>
-                                                                {variantRows.map((v: any) => (
+                                                                {variantRows.map((v: any) => {
+                                                                    const locked = v.status === 'APPROVED' || v.status === 'REJECTED';
+                                                                    return (
                                                                     <div key={v.id} style={classic
                                                                         ? { border: '1px solid #b0c8e8', background: '#f5f9ff', marginBottom: 5, padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const }
                                                                         : { border: '1px solid #dbe1ea', background: '#fff', borderRadius: 8, marginBottom: 6, padding: '7px 9px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const }}>
-                                                                        <span style={{ ...seqBadge(classic), fontSize: classic ? 9 : 11, padding: '0 5px' }}>{v.seq}</span>
-                                                                        <span style={{ ...variantBadge(classic), fontSize: classic ? 9 : 11, padding: '0 5px' }}>{v.variant}</span>
+                                                                        {/* Item name (left) */}
                                                                         <span style={{ flex: 1, minWidth: 90, fontWeight: 700, fontSize: classic ? 11 : 13, color: classic ? '#0d3a8a' : '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{v.name}</span>
+                                                                        {/* Code + variant (right, before the status control). When approved, the
+                                                                            variant badge shows the full approved color code (e.g. 00006-A-5). */}
+                                                                        <span style={{ ...seqBadge(classic), fontSize: classic ? 9 : 11, padding: '0 5px' }}>{v.seq}</span>
+                                                                        {v.approvedCode ? (
+                                                                            <span title="Approved color code (saved to library)" style={{ ...variantBadge(classic), fontSize: classic ? 9 : 11, padding: '0 6px', background: classic ? '#1b7a34' : '#dcfce7', color: classic ? '#fff' : '#166534', borderColor: classic ? '#0f5a22' : '#a7e3bf' }}>{v.approvedCode}</span>
+                                                                        ) : (
+                                                                            <span style={{ ...variantBadge(classic), fontSize: classic ? 9 : 11, padding: '0 5px' }}>{v.variant}</span>
+                                                                        )}
                                                                         {canManage ? (
-                                                                            <div style={{ display: 'inline-flex' }}>
-                                                                                <button type="button" style={itemStatusBtn(v.status === 'IN_PROGRESS', 'progress')} onClick={() => setItemStatus(v.id, v.status, 'IN_PROGRESS')}>Progress</button>
-                                                                                <button type="button" style={itemStatusBtn(v.status === 'APPROVED', 'approved')} onClick={() => setItemStatus(v.id, v.status, 'APPROVED')}>Approved</button>
-                                                                                <button type="button" style={{ ...itemStatusBtn(v.status === 'REJECTED', 'rejected'), borderRight: '1px solid' }} onClick={() => setItemStatus(v.id, v.status, 'REJECTED')}>Rejected</button>
+                                                                            <div style={{ display: 'inline-flex', opacity: locked ? 0.85 : 1 }}>
+                                                                                <button type="button" disabled={locked} style={{ ...itemStatusBtn(v.status === 'IN_PROGRESS', 'progress'), ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => setItemStatus(v.id, v.status, 'IN_PROGRESS')}>Progress</button>
+                                                                                <button type="button" disabled={locked} style={{ ...itemStatusBtn(v.status === 'APPROVED', 'approved'), ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => openApproval(r.id, v)}>Approved</button>
+                                                                                <button type="button" disabled={locked} style={{ ...itemStatusBtn(v.status === 'REJECTED', 'rejected'), borderRight: '1px solid', ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => setItemStatus(v.id, v.status, 'REJECTED')}>Rejected</button>
+                                                                                {locked && <i className="bi bi-lock-fill" title="Decision locked" style={{ marginLeft: 6, alignSelf: 'center', fontSize: classic ? 10 : 12, color: classic ? '#777' : '#94a3b8' }} />}
                                                                             </div>
                                                                         ) : (
                                                                             <span style={statusStyle(v.status, classic)}>{v.status.replace('_', ' ')}</span>
                                                                         )}
                                                                     </div>
-                                                                ))}
+                                                                    );
+                                                                })}
                                                             </div>
                                                         ) : (
                                                             <div style={{ padding: 10, fontSize: classic ? 11 : 13, color: classic ? '#888' : '#64748b', fontStyle: 'italic' }}>No items on this request.</div>
@@ -650,6 +682,50 @@ export default function LabDipRequestView({
                         </div>
                     </div>
                 </form>
+            </ModalWrapper>
+
+            {/* Approve variant → capture the "set" index, mint the color code */}
+            <ModalWrapper
+                isOpen={!!approval}
+                onClose={() => setApproval(null)}
+                title={<><i className="bi bi-check2-circle me-2" />Approve Variant</>}
+                variant="success"
+                size="sm"
+                footer={
+                    <>
+                        <button type="button" style={xpBtn(classic)} onClick={() => setApproval(null)}>Cancel</button>
+                        <button type="button" disabled={!approvalSet.trim()} style={classic
+                            ? xpBtn(true, { background: 'linear-gradient(to bottom, #7bd88f, #1b7a34)', borderColor: '#0f5a22 #073d15 #073d15 #0f5a22', color: '#04220c', fontWeight: 'bold', opacity: approvalSet.trim() ? 1 : 0.55 })
+                            : xpBtn(false, { fontWeight: 600, background: '#16a34a', color: '#fff', border: 'none', opacity: approvalSet.trim() ? 1 : 0.55 })}
+                            onClick={confirmApproval}>
+                            Approve &amp; Save Color
+                        </button>
+                    </>
+                }
+            >
+                {approval && (
+                    <div style={{ padding: '2px 2px 4px' }}>
+                        <label style={xpLbl(classic)}>Set Index</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                            <span style={{ ...seqBadge(classic), fontSize: classic ? 11 : 13 }}>{approval.seq}</span>
+                            <span style={{ ...variantBadge(classic), fontSize: classic ? 11 : 13 }}>{approval.variant}</span>
+                            <span style={{ fontFamily: "'Courier New', monospace", fontWeight: 700, color: classic ? '#555' : '#94a3b8' }}>–</span>
+                            <input autoFocus style={{ ...xpInput(classic), width: 90 }} value={approvalSet}
+                                onChange={e => setApprovalSet(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') confirmApproval(); }}
+                                placeholder="e.g. 5" />
+                        </div>
+                        <div style={{ fontSize: classic ? 11 : 12, color: classic ? '#555' : '#64748b', marginBottom: 10 }}>
+                            Approved color code:{' '}
+                            <span style={{ fontFamily: "'Courier New', monospace", fontWeight: 700, color: classic ? '#1b7a34' : '#16a34a' }}>
+                                {approval.seq}-{approval.variant}-{approvalSet.trim() || '…'}
+                            </span>
+                            {' '}— saved to the Color library.
+                        </div>
+                        <label style={xpLbl(classic)}>Notes (optional)</label>
+                        <textarea style={{ ...xpInput(classic), height: 'auto', padding: '4px 6px', width: '100%', resize: 'vertical' as const, boxSizing: 'border-box' as const }} rows={2} value={approvalNotes} onChange={e => setApprovalNotes(e.target.value)} placeholder="Optional note carried onto the color entry…" />
+                    </div>
+                )}
             </ModalWrapper>
         </div>
     );

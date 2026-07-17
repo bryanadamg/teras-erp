@@ -72,9 +72,18 @@ export default function LabDipsPage() {
         if (res.ok) fetchLabDips();
     };
 
-    const handleUpdateItemStatus = async (reqId: string, itemId: string, status: string) => {
-        const res = await authFetch(`${API_BASE}/lab-dips/${reqId}/items/${itemId}/status?status=${status}`, { method: 'PUT' });
-        if (res.ok) fetchLabDips();
+    const handleUpdateItemStatus = async (reqId: string, itemId: string, status: string, extra?: { set?: string; notes?: string }) => {
+        let url = `${API_BASE}/lab-dips/${reqId}/items/${itemId}/status?status=${status}`;
+        if (extra?.set) url += `&set_value=${encodeURIComponent(extra.set)}`;
+        if (extra?.notes) url += `&notes=${encodeURIComponent(extra.notes)}`;
+        const res = await authFetch(url, { method: 'PUT' });
+        if (res.ok) {
+            fetchLabDips();
+            if (status === 'APPROVED') { fetchColors(); showToast('Variant approved · color added to library', 'success'); }
+        } else {
+            const err = await res.json().catch(() => null);
+            showToast(err?.detail || 'Failed to update variant status', 'danger');
+        }
     };
 
     const handleDelete = async (id: string) => {
