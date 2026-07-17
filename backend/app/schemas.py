@@ -1430,6 +1430,7 @@ class LabDipLineUpdate(BaseModel):
 
 class LabDipLineResponse(BaseModel):
     id: UUID
+    lab_dip_item_id: Optional[UUID] = None
     color_name: str
     color_id: Optional[UUID] = None
     submission_round: int = 1
@@ -1437,6 +1438,24 @@ class LabDipLineResponse(BaseModel):
     status: str = "PENDING"
     remarks: Optional[str] = None
     order: int = 0
+    model_config = ConfigDict(from_attributes=True)
+
+class LabDipItemCreate(BaseModel):
+    item_id: UUID
+    order: int = 0
+    dips: list[LabDipLineCreate] = []
+
+class LabDipItemUpdate(BaseModel):
+    id: Optional[UUID] = None
+    item_id: UUID
+    order: int = 0
+    dips: list[LabDipLineUpdate] = []
+
+class LabDipItemResponse(BaseModel):
+    id: UUID
+    item_id: UUID
+    order: int = 0
+    dips: list[LabDipLineResponse] = []
     model_config = ConfigDict(from_attributes=True)
 
 class LabDipRequestCreate(BaseModel):
@@ -1454,6 +1473,7 @@ class LabDipRequestCreate(BaseModel):
     due_date: Optional[str] = None
     estimated_completion_date: Optional[str] = None
     notes: Optional[str] = None
+    items: list[LabDipItemCreate] = []
     dips: list[LabDipLineCreate] = []
 
 class LabDipRequestUpdate(BaseModel):
@@ -1471,6 +1491,7 @@ class LabDipRequestUpdate(BaseModel):
     due_date: Optional[str] = None
     estimated_completion_date: Optional[str] = None
     notes: Optional[str] = None
+    items: list[LabDipItemUpdate] = []
     dips: list[LabDipLineUpdate] = []
 
 class LabDipRequestResponse(BaseModel):
@@ -1492,6 +1513,7 @@ class LabDipRequestResponse(BaseModel):
     due_date: Optional[date] = None
     estimated_completion_date: Optional[date] = None
     notes: Optional[str] = None
+    items: list[LabDipItemResponse] = []
     dips: list[LabDipLineResponse] = []
     model_config = ConfigDict(from_attributes=True)
 

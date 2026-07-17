@@ -43,7 +43,33 @@ class LabDipRequest(Base):
     customer = relationship("Partner", foreign_keys=[customer_id])
     base_item = relationship("Item", foreign_keys=[base_item_id])
     approved_recipe = relationship("DyeRecipe", foreign_keys=[approved_recipe_id])
+    # Finished-good items this request tests colors against; each carries its own dips.
+    items = relationship("LabDipItem", order_by="LabDipItem.order", cascade="all, delete-orphan")
+    # All dips flat under the request (kept for legacy/ungrouped dips and status lookups).
     dips = relationship("LabDipLine", order_by="LabDipLine.order", cascade="all, delete-orphan")
+
+
+class LabDipItem(Base):
+    __tablename__ = "lab_dip_items"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    lab_dip_request_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("lab_dip_requests.id", ondelete="CASCADE"), index=True
+    )
+    item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("items.id"), index=True
+    )
+    order: Mapped[int] = mapped_column(Integer, default=0)
+
+    item = relationship("Item", foreign_keys=[item_id])
+    # Read-only grouping of this item's dips. Lines are owned by LabDipRequest.dips
+    # (every line always has lab_dip_request_id) to keep a single cascade owner.
+    dips = relationship(
+        "LabDipLine",
+        order_by="LabDipLine.order",
+        viewonly=True,
+        primaryjoin="LabDipItem.id == LabDipLine.lab_dip_item_id",
+    )
 
 
 class LabDipLine(Base):
@@ -52,6 +78,9 @@ class LabDipLine(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     lab_dip_request_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("lab_dip_requests.id", ondelete="CASCADE"), index=True
+    )
+    lab_dip_item_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("lab_dip_items.id", ondelete="CASCADE"), nullable=True, index=True
     )
     color_name: Mapped[str] = mapped_column(String(255))
     color_id: Mapped[uuid.UUID | None] = mapped_column(

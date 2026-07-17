@@ -120,21 +120,19 @@ const dipRowStyle = (status: string, classic: boolean): { borderLeftColor: strin
 const today = () => new Date().toISOString().split('T')[0];
 const LABDIP_PAGE_SIZE = 20;
 
+type DipDraft = { id?: string; color_name: string; color_id?: string | null; submission_round: number; recipe_ref?: string };
+type ItemDraft = { id?: string; item_id: string; dips: DipDraft[] };
+
 const emptyForm = () => ({
     request_date: today(),
     customer_id: '',
-    base_item_id: '',
     approved_recipe_id: '',
     season: '',
-    customer_article_code: '',
-    internal_article_code: '',
-    substrate: '',
-    color_standard: '',
     request_type: 'NEW',
-    due_date: '',
-    estimated_completion_date: '',
     notes: '',
-    dips: [] as { id?: string; color_name: string; color_id?: string | null; submission_round: number; recipe_ref?: string }[],
+    items: [] as ItemDraft[],
+    // Legacy dips with no item, carried through on edit so they aren't dropped.
+    legacyDips: [] as DipDraft[],
 });
 
 export default function LabDipRequestView({
@@ -170,8 +168,9 @@ export default function LabDipRequestView({
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editing, setEditing] = useState<any>(null);
     const [form, setForm] = useState(emptyForm());
-    const [pendingColor, setPendingColor] = useState('');
-    const [pendingRound, setPendingRound] = useState(1);
+    const [pendingItem, setPendingItem] = useState('');
+    // Per-item "add dip" draft state, keyed by item_id (unique within a request).
+    const [pending, setPending] = useState<Record<string, { color: string; round: number }>>({});
     const [page, setPage] = useState(1);
 
     // Colors now come from the Color Library (color_id). Fall back to the legacy
@@ -193,9 +192,21 @@ export default function LabDipRequestView({
         return m;
     }, [colors]);
 
-    const itemOptions = useMemo(() =>
-        (items || []).map((it: any) => ({ value: it.id, label: it.code ? `${it.code} — ${it.name}` : it.name })),
+    // Lab dips test finished-good items only — mirror SalesOrderView's category gate.
+    const finishedGoodsItems = useMemo(() =>
+        (items || []).filter((i: any) => (i.category_path || []).includes('Finished Goods')),
     [items]);
+
+    const itemOptions = useMemo(() =>
+        finishedGoodsItems.map((it: any) => ({ value: it.id, label: it.code ? `${it.code} — ${it.name}` : it.name })),
+    [finishedGoodsItems]);
+
+    // Full lookup (all items, not just finished goods) so existing/edited rows still resolve names.
+    const itemNameById = useMemo(() => {
+        const m: Record<string, string> = {};
+        (items || []).forEach((it: any) => { m[it.id] = it.code ? `${it.code} — ${it.name}` : it.name; });
+        return m;
+    }, [items]);
 
     const recipeOptions = useMemo(() =>
         (recipes || []).map((r: any) => ({ value: r.id, label: r.code ? `${r.code} — ${r.name}` : r.name })),
@@ -210,51 +221,72 @@ export default function LabDipRequestView({
     const toggleExpand = (id: string) =>
         setExpandedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
-    const openCreate = () => { setEditing(null); setForm(emptyForm()); setPendingColor(''); setPendingRound(1); setIsModalOpen(true); };
+    const openCreate = () => { setEditing(null); setForm(emptyForm()); setPendingItem(''); setPending({}); setIsModalOpen(true); };
 
     const openEdit = (r: any) => {
         setEditing(r);
+        const mapDip = (d: any): DipDraft => ({ id: d.id, color_name: d.color_name, color_id: d.color_id || null, submission_round: d.submission_round, recipe_ref: d.recipe_ref || '' });
         setForm({
             request_date: r.request_date || today(),
             customer_id: r.customer_id || '',
-            base_item_id: r.base_item_id || '',
             approved_recipe_id: r.approved_recipe_id || '',
             season: r.season || '',
-            customer_article_code: r.customer_article_code || '',
-            internal_article_code: r.internal_article_code || '',
-            substrate: r.substrate || '',
-            color_standard: r.color_standard || '',
             request_type: r.request_type || 'NEW',
-            due_date: r.due_date || '',
-            estimated_completion_date: r.estimated_completion_date || '',
             notes: r.notes || '',
-            dips: (r.dips || []).map((d: any) => ({ id: d.id, color_name: d.color_name, color_id: d.color_id || null, submission_round: d.submission_round, recipe_ref: d.recipe_ref || '' })),
+            items: (r.items || []).map((it: any) => ({ id: it.id, item_id: it.item_id, dips: (it.dips || []).map(mapDip) })),
+            legacyDips: (r.dips || []).filter((d: any) => !d.lab_dip_item_id).map(mapDip),
         });
-        setPendingColor(''); setPendingRound(1);
+        setPendingItem(''); setPending({});
         setIsModalOpen(true);
     };
 
-    const addPendingDip = () => {
-        if (!pendingColor.trim()) return;
-        // Library selection => pendingColor is a color_id; resolve its display name.
-        // Legacy fallback => the value itself is the color name.
-        const isLibrary = !!colorNameById[pendingColor];
-        const name = isLibrary ? colorNameById[pendingColor] : pendingColor.trim();
-        setForm(prev => ({ ...prev, dips: [...prev.dips, { color_name: name, color_id: isLibrary ? pendingColor : null, submission_round: pendingRound, recipe_ref: '' }] }));
-        setPendingColor('');
+    const addItem = () => {
+        if (!pendingItem) return;
+        if (form.items.some(it => it.item_id === pendingItem)) { setPendingItem(''); return; }
+        setForm(prev => ({ ...prev, items: [...prev.items, { item_id: pendingItem, dips: [] }] }));
+        setPendingItem('');
     };
-    const removeDip = (idx: number) => setForm(prev => ({ ...prev, dips: prev.dips.filter((_, i) => i !== idx) }));
+    const removeItem = (itemId: string) => setForm(prev => ({ ...prev, items: prev.items.filter(it => it.item_id !== itemId) }));
+
+    const getPending = (iid: string) => pending[iid] || { color: '', round: 1 };
+    const setPendingColor = (iid: string, color: string) => setPending(p => ({ ...p, [iid]: { ...getPending(iid), color } }));
+    const setPendingRound = (iid: string, round: number) => setPending(p => ({ ...p, [iid]: { ...getPending(iid), round } }));
+
+    const addDip = (iid: string) => {
+        const p = getPending(iid);
+        if (!p.color.trim()) return;
+        // Library selection => value is a color_id; resolve its display name. Legacy => value is the name.
+        const isLibrary = !!colorNameById[p.color];
+        const name = isLibrary ? colorNameById[p.color] : p.color.trim();
+        setForm(prev => ({
+            ...prev,
+            items: prev.items.map(it => it.item_id === iid
+                ? { ...it, dips: [...it.dips, { color_name: name, color_id: isLibrary ? p.color : null, submission_round: p.round, recipe_ref: '' }] }
+                : it),
+        }));
+        setPending(pp => ({ ...pp, [iid]: { color: '', round: p.round } }));
+    };
+    const removeDip = (iid: string, dipIdx: number) => setForm(prev => ({
+        ...prev,
+        items: prev.items.map(it => it.item_id === iid ? { ...it, dips: it.dips.filter((_, i) => i !== dipIdx) } : it),
+    }));
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         const payload = {
-            ...form,
+            request_date: form.request_date,
             customer_id: form.customer_id || null,
-            base_item_id: form.base_item_id || null,
             approved_recipe_id: form.approved_recipe_id || null,
-            due_date: form.due_date || null,
-            estimated_completion_date: form.estimated_completion_date || null,
-            dips: form.dips.filter(d => d.color_name.trim() !== ''),
+            season: form.season,
+            request_type: form.request_type,
+            notes: form.notes,
+            items: form.items.map((it, gi) => ({
+                id: it.id,
+                item_id: it.item_id,
+                order: gi,
+                dips: it.dips.filter(d => d.color_name.trim() !== ''),
+            })),
+            dips: form.legacyDips.filter(d => d.color_name.trim() !== ''),
         };
         if (editing) onEdit(editing.id, payload); else onCreate(payload);
         setIsModalOpen(false);
@@ -369,7 +401,7 @@ export default function LabDipRequestView({
                         <tr>
                             <th style={{ ...xpThCell(classic), width: 140 }}>Request Code</th>
                             <th style={{ ...xpThCell(classic), width: 120 }}>Customer</th>
-                            <th style={xpThCell(classic)}>Target / Article</th>
+                            <th style={xpThCell(classic)}>Items</th>
                             <th style={{ ...xpThCell(classic), width: 90 }}>Type</th>
                             <th style={{ ...xpThCell(classic), width: 110 }}>Status</th>
                             <th style={{ ...xpThCell(classic), width: 90 }}>Dips</th>
@@ -405,9 +437,16 @@ export default function LabDipRequestView({
                                             {r.customer_id ? getCustomerName(r.customer_id) : <span style={{ fontSize: classic ? 9 : 12, color: classic ? '#555' : '#64748b', fontStyle: 'italic' }}>Internal</span>}
                                         </td>
                                         <td style={tdBase(classic)}>
-                                            {r.color_standard && <div style={{ fontWeight: 'bold', fontSize: classic ? 11 : 13 }}>{r.color_standard}</div>}
-                                            {r.customer_article_code && <div style={{ fontSize: classic ? 9 : 11, color: classic ? '#555' : '#64748b' }}>{r.customer_article_code}</div>}
-                                            {!r.color_standard && !r.customer_article_code && <span style={{ fontSize: classic ? 9 : 12, color: classic ? '#888' : '#94a3b8', fontStyle: 'italic' }}>—</span>}
+                                            {(() => {
+                                                const names = (r.items || []).map((it: any) => itemNameById[it.item_id] || '—');
+                                                if (!names.length) return <span style={{ fontSize: classic ? 9 : 12, color: classic ? '#888' : '#94a3b8', fontStyle: 'italic' }}>—</span>;
+                                                return (
+                                                    <>
+                                                        <div style={{ fontWeight: 'bold', fontSize: classic ? 11 : 13 }}>{names[0]}</div>
+                                                        {names.length > 1 && <div style={{ fontSize: classic ? 9 : 11, color: classic ? '#555' : '#64748b' }}>+{names.length - 1} more</div>}
+                                                    </>
+                                                );
+                                            })()}
                                         </td>
                                         <td style={tdBase(classic)}><span style={{ fontSize: classic ? 10 : 13 }}>{r.request_type}</span></td>
                                         <td style={tdBase(classic)}><span style={statusStyle(r.status, classic)}>{r.status}</span></td>
@@ -438,30 +477,60 @@ export default function LabDipRequestView({
                                     {expandedIds.has(r.id) && (() => {
                                         const fmt = (d: any) => d ? new Date(d).toLocaleDateString() : '—';
                                         const recipeLabel = recipeOptions.find((o: any) => o.value === r.approved_recipe_id)?.label;
-                                        const itemLabel = itemOptions.find((o: any) => o.value === r.base_item_id)?.label;
                                         const detailLbl: React.CSSProperties = classic
                                             ? { fontFamily: xpFont, fontSize: 10, color: '#333', fontWeight: 'bold', minWidth: 92, flexShrink: 0 }
                                             : { fontFamily: modernFont, fontSize: 11, color: '#475569', fontWeight: 600, minWidth: 92, flexShrink: 0 };
                                         const detailVal: React.CSSProperties = classic
                                             ? { fontFamily: xpFont, fontSize: 11, color: '#000' }
                                             : { fontFamily: modernFont, fontSize: 12.5, color: '#1e293b' };
+                                        // Dips grouped by item, plus any legacy ungrouped dips.
+                                        const dipGroups: { key: string; name: string; dips: any[] }[] = [
+                                            ...(r.items || []).map((it: any) => ({ key: it.id, name: itemNameById[it.item_id] || '—', dips: it.dips || [] })),
+                                        ];
+                                        const ungrouped = (r.dips || []).filter((d: any) => !d.lab_dip_item_id);
+                                        if (ungrouped.length) dipGroups.push({ key: 'ungrouped', name: 'Ungrouped', dips: ungrouped });
+                                        const renderDipRow = (d: any, isLast: boolean) => {
+                                            const st = d.status || 'PENDING';
+                                            const isApproved = st === 'APPROVED';
+                                            const rs = dipRowStyle(st, classic);
+                                            const rowTd: React.CSSProperties = { ...tdBase(classic), background: rs.background, borderBottom: isLast ? 'none' : tdBase(classic).borderBottom };
+                                            return (
+                                                <tr key={d.id} style={{ background: rs.background }}>
+                                                    <td style={{ ...rowTd, borderLeft: `4px solid ${rs.borderLeftColor}`, fontWeight: 'bold' }}>
+                                                        {d.color_name}
+                                                        {d.recipe_ref && <div style={{ fontSize: classic ? 9 : 11, fontWeight: 'normal', color: classic ? '#555' : '#64748b' }}>{d.recipe_ref}</div>}
+                                                    </td>
+                                                    <td style={rowTd}>#{d.submission_round}</td>
+                                                    <td style={rowTd}><span style={statusStyle(st, classic)}>{st}</span></td>
+                                                    <td style={{ ...rowTd, borderRight: 'none', textAlign: 'center' as const }}>
+                                                        {isApproved ? (
+                                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                                                <span style={{ fontSize: classic ? 10 : 12, color: classic ? '#1b5e20' : '#15803d', fontWeight: classic ? 'bold' : 600 }}>Approved</span>
+                                                                {d.color_id ? (
+                                                                    <span title="Added to Color Library" style={{ fontSize: classic ? 9 : 11, color: classic ? '#555' : '#64748b', display: 'inline-flex', alignItems: 'center', gap: 2 }}><i className="bi bi-check-circle-fill" /> In Library</span>
+                                                                ) : canManage ? (
+                                                                    <button type="button" title="Create a Color Library record from this shade" style={approveBtn()} onClick={() => createColorFromDip(r, d)}><i className="bi bi-plus-lg" /> Color</button>
+                                                                ) : null}
+                                                            </div>
+                                                        ) : canManage ? (
+                                                            <div style={{ display: 'inline-flex' }}>
+                                                                <button type="button" style={dipBtn(st === 'RESUBMIT', 'resubmit')} onClick={() => onUpdateDipStatus(r.id, d.id, st === 'RESUBMIT' ? 'PENDING' : 'RESUBMIT')}>Resubmit</button>
+                                                                <button type="button" style={{ ...approveBtn(), borderRight: 'none' }} onClick={() => handleApproveDip(r.id, d.id, d.color_name)}>Approve</button>
+                                                                <button type="button" style={dipBtn(st === 'REJECTED', 'reject')} onClick={() => onUpdateDipStatus(r.id, d.id, st === 'REJECTED' ? 'PENDING' : 'REJECTED')}>Reject</button>
+                                                            </div>
+                                                        ) : null}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        };
                                         const sections: { title: string; fields: any[][] }[] = [
-                                            { title: '① Identity & Specs', fields: [
+                                            { title: '① Identity', fields: [
                                                 ['Customer', r.customer_id ? getCustomerName(r.customer_id) : 'Internal'],
                                                 ['Season / Project', r.season || '—'],
                                                 ['Request Type', r.request_type || '—'],
-                                                ['Customer Art.', r.customer_article_code || '—'],
-                                                ['Internal Art.', r.internal_article_code || '—'],
                                                 ['Request Date', fmt(r.request_date)],
                                             ]},
-                                            { title: '② Target & Substrate', fields: [
-                                                ['Color Standard', r.color_standard || '—'],
-                                                ['Substrate', r.substrate || '—'],
-                                                ['Substrate Item', itemLabel || '—', true],
-                                                ['Due Date', fmt(r.due_date)],
-                                                ['Est. Completion', fmt(r.estimated_completion_date)],
-                                            ]},
-                                            { title: '③ Recipe & Notes', fields: [
+                                            { title: '② Recipe & Notes', fields: [
                                                 ['Approved Recipe', recipeLabel || '—', true],
                                                 ['Notes', r.notes || '—', true],
                                             ]},
@@ -491,41 +560,22 @@ export default function LabDipRequestView({
                                                                         </tr>
                                                                     </thead>
                                                                     <tbody>
-                                                                        {(r.dips || []).map((d: any, dipIdx: number) => {
-                                                                            const st = d.status || 'PENDING';
-                                                                            const isApproved = st === 'APPROVED';
-                                                                            const rs = dipRowStyle(st, classic);
-                                                                            const isLast = dipIdx === (r.dips || []).length - 1;
-                                                                            const rowTd: React.CSSProperties = { ...tdBase(classic), background: rs.background, borderBottom: isLast ? 'none' : tdBase(classic).borderBottom };
-                                                                            return (
-                                                                                <tr key={d.id} style={{ background: rs.background }}>
-                                                                                    <td style={{ ...rowTd, borderLeft: `4px solid ${rs.borderLeftColor}`, fontWeight: 'bold' }}>
-                                                                                        {d.color_name}
-                                                                                        {d.recipe_ref && <div style={{ fontSize: classic ? 9 : 11, fontWeight: 'normal', color: classic ? '#555' : '#64748b' }}>{d.recipe_ref}</div>}
-                                                                                    </td>
-                                                                                    <td style={rowTd}>#{d.submission_round}</td>
-                                                                                    <td style={rowTd}><span style={statusStyle(st, classic)}>{st}</span></td>
-                                                                                    <td style={{ ...rowTd, borderRight: 'none', textAlign: 'center' as const }}>
-                                                                                        {isApproved ? (
-                                                                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                                                                                                <span style={{ fontSize: classic ? 10 : 12, color: classic ? '#1b5e20' : '#15803d', fontWeight: classic ? 'bold' : 600 }}>Approved</span>
-                                                                                                {d.color_id ? (
-                                                                                                    <span title="Added to Color Library" style={{ fontSize: classic ? 9 : 11, color: classic ? '#555' : '#64748b', display: 'inline-flex', alignItems: 'center', gap: 2 }}><i className="bi bi-check-circle-fill" /> In Library</span>
-                                                                                                ) : canManage ? (
-                                                                                                    <button type="button" title="Create a Color Library record from this shade" style={approveBtn()} onClick={() => createColorFromDip(r, d)}><i className="bi bi-plus-lg" /> Color</button>
-                                                                                                ) : null}
-                                                                                            </div>
-                                                                                        ) : canManage ? (
-                                                                                            <div style={{ display: 'inline-flex' }}>
-                                                                                                <button type="button" style={dipBtn(st === 'RESUBMIT', 'resubmit')} onClick={() => onUpdateDipStatus(r.id, d.id, st === 'RESUBMIT' ? 'PENDING' : 'RESUBMIT')}>Resubmit</button>
-                                                                                                <button type="button" style={{ ...approveBtn(), borderRight: 'none' }} onClick={() => handleApproveDip(r.id, d.id, d.color_name)}>Approve</button>
-                                                                                                <button type="button" style={dipBtn(st === 'REJECTED', 'reject')} onClick={() => onUpdateDipStatus(r.id, d.id, st === 'REJECTED' ? 'PENDING' : 'REJECTED')}>Reject</button>
-                                                                                            </div>
-                                                                                        ) : null}
+                                                                        {dipGroups.map(g => (
+                                                                            <React.Fragment key={g.key}>
+                                                                                <tr>
+                                                                                    <td colSpan={4} style={classic
+                                                                                        ? { background: '#eef3fb', borderBottom: '1px solid #c8d4e8', borderTop: '1px solid #c8d4e8', padding: '2px 8px', fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#0d3a8a' }
+                                                                                        : { background: '#f1f5fb', borderBottom: '1px solid #dbe1ea', borderTop: '1px solid #dbe1ea', padding: '4px 10px', fontFamily: modernFont, fontSize: 11.5, fontWeight: 700, color: '#1e40af' }}>
+                                                                                        <i className="bi bi-box-seam" style={{ marginRight: 5 }} />{g.name}
+                                                                                        <span style={{ fontWeight: 'normal', color: classic ? '#555' : '#64748b', marginLeft: 6 }}>· {g.dips.length} dip{g.dips.length !== 1 ? 's' : ''}</span>
                                                                                     </td>
                                                                                 </tr>
-                                                                            );
-                                                                        })}
+                                                                                {g.dips.length === 0
+                                                                                    ? <tr><td colSpan={4} style={{ ...tdBase(classic), fontStyle: 'italic', color: classic ? '#888' : '#94a3b8', fontSize: classic ? 10 : 12 }}>No dips yet</td></tr>
+                                                                                    : g.dips.map((d: any, dipIdx: number) => renderDipRow(d, dipIdx === g.dips.length - 1))
+                                                                                }
+                                                                            </React.Fragment>
+                                                                        ))}
                                                                     </tbody>
                                                                 </table>
                                                             </div>
@@ -599,98 +649,95 @@ export default function LabDipRequestView({
                                     <input style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const, background: classic ? '#f0f0f0' : '#f1f5f9', color: classic ? '#666' : '#64748b' }} value={editing ? editing.code : 'Auto-generated (LD-…)'} readOnly />
                                 </div>
                                 <div>
-                                    <label style={xpLbl(classic)}>Request Date <span style={{ color: classic ? '#a00' : '#dc2626' }}>*</span></label>
-                                    <input type="date" style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const }} value={form.request_date} onChange={e => setField('request_date', e.target.value)} required />
-                                </div>
-                                <div style={{ gridColumn: '1 / -1' }}>
-                                    <label style={xpLbl(classic)}>Customer (Optional)</label>
-                                    <SearchableSelect options={customerOptions} value={form.customer_id} onChange={(v: string) => setField('customer_id', v)} placeholder="Select customer…" />
-                                </div>
-                                <div>
-                                    <label style={xpLbl(classic)}>Season / Project</label>
-                                    <input style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const }} value={form.season} onChange={e => setField('season', e.target.value)} placeholder="e.g. Spring 2026" />
-                                </div>
-                                <div>
                                     <label style={xpLbl(classic)}>Request Type</label>
                                     <select style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const }} value={form.request_type} onChange={e => setField('request_type', e.target.value)}>
                                         {REQUEST_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                                     </select>
                                 </div>
-                                <div>
-                                    <label style={xpLbl(classic)}>Customer Article Code</label>
-                                    <input style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const }} value={form.customer_article_code} onChange={e => setField('customer_article_code', e.target.value)} />
-                                </div>
-                                <div>
-                                    <label style={xpLbl(classic)}>Internal Article Code</label>
-                                    <input style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const }} value={form.internal_article_code} onChange={e => setField('internal_article_code', e.target.value)} />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* ② Target & Substrate */}
-                    <div style={xpGroupBox(classic)}>
-                        <div style={xpGroupHeader(classic)}>② Target &amp; Substrate</div>
-                        <div style={xpGroupBody(classic)}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
-                                <div>
-                                    <label style={xpLbl(classic)}>Color Standard / Pantone</label>
-                                    <input style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const }} value={form.color_standard} onChange={e => setField('color_standard', e.target.value)} placeholder="e.g. Pantone 18-1664 TCX" />
-                                </div>
-                                <div>
-                                    <label style={xpLbl(classic)}>Substrate (fabric quality)</label>
-                                    <input style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const }} value={form.substrate} onChange={e => setField('substrate', e.target.value)} placeholder="e.g. 100% Cotton 150gsm" />
+                                <div style={{ gridColumn: '1 / -1' }}>
+                                    <label style={xpLbl(classic)}>Customer (Optional)</label>
+                                    <SearchableSelect options={customerOptions} value={form.customer_id} onChange={(v: string) => setField('customer_id', v)} placeholder="Select customer…" />
                                 </div>
                                 <div style={{ gridColumn: '1 / -1' }}>
-                                    <label style={xpLbl(classic)}>Substrate Item (Optional)</label>
-                                    <SearchableSelect options={[{ value: '', label: 'None' }, ...itemOptions]} value={form.base_item_id} onChange={(v: string) => setField('base_item_id', v)} placeholder="Link base/greige item…" />
-                                </div>
-                                <div>
-                                    <label style={xpLbl(classic)}>Due Date</label>
-                                    <input type="date" style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const }} value={form.due_date} onChange={e => setField('due_date', e.target.value)} />
-                                </div>
-                                <div>
-                                    <label style={xpLbl(classic)}>Estimated Completion</label>
-                                    <input type="date" style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const }} value={form.estimated_completion_date} onChange={e => setField('estimated_completion_date', e.target.value)} />
+                                    <label style={xpLbl(classic)}>Season / Project</label>
+                                    <input style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const }} value={form.season} onChange={e => setField('season', e.target.value)} placeholder="e.g. Spring 2026" />
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* ③ Dips */}
+                    {/* ② Items & Dips */}
                     <div style={xpGroupBox(classic)}>
-                        <div style={xpGroupHeader(classic)}>③ Dips (Submissions)</div>
+                        <div style={xpGroupHeader(classic)}>② Items &amp; Dips</div>
                         <div style={xpGroupBody(classic)}>
-                            <div style={classic
-                                ? { background: '#f5f9ff', border: '1px solid #b0c8e8', minHeight: 40, padding: '6px 8px', marginBottom: 6 }
-                                : { background: '#f8fafc', border: '1px solid #dbe1ea', borderRadius: 7, minHeight: 40, padding: '6px 8px', marginBottom: 6 }}>
-                                {form.dips.length === 0
-                                    ? <span style={{ fontSize: classic ? 11 : 13, color: classic ? '#999' : '#94a3b8', fontStyle: 'italic' }}>No dips added yet…</span>
-                                    : form.dips.map((d, idx) => (
-                                        <span key={idx} style={classic
-                                            ? { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 7px', marginRight: 4, marginBottom: 4, background: '#e8f4e8', border: '1px solid #7aba7a', fontSize: 11 }
-                                            : { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', marginRight: 4, marginBottom: 4, background: '#ecfdf3', border: '1px solid #abdfc0', borderRadius: 6, fontSize: 12.5, color: '#15803d', fontFamily: modernFont }}>
-                                            <span style={{ fontSize: classic ? 9 : 11, fontWeight: 'bold', color: classic ? '#228b22' : '#15803d' }}>R{d.submission_round}</span>
-                                            {d.color_name}
-                                            <span onClick={() => removeDip(idx)} style={{ cursor: 'pointer', color: classic ? '#a00' : '#dc2626', marginLeft: 2, fontWeight: 'bold', fontSize: 12, lineHeight: 1 }} title="Remove">×</span>
-                                        </span>
-                                    ))
-                                }
-                            </div>
-                            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            {/* Add finished-good item */}
+                            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10 }}>
                                 <div style={{ flex: 1 }}>
-                                    <SearchableSelect options={colorOptions} value={pendingColor} onChange={setPendingColor} placeholder="Select color/shade…" size="sm" />
+                                    <SearchableSelect
+                                        options={itemOptions.filter((o: any) => !form.items.some(it => it.item_id === o.value))}
+                                        value={pendingItem}
+                                        onChange={setPendingItem}
+                                        placeholder="Add finished-good item…"
+                                        size="sm"
+                                    />
                                 </div>
-                                <label style={{ fontSize: classic ? 10 : 12, color: classic ? '#555' : '#475569', fontWeight: classic ? undefined : 600 }}>Round</label>
-                                <input type="number" min={1} style={{ ...xpInput(classic), width: 56 }} value={pendingRound} onChange={e => setPendingRound(parseInt(e.target.value) || 1)} />
-                                <button type="button" style={classic ? xpBtn(true) : xpBtn(false, modernPrimaryBtn)} onClick={addPendingDip}><i className="bi bi-plus-lg" /> Add</button>
+                                <button type="button" style={classic ? xpBtn(true) : xpBtn(false, modernPrimaryBtn)} onClick={addItem}><i className="bi bi-plus-lg" /> Add Item</button>
                             </div>
+
+                            {form.items.length === 0 && (
+                                <div style={{ fontSize: classic ? 11 : 13, color: classic ? '#999' : '#94a3b8', fontStyle: 'italic', padding: '4px 2px' }}>
+                                    No items yet — add a finished-good item, then add color dips under it.
+                                </div>
+                            )}
+
+                            {form.items.map(it => {
+                                const p = getPending(it.item_id);
+                                return (
+                                    <div key={it.item_id} style={classic
+                                        ? { border: '1px solid #b0c8e8', background: '#f5f9ff', marginBottom: 8 }
+                                        : { border: '1px solid #dbe1ea', background: '#f8fafc', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
+                                        {/* Item header */}
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, padding: classic ? '3px 8px' : '6px 10px', background: classic ? '#e4ecf8' : '#eef3fb', borderBottom: classic ? '1px solid #b0c8e8' : '1px solid #dbe1ea' }}>
+                                            <span style={{ fontWeight: 700, fontSize: classic ? 11 : 13, color: classic ? '#0d3a8a' : '#1e40af' }}>
+                                                <i className="bi bi-box-seam" style={{ marginRight: 5 }} />{itemNameById[it.item_id] || it.item_id}
+                                            </span>
+                                            <button type="button" title="Remove item" onClick={() => removeItem(it.item_id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: classic ? '#a00' : '#dc2626', fontSize: 14, fontWeight: 'bold', lineHeight: 1 }}>×</button>
+                                        </div>
+                                        <div style={{ padding: '6px 8px' }}>
+                                            {/* Dip chips */}
+                                            <div style={{ minHeight: 30, marginBottom: 6 }}>
+                                                {it.dips.length === 0
+                                                    ? <span style={{ fontSize: classic ? 11 : 12.5, color: classic ? '#999' : '#94a3b8', fontStyle: 'italic' }}>No dips added yet…</span>
+                                                    : it.dips.map((d, idx) => (
+                                                        <span key={idx} style={classic
+                                                            ? { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 7px', marginRight: 4, marginBottom: 4, background: '#e8f4e8', border: '1px solid #7aba7a', fontSize: 11 }
+                                                            : { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', marginRight: 4, marginBottom: 4, background: '#ecfdf3', border: '1px solid #abdfc0', borderRadius: 6, fontSize: 12.5, color: '#15803d', fontFamily: modernFont }}>
+                                                            <span style={{ fontSize: classic ? 9 : 11, fontWeight: 'bold', color: classic ? '#228b22' : '#15803d' }}>R{d.submission_round}</span>
+                                                            {d.color_name}
+                                                            <span onClick={() => removeDip(it.item_id, idx)} style={{ cursor: 'pointer', color: classic ? '#a00' : '#dc2626', marginLeft: 2, fontWeight: 'bold', fontSize: 12, lineHeight: 1 }} title="Remove">×</span>
+                                                        </span>
+                                                    ))
+                                                }
+                                            </div>
+                                            {/* Add dip row */}
+                                            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                                <div style={{ flex: 1 }}>
+                                                    <SearchableSelect options={colorOptions} value={p.color} onChange={(v: string) => setPendingColor(it.item_id, v)} placeholder="Select color/shade…" size="sm" />
+                                                </div>
+                                                <label style={{ fontSize: classic ? 10 : 12, color: classic ? '#555' : '#475569', fontWeight: classic ? undefined : 600 }}>Round</label>
+                                                <input type="number" min={1} style={{ ...xpInput(classic), width: 56 }} value={p.round} onChange={e => setPendingRound(it.item_id, parseInt(e.target.value) || 1)} />
+                                                <button type="button" style={classic ? xpBtn(true) : xpBtn(false, modernPrimaryBtn)} onClick={() => addDip(it.item_id)}><i className="bi bi-plus-lg" /> Add</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
 
-                    {/* ④ Recipe link & notes */}
+                    {/* ③ Recipe link & notes */}
                     <div style={xpGroupBox(classic)}>
-                        <div style={xpGroupHeader(classic)}>④ Approved Recipe &amp; Notes</div>
+                        <div style={xpGroupHeader(classic)}>③ Approved Recipe &amp; Notes</div>
                         <div style={xpGroupBody(classic)}>
                             <div style={{ marginBottom: 8 }}>
                                 <label style={xpLbl(classic)}>Approved Dye Recipe (Optional)</label>

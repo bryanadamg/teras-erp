@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import joinedload
 from app.db.session import get_async_db
-from app.models.lab_dip import LabDipRequest, LabDipLine
+from app.models.lab_dip import LabDipRequest, LabDipItem, LabDipLine
 from app.schemas import (
     LabDipRequestCreate, LabDipRequestUpdate, LabDipRequestResponse, LabDipLineResponse,
 )
@@ -17,6 +17,18 @@ router = APIRouter()
 
 def _parse_date(value, default=None):
     return date.fromisoformat(value) if value else default
+
+
+def _load_full(request_id):
+    """Query loading a request with its items→dips and any ungrouped dips."""
+    return (
+        select(LabDipRequest)
+        .options(
+            joinedload(LabDipRequest.items).joinedload(LabDipItem.dips),
+            joinedload(LabDipRequest.dips),
+        )
+        .filter(LabDipRequest.id == request_id)
+    )
 
 
 @router.post("/lab-dips", response_model=LabDipRequestResponse)
@@ -52,6 +64,24 @@ async def create_lab_dip_request(
     db.add(req)
     await db.flush()
 
+    # Per-item groups, each with its own dips.
+    for gi, group in enumerate(payload.items):
+        item = LabDipItem(lab_dip_request_id=req.id, item_id=group.item_id, order=gi)
+        db.add(item)
+        await db.flush()
+        for i, dip in enumerate(group.dips):
+            if dip.color_name.strip():
+                db.add(LabDipLine(
+                    lab_dip_request_id=req.id,
+                    lab_dip_item_id=item.id,
+                    color_name=dip.color_name.strip(),
+                    color_id=dip.color_id,
+                    submission_round=dip.submission_round,
+                    recipe_ref=dip.recipe_ref,
+                    order=i,
+                ))
+
+    # Legacy/ungrouped dips sent at the request level (no item).
     for i, dip in enumerate(payload.dips):
         if dip.color_name.strip():
             db.add(LabDipLine(
@@ -65,9 +95,7 @@ async def create_lab_dip_request(
 
     await db.commit()
 
-    result = await db.execute(
-        select(LabDipRequest).options(joinedload(LabDipRequest.dips)).filter(LabDipRequest.id == req.id)
-    )
+    result = await db.execute(_load_full(req.id))
     req = result.unique().scalars().first()
 
     await audit_service.log_activity(
@@ -91,7 +119,10 @@ async def get_lab_dips(
 ):
     result = await db.execute(
         select(LabDipRequest)
-        .options(joinedload(LabDipRequest.dips))
+        .options(
+            joinedload(LabDipRequest.items).joinedload(LabDipItem.dips),
+            joinedload(LabDipRequest.dips),
+        )
         .order_by(LabDipRequest.created_at.desc())
         .offset(skip)
         .limit(limit)
@@ -106,9 +137,7 @@ async def update_lab_dip_request(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission('dyeing.manage')),
 ):
-    result = await db.execute(
-        select(LabDipRequest).options(joinedload(LabDipRequest.dips)).filter(LabDipRequest.id == request_id)
-    )
+    result = await db.execute(_load_full(request_id))
     req = result.unique().scalars().first()
     if not req:
         raise HTTPException(status_code=404, detail="Lab dip request not found")
@@ -129,39 +158,69 @@ async def update_lab_dip_request(
     req.notes = payload.notes
     req.updated_at = datetime.utcnow()
 
-    # Dips diff: keep existing ids, delete removed, update kept, insert new
-    incoming_ids = {str(d.id) for d in payload.dips if d.id is not None}
-    for existing in list(req.dips):
-        if str(existing.id) not in incoming_ids:
-            await db.delete(existing)
+    # Diff items and their dips. Keep existing rows by id so dip statuses
+    # (e.g. APPROVED) survive edits; delete rows dropped from the payload.
+    existing_items = {str(it.id): it for it in req.items}
+    existing_lines = {str(l.id): l for l in req.dips}
 
-    for i, dip in enumerate(payload.dips):
-        if not dip.color_name.strip():
-            continue
-        if dip.id is not None:
-            line_result = await db.execute(select(LabDipLine).filter(LabDipLine.id == dip.id))
-            existing = line_result.scalars().first()
-            if existing:
-                existing.color_name = dip.color_name.strip()
-                existing.color_id = dip.color_id
-                existing.submission_round = dip.submission_round
-                existing.recipe_ref = dip.recipe_ref
-                existing.order = i
+    incoming_item_ids = {str(g.id) for g in payload.items if g.id is not None}
+    incoming_line_ids = {
+        str(d.id)
+        for g in payload.items for d in g.dips if d.id is not None
+    } | {str(d.id) for d in payload.dips if d.id is not None}
+
+    # Delete removed lines first (FK points at items), then removed items.
+    for lid, line in existing_lines.items():
+        if lid not in incoming_line_ids:
+            await db.delete(line)
+    for iid, item in existing_items.items():
+        if iid not in incoming_item_ids:
+            await db.delete(item)
+
+    def _upsert_line(dip, order, item_id):
+        if dip.id is not None and str(dip.id) in existing_lines:
+            line = existing_lines[str(dip.id)]
+            line.color_name = dip.color_name.strip()
+            line.color_id = dip.color_id
+            line.submission_round = dip.submission_round
+            line.recipe_ref = dip.recipe_ref
+            line.order = order
+            line.lab_dip_item_id = item_id
         else:
             db.add(LabDipLine(
                 lab_dip_request_id=req.id,
+                lab_dip_item_id=item_id,
                 color_name=dip.color_name.strip(),
                 color_id=dip.color_id,
                 submission_round=dip.submission_round,
                 recipe_ref=dip.recipe_ref,
-                order=i,
+                order=order,
             ))
+
+    for gi, group in enumerate(payload.items):
+        if group.id is not None and str(group.id) in existing_items:
+            item = existing_items[str(group.id)]
+            item.item_id = group.item_id
+            item.order = gi
+        else:
+            item = LabDipItem(lab_dip_request_id=req.id, item_id=group.item_id, order=gi)
+            db.add(item)
+            await db.flush()
+        for i, dip in enumerate(group.dips):
+            if dip.color_name.strip():
+                _upsert_line(dip, i, item.id)
+
+    # Legacy/ungrouped dips (no item).
+    for i, dip in enumerate(payload.dips):
+        if dip.color_name.strip():
+            _upsert_line(dip, i, None)
 
     await db.commit()
 
-    result = await db.execute(
-        select(LabDipRequest).options(joinedload(LabDipRequest.dips)).filter(LabDipRequest.id == request_id)
-    )
+    # expire_on_commit=False keeps the pre-mutation items/dips collections cached on
+    # the identity-mapped instance; expire so the reload reflects the diffed state.
+    db.expire_all()
+    result = await db.execute(_load_full(request_id))
     req = result.unique().scalars().first()
 
     await audit_service.log_activity(
