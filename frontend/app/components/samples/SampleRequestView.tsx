@@ -1381,7 +1381,9 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
            {/* ── Table ── */}
            <div
                className={classic ? '' : 'card-body p-0'}
-               style={classic ? { maxHeight: 'calc(100vh - 160px)', overflowY: 'auto' } : undefined}
+               // scrollbarGutter: reserve the vertical scrollbar's space always, so expanding a
+               // row (which toggles the scrollbar) can't reflow the table's auto-width columns.
+               style={classic ? { maxHeight: 'calc(100vh - 160px)', overflowY: 'auto', scrollbarGutter: 'stable' } : undefined}
            >
                <div className="table-responsive">
                    <table
@@ -1748,17 +1750,22 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
 
                                    return (
                                        <tr key={`${s.id}-detail`}>
-                                           <td colSpan={7} style={{ padding: 0, borderBottom: classic ? '2px solid #9a9690' : '2px solid #dee2e6' }}>
-                                               <RequestDetailPanel
-                                                   classic={classic}
-                                                   leftTitle={<><i className="bi bi-palette" style={{ marginRight: 2 }} />Colors — {colors.length} total · {colors.filter((c: any) => c.status === 'APPROVED').length} approved</>}
-                                                   leftWidth="56%"
-                                                   columns={columns}
-                                                   rows={rows}
-                                                   emptyText="No colors defined."
-                                                   sections={sections}
-                                                   minHeight={160}
-                                               />
+                                           {/* position:relative + fixed height, with the panel absolutely positioned
+                                               inside, keeps this colSpan cell out of the table's auto width calc — so
+                                               expanding a row can't reflow the auto-width columns (e.g. Specs badges). */}
+                                           <td colSpan={7} style={{ padding: 0, borderBottom: classic ? '2px solid #9a9690' : '2px solid #dee2e6', position: 'relative', height: 300 }}>
+                                               <div style={{ position: 'absolute', inset: 0 }}>
+                                                   <RequestDetailPanel
+                                                       classic={classic}
+                                                       leftTitle={<><i className="bi bi-palette" style={{ marginRight: 2 }} />Colors — {colors.length} total · {colors.filter((c: any) => c.status === 'APPROVED').length} approved</>}
+                                                       leftWidth="56%"
+                                                       columns={columns}
+                                                       rows={rows}
+                                                       emptyText="No colors defined."
+                                                       sections={sections}
+                                                       height={300}
+                                                   />
+                                               </div>
                                            </td>
                                        </tr>
                                    );

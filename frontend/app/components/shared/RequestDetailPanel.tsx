@@ -56,21 +56,29 @@ interface Props {
     emptyText?: string;
     sections: DetailSection[];
     rightHeader?: React.ReactNode;          // optional control strip above the sections
-    minHeight?: number;                     // default 160
+    minHeight?: number;                     // default 160 (ignored when `height` is set)
+    height?: number;                        // fixed panel height; panes scroll internally past it
 }
 
 export default function RequestDetailPanel({
-    classic, leftTitle, leftWidth = '56%', columns, rows, emptyText = 'No rows.', sections, rightHeader, minHeight = 160,
+    classic, leftTitle, leftWidth = '56%', columns, rows, emptyText = 'No rows.', sections, rightHeader, minHeight = 160, height,
 }: Props) {
     const xpFont = 'Tahoma, Arial, sans-serif';
 
+    // A fixed height clamps the panel and lets each pane scroll its own overflow;
+    // otherwise it grows with content (minHeight floor). `overflow: hidden` keeps
+    // the inner scroll areas — not the page — owning the overflow.
+    const sizing: React.CSSProperties = height != null ? { height, overflow: 'hidden', boxSizing: 'border-box' } : { minHeight };
     const outer: React.CSSProperties = classic
-        ? { background: '#ece9d8', borderTop: '2px solid #0058e6', display: 'flex', minHeight }
-        : { background: '#f8f9fa', borderTop: '2px solid #0d6efd', display: 'flex', minHeight };
+        ? { background: '#ece9d8', borderTop: '2px solid #0058e6', display: 'flex', ...sizing }
+        : { background: '#f8f9fa', borderTop: '2px solid #0d6efd', display: 'flex', ...sizing };
 
+    // min-width: 0 stops each pane's intrinsic content width from propagating up into
+    // the outer (auto-layout) list table and resizing its flexible columns on expand.
+    // min-height: 0 lets the panes scroll within a fixed-height panel.
     const leftPane: React.CSSProperties = {
         width: leftWidth, borderRight: classic ? '1px solid #a0988c' : '1px solid #dee2e6',
-        display: 'flex', flexDirection: 'column',
+        display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0,
     };
 
     const leftHeader: React.CSSProperties = classic
@@ -85,7 +93,7 @@ export default function RequestDetailPanel({
         ? { padding: '3px 6px', borderBottom: '1px solid #e8e5e0', borderRight: '1px solid #e0ddd8', fontSize: 11, verticalAlign: 'middle', fontFamily: xpFont }
         : { padding: '4px 6px', borderBottom: '1px solid #e9ecef', fontSize: 11, verticalAlign: 'middle' };
 
-    const rightPane: React.CSSProperties = { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' };
+    const rightPane: React.CSSProperties = { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 };
 
     const grpHdr: React.CSSProperties = classic
         ? { background: 'linear-gradient(to right, #3a6fc4, #6a9fd8 60%, #a8c8f0)', color: '#fff', fontSize: 10, fontWeight: 'bold', padding: '2px 8px', letterSpacing: '0.4px', textTransform: 'uppercase', fontFamily: xpFont }
@@ -109,7 +117,7 @@ export default function RequestDetailPanel({
             <div style={leftPane}>
                 <div style={leftHeader}>{leftTitle}</div>
                 {rows.length > 0 ? (
-                    <div style={{ overflowY: 'auto', flex: 1 }}>
+                    <div style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                             <colgroup>
                                 {columns.map((col, i) => <col key={i} style={col.width ? { width: col.width } : undefined} />)}
