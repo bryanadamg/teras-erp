@@ -179,28 +179,7 @@ export default function LabDipRequestView({
     const [editing, setEditing] = useState<any>(null);
     const [form, setForm] = useState(emptyForm());
     const [pendingItem, setPendingItem] = useState('');
-    // Per-item "add dip" draft state, keyed by item_id (unique within a request).
-    const [pending, setPending] = useState<Record<string, { color: string; round: number }>>({});
     const [page, setPage] = useState(1);
-
-    // Colors now come from the Color Library (color_id). Fall back to the legacy
-    // `labdip_color` attribute values only if the library has not been populated yet.
-    const colorOptions = useMemo(() => {
-        if (colors && colors.length) {
-            // Only offer active library colors; archived shades drop out of the picker.
-            return colors
-                .filter((c: any) => (c.status ?? 'active') === 'active')
-                .map((c: any) => ({ value: c.id, label: c.code ? `${c.code} — ${c.name}` : c.name }));
-        }
-        const attr = (attributes as any[]).find((a: any) => a.system_role === 'labdip_color');
-        return (attr?.values ?? []).map((v: any) => ({ value: v.value, label: v.value }));
-    }, [colors, attributes]);
-
-    const colorNameById = useMemo(() => {
-        const m: Record<string, string> = {};
-        (colors || []).forEach((c: any) => { m[c.id] = c.code ? `${c.code} — ${c.name}` : c.name; });
-        return m;
-    }, [colors]);
 
     // Lab dips test finished-good items only — mirror SalesOrderView's category gate.
     const finishedGoodsItems = useMemo(() =>
@@ -231,7 +210,7 @@ export default function LabDipRequestView({
     const toggleExpand = (id: string) =>
         setExpandedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
-    const openCreate = () => { setEditing(null); setForm(emptyForm()); setPendingItem(''); setPending({}); setIsModalOpen(true); };
+    const openCreate = () => { setEditing(null); setForm(emptyForm()); setPendingItem(''); setIsModalOpen(true); };
 
     const openEdit = (r: any) => {
         setEditing(r);
@@ -246,7 +225,7 @@ export default function LabDipRequestView({
             items: (r.items || []).map((it: any) => ({ id: it.id, item_id: it.item_id, variant_seq: it.variant_seq, dips: (it.dips || []).map(mapDip) })),
             legacyDips: (r.dips || []).filter((d: any) => !d.lab_dip_item_id).map(mapDip),
         });
-        setPendingItem(''); setPending({});
+        setPendingItem('');
         setIsModalOpen(true);
     };
 
@@ -257,29 +236,6 @@ export default function LabDipRequestView({
         setPendingItem('');
     };
     const removeItem = (itemId: string) => setForm(prev => ({ ...prev, items: prev.items.filter(it => it.item_id !== itemId) }));
-
-    const getPending = (iid: string) => pending[iid] || { color: '', round: 1 };
-    const setPendingColor = (iid: string, color: string) => setPending(p => ({ ...p, [iid]: { ...getPending(iid), color } }));
-    const setPendingRound = (iid: string, round: number) => setPending(p => ({ ...p, [iid]: { ...getPending(iid), round } }));
-
-    const addDip = (iid: string) => {
-        const p = getPending(iid);
-        if (!p.color.trim()) return;
-        // Library selection => value is a color_id; resolve its display name. Legacy => value is the name.
-        const isLibrary = !!colorNameById[p.color];
-        const name = isLibrary ? colorNameById[p.color] : p.color.trim();
-        setForm(prev => ({
-            ...prev,
-            items: prev.items.map(it => it.item_id === iid
-                ? { ...it, dips: [...it.dips, { color_name: name, color_id: isLibrary ? p.color : null, submission_round: p.round, recipe_ref: '' }] }
-                : it),
-        }));
-        setPending(pp => ({ ...pp, [iid]: { color: '', round: p.round } }));
-    };
-    const removeDip = (iid: string, dipIdx: number) => setForm(prev => ({
-        ...prev,
-        items: prev.items.map(it => it.item_id === iid ? { ...it, dips: it.dips.filter((_, i) => i !== dipIdx) } : it),
-    }));
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -330,6 +286,11 @@ export default function LabDipRequestView({
     const paged = filtered.slice((clampedPage - 1) * LABDIP_PAGE_SIZE, clampedPage * LABDIP_PAGE_SIZE);
 
     const setField = (k: string, v: any) => setForm(prev => ({ ...prev, [k]: v }));
+
+    // Request code: real code when editing; else the server's next code (LD-{year}-{total+1}),
+    // predicted from the loaded list so the code and per-item variants preview accurately.
+    const nextCode = `LD-${new Date().getFullYear()}-${String((labDips?.length || 0) + 1).padStart(5, '0')}`;
+    const displayCode = editing ? editing.code : nextCode;
 
     // ── Dip status buttons (mirror SampleColor approval UI) ──
     const dipBtn = (active: boolean, kind: 'reject' | 'resubmit'): React.CSSProperties => {
@@ -662,19 +623,33 @@ export default function LabDipRequestView({
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
                                 <div>
                                     <label style={xpLbl(classic)}>Request Code</label>
-                                    <input style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const, background: classic ? '#f0f0f0' : '#f1f5f9', color: classic ? '#666' : '#64748b' }} value={editing ? editing.code : 'Auto-generated (LD-…)'} readOnly />
+                                    <div style={classic
+                                        ? { fontFamily: "'Courier New', monospace", fontSize: 14, fontWeight: 'bold', color: '#0047c8', padding: '2px 0' }
+                                        : { fontFamily: "'Courier New', monospace", fontSize: 15, fontWeight: 700, color: '#2563eb', padding: '3px 0' }}>
+                                        {displayCode}
+                                        {!editing && <span style={{ fontFamily: modernFont, fontSize: classic ? 9 : 10, fontWeight: 400, color: classic ? '#888' : '#94a3b8', marginLeft: 6 }}>(on save)</span>}
+                                    </div>
                                 </div>
                                 <div>
                                     <label style={xpLbl(classic)}>Request Type</label>
-                                    <select style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const }} value={form.request_type} onChange={e => setField('request_type', e.target.value)}>
-                                        {REQUEST_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                                    </select>
+                                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' as const }}>
+                                        {REQUEST_TYPES.map(t => {
+                                            const active = form.request_type === t;
+                                            return (
+                                                <button key={t} type="button" onClick={() => setField('request_type', t)} style={classic
+                                                    ? { fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', padding: '2px 9px', cursor: 'pointer', border: '1px solid', background: active ? 'linear-gradient(to bottom, #316ac5, #1a4a8a)' : 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderColor: active ? '#1a3a7a #0a1a4a #0a1a4a #1a3a7a' : '#dfdfdf #808080 #808080 #dfdfdf', color: active ? '#fff' : '#333' }
+                                                    : { fontFamily: modernFont, fontSize: 12, fontWeight: 600, padding: '4px 11px', cursor: 'pointer', borderRadius: 999, border: '1px solid', background: active ? '#2563eb' : '#fff', borderColor: active ? '#2563eb' : '#cbd3df', color: active ? '#fff' : '#475569' }}>
+                                                    {t}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
-                                <div style={{ gridColumn: '1 / -1' }}>
+                                <div>
                                     <label style={xpLbl(classic)}>Customer (Optional)</label>
                                     <SearchableSelect options={customerOptions} value={form.customer_id} onChange={(v: string) => setField('customer_id', v)} placeholder="Select customer…" />
                                 </div>
-                                <div style={{ gridColumn: '1 / -1' }}>
+                                <div>
                                     <label style={xpLbl(classic)}>Season / Project</label>
                                     <input style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const }} value={form.season} onChange={e => setField('season', e.target.value)} placeholder="e.g. Spring 2026" />
                                 </div>
@@ -682,9 +657,9 @@ export default function LabDipRequestView({
                         </div>
                     </div>
 
-                    {/* ② Items & Dips */}
+                    {/* ② Items */}
                     <div style={xpGroupBox(classic)}>
-                        <div style={xpGroupHeader(classic)}>② Items &amp; Dips</div>
+                        <div style={xpGroupHeader(classic)}>② Items</div>
                         <div style={xpGroupBody(classic)}>
                             {/* Add finished-good item */}
                             <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10 }}>
@@ -702,7 +677,7 @@ export default function LabDipRequestView({
 
                             {form.items.length === 0 && (
                                 <div style={{ fontSize: classic ? 11 : 13, color: classic ? '#999' : '#94a3b8', fontStyle: 'italic', padding: '4px 2px' }}>
-                                    No items yet — add a finished-good item, then add color dips under it.
+                                    No items yet — add finished-good items; each is assigned a variant code.
                                 </div>
                             )}
 
@@ -713,50 +688,20 @@ export default function LabDipRequestView({
                                 let np = keptSeqs.length ? Math.max(...keptSeqs) + 1 : 0;
                                 return form.items.map(it => {
                                 const seq = it.variant_seq !== undefined ? it.variant_seq : np++;
-                                const codeLabel = editing ? variantCode(editing.code, seq) : `Variant ${variantLetter(seq)}`;
-                                const p = getPending(it.item_id);
+                                const codeLabel = variantCode(displayCode, seq);
                                 return (
                                     <div key={it.item_id} style={classic
-                                        ? { border: '1px solid #b0c8e8', background: '#f5f9ff', marginBottom: 8 }
-                                        : { border: '1px solid #dbe1ea', background: '#f8fafc', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
-                                        {/* Item header */}
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, padding: classic ? '3px 8px' : '6px 10px', background: classic ? '#e4ecf8' : '#eef3fb', borderBottom: classic ? '1px solid #b0c8e8' : '1px solid #dbe1ea' }}>
-                                            <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                                                <span style={classic
-                                                    ? { fontFamily: "'Courier New', monospace", fontSize: 10, fontWeight: 'bold', color: '#fff', background: '#3a6fc4', border: '1px solid #1a4a8a', padding: '0 5px', whiteSpace: 'nowrap' as const }
-                                                    : { fontFamily: "'Courier New', monospace", fontSize: 11, fontWeight: 700, color: '#1e40af', background: '#dbe7fb', borderRadius: 5, padding: '1px 7px', whiteSpace: 'nowrap' as const }}>{codeLabel}</span>
-                                                <span style={{ fontWeight: 700, fontSize: classic ? 11 : 13, color: classic ? '#0d3a8a' : '#1e40af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
-                                                    <i className="bi bi-box-seam" style={{ marginRight: 5 }} />{itemNameById[it.item_id] || it.item_id}
-                                                </span>
-                                            </span>
-                                            <button type="button" title="Remove item" onClick={() => removeItem(it.item_id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: classic ? '#a00' : '#dc2626', fontSize: 14, fontWeight: 'bold', lineHeight: 1 }}>×</button>
-                                        </div>
-                                        <div style={{ padding: '6px 8px' }}>
-                                            {/* Dip chips */}
-                                            <div style={{ minHeight: 30, marginBottom: 6 }}>
-                                                {it.dips.length === 0
-                                                    ? <span style={{ fontSize: classic ? 11 : 12.5, color: classic ? '#999' : '#94a3b8', fontStyle: 'italic' }}>No dips added yet…</span>
-                                                    : it.dips.map((d, idx) => (
-                                                        <span key={idx} style={classic
-                                                            ? { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 7px', marginRight: 4, marginBottom: 4, background: '#e8f4e8', border: '1px solid #7aba7a', fontSize: 11 }
-                                                            : { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', marginRight: 4, marginBottom: 4, background: '#ecfdf3', border: '1px solid #abdfc0', borderRadius: 6, fontSize: 12.5, color: '#15803d', fontFamily: modernFont }}>
-                                                            <span style={{ fontSize: classic ? 9 : 11, fontWeight: 'bold', color: classic ? '#228b22' : '#15803d' }}>R{d.submission_round}</span>
-                                                            {d.color_name}
-                                                            <span onClick={() => removeDip(it.item_id, idx)} style={{ cursor: 'pointer', color: classic ? '#a00' : '#dc2626', marginLeft: 2, fontWeight: 'bold', fontSize: 12, lineHeight: 1 }} title="Remove">×</span>
-                                                        </span>
-                                                    ))
-                                                }
-                                            </div>
-                                            {/* Add dip row */}
-                                            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                                <div style={{ flex: 1 }}>
-                                                    <SearchableSelect options={colorOptions} value={p.color} onChange={(v: string) => setPendingColor(it.item_id, v)} placeholder="Select color/shade…" size="sm" />
-                                                </div>
-                                                <label style={{ fontSize: classic ? 10 : 12, color: classic ? '#555' : '#475569', fontWeight: classic ? undefined : 600 }}>Round</label>
-                                                <input type="number" min={1} style={{ ...xpInput(classic), width: 56 }} value={p.round} onChange={e => setPendingRound(it.item_id, parseInt(e.target.value) || 1)} />
-                                                <button type="button" style={classic ? xpBtn(true) : xpBtn(false, modernPrimaryBtn)} onClick={() => addDip(it.item_id)}><i className="bi bi-plus-lg" /> Add</button>
-                                            </div>
-                                        </div>
+                                        ? { border: '1px solid #b0c8e8', background: '#f5f9ff', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8, padding: '4px 8px' }
+                                        : { border: '1px solid #dbe1ea', background: '#fff', borderRadius: 8, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px' }}>
+                                        {/* Item name (left) */}
+                                        <span style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: classic ? 11 : 13, color: classic ? '#0d3a8a' : '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                                            <i className="bi bi-box-seam" style={{ marginRight: 5, color: classic ? '#3a6fc4' : '#2563eb' }} />{itemNameById[it.item_id] || it.item_id}
+                                        </span>
+                                        {/* Assigned code + variant (right) */}
+                                        <span style={classic
+                                            ? { fontFamily: "'Courier New', monospace", fontSize: 11, fontWeight: 'bold', color: '#fff', background: '#3a6fc4', border: '1px solid #1a4a8a', padding: '1px 7px', whiteSpace: 'nowrap' as const }
+                                            : { fontFamily: "'Courier New', monospace", fontSize: 12, fontWeight: 700, color: '#1e40af', background: '#dbe7fb', borderRadius: 5, padding: '2px 9px', whiteSpace: 'nowrap' as const }}>{codeLabel}</span>
+                                        <button type="button" title="Remove item" onClick={() => removeItem(it.item_id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: classic ? '#a00' : '#dc2626', fontSize: 15, fontWeight: 'bold', lineHeight: 1, padding: '0 2px' }}>×</button>
                                     </div>
                                 );
                                 });
