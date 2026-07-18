@@ -15,6 +15,12 @@ import SWRegister from './components/shared/SWRegister';
 export const metadata = {
   title: 'Teras ERP',
   description: 'Next-generation modular manufacturing system',
+  // iOS home-screen app: launches standalone (no Safari chrome), sets title + status bar
+  appleWebApp: {
+    capable: true,
+    title: 'Teras',
+    statusBarStyle: 'black-translucent' as const,
+  },
 }
 
 export const viewport = {
