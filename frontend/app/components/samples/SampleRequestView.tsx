@@ -12,6 +12,7 @@ import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
 import { StatusChip, XPLoading, FormSection, useFloatingMenu, FloatingMenu } from '../shared/xpTheme';
+import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { STATIC_BASE, API_BASE } from '../shared/apiBase';
@@ -196,41 +197,6 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
   };
 
   // ── XP shared inline styles ──────────────────────────────────────────────
-  const xpBevel: React.CSSProperties = {
-      border: '2px solid',
-      borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-      boxShadow: '2px 2px 4px rgba(0,0,0,0.3)',
-      background: '#ece9d8',
-      borderRadius: 0,
-  };
-
-  const xpTitleBar: React.CSSProperties = {
-      background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)',
-      color: '#ffffff',
-      fontFamily: 'Tahoma, Arial, sans-serif',
-      fontSize: '12px',
-      fontWeight: 'bold',
-      padding: '4px 8px',
-      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)',
-      borderBottom: '1px solid #003080',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      minHeight: '26px',
-      flexWrap: 'wrap' as const,
-      gap: '4px',
-  };
-
-  const xpToolbar: React.CSSProperties = {
-      background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)',
-      borderBottom: '1px solid #b0a898',
-      padding: '3px 6px',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '4px',
-      flexWrap: 'wrap' as const,
-  };
-
   const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
       fontFamily: 'Tahoma, Arial, sans-serif',
       fontSize: '11px',
@@ -541,7 +507,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
   const pageSamples = filteredSamples.slice((clampedSamplePage - 1) * SAMPLE_PAGE_SIZE, clampedSamplePage * SAMPLE_PAGE_SIZE);
 
   return (
-    <div className="fade-in">
+    <>
        <CodeConfigModal
            isOpen={isConfigOpen}
            onClose={() => setIsConfigOpen(false)}
@@ -1181,47 +1147,29 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
        )}
 
        {/* ── Outer shell ── */}
-       <div
-           style={classic
-               ? { ...xpBevel, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', minHeight: 0 }
-               : { display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', minHeight: 0 }}
-           className={classic ? '' : 'card border-0 shadow-sm'}
-       >
-           {/* ── Title bar ── */}
-           {classic ? (
-               <div style={xpTitleBar}>
-                   <span>
-                       <i className="bi bi-eyedropper" style={{ marginRight: 6 }}></i>
-                       {t('sample_requests')}
-                   </span>
-                   {canManage && (
+       <ShellWindow classic={classic} fill="page" className="fade-in">
+           <ShellTitleBar
+               classic={classic}
+               icon="bi-eyedropper"
+               title={t('sample_requests')}
+               subtitle="Track prototype and sample approval workflow"
+               right={canManage && (classic ? (
                    <button
                        style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' })}
                        onClick={openCreateModal}
                    >
                        <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>{t('create')}
                    </button>
-                   )}
-               </div>
-           ) : (
-               <div className="card-header bg-white d-flex justify-content-between align-items-center">
-                   <div>
-                       <h5 className="card-title mb-0">
-                           <i className="bi bi-eyedropper me-2"></i>{t('sample_requests')}
-                       </h5>
-                       <p className="text-muted small mb-0 mt-1">Track prototype and sample approval workflow</p>
-                   </div>
-                   {canManage && (
+               ) : (
                    <button className="btn btn-sm btn-primary" onClick={openCreateModal}>
                        <i className="bi bi-plus-lg me-2"></i>{t('create')}
                    </button>
-                   )}
-               </div>
-           )}
+               ))}
+           />
 
            {/* ── Secondary toolbar: search + status filters + count ── */}
            {classic ? (
-               <div style={xpToolbar}>
+               <div style={xpToolbar()}>
                    <input
                        style={{ ...xpInput, width: 180 }}
                        placeholder="Search code, article, project…"
@@ -1733,7 +1681,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                    <span>{samples.filter((s: any) => s.status === 'IN_PRODUCTION').length} in production</span>
                </div>
            )}
-       </div>
+       </ShellWindow>
 
        {printSample && (
            <SamplePrintModal
@@ -1808,6 +1756,6 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                )}
            </ModalWrapper>
        )}
-    </div>
+    </>
   );
 }

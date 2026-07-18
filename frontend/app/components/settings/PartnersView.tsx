@@ -9,6 +9,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import { lvBtn, lvInput, lvTh, lvTd, lvLabel } from '../shared/listViewTheme';
+import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 
 const PARTNERS_PAGE_SIZE = 20;
 
@@ -56,40 +57,6 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
     const typeLabel = type === 'CUSTOMER' ? 'Customer' : 'Supplier';
     const { hasPermission } = useUser();
     const canManage = hasPermission(type === 'CUSTOMER' ? 'sales.manage' : 'purchasing.manage');
-
-    // ── XP shared inline styles ──────────────────────────────────────────────
-    const xpBevel: React.CSSProperties = {
-        border: '2px solid',
-        borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-        boxShadow: '2px 2px 4px rgba(0,0,0,0.3)',
-        background: '#ece9d8',
-        borderRadius: 0,
-    };
-
-    const xpTitleBar: React.CSSProperties = {
-        background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)',
-        color: '#ffffff',
-        fontFamily: 'Tahoma, Arial, sans-serif',
-        fontSize: '12px',
-        fontWeight: 'bold',
-        padding: '4px 8px',
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)',
-        borderBottom: '1px solid #003080',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        minHeight: '26px',
-    };
-
-    const xpToolbar: React.CSSProperties = {
-        background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)',
-        borderBottom: '1px solid #b0a898',
-        padding: '3px 6px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '4px',
-        flexWrap: 'wrap' as const,
-    };
 
     // Button/input/cell/label chrome sourced from the shared lv* helpers (pinned to
     // classic=true — this constant is only ever used inside `classic ? ... : undefined`
@@ -184,51 +151,29 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
     };
 
     return (
-        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', minHeight: 0 }}>
-            {/* ── Outer shell ── */}
-            <div
-                style={classic
-                    ? { ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }
-                    : { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
-                className={classic ? '' : 'card border-0 shadow-sm'}
-            >
-                {/* ── Title bar ── */}
-                {classic ? (
-                    <div style={xpTitleBar}>
-                        <span>
-                            <i className="bi bi-people-fill" style={{ marginRight: 6 }}></i>
-                            {typeLabel} Management
-                        </span>
-                        {canManage && (
-                        <button
-                            style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' })}
-                            onClick={() => setIsCreateOpen(true)}
-                        >
-                            <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>Add {typeLabel}
-                        </button>
-                        )}
-                    </div>
+        <ShellWindow classic={classic} fill="page" className="fade-in">
+            <ShellTitleBar
+                classic={classic}
+                icon="bi-people-fill"
+                title={`${typeLabel} Management`}
+                subtitle={`Maintain your network of ${typeLabel.toLowerCase()}s`}
+                right={canManage && (classic ? (
+                    <button
+                        style={xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' })}
+                        onClick={() => setIsCreateOpen(true)}
+                    >
+                        <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>Add {typeLabel}
+                    </button>
                 ) : (
-                    <div className="card-header bg-white d-flex justify-content-between align-items-center">
-                        <div>
-                            <h5 className="card-title mb-0">
-                                <i className="bi bi-people-fill me-2"></i>{typeLabel} Management
-                            </h5>
-                            <p className="text-muted small mb-0 mt-1">
-                                Maintain your network of {typeLabel.toLowerCase()}s
-                            </p>
-                        </div>
-                        {canManage && (
-                        <button className="btn btn-sm btn-primary" onClick={() => setIsCreateOpen(true)}>
-                            <i className="bi bi-plus-lg me-2"></i>Add {typeLabel}
-                        </button>
-                        )}
-                    </div>
-                )}
+                    <button className="btn btn-sm btn-primary" onClick={() => setIsCreateOpen(true)}>
+                        <i className="bi bi-plus-lg me-2"></i>Add {typeLabel}
+                    </button>
+                ))}
+            />
 
                 {/* ── Secondary toolbar: search + count ── */}
                 {classic ? (
-                    <div style={xpToolbar}>
+                    <div style={xpToolbar()}>
                         <input
                             style={{ ...xpInput, width: 200 }}
                             placeholder={`Search ${typeLabel.toLowerCase()}s…`}
@@ -261,7 +206,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                 {/* ── Bulk action bar ── */}
                 {canManage && someSelected && (
                     classic ? (
-                        <div style={{ ...xpToolbar, background: '#fff8e1', borderBottom: '1px solid #e0c060' }}>
+                        <div style={xpToolbar({ background: '#fff8e1', borderBottom: '1px solid #e0c060' })}>
                             <span style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#665500', fontWeight: 'bold' }}>
                                 {selectedIds.size} selected
                             </span>
@@ -382,7 +327,6 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                         <span>{partners.filter(p => p.type === type && p.active).length} active</span>
                     </div>
                 )}
-            </div>
 
             {/* Row ⋯ menu: Edit / Delete */}
             {menuOpenId && (() => {
@@ -618,6 +562,6 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                     </>
                 )}
             </ModalWrapper>
-        </div>
+        </ShellWindow>
     );
 }

@@ -9,6 +9,7 @@ import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { XPStatusBar, XPEmptyState, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvSep, lvLabel } from '../shared/listViewTheme';
+import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
 const SuratJalanPrintModal = dynamic(() => import('./SuratJalanPrintModal'), { ssr: false });
@@ -23,20 +24,6 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api
 // (pinned to classic=true) instead of re-declaring the same CSS; only the
 // outer shell/title-bar/toolbar bevel stays local, matching every other view.
 const xpFont = LV_XP_FONT;
-const xpBevel: React.CSSProperties = {
-    border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    boxShadow: '2px 2px 4px rgba(0,0,0,0.3)', background: '#ece9d8', borderRadius: 0,
-};
-const xpTitleBar: React.CSSProperties = {
-    background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#ffffff',
-    fontFamily: xpFont, fontSize: 12, fontWeight: 'bold', padding: '4px 8px',
-    borderBottom: '1px solid #003080', display: 'flex', justifyContent: 'space-between',
-    alignItems: 'center', minHeight: 26,
-};
-const xpToolbar: React.CSSProperties = {
-    background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898',
-    padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
-};
 const xpInput: React.CSSProperties = lvInput(true);
 const xpSelect: React.CSSProperties = { ...xpInput, height: 22 };
 const xpTableHeader: React.CSSProperties = {
@@ -172,13 +159,14 @@ export default function PackingView() {
     const pagedPackingOrders = packingOrders.slice((clampedPkgPage - 1) * PKG_PAGE_SIZE, clampedPkgPage * PKG_PAGE_SIZE);
 
     return (
-        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', minHeight: 0, fontFamily: xpFont }}>
-            <div style={{ ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-                <div style={xpTitleBar}>
-                    <span><i className="bi bi-box2" style={{ marginRight: 6 }} />Packing &amp; Dispatch</span>
-                    <span style={{ fontSize: 10, opacity: 0.85 }}>{packingOrders.length} orders</span>
-                </div>
-                <div style={xpToolbar}>
+        <ShellWindow classic fill="page" className="fade-in" style={{ fontFamily: xpFont }}>
+            <ShellTitleBar
+                classic
+                icon="bi-box2"
+                title="Packing & Dispatch"
+                right={<span style={{ fontSize: 10, opacity: 0.85 }}>{packingOrders.length} orders</span>}
+            />
+                <div style={xpToolbar()}>
                     {canManage && (
                         <button style={xpBtnGreen()} onClick={() => setPicking(true)} title="Create a packing order for a sales order">
                             <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />New Packing Order
@@ -227,7 +215,6 @@ export default function PackingView() {
                     </table>
                 </div>
                 <Pager page={clampedPkgPage} total={packingOrders.length} pageSize={PKG_PAGE_SIZE} onPageChange={setPkgPage} hideWhenEmpty />
-            </div>
 
             {/* Row ⋯ menu: Edit/View, Surat Jalan, Delete */}
             {menuOpenId && (() => {
@@ -284,7 +271,7 @@ export default function PackingView() {
                     onClose={() => setPrintPO(null)}
                 />
             )}
-        </div>
+        </ShellWindow>
     );
 }
 

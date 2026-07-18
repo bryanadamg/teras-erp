@@ -13,6 +13,7 @@ import { useUser } from '../../context/UserContext';
 import { useSortable, SortMark, StatusChip, statusTint, XPLoading, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import { useArchivedComboValueIds } from '../shared/useArchivedCombos';
 import Pager from '../shared/Pager';
+import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import { useRouter } from 'next/navigation';
 
 const SO_PAGE_SIZE = 50;
@@ -179,41 +180,6 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   const classic = currentStyle === 'classic';
 
   // ── XP shared inline styles ──────────────────────────────────────────────
-  const xpBevel: React.CSSProperties = {
-      border: '2px solid',
-      borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-      boxShadow: '2px 2px 4px rgba(0,0,0,0.3)',
-      background: '#ece9d8',
-      borderRadius: 0,
-  };
-
-  const xpTitleBar: React.CSSProperties = {
-      background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)',
-      color: '#ffffff',
-      fontFamily: 'Tahoma, Arial, sans-serif',
-      fontSize: '12px',
-      fontWeight: 'bold',
-      padding: '4px 8px',
-      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)',
-      borderBottom: '1px solid #003080',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      minHeight: '26px',
-      flexWrap: 'wrap' as const,
-      gap: '4px',
-  };
-
-  const xpToolbar: React.CSSProperties = {
-      background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)',
-      borderBottom: '1px solid #b0a898',
-      padding: '3px 6px',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '4px',
-      flexWrap: 'wrap' as const,
-  };
-
   const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
       fontFamily: 'Tahoma, Arial, sans-serif',
       fontSize: '11px',
@@ -843,7 +809,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
 
 
   return (
-    <div className="fade-in">
+    <>
        {/* Table Print Modal */}
        {isTablePrintOpen && (
            <SOTablePrintModal
@@ -1472,19 +1438,13 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
        </ModalWrapper>
 
        {/* ── Outer shell ── */}
-       <div
-           style={classic
-               ? { ...xpBevel, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', minHeight: 0 }
-               : { display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', minHeight: 0 }}
-           className={classic ? '' : 'card border-0 shadow-sm'}
-       >
-           {/* ── Title bar ── */}
-           {classic ? (
-               <div style={xpTitleBar}>
-                   <span>
-                       <i className="bi bi-receipt-cutoff" style={{ marginRight: 6 }}></i>
-                       {t('sales_orders')}
-                   </span>
+       <ShellWindow classic={classic} fill="page" className="fade-in">
+           <ShellTitleBar
+               classic={classic}
+               icon="bi-receipt-cutoff"
+               title={t('sales_orders')}
+               subtitle="Manage incoming customer orders"
+               right={classic ? (
                    <div style={{ display: 'flex', gap: 4 }}>
                        <button style={xpBtn()} onClick={() => setIsTablePrintOpen(true)}>
                            <i className="bi bi-printer" style={{ marginRight: 4 }}></i>Print Table
@@ -1498,15 +1458,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                        </button>
                        )}
                    </div>
-               </div>
-           ) : (
-               <div className="card-header bg-white d-flex justify-content-between align-items-center">
-                   <div>
-                       <h5 className="card-title mb-0">
-                           <i className="bi bi-receipt-cutoff me-2"></i>{t('sales_orders')}
-                       </h5>
-                       <p className="text-muted small mb-0 mt-1">Manage incoming customer orders</p>
-                   </div>
+               ) : (
                    <div className="d-flex gap-2">
                        <button className="btn btn-sm btn-outline-secondary btn-print" onClick={() => setIsTablePrintOpen(true)}>
                            <i className="bi bi-printer me-1"></i>Print Table
@@ -1515,12 +1467,12 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                            <i className="bi bi-plus-lg me-2"></i>{t('create')}
                        </button>}
                    </div>
-               </div>
-           )}
+               )}
+           />
 
            {/* ── Secondary toolbar: search + status filters + count ── */}
            {classic ? (
-               <div style={xpToolbar}>
+               <div style={xpToolbar()}>
                    <input
                        style={{ ...xpInput, width: 150 }}
                        placeholder="Search PO#…"
@@ -1899,7 +1851,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                    <span>{salesOrders.filter((s: any) => s.status === 'DELIVERED').length} delivered</span>
                </div>
            )}
-       </div>
-    </div>
+       </ShellWindow>
+    </>
   );
 }
