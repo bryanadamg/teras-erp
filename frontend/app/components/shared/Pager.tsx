@@ -49,11 +49,11 @@ export default function Pager({ page, total, pageSize, onPageChange, hideWhenEmp
         );
         return (
             <div className={`no-print ${className || ''}`} style={{
-                display: 'flex', alignItems: 'center', justifyContent: leftContent ? 'space-between' : 'center', gap: 8,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                 padding: '5px 8px', borderTop: '1px solid #808080', background: '#ece9d8',
                 fontFamily: xpFont, fontSize: 11,
             }}>
-                {leftContent && <span>{leftContent}</span>}
+                <span style={{ color: '#444' }}>{leftContent ?? <>{from}-{to} of {total}</>}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {btn(<><i className="bi bi-chevron-left me-1"></i>Prev</>, page - 1, atFirst)}
                     <span style={{ color: '#444' }}>{from}-{to} of {total} &nbsp;·&nbsp; Page {page} / {pages}</span>
