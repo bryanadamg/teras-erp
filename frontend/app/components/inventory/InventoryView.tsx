@@ -31,17 +31,23 @@ const RowActionMenu = memo(({ items, classic, isSelected }: { items: { label: st
     const [open, setOpen] = useState(false);
     const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
     const btnRef = useRef<HTMLButtonElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (!open) return;
         const close = () => setOpen(false);
+        const onDocMouseDown = (e: MouseEvent) => {
+            const t = e.target as Node;
+            if (btnRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+            setOpen(false);
+        };
         window.addEventListener('scroll', close, true);
         window.addEventListener('resize', close);
-        document.addEventListener('mousedown', close);
+        document.addEventListener('mousedown', onDocMouseDown);
         return () => {
             window.removeEventListener('scroll', close, true);
             window.removeEventListener('resize', close);
-            document.removeEventListener('mousedown', close);
+            document.removeEventListener('mousedown', onDocMouseDown);
         };
     }, [open]);
 
@@ -57,6 +63,7 @@ const RowActionMenu = memo(({ items, classic, isSelected }: { items: { label: st
 
     const menu = open && pos ? (
         <div
+            ref={menuRef}
             onMouseDown={e => e.stopPropagation()}
             style={{
                 position: 'fixed', top: pos.top, right: pos.right, zIndex: 1200, minWidth: 130,
