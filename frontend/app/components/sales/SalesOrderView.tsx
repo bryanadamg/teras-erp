@@ -1473,7 +1473,9 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
 
        {/* ── Outer shell ── */}
        <div
-           style={classic ? xpBevel : undefined}
+           style={classic
+               ? { ...xpBevel, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', minHeight: 0 }
+               : { display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', minHeight: 0 }}
            className={classic ? '' : 'card border-0 shadow-sm'}
        >
            {/* ── Title bar ── */}
@@ -1590,10 +1592,10 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
            )}
 
            {/* ── Table ── */}
-           <div className={classic ? '' : 'card-body p-0'}>
+           <div className={classic ? '' : 'card-body p-0'} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
                {/* vertical scroll must live on the same element as overflow-x,
                    otherwise sticky headers bind to the inner wrapper and never stick */}
-               <div className="table-responsive" style={classic ? { maxHeight: 'calc(100vh - 160px)', overflowY: 'auto' } : undefined}>
+               <div className="table-responsive" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
                    <table
                        className={classic ? '' : 'table table-hover align-middle mb-0'}
                        style={classic ? { width: '100%', borderCollapse: 'collapse', background: '#fff' } : undefined}

@@ -7,7 +7,8 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
-import { XPStatusBar, XPEmptyState } from '../shared/xpTheme';
+import { XPStatusBar, XPEmptyState, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
+import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvSep, lvLabel } from '../shared/listViewTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
 const SuratJalanPrintModal = dynamic(() => import('./SuratJalanPrintModal'), { ssr: false });
@@ -16,7 +17,12 @@ import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '') + '/api';
 
 // ── Classic XP theme primitives (match StockOnHandView / LocationsView) ──────
-const xpFont = 'Tahoma, "Segoe UI", sans-serif';
+// This view has no modern-theme branch yet (renders the classic look always,
+// regardless of the user's theme setting) — pre-existing, tracked separately.
+// Cell/input/button/label chrome below is sourced from the shared lv* helpers
+// (pinned to classic=true) instead of re-declaring the same CSS; only the
+// outer shell/title-bar/toolbar bevel stays local, matching every other view.
+const xpFont = LV_XP_FONT;
 const xpBevel: React.CSSProperties = {
     border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
     boxShadow: '2px 2px 4px rgba(0,0,0,0.3)', background: '#ece9d8', borderRadius: 0,
@@ -31,49 +37,21 @@ const xpToolbar: React.CSSProperties = {
     background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898',
     padding: '4px 6px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
 };
-const xpInput: React.CSSProperties = {
-    fontFamily: xpFont, fontSize: 11, border: '1px solid #7f9db9',
-    boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px',
-    background: '#fff', color: '#000', height: 20, outline: 'none', boxSizing: 'border-box',
-};
+const xpInput: React.CSSProperties = lvInput(true);
 const xpSelect: React.CSSProperties = { ...xpInput, height: 22 };
 const xpTableHeader: React.CSSProperties = {
+    ...lvTh(true),
     background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080',
-    fontSize: 10, fontWeight: 'bold', color: '#000', fontFamily: xpFont, textAlign: 'left',
-    padding: '3px 8px', position: 'sticky', top: 0, whiteSpace: 'nowrap',
+    position: 'sticky', top: 0,
 };
-const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-    fontFamily: xpFont, fontSize: 11, padding: '2px 10px', cursor: 'pointer',
-    background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)', border: '1px solid',
-    borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000', borderRadius: 0, ...extra,
-});
+const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => lvBtn(true, extra);
 const xpBtnGreen = (extra: React.CSSProperties = {}) => xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold', ...extra });
-const xpSep: React.CSSProperties = { width: 1, height: 20, background: '#a0988c', margin: '0 2px', flexShrink: 0 };
-const td: React.CSSProperties = { borderBottom: '1px solid #e6e6e6', padding: '3px 8px', fontFamily: xpFont, fontSize: 11, verticalAlign: 'middle' };
-const xpLabel: React.CSSProperties = { fontFamily: xpFont, fontSize: 10, color: '#444', display: 'block', marginBottom: 2 };
-
-// Status chip (classic), per statusChipStyle look
-const chipStyle = (bg: string, bd: string, fg: string): React.CSSProperties => ({
-    display: 'inline-block', fontSize: 9, fontWeight: 'bold', padding: '1px 6px', borderRadius: 0,
-    border: `1px solid ${bd}`, background: bg, color: fg, fontFamily: xpFont, whiteSpace: 'nowrap',
-});
-const PKG_CHIP: Record<string, React.CSSProperties> = {
-    DRAFT: chipStyle('#d4d0c8', '#808080', '#333'),
-    DISPATCHED: chipStyle('#2d7a2d', '#1a5e1a', '#fff'),
-    CANCELLED: chipStyle('#c00000', '#800000', '#fff'),
-};
-const SO_CHIP: Record<string, React.CSSProperties> = {
-    PENDING: chipStyle('#d4d0c8', '#808080', '#333'),
-    READY: chipStyle('#0058e6', '#003080', '#fff'),
-    PARTIAL: chipStyle('#f0c419', '#b8860b', '#3a2e00'),
-};
+const xpSep: React.CSSProperties = { ...lvSep(true), flexShrink: 0 };
+const td: React.CSSProperties = lvTd(true);
+const xpLabel: React.CSSProperties = lvLabel(true);
 
 const num = (v: any) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
 const PKG_PAGE_SIZE = 20;
-
-function StatusChip({ status, map }: { status: string; map: Record<string, React.CSSProperties> }) {
-    return <span style={map[status] || PKG_CHIP.DRAFT}>{status}</span>;
-}
 
 export default function PackingView() {
     // partners/locations/attributes/companyProfile/itemIndex come from DataContext
@@ -94,6 +72,7 @@ export default function PackingView() {
     const [editing, setEditing] = useState<any | null>(null);
     const [printPO, setPrintPO] = useState<any | null>(null);
     const [pkgPage, setPkgPage] = useState(1);
+    const { openId: menuOpenId, pos: menuPos, toggle: menuToggle, close: menuClose } = useFloatingMenu(160);
 
     // Built from the shared itemIndex (id/name/code/uom/lot_tracked) instead of a
     // dedicated /items?limit=10000 fetch — keep the `id` field so existing
@@ -193,7 +172,7 @@ export default function PackingView() {
     const pagedPackingOrders = packingOrders.slice((clampedPkgPage - 1) * PKG_PAGE_SIZE, clampedPkgPage * PKG_PAGE_SIZE);
 
     return (
-        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: '100%', fontFamily: xpFont }}>
+        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', minHeight: 0, fontFamily: xpFont }}>
             <div style={{ ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
                 <div style={xpTitleBar}>
                     <span><i className="bi bi-box2" style={{ marginRight: 6 }} />Packing &amp; Dispatch</span>
@@ -235,18 +214,12 @@ export default function PackingView() {
                                     <td style={{ ...td, fontWeight: 'bold', color: '#00309c' }}>{po.code}</td>
                                     <td style={td}>{po.sales_order_code || '-'}</td>
                                     <td style={td}>{po.customer_name || '-'}</td>
-                                    <td style={td}><StatusChip status={po.status} map={PKG_CHIP} /></td>
+                                    <td style={td}><StatusChip status={po.status} /></td>
                                     <td style={{ ...td, textAlign: 'right' }}>{(po.packages || []).length}</td>
                                     <td style={td}>{po.delivery_note_number || '-'}</td>
                                     <td style={td}>{po.dispatched_at ? new Date(po.dispatched_at).toLocaleDateString() : '-'}</td>
-                                    <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                        <button style={{ ...xpBtn(), marginRight: 4 }} onClick={() => setEditing(po)}>
-                                            {po.status === 'DRAFT' ? 'Edit' : 'View'}
-                                        </button>
-                                        <button style={{ ...xpBtn(), marginRight: 4 }} onClick={() => setPrintPO(po)}>Surat Jalan</button>
-                                        {canManage && po.status !== 'DISPATCHED' && (
-                                            <button style={xpBtn({ color: '#a00' })} onClick={() => deletePO(po)}>Delete</button>
-                                        )}
+                                    <td style={{ ...td, textAlign: 'right' }}>
+                                        <MenuTriggerButton classic onClick={e => menuToggle(String(po.id), e)} />
                                     </td>
                                 </tr>
                             ))}
@@ -255,6 +228,22 @@ export default function PackingView() {
                 </div>
                 <Pager page={clampedPkgPage} total={packingOrders.length} pageSize={PKG_PAGE_SIZE} onPageChange={setPkgPage} hideWhenEmpty />
             </div>
+
+            {/* Row ⋯ menu: Edit/View, Surat Jalan, Delete */}
+            {menuOpenId && (() => {
+                const po = pagedPackingOrders.find((x: any) => String(x.id) === menuOpenId);
+                if (!po) return null;
+                return (
+                    <FloatingMenu
+                        pos={menuPos}
+                        items={[
+                            { key: 'edit', label: po.status === 'DRAFT' ? 'Edit' : 'View', icon: 'bi-pencil', onClick: () => { menuClose(); setEditing(po); } },
+                            { key: 'print', label: 'Surat Jalan', icon: 'bi-printer', onClick: () => { menuClose(); setPrintPO(po); } },
+                            { key: 'delete', label: 'Delete', icon: 'bi-trash', danger: true, hidden: !(canManage && po.status !== 'DISPATCHED'), onClick: () => { menuClose(); deletePO(po); } },
+                        ]}
+                    />
+                );
+            })()}
             <XPStatusBar right={`${drafts} draft · ${dispatched} dispatched`}>
                 {loading ? 'Loading...' : `${packingOrders.length} packing order(s)`}
             </XPStatusBar>
@@ -325,7 +314,7 @@ function SOPickerModal({ packableSOs, packingOrders, onClose, onPick }: any) {
                                 {packableSOs.map((so: any) => (
                                     <tr key={so.id}>
                                         <td style={{ ...td, fontWeight: 'bold', color: '#00309c' }}>{so.po_number}</td>
-                                        <td style={td}><StatusChip status={so.status} map={SO_CHIP} /></td>
+                                        <td style={td}><StatusChip status={so.status} /></td>
                                         <td style={td}>{so.customer_name}</td>
                                         <td style={{ ...td, color: '#666' }}>{(so.lines || []).length}</td>
                                         <td style={{ ...td, textAlign: 'right' }}>

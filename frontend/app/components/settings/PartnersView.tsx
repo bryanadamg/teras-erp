@@ -4,8 +4,13 @@ import { useState, useEffect } from 'react';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import ModalWrapper from '../shared/ModalWrapper';
+import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
+import { StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
+import { lvBtn, lvInput, lvTh, lvTd, lvLabel } from '../shared/listViewTheme';
+
+const PARTNERS_PAGE_SIZE = 20;
 
 interface Partner {
     id: string;
@@ -39,9 +44,12 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
     const { uiStyle: currentStyle } = useTheme();
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+    const [page, setPage] = useState(1);
+    const { openId: menuOpenId, pos: menuPos, toggle: menuToggle, close: menuClose } = useFloatingMenu(140);
 
     useEffect(() => {
         setSelectedIds(new Set());
+        setPage(1);
     }, [searchTerm]);
 
     const classic = currentStyle === 'classic';
@@ -83,31 +91,11 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
         flexWrap: 'wrap' as const,
     };
 
-    const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-        fontFamily: 'Tahoma, Arial, sans-serif',
-        fontSize: '11px',
-        padding: '2px 10px',
-        cursor: 'pointer',
-        background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
-        border: '1px solid',
-        borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-        color: '#000000',
-        borderRadius: 0,
-        ...extra,
-    });
-
-    const xpInput: React.CSSProperties = {
-        fontFamily: 'Tahoma, Arial, sans-serif',
-        fontSize: '11px',
-        border: '1px solid #7f9db9',
-        boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)',
-        padding: '1px 6px',
-        background: '#ffffff',
-        color: '#000000',
-        height: '20px',
-        outline: 'none',
-    };
-
+    // Button/input/cell/label chrome sourced from the shared lv* helpers (pinned to
+    // classic=true — this constant is only ever used inside `classic ? ... : undefined`
+    // branches below) instead of re-declaring the same CSS values locally.
+    const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => lvBtn(true, extra);
+    const xpInput: React.CSSProperties = lvInput(true);
     const xpSep: React.CSSProperties = {
         width: '1px',
         height: '20px',
@@ -115,37 +103,22 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
         margin: '0 2px',
         flexShrink: 0,
     };
-
+    const xpThCell: React.CSSProperties = lvTh(true);
     const xpTableHeader: React.CSSProperties = {
         background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
         borderBottom: '2px solid #808080',
-        fontSize: '10px',
-        fontWeight: 'bold',
-        color: '#000000',
     };
-
-    const xpThCell: React.CSSProperties = {
-        padding: '3px 6px',
-        borderRight: '1px solid #b0aaa0',
-        textAlign: 'left' as const,
-        whiteSpace: 'nowrap' as const,
-        fontFamily: 'Tahoma, Arial, sans-serif',
-    };
-
-    const tdBase: React.CSSProperties = {
-        padding: '4px 6px',
-        borderRight: '1px solid #c0bdb5',
-        borderBottom: '1px solid #d0cdc8',
-        verticalAlign: 'middle' as const,
-        fontFamily: 'Tahoma, Arial, sans-serif',
-        fontSize: '11px',
-    };
+    const tdBase: React.CSSProperties = lvTd(true);
+    const xpLabel: React.CSSProperties = lvLabel(true);
 
     const filteredPartners = partners.filter(p =>
         p.type === type &&
         (p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
          (p.address || '').toLowerCase().includes(searchTerm.toLowerCase()))
     );
+    const pages = Math.max(1, Math.ceil(filteredPartners.length / PARTNERS_PAGE_SIZE));
+    const clampedPage = Math.min(page, pages);
+    const pagedPartners = filteredPartners.slice((clampedPage - 1) * PARTNERS_PAGE_SIZE, clampedPage * PARTNERS_PAGE_SIZE);
 
     const allSelected = filteredPartners.length > 0 && selectedIds.size === filteredPartners.length;
     const someSelected = selectedIds.size > 0;
@@ -211,10 +184,12 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
     };
 
     return (
-        <div className="fade-in">
+        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', minHeight: 0 }}>
             {/* ── Outer shell ── */}
             <div
-                style={classic ? xpBevel : undefined}
+                style={classic
+                    ? { ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }
+                    : { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
                 className={classic ? '' : 'card border-0 shadow-sm'}
             >
                 {/* ── Title bar ── */}
@@ -316,9 +291,9 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                 {/* ── Table ── */}
                 <div
                     className={classic ? '' : 'card-body p-0'}
-                    style={classic ? { maxHeight: 'calc(100vh - 160px)', overflowY: 'auto' } : undefined}
+                    style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
                 >
-                    <div className="table-responsive">
+                    <div className="table-responsive" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
                         <table
                             className={classic ? '' : 'table table-hover align-middle mb-0'}
                             style={classic ? { width: '100%', borderCollapse: 'collapse', background: '#fff' } : undefined}
@@ -342,7 +317,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredPartners.map((p, rowIndex) => (
+                                {pagedPartners.map((p, rowIndex) => (
                                     <tr
                                         key={p.id}
                                         style={classic ? { background: selectedIds.has(p.id) ? '#e8f0f8' : rowIndex % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' } : undefined}
@@ -362,58 +337,11 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                                         <td style={classic ? { ...tdBase, color: '#555' } : undefined} className={classic ? '' : 'text-muted small'}>
                                             {p.address || <span style={classic ? { color: '#aaa' } : undefined} className={classic ? '' : 'fst-italic'}>—</span>}
                                         </td>
-                                        <td style={tdBase}>
-                                            {classic ? (
-                                                <span style={{
-                                                    background: p.active ? '#e8f5e9' : '#e8e8e8',
-                                                    border: `1px solid ${p.active ? '#2e7d32' : '#6a6a6a'}`,
-                                                    color: p.active ? '#1b4620' : '#444',
-                                                    padding: '1px 5px',
-                                                    fontSize: '9px',
-                                                    fontFamily: 'Tahoma, Arial, sans-serif',
-                                                    fontWeight: 'bold',
-                                                    whiteSpace: 'nowrap' as const,
-                                                }}>
-                                                    {p.active ? 'Active' : 'Inactive'}
-                                                </span>
-                                            ) : (
-                                                <span className={`badge ${p.active ? 'bg-success' : 'bg-secondary'}`}>
-                                                    {p.active ? 'Active' : 'Inactive'}
-                                                </span>
-                                            )}
+                                        <td style={classic ? tdBase : undefined} className={classic ? '' : 'text-muted small'}>
+                                            <StatusChip status={p.active ? 'ACTIVE' : 'INACTIVE'} />
                                         </td>
                                         <td style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'right' as const } : undefined} className={classic ? '' : 'text-end pe-4'}>
-                                            {!canManage ? null : classic ? (
-                                                <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-                                                    <button
-                                                        title="Edit"
-                                                        onClick={() => setEditingPartner(p)}
-                                                        style={{ background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', padding: '1px 4px', color: '#555', fontSize: '11px' }}
-                                                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; }}
-                                                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-                                                    >
-                                                        <i className="bi bi-pencil-square"></i>
-                                                    </button>
-                                                    <button
-                                                        title="Delete"
-                                                        onClick={() => handleDelete(p)}
-                                                        style={{ background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', padding: '1px 4px', color: '#aa0000', fontSize: '11px' }}
-                                                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#cc4444'; (e.currentTarget as HTMLButtonElement).style.background = '#fff0f0'; }}
-                                                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-                                                    >
-                                                        <i className="bi bi-trash"></i>
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <>
-                                                    <button className="btn btn-sm btn-link text-primary p-0 me-2" title="Edit" onClick={() => setEditingPartner(p)}>
-                                                        <i className="bi bi-pencil-square"></i>
-                                                    </button>
-                                                    <button className="btn btn-sm btn-link text-danger p-0" title="Delete" onClick={() => handleDelete(p)}>
-                                                        <i className="bi bi-trash"></i>
-                                                    </button>
-                                                </>
-                                            )}
+                                            {canManage && <MenuTriggerButton classic={classic} onClick={e => menuToggle(p.id, e)} />}
                                         </td>
                                     </tr>
                                 ))}
@@ -435,6 +363,8 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                     </div>
                 </div>
 
+                <Pager page={clampedPage} total={filteredPartners.length} pageSize={PARTNERS_PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
+
                 {/* ── Status bar ── */}
                 {classic && (
                     <div style={{
@@ -453,6 +383,21 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                     </div>
                 )}
             </div>
+
+            {/* Row ⋯ menu: Edit / Delete */}
+            {menuOpenId && (() => {
+                const p = pagedPartners.find(x => String(x.id) === menuOpenId);
+                if (!p || !canManage) return null;
+                return (
+                    <FloatingMenu
+                        pos={menuPos}
+                        items={[
+                            { key: 'edit', label: 'Edit', icon: 'bi-pencil-square', onClick: () => { menuClose(); setEditingPartner(p); } },
+                            { key: 'delete', label: 'Delete', icon: 'bi-trash', danger: true, onClick: () => { menuClose(); handleDelete(p); } },
+                        ]}
+                    />
+                );
+            })()}
 
             {/* Create Modal */}
             <ModalWrapper
@@ -480,7 +425,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
             >
                 <div className="mb-3">
                     <label
-                        style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
+                        style={classic ? xpLabel : undefined}
                         className={classic ? '' : 'form-label small fw-bold'}
                     >Name</label>
                     <input
@@ -495,7 +440,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                 </div>
                 <div className="mb-3">
                     <label
-                        style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
+                        style={classic ? xpLabel : undefined}
                         className={classic ? '' : 'form-label small fw-bold'}
                     >Address <span style={classic ? { fontWeight: 'normal', color: '#666' } : undefined} className={classic ? '' : 'fw-normal text-muted'}>(Optional)</span></label>
                     <textarea
@@ -508,21 +453,21 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                     ></textarea>
                 </div>
                 <div className="mb-3">
-                    <label style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined} className={classic ? '' : 'form-label small fw-bold'}>Contact Person <span style={classic ? { fontWeight: 'normal', color: '#666' } : undefined} className={classic ? '' : 'fw-normal text-muted'}>(Attn)</span></label>
+                    <label style={classic ? xpLabel : undefined} className={classic ? '' : 'form-label small fw-bold'}>Contact Person <span style={classic ? { fontWeight: 'normal', color: '#666' } : undefined} className={classic ? '' : 'fw-normal text-muted'}>(Attn)</span></label>
                     <input style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} value={newPartner.contact_person} onChange={e => setNewPartner({...newPartner, contact_person: e.target.value})} placeholder="e.g. Pak Nicolas" />
                 </div>
                 <div className="row g-2 mb-3">
                     <div className="col-6">
-                        <label style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined} className={classic ? '' : 'form-label small fw-bold'}>Phone / Telp</label>
+                        <label style={classic ? xpLabel : undefined} className={classic ? '' : 'form-label small fw-bold'}>Phone / Telp</label>
                         <input style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} value={newPartner.phone} onChange={e => setNewPartner({...newPartner, phone: e.target.value})} placeholder="e.g. 021 5869948" />
                     </div>
                     <div className="col-6">
-                        <label style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined} className={classic ? '' : 'form-label small fw-bold'}>Fax</label>
+                        <label style={classic ? xpLabel : undefined} className={classic ? '' : 'form-label small fw-bold'}>Fax</label>
                         <input style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} value={newPartner.fax} onChange={e => setNewPartner({...newPartner, fax: e.target.value})} placeholder="e.g. 021 5868012" />
                     </div>
                 </div>
                 <div className="mb-3">
-                    <label style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined} className={classic ? '' : 'form-label small fw-bold'}>Email</label>
+                    <label style={classic ? xpLabel : undefined} className={classic ? '' : 'form-label small fw-bold'}>Email</label>
                     <input style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} value={newPartner.email} onChange={e => setNewPartner({...newPartner, email: e.target.value})} placeholder="e.g. sales@supplier.com" />
                 </div>
             </ModalWrapper>
@@ -613,7 +558,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                     <>
                         <div className="mb-3">
                             <label
-                                style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
+                                style={classic ? xpLabel : undefined}
                                 className={classic ? '' : 'form-label small fw-bold'}
                             >Name</label>
                             <input
@@ -626,7 +571,7 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                         </div>
                         <div className="mb-3">
                             <label
-                                style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined}
+                                style={classic ? xpLabel : undefined}
                                 className={classic ? '' : 'form-label small fw-bold'}
                             >Address <span style={classic ? { fontWeight: 'normal', color: '#666' } : undefined} className={classic ? '' : 'fw-normal text-muted'}>(Optional)</span></label>
                             <textarea
@@ -638,21 +583,21 @@ export default function PartnersView({ partners, type, onCreate, onUpdate, onDel
                             ></textarea>
                         </div>
                         <div className="mb-3">
-                            <label style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined} className={classic ? '' : 'form-label small fw-bold'}>Contact Person <span style={classic ? { fontWeight: 'normal', color: '#666' } : undefined} className={classic ? '' : 'fw-normal text-muted'}>(Attn)</span></label>
+                            <label style={classic ? xpLabel : undefined} className={classic ? '' : 'form-label small fw-bold'}>Contact Person <span style={classic ? { fontWeight: 'normal', color: '#666' } : undefined} className={classic ? '' : 'fw-normal text-muted'}>(Attn)</span></label>
                             <input style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} value={editingPartner.contact_person || ''} onChange={e => setEditingPartner({...editingPartner, contact_person: e.target.value})} placeholder="e.g. Pak Nicolas" />
                         </div>
                         <div className="row g-2 mb-3">
                             <div className="col-6">
-                                <label style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined} className={classic ? '' : 'form-label small fw-bold'}>Phone / Telp</label>
+                                <label style={classic ? xpLabel : undefined} className={classic ? '' : 'form-label small fw-bold'}>Phone / Telp</label>
                                 <input style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} value={editingPartner.phone || ''} onChange={e => setEditingPartner({...editingPartner, phone: e.target.value})} placeholder="e.g. 021 5869948" />
                             </div>
                             <div className="col-6">
-                                <label style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined} className={classic ? '' : 'form-label small fw-bold'}>Fax</label>
+                                <label style={classic ? xpLabel : undefined} className={classic ? '' : 'form-label small fw-bold'}>Fax</label>
                                 <input style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} value={editingPartner.fax || ''} onChange={e => setEditingPartner({...editingPartner, fax: e.target.value})} placeholder="e.g. 021 5868012" />
                             </div>
                         </div>
                         <div className="mb-3">
-                            <label style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined} className={classic ? '' : 'form-label small fw-bold'}>Email</label>
+                            <label style={classic ? xpLabel : undefined} className={classic ? '' : 'form-label small fw-bold'}>Email</label>
                             <input style={classic ? xpInput : undefined} className={classic ? '' : 'form-control'} value={editingPartner.email || ''} onChange={e => setEditingPartner({...editingPartner, email: e.target.value})} placeholder="e.g. sales@supplier.com" />
                         </div>
                         <div style={classic ? { marginTop: 10, display: 'flex', alignItems: 'center', gap: 6 } : undefined} className={classic ? '' : 'form-check mt-3'}>

@@ -11,7 +11,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
-import { StatusChip, XPLoading, FormSection } from '../shared/xpTheme';
+import { StatusChip, XPLoading, FormSection, useFloatingMenu, FloatingMenu } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 import { STATIC_BASE, API_BASE } from '../shared/apiBase';
@@ -51,8 +51,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingSample, setEditingSample] = useState<any>(null);
   const [printSample, setPrintSample] = useState<any>(null);
-  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
+  const { openId: openDropdownId, pos: dropdownPos, toggle: toggleDropdown, close: closeDropdown } = useFloatingMenu(180);
   const [historyEntityId, setHistoryEntityId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -434,30 +433,6 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
       setCompletionImageFile(null);
       setDesignPdfFile(null);
       setIsCreateOpen(true);
-  };
-
-  // Close dropdown on outside click / scroll
-  useEffect(() => {
-      const handleGlobalClick = (event: any) => {
-          if (!event.target.closest('.action-dropdown-btn') && !event.target.closest('.fixed-dropdown-menu')) {
-              setOpenDropdownId(null);
-          }
-      };
-      const handleScroll = () => setOpenDropdownId(null);
-      document.addEventListener('click', handleGlobalClick);
-      window.addEventListener('scroll', handleScroll, true);
-      return () => {
-          document.removeEventListener('click', handleGlobalClick);
-          window.removeEventListener('scroll', handleScroll, true);
-      };
-  }, []);
-
-  const toggleDropdown = (id: string, e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (openDropdownId === id) { setOpenDropdownId(null); return; }
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-      setDropdownPos({ top: rect.bottom + window.scrollY + 2, left: rect.right + window.scrollX - 180 });
-      setOpenDropdownId(id);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -1188,42 +1163,28 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
            </form>
        </ModalWrapper>
 
-       {/* Floating Action Dropdown */}
+       {/* Floating Action Dropdown — shared FloatingMenu (was a hand-rolled bootstrap
+           dropdown-menu duplicating useFloatingMenu/FloatingMenu's own positioning +
+           outside-click logic) */}
        {openDropdownId && (
-           <div
-               className={`dropdown-menu show shadow fixed-dropdown-menu ui-style-${currentStyle}`}
-               style={{ position: 'absolute', top: dropdownPos.top, left: dropdownPos.left, zIndex: 9999, minWidth: 180 }}
-           >
-               <div className="px-3 py-1 border-bottom" style={{ fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>
-                   Update Status
-               </div>
-               <button className="dropdown-item small" onClick={() => { onUpdateStatus(openDropdownId, 'IN_PRODUCTION'); setOpenDropdownId(null); }}>
-                   <i className="bi bi-gear me-2"></i>Mark In Production
-               </button>
-               <button className="dropdown-item small" onClick={() => { onUpdateStatus(openDropdownId, 'SENT'); setOpenDropdownId(null); }}>
-                   <i className="bi bi-send me-2"></i>Mark Sent to Client
-               </button>
-               <div className="dropdown-divider"></div>
-               <button className="dropdown-item small text-success" onClick={() => { onUpdateStatus(openDropdownId, 'APPROVED'); setOpenDropdownId(null); }}>
-                   <i className="bi bi-check-lg me-2"></i>Client Approved
-               </button>
-               <button className="dropdown-item small text-danger" onClick={() => { onUpdateStatus(openDropdownId, 'REJECTED'); setOpenDropdownId(null); }}>
-                   <i className="bi bi-x-lg me-2"></i>Client Rejected
-               </button>
-               {onDeleteSample && (
-                   <>
-                       <div className="dropdown-divider"></div>
-                       <button className="dropdown-item small text-danger" onClick={() => { onDeleteSample(openDropdownId); setOpenDropdownId(null); }}>
-                           <i className="bi bi-trash me-2"></i>Delete Request
-                       </button>
-                   </>
-               )}
-           </div>
+           <FloatingMenu
+               pos={dropdownPos}
+               minWidth={180}
+               items={[
+                   { key: 'in-production', label: 'Mark In Production', icon: 'bi-gear', onClick: () => { onUpdateStatus(openDropdownId, 'IN_PRODUCTION'); closeDropdown(); } },
+                   { key: 'sent', label: 'Mark Sent to Client', icon: 'bi-send', onClick: () => { onUpdateStatus(openDropdownId, 'SENT'); closeDropdown(); } },
+                   { key: 'approved', label: 'Client Approved', icon: 'bi-check-lg', onClick: () => { onUpdateStatus(openDropdownId, 'APPROVED'); closeDropdown(); } },
+                   { key: 'rejected', label: 'Client Rejected', icon: 'bi-x-lg', danger: true, onClick: () => { onUpdateStatus(openDropdownId, 'REJECTED'); closeDropdown(); } },
+                   { key: 'delete', label: 'Delete Request', icon: 'bi-trash', danger: true, hidden: !onDeleteSample, onClick: () => { onDeleteSample?.(openDropdownId); closeDropdown(); } },
+               ]}
+           />
        )}
 
        {/* ── Outer shell ── */}
        <div
-           style={classic ? xpBevel : undefined}
+           style={classic
+               ? { ...xpBevel, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', minHeight: 0 }
+               : { display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', minHeight: 0 }}
            className={classic ? '' : 'card border-0 shadow-sm'}
        >
            {/* ── Title bar ── */}
@@ -1342,7 +1303,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                className={classic ? '' : 'card-body p-0'}
                // scrollbarGutter: reserve the vertical scrollbar's space always, so expanding a
                // row (which toggles the scrollbar) can't reflow the table's auto-width columns.
-               style={classic ? { maxHeight: 'calc(100vh - 160px)', overflowY: 'auto', scrollbarGutter: 'stable' } : undefined}
+               style={{ flex: 1, minHeight: 0, overflowY: 'auto', scrollbarGutter: 'stable' }}
            >
                <div className="table-responsive">
                    <table
@@ -1522,7 +1483,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                            {/* Update split button (classic) / plain button (modern) */}
                                            {canManage && (classic ? (
                                                <div
-                                                   className="action-dropdown-btn"
+                                                   className="xp-menu-trigger"
                                                    style={{ display: 'inline-flex', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer' }}
                                                    onClick={(e) => toggleDropdown(s.id, e as any)}
                                                >
@@ -1535,7 +1496,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                </div>
                                            ) : (
                                                <button
-                                                   className="btn btn-sm btn-light border action-dropdown-btn py-0 px-2"
+                                                   className="btn btn-sm btn-light border xp-menu-trigger py-0 px-2"
                                                    style={{ fontSize: 11 }}
                                                    type="button"
                                                    onClick={(e) => toggleDropdown(s.id, e)}
