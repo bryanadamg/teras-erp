@@ -11,6 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import { XPEmptyState, useSortable, SortMark, FormSection, FieldLabel } from '../shared/xpTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
 import TreeSelect, { buildCategoryTree, buildLocationPickerTree } from '../shared/TreeSelect';
 
 // XP-style category badge colours derived from category name
@@ -737,38 +738,9 @@ export default function InventoryView({
   };
 
   // ── XP shared inline styles ──────────────────────────────────────────────
-  const xpBevel: React.CSSProperties = {
-      border: '2px solid',
-      borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-      boxShadow: '2px 2px 4px rgba(0,0,0,0.3)',
-      background: '#ece9d8',
-      borderRadius: 0,
-  };
-
-  const xpTitleBar: React.CSSProperties = {
-      background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)',
-      color: '#ffffff',
-      fontFamily: 'Tahoma, Arial, sans-serif',
-      fontSize: '12px',
-      fontWeight: 'bold',
-      padding: '4px 8px',
-      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)',
-      borderBottom: '1px solid #003080',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      minHeight: '26px',
-  };
-
-  const xpToolbar: React.CSSProperties = {
-      background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)',
-      borderBottom: '1px solid #b0a898',
-      padding: '3px 6px',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '4px',
-      flexWrap: 'wrap' as const,
-  };
+  const xpBevel: React.CSSProperties = sharedXpBevel();
+  const xpTitleBar: React.CSSProperties = sharedXpTitleBar();
+  const xpToolbar: React.CSSProperties = sharedXpToolbar();
 
   const xpInput: React.CSSProperties = {
       fontFamily: 'Tahoma, Arial, sans-serif',

@@ -4,6 +4,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { STATUS_COLORS } from './xpTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from './shellTheme';
 
 interface QRScannerViewProps {
     workOrders: any[];
@@ -48,17 +49,12 @@ export default function QRScannerView({
     );
 
     // --- XP Style Constants ---
-    const xpBevel: React.CSSProperties = {
-        border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-        boxShadow: '2px 2px 4px rgba(0,0,0,0.3)', background: '#ece9d8', borderRadius: 0,
-    };
-    const xpTitleBar: React.CSSProperties = {
+    const xpBevel: React.CSSProperties = sharedXpBevel();
+    // Dark navy header (not the standard blue) — deliberate for the scanner surface.
+    const xpTitleBar: React.CSSProperties = sharedXpTitleBar({
         background: 'linear-gradient(to right, #1a1a2e 0%, #3a3a5e 100%)',
-        color: '#ffffff', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '12px', fontWeight: 'bold',
-        padding: '4px 8px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)',
-        borderBottom: '1px solid #0a0a1e', display: 'flex', justifyContent: 'space-between',
-        alignItems: 'center', minHeight: '26px',
-    };
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)', borderBottom: '1px solid #0a0a1e',
+    });
     const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
         fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '2px 10px',
         cursor: 'pointer', background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',

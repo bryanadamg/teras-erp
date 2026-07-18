@@ -5,6 +5,7 @@ import { useData } from '../../context/DataContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { xpFont, xpBtn, StatusChip, XPLoading, XPEmptyState } from '../shared/xpTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from '../shared/shellTheme';
 import WorkCenterMonitorModal from './WorkCenterMonitorModal';
 
 const GREEN = '#2d7a2d';
@@ -86,16 +87,8 @@ export default function WeavingMonitorView() {
 
     // ── Classic (XP) ─────────────────────────────────────────────────────────
     if (cls) {
-        const xpWin: React.CSSProperties = {
-            border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-            background: '#ece9d8', boxShadow: '2px 2px 4px rgba(0,0,0,0.3)',
-        };
-        const xpTitle: React.CSSProperties = {
-            background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff',
-            fontFamily: xpFont, fontSize: 12, fontWeight: 'bold', padding: '4px 8px',
-            borderBottom: '1px solid #003080', display: 'flex', justifyContent: 'space-between',
-            alignItems: 'center', gap: 8,
-        };
+        const xpWin: React.CSSProperties = sharedXpBevel();
+        const xpTitle: React.CSSProperties = sharedXpTitleBar({ gap: 8 });
         const xpCardWrap: React.CSSProperties = {
             border: '2px solid', borderColor: '#ffffff #808080 #808080 #ffffff',
             background: '#ece9d8', cursor: 'pointer',

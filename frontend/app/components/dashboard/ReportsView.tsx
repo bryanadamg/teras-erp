@@ -9,6 +9,7 @@ import {
 } from '../shared/xpTheme';
 import TreeSelect, { buildLocationFilterTree, expandLocationFilterValue } from '../shared/TreeSelect';
 import Pager from '../shared/Pager';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
 
 const StockLedgerPrintModal = dynamic(() => import('./StockLedgerPrintModal'), { ssr: false });
 
@@ -285,16 +286,8 @@ export default function ReportsView(_props: any) {
     );
 
     if (classic) {
-        const titleBar: React.CSSProperties = {
-            background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff',
-            fontFamily: xpFont, fontSize: '12px', fontWeight: 'bold', padding: '4px 8px',
-            borderBottom: '1px solid #003080', display: 'flex', justifyContent: 'space-between',
-            alignItems: 'center', minHeight: '26px',
-        };
-        const toolbar: React.CSSProperties = {
-            background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898',
-            padding: '5px 6px', display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap',
-        };
+        const titleBar: React.CSSProperties = sharedXpTitleBar();
+        const toolbar: React.CSSProperties = sharedXpToolbar({ padding: '5px 6px', gap: '5px' });
         const th: React.CSSProperties = {
             background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080',
             fontSize: '10px', fontWeight: 'bold', color: '#000', fontFamily: xpFont, padding: '3px 8px',
@@ -309,11 +302,7 @@ export default function ReportsView(_props: any) {
         return (
             <>
             <div className="fade-in print-container" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)' }}>
-                <div style={{
-                    border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-                    boxShadow: '2px 2px 4px rgba(0,0,0,0.3)', background: '#ece9d8',
-                    display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0,
-                }}>
+                <div style={sharedXpBevel({ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 })}>
                     <div style={titleBar} className="no-print">
                         <span><i className="bi bi-journal-text" style={{ marginRight: 6 }} />{t('stock_ledger')}</span>
                         <span style={{ fontSize: '10px', opacity: 0.85 }}>{total.toLocaleString()} movements</span>

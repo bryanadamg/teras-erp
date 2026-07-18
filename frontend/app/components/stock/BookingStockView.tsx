@@ -5,6 +5,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { xpFont, xpBtn, XPLoading, useSortable, SortMark } from '../shared/xpTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 
 // Booking Stock: per-item material availability across all ongoing MOs.
@@ -169,20 +170,9 @@ export default function BookingStockView() {
 
     // ════════════════════════════ CLASSIC ════════════════════════════════════
     if (classic) {
-        const xpBevel: React.CSSProperties = {
-            border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-            boxShadow: '2px 2px 4px rgba(0,0,0,0.3)', background: '#ece9d8', borderRadius: 0,
-        };
-        const xpTitleBar: React.CSSProperties = {
-            background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#ffffff',
-            fontFamily: xpFont, fontSize: '12px', fontWeight: 'bold',
-            padding: '4px 8px', borderBottom: '1px solid #003080',
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '26px',
-        };
-        const xpToolbar: React.CSSProperties = {
-            background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898',
-            padding: '4px 6px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap',
-        };
+        const xpBevel: React.CSSProperties = sharedXpBevel();
+        const xpTitleBar: React.CSSProperties = sharedXpTitleBar();
+        const xpToolbar: React.CSSProperties = sharedXpToolbar({ gap: '6px' });
         const xpInputS: React.CSSProperties = {
             fontFamily: xpFont, fontSize: '11px', border: '1px solid #7f9db9',
             boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px',
@@ -198,7 +188,7 @@ export default function BookingStockView() {
         const numCell: React.CSSProperties = { padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', whiteSpace: 'nowrap' };
 
         return (
-            <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', minHeight: 0 }}>
                 <div style={{ ...xpBevel, display: 'flex', flexDirection: 'column', flex: 1 }}>
                     <div style={xpTitleBar}>
                         <span><i className="bi bi-bookmark-check" style={{ marginRight: 6 }} />{t('booking_stock') || 'Booking Stock'}</span>

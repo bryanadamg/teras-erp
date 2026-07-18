@@ -5,6 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { Tabs, TabDef } from '../shared/Tabs';
 import { xpFont } from '../shared/xpTheme';
+import { xpBevel as sharedXpBevel } from '../shared/shellTheme';
 import SettingsGeneralTab from './SettingsGeneralTab';
 import SettingsAccountTab from './SettingsAccountTab';
 import SettingsDatabaseTab from './SettingsDatabaseTab';
@@ -39,12 +40,7 @@ export default function SettingsView({
     return (
         <div className="fade-in">
             {/* Outer shell — XP bevel in classic, rounded card in modern (same chrome as DyeingSettingView) — full width like other section pages */}
-            <div style={classic ? {
-                border: '2px solid',
-                borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-                boxShadow: '2px 2px 4px rgba(0,0,0,0.3)',
-                background: '#ece9d8',
-            } : {
+            <div style={classic ? sharedXpBevel() : {
                 fontFamily: modernFont,
                 border: '1px solid #dbe1ea',
                 borderRadius: 9,

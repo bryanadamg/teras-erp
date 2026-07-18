@@ -9,6 +9,7 @@ import { useConfirm } from '../../context/ConfirmContext';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
 import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark, XPActionButton } from '../shared/xpTheme';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from '../shared/shellTheme';
 import TreeSelect, { buildLocationFilterTree, expandLocationFilterValue } from '../shared/TreeSelect';
 
 const REJECT_TITLE = 'QC reject — lot drops out of good stock; produced qty returns to its MO';
@@ -652,17 +653,9 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
   };
 
   // ── Styles ────────────────────────────────────────────────────────────────
-  const xpBevel: React.CSSProperties = classic ? {
-    border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    boxShadow: '2px 2px 4px rgba(0,0,0,0.3)', background: '#ece9d8', borderRadius: 0,
-  } : {};
+  const xpBevel: React.CSSProperties = classic ? sharedXpBevel() : {};
 
-  const xpTitleBar: React.CSSProperties = classic ? {
-    background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)',
-    color: '#ffffff', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '12px',
-    fontWeight: 'bold', padding: '4px 8px', borderBottom: '1px solid #003080',
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '26px',
-  } : {};
+  const xpTitleBar: React.CSSProperties = classic ? sharedXpTitleBar() : {};
 
   const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => classic ? ({
     fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '2px 10px',

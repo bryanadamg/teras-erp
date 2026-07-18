@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useToast } from '../shared/Toast';
 import { useTheme } from '../../context/ThemeContext';
 import { STATIC_BASE as API_BASE } from '../shared/apiBase';
+import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from '../shared/shellTheme';
 
 export default function CompanyProfileView({ profile, onUpdate, onUploadLogo, authFetch }: any) {
     const { showToast } = useToast();
@@ -60,18 +61,8 @@ export default function CompanyProfileView({ profile, onUpdate, onUploadLogo, au
         }
     };
 
-    const xpBevel: React.CSSProperties = {
-        border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-        boxShadow: '2px 2px 4px rgba(0,0,0,0.3)', background: '#ece9d8', borderRadius: 0,
-        marginBottom: 16,
-    };
-    const xpTitleBar: React.CSSProperties = {
-        background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)',
-        color: '#ffffff', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '12px', fontWeight: 'bold',
-        padding: '4px 8px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)',
-        borderBottom: '1px solid #003080', display: 'flex', justifyContent: 'space-between',
-        alignItems: 'center', minHeight: '26px',
-    };
+    const xpBevel: React.CSSProperties = sharedXpBevel({ marginBottom: 16 });
+    const xpTitleBar: React.CSSProperties = sharedXpTitleBar();
     const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
         fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '2px 10px',
         cursor: 'pointer', background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',

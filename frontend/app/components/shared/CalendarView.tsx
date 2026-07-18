@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { statusColor, statusTint } from './xpTheme';
+import { xpBevel as sharedXpBevel } from './shellTheme';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
@@ -271,10 +272,7 @@ export default function CalendarView({
 
     // ── Classic render ───────────────────────────────────────────────────────
     if (classic) {
-        const xpBevel: React.CSSProperties = {
-            border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-            boxShadow: '2px 2px 4px rgba(0,0,0,0.3)', background: '#ece9d8', borderRadius: 0,
-        };
+        const xpBevel: React.CSSProperties = sharedXpBevel();
         return (
             <div className={`fade-in ${compact ? 'compact-calendar' : ''}`}>
                 {filterBar}
