@@ -675,6 +675,8 @@ async def list_work_orders_flat(
             completions_flat.append(WorkOrderCompletionFlat(
                 id=str(c.id),
                 qty_completed=float(c.qty_completed),
+                qty_cones=c.qty_cones,
+                qty_boxes=c.qty_boxes,
                 operator_name=c.operator_name,
                 work_center_name=c.work_center.name if c.work_center else None,
                 created_at=c.created_at,
@@ -1100,6 +1102,8 @@ async def add_mo_completion(
     completion = MOCompletion(
         mo_id=mo.id,
         qty_completed=payload.qty_completed,
+        qty_cones=payload.qty_cones,
+        qty_boxes=payload.qty_boxes,
         operator_name=payload.operator_name,
         notes=payload.notes,
         work_center_id=payload.work_center_id,
@@ -1217,6 +1221,8 @@ async def add_mo_completion(
             # alongside the batch so per-color netting still finds them.
             attribute_value_ids=[] if is_beam_output else [v.id for v in mo.attribute_values],
             batch_id=output_batch.id if output_batch else None,
+            cones_change=int(payload.qty_cones or 0),
+            boxes_change=int(payload.qty_boxes or 0),
         )
 
     # Sum all non-rejected completions to check for auto-complete

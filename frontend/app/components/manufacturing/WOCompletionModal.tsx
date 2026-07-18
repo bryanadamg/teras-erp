@@ -60,6 +60,8 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
     const [qtyCompleted, setQtyCompleted] = useState('');
+    const [qtyCones, setQtyCones] = useState('');
+    const [qtyBoxes, setQtyBoxes] = useState('');
     const [operatorName, setOperatorName] = useState('');
     const [notes, setNotes] = useState('');
     const [workCenterId, setWorkCenterId] = useState('');
@@ -276,6 +278,8 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     qty_completed: qty,
+                    qty_cones: qtyCones.trim() ? parseInt(qtyCones, 10) : null,
+                    qty_boxes: qtyBoxes.trim() ? parseInt(qtyBoxes, 10) : null,
                     operator_name: operatorName || null,
                     notes: notes || null,
                     work_center_id: workCenterId || null,
@@ -398,8 +402,17 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                 </div>
                             )}
                             <div>
-                                <label style={{ ...xpLabel, fontWeight: 'bold' }}>
-                                    {workOrder ? 'Actual Qty Produced' : 'Qty Completed'}
+                                <label style={{ ...xpLabel, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span>{workOrder ? 'Actual Qty Produced' : 'Qty Completed'}</span>
+                                    {findItem(mo.item_id)?.uom && (
+                                        <span style={{
+                                            fontSize: 9, fontWeight: 'bold', letterSpacing: 0.3, textTransform: 'uppercase',
+                                            color: '#31569e', background: '#e8f0fe', border: '1px solid #a8c0f0',
+                                            borderRadius: 2, padding: '0 5px', lineHeight: '14px',
+                                        }}>
+                                            {findItem(mo.item_id).uom}
+                                        </span>
+                                    )}
                                 </label>
                                 <input
                                     type="number"
@@ -497,6 +510,16 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                     </div>
                                 );
                             })}
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <div style={{ flex: 1 }}>
+                                    <label style={xpLabel}>Cones</label>
+                                    <input type="number" style={xpInput} value={qtyCones} onChange={e => setQtyCones(e.target.value)} min="0" step="1" placeholder="Optional" />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <label style={xpLabel}>Boxes</label>
+                                    <input type="number" style={xpInput} value={qtyBoxes} onChange={e => setQtyBoxes(e.target.value)} min="0" step="1" placeholder="Optional" />
+                                </div>
+                            </div>
                             <div style={{ display: 'flex', gap: 8 }}>
                                 <div style={{ flex: 1 }}>
                                     <label style={xpLabel}>Operator</label>
@@ -724,6 +747,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                         <thead>
                                             <tr style={{ background: '#dddbd0' }}>
                                                 <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>Qty</th>
+                                                <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Pkg</th>
                                                 <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Operator</th>
                                                 <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Machine</th>
                                                 <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Items Used</th>
@@ -739,6 +763,9 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                                         title={c.output_batch_number ? `Lot ${c.output_batch_number}` : undefined}
                                                     >
                                                         {parseFloat(c.qty_completed).toFixed(2)}
+                                                    </td>
+                                                    <td style={{ padding: '2px 6px', color: '#555' }}>
+                                                        {[c.qty_cones ? `${c.qty_cones} cn` : null, c.qty_boxes ? `${c.qty_boxes} bx` : null].filter(Boolean).join(', ') || '—'}
                                                     </td>
                                                     <td style={{ padding: '2px 6px', color: '#555' }}>{c.operator_name || '—'}</td>
                                                     <td style={{ padding: '2px 6px', color: '#555' }}>{c.work_center_name || '—'}</td>

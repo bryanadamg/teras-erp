@@ -1,4 +1,4 @@
-from sqlalchemy import String, ForeignKey, Numeric, DateTime, Table, Column, Boolean, JSON
+from sqlalchemy import String, ForeignKey, Numeric, DateTime, Table, Column, Boolean, JSON, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
@@ -194,6 +194,10 @@ class MOCompletion(Base):
         UUID(as_uuid=True), ForeignKey("work_orders.id", ondelete="SET NULL"), nullable=True, index=True
     )
     qty_completed: Mapped[float] = mapped_column(Numeric(14, 4))
+    # Optional output packaging tallies logged at completion (also posted to
+    # stock_balances packaging counts at the output location; advisory, no UOM conversion)
+    qty_cones: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    qty_boxes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     operator_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     work_center_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("work_centers.id"), nullable=True, index=True)

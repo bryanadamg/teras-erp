@@ -313,6 +313,8 @@ class ConsumedLot(BaseModel):
 
 class MOCompletionCreate(BaseModel):
     qty_completed: float
+    qty_cones: int | None = None   # optional output packaging tally
+    qty_boxes: int | None = None
     operator_name: str | None = None
     notes: str | None = None
     work_center_id: UUID | None = None
@@ -331,6 +333,8 @@ class MOCompletionResponse(BaseModel):
     mo_id: UUID
     work_order_id: UUID | None = None
     qty_completed: float
+    qty_cones: int | None = None
+    qty_boxes: int | None = None
     operator_name: str | None = None
     notes: str | None = None
     work_center_id: UUID | None = None
@@ -745,6 +749,8 @@ class WorkOrderCompletionItemFlat(BaseModel):
 class WorkOrderCompletionFlat(BaseModel):
     id: str
     qty_completed: float
+    qty_cones: int | None = None
+    qty_boxes: int | None = None
     operator_name: str | None = None
     work_center_name: str | None = None
     created_at: datetime | None = None
