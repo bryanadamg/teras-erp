@@ -10,10 +10,15 @@ import { DataProvider } from './context/DataContext';
 import { ThemeProvider } from './context/ThemeContext';
 import QueryProvider from './components/shared/QueryProvider';
 import MainLayout from './components/shared/MainLayout';
+import SWRegister from './components/shared/SWRegister';
 
 export const metadata = {
   title: 'Teras ERP',
   description: 'Next-generation modular manufacturing system',
+}
+
+export const viewport = {
+  themeColor: '#1e293b',
 }
 
 export default function RootLayout({
@@ -27,6 +32,7 @@ export default function RootLayout({
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
       <body>
+        <SWRegister />
         <QueryProvider>
           <LanguageProvider>
             <ToastProvider>
