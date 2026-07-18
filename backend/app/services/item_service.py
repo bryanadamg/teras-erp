@@ -40,6 +40,7 @@ async def create_item(
     source_sample_id: str | None = None,
     source_color_id: str | None = None,
     attribute_ids: list[str] = [],
+    variant_type: str | None = None,
     weight_per_unit: float | None = None,
     weight_unit: str | None = None,
     packaging_factor_ids: list[str] = [],
@@ -56,6 +57,7 @@ async def create_item(
         category_id=category_id,
         source_sample_id=source_sample_id,
         source_color_id=source_color_id,
+        variant_type=variant_type,
         weight_per_unit=weight_per_unit,
         weight_unit=weight_unit,
         ends=ends,
@@ -69,6 +71,14 @@ async def create_item(
         result = await db.execute(select(Attribute).filter(Attribute.id.in_(attribute_ids)))
         attrs = result.scalars().all()
         item.attributes = attrs
+
+    # Combo-type FGs must carry the Combo system attribute so their BOMs can be
+    # tagged with a combo value (combo gates BOM selection). Color-type FGs use
+    # color_id instead and need no attribute binding (greige BOM is unattributed).
+    if variant_type == "combo":
+        combo = (await db.execute(select(Attribute).filter(Attribute.system_role == "combo"))).scalars().first()
+        if combo:
+            item.attributes = [combo]
 
     if packaging_factor_ids:
         result = await db.execute(select(UOMFactor).filter(UOMFactor.id.in_(packaging_factor_ids)))
@@ -110,6 +120,12 @@ async def update_item(
         result = await db.execute(select(Attribute).filter(Attribute.id.in_(attribute_ids)))
         attrs = result.scalars().all()
         item.attributes = attrs
+
+    # Keep combo-type FGs bound to the Combo attribute (see create_item).
+    if data.get("variant_type") == "combo":
+        combo = (await db.execute(select(Attribute).filter(Attribute.system_role == "combo"))).scalars().first()
+        if combo and combo.id not in [a.id for a in item.attributes]:
+            item.attributes = list(item.attributes) + [combo]
 
     if packaging_factor_ids is not None:
         result = await db.execute(select(UOMFactor).filter(UOMFactor.id.in_(packaging_factor_ids)))

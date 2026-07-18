@@ -18,6 +18,7 @@ interface BomEntryState {
     sizeQtys: Record<string, string>;
     totalQty: string;
     attributeValueIds: string[];
+    colorId?: string;
     locked?: boolean;
     rawSoQtys?: Record<string, number>;
     rawTotalQty?: number;
@@ -39,6 +40,7 @@ interface Props {
         sizeQtys: Record<string, string>;
         totalQty: string;
         attributeValueIds?: string[];
+        colorId?: string;
         locked?: boolean;
     }>;
     salesOrderId?: string;
@@ -402,10 +404,10 @@ export default function ProductionRunModal({
                     const sizeEntries = sizes
                         .filter((s: any) => parseFloat(entry.sizeQtys[s.id] || '0') > 0)
                         .map((s: any) => ({ bom_size_id: s.id, qty: parseFloat(entry.sizeQtys[s.id]) }));
-                    return { bom_id: entry.bomId, sizes: sizeEntries, attribute_value_ids, force_create: !!entry.forceCreate };
+                    return { bom_id: entry.bomId, sizes: sizeEntries, attribute_value_ids, color_id: entry.colorId || undefined, force_create: !!entry.forceCreate };
                 }
                 const qty = parseFloat(entry.totalQty || '0');
-                return { bom_id: entry.bomId, total_qty: qty > 0 ? qty : undefined, attribute_value_ids, force_create: !!entry.forceCreate };
+                return { bom_id: entry.bomId, total_qty: qty > 0 ? qty : undefined, attribute_value_ids, color_id: entry.colorId || undefined, force_create: !!entry.forceCreate };
             });
 
             const res = await onSave({

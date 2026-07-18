@@ -400,6 +400,7 @@ async def create_production_run(
             bom_id=bom.id,
             total_qty=bom_entry.total_qty,
             attribute_value_ids=[str(v) for v in (bom_entry.attribute_value_ids or [])],
+            color_id=bom_entry.color_id,
             force_create=bom_entry.force_create,
         )
         db.add(pr_entry)
@@ -456,6 +457,7 @@ async def create_production_run(
                     else f"{payload.code}-{size_label.upper()}"
                 )
                 root_mo.code = await _find_unique_mo_code(db, base_code)
+                root_mo.color_id = bom_entry.color_id
                 entry_root_mos.append(root_mo)
                 total_root_mo_count += 1
                 await db.flush()
@@ -483,6 +485,7 @@ async def create_production_run(
                     else f"{payload.code}-{suffix}"
                 )
                 root_mo.code = await _find_unique_mo_code(db, base_code)
+                root_mo.color_id = bom_entry.color_id
                 entry_root_mos.append(root_mo)
                 total_root_mo_count += 1
                 await db.flush()

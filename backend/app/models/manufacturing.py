@@ -87,6 +87,11 @@ class ManufacturingOrder(Base):
     size_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("sizes.id"), nullable=True
     )
+    # Color-type FG shade (Color Library). Set on root MOs from the SO/PR; the
+    # DYEING WO gate auto-matches the active DyeRecipe by this color_id.
+    color_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("colors.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     qty: Mapped[float] = mapped_column(Numeric(14, 4))
     status: Mapped[str] = mapped_column(String(32), default="PENDING", index=True)
@@ -125,6 +130,7 @@ class ManufacturingOrder(Base):
         lazy="noload",
     )
     attribute_values = relationship("AttributeValue", secondary=manufacturing_order_values)
+    color = relationship("Color", foreign_keys=[color_id], lazy="joined")
     parent_mo = relationship("ManufacturingOrder", remote_side=[id], backref="child_mos")
     sales_order = relationship("SalesOrder", foreign_keys=[sales_order_id], lazy="noload")
     production_run: Mapped[Optional["ProductionRun"]] = relationship(

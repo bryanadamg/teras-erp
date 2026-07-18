@@ -36,6 +36,10 @@ class PRBomEntry(Base):
     total_qty: Mapped[Optional[float]] = mapped_column(Numeric(14, 4), nullable=True)
     attribute_value_ids: Mapped[list] = mapped_column(JSON, default=list, server_default='[]')
     force_create: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')
+    # Color-type FG shade (Color Library) carried from the SO line into the root MO.
+    color_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("colors.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     bom = relationship("BOM", foreign_keys=[bom_id])
     sizes: Mapped[List["PRBomEntrySize"]] = relationship(

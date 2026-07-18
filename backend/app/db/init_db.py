@@ -422,6 +422,38 @@ def sync_stock_balances(db):
         db.rollback()
 
 
+def backfill_item_variant_type(db):
+    """One-time backfill: infer Item.variant_type from legacy attribute bindings.
+
+    Items that had the Combo variant attribute bound become 'combo'; those with
+    the Colors variant attribute become 'color'. Combo wins if both were present.
+    Only touches rows where variant_type is still NULL, so it's idempotent and
+    never overrides a value set through the new item form.
+    """
+    try:
+        from sqlalchemy import text
+        from app.models.attribute import Attribute
+        combo = db.query(Attribute).filter(Attribute.system_role == "combo").first()
+        color = db.query(Attribute).filter(Attribute.system_role == "color").first()
+        updated = 0
+        if combo:
+            updated += db.execute(text(
+                "UPDATE items SET variant_type='combo' WHERE variant_type IS NULL "
+                "AND id IN (SELECT item_id FROM item_attributes WHERE attribute_id = :aid)"
+            ), {"aid": str(combo.id)}).rowcount
+        if color:
+            updated += db.execute(text(
+                "UPDATE items SET variant_type='color' WHERE variant_type IS NULL "
+                "AND id IN (SELECT item_id FROM item_attributes WHERE attribute_id = :aid)"
+            ), {"aid": str(color.id)}).rowcount
+        if updated:
+            db.commit()
+            logger.info(f"Backfilled variant_type on {updated} items")
+    except Exception as e:
+        db.rollback()
+        logger.warning(f"Item variant_type backfill skipped: {e}")
+
+
 def init_db() -> None:
     logger.info("Initializing Database...")
     ensure_static_dirs()
@@ -434,6 +466,7 @@ def init_db() -> None:
         seed_operations(db)
         seed_rbac(db)
         seed_system_attributes(db)
+        backfill_item_variant_type(db)
         backfill_combo_library(db)
         seed_sizes(db)
         seed_system_locations(db)

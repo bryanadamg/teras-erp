@@ -59,8 +59,14 @@ class SalesOrderLine(Base):
     bom_size_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("bom_sizes.id", ondelete="SET NULL"), nullable=True
     )
+    # Color-type FG variant: the ordered shade from the Color Library. Threads
+    # SO -> PR -> MO so the DYEING WO auto-matches the active DyeRecipe by color_id.
+    color_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("colors.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     # Relationships
     item = relationship("Item")
     attribute_values = relationship("AttributeValue", secondary=sales_order_line_values)
     bom_size = relationship("BOMSize", foreign_keys=[bom_size_id])
+    color = relationship("Color", foreign_keys=[color_id])

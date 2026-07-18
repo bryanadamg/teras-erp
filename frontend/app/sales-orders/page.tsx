@@ -42,10 +42,13 @@ export default function SalesOrdersPage() {
     const handleGeneratePR = (so: any) => {
         const soLines: any[] = so.lines || [];
 
-        // Group all lines by (item_id + attribute set) — one group = one BOM
+        // Group lines by (item_id + attribute set + color) — one group = one root MO.
+        // Color is part of the key so different shades of the same item split into
+        // separate entries (each gets its own dyeing recipe); shared greige is
+        // consolidated downstream by PR Pass 2.
         const attrGroupMap = new Map<string, any[]>();
         soLines.forEach((l: any) => {
-            const key = l.item_id + '::' + [...(l.attribute_value_ids || [])].sort().join(',');
+            const key = l.item_id + '::' + [...(l.attribute_value_ids || [])].sort().join(',') + '::' + (l.color_id || '');
             if (!attrGroupMap.has(key)) attrGroupMap.set(key, []);
             attrGroupMap.get(key)!.push(l);
         });
@@ -63,12 +66,14 @@ export default function SalesOrdersPage() {
             sizes?: { bom_size_id: string; qty: number }[];
             total_qty?: number;
             attribute_value_ids?: string[];
+            color_id?: string;
         }> = [];
         let missingBomCount = 0;
 
         for (const [, groupLines] of attrGroupMap) {
             const firstLine = groupLines[0];
             const lineAttrIds: string[] = firstLine.attribute_value_ids || [];
+            const lineColorId: string | undefined = firstLine.color_id || undefined;
 
             // Try exact attribute match first (existing behavior)
             let matchingBOM = boms.find((b: any) => {
@@ -106,6 +111,7 @@ export default function SalesOrdersPage() {
                         bom_id: matchingBOM.id,
                         sizes: uncoveredSizes,
                         attribute_value_ids: lineAttrIds.length > 0 ? lineAttrIds : undefined,
+                        color_id: lineColorId,
                     });
                 }
             } else {
@@ -115,7 +121,7 @@ export default function SalesOrdersPage() {
                     return (pr.bom_entries || []).some((e: any) => {
                         if (String(e.bom_id) !== String(matchingBOM!.id)) return false;
                         const entryAttrs = [...(e.attribute_value_ids || [])].sort().join(',');
-                        return entryAttrs === sortedLineAttrs;
+                        return entryAttrs === sortedLineAttrs && String(e.color_id || '') === String(lineColorId || '');
                     });
                 });
                 if (!covered) {
@@ -124,6 +130,7 @@ export default function SalesOrdersPage() {
                         bom_id: matchingBOM.id,
                         total_qty: totalQty,
                         attribute_value_ids: lineAttrIds.length > 0 ? lineAttrIds : undefined,
+                        color_id: lineColorId,
                     });
                 }
             }

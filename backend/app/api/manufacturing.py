@@ -111,6 +111,11 @@ def populate_mo_ids(mo: ManufacturingOrder):
     if "sales_order" not in insp.unloaded and mo.sales_order:
         mo.sales_order_code = mo.sales_order.po_number
 
+    # 1c. Populate color spec (Color Library) — color is lazy=joined, always loaded
+    if "color" not in insp.unloaded and mo.color:
+        mo.color_code = mo.color.code
+        mo.color_name = mo.color.name
+
     # 2. Populate BOM IDs (if loaded)
     if "bom" not in insp.unloaded and mo.bom:
         bom_insp = inspect(mo.bom)

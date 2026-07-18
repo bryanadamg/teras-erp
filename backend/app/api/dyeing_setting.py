@@ -216,6 +216,18 @@ async def match_dye_recipe(
         .filter(_MO.id == wo.manufacturing_order_id)
     )
     mo = mo_result.scalars().first()
+
+    # Modern path: color-type FG carries a Color Library shade — match by color_id.
+    if mo and getattr(mo, "color_id", None):
+        by_color = await db.execute(
+            select(DyeRecipe).options(*_recipe_opts())
+            .filter(DyeRecipe.color_id == mo.color_id, DyeRecipe.is_active == True)
+            .order_by(DyeRecipe.code)
+        )
+        color_match = by_color.scalars().first()
+        return {"match": _serialize_recipe(color_match)} if color_match else {"match": None}
+
+    # Legacy path: best exact attribute-value subset match.
     mo_attr_ids = set(str(v.id) for v in mo.attribute_values) if mo else set()
 
     recipes_result = await db.execute(

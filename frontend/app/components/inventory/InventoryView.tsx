@@ -362,7 +362,7 @@ export default function InventoryView({
   });
 
   // Creation State
-  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [] as string[], weight_per_unit: '' as string | number, weight_unit: 'g/y', packaging_factor_ids: [] as string[], ends: '' as string | number, lot_tracked: false, min_stock_level: '' as string | number, default_source_location_id: '' as string, default_putaway_location_id: '' as string });
+  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [] as string[], variant_type: '' as string, weight_per_unit: '' as string | number, weight_unit: 'g/y', packaging_factor_ids: [] as string[], ends: '' as string | number, lot_tracked: false, min_stock_level: '' as string | number, default_source_location_id: '' as string, default_putaway_location_id: '' as string });
   const [nameManuallyEdited, setNameManuallyEdited] = useState(false);
 
   // Beam item creation state
@@ -426,6 +426,10 @@ export default function InventoryView({
   const isBeamCategory = !!effectiveFormCategoryId && (categories.find((c: any) => c.id === effectiveFormCategoryId)?.name || '').toLowerCase() === 'beam';
 
   const isRawMaterialCategory = !!formCatL1 && (categories.find((c: any) => c.id === formCatL1)?.name || '').toLowerCase().includes('raw');
+
+  // Variant Type (Color/Combo) is a finished-goods concept — only surface the
+  // selector when the chosen category tree is Finished Goods.
+  const isFinishedGoodsCategory = !!formCatL1 && (categories.find((c: any) => c.id === formCatL1)?.name || '').toLowerCase().includes('finished');
 
   // Initialize form category state when editing an item
   useEffect(() => {
@@ -529,6 +533,7 @@ export default function InventoryView({
       if (payload.min_stock_level === '' || payload.min_stock_level === null || payload.min_stock_level === undefined) { delete payload.min_stock_level; } else { payload.min_stock_level = parseFloat(payload.min_stock_level); }
       if (!payload.default_source_location_id) { delete payload.default_source_location_id; }
       if (!payload.default_putaway_location_id) { delete payload.default_putaway_location_id; }
+      if (!payload.variant_type) delete payload.variant_type;
 
       const res = await onCreateItem(payload);
 
@@ -568,7 +573,7 @@ export default function InventoryView({
           } else {
               showToast('Item created successfully', 'success');
           }
-          setNewItem({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [], weight_per_unit: '', weight_unit: 'g/y', packaging_factor_ids: [], ends: '', lot_tracked: false, min_stock_level: '', default_source_location_id: '', default_putaway_location_id: '' });
+          setNewItem({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [], variant_type: '', weight_per_unit: '', weight_unit: 'g/y', packaging_factor_ids: [], ends: '', lot_tracked: false, min_stock_level: '', default_source_location_id: '', default_putaway_location_id: '' });
           setFormCatL1(''); setFormCatL2(''); setFormCatL3('');
           setNameManuallyEdited(false);
           setCreateBeam(false); setBeamName(''); setBeamUom(''); setBeamEnds('');
@@ -589,6 +594,7 @@ export default function InventoryView({
           uom: editingItem.uom,
           category_id: effectiveFormCategoryId,
           attribute_ids: editingItem.attribute_ids || [],
+          variant_type: editingItem.variant_type || null,
           packaging_factor_ids: editingItem.packaging_factor_ids || [],
           source_sample_id: editingItem.source_sample_id || null,
           source_color_id: editingItem.source_color_id || null,
@@ -688,6 +694,40 @@ export default function InventoryView({
   };
 
   const classic = currentStyle === 'classic';
+
+  // Variant Type selector (None / Color / Combo) — replaces the old per-item
+  // attribute checkbox. 'color' -> SO picker reads the Color Library; 'combo' ->
+  // Combo Library (gates BOM). Shared by the create and edit forms.
+  const renderVariantTypeSelector = (value: string, onChange: (v: string) => void, keyPrefix: string) => {
+      const opts = [
+          { val: '', label: 'None', hint: 'No color/combo variant' },
+          { val: 'color', label: 'Color', hint: 'Ordered shade picked from Color Library' },
+          { val: 'combo', label: 'Combo', hint: 'Woven combo picked from Combo Library' },
+      ];
+      return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {opts.map(o => (
+                  <label
+                      key={o.val || 'none'}
+                      htmlFor={`${keyPrefix}-vt-${o.val || 'none'}`}
+                      style={classic ? { display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', cursor: 'pointer' } : undefined}
+                      className={classic ? '' : 'form-check d-flex align-items-center gap-2'}
+                  >
+                      <input
+                          type="radio"
+                          id={`${keyPrefix}-vt-${o.val || 'none'}`}
+                          name={`${keyPrefix}-variant-type`}
+                          className={classic ? '' : 'form-check-input'}
+                          style={classic ? { cursor: 'pointer', margin: 0 } : { marginTop: 0 }}
+                          checked={(value || '') === o.val}
+                          onChange={() => onChange(o.val)}
+                      />
+                      <span><b>{o.label}</b> <span style={{ color: classic ? '#888' : undefined, fontSize: classic ? '10px' : undefined }} className={classic ? '' : 'text-muted small'}>— {o.hint}</span></span>
+                  </label>
+              ))}
+          </div>
+      );
+  };
 
   // ── XP shared inline styles ──────────────────────────────────────────────
   const xpBevel: React.CSSProperties = {
@@ -1045,33 +1085,11 @@ export default function InventoryView({
               </div>
             </FormSection>
 
-            <FormSection title={t('attributes')} classic={classic}>
-                  <div
-                      style={classic ? { display: 'flex', flexWrap: 'wrap' as const, gap: 6, padding: '5px 7px', background: '#ffffff', border: '1px solid #b0a898', marginBottom: 10, maxHeight: 120, overflowY: 'auto' as const } : { maxHeight: 120, overflowY: 'auto' as const }}
-                      className={classic ? '' : 'd-flex flex-wrap gap-2 p-2 border rounded bg-light'}
-                  >
-                      {attributes.map((attr: any) => (
-                          <div key={attr.id} style={classic ? { display: 'flex', alignItems: 'center', gap: 4 } : undefined} className={classic ? '' : 'form-check'}>
-                              <input
-                                  style={classic ? { cursor: 'pointer' } : undefined}
-                                  className={classic ? '' : 'form-check-input'}
-                                  type="checkbox"
-                                  id={`new-attr-${attr.id}`}
-                                  checked={newItem.attribute_ids.includes(attr.id)}
-                                  onChange={() => toggleAttribute(attr.id, false)}
-                              />
-                              <label
-                                  style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', color: '#000', cursor: 'pointer' } : undefined}
-                                  className={classic ? '' : 'form-check-label small'}
-                                  htmlFor={`new-attr-${attr.id}`}
-                              >
-                                  {attr.name}
-                              </label>
-                          </div>
-                      ))}
-                      {attributes.length === 0 && <small style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#888', fontStyle: 'italic' } : undefined} className={classic ? '' : 'text-muted fst-italic'}>No attributes defined</small>}
-                  </div>
-            </FormSection>
+            {isFinishedGoodsCategory && (
+              <FormSection title="Variant Type" classic={classic}>
+                  {renderVariantTypeSelector(newItem.variant_type, (v) => setNewItem({ ...newItem, variant_type: v }), 'new')}
+              </FormSection>
+            )}
 
               {newItem.source_sample_id && (
                   <div className="mb-3">
@@ -1688,35 +1706,11 @@ export default function InventoryView({
                     </div>
                   </FormSection>
 
-                  <FormSection title={t('attributes')} classic={classic}>
-                        <div
-                          className={classic ? '' : 'd-flex flex-wrap gap-2 p-2 border rounded bg-light'}
-                          style={classic ? {
-                              display: 'flex', flexWrap: 'wrap' as const, gap: '6px',
-                              padding: '5px 7px', border: '1px solid #b0a898',
-                              background: '#ffffff', marginBottom: 10, maxHeight: '120px', overflowY: 'auto' as const,
-                          } : undefined}
-                        >
-                            {attributes.map((attr: any) => (
-                                <div key={attr.id} className="form-check">
-                                    <input
-                                        className="form-check-input"
-                                        type="checkbox"
-                                        id={`edit-attr-${attr.id}`}
-                                        checked={editingItem.attribute_ids?.includes(attr.id)}
-                                        onChange={() => toggleAttribute(attr.id, true)}
-                                    />
-                                    <label
-                                      className={classic ? '' : 'form-check-label small'}
-                                      style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#000000' } : undefined}
-                                      htmlFor={`edit-attr-${attr.id}`}
-                                    >
-                                        {attr.name}
-                                    </label>
-                                </div>
-                            ))}
-                        </div>
-                  </FormSection>
+                  {(isFinishedGoodsCategory || editingItem.variant_type) && (
+                    <FormSection title="Variant Type" classic={classic}>
+                        {renderVariantTypeSelector(editingItem.variant_type || '', (v) => setEditingItem({ ...editingItem, variant_type: v }), 'edit')}
+                    </FormSection>
+                  )}
                 </form>
           )}
       </ModalWrapper>

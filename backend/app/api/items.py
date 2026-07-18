@@ -55,6 +55,7 @@ async def create_item_api(payload: ItemCreate, db: AsyncSession = Depends(get_as
         source_sample_id=payload.source_sample_id,
         source_color_id=payload.source_color_id,
         attribute_ids=payload.attribute_ids,
+        variant_type=payload.variant_type,
         weight_per_unit=payload.weight_per_unit,
         weight_unit=payload.weight_unit,
         packaging_factor_ids=[str(fid) for fid in payload.packaging_factor_ids],

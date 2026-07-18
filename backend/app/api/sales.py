@@ -7,6 +7,7 @@ from app.db.session import get_async_db
 from app.schemas import SalesOrderCreate, SalesOrderUpdate, SalesOrderResponse
 from app.models.sales import SalesOrder, SalesOrderLine, sales_order_line_values
 from app.models.attribute import AttributeValue
+from app.models.color import Color
 from app.models.production_run import ProductionRun
 from app.models.manufacturing import ManufacturingOrder
 from app.models.work_order import WorkOrder
@@ -21,6 +22,26 @@ from datetime import datetime
 import uuid
 
 router = APIRouter(prefix="/sales-orders", tags=["sales"])
+
+
+def _line_opts():
+    """Eager-load options shared by every SO fetch that serializes lines."""
+    return (
+        selectinload(SalesOrder.lines).selectinload(SalesOrderLine.attribute_values),
+        selectinload(SalesOrder.lines).selectinload(SalesOrderLine.item),
+        selectinload(SalesOrder.lines).selectinload(SalesOrderLine.color),
+    )
+
+
+def _populate_line(line: SalesOrderLine) -> None:
+    """Fill response-only fields on a SO line from its eager-loaded relations."""
+    line.attribute_value_ids = [v.id for v in line.attribute_values]
+    if line.item:
+        line.item_name = line.item.name
+        line.item_code = line.item.code
+    if line.color:
+        line.color_code = line.color.code
+        line.color_name = line.color.name
 
 @router.post("", response_model=SalesOrderResponse)
 async def create_sales_order(payload: SalesOrderCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('sales.manage'))):
@@ -52,12 +73,13 @@ async def create_sales_order(payload: SalesOrderCreate, db: AsyncSession = Depen
                 uom2=line.uom2,
                 uom2_factor=line.uom2_factor,
                 bom_size_id=line.bom_size_id,
+                color_id=line.color_id,
             )
             if line.attribute_value_ids:
                 attr_result = await db.execute(select(AttributeValue).filter(AttributeValue.id.in_(line.attribute_value_ids)))
                 db_line.attribute_values = attr_result.scalars().all()
             db.add(db_line)
-        
+
         await db.commit()
     except HTTPException:
         raise
@@ -71,19 +93,13 @@ async def create_sales_order(payload: SalesOrderCreate, db: AsyncSession = Depen
     # Refresh with eager loading
     final_result = await db.execute(
         select(SalesOrder)
-        .options(
-            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.attribute_values),
-            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.item),
-        )
+        .options(*_line_opts())
         .filter(SalesOrder.id == so.id)
     )
     so_refreshed = final_result.scalars().first()
 
     for line in so_refreshed.lines:
-        line.attribute_value_ids = [v.id for v in line.attribute_values]
-        if line.item:
-            line.item_name = line.item.name
-            line.item_code = line.item.code
+        _populate_line(line)
 
     await audit_service.log_activity(
         db,
@@ -110,10 +126,7 @@ async def get_sales_orders(
 ):
     query = (
         select(SalesOrder)
-        .options(
-            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.attribute_values),
-            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.item),
-        )
+        .options(*_line_opts())
     )
     if status:
         query = query.filter(SalesOrder.status == status)
@@ -124,10 +137,7 @@ async def get_sales_orders(
 
     for so in orders:
         for line in so.lines:
-            line.attribute_value_ids = [v.id for v in line.attribute_values]
-            if line.item:
-                line.item_name = line.item.name
-                line.item_code = line.item.code
+            _populate_line(line)
 
     return orders
 
@@ -176,6 +186,7 @@ async def update_sales_order(so_id: uuid.UUID, payload: SalesOrderUpdate, db: As
             uom2=line.uom2,
             uom2_factor=line.uom2_factor,
             bom_size_id=line.bom_size_id,
+            color_id=line.color_id,
         )
         if line.attribute_value_ids:
             attr_result = await db.execute(select(AttributeValue).filter(AttributeValue.id.in_(line.attribute_value_ids)))
@@ -186,19 +197,13 @@ async def update_sales_order(so_id: uuid.UUID, payload: SalesOrderUpdate, db: As
 
     final_result = await db.execute(
         select(SalesOrder)
-        .options(
-            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.attribute_values),
-            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.item),
-        )
+        .options(*_line_opts())
         .filter(SalesOrder.id == so.id)
     )
     so_refreshed = final_result.scalars().first()
 
     for line in so_refreshed.lines:
-        line.attribute_value_ids = [v.id for v in line.attribute_values]
-        if line.item:
-            line.item_name = line.item.name
-            line.item_code = line.item.code
+        _populate_line(line)
 
     await audit_service.log_activity(
         db,
@@ -221,10 +226,7 @@ async def update_sales_order(so_id: uuid.UUID, payload: SalesOrderUpdate, db: As
 async def update_sales_order_status(so_id: uuid.UUID, status: str, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('sales.manage'))):
     result = await db.execute(
         select(SalesOrder)
-        .options(
-            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.attribute_values),
-            selectinload(SalesOrder.lines).selectinload(SalesOrderLine.item),
-        )
+        .options(*_line_opts())
         .filter(SalesOrder.id == so_id)
     )
     so = result.scalars().first()
@@ -243,11 +245,8 @@ async def update_sales_order_status(so_id: uuid.UUID, status: str, db: AsyncSess
     await db.commit()
 
     for line in so.lines:
-        line.attribute_value_ids = [v.id for v in line.attribute_values]
-        if line.item:
-            line.item_name = line.item.name
-            line.item_code = line.item.code
-    
+        _populate_line(line)
+
     await audit_service.log_activity(
         db,
         user_id=current_user.id,

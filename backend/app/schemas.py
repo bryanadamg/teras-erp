@@ -418,6 +418,9 @@ class ManufacturingOrderResponse(BaseModel):
     bom_size_snapshot: dict | None = None
     is_shared_component: bool = False
     attribute_value_ids: list[UUID] = []
+    color_id: UUID | None = None
+    color_code: str | None = None
+    color_name: str | None = None
     location_id: UUID | None = None
     source_location_id: UUID | None = None
     planned_putaway_location_id: UUID | None = None
@@ -458,6 +461,7 @@ class PRBomEntryCreate(BaseModel):
     sizes: list[PRBomSizeEntry] = []
     total_qty: float | None = None
     attribute_value_ids: list[UUID] = []
+    color_id: UUID | None = None
     force_create: bool = False
 
 class PRBomEntrySizeResponse(BaseModel):
@@ -472,6 +476,7 @@ class PRBomEntryResponse(BaseModel):
     bom_id: UUID
     total_qty: float | None = None
     attribute_value_ids: list[UUID] = []
+    color_id: UUID | None = None
     force_create: bool = False
     bom: Optional['BOMResponse'] = None
     sizes: list[PRBomEntrySizeResponse] = []
@@ -820,6 +825,7 @@ class ItemCreate(BaseModel):
     uom: str
     category_id: UUID | None = None
     attribute_ids: list[UUID] = []
+    variant_type: str | None = None
     source_sample_id: UUID | None = None
     source_color_id: UUID | None = None
     weight_per_unit: float | None = None
@@ -838,6 +844,7 @@ class ItemUpdate(BaseModel):
     uom: str | None = None
     category_id: UUID | None = None
     attribute_ids: list[UUID] | None = None
+    variant_type: str | None = None
     source_sample_id: UUID | None = None
     source_color_id: UUID | None = None
     active: bool | None = None
@@ -860,6 +867,7 @@ class ItemResponse(BaseModel):
     category_id: UUID | None = None
     category_path: list[str] = []
     attribute_ids: list[UUID] = []
+    variant_type: str | None = None
     source_sample_id: UUID | None = None
     source_color_id: UUID | None = None
     source_sample_code: str | None = None
@@ -1179,11 +1187,15 @@ class SalesOrderLineCreate(BaseModel):
     uom2_factor: float | None = None
     attribute_value_ids: list[UUID] = []
     bom_size_id: UUID | None = None
+    color_id: UUID | None = None
 
 class SalesOrderLineResponse(SalesOrderLineCreate):
     id: UUID
     attribute_value_ids: list[UUID] = []
     bom_size_id: UUID | None = None
+    color_id: UUID | None = None
+    color_code: str | None = None
+    color_name: str | None = None
     item_name: str | None = None
     item_code: str | None = None
 

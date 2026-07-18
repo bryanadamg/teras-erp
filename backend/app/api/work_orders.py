@@ -50,6 +50,40 @@ async def _find_matching_dye_recipe(db: AsyncSession, mo_attr_ids: set) -> Optio
     )
     return result.scalars().first()
 
+
+async def _match_recipe_by_color(db: AsyncSession, color_id) -> Optional[DyeRecipe]:
+    """Find the active DyeRecipe for a Color Library shade (modern color-type path)."""
+    if not color_id:
+        return None
+    res = await db.execute(
+        select(DyeRecipe)
+        .where(DyeRecipe.color_id == color_id, DyeRecipe.is_active == True)
+        .order_by(DyeRecipe.code)
+    )
+    return res.scalars().first()
+
+
+async def _resolve_dye_recipe(db: AsyncSession, mo) -> DyeRecipe:
+    """Resolve the active DyeRecipe for a DYEING WO on this MO.
+
+    Color-type FGs carry a Color Library shade (`mo.color_id`) and match a recipe
+    by `color_id`. Everything else falls back to the legacy exact attribute-value
+    match. Raises 422 when neither resolves — the DYEING WO create is a hard gate.
+    """
+    if getattr(mo, "color_id", None):
+        recipe = await _match_recipe_by_color(db, mo.color_id)
+        if not recipe:
+            raise HTTPException(status_code=422, detail="No active dyeing recipe found for this order's color")
+        return recipe
+
+    mo_attr_ids = {av.id for av in mo.attribute_values}
+    if not mo_attr_ids:
+        raise HTTPException(status_code=422, detail="MO has no color or attributes — cannot match a dyeing recipe")
+    recipe = await _find_matching_dye_recipe(db, mo_attr_ids)
+    if not recipe:
+        raise HTTPException(status_code=422, detail="No active dyeing recipe found matching this MO's attribute combination")
+    return recipe
+
 router = APIRouter()
 
 def _wo_options():
@@ -104,18 +138,7 @@ async def create_work_order(
         _require_wo_scope(current_user, wc.center_type if wc else None)
 
         if wc and wc.center_type == "DYEING":
-            mo_attr_ids = {av.id for av in mo.attribute_values}
-            if not mo_attr_ids:
-                raise HTTPException(
-                    status_code=422,
-                    detail="MO has no attributes — cannot match a dyeing recipe"
-                )
-            matched_recipe = await _find_matching_dye_recipe(db, mo_attr_ids)
-            if not matched_recipe:
-                raise HTTPException(
-                    status_code=422,
-                    detail="No active dyeing recipe found matching this MO's attribute combination"
-                )
+            matched_recipe = await _resolve_dye_recipe(db, mo)
             planned_recipe_id = matched_recipe.id
 
     # Auto-generate name from work center; fall back to code
@@ -451,13 +474,7 @@ async def create_work_orders_bulk(
 
         planned_recipe_id = None
         if wc and wc.center_type == "DYEING":
-            mo_attr_ids = {av.id for av in mo.attribute_values}
-            if not mo_attr_ids:
-                raise HTTPException(status_code=422, detail="MO has no attributes — cannot match a dyeing recipe")
-            matched = await _find_matching_dye_recipe(db, mo_attr_ids)
-            if not matched:
-                raise HTTPException(status_code=422, detail="No active dyeing recipe found matching this MO's attribute combination")
-            planned_recipe_id = matched.id
+            planned_recipe_id = (await _resolve_dye_recipe(db, mo)).id
 
         name = payload.name or (wc.name if wc else wo_code)
         sequence = payload.sequence if payload.sequence and payload.sequence > 1 else seq_num
