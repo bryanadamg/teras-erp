@@ -14,6 +14,7 @@ const WOStagingModal = dynamic(() => import('./WOStagingModal'), { ssr: false })
 const BagLabelPrintModal = dynamic(() => import('./BagLabelPrintModal'), { ssr: false });
 const BagScanStageModal = dynamic(() => import('./BagScanStageModal'), { ssr: false });
 import { getChipStyle, PrintChips } from './WorkOrderPanel';
+import Pager from '../shared/Pager';
 import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import SearchableSelect from '../shared/SearchableSelect';
@@ -1014,36 +1015,7 @@ export default function WorkOrderListView({
                         );
                     })()}
 
-                    {total > 0 && (() => {
-                        const pages = Math.max(1, Math.ceil(total / pageSize));
-                        const from = (page - 1) * pageSize + 1;
-                        const to = Math.min(page * pageSize, total);
-                        const btnStyle: React.CSSProperties = classic ? {
-                            fontFamily: xpFont, fontSize: 10, padding: '1px 8px',
-                            background: 'linear-gradient(to bottom,#f0efe6,#dddbd0)',
-                            border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-                            cursor: 'pointer',
-                        } : { fontSize: 11, padding: '1px 10px', cursor: 'pointer' };
-                        return (
-                            <div style={{
-                                display: 'flex', alignItems: 'center', gap: 6,
-                                padding: classic ? '3px 8px' : '4px 12px',
-                                borderTop: classic ? '1px solid #808080' : '1px solid #dee2e6',
-                                background: classic ? '#d4d0c8' : '#f8f9fa',
-                                fontFamily: classic ? xpFont : undefined,
-                                fontSize: classic ? 10 : 11,
-                                flexShrink: 0,
-                            }}>
-                                <button disabled={page === 1} onClick={() => onPageChange(page - 1)} style={btnStyle}>
-                                    <i className="bi bi-chevron-left" style={{ fontSize: 9 }} /> Prev
-                                </button>
-                                <span style={{ color: '#555' }}>{from}&ndash;{to} of {total} &middot; Page {page}/{pages}</span>
-                                <button disabled={page === pages} onClick={() => onPageChange(page + 1)} style={btnStyle}>
-                                    Next <i className="bi bi-chevron-right" style={{ fontSize: 9 }} />
-                                </button>
-                            </div>
-                        );
-                    })()}
+                    <Pager page={page} total={total} pageSize={pageSize} onPageChange={onPageChange} hideWhenEmpty />
                     {classic && selectedWOIds.size > 0 && (
                         <XPStatusBar right={null}>
                             {`${selectedWOIds.size} selected`}

@@ -6,6 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
+import Pager from '../shared/Pager';
 import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import {
     LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow,
@@ -131,8 +132,6 @@ export default function ColorLibraryView({
         if (ok) onDelete(c.id);
     };
 
-    const totalPages = Math.max(1, Math.ceil(total / size));
-
     const swatch = (hex?: string) => (
         <span style={{
             display: 'inline-block', width: 18, height: 18, borderRadius: classic ? 2 : 4,
@@ -254,15 +253,7 @@ export default function ColorLibraryView({
                 </table>
             </div>
 
-            {/* Status bar / pagination */}
-            <div style={classic
-                ? { background: '#ece9d8', borderTop: '1px solid #b0a898', padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, fontSize: 11, color: '#333' }
-                : { background: '#fff', borderTop: '1px solid #dbe1ea', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, fontSize: 12, color: '#475569' }}>
-                <span style={{ marginLeft: 'auto' }} />
-                <button style={lvBtn(classic)} disabled={page <= 1} onClick={() => onPageChange(page - 1)}>◀ Prev</button>
-                <span>Page {page} / {totalPages}</span>
-                <button style={lvBtn(classic)} disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>Next ▶</button>
-            </div>
+            <Pager page={page} total={total} pageSize={size} onPageChange={onPageChange} />
 
             {/* ── Row ⋯ menu: Edit / Archive-Delete ── */}
             {menuOpenId && (() => {

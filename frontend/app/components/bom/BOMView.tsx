@@ -11,6 +11,7 @@ import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
 import { workCenterChipStyle, xpFont } from '../shared/xpTheme';
+import Pager from '../shared/Pager';
 
 const xpTh: React.CSSProperties = {
     background: 'linear-gradient(to bottom, #fff, #d4d0c8)',
@@ -1078,25 +1079,7 @@ export default function BOMView({
                         </div>
                     </div>
                     {/* Pager footer — outside scroll container so always visible */}
-                    {bomTotal > 0 && (() => {
-                        const pages = Math.max(1, Math.ceil(bomTotal / bomPageSize));
-                        const from = (bomPage - 1) * bomPageSize + 1;
-                        const to = Math.min(bomPage * bomPageSize, bomTotal);
-                        const btn = (label: React.ReactNode, target: number, disabled: boolean) => (
-                            <button
-                                disabled={disabled}
-                                onClick={() => setBomPage?.(target)}
-                                style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, padding: '1px 10px', background: disabled ? '#dcdacc' : 'linear-gradient(to bottom,#f0efe6,#dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: disabled ? '#999' : '#000', cursor: disabled ? 'default' : 'pointer' }}
-                            >{label}</button>
-                        );
-                        return (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', borderTop: '1px solid #808080', background: '#ece9d8', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, flexShrink: 0 }}>
-                                {btn(<><i className="bi bi-chevron-left me-1" />Prev</>, bomPage - 1, bomPage <= 1)}
-                                <span style={{ color: '#444' }}>{from}-{to} of {bomTotal} &nbsp;·&nbsp; Page {bomPage} / {pages}</span>
-                                {btn(<>Next<i className="bi bi-chevron-right ms-1" /></>, bomPage + 1, bomPage >= pages)}
-                            </div>
-                        );
-                    })()}
+                    <Pager page={bomPage} total={bomTotal} pageSize={bomPageSize} onPageChange={p => setBomPage?.(p)} hideWhenEmpty />
                 </div>
             </div>
         </div>
