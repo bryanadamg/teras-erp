@@ -436,7 +436,7 @@ async def create_production_run(
                 if bom_entry.force_create:
                     net_qty = gross
                 else:
-                    net_qty = await availability.consume(bom.item_id, root_attrs, root_net_loc, gross)
+                    net_qty = await availability.consume(bom.item_id, root_attrs, root_net_loc, gross, color_id=bom_entry.color_id)
                 if net_qty <= 0:
                     continue  # fully covered by stock -> no root MO for this size line
 
@@ -467,7 +467,7 @@ async def create_production_run(
             if bom_entry.force_create:
                 net_qty = gross
             else:
-                net_qty = await availability.consume(bom.item_id, root_attrs, root_net_loc, gross)
+                net_qty = await availability.consume(bom.item_id, root_attrs, root_net_loc, gross, color_id=bom_entry.color_id)
             if net_qty > 0:
                 root_mo = await mrp_service.create_mo_recursive(
                     db, bom.id, net_qty, (location.id if location else None), current_user.id,

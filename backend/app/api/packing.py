@@ -292,6 +292,12 @@ async def dispatch_packing_order(
         str(sl.id): [str(v.id) for v in sl.attribute_values]
         for sl in po.sales_order.lines
     }
+    # Color-type FG stock is tagged with color_id (folded into variant_key), so
+    # dispatch must net/deduct against the same color to hit the right pool.
+    sol_colors = {
+        str(sl.id): sl.color_id
+        for sl in po.sales_order.lines
+    }
 
     # Pre-check availability for ALL lines before deducting anything
     shortages = []
@@ -300,8 +306,9 @@ async def dispatch_packing_order(
         if not src:
             raise HTTPException(status_code=400, detail="No source location set for one or more lines")
         attr_ids = sol_attrs.get(str(l.sales_order_line_id), [])
+        color_id = sol_colors.get(str(l.sales_order_line_id))
         batch_key = str(l.batch_id) if l.batch_id else ""
-        bal = await stock_service.get_stock_balance(db, l.item_id, src, attr_ids, batch_key)
+        bal = await stock_service.get_stock_balance(db, l.item_id, src, attr_ids, batch_key, color_id=color_id)
         if bal + (-float(l.qty_packed)) < 0:
             shortages.append(f"{(l.item.name if l.item else l.item_id)}: have {bal}, need {float(l.qty_packed)}")
     if shortages:
@@ -311,6 +318,7 @@ async def dispatch_packing_order(
     for l in pack_lines:
         src = l.source_location_id or po.source_location_id
         attr_ids = sol_attrs.get(str(l.sales_order_line_id), [])
+        color_id = sol_colors.get(str(l.sales_order_line_id))
         await stock_service.add_stock_entry(
             db,
             item_id=l.item_id,
@@ -319,6 +327,7 @@ async def dispatch_packing_order(
             reference_type="PACKING",
             reference_id=po.code,
             attribute_value_ids=attr_ids,
+            color_id=color_id,
             batch_id=l.batch_id,
         )
 

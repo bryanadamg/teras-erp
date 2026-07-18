@@ -376,7 +376,8 @@ def sync_stock_balances(db):
 
         for e in entries:
             attr_ids = [str(v.id) for v in e.attribute_values]
-            v_key = stock_service._generate_variant_key(attr_ids)
+            color_id = getattr(e, "color_id", None)
+            v_key = stock_service._generate_variant_key(attr_ids, color_id)
             b_key = str(e.batch_id) if e.batch_id else ""
             s_key = f"{str(e.item_id)}:{str(e.location_id)}:{v_key}:{b_key}"
 

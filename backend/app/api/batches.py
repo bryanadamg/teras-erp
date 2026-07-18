@@ -409,16 +409,16 @@ async def _move_batch_stock(db: AsyncSession, *, item_id, src_batch_id, dst_batc
         if to_move <= 1e-9:
             break
         portion = min(float(r.qty), to_move)
-        ids = [uuid.UUID(x) for x in (r.variant_key or "").split(",") if x]
+        ids, cid = stock_service._parse_variant_key(r.variant_key)
         await stock_service.add_stock_entry(
             db, item_id=item_id, location_id=r.location_id, qty_change=-portion,
             reference_type=reference_type, reference_id=reference_id,
-            attribute_value_ids=ids, batch_id=src_batch_id,
+            attribute_value_ids=ids, color_id=cid, batch_id=src_batch_id,
         )
         await stock_service.add_stock_entry(
             db, item_id=item_id, location_id=r.location_id, qty_change=portion,
             reference_type=reference_type, reference_id=reference_id,
-            attribute_value_ids=ids, batch_id=dst_batch_id,
+            attribute_value_ids=ids, color_id=cid, batch_id=dst_batch_id,
         )
         to_move -= portion
         moved += portion
@@ -640,11 +640,11 @@ async def dispose_batch(
     disposed = 0.0
     for r in rows:
         portion = float(r.qty)
-        ids = [uuid.UUID(x) for x in (r.variant_key or "").split(",") if x]
+        ids, cid = stock_service._parse_variant_key(r.variant_key)
         await stock_service.add_stock_entry(
             db, item_id=batch.item_id, location_id=r.location_id, qty_change=-portion,
             reference_type="QC Dispose", reference_id=batch.batch_number,
-            attribute_value_ids=ids, batch_id=batch.id,
+            attribute_value_ids=ids, color_id=cid, batch_id=batch.id,
         )
         disposed += portion
 

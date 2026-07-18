@@ -7,17 +7,43 @@ from app.models.attribute import AttributeValue
 from app.models.item import Item
 from fastapi import HTTPException
 
-def _generate_variant_key(attribute_value_ids: list[str]) -> str:
-    """Standardizes variant identification string."""
-    return ",".join(sorted(str(uid) for uid in attribute_value_ids))
+def _generate_variant_key(attribute_value_ids: list[str], color_id=None) -> str:
+    """Standardizes variant identification string.
 
-async def get_stock_balance(db: AsyncSession, item_id, location_id, attribute_value_ids: list[str] = [], batch_key: str = ""):
+    Color-type finished goods carry no color attribute value — the shade lives in
+    a separate `color_id`. To keep per-color FG stock in distinct balance rows,
+    the color is folded in as a trailing ``c:<uuid>`` token (after the sorted
+    attribute UUIDs, so it never collides with them and stays deterministic).
+    """
+    parts = sorted(str(uid) for uid in attribute_value_ids)
+    if color_id:
+        parts.append(f"c:{color_id}")
+    return ",".join(parts)
+
+
+def _parse_variant_key(variant_key: str):
+    """Inverse of _generate_variant_key: split a stored key back into
+    (attribute_value_ids, color_id). Used when re-posting stock derived from an
+    existing balance row (e.g. batch/beam moves) so the color token survives."""
+    import uuid as _uuid
+    attr_ids: list = []
+    color_id = None
+    for tok in (variant_key or "").split(","):
+        if not tok:
+            continue
+        if tok.startswith("c:"):
+            color_id = tok[2:]
+        else:
+            attr_ids.append(_uuid.UUID(tok))
+    return attr_ids, color_id
+
+async def get_stock_balance(db: AsyncSession, item_id, location_id, attribute_value_ids: list[str] = [], batch_key: str = "", color_id=None):
     """
     PRE-CALCULATED O(1) LOOKUP:
     Retrieves the exact balance from the summary table instead of summing the ledger.
     When batch_key is empty, returns the total across all batches for non-batch stock.
     """
-    v_key = _generate_variant_key(attribute_value_ids)
+    v_key = _generate_variant_key(attribute_value_ids, color_id)
     if batch_key:
         result = await db.execute(select(StockBalance).filter(
             StockBalance.item_id == item_id,
@@ -51,12 +77,13 @@ async def add_stock_entry(
     cones_change: int = 0,
     boxes_change: int = 0,
     drums_change: int = 0,
+    color_id=None,
 ):
     batch_key = str(batch_id) if batch_id else ""
     cones_change = int(cones_change or 0)
     boxes_change = int(boxes_change or 0)
     drums_change = int(drums_change or 0)
-    v_key = _generate_variant_key(attribute_value_ids)
+    v_key = _generate_variant_key(attribute_value_ids, color_id)
 
     # 1. Lock the relevant balance row(s) FIRST, then apply the negative-stock guard
     # against the locked value. Locking before checking (rather than checking with an
@@ -116,6 +143,7 @@ async def add_stock_entry(
         reference_type=reference_type,
         reference_id=reference_id,
         batch_id=batch_id,
+        color_id=color_id,
         qty_cones_change=cones_change or None,
         qty_boxes_change=boxes_change or None,
         qty_drums_change=drums_change or None,

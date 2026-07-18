@@ -45,6 +45,13 @@ class StockLedger(Base):
         UUID(as_uuid=True), ForeignKey("batches.id", ondelete="SET NULL"), nullable=True, index=True
     )
 
+    # Color-type FG shade (Color Library). Folded into the balance variant_key so
+    # per-color FG stock nets separately; persisted here so sync_stock_balances
+    # can reproduce the same key when it rebuilds balances from the ledger.
+    color_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("colors.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, index=True
     )

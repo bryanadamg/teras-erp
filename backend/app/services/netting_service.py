@@ -160,7 +160,7 @@ class Availability:
             # in which case it must not cover other, distinct demand.
             if _output_committed(mo, so_linked_prs):
                 continue
-            out_vkey = _generate_variant_key([str(v.id) for v in mo.attribute_values])
+            out_vkey = _generate_variant_key([str(v.id) for v in mo.attribute_values], getattr(mo, "color_id", None))
             self._supply[(str(mo.item_id), out_vkey)] += outstanding
 
     async def _on_hand(self, item_id: str, vkey: str) -> float:
@@ -180,7 +180,7 @@ class Availability:
         key = (item_id, vkey)
         return on_hand + self._supply.get(key, 0.0) - self._demand.get(key, 0.0)
 
-    async def consume_detailed(self, item_id, attribute_value_ids, location_id, gross_req: float):
+    async def consume_detailed(self, item_id, attribute_value_ids, location_id, gross_req: float, color_id=None):
         """Dry-run variant of consume() for the creation preview. ``location_id``
         is accepted for caller compatibility / display only — it is NOT part of the
         netting key (plant-level netting).
@@ -197,7 +197,7 @@ class Availability:
         if item_id is None:
             return gross_req, empty
         item_s = str(item_id)
-        vkey = _generate_variant_key([str(a) for a in (attribute_value_ids or [])])
+        vkey = _generate_variant_key([str(a) for a in (attribute_value_ids or [])], color_id)
         key = (item_s, vkey)
         on_hand = await self._on_hand(item_s, vkey)
         incoming = self._supply.get(key, 0.0)
@@ -213,7 +213,7 @@ class Availability:
             "net_free": net_free, "free_before": free_before, "covered": covered,
         }
 
-    async def consume(self, item_id, attribute_value_ids, location_id, gross_req: float) -> float:
+    async def consume(self, item_id, attribute_value_ids, location_id, gross_req: float, color_id=None) -> float:
         """Net ``gross_req`` against the running free-stock balance for this node.
         ``location_id`` is accepted for caller compatibility only — plant-level
         netting ignores it.
@@ -228,7 +228,7 @@ class Availability:
         if item_id is None:
             return gross_req  # no scoped item -> cannot net, make full
         item_s = str(item_id)
-        vkey = _generate_variant_key([str(a) for a in (attribute_value_ids or [])])
+        vkey = _generate_variant_key([str(a) for a in (attribute_value_ids or [])], color_id)
         key = (item_s, vkey)
         if key not in self._remaining:
             self._remaining[key] = await self._net_free(item_s, vkey)
@@ -288,10 +288,10 @@ def _component_node(sub_bom, level: int, loc_id, gross: float, net: float, detai
     }
 
 
-async def _info_detail(avail: "Availability", item_id, attribute_value_ids) -> dict:
+async def _info_detail(avail: "Availability", item_id, attribute_value_ids, color_id=None) -> dict:
     """Read-only stock snapshot for a (item, variant) — used for FORCED root
     nodes, which bypass netting entirely and must not decrement the ledger."""
-    vkey = _generate_variant_key([str(a) for a in (attribute_value_ids or [])])
+    vkey = _generate_variant_key([str(a) for a in (attribute_value_ids or [])], color_id)
     item_s = str(item_id)
     on_hand = await avail._on_hand(item_s, vkey)
     key = (item_s, vkey)
@@ -359,6 +359,7 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
 
         force = bool(getattr(entry, "force_create", False))
         entry_attr_ids = getattr(entry, "attribute_value_ids", None)
+        entry_color_id = getattr(entry, "color_id", None)
         root_attrs = (
             [str(v) for v in entry_attr_ids] if entry_attr_ids
             else [str(v.id) for v in bom.attribute_values]
@@ -367,10 +368,10 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
         net_qtys = []
         for gross in gross_qtys:
             if force:
-                detail = await _info_detail(avail, bom.item_id, root_attrs)
+                detail = await _info_detail(avail, bom.item_id, root_attrs, entry_color_id)
                 net = gross
             else:
-                net, detail = await avail.consume_detailed(bom.item_id, root_attrs, root_loc, gross)
+                net, detail = await avail.consume_detailed(bom.item_id, root_attrs, root_loc, gross, color_id=entry_color_id)
             nodes.append(_root_netted_node(bom, gross, net, detail, root_loc, loc_names, force))
             if net > 0:
                 net_qtys.append(net)

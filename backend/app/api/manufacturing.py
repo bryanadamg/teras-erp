@@ -1225,6 +1225,7 @@ async def add_mo_completion(
             # Other batched outputs (greige, dyed lots) keep their variant attrs
             # alongside the batch so per-color netting still finds them.
             attribute_value_ids=[] if is_beam_output else [v.id for v in mo.attribute_values],
+            color_id=None if is_beam_output else mo.color_id,
             batch_id=output_batch.id if output_batch else None,
             cones_change=int(payload.qty_cones or 0),
             boxes_change=int(payload.qty_boxes or 0),
@@ -1353,6 +1354,7 @@ async def reject_mo_completion(
                 reference_type="Reject",
                 reference_id=mo.code,
                 attribute_value_ids=[v.id for v in mo.attribute_values],
+                color_id=mo.color_id,
                 batch_id=None,
             )
 

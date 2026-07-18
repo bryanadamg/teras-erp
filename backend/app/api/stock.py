@@ -345,8 +345,11 @@ async def get_stock_availability(
         # unless committed to a sales order (committed-supply rule) ──
         if _output_committed(mo, so_linked_prs):
             continue
-        out_attr = sorted(str(v.id) for v in mo.attribute_values)
-        skey = (str(mo.item_id), ",".join(out_attr))
+        # Fold the FG shade into the supply key so it matches the color-tagged
+        # on-hand variant_key rows (per-color netting).
+        from app.services.stock_service import _generate_variant_key
+        out_key = _generate_variant_key([str(v.id) for v in mo.attribute_values], getattr(mo, "color_id", None))
+        skey = (str(mo.item_id), out_key)
         s = supply[skey]
         s["total_incoming"] += outstanding
         s["contributions"].append(BookingSupplyMO(
