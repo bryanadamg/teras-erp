@@ -2,6 +2,7 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import PrintModalShell from '../shared/PrintModalShell';
+import { useTimezone } from '../../context/TimezoneContext';
 
 type RefMeta = { label: string; classic: { bg: string; border: string; color: string } };
 const REF_META: Record<string, RefMeta> = {
@@ -23,6 +24,7 @@ const shortRef = (id: string) => {
 const fmtQty = (n: number) => Number(n).toLocaleString(undefined, { maximumFractionDigits: 4 });
 
 function LedgerDocument({ entries, locations, attributes, companyProfile, periodLabel, totals, filtersSummary, hiddenCount }: any) {
+    const { formatDateTime: tzDateTime } = useTimezone();
     const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '');
     const locMap: Record<string, any> = {};
     for (const l of (locations || [])) locMap[l.id] = l;
@@ -76,13 +78,12 @@ function LedgerDocument({ entries, locations, attributes, companyProfile, period
                     {entries.map((e: any, idx: number) => {
                         const rm = refMeta(e.reference_type);
                         const up = e.qty_change >= 0;
-                        const dt = new Date(e.created_at);
                         const c = e.qty_cones_change || 0, b = e.qty_boxes_change || 0, d = e.qty_drums_change || 0;
                         const pkg = [c ? `${c > 0 ? '+' : ''}${c} cones` : '', b ? `${b > 0 ? '+' : ''}${b} boxes` : '', d ? `${d > 0 ? '+' : ''}${d} drums` : ''].filter(Boolean).join(', ');
                         return (
                             <tr key={e.id} style={{ background: idx % 2 === 0 ? '#fff' : '#f9f9f9' }}>
                                 <td style={{ ...td, textAlign: 'center' }}>{idx + 1}</td>
-                                <td style={{ ...td, whiteSpace: 'nowrap' }}>{dt.toLocaleDateString()} {dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                                <td style={{ ...td, whiteSpace: 'nowrap' }}>{tzDateTime(e.created_at)}</td>
                                 <td style={td}>
                                     <div style={{ fontWeight: 'bold' }}>{e.item_name}</div>
                                     <div style={{ color: '#777', fontSize: 7 }}>{e.item_code}</div>

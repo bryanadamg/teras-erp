@@ -8,6 +8,7 @@ import { Suspense } from 'react';
 import { UserProvider } from './context/UserContext';
 import { DataProvider } from './context/DataContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { TimezoneProvider } from './context/TimezoneContext';
 import QueryProvider from './components/shared/QueryProvider';
 import MainLayout from './components/shared/MainLayout';
 import SWRegister from './components/shared/SWRegister';
@@ -44,6 +45,7 @@ export default function RootLayout({
             <ToastProvider>
               <ConfirmProvider>
                   <ThemeProvider>
+                  <TimezoneProvider>
                   <UserProvider>
                     <DataProvider>
                       <Suspense fallback={<div className="d-flex justify-content-center align-items-center vh-100 bg-light text-muted fw-bold">LOADING_SYSTEM_RESOURCES...</div>}>
@@ -53,6 +55,7 @@ export default function RootLayout({
                       </Suspense>
                     </DataProvider>
                   </UserProvider>
+                  </TimezoneProvider>
                 </ThemeProvider>
               </ConfirmProvider>
             </ToastProvider>

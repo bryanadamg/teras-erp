@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import {
     xpFont, xpBtn, xpInput, xpSelect, xpSep,
@@ -54,6 +55,7 @@ const pkgDelta = (e: any): { n: number; label: string }[] => {
 export default function ReportsView(_props: any) {
     const { t } = useLanguage();
     const { uiStyle } = useTheme();
+    const { formatDate: tzDate, formatTime: tzTime } = useTimezone();
     const { authFetch, locations = [], attributes = [], itemIndex, companyProfile } = useData();
     const classic = uiStyle === 'classic';
 
@@ -218,12 +220,11 @@ export default function ReportsView(_props: any) {
         const rm = refMeta(e.reference_type);
         const up = e.qty_change >= 0;
         const pkg = pkgDelta(e);
-        const dt = new Date(e.created_at);
         return (
             <tr key={e.id} style={{ background: i % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #e0ddd3' }}>
                 <td style={{ padding: '4px 8px', fontFamily: xpFont, whiteSpace: 'nowrap' }}>
-                    <div style={{ fontSize: '11px', color: '#000' }}>{dt.toLocaleDateString()}</div>
-                    <div style={{ fontSize: '10px', color: '#777' }}>{dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                    <div style={{ fontSize: '11px', color: '#000' }}>{tzDate(e.created_at)}</div>
+                    <div style={{ fontSize: '10px', color: '#777' }}>{tzTime(e.created_at)}</div>
                 </td>
                 <td style={{ padding: '4px 8px', fontFamily: xpFont }}>
                     <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#000' }}>{getItemName(e)}</div>
@@ -523,12 +524,11 @@ export default function ReportsView(_props: any) {
                                     const rm = refMeta(e.reference_type);
                                     const up = e.qty_change >= 0;
                                     const pkg = pkgDelta(e);
-                                    const dt = new Date(e.created_at);
                                     return (
                                         <tr key={e.id}>
                                             <td className="ps-4" style={{ whiteSpace: 'nowrap' }}>
-                                                <div className="small">{dt.toLocaleDateString()}</div>
-                                                <div className="text-muted" style={{ fontSize: 11 }}>{dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                                <div className="small">{tzDate(e.created_at)}</div>
+                                                <div className="text-muted" style={{ fontSize: 11 }}>{tzTime(e.created_at)}</div>
                                             </td>
                                             <td>
                                                 <div className="fw-medium">{getItemName(e)}</div>

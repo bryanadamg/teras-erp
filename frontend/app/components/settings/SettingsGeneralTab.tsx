@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useToast } from '../shared/Toast';
 import { useTheme } from '../../context/ThemeContext';
+import { useTimezone, AVAILABLE_TIMEZONES } from '../../context/TimezoneContext';
 import { useUser } from '../../context/UserContext';
 import { xpBtn, xpInput, xpLabel } from '../shared/xpTheme';
 import { xpBevel, xpTitleBar } from './settingsStyles';
@@ -15,15 +16,18 @@ export default function SettingsGeneralTab({
     const { showToast } = useToast();
     const { hasPermission } = useUser();
     const { uiStyle: currentStyle } = useTheme();
+    const { timezone, setTimezone } = useTimezone();
     const classic = currentStyle === 'classic';
 
     const [name, setName] = useState(appName);
     const [style, setStyle] = useState(uiStyle || currentStyle || 'classic');
+    const [tz, setTz] = useState(timezone);
 
     const handleSubmitSystem = (e: React.FormEvent) => {
         e.preventDefault();
         if (onUpdateAppName) onUpdateAppName(name);
         if (onUpdateUIStyle) onUpdateUIStyle(style);
+        setTimezone(tz);
         showToast('System preferences updated!', 'success');
     };
 
@@ -69,6 +73,25 @@ export default function SettingsGeneralTab({
                                     <option value="classic">Classic (Windows XP)</option>
                                     <option value="modern">Modern (Clean)</option>
                                 </select>
+                            </div>
+                            <div className="col-md-6 mb-3">
+                                <label
+                                    style={classic ? xpLabel() : undefined}
+                                    className={classic ? '' : 'form-label'}
+                                >Display Timezone</label>
+                                <select
+                                    style={classic ? xpInput({ height: 'auto', padding: '2px 4px', width: '100%' }) : undefined}
+                                    className={classic ? '' : 'form-select'}
+                                    value={tz}
+                                    onChange={e => setTz(e.target.value)}
+                                >
+                                    {AVAILABLE_TIMEZONES.map(z => (
+                                        <option key={z} value={z}>{z.replace(/_/g, ' ')}</option>
+                                    ))}
+                                </select>
+                                <small className={classic ? '' : 'text-muted'} style={classic ? { fontSize: 10, color: '#555' } : undefined}>
+                                    Dates &amp; times (e.g. stock ledger) display in this zone on this device.
+                                </small>
                             </div>
                         </div>
                         <button
