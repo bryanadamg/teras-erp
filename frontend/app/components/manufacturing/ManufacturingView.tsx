@@ -1898,18 +1898,14 @@ export default function ManufacturingView({
                                                                   <span style={{ fontSize: 10, color: '#999' }}>—</span>
                                                               ) : (
                                                                   <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center' }}>
-                                                                      {shortfallCount > 0 && (
-                                                                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 'bold', color: '#c00000' }}>
-                                                                              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#c00000', display: 'inline-block' }} />
-                                                                              {shortfallCount}
-                                                                          </span>
-                                                                      )}
-                                                                      {sufficientCount > 0 && (
-                                                                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 'bold', color: '#2d7a2d' }}>
-                                                                              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#2d7a2d', display: 'inline-block' }} />
-                                                                              {sufficientCount}
-                                                                          </span>
-                                                                      )}
+                                                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 'bold', minWidth: 18, color: shortfallCount > 0 ? '#c00000' : '#ccc', opacity: shortfallCount > 0 ? 1 : 0.5 }}>
+                                                                          <span style={{ width: 7, height: 7, borderRadius: '50%', background: shortfallCount > 0 ? '#c00000' : '#ccc', display: 'inline-block' }} />
+                                                                          {shortfallCount}
+                                                                      </span>
+                                                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 'bold', minWidth: 18, color: sufficientCount > 0 ? '#2d7a2d' : '#ccc', opacity: sufficientCount > 0 ? 1 : 0.5 }}>
+                                                                          <span style={{ width: 7, height: 7, borderRadius: '50%', background: sufficientCount > 0 ? '#2d7a2d' : '#ccc', display: 'inline-block' }} />
+                                                                          {sufficientCount}
+                                                                      </span>
                                                                   </div>
                                                               )}
                                                           </td>
@@ -1936,6 +1932,11 @@ export default function ManufacturingView({
                                                                   boxShadow: currentStyle === 'classic'
                                                                       ? 'inset 0 2px 5px rgba(0,0,0,0.28), inset 0 -2px 5px rgba(0,0,0,0.16)'
                                                                       : 'inset 0 2px 6px rgba(0,0,0,0.18), inset 0 -2px 6px rgba(0,0,0,0.10)',
+                                                                  padding: 5,
+                                                              }}>
+                                                              <div style={{
+                                                                  background: currentStyle === 'classic' ? '#f5f3ee' : '#f8f9fa',
+                                                                  border: currentStyle === 'classic' ? '1px solid #808080' : '1px solid #dee2e6',
                                                                   padding: currentStyle === 'classic' ? '6px 12px' : '8px 16px',
                                                               }}>
                                                                   {isLoading ? (
@@ -1999,8 +2000,8 @@ export default function ManufacturingView({
                                                                                   {reqs.map((req: any, ri: number) => {
                                                                                       const short = req.shortfall > 0;
                                                                                       const rowColor = currentStyle === 'classic'
-                                                                                          ? (short ? '#fff0f0' : ri % 2 === 0 ? '#fff' : '#f5f3ee')
-                                                                                          : (short ? '#fff5f5' : ri % 2 === 0 ? '#fff' : '#f8f9fa');
+                                                                                          ? (short ? '#fff0f0' : ri % 2 === 0 ? '#fff' : '#ece7dc')
+                                                                                          : (short ? '#fff5f5' : ri % 2 === 0 ? '#fff' : '#eef1f4');
                                                                                       const cellStyle: React.CSSProperties = {
                                                                                           padding: '2px 6px', border: currentStyle === 'classic' ? '1px solid #c0bdb5' : '1px solid #dee2e6',
                                                                                           background: rowColor, verticalAlign: 'middle',
@@ -2026,6 +2027,7 @@ export default function ManufacturingView({
                                                                           </table>
                                                                       </div>
                                                                   )}
+                                                              </div>
                                                               </div>
                                                               </td>
                                                           </tr>
