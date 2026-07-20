@@ -171,6 +171,44 @@ async def get_lab_dips(
     return [_decorate(r) for r in result.unique().scalars().all()]
 
 
+@router.get("/lab-dips/pending-variants")
+async def get_pending_labdip_variants(
+    item_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Lab dip variants for a finished good that are still in progress (not yet
+    approved to a Color Library shade). Feeds the SO color picker so an order can be
+    placed against a pending shade. Each row's variant_code is the stable identity
+    (preserved across reject->resubmit) that later auto-backfills the minted color."""
+    result = await db.execute(
+        select(LabDipItem)
+        .options(joinedload(LabDipItem.item))
+        .join(LabDipRequest, LabDipRequest.id == LabDipItem.lab_dip_request_id)
+        .filter(
+            LabDipItem.item_id == item_id,
+            LabDipItem.status.in_(["PENDING", "IN_PROGRESS"]),
+        )
+        .order_by(LabDipRequest.created_at.desc())
+    )
+    items = result.unique().scalars().all()
+    out = []
+    for it in items:
+        parent = (await db.execute(
+            select(LabDipRequest).filter(LabDipRequest.id == it.lab_dip_request_id)
+        )).scalars().first()
+        seq_part = parent.code.rsplit("-", 1)[-1] if parent and parent.code else ""
+        variant_code = it.locked_variant_code or f"{seq_part}-{_variant_letter(it.variant_seq)}"
+        out.append({
+            "labdip_item_id": str(it.id),
+            "variant_code": variant_code,
+            "status": it.status,
+            "request_id": str(it.lab_dip_request_id),
+            "request_code": parent.code if parent else None,
+        })
+    return out
+
+
 @router.put("/lab-dips/{request_id}", response_model=LabDipRequestResponse)
 async def update_lab_dip_request(
     request_id: str,

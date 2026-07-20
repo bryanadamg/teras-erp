@@ -242,10 +242,16 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       color_id: '',
       color_label: '',
       color_hex: '',
+      labdip_variant_code: '',
+      labdip_item_id: '',
+      labdip_label: '',
   });
   const [colorSearch, setColorSearch] = useState('');
   const [colorResults, setColorResults] = useState<any[]>([]);
   const [colorFocused, setColorFocused] = useState(false);
+  // Pending shades (lab dips still in progress) for the selected item — orderable
+  // before approval; the minted color backfills onto the MO once approved.
+  const [labdipResults, setLabdipResults] = useState<any[]>([]);
   const [lastDeliveryDates, setLastDeliveryDates] = useState({ due_date: '', internal_confirmation_date: '' });
   const [qtyMeter, setQtyMeter] = useState('');
   const [qtyGrossYd, setQtyGrossYd] = useState('');
@@ -302,7 +308,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       setNewSO({ ...newSO, lines: [...newSO.lines, { ...lineToSave, bom_size_id: newLine.bom_size_id || null }] });
       const nextDates = { due_date: newLine.due_date, internal_confirmation_date: newLine.internal_confirmation_date };
       setLastDeliveryDates(nextDates);
-      setNewLine({ item_id: '', qty: 0, due_date: nextDates.due_date, attribute_value_ids: [], ket_stock: '', internal_confirmation_date: nextDates.internal_confirmation_date, qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_id: '', bom_size_id: '', color_id: '', color_label: '', color_hex: '' });
+      setNewLine({ item_id: '', qty: 0, due_date: nextDates.due_date, attribute_value_ids: [], ket_stock: '', internal_confirmation_date: nextDates.internal_confirmation_date, qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_id: '', bom_size_id: '', color_id: '', color_label: '', color_hex: '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '' });
       setQtyMeter('');
       setQtyGrossYd('');
       setQtyRoll('');
@@ -414,7 +420,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       // Item change resets attributes, so no Combo filter yet — show all BOMs for item
       const itemBoms = (boms || []).filter((b: any) => b.item_id === val);
       const autoBomId = itemBoms.length === 1 ? itemBoms[0].id : '';
-      setNewLine({ ...newLine, item_id: val, attribute_value_ids: [], bom_id: autoBomId, bom_size_id: '', color_id: '', color_label: '', color_hex: '', qty_kg: kg !== null ? kg : newLine.qty_kg });
+      setNewLine({ ...newLine, item_id: val, attribute_value_ids: [], bom_id: autoBomId, bom_size_id: '', color_id: '', color_label: '', color_hex: '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '', qty_kg: kg !== null ? kg : newLine.qty_kg });
       const selectedItem = resolveItem(val);
       const factorIds = (selectedItem?.packaging_factor_ids || []).map(String);
       const allFactors = uoms.flatMap((u: any) => u.factors || []);
@@ -596,7 +602,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   const resetForm = () => {
       setNewSO({ po_number: '', customer_po_ref: '', customer_name: '', order_date: new Date().toISOString().split('T')[0], lines: [] });
       setLastDeliveryDates({ due_date: '', internal_confirmation_date: '' });
-      setNewLine({ item_id: '', qty: 0, due_date: '', attribute_value_ids: [], ket_stock: '', internal_confirmation_date: '', qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_id: '', bom_size_id: '', color_id: '', color_label: '', color_hex: '' });
+      setNewLine({ item_id: '', qty: 0, due_date: '', attribute_value_ids: [], ket_stock: '', internal_confirmation_date: '', qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_id: '', bom_size_id: '', color_id: '', color_label: '', color_hex: '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '' });
       setQtyMeter('');
       setQtyGrossYd('');
       setQtyRoll('');
@@ -628,6 +634,9 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
               color_id: l.color_id || '',
               color_label: l.color_code ? `${l.color_code}${l.color_name ? ' — ' + l.color_name : ''}` : '',
               color_hex: l.color_hex || '',
+              labdip_variant_code: l.labdip_variant_code || '',
+              labdip_item_id: l.labdip_item_id || '',
+              labdip_label: l.labdip_variant_code ? `${l.labdip_variant_code}${l.labdip_status ? ' · ' + l.labdip_status : ''}` : '',
           })),
       });
       setLastDeliveryDates({ due_date: '', internal_confirmation_date: '' });
@@ -641,7 +650,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
           customer_po_ref: newSO.customer_po_ref || null,
           order_date: newSO.order_date || null,
           lines: newSO.lines.map((line: any) => {
-              const { color_label, color_hex, ...rest } = line;
+              const { color_label, color_hex, labdip_label, ...rest } = line;
               return {
                   ...rest,
                   due_date: line.due_date || null,
@@ -650,6 +659,8 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                   qty2: line.qty2 !== '' ? parseFloat(line.qty2) || null : null,
                   bom_size_id: line.bom_size_id || null,
                   color_id: line.color_id || null,
+                  labdip_variant_code: line.labdip_variant_code || null,
+                  labdip_item_id: line.labdip_item_id || null,
               };
           })
       };
@@ -732,12 +743,34 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       return () => clearTimeout(h);
   }, [colorSearch, currentVariantType]);
 
+  // Pending lab dip shades for the selected item — orderable before approval.
+  useEffect(() => {
+      if (currentVariantType !== 'color' || !newLine.item_id) { setLabdipResults([]); return; }
+      let cancelled = false;
+      (async () => {
+          try {
+              const res = await authFetch(`${LINEAGE_API_BASE}/lab-dips/pending-variants?item_id=${encodeURIComponent(newLine.item_id)}`);
+              if (res.ok && !cancelled) setLabdipResults(await res.json());
+          } catch { /* transient */ }
+      })();
+      return () => { cancelled = true; };
+  }, [newLine.item_id, currentVariantType]);
+
   const selectColor = (c: any) => {
-      setNewLine(prev => ({ ...prev, color_id: c.id, color_label: `${c.code}${c.name ? ' — ' + c.name : ''}`, color_hex: c.hex || '' }));
+      // Approved shade clears any pending lab dip selection (mutually exclusive).
+      setNewLine(prev => ({ ...prev, color_id: c.id, color_label: `${c.code}${c.name ? ' — ' + c.name : ''}`, color_hex: c.hex || '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '' }));
       setColorSearch('');
       setColorResults([]);
   };
   const clearColor = () => setNewLine(prev => ({ ...prev, color_id: '', color_label: '', color_hex: '' }));
+
+  const selectLabdip = (v: any) => {
+      // Pending shade clears any approved color (mutually exclusive).
+      setNewLine(prev => ({ ...prev, labdip_variant_code: v.variant_code, labdip_item_id: v.labdip_item_id, labdip_label: `${v.variant_code} (${v.request_code || 'lab dip'} · ${v.status})`, color_id: '', color_label: '', color_hex: '' }));
+      setColorSearch('');
+      setColorResults([]);
+  };
+  const clearLabdip = () => setNewLine(prev => ({ ...prev, labdip_variant_code: '', labdip_item_id: '', labdip_label: '' }));
 
   const getAttributeValueName = (valId: string) => {
       for (const attr of attributes) {
@@ -1293,11 +1326,16 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                            <span style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000'}:undefined} className={classic?'':'small'}>{newLine.color_label}</span>
                                            <button type="button" onClick={clearColor} style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',border:'1px solid #7f9db9',background:'#ece9d8',padding:'1px 6px',cursor:'pointer'}:undefined} className={classic?'':'btn btn-sm btn-outline-secondary py-0'}>Change</button>
                                        </div>
+                                   ) : newLine.labdip_variant_code ? (
+                                       <div style={{display:'flex',alignItems:'center',gap:8}}>
+                                           <span style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#8a6d00'}:{color:'#8a6d00'}} className={classic?'':'small'}>Pending lab dip: {newLine.labdip_label}</span>
+                                           <button type="button" onClick={clearLabdip} style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',border:'1px solid #7f9db9',background:'#ece9d8',padding:'1px 6px',cursor:'pointer'}:undefined} className={classic?'':'btn btn-sm btn-outline-secondary py-0'}>Change</button>
+                                       </div>
                                    ) : (
                                        <div style={{position:'relative'}}>
                                            <input
                                                type="text"
-                                               placeholder="Search color code / name / Pantone..."
+                                               placeholder="Search approved color, or pick a pending lab dip below..."
                                                value={colorSearch}
                                                onChange={e => setColorSearch(e.target.value)}
                                                onFocus={() => setColorFocused(true)}
@@ -1305,18 +1343,38 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',border:'1px solid #7f9db9',height:'22px',borderRadius:0,padding:'1px 4px',background:'#ffffff',outline:'none',width:'100%'}:undefined}
                                                className={classic?'':'form-control form-control-sm'}
                                            />
-                                           {colorFocused && colorResults.length > 0 && (
-                                               <div style={{position:'absolute',zIndex:20,top:'100%',left:0,right:0,maxHeight:180,overflowY:'auto',background:'#ffffff',border:'1px solid #7f9db9'}}>
-                                                   {colorResults.map((c: any) => (
-                                                       <div
-                                                           key={c.id}
-                                                           onClick={() => selectColor(c)}
-                                                           style={{padding:'3px 6px',cursor:'pointer',fontFamily:classic?'Tahoma,Arial,sans-serif':undefined,fontSize:'11px',borderBottom:'1px solid #eee'}}
-                                                           onMouseDown={e => e.preventDefault()}
-                                                       >
-                                                           <b>{c.code}</b>{c.name ? ` — ${c.name}` : ''}{c.pantone_ref ? <span style={{color:'#888'}}> · {c.pantone_ref}</span> : null}
-                                                       </div>
-                                                   ))}
+                                           {colorFocused && (colorResults.length > 0 || labdipResults.length > 0) && (
+                                               <div style={{position:'absolute',zIndex:20,top:'100%',left:0,right:0,maxHeight:220,overflowY:'auto',background:'#ffffff',border:'1px solid #7f9db9'}}>
+                                                   {labdipResults.length > 0 && (
+                                                       <>
+                                                           <div style={{padding:'2px 6px',fontFamily:classic?'Tahoma,Arial,sans-serif':undefined,fontSize:'10px',fontWeight:'bold',color:'#8a6d00',background:'#fbf4dd',borderBottom:'1px solid #e8dca8'}}>Pending (Lab Dip) — not yet approved</div>
+                                                           {labdipResults.map((v: any) => (
+                                                               <div
+                                                                   key={v.labdip_item_id}
+                                                                   onClick={() => selectLabdip(v)}
+                                                                   style={{padding:'3px 6px',cursor:'pointer',fontFamily:classic?'Tahoma,Arial,sans-serif':undefined,fontSize:'11px',borderBottom:'1px solid #eee'}}
+                                                                   onMouseDown={e => e.preventDefault()}
+                                                               >
+                                                                   <b>{v.variant_code}</b>{v.request_code ? <span style={{color:'#888'}}> · {v.request_code}</span> : null}<span style={{color:'#8a6d00'}}> · {v.status}</span>
+                                                               </div>
+                                                           ))}
+                                                       </>
+                                                   )}
+                                                   {colorResults.length > 0 && (
+                                                       <>
+                                                           {labdipResults.length > 0 && <div style={{padding:'2px 6px',fontFamily:classic?'Tahoma,Arial,sans-serif':undefined,fontSize:'10px',fontWeight:'bold',color:'#444',background:'#f0f0f0',borderBottom:'1px solid #ddd'}}>Approved Colors</div>}
+                                                           {colorResults.map((c: any) => (
+                                                               <div
+                                                                   key={c.id}
+                                                                   onClick={() => selectColor(c)}
+                                                                   style={{padding:'3px 6px',cursor:'pointer',fontFamily:classic?'Tahoma,Arial,sans-serif':undefined,fontSize:'11px',borderBottom:'1px solid #eee'}}
+                                                                   onMouseDown={e => e.preventDefault()}
+                                                               >
+                                                                   <b>{c.code}</b>{c.name ? ` — ${c.name}` : ''}{c.pantone_ref ? <span style={{color:'#888'}}> · {c.pantone_ref}</span> : null}
+                                                               </div>
+                                                           ))}
+                                                       </>
+                                                   )}
                                                </div>
                                            )}
                                        </div>
@@ -1416,6 +1474,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                        );
                                    })()}
                                    {line.bom_size_id && <div style={{color:classic?'#005':'',fontSize:classic?'10px':'',fontWeight:'bold'}} className={classic?'':'small text-primary fw-semibold'}><i className="bi bi-rulers me-1"></i>{getBomSizeLabelById(line.bom_size_id)}</div>}
+                                   {!line.color_id && line.labdip_variant_code && <div style={{color:'#8a6d00',fontSize:classic?'10px':'',fontWeight:'bold'}} className={classic?'':'small fw-semibold'}><i className="bi bi-eyedropper me-1"></i>Pending lab dip: {line.labdip_variant_code}</div>}
                                </div>
                                <div style={{display:'flex',alignItems:'center',gap:classic?6:10,flexWrap:'wrap' as const}}>
                                    <div style={{display:'flex',flexDirection:'column',gap:1}}>

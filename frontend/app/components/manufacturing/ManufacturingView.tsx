@@ -135,6 +135,11 @@ export default function ManufacturingView({
   const [moCodeFilter, setMoCodeFilter] = useState<string>(initialMOFilter || moSearch || '');
   const [prSearch, setPrSearch] = useState<string>(initialPRFilter || prSearchCtx || '');
   const [editAttrsModal, setEditAttrsModal] = useState<{ mo: any; selected: string[] } | null>(null);
+  // Set/confirm an approved Color on a root MO ordered against a pending lab dip.
+  const [editColorModal, setEditColorModal] = useState<{ mo: any } | null>(null);
+  const [colorModalSearch, setColorModalSearch] = useState('');
+  const [colorModalResults, setColorModalResults] = useState<any[]>([]);
+  const [colorModalLabdips, setColorModalLabdips] = useState<any[]>([]);
   const [putawayModal, setPutawayModal] = useState<{ mo: any; bins: any[]; suggested: string | null; reason: string | null; selected: string; loading: boolean } | null>(null);
 
   useEffect(() => {
@@ -239,8 +244,8 @@ export default function ManufacturingView({
                   if (!bom) return null;
                   const sizeMap: Record<string, string> = {};
                   (e.sizes || []).forEach((s: any) => { sizeMap[s.bom_size_id] = String(s.qty); });
-                  return { bomId: e.bom_id, sizeQtys: sizeMap, totalQty: e.total_qty ? String(e.total_qty) : '', attributeValueIds: e.attribute_value_ids || [], colorId: e.color_id || undefined, locked: true };
-              }).filter(Boolean) as Array<{bomId: string; sizeQtys: Record<string,string>; totalQty: string; attributeValueIds?: string[]; colorId?: string; locked?: boolean}>;
+                  return { bomId: e.bom_id, sizeQtys: sizeMap, totalQty: e.total_qty ? String(e.total_qty) : '', attributeValueIds: e.attribute_value_ids || [], colorId: e.color_id || undefined, labdipVariantCode: e.labdip_variant_code || undefined, locked: true };
+              }).filter(Boolean) as Array<{bomId: string; sizeQtys: Record<string,string>; totalQty: string; attributeValueIds?: string[]; colorId?: string; labdipVariantCode?: string; locked?: boolean}>;
 
               if (entries.length > 0) {
                   setActiveTab('production-runs');
@@ -601,6 +606,57 @@ export default function ManufacturingView({
           showToast('Failed to update attributes', 'error');
       }
   };
+
+  const handleSetMOColor = async (moId: string, colorId: string | null) => {
+      try {
+          const res = await authFetch(`${API_BASE}/manufacturing-orders/${moId}/color`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ color_id: colorId }),
+          });
+          if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              showToast(err.detail || 'Failed to set color', 'error');
+              return;
+          }
+          setEditColorModal(null);
+          setColorModalSearch('');
+          setColorModalResults([]);
+          showToast('Color set on order', 'success');
+          fetchData();
+      } catch {
+          showToast('Failed to set color', 'error');
+      }
+  };
+
+  // Color modal: server-side Color Library search + the item's pending lab dips
+  // (shown for reference, so the planner can see approval progress).
+  useEffect(() => {
+      if (!editColorModal) { setColorModalResults([]); return; }
+      const q = colorModalSearch.trim();
+      const h = setTimeout(async () => {
+          try {
+              const res = await authFetch(`${API_BASE}/colors?search=${encodeURIComponent(q)}&size=20`);
+              if (res.ok) {
+                  const data = await res.json();
+                  setColorModalResults(Array.isArray(data) ? data : (data.items || []));
+              }
+          } catch { /* transient */ }
+      }, 300);
+      return () => clearTimeout(h);
+  }, [colorModalSearch, editColorModal]);
+
+  useEffect(() => {
+      if (!editColorModal?.mo?.item_id) { setColorModalLabdips([]); return; }
+      let cancelled = false;
+      (async () => {
+          try {
+              const res = await authFetch(`${API_BASE}/lab-dips/pending-variants?item_id=${encodeURIComponent(editColorModal.mo.item_id)}`);
+              if (res.ok && !cancelled) setColorModalLabdips(await res.json());
+          } catch { /* transient */ }
+      })();
+      return () => { cancelled = true; };
+  }, [editColorModal]);
 
   // Putaway bin: planning decides where the output will be stored before
   // production finishes — the suggestion endpoint proposes, planner saves.
@@ -1048,6 +1104,26 @@ export default function ManufacturingView({
                           <button
                               title="Edit attributes"
                               onClick={() => setEditAttrsModal({ mo: selectedNode, selected: [...(selectedNode.attribute_value_ids || [])] })}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', color: '#6b7280', fontSize: '11px' }}
+                          >
+                              <i className="bi bi-pencil"></i>
+                          </button>
+                      )}
+                      {/* Color / pending-lab-dip status for color-type orders */}
+                      {selectedNode.color_code && (
+                          <span title="Approved color" style={{ fontSize: '9px', padding: '1px 6px', background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: 2, fontWeight: 700 }}>
+                              <i className="bi bi-palette me-1"></i>{selectedNode.color_code}{selectedNode.color_name && selectedNode.color_name !== selectedNode.color_code ? ` — ${selectedNode.color_name}` : ''}
+                          </span>
+                      )}
+                      {!selectedNode.color_id && selectedNode.labdip_variant_code && (
+                          <span title="Color still in lab dip — dyeing is blocked until approved or a color is set" style={{ fontSize: '9px', padding: '1px 6px', background: '#fbf4dd', color: '#8a6d00', border: '1px solid #e8dca8', borderRadius: 2, fontWeight: 700 }}>
+                              <i className="bi bi-eyedropper me-1"></i>Lab dip: {selectedNode.labdip_variant_code}
+                          </span>
+                      )}
+                      {canManage && (selectedNode.color_id || selectedNode.labdip_variant_code) && selectedNode.status !== 'COMPLETED' && selectedNode.status !== 'CANCELLED' && (
+                          <button
+                              title="Set / confirm color"
+                              onClick={() => { setColorModalSearch(''); setColorModalResults([]); setEditColorModal({ mo: selectedNode }); }}
                               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', color: '#6b7280', fontSize: '11px' }}
                           >
                               <i className="bi bi-pencil"></i>
@@ -2459,6 +2535,84 @@ export default function ManufacturingView({
                               })}
                           </tbody>
                       </table>
+                  </ModalWrapper>
+              );
+          })()}
+
+          {editColorModal && (() => {
+              const isClassic = currentStyle === 'classic';
+              const mo = editColorModal.mo;
+              const xpBtn = (onClick: () => void, label: string, primary: boolean) => (
+                  <button
+                      onClick={onClick}
+                      style={{
+                          fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
+                          padding: '2px 14px', cursor: 'pointer', borderRadius: 0,
+                          background: primary ? 'linear-gradient(to bottom, #b0e8b0, #70c870)' : 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
+                          border: '1px solid',
+                          borderColor: primary ? '#d0f0d0 #0a3e0a #0a3e0a #1a5e1a' : '#dfdfdf #808080 #808080 #dfdfdf',
+                          fontWeight: primary ? 'bold' : 'normal', color: primary ? '#004000' : '#000', minWidth: 70,
+                      }}
+                  >{label}</button>
+              );
+              return (
+                  <ModalWrapper
+                      isOpen
+                      modeless
+                      onClose={() => setEditColorModal(null)}
+                      title={<><i className="bi bi-palette me-1"></i>Set Color — <span style={{ fontFamily: 'monospace' }}>{mo.code}</span></>}
+                      size="md"
+                      level={2}
+                      footer={isClassic ? (
+                          <div style={{ display: 'flex', gap: 4 }}>
+                              {mo.color_id && xpBtn(() => handleSetMOColor(mo.id, null), 'Clear', false)}
+                              {xpBtn(() => setEditColorModal(null), 'Close', false)}
+                          </div>
+                      ) : (
+                          <div style={{ display: 'flex', gap: 8 }}>
+                              {mo.color_id && <button className="btn btn-sm btn-outline-danger" onClick={() => handleSetMOColor(mo.id, null)}>Clear</button>}
+                              <button className="btn btn-sm btn-secondary" onClick={() => setEditColorModal(null)}>Close</button>
+                          </div>
+                      )}
+                  >
+                      <div style={{ fontFamily: isClassic ? 'Tahoma, sans-serif' : undefined, fontSize: isClassic ? 11 : 13 }}>
+                          {mo.color_code && (
+                              <div style={{ marginBottom: 8 }}>Current color: <b>{mo.color_code}</b>{mo.color_name && mo.color_name !== mo.color_code ? ` — ${mo.color_name}` : ''}</div>
+                          )}
+                          {mo.labdip_variant_code && (
+                              <div style={{ marginBottom: 8, padding: '4px 8px', background: '#fbf4dd', border: '1px solid #e8dca8', color: '#8a6d00' }}>
+                                  Ordered against lab dip <b>{mo.labdip_variant_code}</b>. It backfills the color automatically on approval — set one here only to override.
+                              </div>
+                          )}
+                          {colorModalLabdips.length > 0 && (
+                              <div style={{ marginBottom: 8 }}>
+                                  <div style={{ fontWeight: 'bold', color: '#8a6d00', marginBottom: 2 }}>Lab dips in progress for this item</div>
+                                  {colorModalLabdips.map((v: any) => (
+                                      <div key={v.labdip_item_id} style={{ fontSize: isClassic ? 10 : 12, color: '#555' }}>{v.variant_code} · {v.request_code || 'lab dip'} · {v.status}</div>
+                                  ))}
+                              </div>
+                          )}
+                          <div style={{ fontWeight: 'bold', marginBottom: 4 }}>Pick an approved color</div>
+                          <input
+                              type="text"
+                              placeholder="Search color code / name / Pantone..."
+                              value={colorModalSearch}
+                              onChange={e => setColorModalSearch(e.target.value)}
+                              style={isClassic ? { fontFamily: 'Tahoma, sans-serif', fontSize: 11, border: '1px solid', borderColor: '#808080 #dfdfdf #dfdfdf #808080', background: '#fff', height: 22, padding: '0 4px', outline: 'none', width: '100%', borderRadius: 0 } : { fontSize: 12, width: '100%' }}
+                              className={isClassic ? undefined : 'form-control form-control-sm'}
+                          />
+                          <div style={{ maxHeight: 200, overflowY: 'auto', border: colorModalResults.length ? '1px solid #ccc' : 'none', marginTop: 4 }}>
+                              {colorModalResults.map((c: any) => (
+                                  <div
+                                      key={c.id}
+                                      onClick={() => handleSetMOColor(mo.id, c.id)}
+                                      style={{ padding: '3px 6px', cursor: 'pointer', fontSize: isClassic ? 11 : 12, borderBottom: '1px solid #eee' }}
+                                  >
+                                      <b>{c.code}</b>{c.name ? ` — ${c.name}` : ''}{c.pantone_ref ? <span style={{ color: '#888' }}> · {c.pantone_ref}</span> : null}
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
                   </ModalWrapper>
               );
           })()}

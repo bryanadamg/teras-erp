@@ -48,7 +48,10 @@ export default function SalesOrdersPage() {
         // consolidated downstream by PR Pass 2.
         const attrGroupMap = new Map<string, any[]>();
         soLines.forEach((l: any) => {
-            const key = l.item_id + '::' + [...(l.attribute_value_ids || [])].sort().join(',') + '::' + (l.color_id || '');
+            // Pending-shade lines (color still in lab dip) key on labdip_variant_code
+            // so different pending shades of the same item also split into their own
+            // root MO — the code later backfills the minted color on approval.
+            const key = l.item_id + '::' + [...(l.attribute_value_ids || [])].sort().join(',') + '::' + (l.color_id || '') + '::' + (l.labdip_variant_code || '');
             if (!attrGroupMap.has(key)) attrGroupMap.set(key, []);
             attrGroupMap.get(key)!.push(l);
         });
@@ -67,6 +70,7 @@ export default function SalesOrdersPage() {
             total_qty?: number;
             attribute_value_ids?: string[];
             color_id?: string;
+            labdip_variant_code?: string;
         }> = [];
         let missingBomCount = 0;
 
@@ -74,6 +78,7 @@ export default function SalesOrdersPage() {
             const firstLine = groupLines[0];
             const lineAttrIds: string[] = firstLine.attribute_value_ids || [];
             const lineColorId: string | undefined = firstLine.color_id || undefined;
+            const lineLabdip: string | undefined = firstLine.labdip_variant_code || undefined;
 
             // Try exact attribute match first (existing behavior)
             let matchingBOM = boms.find((b: any) => {
@@ -112,6 +117,7 @@ export default function SalesOrdersPage() {
                         sizes: uncoveredSizes,
                         attribute_value_ids: lineAttrIds.length > 0 ? lineAttrIds : undefined,
                         color_id: lineColorId,
+                        labdip_variant_code: lineLabdip,
                     });
                 }
             } else {
@@ -121,7 +127,7 @@ export default function SalesOrdersPage() {
                     return (pr.bom_entries || []).some((e: any) => {
                         if (String(e.bom_id) !== String(matchingBOM!.id)) return false;
                         const entryAttrs = [...(e.attribute_value_ids || [])].sort().join(',');
-                        return entryAttrs === sortedLineAttrs && String(e.color_id || '') === String(lineColorId || '');
+                        return entryAttrs === sortedLineAttrs && String(e.color_id || '') === String(lineColorId || '') && String(e.labdip_variant_code || '') === String(lineLabdip || '');
                     });
                 });
                 if (!covered) {
@@ -131,6 +137,7 @@ export default function SalesOrdersPage() {
                         total_qty: totalQty,
                         attribute_value_ids: lineAttrIds.length > 0 ? lineAttrIds : undefined,
                         color_id: lineColorId,
+                        labdip_variant_code: lineLabdip,
                     });
                 }
             }
