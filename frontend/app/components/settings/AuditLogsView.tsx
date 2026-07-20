@@ -2,7 +2,9 @@ import React, { useState, memo } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
+import { xpToolbar as sharedXpToolbar, ShellWindow, ShellTitleBar } from '../shared/shellTheme';
+import { lvTh } from '../shared/listViewTheme';
+import Pager from '../shared/Pager';
 
 function getActionXPStyle(action: string): React.CSSProperties {
     const map: Record<string, { bg: string; border: string; color: string }> = {
@@ -118,19 +120,8 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
   const { uiStyle: currentStyle } = useTheme();
   const classic = currentStyle === 'classic';
 
-  const totalPages = Math.ceil(totalItems / pageSize);
-  const startRange = (currentPage - 1) * pageSize + 1;
-  const endRange = Math.min(currentPage * pageSize, totalItems);
-
   // ── XP inline styles ─────────────────────────────────────────────────────
-  const xpBevel: React.CSSProperties = sharedXpBevel();
-  const xpTitleBar: React.CSSProperties = sharedXpTitleBar({ flexWrap: 'wrap' as const, gap: 4 });
   const xpToolbar: React.CSSProperties = sharedXpToolbar();
-  const xpBtn = (extra: any = {}) => ({
-      fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '2px 10px', cursor: 'pointer',
-      background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)', border: '1px solid',
-      borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000000', borderRadius: 0, ...extra,
-  });
   const xpSelect: React.CSSProperties = {
       fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', border: '1px solid #7f9db9',
       boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 4px',
@@ -139,97 +130,70 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
   const xpSep: React.CSSProperties = {
       width: '1px', height: '20px', background: '#a0988c', margin: '0 2px', flexShrink: 0,
   };
-  const xpTableHeader: React.CSSProperties = {
-      background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080',
-      fontSize: '10px', fontWeight: 'bold', color: '#000000',
-  };
 
   if (classic) {
       return (
-          <div className="fade-in">
-              <div style={xpBevel}>
-                  {/* Title bar */}
-                  <div style={xpTitleBar}>
-                      <span><i className="bi bi-shield-check" style={{ marginRight: 6 }}></i>System Audit Logs</span>
-                      <span style={{ fontSize: '10px', opacity: 0.85 }}>Track all user activities and system changes</span>
-                  </div>
+          <ShellWindow classic fill="page" className="fade-in">
+              <ShellTitleBar classic icon="bi-shield-check" title="System Audit Logs" />
 
-                  {/* Filters toolbar */}
-                  <div style={xpToolbar}>
-                      <i className="bi bi-funnel" style={{ fontSize: '11px', color: '#666' }}></i>
-                      <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#444' }}>Entity:</span>
-                      <select style={{ ...xpSelect, width: 150 }} value={filterType} onChange={e => onFilterChange(e.target.value)}>
-                          <option value="">All Entities</option>
-                          <option value="Item">Items</option>
-                          <option value="BOM">BOMs</option>
-                          <option value="WorkOrder">Work Orders</option>
-                          <option value="SalesOrder">Sales Orders</option>
-                          <option value="SampleRequest">Samples</option>
-                          <option value="StockEntry">Stock</option>
-                      </select>
-                      <div style={xpSep} />
-                      <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#444' }}>
-                          Showing <b>{startRange}</b>–<b>{endRange}</b> of <b>{totalItems}</b> logs
-                      </span>
-                      <div style={{ marginLeft: 'auto', display: 'flex', gap: 2 }}>
-                          <button style={{ ...xpBtn(), opacity: currentPage <= 1 ? 0.5 : 1 }} disabled={currentPage <= 1} onClick={() => onPageChange(Math.max(1, currentPage - 1))}>
-                              <i className="bi bi-chevron-left"></i> Prev
-                          </button>
-                          <span style={{ ...xpBtn({ cursor: 'default', background: '#ece9d8' }), fontWeight: 'bold', padding: '2px 8px' }}>
-                              {currentPage} / {totalPages || 1}
-                          </span>
-                          <button style={{ ...xpBtn(), opacity: currentPage >= totalPages ? 0.5 : 1 }} disabled={currentPage >= totalPages} onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}>
-                              Next <i className="bi bi-chevron-right"></i>
-                          </button>
-                      </div>
-                  </div>
-
-                  {/* Table */}
-                  <div style={{ background: '#ffffff', overflowX: 'auto', maxHeight: 'calc(100vh - 180px)', overflowY: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                          <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
-                              <tr>
-                                  <th style={{ ...xpTableHeader, padding: '3px 8px', width: 150 }}>Timestamp</th>
-                                  <th style={{ ...xpTableHeader, padding: '3px 8px', width: 110 }}>User</th>
-                                  <th style={{ ...xpTableHeader, padding: '3px 8px', width: 100 }}>Action</th>
-                                  <th style={{ ...xpTableHeader, padding: '3px 8px', width: 160 }}>Entity</th>
-                                  <th style={{ ...xpTableHeader, padding: '3px 8px' }}>Details</th>
-                              </tr>
-                          </thead>
-                          <tbody>
-                              {auditLogs.map((log: any, i: number) => (
-                                  <React.Fragment key={log.id}>
-                                      <AuditLogRow log={log} classic={true} rowIndex={i} />
-                                  </React.Fragment>
-                              ))}
-                              {auditLogs.length === 0 && (
-                                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: '24px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#666', fontStyle: 'italic' }}>No activity logs found</td></tr>
-                              )}
-                          </tbody>
-                      </table>
-                  </div>
-
-                  {/* Status bar */}
-                  <div style={{
-                      background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)', borderTop: '1px solid #b0a898',
-                      padding: '2px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#333',
-                  }}>
-                      <span><b>{totalItems}</b> total entries · Click a row to expand diff details</span>
-                  </div>
+              {/* Filters toolbar */}
+              <div style={xpToolbar}>
+                  <i className="bi bi-funnel" style={{ fontSize: '11px', color: '#666' }}></i>
+                  <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#444' }}>Entity:</span>
+                  <select style={{ ...xpSelect, width: 150 }} value={filterType} onChange={e => onFilterChange(e.target.value)}>
+                      <option value="">All Entities</option>
+                      <option value="Item">Items</option>
+                      <option value="BOM">BOMs</option>
+                      <option value="WorkOrder">Work Orders</option>
+                      <option value="SalesOrder">Sales Orders</option>
+                      <option value="SampleRequest">Samples</option>
+                      <option value="StockEntry">Stock</option>
+                  </select>
+                  <div style={xpSep} />
+                  <span style={{ marginLeft: 'auto', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#444' }}>
+                      <b>{totalItems}</b> total entries · click a row to expand diff
+                  </span>
               </div>
-          </div>
+
+              {/* Table */}
+              <div style={{ flex: 1, minHeight: 0, background: '#ffffff', overflowY: 'auto', overflowX: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                      <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+                          <tr>
+                              <th style={{ ...lvTh(true), width: 150 }}>Timestamp</th>
+                              <th style={{ ...lvTh(true), width: 110 }}>User</th>
+                              <th style={{ ...lvTh(true), width: 100 }}>Action</th>
+                              <th style={{ ...lvTh(true), width: 160 }}>Entity</th>
+                              <th style={{ ...lvTh(true), borderRight: 'none' }}>Details</th>
+                          </tr>
+                      </thead>
+                      <tbody>
+                          {auditLogs.map((log: any, i: number) => (
+                              <React.Fragment key={log.id}>
+                                  <AuditLogRow log={log} classic={true} rowIndex={i} />
+                              </React.Fragment>
+                          ))}
+                          {auditLogs.length === 0 && (
+                              <tr><td colSpan={5} style={{ textAlign: 'center', padding: '24px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#666', fontStyle: 'italic' }}>No activity logs found</td></tr>
+                          )}
+                      </tbody>
+                  </table>
+              </div>
+
+              <Pager page={currentPage} total={totalItems} pageSize={pageSize} onPageChange={onPageChange} />
+          </ShellWindow>
       );
   }
 
   // ── Modern (Bootstrap) mode ───────────────────────────────────────────────
   return (
-      <div className="card fade-in border-0 shadow-sm">
-          <div className="card-header bg-white d-flex justify-content-between align-items-center">
-              <div>
-                  <h5 className="card-title mb-0">System Audit Logs</h5>
-                  <p className="text-muted small mb-0 mt-1">Track all user activities and system changes. Click rows to see technical details.</p>
-              </div>
-              <div className="d-flex gap-2">
+      <ShellWindow classic={false} fill="page" className="fade-in">
+          <ShellTitleBar
+              classic={false}
+              icon="bi-shield-check"
+              title="System Audit Logs"
+              subtitle="Track all user activities and system changes. Click rows to see technical details."
+              right={
                   <div className="input-group input-group-sm" style={{ width: '180px' }}>
                       <span className="input-group-text px-2"><i className="bi bi-funnel"></i></span>
                       <select className="form-select" value={filterType} onChange={e => onFilterChange(e.target.value)}>
@@ -242,41 +206,28 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
                           <option value="StockEntry">Stock</option>
                       </select>
                   </div>
-              </div>
+              }
+          />
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
+              <table className="table table-hover align-middle mb-0 small" style={{ tableLayout: 'fixed' }}>
+                  <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+                      <tr>
+                          <th style={{ ...lvTh(false), width: 150 }} className="ps-4">Timestamp</th>
+                          <th style={{ ...lvTh(false), width: 110 }}>User</th>
+                          <th style={{ ...lvTh(false), width: 100 }}>Action</th>
+                          <th style={{ ...lvTh(false), width: 160 }}>Entity</th>
+                          <th style={lvTh(false)}>Details</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+                      {auditLogs.map((log: any) => (
+                          <AuditLogRow key={log.id} log={log} classic={false} />
+                      ))}
+                      {auditLogs.length === 0 && <tr><td colSpan={5} className="text-center py-5 text-muted">No activity logs found</td></tr>}
+                  </tbody>
+              </table>
           </div>
-          <div className="card-body p-0">
-              <div className="table-responsive">
-                  <table className="table table-hover align-middle mb-0 small">
-                      <thead className="table-light">
-                          <tr>
-                              <th className="ps-4">Timestamp</th>
-                              <th>User</th>
-                              <th>Action</th>
-                              <th>Entity</th>
-                              <th>Details</th>
-                          </tr>
-                      </thead>
-                      <tbody>
-                          {auditLogs.map((log: any) => (
-                              <AuditLogRow key={log.id} log={log} classic={false} />
-                          ))}
-                          {auditLogs.length === 0 && <tr><td colSpan={5} className="text-center py-5 text-muted">No activity logs found</td></tr>}
-                      </tbody>
-                  </table>
-              </div>
-          </div>
-          <div className="card-footer bg-white border-top py-2 px-4 d-flex justify-content-between align-items-center">
-              <div className="small text-muted font-monospace">Showing {startRange}-{endRange} of {totalItems} logs</div>
-              <div className="btn-group">
-                  <button className={`btn btn-sm btn-light border ${currentPage <= 1 ? 'disabled opacity-50' : ''}`} onClick={() => onPageChange(Math.max(1, currentPage - 1))}>
-                      <i className="bi bi-chevron-left me-1"></i>Previous
-                  </button>
-                  <div className="btn btn-sm btn-white border-top border-bottom px-3 fw-bold">Page {currentPage} of {totalPages || 1}</div>
-                  <button className={`btn btn-sm btn-light border ${currentPage >= totalPages ? 'disabled opacity-50' : ''}`} onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}>
-                      Next<i className="bi bi-chevron-right ms-1"></i>
-                  </button>
-              </div>
-          </div>
-      </div>
+          <Pager page={currentPage} total={totalItems} pageSize={pageSize} onPageChange={onPageChange} />
+      </ShellWindow>
   );
 }

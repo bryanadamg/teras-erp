@@ -242,7 +242,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, ma
     const effColor = onTarget ? GREEN : RED;
 
     return (
-        <ModalWrapper isOpen={isOpen} onClose={onClose} title={title} size="xl" variant="info">
+        <ModalWrapper isOpen={isOpen} onClose={onClose} title={title} size="xl" variant="info" modeless>
             {tabBar}
 
             {tab === 'performance' && (
