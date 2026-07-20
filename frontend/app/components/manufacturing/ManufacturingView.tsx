@@ -20,7 +20,7 @@ import ProductionRunModal from './ProductionRunModal';
 import WorkOrderPanel from './WorkOrderPanel';
 const WOCompletionModal = dynamic(() => import('./WOCompletionModal'), { ssr: false });
 import MOCreationPreview from './MOCreationPreview';
-import { STATUS_COLORS, statusChipStyle, xpFont, xpInput, xpLabel, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, SunkenPanel, SunkenPanelBody } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, xpFont, xpInput, xpLabel, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, SunkenPanel, SunkenPanelBody, ProgressBar } from '../shared/xpTheme';
 
 export default function ManufacturingView({
     items,
@@ -1184,7 +1184,6 @@ export default function ManufacturingView({
                       const left = Math.max(0, remaining - planned);     // qty not yet covered by any WO
                       const donePct = total > 0 ? Math.min(100, (done / total) * 100) : 0;
                       const plannedPct = total > 0 ? Math.min(100 - donePct, (planned / total) * 100) : 0;
-                      const pctLabel = Math.round(donePct);
                       return (
                           <div style={{
                               background: classic ? '#eef2f7' : '#f8fafc',
@@ -1194,24 +1193,15 @@ export default function ManufacturingView({
                               <span style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
                                   Production Progress
                               </span>
-                              {/* XP-style striped progress bar: Done (solid) + Planned (light hatch) */}
-                              <div style={{ flex: 1, border: '1px solid #7f9db9', height: 15, background: '#fff', position: 'relative', overflow: 'hidden' }}>
-                                  <div style={{
-                                      position: 'absolute', top: 0, left: 0, height: '100%', width: `${donePct}%`,
-                                      background: donePct >= 100
-                                          ? 'repeating-linear-gradient(45deg,#2e7d32,#2e7d32 3px,#4caf50 3px,#4caf50 6px)'
-                                          : 'repeating-linear-gradient(45deg,#000080,#000080 3px,#1565c0 3px,#1565c0 6px)',
-                                      transition: 'width 0.2s',
-                                  }} />
-                                  <div style={{
-                                      position: 'absolute', top: 0, left: `${donePct}%`, height: '100%', width: `${plannedPct}%`,
-                                      background: 'repeating-linear-gradient(45deg,#9fc0e8,#9fc0e8 3px,#c8ddf5 3px,#c8ddf5 6px)',
-                                      transition: 'width 0.2s, left 0.2s',
-                                  }} />
-                                  <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: 'bold', color: pctLabel > 50 ? '#fff' : '#000080' }}>
-                                      {pctLabel}%
-                                  </span>
-                              </div>
+                              <ProgressBar
+                                  pct={donePct}
+                                  tone={donePct >= 100 ? 'green' : 'blue'}
+                                  hatched
+                                  height={15}
+                                  secondaryPct={plannedPct}
+                                  secondaryTone="gray"
+                                  label="inside"
+                              />
                               <span style={{ fontSize: '10px', color: '#555', whiteSpace: 'nowrap' }}>Done: <strong style={{ color: '#000' }}>{done.toFixed(2)}</strong></span>
                               <span style={{ fontSize: '10px', color: '#555', whiteSpace: 'nowrap' }}>Planned: <strong style={{ color: '#1565c0' }}>{planned.toFixed(2)}</strong></span>
                               <span style={{ fontSize: '10px', color: '#555', whiteSpace: 'nowrap' }}>Left: <strong style={{ color: left <= 0 ? '#1a6e1a' : '#c00' }}>{left.toFixed(2)}</strong></span>
@@ -1944,12 +1934,7 @@ export default function ManufacturingView({
                                                           </td>
                                                           <td style={{ ...tdStyle, textAlign: 'center' }}>{total}</td>
                                                           <td style={{ ...tdStyle, minWidth: 120 }}>
-                                                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                                  <div style={{ flex: 1, height: 10, background: '#ddd', borderRadius: 2, border: currentStyle === 'classic' ? '1px solid #808080' : undefined, overflow: 'hidden' }}>
-                                                                      <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? '#2d7a2d' : '#0058e6', transition: 'width 0.3s' }} />
-                                                                  </div>
-                                                                  <span style={{ fontSize: 10, fontFamily: 'monospace', minWidth: 32 }}>{pct}%</span>
-                                                              </div>
+                                                              <ProgressBar pct={pct} tone={pct === 100 ? 'green' : 'blue'} label="outside" />
                                                               <div style={{ fontSize: 9, color: '#666' }}>{done}/{total} done</div>
                                                           </td>
                                                           <td style={tdStyle}>

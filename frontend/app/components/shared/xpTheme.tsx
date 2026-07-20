@@ -169,16 +169,67 @@ export function workCenterChipStyle(centerType?: string | null, name?: string | 
     return { ...WC_NEUTRAL };
 }
 
-// Recessed track + filled bar for at-a-glance completion (receiving progress,
-// MO/WO progress, lineage). Tone defaults by fill level so callers don't have
-// to compute it themselves; pass one explicitly to override (e.g. red = short).
-export function ProgressBar({ pct, tone, width, height, title }: { pct: number; tone?: StatusFamily; width?: number | string; height?: number; title?: string }) {
+// Rounded, bordered track + filled bar for at-a-glance completion (receiving
+// progress, MO/WO progress, lineage) — the ONE progress bar shape for the
+// whole app; new progress UI should use this instead of hand-rolling a
+// track/fill pair. Tone defaults by fill level so callers don't have to
+// compute it themselves (gray = 0%, amber = partial, green = 100%); pass one
+// explicitly to override — e.g. `blue` for a generic "in progress" bar (per
+// STATUS_FAMILY's IN_PROGRESS mapping), `red` for a shortfall bar.
+// `hatched` gives the diagonal-stripe fill (MO Production Progress look);
+// `secondaryPct`/`secondaryTone` stacks a second segment after the first
+// (e.g. "planned" after "done"). `label`: 'outside' = trailing "NN%" text,
+// 'inside' = centered overlay text, 'none' (default) = bar only.
+const PROGRESS_FILL_DK: Record<StatusFamily, string> = { gray: '#c8c3b6', amber: '#c77800', blue: '#0058e6', green: '#2d7a2d', red: '#c00000' };
+const PROGRESS_FILL_LT: Record<StatusFamily, string> = { gray: '#e2ddd0', amber: '#f5d060', blue: '#4a8fe8', green: '#6fce6f', red: '#e88a8a' };
+
+function progressBarFill(tone: StatusFamily, hatched: boolean): string {
+    if (!hatched) return PROGRESS_FILL_DK[tone];
+    return `repeating-linear-gradient(45deg,${PROGRESS_FILL_DK[tone]},${PROGRESS_FILL_DK[tone]} 3px,${PROGRESS_FILL_LT[tone]} 3px,${PROGRESS_FILL_LT[tone]} 6px)`;
+}
+
+export function ProgressBar({
+    pct, tone, hatched = false, height = 10, width, title,
+    secondaryPct, secondaryTone = 'gray',
+    label = 'none',
+}: {
+    pct: number;
+    tone?: StatusFamily;
+    hatched?: boolean;
+    height?: number;
+    width?: number | string;
+    title?: string;
+    /** Second segment stacked after the primary fill (e.g. "planned" after "done"). */
+    secondaryPct?: number;
+    secondaryTone?: StatusFamily;
+    /** 'outside' = bar + trailing "NN%" text (flex row); 'inside' = centered overlay label; 'none' (default) = bar only. */
+    label?: 'outside' | 'inside' | 'none';
+}) {
     const t: StatusFamily = tone || (pct >= 100 ? 'green' : pct > 0 ? 'amber' : 'gray');
-    const fillDk: Record<StatusFamily, string> = { gray: '#c8c3b6', amber: '#c77800', blue: '#0058e6', green: '#2d7a2d', red: '#c00000' };
-    const fillLt: Record<StatusFamily, string> = { gray: '#c8c3b6', amber: '#f5d060', blue: '#4a8fe8', green: '#6fce6f', red: '#e88a8a' };
+    const clamped = Math.max(0, Math.min(100, pct));
+    const secClamped = secondaryPct != null ? Math.max(0, Math.min(100 - clamped, secondaryPct)) : 0;
+    const pctLabel = Math.round(clamped);
+
+    const track = (
+        <div title={title} style={{ flex: label === 'outside' ? 1 : undefined, border: '1px solid #7f9db9', borderRadius: 3, height, width: label === 'outside' ? undefined : (width ?? '100%'), background: '#e9e9e9', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${clamped}%`, background: progressBarFill(t, hatched), transition: 'width 0.2s' }} />
+            {secondaryPct != null && (
+                <div style={{ position: 'absolute', top: 0, left: `${clamped}%`, height: '100%', width: `${secClamped}%`, background: progressBarFill(secondaryTone, hatched), transition: 'width 0.2s, left 0.2s' }} />
+            )}
+            {label === 'inside' && (
+                <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.max(8, height - 6), fontWeight: 'bold', color: pctLabel > 50 ? '#fff' : '#000080' }}>
+                    {pctLabel}%
+                </span>
+            )}
+        </div>
+    );
+
+    if (label !== 'outside') return track;
+
     return (
-        <div title={title} style={{ background: '#e2ddd0', border: '1px solid #a89f8c', height: height ?? 10, width: width ?? '100%' }}>
-            <div style={{ height: '100%', width: `${Math.max(0, Math.min(100, pct))}%`, background: `linear-gradient(to bottom, ${fillLt[t]}, ${fillDk[t]})` }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {track}
+            <span style={{ fontSize: 10, fontFamily: 'monospace', minWidth: 32 }}>{pctLabel}%</span>
         </div>
     );
 }
@@ -575,3 +626,4 @@ export function SunkenPanelBody({ classic, children, style }: { classic: boolean
         </div>
     );
 }
+
