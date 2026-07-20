@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload, joinedload
 
 from app.models.bom import BOM, BOMLine, BOMOperation, BOMSize
 from app.models.item import Item
+from app.models.attribute import Attribute, AttributeValue
 from app.models.manufacturing import ManufacturingOrder, MODependency, MOPlannedComponent
 
 
@@ -18,6 +19,26 @@ def _line_decoupled(line, item_flag) -> bool:
     records demand but never auto-creates a sub-MO for the line's item."""
     line_flag = getattr(line, "is_decoupling_point", None)
     return bool(line_flag) if line_flag is not None else bool(item_flag)
+
+
+async def _combo_attr_id(db: AsyncSession):
+    """Id of the seeded Combo variant attribute (system_role='combo'), or None."""
+    return (await db.execute(
+        select(Attribute.id).filter(Attribute.system_role == "combo")
+    )).scalar()
+
+
+def _line_combo_value_ids(line, combo_attr_id) -> list[str]:
+    """Combo attribute value(s) tagged on a BOM line, sorted. Combo assigned on the
+    parent→component line in the BOM designer is the driver that pegs each combo
+    variant of a shared component to its own consolidated MO (mirrors size split).
+    Empty for color/plain lines (they carry no combo) → those still pool."""
+    if not combo_attr_id:
+        return []
+    return sorted(
+        str(v.id) for v in getattr(line, "attribute_values", [])
+        if v.attribute_id == combo_attr_id
+    )
 
 
 async def snapshot_bom_lines(db: AsyncSession, mo: ManufacturingOrder, bom: BOM):
@@ -51,6 +72,8 @@ async def create_mo_recursive(
     bom_size_id: Optional[uuid.UUID] = None,
     create_children: bool = True,
     availability=None,
+    extra_attr_value_ids: Optional[list] = None,
+    combo_attr_id=None,
 ) -> ManufacturingOrder:
     """Recursively creates manufacturing orders for sub-assemblies.
     Pass create_children=False to create only the root MO (used in two-pass PR creation).
@@ -73,6 +96,9 @@ async def create_mo_recursive(
     bom = result.scalars().first()
     if not bom:
         raise ValueError(f"BOM {bom_id} not found")
+
+    if combo_attr_id is None:
+        combo_attr_id = await _combo_attr_id(db)
 
     # 2. Generate a meaningful code based on the BOM's item name (MO-{ITEM_NAME}-001)
     item_result = await db.execute(select(Item).filter(Item.id == bom.item_id))
@@ -107,7 +133,19 @@ async def create_mo_recursive(
         target_end_date=target_end_date,
         status="PENDING"
     )
-    mo.attribute_values = list(bom.attribute_values)
+    # Base variant = the BOM's own attribute values, plus any extra values passed
+    # by the caller (the combo tag from the parent→component line — see Pass 2 and
+    # the children loop below). Dedup so the variant_key stays deterministic.
+    attr_vals = list(bom.attribute_values)
+    if extra_attr_value_ids:
+        have = {str(v.id) for v in attr_vals}
+        want = [str(x) for x in extra_attr_value_ids if str(x) not in have]
+        if want:
+            extra_objs = (await db.execute(
+                select(AttributeValue).filter(AttributeValue.id.in_(want))
+            )).scalars().all()
+            attr_vals = attr_vals + list(extra_objs)
+    mo.attribute_values = attr_vals
     db.add(mo)
     await db.flush()
 
@@ -151,10 +189,16 @@ async def create_mo_recursive(
 
             if sub_bom:
                 sub_qty = (qty * float(line.percentage)) / 100
+                # Combo tagged on this line pegs/varies the component per combo
+                # (mirrors size). Folded into the produced item's variant so its
+                # netting supply key matches the combo-specific demand.
+                line_combo = _line_combo_value_ids(line, combo_attr_id)
                 if availability is not None:
                     # Net this sub-assembly against net-free stock at the planned
                     # source location, using the produced item's own variant.
-                    sub_attrs = [str(v.id) for v in sub_bom.attribute_values]
+                    sub_attrs = sorted(set(
+                        [str(v.id) for v in sub_bom.attribute_values] + line_combo
+                    ))
                     sub_loc = source_location_id or location_id
                     sub_qty = await availability.consume(sub_bom.item_id, sub_attrs, sub_loc, sub_qty)
                     if sub_qty <= 0:
@@ -172,6 +216,8 @@ async def create_mo_recursive(
                     target_start_date=target_start_date,
                     target_end_date=target_end_date,
                     availability=availability,
+                    extra_attr_value_ids=line_combo,
+                    combo_attr_id=combo_attr_id,
                 )
 
     return mo
@@ -205,6 +251,7 @@ async def create_consolidated_component_mos(
     its pegging qty is scaled down proportionally."""
 
     current_gen = list(root_mos)
+    combo_attr_id = await _combo_attr_id(db)
 
     while current_gen:
         # Preload the BOMSize rows this generation's MOs carry, so each parent's
@@ -221,7 +268,9 @@ async def create_consolidated_component_mos(
         boms_by_id: dict = {}
         for bom_id in bom_ids:
             bom_result = await db.execute(
-                select(BOM).options(selectinload(BOM.lines)).filter(BOM.id == bom_id)
+                select(BOM).options(
+                    selectinload(BOM.lines).selectinload(BOMLine.attribute_values)
+                ).filter(BOM.id == bom_id)
             )
             b = bom_result.scalars().first()
             if b:
@@ -276,7 +325,14 @@ async def create_consolidated_component_mos(
                     or (source_location.id if source_location else None)
                 )
 
-                sub_attrs = [str(v.id) for v in sub_bom.attribute_values]
+                # Combo tagged on this line pegs each combo variant of a shared
+                # component to its own consolidated MO (mirrors size_key). Folded
+                # into the component's variant so its output supply key matches the
+                # combo-specific demand. Empty for color/plain lines → still pool.
+                line_combo = _line_combo_value_ids(line, combo_attr_id)
+                sub_attrs = sorted(set(
+                    [str(v.id) for v in sub_bom.attribute_values] + line_combo
+                ))
                 # Only split when the sub-BOM is itself size-differentiated.
                 sized = sub_bom.size_mode == 'sized'
                 sub_by_size_id = {}
@@ -300,12 +356,14 @@ async def create_consolidated_component_mos(
                             sub_bs = sub_by_label.get(parent_bs.label.strip().lower())
                 size_key = str(sub_bs.id) if sub_bs is not None else None
 
-                key = (str(line.item_id), str(sub_bom.id), size_key)
+                combo_key = tuple(line_combo)
+                key = (str(line.item_id), str(sub_bom.id), size_key, combo_key)
                 if key not in demand:
                     demand[key] = {
                         "sub_bom_id": sub_bom.id,
                         "item_id": line.item_id,
                         "sub_attrs": sub_attrs,
+                        "combo_value_ids": line_combo,
                         "total_qty": 0.0,
                         "src_loc_id": src_loc_id,
                         "bom_size_id": sub_bs.id if sub_bs is not None else None,
@@ -347,6 +405,8 @@ async def create_consolidated_component_mos(
                 bom_size_id=data["bom_size_id"],
                 create_children=False,  # next level is exploded by this loop, not recursion
                 availability=availability,
+                extra_attr_value_ids=data["combo_value_ids"],
+                combo_attr_id=combo_attr_id,
             )
             component_mo.is_shared_component = True
             await db.flush()

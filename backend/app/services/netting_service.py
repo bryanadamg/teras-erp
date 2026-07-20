@@ -53,10 +53,10 @@ from app.models.location import Location
 from app.models.manufacturing import ManufacturingOrder
 from app.models.production_run import ProductionRun
 from app.models.batch import Batch
-from app.models.bom import BOM
+from app.models.bom import BOM, BOMLine
 from app.models.item import Item
 from app.services.stock_service import _generate_variant_key
-from app.services.mrp_service import _line_decoupled
+from app.services.mrp_service import _line_decoupled, _combo_attr_id, _line_combo_value_ids
 
 
 def rejected_batch_keys():
@@ -386,12 +386,15 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
     # component's total demand across every branch is netted once, at every
     # depth, not just directly below the roots.
     current_gen = [(bom, qty) for bom, root_qtys in bom_ro_pairs for qty in root_qtys]
+    combo_attr_id = await _combo_attr_id(db)
     level = 1
     while current_gen:
         demand: dict[tuple, dict] = {}
         for bom, qty in current_gen:
             bom_lines = (await db.execute(
-                select(BOM).options(selectinload(BOM.lines)).filter(BOM.id == bom.id)
+                select(BOM).options(
+                    selectinload(BOM.lines).selectinload(BOMLine.attribute_values)
+                ).filter(BOM.id == bom.id)
             )).scalars().first()
             if not bom_lines:
                 continue
@@ -405,12 +408,17 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
                     select(Item.is_decoupling_point).filter(Item.id == line.item_id)
                 )).scalar()
                 src = line.source_location_id or (source_location.id if source_location else (location.id if location else None))
-                # Plant-level netting: consolidate by (item, sub_bom) only — location is
-                # not part of the key. src is kept just for the display label.
-                key = (str(line.item_id), str(sub_bom.id))
+                # Combo tagged on the line splits pegging per combo (mirrors size);
+                # folded into the netting variant. Plant-level netting otherwise
+                # consolidates by (item, sub_bom) — location not part of the key.
+                line_combo = _line_combo_value_ids(line, combo_attr_id)
+                comp_attrs = sorted(set(
+                    [str(v.id) for v in sub_bom.attribute_values] + line_combo
+                ))
+                key = (str(line.item_id), str(sub_bom.id), tuple(line_combo))
                 if key not in demand:
                     demand[key] = {"sub_bom": sub_bom, "src": src, "total": 0.0,
-                                   "attrs": [str(v.id) for v in sub_bom.attribute_values],
+                                   "attrs": comp_attrs,
                                    "decoupled": _line_decoupled(line, item_flag)}
                 demand[key]["total"] += (qty * float(line.percentage)) / 100
 
@@ -443,10 +451,13 @@ async def _preview_children(db, avail, bom_id, parent_net, source_location_id, l
     ad-hoc MO's own sub-tree — no cross-branch pooling applies here since
     there is only one branch."""
     bom = (await db.execute(
-        select(BOM).options(selectinload(BOM.lines)).filter(BOM.id == bom_id)
+        select(BOM).options(
+            selectinload(BOM.lines).selectinload(BOMLine.attribute_values)
+        ).filter(BOM.id == bom_id)
     )).scalars().first()
     if not bom:
         return
+    combo_attr_id = await _combo_attr_id(db)
     for line in bom.lines:
         if not line.percentage:
             continue
@@ -455,7 +466,9 @@ async def _preview_children(db, avail, bom_id, parent_net, source_location_id, l
             continue
         gross = (parent_net * float(line.percentage)) / 100
         sub_loc = source_location_id or location_id
-        attrs = [str(v.id) for v in sub_bom.attribute_values]
+        # Combo on the line folds into the produced variant (mirrors create path).
+        line_combo = _line_combo_value_ids(line, combo_attr_id)
+        attrs = sorted(set([str(v.id) for v in sub_bom.attribute_values] + line_combo))
         item_flag = (await db.execute(
             select(Item.is_decoupling_point).filter(Item.id == line.item_id)
         )).scalar()

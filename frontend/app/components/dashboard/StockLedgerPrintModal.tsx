@@ -189,6 +189,7 @@ export default function StockLedgerPrintModal({
             <PrintModalShell
                 title={`Print Stock Ledger — ${entries.length.toLocaleString()} movement(s)${hiddenCount > 0 ? ` of ${totals.total.toLocaleString()}` : ''}`}
                 onClose={onClose}
+                modeless
                 width="96vw"
                 maxWidth={1300}
                 height="90vh"
