@@ -217,8 +217,13 @@ export function ProgressBar({
                 <div style={{ position: 'absolute', top: 0, left: `${clamped}%`, height: '100%', width: `${secClamped}%`, background: progressBarFill(secondaryTone, hatched), transition: 'width 0.2s, left 0.2s' }} />
             )}
             {label === 'inside' && (
-                <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.max(8, height - 6), fontWeight: 'bold', color: pctLabel > 50 ? '#fff' : '#000080' }}>
-                    {pctLabel}%
+                <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{
+                        fontSize: Math.max(8, height - 7), fontWeight: 'bold', color: '#fff',
+                        background: 'rgba(0,0,0,0.45)', borderRadius: 3, padding: '0 5px', lineHeight: `${height - 4}px`,
+                    }}>
+                        {pctLabel}%
+                    </span>
                 </span>
             )}
         </div>

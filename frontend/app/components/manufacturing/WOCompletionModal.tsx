@@ -7,6 +7,7 @@ import { useToast } from '../shared/Toast';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import BagLabelPrintModal from './BagLabelPrintModal';
+import { ProgressBar } from '../shared/xpTheme';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -355,38 +356,16 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                             {/* MO-level progress bar (whole order) */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                 <span style={{ fontSize: 9, fontWeight: 'bold', color: '#555', width: 26, flexShrink: 0 }}>MO</span>
-                                <div style={{ flex: 1, border: '1px solid #7f9db9', height: 14, background: '#fff', position: 'relative', overflow: 'hidden' }}>
-                                    <div style={{
-                                        height: '100%',
-                                        width: `${pct}%`,
-                                        background: pct >= 100
-                                            ? 'repeating-linear-gradient(45deg, #2e7d32, #2e7d32 4px, #4caf50 4px, #4caf50 8px)'
-                                            : 'repeating-linear-gradient(45deg, #000080, #000080 4px, #1565c0 4px, #1565c0 8px)',
-                                        transition: 'width 0.2s',
-                                    }} />
-                                    <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 'bold', color: pct > 50 ? '#fff' : '#000080', textShadow: pct > 50 ? '0 0 3px rgba(0,0,0,0.8)' : 'none' }}>
-                                        {totalCompleted.toFixed(2)} / {target} ({pct}%)
-                                    </span>
-                                </div>
+                                <ProgressBar pct={pct} tone={pct >= 100 ? 'green' : 'blue'} hatched height={14} label="inside" />
+                                <span style={{ fontSize: 9, color: '#555', whiteSpace: 'nowrap', width: 90, flexShrink: 0, textAlign: 'right' }}>{totalCompleted.toFixed(2)} / {target}</span>
                             </div>
 
                             {/* Current WO progress bar (this step's target) */}
                             {workOrder && woTarget > 0 && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                     <span style={{ fontSize: 9, fontWeight: 'bold', color: '#555', width: 26, flexShrink: 0 }}>WO</span>
-                                    <div style={{ flex: 1, border: '1px solid #b9947f', height: 14, background: '#fff', position: 'relative', overflow: 'hidden' }}>
-                                        <div style={{
-                                            height: '100%',
-                                            width: `${woPct}%`,
-                                            background: woPct >= 100
-                                                ? 'repeating-linear-gradient(45deg, #2e7d32, #2e7d32 4px, #4caf50 4px, #4caf50 8px)'
-                                                : 'repeating-linear-gradient(45deg, #b46a00, #b46a00 4px, #e08a14 4px, #e08a14 8px)',
-                                            transition: 'width 0.2s',
-                                        }} />
-                                        <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 'bold', color: woPct > 50 ? '#fff' : '#b46a00', textShadow: woPct > 50 ? '0 0 3px rgba(0,0,0,0.8)' : 'none' }}>
-                                            {woDone.toFixed(2)} / {woTarget} ({woPct}%)
-                                        </span>
-                                    </div>
+                                    <ProgressBar pct={woPct} tone={woPct >= 100 ? 'green' : 'amber'} hatched height={14} label="inside" />
+                                    <span style={{ fontSize: 9, color: '#555', whiteSpace: 'nowrap', width: 90, flexShrink: 0, textAlign: 'right' }}>{woDone.toFixed(2)} / {woTarget}</span>
                                 </div>
                             )}
                             <div style={{ fontSize: 10, color: '#555', display: 'flex', gap: 12 }}>

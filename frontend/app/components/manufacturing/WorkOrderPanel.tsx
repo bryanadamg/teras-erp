@@ -322,7 +322,7 @@ export default function WorkOrderPanel({
     // leftover width on wide screens and crowd the Actions buttons to the edge.
     // Actions is icon-only (Stage/Leftover/Log + a [...] menu for Print/Edit/Delete),
     // so it only needs room for those small squares, not full-word buttons.
-    const COLS = '96px 64px 84px minmax(110px,200px) 100px 100px 120px 40px 100px 108px';
+    const COLS = '124px 64px 74px minmax(110px,200px) minmax(140px,1fr) 120px 40px 116px 108px';
 
     return (
         <div style={{ fontFamily: xpFont, fontSize: 11, background: '#fff' }}>
@@ -415,7 +415,6 @@ export default function WorkOrderPanel({
                         <span>Type</span>
                         <span>Work Center</span>
                         <span>Route</span>
-                        <span>Staging</span>
                         <span>Progress</span>
                         <span>Hrs</span>
                         <span>Status</span>
@@ -583,7 +582,7 @@ export default function WorkOrderPanel({
                                             cursor: 'pointer', textDecoration: 'underline',
                                             display: 'flex', alignItems: 'center', gap: 4,
                                         }}
-                                        title="View in Work Orders list"
+                                        title={wo.code || `Step ${wo.sequence}`}
                                         onClick={() => { window.location.href = `/work-orders?wo=${wo.id}`; }}
                                     >
                                         <span style={{
@@ -627,22 +626,6 @@ export default function WorkOrderPanel({
                                         </span>
                                     ) : <span style={{ color: '#ccc', fontSize: 9 }}>—</span>}
 
-                                    {/* Staging status badge (routing step, or a staging-capable center) */}
-                                    {(wo.bom_operation_id || ['WEAVING', 'DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase())) ? (
-                                        <span style={{
-                                            padding: '0 5px', fontSize: 9, fontWeight: 'bold', whiteSpace: 'nowrap',
-                                            border: '1px solid', justifySelf: 'start',
-                                            ...(wo.staging_status === 'STAGED'
-                                                ? { background: '#d4f0d4', color: '#005500', borderColor: '#99cc99' }
-                                                : wo.staging_status === 'PARTIAL'
-                                                    ? { background: '#fff3cc', color: '#664400', borderColor: '#f0d888' }
-                                                    : { background: '#f0e0e0', color: '#883333', borderColor: '#d8b0b0' }),
-                                        }}>
-                                            {wo.staging_status === 'STAGED' ? 'STAGED'
-                                                : wo.staging_status === 'PARTIAL' ? 'PART. STAGED' : 'NOT STAGED'}
-                                        </span>
-                                    ) : <span style={{ color: '#ccc', fontSize: 9 }}>—</span>}
-
                                     {/* Progress bar */}
                                     {wo.qty != null ? (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -660,14 +643,27 @@ export default function WorkOrderPanel({
                                         {wo.planned_duration_hours != null ? `${wo.planned_duration_hours}h` : '—'}
                                     </span>
 
-                                    {/* Status badge — click to change (same chip style as the Work Orders list) */}
-                                    <div
-                                        className={canLog(wo) ? 'xp-menu-trigger' : undefined}
-                                        onClick={canLog(wo) ? (e) => toggleStatusMenu(wo.id, e) : undefined}
-                                        style={{ cursor: canLog(wo) ? 'pointer' : 'default', justifySelf: 'start' }}
-                                    >
-                                        <span style={statusChipStyle(wo.status)}>{(wo.status || 'PENDING').replace('_', ' ')}</span>
-                                    </div>
+                                    {/* Status badge — click to change; staging shown as an icon alongside (matches Work Orders list) */}
+                                    {(() => {
+                                        const hasStaging = !!(wo.bom_operation_id || ['WEAVING', 'DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase()));
+                                        const stagingLabel = wo.staging_status === 'STAGED' ? 'Staged — materials issued'
+                                            : wo.staging_status === 'PARTIAL' ? 'Partially staged' : 'Not staged';
+                                        const stagingColor = wo.staging_status === 'STAGED' ? '#0058e6' : wo.staging_status === 'PARTIAL' ? '#b8860b' : '#999';
+                                        return (
+                                            <div
+                                                className={canLog(wo) ? 'xp-menu-trigger' : undefined}
+                                                onClick={canLog(wo) ? (e) => toggleStatusMenu(wo.id, e) : undefined}
+                                                style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: canLog(wo) ? 'pointer' : 'default', justifySelf: 'start' }}
+                                            >
+                                                <span style={statusChipStyle(wo.status)}>{(wo.status || 'PENDING').replace('_', ' ')}</span>
+                                                {hasStaging && (
+                                                    <i className={`bi ${wo.staging_status === 'STAGED' ? 'bi-box-seam-fill' : 'bi-box-seam'}`}
+                                                        title={stagingLabel}
+                                                        style={{ fontSize: 12, color: stagingColor, flexShrink: 0 }} />
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
 
                                     {/* Actions — icon-only inline buttons + a [...] menu for Print/Edit/Delete */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'nowrap', justifyContent: 'flex-end', justifySelf: 'end' }}>
