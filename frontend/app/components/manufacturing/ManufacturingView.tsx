@@ -15,11 +15,12 @@ import Pager from '../shared/Pager';
 import PrintHeader from '../shared/PrintHeader';
 import type { PrintSettings } from './MOPrintModal';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
+const PRMaterialPullSheetModal = dynamic(() => import('./PRMaterialPullSheetModal'), { ssr: false });
 import ProductionRunModal from './ProductionRunModal';
 import WorkOrderPanel from './WorkOrderPanel';
 const WOCompletionModal = dynamic(() => import('./WOCompletionModal'), { ssr: false });
 import MOCreationPreview from './MOCreationPreview';
-import { STATUS_COLORS, statusChipStyle, xpFont, xpInput, xpLabel, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, xpFont, xpInput, xpLabel, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton } from '../shared/xpTheme';
 
 export default function ManufacturingView({
     items,
@@ -105,9 +106,11 @@ export default function ManufacturingView({
   const [endDate, setEndDate] = useState('');
   const [printPreviewWO, setPrintPreviewWO] = useState<any>(null);
   const [printHideChildren, setPrintHideChildren] = useState(false);
-  
+  const [printPreviewPR, setPrintPreviewPR] = useState<any>(null);
+
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const { openId: openMoMenuId, pos: moMenuPos, toggle: toggleMoMenu, close: closeMoMenu } = useFloatingMenu();
+  const { openId: openPrMenuId, pos: prMenuPos, toggle: togglePrMenu, close: closePrMenu } = useFloatingMenu();
   const [expandedPRs, setExpandedPRs] = useState<Record<string, boolean>>({});
   const [expandedDetailTabs, setExpandedDetailTabs] = useState<Record<string, 'bom' | 'steps'>>({});
   const [prMaterialReqs, setPrMaterialReqs] = useState<Record<string, any[]>>({});
@@ -367,6 +370,11 @@ export default function ManufacturingView({
   const handlePrintWO = (wo: any, hideChildren = false) => {
       setPrintHideChildren(hideChildren);
       setPrintPreviewWO(wo);
+  };
+
+  const handlePrintPR = (pr: any) => {
+      if (!prMaterialReqs[pr.id] && !prMaterialReqsLoading[pr.id]) fetchPRMaterialRequirements(pr.id);
+      setPrintPreviewPR(pr);
   };
 
   // Shared search bar for the PR / MO list tabs
@@ -1399,6 +1407,20 @@ export default function ManufacturingView({
             />
         )}
 
+        {printPreviewPR && (
+            <PRMaterialPullSheetModal
+                pr={printPreviewPR}
+                reqs={prMaterialReqs[printPreviewPR.id] || []}
+                isLoading={!!prMaterialReqsLoading[printPreviewPR.id]}
+                currentStyle={currentStyle}
+                companyProfile={companyProfile}
+                getLocationName={getLocationName}
+                getAttributeValueName={getAttributeValueName}
+                formatDate={formatDate}
+                onClose={() => setPrintPreviewPR(null)}
+            />
+        )}
+
           <CodeConfigModal isOpen={isConfigOpen} onClose={() => setIsConfigOpen(false)} type="MO" onSave={handleSaveConfig} initialConfig={codeConfig} attributes={attributes} />
 
           <ModalWrapper
@@ -1771,12 +1793,13 @@ export default function ManufacturingView({
                                                   background: currentStyle === 'classic' ? 'linear-gradient(to bottom,#fff 0%,#d4d0c8 100%)' : undefined,
                                                   fontSize: currentStyle === 'classic' ? '10px' : '9pt',
                                               }} className={currentStyle === 'classic' ? '' : 'table-light'}>
-                                                  {['Code', 'BOM / Style', 'MOs', 'Progress', 'Status', 'Due Date', 'Actions'].map(h => (
-                                                      <th key={h} style={{
+                                                  {['', 'Code', 'BOM / Style', 'MOs', 'Progress', 'Status', 'Due Date', 'Actions'].map((h, i) => (
+                                                      <th key={h || `col-${i}`} style={{
                                                           border: currentStyle === 'classic' ? '1px solid #808080' : undefined,
                                                           padding: currentStyle === 'classic' ? '3px 8px' : undefined,
                                                           color: '#000', fontWeight: 'bold', whiteSpace: 'nowrap',
                                                           textAlign: h === 'Actions' ? 'right' : 'left',
+                                                          width: h === '' ? '22px' : undefined,
                                                       }}>{h}</th>
                                                   ))}
                                               </tr>
@@ -1800,6 +1823,12 @@ export default function ManufacturingView({
                                                   return (
                                                       <React.Fragment key={pr.id}>
                                                       <tr style={{ background: rowBg }}>
+                                                          <td style={{ ...tdStyle, textAlign: 'center', cursor: 'pointer' }} onClick={() => togglePR(pr.id)} title="Material Requirements">
+                                                              <i
+                                                                  className={`bi ${isExpanded ? 'bi-chevron-down' : 'bi-chevron-right'}`}
+                                                                  style={{ color: hasShortfall && isExpanded ? '#c00000' : '#555' }}
+                                                              ></i>
+                                                          </td>
                                                           <td style={{ ...tdStyle, fontFamily: 'monospace', fontWeight: 'bold' }}>
                                                               <div>{pr.code}</div>
                                                               {pr.sales_order_id && (
@@ -1851,40 +1880,23 @@ export default function ManufacturingView({
                                                               )}
                                                           </td>
                                                           <td style={{ ...tdStyle, fontSize: 10 }}>{formatDate(pr.target_end_date)}</td>
-                                                          <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                              <button
-                                                                  onClick={() => togglePR(pr.id)}
-                                                                  title="Material Requirements"
-                                                                  style={currentStyle === 'classic' ? {
-                                                                      fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px',
-                                                                      padding: '2px 7px', cursor: 'pointer', border: '1px solid',
-                                                                      background: isExpanded ? 'linear-gradient(to bottom,#d4d0c8,#fff)' : 'linear-gradient(to bottom,#fff,#d4d0c8)',
-                                                                      borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-                                                                      color: hasShortfall && isExpanded ? '#c00000' : '#000', marginRight: 4,
-                                                                  } : { marginRight: 4 }}
-                                                                  className={currentStyle === 'classic' ? '' : `btn btn-sm btn-link p-0 ${hasShortfall && isExpanded ? 'text-danger' : 'text-secondary'}`}
-                                                              >
-                                                                  <i className={`bi ${isExpanded ? 'bi-chevron-up' : 'bi-list-check'}`}></i>
-                                                                  {currentStyle === 'classic' && <span style={{ marginLeft: 3 }}>Materials</span>}
-                                                              </button>
-                                                              {canManage && (currentStyle === 'classic' ? (
-                                                                  <button onClick={() => onDeleteProductionRun(pr.id)} style={{
-                                                                      fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px',
-                                                                      padding: '2px 7px', cursor: 'pointer', border: '1px solid',
-                                                                      background: 'linear-gradient(to bottom,#fff,#d4d0c8)', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#c00000',
-                                                                  }}>
-                                                                      <i className="bi bi-trash me-1"></i>Del
-                                                                  </button>
-                                                              ) : (
-                                                                  <button className="btn btn-sm btn-link text-danger p-0" onClick={() => onDeleteProductionRun(pr.id)} title="Delete Production Run">
-                                                                      <i className="bi bi-trash fs-5"></i>
-                                                                  </button>
-                                                              ))}
+                                                          <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
+                                                              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
+                                                                  <XPActionButton
+                                                                      classic={currentStyle === 'classic'}
+                                                                      tone="primary"
+                                                                      icon="bi-printer"
+                                                                      label={currentStyle === 'classic' ? 'Print' : undefined}
+                                                                      title="Print Material Pull Sheet"
+                                                                      onClick={() => handlePrintPR(pr)}
+                                                                  />
+                                                                  <MenuTriggerButton classic={currentStyle === 'classic'} onClick={(e) => togglePrMenu(pr.id, e)} />
+                                                              </div>
                                                           </td>
                                                       </tr>
                                                       {isExpanded && (
                                                           <tr style={{ background: currentStyle === 'classic' ? '#f0ede8' : '#f8f9fa' }}>
-                                                              <td colSpan={7} style={{
+                                                              <td colSpan={8} style={{
                                                                   padding: currentStyle === 'classic' ? '6px 12px' : '8px 16px',
                                                                   border: currentStyle === 'classic' ? '1px solid #c0bdb5' : undefined,
                                                               }}>
@@ -1999,6 +2011,19 @@ export default function ManufacturingView({
                                   </div>
                               )}
                               {renderPager(prPage, prTotal, setPrPage)}
+                              {/* Floating "more actions" menu — Delete */}
+                              {openPrMenuId && (() => {
+                                  const menuPR = (productionRuns || []).find((p: any) => p.id === openPrMenuId);
+                                  if (!menuPR) return null;
+                                  return (
+                                      <FloatingMenu
+                                          pos={prMenuPos}
+                                          items={[
+                                              { key: 'delete', icon: 'bi-trash', label: 'Delete', danger: true, hidden: !canManage, onClick: () => { closePrMenu(); onDeleteProductionRun(menuPR.id); } },
+                                          ]}
+                                      />
+                                  );
+                              })()}
                           </div>
                       )}
 

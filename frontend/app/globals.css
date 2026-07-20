@@ -1391,6 +1391,21 @@ table {
     max-width: 100% !important;
     width: 100% !important;
   }
+
+  /* PR Material Pull Sheet print — hide everything except the paper portal */
+  body.pr-pull-sheet-print-active > *:not(.pr-pull-sheet-print-portal) {
+    display: none !important;
+  }
+  body.pr-pull-sheet-print-active .pr-pull-sheet-print-portal {
+    display: block !important;
+    width: 100% !important;
+  }
+  body.pr-pull-sheet-print-active .pr-pull-sheet-print-portal .pr-pull-sheet-paper {
+    box-shadow: none !important;
+    padding: 20px !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
 }
 
 /* ── XP Loading indicator (xpTheme.tsx XPLoading) ── */

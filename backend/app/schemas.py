@@ -538,7 +538,7 @@ class PRMaterialRequirementItem(BaseModel):
     item_name: str
     uom: str
     attribute_value_ids: list[UUID]
-    location_id: UUID | None = None        # null = plant-wide (location-agnostic netting)
+    location_id: UUID | None = None        # item's default source location (pull-sheet hint only — netting itself is plant-wide/location-agnostic)
     total_required: float
     qty_available: float
     shortfall: float

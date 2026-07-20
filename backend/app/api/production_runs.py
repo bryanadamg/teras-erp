@@ -295,7 +295,7 @@ async def get_production_run_material_requirements(
             item_name=item.name if item else str(data["item_id"]),
             uom=item.uom if item else "",
             attribute_value_ids=[UUID(a) for a in data["attr_ids"]],
-            location_id=None,
+            location_id=item.default_source_location_id if item else None,
             total_required=total,
             qty_available=available,
             shortfall=max(0.0, total - available),
