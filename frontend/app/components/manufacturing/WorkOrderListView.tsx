@@ -16,7 +16,7 @@ const BagLabelPrintModal = dynamic(() => import('./BagLabelPrintModal'), { ssr: 
 const BagScanStageModal = dynamic(() => import('./BagScanStageModal'), { ssr: false });
 import { getChipStyle, PrintChips } from './WorkOrderPanel';
 import Pager from '../shared/Pager';
-import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import SearchableSelect from '../shared/SearchableSelect';
 import { Tabs, TabDef } from '../shared/Tabs';
@@ -864,16 +864,7 @@ export default function WorkOrderListView({
                                                         const pct = Math.min(100, ((wo.qty_completed_total ?? 0) / wo.qty) * 100);
                                                         return (
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'flex-end' }}>
-                                                                <div style={{ width: 72, height: 8, border: '1px solid #7f9db9', background: '#fff', overflow: 'hidden' }}>
-                                                                    {pct > 0 && (
-                                                                        <div style={{
-                                                                            height: '100%', width: `${pct}%`,
-                                                                            background: done
-                                                                                ? 'repeating-linear-gradient(45deg,#2e7d32,#2e7d32 2px,#4caf50 2px,#4caf50 5px)'
-                                                                                : 'repeating-linear-gradient(45deg,#000080,#000080 2px,#1565c0 2px,#1565c0 5px)',
-                                                                        }} />
-                                                                    )}
-                                                                </div>
+                                                                <ProgressBar pct={pct} tone={done ? 'green' : 'blue'} hatched width={72} height={8} />
                                                                 <span style={{ fontSize: 9, color: done ? '#007000' : '#555', whiteSpace: 'nowrap' }}>
                                                                     {(wo.qty_completed_total ?? 0).toFixed(1)}/{wo.qty}
                                                                 </span>

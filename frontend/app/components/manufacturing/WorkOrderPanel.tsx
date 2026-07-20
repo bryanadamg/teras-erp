@@ -11,7 +11,7 @@ import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
-import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton } from '../shared/xpTheme';
+import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar } from '../shared/xpTheme';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -646,20 +646,7 @@ export default function WorkOrderPanel({
                                     {/* Progress bar */}
                                     {wo.qty != null ? (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                            <div style={{
-                                                width: 60, height: 10,
-                                                border: '1px solid #7f9db9', background: '#fff',
-                                                position: 'relative', overflow: 'hidden', flexShrink: 0,
-                                            }}>
-                                                {pct > 0 && (
-                                                    <div style={{
-                                                        height: '100%', width: `${Math.min(100, pct)}%`,
-                                                        background: done
-                                                            ? 'repeating-linear-gradient(45deg,#b87000,#b87000 3px,#e8a020 3px,#e8a020 6px)'
-                                                            : 'repeating-linear-gradient(45deg,#000080,#000080 3px,#1565c0 3px,#1565c0 6px)',
-                                                    }} />
-                                                )}
-                                            </div>
+                                            <ProgressBar pct={pct} tone={done ? 'amber' : 'blue'} hatched width={60} height={10} />
                                             <span style={{ fontSize: 9, color: done ? '#b87000' : '#555', whiteSpace: 'nowrap' }}>
                                                 {(wo.qty_completed_total ?? 0).toFixed(1)}/{wo.qty}
                                             </span>

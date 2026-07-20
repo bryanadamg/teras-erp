@@ -1145,9 +1145,7 @@ export default function ManufacturingOrdersTab({
                                                 const pct = Math.min(100, Math.round((wo.qty_completed_total / wo.qty) * 100));
                                                 return (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                        <div className="progress" style={{ height: '6px', width: '100%' }}>
-                                                            <div className={`progress-bar ${pct >= 100 ? 'bg-success' : 'bg-primary'}`} style={{ width: `${pct}%` }} />
-                                                        </div>
+                                                        <ProgressBar pct={pct} tone={pct >= 100 ? 'green' : 'blue'} height={8} />
                                                         <span style={{ fontSize: '9px', color: '#555' }}>{parseFloat(wo.qty_completed_total).toFixed(2)} / {wo.qty} ({pct}%)</span>
                                                     </div>
                                                 );
