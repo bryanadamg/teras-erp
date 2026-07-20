@@ -11,7 +11,7 @@ from app.models.bom import BOM, BOMLine, BOMSize, BOMOperation
 from app.models.routing import Operation as OperationModel, WorkCenter
 from app.models.location import Location
 from app.models.sales import SalesOrder
-from app.services import stock_service, audit_service, kpi_service, beam_service, mrp_service
+from app.services import stock_service, audit_service, kpi_service, beam_service, mrp_service, weaving_service
 from app.services.netting_service import Availability, preview_mo
 from app.schemas import (
     ManufacturingOrderCreate, ManufacturingOrderResponse,
@@ -1123,9 +1123,14 @@ async def add_mo_completion(
     await db.flush()
 
     # Auto-advance WO to IN_PROGRESS on first log
+    auto_weaving_run = None
     if wo and wo.status == "PENDING":
         wo.status = "IN_PROGRESS"
         wo.actual_start_date = datetime.utcnow()
+        if wo.work_center_id:
+            auto_weaving_run = await weaving_service.auto_start_run_for_wo(
+                db, wo.work_center_id, wo_wc_type, mo.id
+            )
 
     # WEAVING: any beam still sitting as batch stock at the input location
     # (WO started via this log, or re-staged mid-run) merges into the
@@ -1272,6 +1277,13 @@ async def add_mo_completion(
         completion_log_detail += f" | Machine '{wo_machine_assigned}' assigned to WO {wo.code or wo.name}"
     await audit_service.log_activity(db, current_user.id, "COMPLETION", "ManufacturingOrder", mo_id, completion_log_detail)
     await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": mo_id, "status": mo.status, "code": mo.code})
+
+    if auto_weaving_run:
+        await audit_service.log_activity(
+            db, current_user.id, "CREATE", "weaving_run", str(auto_weaving_run.id),
+            details=f"Auto-started run {mo.code} on {wo.code or wo.name} start",
+        )
+        await manager.broadcast({"type": "weaving_run", "action": "start", "work_center_id": str(wo.work_center_id)})
 
     try:
         await kpi_service.invalidate_kpis_async(db)
