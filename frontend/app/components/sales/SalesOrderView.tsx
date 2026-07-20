@@ -265,6 +265,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   });
   const [colorSearch, setColorSearch] = useState('');
   const [colorResults, setColorResults] = useState<any[]>([]);
+  const [colorFocused, setColorFocused] = useState(false);
   const [lastDeliveryDates, setLastDeliveryDates] = useState({ due_date: '', internal_confirmation_date: '' });
   const [qtyMeter, setQtyMeter] = useState('');
   const [qtyGrossYd, setQtyGrossYd] = useState('');
@@ -1325,10 +1326,12 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                placeholder="Search color code / name / Pantone..."
                                                value={colorSearch}
                                                onChange={e => setColorSearch(e.target.value)}
+                                               onFocus={() => setColorFocused(true)}
+                                               onBlur={() => setTimeout(() => setColorFocused(false), 150)}
                                                style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',border:'1px solid #7f9db9',height:'22px',borderRadius:0,padding:'1px 4px',background:'#ffffff',outline:'none',width:'100%'}:undefined}
                                                className={classic?'':'form-control form-control-sm'}
                                            />
-                                           {colorResults.length > 0 && (
+                                           {colorFocused && colorResults.length > 0 && (
                                                <div style={{position:'absolute',zIndex:20,top:'100%',left:0,right:0,maxHeight:180,overflowY:'auto',background:'#ffffff',border:'1px solid #7f9db9'}}>
                                                    {colorResults.map((c: any) => (
                                                        <div
