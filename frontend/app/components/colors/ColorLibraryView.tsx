@@ -197,7 +197,7 @@ export default function ColorLibraryView({
                             <th style={lvTh(classic)}>Name</th>
                             <th style={{ ...lvTh(classic), width: 110 }}>Pantone</th>
                             <th style={{ ...lvTh(classic), width: 150 }}>Colour Index</th>
-                            <th style={{ ...lvTh(classic), width: 90 }}>Substrate</th>
+                            <th style={{ ...lvTh(classic), width: 130 }}>L*a*b*</th>
                             <th style={{ ...lvTh(classic), width: 120 }}>Customer</th>
                             <th style={{ ...lvTh(classic), width: 90 }}>Cust. Code</th>
                             <th style={{ ...lvTh(classic), width: 110 }}>From Lab Dip</th>
@@ -223,7 +223,13 @@ export default function ColorLibraryView({
                                 <td style={lvTd(classic)}>{c.name}</td>
                                 <td style={lvTd(classic)}>{c.pantone_ref || <span style={{ color: '#aaa' }}>—</span>}</td>
                                 <td style={lvTd(classic)}>{c.colour_index || <span style={{ color: '#aaa' }}>—</span>}</td>
-                                <td style={lvTd(classic)}>{c.substrate || <span style={{ color: '#aaa' }}>—</span>}</td>
+                                <td style={lvTd(classic)}>
+                                    {c.l_star != null
+                                        ? <span style={{ fontFamily: "'Courier New', monospace", fontSize: classic ? 11 : 12 }}>
+                                            {c.l_star}/{c.a_star ?? '—'}/{c.b_star ?? '—'}
+                                          </span>
+                                        : <span style={{ color: '#aaa' }}>—</span>}
+                                </td>
                                 <td style={lvTd(classic)}>{c.customer_name || <span style={{ color: '#aaa', fontStyle: 'italic' }}>House</span>}</td>
                                 <td style={lvTd(classic)}>{c.customer_color_code || <span style={{ color: '#aaa' }}>—</span>}</td>
                                 <td style={lvTd(classic)}>{c.source_lab_dip_code
@@ -235,6 +241,15 @@ export default function ColorLibraryView({
                                 <td style={lvTd(classic)}><StatusChip status={c.status} /></td>
                                 <td style={{ ...lvTd(classic), borderRight: 'none', textAlign: 'right' }}>
                                     <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end', alignItems: 'center' }}>
+                                        {canManage && c.l_star == null && (
+                                        <button
+                                            title="Complete L*a*b* measurement for this color"
+                                            onClick={() => openEdit(c)}
+                                            style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#a15c00' : '#d97706', fontSize: 13 }}
+                                        >
+                                            <i className="bi bi-rulers" />
+                                        </button>
+                                        )}
                                         {canManage && (
                                         <button
                                             title="Create dyeing recipe for this color"
