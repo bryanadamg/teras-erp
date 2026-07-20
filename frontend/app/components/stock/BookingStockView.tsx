@@ -133,38 +133,65 @@ export default function BookingStockView() {
     ];
 
     // ── MO drill-down (shared by both themes) ──────────────────────────────────
+    // One side (Required by / Incoming from): mini table + bold total row underneath.
+    const detailSide = (
+        title: string, color: string, tint: string,
+        items: { mo_id: string; mo_code: string; qty: number }[], sign: string, uom: string,
+    ) => {
+        const total = items.reduce((s, m) => s + m.qty, 0);
+        const cellFont: React.CSSProperties = { fontFamily: classic ? xpFont : undefined, fontSize: classic ? 11 : 12.5 };
+        return (
+            <div style={{ flex: '1 1 260px', minWidth: 240 }}>
+                <div style={{ fontWeight: 'bold', color, marginBottom: 4, fontVariant: 'all-small-caps', letterSpacing: '0.5px', ...cellFont }}>
+                    {title} ({items.length})
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', border: classic ? '1px solid #c0bdb5' : undefined }}>
+                    <thead>
+                        <tr style={{ background: tint }}>
+                            <th style={{ ...cellFont, textAlign: 'left', padding: '3px 8px', borderBottom: `1px solid ${color}`, fontWeight: 'bold', color }}>MO</th>
+                            <th style={{ ...cellFont, textAlign: 'right', padding: '3px 8px', borderBottom: `1px solid ${color}`, fontWeight: 'bold', color }}>Qty</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {items.length === 0 ? (
+                            <tr><td colSpan={2} style={{ ...cellFont, padding: '6px 8px', color: '#999', fontStyle: 'italic' }}>—</td></tr>
+                        ) : items.map(m => (
+                            <tr key={m.mo_id}>
+                                <td style={{ ...cellFont, padding: '2px 8px', fontFamily: 'monospace', color: '#1a3d90' }}>{m.mo_code}</td>
+                                <td style={{ ...cellFont, padding: '2px 8px', textAlign: 'right', color, whiteSpace: 'nowrap' }}>{sign}{fmtQty(m.qty)}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                    {items.length > 0 && (
+                        <tfoot>
+                            <tr style={{ borderTop: `2px solid ${color}` }}>
+                                <td style={{ ...cellFont, padding: '3px 8px', fontWeight: 'bold', color }}>Total</td>
+                                <td style={{ ...cellFont, padding: '3px 8px', textAlign: 'right', fontWeight: 'bold', color, whiteSpace: 'nowrap' }}>
+                                    {sign}{fmtQty(total)} {uom}
+                                </td>
+                            </tr>
+                        </tfoot>
+                    )}
+                </table>
+            </div>
+        );
+    };
+
     const renderDetail = (r: Row) => (
         <div style={{
-            display: 'flex', gap: 28, flexWrap: 'wrap',
-            fontFamily: classic ? xpFont : undefined, fontSize: classic ? 11 : 12.5,
+            display: 'flex', gap: 24, flexWrap: 'wrap',
             padding: classic ? '8px 12px 10px 34px' : '10px 16px',
         }}>
-            <div style={{ minWidth: 220 }}>
-                <div style={{ fontWeight: 'bold', color: '#9a6a00', marginBottom: 4, fontVariant: 'all-small-caps', letterSpacing: '0.5px' }}>
-                    {t('demand_from_mos') || 'Required by'} ({r.demand_mos.length})
-                </div>
-                {r.demand_mos.length === 0
-                    ? <span style={{ color: '#999', fontStyle: 'italic' }}>—</span>
-                    : r.demand_mos.map(m => (
-                        <div key={m.mo_id} style={{ display: 'flex', justifyContent: 'space-between', gap: 14, padding: '1px 0' }}>
-                            <span style={{ fontFamily: 'monospace', color: '#1a3d90' }}>{m.mo_code}</span>
-                            <span style={{ color: '#7a3a00', whiteSpace: 'nowrap' }}>{fmtQty(m.required_qty)} {r.uom}</span>
-                        </div>
-                    ))}
-            </div>
-            <div style={{ minWidth: 220 }}>
-                <div style={{ fontWeight: 'bold', color: '#1a5e2a', marginBottom: 4, fontVariant: 'all-small-caps', letterSpacing: '0.5px' }}>
-                    {t('incoming_from_mos') || 'Incoming from'} ({r.supply_mos.length})
-                </div>
-                {r.supply_mos.length === 0
-                    ? <span style={{ color: '#999', fontStyle: 'italic' }}>—</span>
-                    : r.supply_mos.map(m => (
-                        <div key={m.mo_id} style={{ display: 'flex', justifyContent: 'space-between', gap: 14, padding: '1px 0' }}>
-                            <span style={{ fontFamily: 'monospace', color: '#1a3d90' }}>{m.mo_code}</span>
-                            <span style={{ color: '#1a5e2a', whiteSpace: 'nowrap' }}>+{fmtQty(m.incoming_qty)} {r.uom}</span>
-                        </div>
-                    ))}
-            </div>
+            {detailSide(
+                t('demand_from_mos') || 'Required by', '#9a6a00', '#fff3d6',
+                r.demand_mos.map(m => ({ mo_id: m.mo_id, mo_code: m.mo_code, qty: m.required_qty })),
+                '', r.uom,
+            )}
+            {detailSide(
+                t('incoming_from_mos') || 'Incoming from', '#1a5e2a', '#e2f3e2',
+                r.supply_mos.map(m => ({ mo_id: m.mo_id, mo_code: m.mo_code, qty: m.incoming_qty })),
+                '+', r.uom,
+            )}
         </div>
     );
 
