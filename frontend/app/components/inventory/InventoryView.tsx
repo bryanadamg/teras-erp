@@ -370,7 +370,7 @@ export default function InventoryView({
   });
 
   // Creation State
-  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [] as string[], variant_type: '' as string, weight_per_unit: '' as string | number, weight_unit: 'g/y', packaging_factor_ids: [] as string[], ends: '' as string | number, lot_tracked: false, min_stock_level: '' as string | number, default_source_location_id: '' as string, default_putaway_location_id: '' as string });
+  const [newItem, setNewItem] = useState({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [] as string[], variant_type: '' as string, weight_per_unit: '' as string | number, weight_unit: 'g/y', packaging_factor_ids: [] as string[], ends: '' as string | number, lot_tracked: false, is_decoupling_point: false, min_stock_level: '' as string | number, default_source_location_id: '' as string, default_putaway_location_id: '' as string });
   const [nameManuallyEdited, setNameManuallyEdited] = useState(false);
 
   // Beam item creation state
@@ -581,7 +581,7 @@ export default function InventoryView({
           } else {
               showToast('Item created successfully', 'success');
           }
-          setNewItem({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [], variant_type: '', weight_per_unit: '', weight_unit: 'g/y', packaging_factor_ids: [], ends: '', lot_tracked: false, min_stock_level: '', default_source_location_id: '', default_putaway_location_id: '' });
+          setNewItem({ code: '', name: '', uom: '', source_sample_id: '', source_color_id: '', source_sample_code: '', source_color_name: '', attribute_ids: [], variant_type: '', weight_per_unit: '', weight_unit: 'g/y', packaging_factor_ids: [], ends: '', lot_tracked: false, is_decoupling_point: false, min_stock_level: '', default_source_location_id: '', default_putaway_location_id: '' });
           setFormCatL1(''); setFormCatL2(''); setFormCatL3('');
           setNameManuallyEdited(false);
           setCreateBeam(false); setBeamName(''); setBeamUom(''); setBeamEnds('');
@@ -609,6 +609,7 @@ export default function InventoryView({
           weight_per_unit: editingItem.weight_per_unit || null,
           weight_unit: editingItem.weight_per_unit ? (editingItem.weight_unit || 'gsm') : null,
           lot_tracked: !!editingItem.lot_tracked,
+          is_decoupling_point: !!editingItem.is_decoupling_point,
           min_stock_level: (editingItem.min_stock_level === '' || editingItem.min_stock_level === null || editingItem.min_stock_level === undefined) ? null : parseFloat(editingItem.min_stock_level),
           default_source_location_id: editingItem.default_source_location_id || null,
           default_putaway_location_id: editingItem.default_putaway_location_id || null,
@@ -1023,6 +1024,28 @@ export default function InventoryView({
                       style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10, color: '#938c76', fontStyle: 'italic', margin: '1px 0 3px 20px' } : undefined}
                       className={classic ? '' : 'text-muted small fst-italic mb-1'}
                   >Every receipt, production output and transfer requires a lot number</div>
+              </div>
+
+              <div className="mb-1">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <input
+                          style={classic ? { cursor: 'pointer' } : undefined}
+                          className={classic ? '' : 'form-check-input'}
+                          type="checkbox"
+                          id="new-decoupling-point"
+                          checked={newItem.is_decoupling_point}
+                          onChange={e => setNewItem({ ...newItem, is_decoupling_point: e.target.checked })}
+                      />
+                      <label
+                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', fontWeight: 'bold', color: '#2b2822', cursor: 'pointer', margin: 0 } : { margin: 0 }}
+                          className={classic ? '' : 'form-check-label small fw-semibold'}
+                          htmlFor="new-decoupling-point"
+                      >Make-to-stock (decoupling point)</label>
+                  </div>
+                  <div
+                      style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10, color: '#938c76', fontStyle: 'italic', margin: '1px 0 3px 20px' } : undefined}
+                      className={classic ? '' : 'text-muted small fst-italic mb-1'}
+                  >Never auto-planned inside a parent order — demand is pooled and produced on its own standalone order</div>
               </div>
 
               <div className="mb-3">
@@ -1644,6 +1667,28 @@ export default function InventoryView({
                           style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10, color: '#938c76', fontStyle: 'italic', margin: '1px 0 3px 20px' } : undefined}
                           className={classic ? '' : 'text-muted small fst-italic mb-1'}
                         >Every receipt, production output and transfer requires a lot number</div>
+                    </div>
+
+                    <div className="mb-1">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <input
+                              className={classic ? '' : 'form-check-input'}
+                              style={classic ? { cursor: 'pointer' } : undefined}
+                              type="checkbox"
+                              id="edit-decoupling-point"
+                              checked={!!editingItem.is_decoupling_point}
+                              onChange={e => setEditingItem({ ...editingItem, is_decoupling_point: e.target.checked })}
+                            />
+                            <label
+                              className={classic ? '' : 'form-check-label small fw-semibold'}
+                              style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', fontWeight: 'bold', color: '#2b2822', cursor: 'pointer', margin: 0 } : { margin: 0 }}
+                              htmlFor="edit-decoupling-point"
+                            >Make-to-stock (decoupling point)</label>
+                        </div>
+                        <div
+                          style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10, color: '#938c76', fontStyle: 'italic', margin: '1px 0 3px 20px' } : undefined}
+                          className={classic ? '' : 'text-muted small fst-italic mb-1'}
+                        >Never auto-planned inside a parent order — demand is pooled and produced on its own standalone order</div>
                     </div>
 
                     <div className="mb-3">

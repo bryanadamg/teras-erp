@@ -54,7 +54,9 @@ from app.models.manufacturing import ManufacturingOrder
 from app.models.production_run import ProductionRun
 from app.models.batch import Batch
 from app.models.bom import BOM
+from app.models.item import Item
 from app.services.stock_service import _generate_variant_key
+from app.services.mrp_service import _line_decoupled
 
 
 def rejected_batch_keys():
@@ -399,19 +401,32 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
                 sub_bom = await _active_sub_bom(db, line.item_id)
                 if not sub_bom:
                     continue
+                item_flag = (await db.execute(
+                    select(Item.is_decoupling_point).filter(Item.id == line.item_id)
+                )).scalar()
                 src = line.source_location_id or (source_location.id if source_location else (location.id if location else None))
                 # Plant-level netting: consolidate by (item, sub_bom) only — location is
                 # not part of the key. src is kept just for the display label.
                 key = (str(line.item_id), str(sub_bom.id))
                 if key not in demand:
                     demand[key] = {"sub_bom": sub_bom, "src": src, "total": 0.0,
-                                   "attrs": [str(v.id) for v in sub_bom.attribute_values]}
+                                   "attrs": [str(v.id) for v in sub_bom.attribute_values],
+                                   "decoupled": _line_decoupled(line, item_flag)}
                 demand[key]["total"] += (qty * float(line.percentage)) / 100
 
         next_gen = []
         for data in demand.values():
             total = data["total"]
             if total <= 0:
+                continue
+            # Decoupling point: mirror the create path — record the demand node for
+            # visibility but create no MO and don't explode the sub-tree. Read-only
+            # stock snapshot (no ledger decrement) since nothing is made here.
+            if data["decoupled"]:
+                detail = await _info_detail(avail, data["sub_bom"].item_id, data["attrs"])
+                node = _component_node(data["sub_bom"], level, data["src"], total, 0.0, detail, loc_names)
+                node["decision"] = "DECOUPLED"
+                nodes.append(node)
                 continue
             net, detail = await avail.consume_detailed(data["sub_bom"].item_id, data["attrs"], data["src"], total)
             nodes.append(_component_node(data["sub_bom"], level, data["src"], total, net, detail, loc_names))
@@ -441,6 +456,16 @@ async def _preview_children(db, avail, bom_id, parent_net, source_location_id, l
         gross = (parent_net * float(line.percentage)) / 100
         sub_loc = source_location_id or location_id
         attrs = [str(v.id) for v in sub_bom.attribute_values]
+        item_flag = (await db.execute(
+            select(Item.is_decoupling_point).filter(Item.id == line.item_id)
+        )).scalar()
+        # Decoupling point: show the demand node, create nothing, don't recurse.
+        if _line_decoupled(line, item_flag):
+            detail = await _info_detail(avail, sub_bom.item_id, attrs)
+            node = _component_node(sub_bom, level, sub_loc, gross, 0.0, detail, loc_names)
+            node["decision"] = "DECOUPLED"
+            nodes.append(node)
+            continue
         net, detail = await avail.consume_detailed(sub_bom.item_id, attrs, sub_loc, gross)
         nodes.append(_component_node(sub_bom, level, sub_loc, gross, net, detail, loc_names))
         if net > 0:

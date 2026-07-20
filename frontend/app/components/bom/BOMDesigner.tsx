@@ -21,6 +21,7 @@ interface BOMLineNode {
     qty: number;
     source_location_code: string;
     bom_operation_sequence: number | null;
+    is_decoupling_point: boolean | null; // null = inherit item-master default
     subBOM?: BOMNodeData;
     isNewItem?: boolean;
 }
@@ -281,6 +282,7 @@ function buildNodeFromTree(data: any, locations: any[]): BOMNodeData {
             bom_operation_sequence: l.bom_operation_id
                 ? (data.operations || []).find((o: any) => o.id === l.bom_operation_id)?.sequence ?? null
                 : null,
+            is_decoupling_point: l.is_decoupling_point ?? null,
             subBOM: l.sub_bom ? buildNodeFromTree(l.sub_bom, locations) : undefined,
             isNewItem: false,
         })),
@@ -540,6 +542,7 @@ export default function BOMDesigner({
                     item_code: expectedChildCode,
                     attribute_value_ids: matchingAttrs,
                     percentage: 0, qty: 0, source_location_code: '', bom_operation_sequence: null,
+                    is_decoupling_point: null,
                     subBOM, isExpanded: true, isNewItem,
                 });
             }
@@ -1413,6 +1416,7 @@ export default function BOMDesigner({
                                                                 qty: parseFloat(pendingQty) || 0,
                                                                 source_location_code: '',
                                                                 bom_operation_sequence: null,
+                                                                is_decoupling_point: null,
                                                                 isNewItem: !exists
                                                             };
                                                             const newLines = [...selectedNode.lines, newLine];
@@ -1510,6 +1514,23 @@ export default function BOMDesigner({
                                                                         </option>
                                                                     );
                                                                 })}
+                                                            </select>
+                                                        )}
+                                                        {(line.subBOM || hasExistingBOM(line.item_code, line.attribute_value_ids)) && (
+                                                            <select
+                                                                title="MRP planning for this material: Auto follows the item-master default; Pool (make-to-stock) records demand but creates no sub-order here — replenish it on a standalone pooled order; Make here forces an inline sub-order even if the item is make-to-stock."
+                                                                style={{ ...xpInput, width: 92, fontSize: 9, padding: '1px 2px' }}
+                                                                value={line.is_decoupling_point == null ? '' : (line.is_decoupling_point ? 'y' : 'n')}
+                                                                onChange={e => {
+                                                                    const v = e.target.value;
+                                                                    const newLines = [...selectedNode.lines];
+                                                                    newLines[i] = { ...line, is_decoupling_point: v === '' ? null : v === 'y' };
+                                                                    updateSelectedNode({ lines: newLines });
+                                                                }}
+                                                            >
+                                                                <option value="">Auto (inherit)</option>
+                                                                <option value="y">Pool (MTS)</option>
+                                                                <option value="n">Make here</option>
                                                             </select>
                                                         )}
                                                         <div style={{ width: 96, flexShrink: 0, display: 'flex', gap: 4, justifyContent: 'flex-end', alignItems: 'center' }}>

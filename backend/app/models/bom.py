@@ -131,6 +131,11 @@ class BOMLine(Base):
         UUID(as_uuid=True), ForeignKey("bom_operations.id", ondelete="SET NULL"), nullable=True
     )
 
+    # Per-line override of the material's MRP decoupling policy. Null → inherit the
+    # item-master default (Item.is_decoupling_point); True/False → force. When
+    # effective-true, explosion records this line's demand but creates no sub-MO for it.
+    is_decoupling_point: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+
     # Relationships
     bom = relationship("BOM", back_populates="lines")
     item = relationship("Item")

@@ -12,6 +12,14 @@ from app.models.item import Item
 from app.models.manufacturing import ManufacturingOrder, MODependency, MOPlannedComponent
 
 
+def _line_decoupled(line, item_flag) -> bool:
+    """Effective MRP decoupling policy for a BOM line: the per-line override wins
+    (True/False), else inherit the item-master default. When true, explosion
+    records demand but never auto-creates a sub-MO for the line's item."""
+    line_flag = getattr(line, "is_decoupling_point", None)
+    return bool(line_flag) if line_flag is not None else bool(item_flag)
+
+
 async def snapshot_bom_lines(db: AsyncSession, mo: ManufacturingOrder, bom: BOM):
     """Snapshot BOM lines into MOPlannedComponent rows at MO creation time."""
     for line in bom.lines:
@@ -126,6 +134,15 @@ async def create_mo_recursive(
         for line in bom.lines:
             if not line.percentage:
                 continue  # 0% or null = not needed
+            # Decoupling point (make-to-stock component): don't auto-create its MO
+            # or explode its sub-tree. The parent's MOPlannedComponent snapshot
+            # (above) already records the demand for netting/booking-stock; the
+            # item is replenished independently on a pooled standalone MO.
+            item_decouple = (await db.execute(
+                select(Item.is_decoupling_point).filter(Item.id == line.item_id)
+            )).scalar()
+            if _line_decoupled(line, item_decouple):
+                continue
             sub_bom_result = await db.execute(
                 select(BOM).options(selectinload(BOM.attribute_values))
                 .filter(BOM.item_id == line.item_id, BOM.active == True).limit(1)
@@ -240,9 +257,19 @@ async def create_consolidated_component_mos(
                 # cascade). Industry chain: BOM-line override -> item-master default ->
                 # PR source (legacy). Plant-level netting consolidates by (item, sub_bom)
                 # alone — location is not part of the key.
-                item_default_src = (await db.execute(
-                    select(Item.default_source_location_id).filter(Item.id == line.item_id)
-                )).scalar()
+                item_row = (await db.execute(
+                    select(Item.default_source_location_id, Item.is_decoupling_point)
+                    .filter(Item.id == line.item_id)
+                )).first()
+                item_default_src = item_row.default_source_location_id if item_row else None
+
+                # Decoupling point (make-to-stock component): skip consolidation +
+                # MO creation for this line. Demand is still recorded on each parent
+                # MO's MOPlannedComponent snapshot (netting/booking-stock see it); the
+                # item is replenished independently on a pooled standalone MO.
+                if _line_decoupled(line, item_row.is_decoupling_point if item_row else False):
+                    continue
+
                 src_loc_id = (
                     line.source_location_id
                     or item_default_src

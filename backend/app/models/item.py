@@ -62,6 +62,12 @@ class Item(Base):
     weight_unit: Mapped[str | None] = mapped_column(String(16), nullable=True)  # e.g. gsm, g/m², oz/yd²
     ends: Mapped[int | None] = mapped_column(nullable=True)  # warp ends count for beam items
     lot_tracked: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")  # enforce lot/batch on all stock moves
+    # MRP decoupling point (make-to-stock component). When true, this item is
+    # NEVER auto-created as an MO during BOM explosion — its parents still record
+    # the demand (MOPlannedComponent snapshot / netting), but it is replenished
+    # independently on a pooled standalone MO. A per-BOM-line override wins over
+    # this item-level default (BOMLine.is_decoupling_point, null = inherit).
+    is_decoupling_point: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     min_stock_level: Mapped[float | None] = mapped_column(Float, nullable=True)  # reorder point; null → default low-stock threshold (10)
 
     # Finished-goods variant dimension: 'color' | 'combo' | None. Drives the SO

@@ -185,6 +185,7 @@ async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db
             qty=line.qty,
             percentage=line.percentage,
             bom_operation_id=resolved_op.id if resolved_op else None,
+            is_decoupling_point=line.is_decoupling_point,
         )
 
         if line.source_location_code:
@@ -554,7 +555,7 @@ async def update_bom(
             if not material:
                 raise HTTPException(status_code=404, detail=f"Material item '{lc.item_code}' not found")
             resolved_op = seq_to_op_id.get(lc.bom_operation_sequence) if lc.bom_operation_sequence is not None else None
-            bom_line = BOMLine(bom_id=bom.id, item_id=material.id, qty=lc.qty, percentage=lc.percentage, bom_operation_id=resolved_op.id if resolved_op else None)
+            bom_line = BOMLine(bom_id=bom.id, item_id=material.id, qty=lc.qty, percentage=lc.percentage, bom_operation_id=resolved_op.id if resolved_op else None, is_decoupling_point=lc.is_decoupling_point)
             if lc.source_location_code:
                 loc_result = await db.execute(select(Location).filter(Location.code == lc.source_location_code))
                 loc = loc_result.scalars().first()

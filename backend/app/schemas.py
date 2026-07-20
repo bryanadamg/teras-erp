@@ -81,6 +81,7 @@ class BOMLineCreate(BaseModel):
     percentage: float = 0.0
     source_location_code: str | None = None
     bom_operation_sequence: Optional[int] = None
+    is_decoupling_point: bool | None = None  # null = inherit item-master default
 
 class BOMLineResponse(BaseModel):
     id: UUID
@@ -92,6 +93,7 @@ class BOMLineResponse(BaseModel):
     percentage: float = 0.0
     source_location_id: UUID | None = None
     bom_operation_id: UUID | None = None
+    is_decoupling_point: bool | None = None
 
     class Config:
         from_attributes = True
@@ -835,6 +837,7 @@ class ItemCreate(BaseModel):
     packaging_factor_ids: list[UUID] = []
     ends: int | None = None
     lot_tracked: bool = False
+    is_decoupling_point: bool = False
     min_stock_level: float | None = None
     default_source_location_id: UUID | None = None
     default_putaway_location_id: UUID | None = None
@@ -855,6 +858,7 @@ class ItemUpdate(BaseModel):
     packaging_factor_ids: list[UUID] | None = None
     ends: int | None = None
     lot_tracked: bool | None = None
+    is_decoupling_point: bool | None = None
     min_stock_level: float | None = None
     default_source_location_id: UUID | None = None
     default_putaway_location_id: UUID | None = None
@@ -879,6 +883,7 @@ class ItemResponse(BaseModel):
     packaging_factor_ids: list[UUID] = []
     ends: int | None = None
     lot_tracked: bool = False
+    is_decoupling_point: bool = False
     min_stock_level: float | None = None
     default_source_location_id: UUID | None = None
     default_putaway_location_id: UUID | None = None

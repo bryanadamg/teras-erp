@@ -21,7 +21,7 @@ export interface NettingNode {
     required_other: number;
     net_free: number;
     net_qty: number;
-    decision: string; // MAKE_ROOT | MAKE | RESIZE | SKIP | FORCED
+    decision: string; // MAKE_ROOT | MAKE | RESIZE | SKIP | FORCED | DECOUPLED
 }
 
 // Fetches the dry-run netting plan from the backend (debounced). Both the MO
@@ -65,6 +65,7 @@ const DECISION: Record<string, { label: string; bg: string; fg: string; bd: stri
     RESIZE: { label: 'Resize', bg: '#fef3c7', fg: '#92400e', bd: '#fbbf24' },
     SKIP: { label: 'In stock', bg: '#f1f5f9', fg: '#64748b', bd: '#cbd5e1' },
     FORCED: { label: 'Forced', bg: '#fff7ed', fg: '#c2410c', bd: '#fdba74' },
+    DECOUPLED: { label: 'Pooled separately', bg: '#faf5ff', fg: '#7e22ce', bd: '#e9d5ff' },
 };
 
 const num = (v: number) => (Math.round((v || 0) * 100) / 100).toLocaleString();
@@ -85,8 +86,9 @@ export default function NettingPlanTable({
     if (!nodes || nodes.length === 0)
         return <div style={{ ...box, padding: 14, fontSize: 12, color: '#94a3b8' }}>Pick a recipe and quantity to preview the plan.</div>;
 
-    const made = nodes.filter(n => n.decision !== 'SKIP').length;
+    const made = nodes.filter(n => n.decision !== 'SKIP' && n.decision !== 'DECOUPLED').length;
     const skipped = nodes.filter(n => n.decision === 'SKIP').length;
+    const decoupled = nodes.filter(n => n.decision === 'DECOUPLED').length;
     // With >1 finished good the component pool is consolidated/shared across them,
     // so it can't hang under a single root — section it and drop the misleading
     // "child of the last root" indent (component indent baselines at level 1).
@@ -112,6 +114,7 @@ export default function NettingPlanTable({
                 <strong style={{ fontSize: 11 }}>Creation plan</strong>
                 <span style={{ marginLeft: 'auto', color: '#15803d', fontWeight: 600 }}>{made} to make</span>
                 {skipped > 0 && <span style={{ color: '#64748b' }}>· {skipped} covered by stock</span>}
+                {decoupled > 0 && <span style={{ color: '#7e22ce' }}>· {decoupled} pooled separately</span>}
             </div>
 
             <div style={{ overflowX: 'auto' }}>
@@ -193,7 +196,7 @@ export default function NettingPlanTable({
                 padding: '5px 10px', fontSize: 9, color: '#94a3b8',
                 borderTop: classic ? '1px solid #c0bdb5' : '1px solid #f1f5f9',
             }}>
-                Net free = on hand + incoming − demand from other open orders, at the source location (rolled up across its spots). Components covered by stock are not produced.
+                Net free = on hand + incoming − demand from other open orders, at the source location (rolled up across its spots). Components covered by stock are not produced. "Pooled separately" items are decoupling points — their demand is recorded but no order is created here; replenish them on a standalone pooled order.
             </div>
         </div>
     );
