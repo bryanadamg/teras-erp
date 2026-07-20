@@ -20,7 +20,7 @@ import ProductionRunModal from './ProductionRunModal';
 import WorkOrderPanel from './WorkOrderPanel';
 const WOCompletionModal = dynamic(() => import('./WOCompletionModal'), { ssr: false });
 import MOCreationPreview from './MOCreationPreview';
-import { STATUS_COLORS, statusChipStyle, xpFont, xpInput, xpLabel, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton } from '../shared/xpTheme';
+import { STATUS_COLORS, statusChipStyle, xpFont, xpInput, xpLabel, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, SunkenPanel, SunkenPanelBody } from '../shared/xpTheme';
 
 export default function ManufacturingView({
     items,
@@ -911,15 +911,7 @@ export default function ManufacturingView({
       };
 
       return (
-          <div style={{
-              border: classic ? '1px solid #808080' : '1px solid #ced4da',
-              background: classic ? '#d8d3c8' : '#e9edf1',
-              boxShadow: classic
-                  ? 'inset 0 2px 5px rgba(0,0,0,0.28), inset 0 -2px 5px rgba(0,0,0,0.16)'
-                  : 'inset 0 2px 6px rgba(0,0,0,0.18), inset 0 -2px 6px rgba(0,0,0,0.10)',
-              padding: 5,
-              marginBottom: 6,
-          }}>
+          <SunkenPanel classic={classic} style={{ marginBottom: 6 }}>
           {/* ── TABS ── */}
           <div style={{
               display: 'flex',
@@ -960,7 +952,7 @@ export default function ManufacturingView({
           </div>
 
           {detailTab === 'bom' && (
-          <div style={{ display: 'flex', height: PANEL_BODY_H, background: classic ? '#f5f3ee' : '#f8f9fa', border: classic ? '1px solid #808080' : undefined }}>
+          <SunkenPanelBody classic={classic} style={{ display: 'flex', height: PANEL_BODY_H, padding: 0, border: classic ? '1px solid #808080' : undefined }}>
 
               {/* ── LEFT: MO Tree ── */}
               <div style={{
@@ -1371,7 +1363,7 @@ export default function ManufacturingView({
                   </div>
 
               </div>
-          </div>
+          </SunkenPanelBody>
           )}
 
           {detailTab === 'steps' && (
@@ -1393,7 +1385,7 @@ export default function ManufacturingView({
                   />
               </div>
           )}
-      </div>
+      </SunkenPanel>
       );
   };
 
@@ -1926,19 +1918,8 @@ export default function ManufacturingView({
                                                       {isExpanded && (
                                                           <tr>
                                                               <td colSpan={9} className="p-0 border-0">
-                                                              <div style={{
-                                                                  border: currentStyle === 'classic' ? '1px solid #808080' : '1px solid #ced4da',
-                                                                  background: currentStyle === 'classic' ? '#d8d3c8' : '#e9edf1',
-                                                                  boxShadow: currentStyle === 'classic'
-                                                                      ? 'inset 0 2px 5px rgba(0,0,0,0.28), inset 0 -2px 5px rgba(0,0,0,0.16)'
-                                                                      : 'inset 0 2px 6px rgba(0,0,0,0.18), inset 0 -2px 6px rgba(0,0,0,0.10)',
-                                                                  padding: 5,
-                                                              }}>
-                                                              <div style={{
-                                                                  background: currentStyle === 'classic' ? '#f5f3ee' : '#f8f9fa',
-                                                                  border: currentStyle === 'classic' ? '1px solid #808080' : '1px solid #dee2e6',
-                                                                  padding: currentStyle === 'classic' ? '6px 12px' : '8px 16px',
-                                                              }}>
+                                                              <SunkenPanel classic={currentStyle === 'classic'}>
+                                                              <SunkenPanelBody classic={currentStyle === 'classic'}>
                                                                   {isLoading ? (
                                                                       <span style={{ fontSize: 11, color: '#666', fontFamily: currentStyle === 'classic' ? 'Tahoma, Arial, sans-serif' : undefined }}>
                                                                           Loading material requirements...
@@ -2027,8 +2008,8 @@ export default function ManufacturingView({
                                                                           </table>
                                                                       </div>
                                                                   )}
-                                                              </div>
-                                                              </div>
+                                                              </SunkenPanelBody>
+                                                              </SunkenPanel>
                                                               </td>
                                                           </tr>
                                                       )}

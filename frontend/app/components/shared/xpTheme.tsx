@@ -537,3 +537,41 @@ export function FloatingMenu({ pos, items, minWidth = 175 }: { pos: { top: numbe
         </div>
     );
 }
+
+// ── Sunken expanded-row panel ───────────────────────────────────────────────
+// Standard shape for any "expand this table row" detail panel (WO tree/detail,
+// PR material requirements, and any future one): an inset/recessed outer frame
+// — reads as "this dropped out of the row above it" — holding a lighter inner
+// content box so the two layers stay visually distinct instead of the content
+// floating directly on the recessed background. Always pair the two: SunkenPanel
+// is just the frame, SunkenPanelBody is the content box; a frame with no body
+// (or a body used standalone) loses the contrast this is built for.
+export function SunkenPanel({ classic, children, style }: { classic: boolean; children: React.ReactNode; style?: React.CSSProperties }) {
+    return (
+        <div style={{
+            border: classic ? '1px solid #808080' : '1px solid #ced4da',
+            background: classic ? '#d8d3c8' : '#e9edf1',
+            boxShadow: classic
+                ? 'inset 0 2px 5px rgba(0,0,0,0.28), inset 0 -2px 5px rgba(0,0,0,0.16)'
+                : 'inset 0 2px 6px rgba(0,0,0,0.18), inset 0 -2px 6px rgba(0,0,0,0.10)',
+            padding: 5,
+            ...style,
+        }}>
+            {children}
+        </div>
+    );
+}
+
+/** Lighter content box that sits inside a SunkenPanel. Pass `style` to override background/border/padding for layouts that need their own (e.g. a fixed-height two-pane body). */
+export function SunkenPanelBody({ classic, children, style }: { classic: boolean; children: React.ReactNode; style?: React.CSSProperties }) {
+    return (
+        <div style={{
+            background: classic ? '#f5f3ee' : '#f8f9fa',
+            border: classic ? '1px solid #808080' : '1px solid #dee2e6',
+            padding: classic ? '6px 12px' : '8px 16px',
+            ...style,
+        }}>
+            {children}
+        </div>
+    );
+}
