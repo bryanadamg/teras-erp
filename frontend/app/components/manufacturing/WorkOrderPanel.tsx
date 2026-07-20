@@ -11,7 +11,7 @@ import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
-import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle } from '../shared/xpTheme';
+import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton } from '../shared/xpTheme';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -146,6 +146,10 @@ export default function WorkOrderPanel({
     const [leftoverWO, setLeftoverWO] = useState<WO | null>(null);
     const [overAssignWarning, setOverAssignWarning] = useState<{ totalAssigned: number; moQty: number } | null>(null);
     const [beamPlanOpen, setBeamPlanOpen] = useState(false);
+    // Floating "more actions" menu — Print / Edit / Delete
+    const { openId: openMenuId, pos: menuPos, toggle: toggleMenu, close: closeMenu } = useFloatingMenu();
+    // Floating status menu — click the status badge to change lifecycle status
+    const { openId: openStatusMenuId, pos: statusMenuPos, toggle: toggleStatusMenu, close: closeStatusMenu } = useFloatingMenu();
 
     // Work center group assigned to this MO's BOM
     const bomWcGroup = useMemo(() => {
@@ -314,7 +318,11 @@ export default function WorkOrderPanel({
     );
 
     // Shared column widths for the table header + every data row so cells line up.
-    const COLS = '92px 62px 82px minmax(110px,1fr) 96px 92px 108px 34px 92px 116px';
+    // Work Center is capped (not an unbounded 1fr) so it can't soak up all the
+    // leftover width on wide screens and crowd the Actions buttons to the edge.
+    // Actions is icon-only (Stage/Leftover/Log + a [...] menu for Print/Edit/Delete),
+    // so it only needs room for those small squares, not full-word buttons.
+    const COLS = '96px 64px 84px minmax(110px,200px) 100px 100px 120px 40px 100px 108px';
 
     return (
         <div style={{ fontFamily: xpFont, fontSize: 11, background: '#fff' }}>
@@ -398,8 +406,8 @@ export default function WorkOrderPanel({
 
                 {sorted.length > 0 && (
                     <div style={{
-                        display: 'grid', gridTemplateColumns: COLS, gap: 6, alignItems: 'center',
-                        padding: '3px 7px', background: '#eef0f3', borderBottom: '1px solid #d4d0c8',
+                        display: 'grid', gridTemplateColumns: COLS, gap: 10, alignItems: 'center',
+                        padding: '4px 8px', background: '#eef0f3', borderBottom: '1px solid #d4d0c8',
                         fontSize: 9, fontWeight: 'bold', color: '#555', textTransform: 'uppercase', letterSpacing: '0.03em',
                     }}>
                         <span>WO Code</span>
@@ -562,8 +570,8 @@ export default function WorkOrderPanel({
                             ) : (
                                 /* ── Display row (table row) ── */
                                 <div style={{
-                                    display: 'grid', gridTemplateColumns: COLS, gap: 6, alignItems: 'center',
-                                    padding: '4px 7px',
+                                    display: 'grid', gridTemplateColumns: COLS, gap: 10, alignItems: 'center',
+                                    padding: '6px 8px',
                                     background: idx % 2 === 0 ? '#fff' : '#fafaf8',
                                     borderBottom: '1px solid #e8e6e0',
                                 }}>
@@ -665,88 +673,45 @@ export default function WorkOrderPanel({
                                         {wo.planned_duration_hours != null ? `${wo.planned_duration_hours}h` : '—'}
                                     </span>
 
-                                    {/* Status select */}
-                                    <select
-                                        value={wo.status}
-                                        onChange={e => handleStatusChange(wo, e.target.value)}
-                                        disabled={!canLog(wo)}
-                                        style={{
-                                            fontFamily: xpFont, fontSize: 9, height: 16,
-                                            border: '1px solid #aca899', background: '#ece9d8',
-                                            color: STATUS_BORDER[wo.status] || '#000',
-                                            padding: '0 2px', width: '100%',
-                                        }}
+                                    {/* Status badge — click to change (same chip style as the Work Orders list) */}
+                                    <div
+                                        className={canLog(wo) ? 'xp-menu-trigger' : undefined}
+                                        onClick={canLog(wo) ? (e) => toggleStatusMenu(wo.id, e) : undefined}
+                                        style={{ cursor: canLog(wo) ? 'pointer' : 'default', justifySelf: 'start' }}
                                     >
-                                        {['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].map(s => (
-                                            <option key={s} value={s}>{s.replace('_', ' ')}</option>
-                                        ))}
-                                    </select>
+                                        <span style={statusChipStyle(wo.status)}>{(wo.status || 'PENDING').replace('_', ' ')}</span>
+                                    </div>
 
-                                    {/* Actions */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'nowrap', justifySelf: 'end' }}>
+                                    {/* Actions — icon-only inline buttons + a [...] menu for Print/Edit/Delete */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'nowrap', justifyContent: 'flex-end', justifySelf: 'end' }}>
                                         {canEdit(wo) && (wo.bom_operation_id || ['WEAVING', 'DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase())) && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
-                                            <button
+                                            <XPActionButton
+                                                classic
+                                                tone="primary"
+                                                icon="bi-box-seam"
+                                                title="Stage — issue this step's materials to the line"
                                                 onClick={() => (canScanStage(wo) ? setScanStageWO(wo) : setStageWO(wo))}
-                                                title="Issue this step's materials to the line"
-                                                style={{
-                                                    fontFamily: xpFont, fontSize: 10, padding: '0px 6px',
-                                                    background: 'linear-gradient(to bottom, #cfe0ff, #8fb3e8)',
-                                                    border: '1px solid #335599', cursor: 'pointer', color: '#0a2a66',
-                                                }}
-                                            >
-                                                Stage
-                                            </button>
+                                            />
                                         )}
                                         {canEdit(wo) && ['WEAVING', 'TENUN'].includes((wo.work_center_type || '').toUpperCase()) && (wo.status === 'IN_PROGRESS' || wo.status === 'COMPLETED') && (
-                                            <button
-                                                onClick={() => setLeftoverWO(wo)}
+                                            <XPActionButton
+                                                classic
+                                                tone="warning"
+                                                icon="bi-recycle"
                                                 title="Register leftover warp as a new beam lot"
-                                                style={{
-                                                    fontFamily: xpFont, fontSize: 10, padding: '0px 6px',
-                                                    background: 'linear-gradient(to bottom, #ffe8c0, #eab060)',
-                                                    border: '1px solid #995500', cursor: 'pointer', color: '#663300',
-                                                }}
-                                            >
-                                                Leftover
-                                            </button>
+                                                onClick={() => setLeftoverWO(wo)}
+                                            />
                                         )}
                                         {canLog(wo) && onLogWO && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
-                                            <button
+                                            <XPActionButton
+                                                classic
+                                                tone="success"
+                                                icon="bi-plus-lg"
+                                                title="Log production output"
                                                 onClick={() => onLogWO(wo)}
-                                                style={{
-                                                    fontFamily: xpFont, fontSize: 10, padding: '0px 6px',
-                                                    background: 'linear-gradient(to bottom, #b0e8b0, #70c870)',
-                                                    border: '1px solid #0a3e0a', cursor: 'pointer', color: '#004000',
-                                                }}
-                                            >
-                                                Log
-                                            </button>
+                                            />
                                         )}
-                                        {parentMO && (
-                                            <button
-                                                onClick={() => setPrintWO(wo)}
-                                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#555', padding: '0 2px' }}
-                                                title="Print Kartu Kerja"
-                                            >
-                                                <i className="bi bi-printer" />
-                                            </button>
-                                        )}
-                                        {canEdit(wo) && (
-                                            <button
-                                                onClick={() => startEdit(wo)}
-                                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#0058e6', padding: '0 2px' }}
-                                            >
-                                                <i className="bi bi-pencil" />
-                                            </button>
-                                        )}
-                                        {canEdit(wo) && (
-                                            <button
-                                                onClick={() => onDelete(wo.id)}
-                                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#aa0000', padding: '0 2px' }}
-                                            >
-                                                <i className="bi bi-trash" />
-                                            </button>
-                                        )}
+                                        <MenuTriggerButton classic onClick={(e) => toggleMenu(wo.id, e)} />
                                     </div>
                                 </div>
                             )}
@@ -921,6 +886,51 @@ export default function WorkOrderPanel({
                     </div>
                 )}
             </div>
+
+            {/* Floating "more actions" menu — Print / Edit / Delete */}
+            {openMenuId && (() => {
+                const menuWO = sorted.find(w => w.id === openMenuId);
+                if (!menuWO) return null;
+                return (
+                    <FloatingMenu
+                        pos={menuPos}
+                        items={[
+                            {
+                                key: 'print', icon: 'bi-printer', label: 'Print',
+                                hidden: !parentMO,
+                                onClick: () => { closeMenu(); setPrintWO(menuWO); },
+                            },
+                            {
+                                key: 'edit', icon: 'bi-pencil', label: 'Edit',
+                                hidden: !canEdit(menuWO),
+                                onClick: () => { closeMenu(); startEdit(menuWO); },
+                            },
+                            {
+                                key: 'delete', icon: 'bi-trash', label: 'Delete', danger: true,
+                                hidden: !canEdit(menuWO),
+                                onClick: () => { closeMenu(); onDelete(menuWO.id); },
+                            },
+                        ]}
+                    />
+                );
+            })()}
+
+            {/* Floating status menu — change a WO's lifecycle status */}
+            {openStatusMenuId && (() => {
+                const menuWO = sorted.find(w => w.id === openStatusMenuId);
+                if (!menuWO) return null;
+                return (
+                    <FloatingMenu
+                        pos={statusMenuPos}
+                        items={['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].map(s => ({
+                            key: `status-${s}`,
+                            icon: s === menuWO.status ? 'bi-check2' : undefined,
+                            label: s.replace('_', ' '),
+                            onClick: () => { closeStatusMenu(); handleStatusChange(menuWO, s); },
+                        }))}
+                    />
+                );
+            })()}
 
             {printWO && parentMO && (
                 <WOBulkPrintModal

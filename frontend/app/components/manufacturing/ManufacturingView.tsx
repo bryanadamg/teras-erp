@@ -1,26 +1,19 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import dynamic from 'next/dynamic';
 import CodeConfigModal, { CodeConfig, buildCodeParts } from '../shared/CodeConfigModal';
-import CalendarView from '../shared/CalendarView';
 import SearchableSelect from '../shared/SearchableSelect';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { useTimezone } from '../../context/TimezoneContext';
 import ModalWrapper from '../shared/ModalWrapper';
-import Pager from '../shared/Pager';
-import PrintHeader from '../shared/PrintHeader';
-import type { PrintSettings } from './MOPrintModal';
-const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
-const PRMaterialPullSheetModal = dynamic(() => import('./PRMaterialPullSheetModal'), { ssr: false });
 import ProductionRunModal from './ProductionRunModal';
-import WorkOrderPanel from './WorkOrderPanel';
-const WOCompletionModal = dynamic(() => import('./WOCompletionModal'), { ssr: false });
 import MOCreationPreview from './MOCreationPreview';
-import { STATUS_COLORS, statusChipStyle, xpFont, xpInput, xpLabel, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, SunkenPanel, SunkenPanelBody, ProgressBar } from '../shared/xpTheme';
+import { xpFont, xpInput, xpLabel } from '../shared/xpTheme';
+import { useManufacturingHelpers } from './useManufacturingHelpers';
+import ProductionRunsTab from './ProductionRunsTab';
+import ManufacturingOrdersTab from './ManufacturingOrdersTab';
 
 export default function ManufacturingView({
     items,
@@ -61,17 +54,13 @@ export default function ManufacturingView({
   const { showToast } = useToast();
   const router = useRouter();
   const { t } = useLanguage();
-  const { authFetch, companyProfile, fetchData, pagination, itemIndex } = useData();
+  const { authFetch, companyProfile, pagination, itemIndex } = useData();
   const { hasPermission } = useUser();
   const canManage = hasPermission('work_order.manage');
   const { moSearch, setMoSearch, prSearch: prSearchCtx, setPrSearch: setPrSearchCtx } = pagination;
   const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
   const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
   const [viewMode, setViewMode] = useState('list');
-
-  // Keep a ref so scanner callbacks always access the latest manufacturingOrders without stale closure issues
-  const workOrdersRef = useRef<any[]>(manufacturingOrders);
-  useEffect(() => { workOrdersRef.current = manufacturingOrders; }, [manufacturingOrders]);
 
   // Tab state: 'production-runs' | 'manufacturing-orders'
   const [activeTab, setActiveTab] = useState<'production-runs' | 'manufacturing-orders'>(initialTab || 'production-runs');
@@ -82,11 +71,6 @@ export default function ManufacturingView({
   const [prModalSalesOrderId, setPrModalSalesOrderId] = useState<string | undefined>(undefined);
   const [prModalSalesOrderCode, setPrModalSalesOrderCode] = useState<string | undefined>(undefined);
   const [prModalInitialEntries, setPrModalInitialEntries] = useState<Array<{bomId: string; sizeQtys: Record<string,string>; totalQty: string; locked?: boolean}> | undefined>(undefined);
-
-  // Derived Pagination
-  const totalPages = Math.ceil(totalItems / pageSize);
-  const startRange = (currentPage - 1) * pageSize + 1;
-  const endRange = Math.min(currentPage * pageSize, totalItems);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newWO, setNewWO] = useState({
@@ -101,24 +85,7 @@ export default function ManufacturingView({
       bom_size_id: '',
       create_nested: true,
   });
-  
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [printPreviewWO, setPrintPreviewWO] = useState<any>(null);
-  const [printHideChildren, setPrintHideChildren] = useState(false);
-  const [printPreviewPR, setPrintPreviewPR] = useState<any>(null);
 
-  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
-  const { openId: openMoMenuId, pos: moMenuPos, toggle: toggleMoMenu, close: closeMoMenu } = useFloatingMenu();
-  const { openId: openPrMenuId, pos: prMenuPos, toggle: togglePrMenu, close: closePrMenu } = useFloatingMenu();
-  const [expandedPRs, setExpandedPRs] = useState<Record<string, boolean>>({});
-  const [expandedDetailTabs, setExpandedDetailTabs] = useState<Record<string, 'bom' | 'steps'>>({});
-  const [prMaterialReqs, setPrMaterialReqs] = useState<Record<string, any[]>>({});
-  const [prMaterialReqsLoading, setPrMaterialReqsLoading] = useState<Record<string, boolean>>({});
-  const [selectedTreeNodes, setSelectedTreeNodes] = useState<Record<string, string>>({});
-  const [scanningWOId, setScanningWOId] = useState<string | null>(null);
-  const [completionMO, setCompletionMO] = useState<any>(null);
-  const [completionWO, setCompletionWO] = useState<any>(null);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [codeConfig, setCodeConfig] = useState<CodeConfig>({
@@ -134,13 +101,6 @@ export default function ManufacturingView({
   // Local search inputs (debounced into context, which drives server-side paginated search)
   const [moCodeFilter, setMoCodeFilter] = useState<string>(initialMOFilter || moSearch || '');
   const [prSearch, setPrSearch] = useState<string>(initialPRFilter || prSearchCtx || '');
-  const [editAttrsModal, setEditAttrsModal] = useState<{ mo: any; selected: string[] } | null>(null);
-  // Set/confirm an approved Color on a root MO ordered against a pending lab dip.
-  const [editColorModal, setEditColorModal] = useState<{ mo: any } | null>(null);
-  const [colorModalSearch, setColorModalSearch] = useState('');
-  const [colorModalResults, setColorModalResults] = useState<any[]>([]);
-  const [colorModalLabdips, setColorModalLabdips] = useState<any[]>([]);
-  const [putawayModal, setPutawayModal] = useState<{ mo: any; bins: any[]; suggested: string | null; reason: string | null; selected: string; loading: boolean } | null>(null);
 
   useEffect(() => {
       if (initialMOFilter) setMoCodeFilter(initialMOFilter);
@@ -177,32 +137,11 @@ export default function ManufacturingView({
       // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-expand the matching MO when arriving via a code deep-link
-  useEffect(() => {
-      if (!moCodeFilter || manufacturingOrders.length === 0) return;
-      const match = manufacturingOrders.find((wo: any) =>
-          wo.code.toLowerCase().includes(moCodeFilter.toLowerCase())
-      );
-      if (match) setExpandedRows(prev => ({ ...prev, [match.id]: true }));
-  }, [moCodeFilter, manufacturingOrders]);
-
   const { uiStyle: currentStyle } = useTheme();
+  const classic = currentStyle === 'classic';
 
-  const defaultPrintSettings: PrintSettings = {
-    showBOMTable: true,
-    showTimeline: true,
-    showChildMOs: false,
-    showSignatureLine: true,
-    showTechnicalFields: true,
-    showFillFields: true,
-    showSamplePhoto: true,
-    headerCompanyName: '',
-    headerDepartment: '',
-    headerApprovedBy: '',
-    headerReference: '',
-  };
-
-  const [printSettings, setPrintSettings] = useState<PrintSettings>(defaultPrintSettings);
+  const helpers = useManufacturingHelpers({ items, boms, locations, operations, workCenters, attributes, stockBalance, itemIndex });
+  const { getItemName, getAttributeValueName, getBomSizeLabel } = helpers;
 
   // Handle Automated Creation from Sales Order
   useEffect(() => {
@@ -289,33 +228,7 @@ export default function ManufacturingView({
       if (savedConfig) {
           try { setCodeConfig(JSON.parse(savedConfig)); } catch (e) {}
       }
-      const savedPrintSettings = localStorage.getItem('mo_print_settings');
-      if (savedPrintSettings) {
-          try { setPrintSettings(JSON.parse(savedPrintSettings)); } catch (e) {}
-      }
   }, []);
-
-  useEffect(() => {
-      localStorage.setItem('mo_print_settings', JSON.stringify(printSettings));
-  }, [printSettings]);
-
-  useEffect(() => {
-      const expandedIds = Object.keys(expandedRows).filter(id => expandedRows[id]);
-      for (const woId of expandedIds) {
-          const wo = manufacturingOrders.find((w: any) => w.id === woId);
-          if (!wo) continue;
-          const moMap: Record<string, any> = {};
-          if (wo.production_run_id) {
-              const pr = productionRuns.find((p: any) => p.id === wo.production_run_id);
-              if (pr) {
-                  for (const mo of (pr.manufacturing_orders || [])) {
-                      moMap[mo.id] = mo;
-                  }
-              }
-          }
-          const nodes = flattenTree(wo, 0, moMap);
-      }
-  }, [expandedRows, manufacturingOrders, productionRuns]);
 
   const buildWOBasePattern = (bomId: string, config = codeConfig) => {
       const bom = boms.find((b: any) => b.id === bomId);
@@ -372,93 +285,6 @@ export default function ManufacturingView({
       window.print();
   };
 
-  const handlePrintWO = (wo: any, hideChildren = false) => {
-      setPrintHideChildren(hideChildren);
-      setPrintPreviewWO(wo);
-  };
-
-  const handlePrintPR = (pr: any) => {
-      if (!prMaterialReqs[pr.id] && !prMaterialReqsLoading[pr.id]) fetchPRMaterialRequirements(pr.id);
-      setPrintPreviewPR(pr);
-  };
-
-  // Shared search bar for the PR / MO list tabs
-  const renderSearchBar = (
-      value: string,
-      onChange: (v: string) => void,
-      placeholder: string,
-      total: number,
-  ) => {
-      const classic = currentStyle === 'classic';
-      return (
-          <div className="no-print" style={{
-              padding: classic ? '5px 8px' : '8px 12px',
-              borderBottom: classic ? '1px solid #808080' : '1px solid #dee2e6',
-              background: classic ? '#ece9d8' : '#fff',
-              display: 'flex', alignItems: 'center', gap: 8,
-          }}>
-              <div style={{ position: 'relative', flex: '0 0 320px', maxWidth: '100%' }}>
-                  <i className="bi bi-search" style={{
-                      position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)',
-                      fontSize: 11, color: '#888', pointerEvents: 'none',
-                  }}></i>
-                  <input
-                      type="text"
-                      value={value}
-                      onChange={(e) => onChange(e.target.value)}
-                      placeholder={placeholder}
-                      style={{
-                          width: '100%', padding: '3px 24px 3px 26px',
-                          fontFamily: classic ? 'Tahoma, Arial, sans-serif' : undefined,
-                          fontSize: classic ? 11 : 13,
-                          border: classic ? '1px solid' : '1px solid #ced4da',
-                          borderColor: classic ? '#808080 #dfdfdf #dfdfdf #808080' : '#ced4da',
-                          borderRadius: classic ? 0 : 4,
-                          color: '#000', background: '#fff',
-                      }}
-                  />
-                  {value && (
-                      <button
-                          onClick={() => onChange('')}
-                          title="Clear search"
-                          style={{
-                              position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)',
-                              border: 'none', background: 'transparent', cursor: 'pointer',
-                              color: '#888', fontSize: 13, lineHeight: 1, padding: '0 4px',
-                          }}
-                      >x</button>
-                  )}
-              </div>
-              {value && (
-                  <span style={{ fontSize: classic ? 10 : 12, color: '#666' }}>
-                      {total} result{total === 1 ? '' : 's'}
-                  </span>
-              )}
-          </div>
-      );
-  };
-
-  // Shared paginator footer for the PR / MO list tabs (server-side paginated)
-  const renderPager = (page: number, total: number, onPage: (p: number) => void) => (
-      <Pager page={page} total={total} pageSize={pageSize} onPageChange={onPage} hideWhenEmpty />
-  );
-
-  // Text search is server-side (paginated). Only the date range is filtered client-side here.
-  const filteredWorkOrders = manufacturingOrders.filter((wo: any) => {
-      const date = new Date(wo.created_at);
-      const start = startDate ? new Date(startDate) : null;
-      const end = endDate ? new Date(endDate) : null;
-      if (start && date < start) return false;
-      if (end) {
-          const endDateTime = new Date(end);
-          endDateTime.setHours(23, 59, 59, 999);
-          if (date > endDateTime) return false;
-      }
-      return true;
-  });
-
-  const filteredProductionRuns = productionRuns || [];
-
   const handleBOMChange = async (bomId: string) => {
       const base = buildWOBasePattern(bomId);
       const suggestedCode = base ? await fetchAvailableCode(base) : '';
@@ -508,987 +334,8 @@ export default function ManufacturingView({
       }
   };
 
-  const toggleRow = (id: string) => {
-      setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  // From the calendar: jump to the MO's list row, expand it, and scroll it into view.
-  const openMOFromCalendar = (id: string) => {
-      setViewMode('list');
-      setExpandedRows(prev => ({ ...prev, [id]: true }));
-      setTimeout(() => {
-          document.getElementById(`mo-row-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 100);
-  };
-
-  // Helpers
-  const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || itemIndex?.[String(id)]?.name || id;
-  const getItemCode = (id: string) => items.find((i: any) => i.id === id)?.code || itemIndex?.[String(id)]?.code || id;
-  const getItemUom = (id: string) => items.find((i: any) => i.id === id)?.uom || '';
-  const getItemEnds = (id: string) => { const v = items.find((i: any) => i.id === id)?.ends; return v != null ? v : null; };
-  const uomBadgeStyle: React.CSSProperties = { background: '#dde8f5', border: '1px solid #7f9db9', color: '#336', fontSize: 9, padding: '0 4px', whiteSpace: 'nowrap', fontWeight: 'normal' };
-  const getBOMCode = (id: string) => boms.find((b: any) => b.id === id)?.code || id;
-  const getLocationName = (id: string) => locations.find((l: any) => l.id === id)?.name || id;
-  const getOpName = (id: string) => operations.find((o: any) => o.id === id)?.name || id;
-  const getWCName = (id: string) => workCenters.find((w: any) => w.id === id)?.name || id;
-
-  const findNodeById = (node: any, id: string): any => {
-      if (node.id === id) return node;
-      for (const child of (node.child_mos || [])) {
-          const found = findNodeById(child, id);
-          if (found) return found;
-      }
-      return null;
-  };
-
-  const findNodeByCode = (code: string): any => {
-      for (const wo of workOrdersRef.current) {
-          const found = findNodeByCodeInTree(wo, code);
-          if (found) return found;
-      }
-      // Also search shared component MOs from production runs
-      for (const pr of productionRuns) {
-          for (const mo of (pr.manufacturing_orders || [])) {
-              if (mo.is_shared_component && mo.code === code) return mo;
-          }
-      }
-      return null;
-  };
-
-  const findNodeByCodeInTree = (node: any, code: string): any => {
-      if (node.code === code) return node;
-      for (const child of (node.child_mos || [])) {
-          const found = findNodeByCodeInTree(child, code);
-          if (found) return found;
-      }
-      return null;
-  };
-
-  const flattenTree = (node: any, level = 0, moMap: Record<string, any> = {}, isShared = false): Array<{wo: any; level: number; isShared: boolean}> => {
-      const result: Array<{wo: any; level: number; isShared: boolean}> = [{wo: node, level, isShared}];
-      for (const child of (node.child_mos || [])) {
-          result.push(...flattenTree(child, level + 1, moMap, false));
-      }
-      // Include shared component MOs linked via mo_dependencies
-      for (const reqId of (node.required_mo_ids || [])) {
-          const reqMO = moMap[reqId];
-          if (reqMO) {
-              result.push(...flattenTree(reqMO, level + 1, moMap, true));
-          }
-      }
-      return result;
-  };
-  
-  const getAttributeValueName = (valId: string) => {
-      for (const attr of attributes) {
-          const val = attr.values.find((v: any) => v.id === valId);
-          if (val) return val.value;
-      }
-      return valId;
-  };
-
-  const handleUpdateMOAttributes = async (moId: string, attributeValueIds: string[]) => {
-      try {
-          const res = await authFetch(`${API_BASE}/manufacturing-orders/${moId}/attributes`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ attribute_value_ids: attributeValueIds }),
-          });
-          if (!res.ok) {
-              const err = await res.json().catch(() => ({}));
-              showToast(err.detail || 'Failed to update attributes', 'error');
-              return;
-          }
-          setEditAttrsModal(null);
-          showToast('Attributes updated', 'success');
-          fetchData();
-      } catch {
-          showToast('Failed to update attributes', 'error');
-      }
-  };
-
-  const handleSetMOColor = async (moId: string, colorId: string | null) => {
-      try {
-          const res = await authFetch(`${API_BASE}/manufacturing-orders/${moId}/color`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ color_id: colorId }),
-          });
-          if (!res.ok) {
-              const err = await res.json().catch(() => ({}));
-              showToast(err.detail || 'Failed to set color', 'error');
-              return;
-          }
-          setEditColorModal(null);
-          setColorModalSearch('');
-          setColorModalResults([]);
-          showToast('Color set on order', 'success');
-          fetchData();
-      } catch {
-          showToast('Failed to set color', 'error');
-      }
-  };
-
-  // Color modal: server-side Color Library search + the item's pending lab dips
-  // (shown for reference, so the planner can see approval progress).
-  useEffect(() => {
-      if (!editColorModal) { setColorModalResults([]); return; }
-      const q = colorModalSearch.trim();
-      const h = setTimeout(async () => {
-          try {
-              const res = await authFetch(`${API_BASE}/colors?search=${encodeURIComponent(q)}&size=20`);
-              if (res.ok) {
-                  const data = await res.json();
-                  setColorModalResults(Array.isArray(data) ? data : (data.items || []));
-              }
-          } catch { /* transient */ }
-      }, 300);
-      return () => clearTimeout(h);
-  }, [colorModalSearch, editColorModal]);
-
-  useEffect(() => {
-      if (!editColorModal?.mo?.item_id) { setColorModalLabdips([]); return; }
-      let cancelled = false;
-      (async () => {
-          try {
-              const res = await authFetch(`${API_BASE}/lab-dips/pending-variants?item_id=${encodeURIComponent(editColorModal.mo.item_id)}`);
-              if (res.ok && !cancelled) setColorModalLabdips(await res.json());
-          } catch { /* transient */ }
-      })();
-      return () => { cancelled = true; };
-  }, [editColorModal]);
-
-  // Putaway bin: planning decides where the output will be stored before
-  // production finishes — the suggestion endpoint proposes, planner saves.
-  const openPutawayModal = async (mo: any) => {
-      setPutawayModal({ mo, bins: [], suggested: null, reason: null, selected: mo.planned_putaway_location_id || '', loading: true });
-      try {
-          const res = await authFetch(`${API_BASE}/manufacturing-orders/${mo.id}/putaway-suggestion`);
-          const data = res.ok ? await res.json() : null;
-          setPutawayModal(prev => prev && prev.mo.id === mo.id ? {
-              ...prev,
-              loading: false,
-              bins: data?.bins || [],
-              suggested: data?.suggested_location_id || null,
-              reason: data?.reason || null,
-              selected: prev.selected || data?.suggested_location_id || '',
-          } : prev);
-      } catch {
-          setPutawayModal(prev => prev && prev.mo.id === mo.id ? { ...prev, loading: false } : prev);
-      }
-  };
-
-  const handleSavePutaway = async (moId: string, locationId: string) => {
-      try {
-          const res = await authFetch(`${API_BASE}/manufacturing-orders/${moId}/putaway`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ location_id: locationId || null }),
-          });
-          if (!res.ok) {
-              const err = await res.json().catch(() => ({}));
-              showToast(err.detail || 'Failed to set putaway bin', 'error');
-              return;
-          }
-          setPutawayModal(null);
-          showToast(locationId ? 'Putaway bin saved' : 'Putaway bin cleared', 'success');
-          fetchData();
-      } catch {
-          showToast('Failed to set putaway bin', 'error');
-      }
-  };
-
-  const getBomSizeLabel = (bomId: string, bomSizeId: string, snapshot?: any): string => {
-      const src = snapshot || (() => {
-          const bom = boms.find((b: any) => b.id === bomId);
-          return bom ? (bom.sizes || []).find((s: any) => s.id === bomSizeId) : null;
-      })();
-      if (!src) return '';
-      const parts: string[] = [];
-      const sizeName = src.size_name || src.size?.name;
-      if (sizeName) parts.push(sizeName);
-      if (src.label) parts.push(src.label);
-      if (src.target_measurement != null) {
-          let meas = `${parseFloat(src.target_measurement)}`;
-          if (src.measurement_min != null && src.measurement_max != null) {
-              meas += ` (${parseFloat(src.measurement_min)}–${parseFloat(src.measurement_max)})`;
-          }
-          parts.push(meas + ' cm');
-      }
-      return parts.join(' — ') || '';
-  };
-
-  const getStatusBadge = (status: string) => {
-      switch(status) {
-          case 'COMPLETED': return 'bg-success';
-          case 'IN_PROGRESS': return 'bg-warning text-dark';
-          case 'CANCELLED': return 'bg-danger';
-          default: return 'bg-secondary';
-      }
-  };
-
-  const { formatDate: tzFormatDate, formatDateTime: tzFormatDateTime } = useTimezone();
-
-  const formatDate = (date: string | null) => {
-      if (!date) return '-';
-      return tzFormatDate(date);
-  };
-
-  const formatDateTime = (date: string | null) => {
-      if (!date) return '-';
-      return tzFormatDateTime(date);
-  };
-
-  const getDueDateWarning = (wo: any) => {
-      if (wo.status === 'COMPLETED' || wo.status === 'CANCELLED') return null;
-      if (!wo.target_end_date) return null;
-      const due = new Date(wo.target_end_date);
-      const now = new Date();
-      const diffDays = (due.getTime() - now.getTime()) / (1000 * 3600 * 24);
-      if (diffDays < 0) return { type: 'danger', icon: 'bi-exclamation-octagon-fill', text: 'Overdue!' };
-      if (diffDays < 2) return { type: 'warning', icon: 'bi-exclamation-triangle-fill', text: 'Due Soon' };
-      return null;
-  };
-
-  const calculateRequiredQty = (baseQty: number, line: any, bom: any) => {
-      let required: number;
-      if (line.percentage > 0) {
-          required = (baseQty * line.percentage) / 100;
-      } else {
-          required = baseQty * parseFloat(line.qty || 0);
-      }
-      const tolerance = parseFloat(bom?.tolerance_percentage || 0);
-      if (tolerance > 0) {
-          required = required * (1 + (tolerance / 100));
-      }
-      return required;
-  };
-
-  const checkStockAvailability = (item_id: string, location_id: string, attribute_value_ids: string[] = [], required_qty: number) => {
-      const targetKey = [...attribute_value_ids].map(String).sort().join(',');
-      const matchingEntries = stockBalance.filter((s: any) => {
-          if (String(s.item_id) !== String(item_id)) return false;
-          if (String(s.location_id) !== String(location_id)) return false;
-          if (attribute_value_ids.length > 0) {
-              const sKey = [...(s.attribute_value_ids || [])].map(String).sort().join(',');
-              return sKey === targetKey;
-          }
-          return true;
-      });
-      const available = matchingEntries.reduce((sum: number, e: any) => sum + parseFloat(e.qty), 0);
-      return { available, isEnough: available >= required_qty };
-  };
-
-  const getBeamBatchCount = (item_id: string) => {
-      const keys = new Set<string>();
-      for (const s of (stockBalance as any[])) {
-          if (String(s.item_id) !== String(item_id)) continue;
-          if (!s.batch_key) continue;
-          if (parseFloat(s.qty) <= 0) continue;
-          keys.add(s.batch_key);
-      }
-      return keys.size;
-  };
-
-  // Batch-identity items (beams, other lot-tracked items) always book stock with
-  // attribute_value_ids=[] — the batch/lot itself is the identity, attrs are
-  // intentionally not stamped (see backend api/manufacturing.py, beam_service.py).
-  // A BOM line variant filter must not be applied to these or on-hand batch stock
-  // never matches and always reads as "No Stock".
-  const isBatchIdentityItem = (item_id: string) => {
-      const item = items.find((i: any) => String(i.id) === String(item_id));
-      if (!item) return false;
-      if (item.lot_tracked) return true;
-      const leafCategory = (item.category_path || [])[item.category_path?.length - 1];
-      return (leafCategory || '').toLowerCase() === 'beam';
-  };
-
-  const getStockAcrossLocations = (item_id: string, attribute_value_ids: string[] = [], required_qty: number) => {
-      const effectiveAttrIds = isBatchIdentityItem(item_id) ? [] : attribute_value_ids;
-      const targetKey = [...effectiveAttrIds].map(String).sort().join(',');
-      const byLocation: Record<string, number> = {};
-      for (const s of (stockBalance as any[])) {
-          if (String(s.item_id) !== String(item_id)) continue;
-          if (parseFloat(s.qty) <= 0) continue;
-          if (effectiveAttrIds.length > 0) {
-              const sKey = [...(s.attribute_value_ids || [])].map(String).sort().join(',');
-              if (sKey !== targetKey) continue;
-          }
-          byLocation[s.location_id] = (byLocation[s.location_id] || 0) + parseFloat(s.qty);
-      }
-      const total = Object.values(byLocation).reduce((a, b) => a + b, 0);
-      const locs = Object.entries(byLocation).map(([locId, qty]) => ({
-          locId,
-          code: (locations as any[]).find((l: any) => l.id === locId)?.code || locId,
-          qty,
-      })).sort((a, b) => b.qty - a.qty);
-      return { total, isEnough: total >= required_qty, locs };
-  };
-
-  const fetchPRMaterialRequirements = async (prId: string) => {
-      setPrMaterialReqsLoading(prev => ({ ...prev, [prId]: true }));
-      try {
-          const res = await authFetch(`${API_BASE}/production-runs/${prId}/material-requirements`);
-          if (res.ok) {
-              const data = await res.json();
-              setPrMaterialReqs(prev => ({ ...prev, [prId]: data }));
-          }
-      } finally {
-          setPrMaterialReqsLoading(prev => ({ ...prev, [prId]: false }));
-      }
-  };
-
-  const togglePR = (prId: string) => {
-      setExpandedPRs(prev => {
-          const expanding = !prev[prId];
-          if (expanding) fetchPRMaterialRequirements(prId);
-          return { ...prev, [prId]: expanding };
-      });
-  };
-
-  // Eager-fetch material requirements for every visible PR row (not just the
-  // expanded one) so the Materials-status column has data to show up front.
-  useEffect(() => {
-      (productionRuns || []).forEach((pr: any) => {
-          if (!prMaterialReqs[pr.id] && !prMaterialReqsLoading[pr.id]) {
-              fetchPRMaterialRequirements(pr.id);
-          }
-      });
-  }, [productionRuns]);
-
-  // --- Inline QR Scanner Widget ---
-  const InlineScanWidget = ({ rootWoId, onClose }: { rootWoId: string; onClose: () => void }) => {
-      const scannerRef2 = useRef<any>(null);
-      const readerId = `reader-${rootWoId}`;
-
-      useEffect(() => {
-          let cancelled = false;
-          const timer = setTimeout(() => {
-              if (!document.getElementById(readerId)) return;
-              // html5-qrcode is only needed while this widget is mounted — load it
-              // on demand instead of paying its parse cost on every MO page visit.
-              import('html5-qrcode').then(({ Html5QrcodeScanner }) => {
-                  if (cancelled || !document.getElementById(readerId)) return;
-                  const scanner = new Html5QrcodeScanner(readerId, { fps: 10, qrbox: { width: 180, height: 180 } }, false);
-                  scannerRef2.current = scanner;
-                  scanner.render((code: string) => {
-                      const found = findNodeByCode(code);
-                      if (found) {
-                          scanner.clear().catch(() => {});
-                          onClose();
-                          if (found.status === 'PENDING') {
-                              onUpdateStatus(found.id, 'IN_PROGRESS');
-                          } else if (found.status === 'IN_PROGRESS') {
-                              setCompletionMO(found);
-                          } else {
-                              showToast(`MO "${code}" is already ${found.status}`, 'warning');
-                          }
-                      } else {
-                          showToast(`MO "${code}" not found`, 'danger');
-                      }
-                  }, () => {});
-              });
-          }, 100);
-          return () => {
-              cancelled = true;
-              clearTimeout(timer);
-              scannerRef2.current?.clear().catch(() => {});
-          };
-      }, [readerId]);
-
-      return (
-          <div style={{ width: '100%' }}>
-              <div id={readerId} style={{ width: '100%' }}></div>
-              <button className="btn btn-sm btn-outline-secondary w-100 mt-1 extra-small" onClick={onClose}>
-                  <i className="bi bi-x me-1"></i>Cancel Scan
-              </button>
-          </div>
-      );
-  };
-
-  // --- Work Order Expanded Panel (Tree + Detail) ---
-  // NOTE: invoked as a plain function call (renderWOExpandedPanel({...})), NOT as <JSX/>.
-  // Defined inside the parent body, so as a JSX element it would get a fresh component
-  // identity every parent render and React would remount its whole subtree — wiping
-  // WorkOrderPanel's local add-WO form state (the "add row flashes and disappears" bug).
-  // Calling it as a function inlines the output and keeps child state stable.
-  const renderWOExpandedPanel = ({ wo, detailTab, setDetailTab }: { wo: any; detailTab: 'bom' | 'steps'; setDetailTab: (t: 'bom' | 'steps') => void }) => {
-      const selectedNodeId = selectedTreeNodes[wo.id] ?? wo.id;
-
-      // Build a map of all MOs in the same PR so required component MOs appear in the tree
-      const moMap: Record<string, any> = {};
-      if (wo.production_run_id) {
-          const pr = productionRuns.find((p: any) => p.id === wo.production_run_id);
-          if (pr) {
-              for (const mo of (pr.manufacturing_orders || [])) {
-                  moMap[mo.id] = mo;
-              }
-          }
-      }
-
-      const treeNodes = flattenTree(wo, 0, moMap);
-
-      // findNodeById must also search moMap for shared component MOs
-      const findNodeInTree = (id: string): any => {
-          const inTree = findNodeById(wo, id);
-          if (inTree) return inTree;
-          return moMap[id] ?? null;
-      };
-
-      const selectedNode = findNodeInTree(selectedNodeId) ?? wo;
-      const bom = boms.find((b: any) => b.id === selectedNode.bom_id);
-      const isScanActive = scanningWOId === wo.id;
-      const classic = currentStyle === 'classic';
-      // Fixed body height for both tabs → no jittery resize when switching BOM/WO.
-      // Inner sections scroll instead of flexing the panel taller.
-      const PANEL_BODY_H = 360;
-
-      // Compute per-parent-MO breakdown for shared component MOs (⇒ nodes)
-      const parentMOBreakdown: Array<{ mo: any; qty: number }> = [];
-      if (selectedNode.id !== wo.id && Object.keys(moMap).length > 0) {
-          for (const mo of Object.values(moMap) as any[]) {
-              if ((mo.required_mo_ids || []).includes(selectedNode.id)) {
-                  const parentBOM = boms.find((b: any) => b.id === mo.bom_id);
-                  const parentLine = parentBOM?.lines?.find((l: any) => l.item_id === selectedNode.item_id);
-                  if (parentLine) {
-                      parentMOBreakdown.push({
-                          mo,
-                          qty: calculateRequiredQty(mo.qty, parentLine, parentBOM),
-                      });
-                  }
-              }
-          }
-      }
-      const showBreakdown = parentMOBreakdown.length > 0;
-
-      const selectNode = (nodeId: string) => {
-          setSelectedTreeNodes(prev => ({ ...prev, [wo.id]: nodeId }));
-          if (scanningWOId === wo.id) setScanningWOId(null);
-      };
-
-      return (
-          <SunkenPanel classic={classic} style={{ marginBottom: 6 }}>
-          {/* ── TABS ── */}
-          <div style={{
-              display: 'flex',
-              borderBottom: classic ? '2px solid #808080' : '1px solid #dee2e6',
-              background: classic ? '#ece9d8' : '#f1f3f5',
-              padding: '0 8px',
-          }}>
-              <button
-                  onClick={() => setDetailTab('bom')}
-                  style={{
-                      fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
-                      padding: '5px 12px', marginRight: 2, marginBottom: detailTab === 'bom' ? -2 : -1,
-                      border: classic ? '1px solid #808080' : '1px solid #dee2e6',
-                      borderBottom: detailTab === 'bom' ? (classic ? '2px solid #ece9d8' : '2px solid #fff') : '1px solid transparent',
-                      background: detailTab === 'bom' ? (classic ? '#ece9d8' : '#fff') : 'transparent',
-                      cursor: 'pointer', fontWeight: detailTab === 'bom' ? 'bold' : 'normal',
-                      color: detailTab === 'bom' ? (classic ? '#000080' : '#0d6efd') : '#555',
-                      position: 'relative' as const,
-                  }}
-              >
-                  <i className="bi bi-boxes me-1" />BOM &amp; Stock
-              </button>
-              <button
-                  onClick={() => setDetailTab('steps')}
-                  style={{
-                      fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
-                      padding: '5px 12px', marginRight: 2, marginBottom: detailTab === 'steps' ? -2 : -1,
-                      border: classic ? '1px solid #808080' : '1px solid #dee2e6',
-                      borderBottom: detailTab === 'steps' ? (classic ? '2px solid #ece9d8' : '2px solid #fff') : '1px solid transparent',
-                      background: detailTab === 'steps' ? (classic ? '#ece9d8' : '#fff') : 'transparent',
-                      cursor: 'pointer', fontWeight: detailTab === 'steps' ? 'bold' : 'normal',
-                      color: detailTab === 'steps' ? (classic ? '#000080' : '#0d6efd') : '#555',
-                      position: 'relative' as const,
-                  }}
-              >
-                  <i className="bi bi-list-ol me-1" />Work Order ({(selectedNode.work_orders || []).length})
-              </button>
-          </div>
-
-          {detailTab === 'bom' && (
-          <SunkenPanelBody classic={classic} style={{ display: 'flex', height: PANEL_BODY_H, padding: 0, border: classic ? '1px solid #808080' : undefined }}>
-
-              {/* ── LEFT: MO Tree ── */}
-              <div style={{
-                  width: '270px', minWidth: '270px',
-                  borderRight: classic ? '2px solid #808080' : '1px solid #dee2e6',
-                  background: '#fff',
-                  display: 'flex', flexDirection: 'column'
-              }}>
-                  <div style={{
-                      background: classic ? 'linear-gradient(to right,#0058e6,#08a5ff)' : '#343a40',
-                      color: '#fff', fontWeight: 'bold', fontSize: '11px',
-                      padding: '5px 8px', letterSpacing: '0.3px'
-                  }}>
-                      <i className="bi bi-diagram-3-fill me-2"></i>MO Tree
-                  </div>
-                  <div style={{ padding: '4px', overflowY: 'auto', flex: 1 }}>
-                      {treeNodes.map(({ wo: node, level, isShared }: { wo: any; level: number; isShared: boolean }) => {
-                          const isActive = node.id === selectedNodeId;
-                          const statusColor = STATUS_COLORS[node.status] || '#6c757d';
-                          return (
-                              <div
-                                  key={node.id}
-                                  onClick={() => selectNode(node.id)}
-                                  style={{
-                                      display: 'flex', alignItems: 'flex-start', gap: '4px',
-                                      padding: `3px 6px 3px ${level * 14 + 6}px`,
-                                      cursor: 'pointer', borderRadius: classic ? '0' : '3px',
-                                      background: isActive ? (classic ? '#316ac5' : '#0d6efd') : 'transparent',
-                                      color: isActive ? '#fff' : '#000',
-                                      border: isActive ? (classic ? '1px solid #003080' : 'none') : (isShared ? '1px dashed #999' : '1px solid transparent'),
-                                      marginBottom: '1px',
-                                      userSelect: 'none'
-                                  }}
-                              >
-                                  <span style={{ fontSize: '10px', color: isActive ? '#cce0ff' : '#888', minWidth: '10px', marginTop: '1px' }}>
-                                      {level === 0 ? '●' : (isShared ? '⇒' : '└')}
-                                  </span>
-                                  <div style={{ flex: 1, overflow: 'hidden' }}>
-                                      <div title={node.code} style={{ fontFamily: 'monospace', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                          {node.code}
-                                      </div>
-                                      <div title={node.item_name} style={{ fontSize: '10px', color: isActive ? '#e0ecff' : '#444', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                          {node.item_name}
-                                      </div>
-                                      {node.item_ends != null && (
-                                          <div title="Warp ends (utas) · qty to manufacture" style={{ fontSize: '9px', fontWeight: 700, whiteSpace: 'nowrap', color: isActive ? '#cfe3ff' : '#1a6e2e' }}>
-                                              {node.item_ends} ends · {node.qty} {getItemUom(node.item_id)}
-                                          </div>
-                                      )}
-                                      {((node.attribute_value_ids || []).length > 0 || node.bom_size_id) && (
-                                          <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap', marginTop: 2 }}>
-                                              {(node.attribute_value_ids || []).map((id: string) => (
-                                                  <span key={id} style={{ fontSize: '8px', padding: '0 4px', background: isActive ? 'rgba(219,234,254,0.25)' : '#dbeafe', color: isActive ? '#bfdbfe' : '#1d4ed8', borderRadius: 2, fontWeight: 700, lineHeight: '14px' }}>
-                                                      {getAttributeValueName(id)}
-                                                  </span>
-                                              ))}
-                                              {(node.bom_size_id || node.bom_size_snapshot) && (() => {
-                                                  const label = getBomSizeLabel(node.bom_id, node.bom_size_id, node.bom_size_snapshot);
-                                                  return label ? (
-                                                      <span style={{ fontSize: '8px', padding: '0 4px', background: isActive ? 'rgba(220,252,231,0.25)' : '#dcfce7', color: isActive ? '#bbf7d0' : '#15803d', borderRadius: 2, fontWeight: 700, lineHeight: '14px' }}>
-                                                          <i className="bi bi-rulers me-1" style={{ fontSize: '7px' }}></i>{label}
-                                                      </span>
-                                                  ) : null;
-                                              })()}
-                                          </div>
-                                      )}
-                                  </div>
-                                  <span style={{ fontSize: '8px', background: statusColor, color: '#fff', padding: '1px 4px', borderRadius: classic ? '0' : '2px', whiteSpace: 'nowrap', alignSelf: 'center', flexShrink: 0 }}>
-                                      {node.status === 'IN_PROGRESS' ? 'IN PROG' : node.status}
-                                  </span>
-                              </div>
-                          );
-                      })}
-                  </div>
-              </div>
-
-              {/* ── CENTRE: BOM Components ── */}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                  {/* Detail header */}
-                  <div style={{
-                      background: classic ? 'linear-gradient(to bottom,#fff,#e8e4d8)' : '#fff',
-                      borderBottom: classic ? '1px solid #808080' : '1px solid #dee2e6',
-                      padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap'
-                  }}>
-                      <span style={{ fontFamily: 'monospace', fontSize: '12px', fontWeight: 'bold', color: '#000' }}>{selectedNode.code}</span>
-                      <span style={{ fontSize: '12px', color: '#000' }}>{selectedNode.item_name}</span>
-                      {(selectedNode.attribute_value_ids || []).map((id: string) => (
-                          <span key={id} style={{ fontSize: '9px', padding: '1px 6px', background: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: 2, fontWeight: 700 }}>
-                              {getAttributeValueName(id)}
-                          </span>
-                      ))}
-                      {canManage && selectedNode.status === 'PENDING' && (
-                          <button
-                              title="Edit attributes"
-                              onClick={() => setEditAttrsModal({ mo: selectedNode, selected: [...(selectedNode.attribute_value_ids || [])] })}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', color: '#6b7280', fontSize: '11px' }}
-                          >
-                              <i className="bi bi-pencil"></i>
-                          </button>
-                      )}
-                      {/* Color / pending-lab-dip status for color-type orders */}
-                      {selectedNode.color_code && (
-                          <span title="Approved color" style={{ fontSize: '9px', padding: '1px 6px', background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: 2, fontWeight: 700 }}>
-                              <i className="bi bi-palette me-1"></i>{selectedNode.color_code}{selectedNode.color_name && selectedNode.color_name !== selectedNode.color_code ? ` — ${selectedNode.color_name}` : ''}
-                          </span>
-                      )}
-                      {!selectedNode.color_id && selectedNode.labdip_variant_code && (
-                          <span title="Color still in lab dip — dyeing is blocked until approved or a color is set" style={{ fontSize: '9px', padding: '1px 6px', background: '#fbf4dd', color: '#8a6d00', border: '1px solid #e8dca8', borderRadius: 2, fontWeight: 700 }}>
-                              <i className="bi bi-eyedropper me-1"></i>Lab dip: {selectedNode.labdip_variant_code}
-                          </span>
-                      )}
-                      {canManage && (selectedNode.color_id || selectedNode.labdip_variant_code) && selectedNode.status !== 'COMPLETED' && selectedNode.status !== 'CANCELLED' && (
-                          <button
-                              title="Set / confirm color"
-                              onClick={() => { setColorModalSearch(''); setColorModalResults([]); setEditColorModal({ mo: selectedNode }); }}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', color: '#6b7280', fontSize: '11px' }}
-                          >
-                              <i className="bi bi-pencil"></i>
-                          </button>
-                      )}
-                      {(selectedNode.bom_size_id || selectedNode.bom_size_snapshot) && (() => {
-                          const label = getBomSizeLabel(selectedNode.bom_id, selectedNode.bom_size_id, selectedNode.bom_size_snapshot);
-                          return label ? (
-                              <span style={{ fontSize: '9px', padding: '1px 6px', background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: 2, fontWeight: 700 }}>
-                                  <i className="bi bi-rulers me-1"></i>{label}
-                              </span>
-                          ) : null;
-                      })()}
-                      <span
-                          title="Planned putaway bin — where the output will be stored"
-                          style={{ fontSize: '9px', padding: '1px 6px', background: selectedNode.planned_putaway_location_name ? '#e8f5e9' : '#f3f4f6', color: selectedNode.planned_putaway_location_name ? '#1b5e20' : '#6b7280', border: `1px solid ${selectedNode.planned_putaway_location_name ? '#a5d6a7' : '#d1d5db'}`, borderRadius: 2, fontWeight: 700 }}
-                      >
-                          <i className="bi bi-box-arrow-in-down me-1"></i>
-                          {selectedNode.planned_putaway_location_name || 'No putaway bin'}
-                      </span>
-                      {canManage && selectedNode.status !== 'COMPLETED' && selectedNode.status !== 'CANCELLED' && (
-                          <button
-                              title="Set putaway bin"
-                              onClick={() => openPutawayModal(selectedNode)}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', color: '#6b7280', fontSize: '11px' }}
-                          >
-                              <i className="bi bi-pencil"></i>
-                          </button>
-                      )}
-                      {bom && <span style={{ fontSize: '10px', color: '#444' }}>BOM: <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#000' }}>{bom.code}</span></span>}
-                      <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px' }}>
-                          {canManage && selectedNode.status === 'PENDING' && (
-                              <button className="btn btn-sm btn-primary py-0 px-2" style={{ fontSize: '0.72rem' }} onClick={() => onUpdateStatus(selectedNode.id, 'IN_PROGRESS')}>
-                                  <i className="bi bi-play-fill me-1"></i>Start
-                              </button>
-                          )}
-                          <button
-                              title="Print this MO"
-                              className={classic ? '' : 'btn btn-sm btn-outline-secondary py-0 px-2'}
-                              style={classic ? { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', padding: '1px 8px', background: 'linear-gradient(to bottom,#f0efe6,#dddbd0)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer', color: '#000' } : { fontSize: '0.72rem' }}
-                              onClick={() => handlePrintWO(selectedNode, true)}
-                          >
-                              <i className="bi bi-printer me-1"></i>Print
-                          </button>
-                      </div>
-                  </div>
-
-                  {/* Production Progress — prominent, full width under MO code */}
-                  {(selectedNode.status === 'IN_PROGRESS' || selectedNode.status === 'COMPLETED' || (selectedNode.qty_completed_total ?? 0) > 0 || (selectedNode.work_orders || []).some((w: any) => w.status !== 'COMPLETED')) && (() => {
-                      const done = selectedNode.qty_completed_total ?? 0;
-                      const total = selectedNode.qty ?? 0;
-                      const remaining = Math.max(0, total - done);
-                      // Projected output from WOs that are set up but not yet completed
-                      const plannedRaw = (selectedNode.work_orders || [])
-                          .filter((w: any) => w.status !== 'COMPLETED')
-                          .reduce((s: number, w: any) => s + Math.max(0, (w.qty ?? 0) - (w.qty_completed_total ?? 0)), 0);
-                      const planned = Math.min(plannedRaw, remaining);   // cap so Done + Planned ≤ total
-                      const left = Math.max(0, remaining - planned);     // qty not yet covered by any WO
-                      const donePct = total > 0 ? Math.min(100, (done / total) * 100) : 0;
-                      const plannedPct = total > 0 ? Math.min(100 - donePct, (planned / total) * 100) : 0;
-                      return (
-                          <div style={{
-                              background: classic ? '#eef2f7' : '#f8fafc',
-                              borderBottom: classic ? '1px solid #808080' : '1px solid #dee2e6',
-                              padding: '6px 10px', display: 'flex', alignItems: 'center', gap: '12px'
-                          }}>
-                              <span style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
-                                  Production Progress
-                              </span>
-                              <ProgressBar
-                                  pct={donePct}
-                                  tone={donePct >= 100 ? 'green' : 'blue'}
-                                  hatched
-                                  height={15}
-                                  secondaryPct={plannedPct}
-                                  secondaryTone="gray"
-                                  label="inside"
-                              />
-                              <span style={{ fontSize: '10px', color: '#555', whiteSpace: 'nowrap' }}>Done: <strong style={{ color: '#000' }}>{done.toFixed(2)}</strong></span>
-                              <span style={{ fontSize: '10px', color: '#555', whiteSpace: 'nowrap' }}>Planned: <strong style={{ color: '#1565c0' }}>{planned.toFixed(2)}</strong></span>
-                              <span style={{ fontSize: '10px', color: '#555', whiteSpace: 'nowrap' }}>Left: <strong style={{ color: left <= 0 ? '#1a6e1a' : '#c00' }}>{left.toFixed(2)}</strong></span>
-                          </div>
-                      );
-                  })()}
-
-                  {/* Section title */}
-                  <div style={{
-                      background: classic ? '#d4d0c8' : '#f1f3f5',
-                      borderBottom: classic ? '1px solid #808080' : '1px solid #dee2e6',
-                      padding: '2px 10px', fontSize: '10px', fontWeight: 'bold', color: '#000',
-                      display: 'flex', alignItems: 'center', gap: '6px'
-                  }}>
-                      <i className="bi bi-boxes"></i>BOM Components
-                      {!bom && <span style={{ fontWeight: 'normal', color: '#888' }}>— No BOM linked</span>}
-                  </div>
-
-                  {/* Components table */}
-                  <div style={{ flex: 1, overflowY: 'auto' }}>
-                      {bom ? (
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
-                              <thead>
-                                  <tr style={{ background: classic ? 'linear-gradient(to bottom,#fff,#d4d0c8)' : '#f8f9fa', position: 'sticky', top: 0 }}>
-                                      {['Component', 'Variant', 'Required', ...(showBreakdown ? ['Breakdown'] : []), 'In Stock', 'Available At'].map(h => (
-                                          <th key={h} style={{ border: classic ? '1px solid #808080' : '1px solid #dee2e6', padding: '3px 6px', textAlign: h === 'Required' || h === 'In Stock' ? 'right' : 'left', color: '#000', fontSize: '10px' }}>{h}</th>
-                                      ))}
-                                  </tr>
-                              </thead>
-                              <tbody>
-                                  {bom.lines.map((line: any, i: number) => {
-                                      const req = calculateRequiredQty(selectedNode.qty, line, bom);
-                                      const { total, isEnough, locs } = getStockAcrossLocations(line.item_id, line.attribute_value_ids || [], req);
-                                      const hasSubBOM = boms.some((b: any) => b.item_id === line.item_id && b.active !== false);
-                                      const attrLabel = (line.attribute_value_ids || []).map(getAttributeValueName).filter(Boolean).join(', ');
-                                      const rowBg = i % 2 === 0 ? '#fff' : (classic ? '#f5f3ee' : '#f8f9fa');
-                                      const stockLevel = isEnough ? 'ok' : total > 0 ? 'low' : 'out';
-                                      const dotStyle: Record<string, { dot: string; border: string }> = {
-                                          ok:  { dot: '#00aa00', border: '#005500' },
-                                          low: { dot: '#ccaa00', border: '#886600' },
-                                          out: { dot: '#cc0000', border: '#660000' },
-                                      };
-                                      const dc = dotStyle[stockLevel];
-                                      return (
-                                          <tr key={line.id} style={{ background: rowBg }}>
-                                              <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', color: '#000' }}>
-                                                  <div style={{ fontWeight: 500 }}>{line.item_name || getItemName(line.item_id)}</div>
-                                                  <div style={{ fontSize: '9px', color: '#555', fontFamily: 'monospace' }}>{line.item_code || getItemCode(line.item_id)}</div>
-                                                  {hasSubBOM && <span style={{ fontSize: '8px', background: '#fff3cd', border: '1px solid #b8860b', color: '#6b4e00', padding: '0 4px', fontWeight: 'bold' }}>SUB-BOM</span>}
-                                              </td>
-                                              <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', color: '#333', fontSize: '10px' }}>{attrLabel || '—'}</td>
-                                              <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
-                                                      {(line.percentage || 0) > 0 && (
-                                                          <span title={`${line.percentage}% of MO qty`} style={{ background: '#b46a00', color: '#fff', fontSize: 8, padding: '0 3px', fontWeight: 'bold' }}>{line.percentage}%</span>
-                                                      )}
-                                                      <span style={{ fontFamily: 'monospace', color: '#000', fontWeight: 'bold' }}>{req.toFixed(2)}</span>
-                                                      {getItemUom(line.item_id) && (
-                                                          <span style={uomBadgeStyle}>{getItemUom(line.item_id)}</span>
-                                                      )}
-                                                  </div>
-                                              </td>
-                                              {showBreakdown && (
-                                                  <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', verticalAlign: 'top' }}>
-                                                      {parentMOBreakdown.map(({ mo, qty: parentContrib }) => {
-                                                          const proportion = selectedNode.qty > 0 ? parentContrib / selectedNode.qty : 0;
-                                                          const componentShare = req * proportion;
-                                                          return (
-                                                              <div key={mo.id} style={{ fontSize: '10px', display: 'flex', gap: 6, whiteSpace: 'nowrap', justifyContent: 'space-between' }}>
-                                                                  <span style={{ fontFamily: 'monospace', color: '#666' }}>{mo.code}:</span>
-                                                                  <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#000' }}>{componentShare.toFixed(2)}</span>
-                                                              </div>
-                                                          );
-                                                      })}
-                                                  </td>
-                                              )}
-                                              <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px', textAlign: 'right' }}>
-                                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
-                                                      <span style={{ fontFamily: 'monospace', color: isEnough ? '#004400' : total > 0 ? '#664400' : '#880000', fontWeight: 'bold' }}>{total.toFixed(2)}</span>
-                                                      <span style={{ display: 'inline-block', width: 8, height: 8, background: dc.dot, border: `1px solid ${dc.border}`, flexShrink: 0 }} />
-                                                      {stockLevel === 'low' && <span style={{ fontSize: 8, background: '#886600', color: '#fff', padding: '0 3px', fontWeight: 'bold' }}>Low</span>}
-                                                      {stockLevel === 'out' && <span style={{ fontSize: 8, background: '#880000', color: '#fff', padding: '0 3px', fontWeight: 'bold' }}>Out</span>}
-                                                      {getItemUom(line.item_id) && <span style={uomBadgeStyle}>{getItemUom(line.item_id)}</span>}
-                                                  </div>
-                                              </td>
-                                              <td style={{ border: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '3px 6px' }}>
-                                                  {locs.length === 0 ? (
-                                                      <span style={{ color: '#bbb', fontSize: 9 }}>—</span>
-                                                  ) : (
-                                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                                                          {locs.map(l => (
-                                                              <span key={l.locId} style={{ background: '#e8f0fe', color: '#1a56c4', border: '1px solid #b0c8f8', fontSize: 8, padding: '0 4px', whiteSpace: 'nowrap' }}>
-                                                                  {l.code} <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{l.qty.toFixed(1)}</span>
-                                                              </span>
-                                                          ))}
-                                                      </div>
-                                                  )}
-                                              </td>
-                                          </tr>
-                                      );
-                                  })}
-                              </tbody>
-                          </table>
-                      ) : (
-                          <div style={{ padding: '16px', color: '#555', fontSize: '11px', textAlign: 'center' }}>No BOM lines to display for this manufacturing order.</div>
-                      )}
-                  </div>
-              </div>
-
-              {/* ── RIGHT: Meta + QR ── */}
-              <div style={{
-                  width: '170px', minWidth: '170px',
-                  borderLeft: classic ? '2px solid #808080' : '1px solid #dee2e6',
-                  background: classic ? '#fafaf7' : '#fff',
-                  display: 'flex', flexDirection: 'column', overflowY: 'auto'
-              }}>
-                  {/* Timeline */}
-                  <div style={{ borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '6px 8px' }}>
-                      <div style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', letterSpacing: '0.5px', marginBottom: '4px' }}>Timeline</div>
-                      {([
-                          { label: 'Target S', val: formatDate(selectedNode.target_start_date), warn: null },
-                          { label: 'Target E', val: formatDate(selectedNode.target_end_date), warn: getDueDateWarning(selectedNode) },
-                          { label: 'Actual S', val: formatDateTime(selectedNode.actual_start_date), warn: null },
-                          { label: 'Actual E', val: formatDateTime(selectedNode.actual_end_date), warn: null },
-                      ] as {label:string;val:string;warn:any}[]).map(({ label, val, warn }) => (
-                          <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginBottom: '2px' }}>
-                              <span style={{ color: '#555' }}>{label}:</span>
-                              <span style={{ fontWeight: 'bold', color: warn ? '#c00000' : '#000' }}>{val}</span>
-                          </div>
-                      ))}
-                  </div>
-
-                  {/* Machine Group */}
-                  {(bom?.work_center_id || bom?.work_center_name) && (
-                  <div style={{ borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '6px 8px' }}>
-                      <div style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', letterSpacing: '0.5px', marginBottom: '4px' }}>
-                          <i className="bi bi-gear me-1"></i>Machine Group
-                      </div>
-                      <div style={{ fontSize: '10px', color: '#000', fontWeight: 'bold' }}>
-                          {bom.work_center_name || getWCName(bom.work_center_id)}
-                      </div>
-                  </div>
-                  )}
-
-                  {/* Output */}
-                  <div style={{ borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '6px 8px' }}>
-                      <div style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', letterSpacing: '0.5px', marginBottom: '4px' }}>Output</div>
-                      <div style={{ fontSize: '10px', color: '#000', fontWeight: 'bold' }}>{getLocationName(selectedNode.location_id)}</div>
-                      <div style={{ fontSize: '10px', color: '#444' }}>Qty: <strong style={{ color: '#000' }}>{selectedNode.qty}</strong>{getItemUom(selectedNode.item_id) && <span style={{ ...uomBadgeStyle, marginLeft: 4 }}>{getItemUom(selectedNode.item_id)}</span>}{selectedNode.item_ends != null && <span style={{ marginLeft: 8, color: '#1a6e2e', fontWeight: 'bold' }}>Ends: {selectedNode.item_ends}</span>}</div>
-                  </div>
-
-                  {/* Beams in Stock */}
-                  {(() => {
-                      const beamLines: { item_id: string; item_name: string; ends: number }[] = [];
-                      // MO output is a beam
-                      if (selectedNode.item_ends != null) {
-                          beamLines.push({ item_id: selectedNode.item_id, item_name: selectedNode.item_name, ends: selectedNode.item_ends });
-                      }
-                      // BOM component lines that are beams
-                      if (bom) {
-                          for (const line of (bom.lines || [])) {
-                              const ends = getItemEnds(line.item_id);
-                              if (ends != null && !beamLines.some(b => b.item_id === line.item_id)) {
-                                  beamLines.push({ item_id: line.item_id, item_name: line.item_name || getItemName(line.item_id), ends });
-                              }
-                          }
-                      }
-                      if (beamLines.length === 0) return null;
-                      return (
-                          <div style={{ borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '6px 8px' }}>
-                              <div style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', letterSpacing: '0.5px', marginBottom: '4px' }}>
-                                  Beams in Stock
-                              </div>
-                              {beamLines.map(b => {
-                                  const { total } = getStockAcrossLocations(b.item_id, [], 0);
-                                  const bc = getBeamBatchCount(b.item_id);
-                                  return (
-                                      <div key={b.item_id} style={{ marginBottom: '4px' }}>
-                                          <div style={{ fontSize: '9px', color: '#444', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={b.item_name}>{b.item_name}</div>
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                                              <span style={{ fontFamily: 'monospace', fontSize: '10px', fontWeight: 'bold', color: total > 0 ? '#004400' : '#880000' }}>{total.toFixed(2)}</span>
-                                              {getItemUom(b.item_id) && <span style={uomBadgeStyle}>{getItemUom(b.item_id)}</span>}
-                                              <span style={{ fontSize: 9, background: '#e8d8ff', border: '1px solid #c4a8ee', color: '#440099', padding: '0 4px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{bc} beam{bc !== 1 ? 's' : ''}</span>
-                                          </div>
-                                      </div>
-                                  );
-                              })}
-                          </div>
-                      );
-                  })()}
-
-                  {/* Batch Trace */}
-                  <div style={{ borderBottom: classic ? '1px solid #c0bdb5' : '1px solid #dee2e6', padding: '6px 8px' }}>
-                      <div style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', letterSpacing: '0.5px', marginBottom: '4px' }}>
-                          <i className="bi bi-upc-scan me-1"></i>Lots
-                      </div>
-                      {(() => {
-                          const trace: any[] = selectedNode.batch_trace || [];
-                          if (trace.length === 0) {
-                              return <div style={{ fontSize: '9px', color: '#999', fontStyle: 'italic' }}>No batch recorded</div>;
-                          }
-                          const outputBatch = trace[0]?.output_batch_number;
-                          return (
-                              <>
-                                  {outputBatch && (
-                                      <div style={{ fontSize: '10px', marginBottom: '4px' }}>
-                                          <span style={{ color: '#555', fontSize: '9px' }}>Output: </span>
-                                          <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#1a6e1a', fontSize: '10px', background: '#f0fdf4', border: '1px solid #86efac', padding: '0 4px', borderRadius: 2 }}>
-                                              {outputBatch}
-                                          </span>
-                                      </div>
-                                  )}
-                                  <div style={{ fontSize: '9px', color: '#555', marginBottom: '2px' }}>Input batches:</div>
-                                  {trace.map((c: any, i: number) => (
-                                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px', fontSize: '9px' }}>
-                                          <span style={{ fontFamily: 'monospace', color: '#1d4ed8', background: '#eff6ff', border: '1px solid #93c5fd', padding: '0 3px', borderRadius: 2, fontSize: '9px' }}>
-                                              {c.input_batch_number}
-                                          </span>
-                                          <span style={{ color: '#666', fontSize: '9px' }}>{Number(c.qty_consumed).toFixed(2)}</span>
-                                      </div>
-                                  ))}
-                              </>
-                          );
-                      })()}
-                  </div>
-
-              </div>
-          </SunkenPanelBody>
-          )}
-
-          {detailTab === 'steps' && (
-              <div style={{
-                  padding: '8px 12px', height: PANEL_BODY_H, overflowY: 'auto', boxSizing: 'border-box',
-                  background: '#fff', border: classic ? '1px solid #808080' : undefined,
-              }}>
-                  <WorkOrderPanel
-                      manufacturingOrderId={selectedNode.id}
-                      workOrders={selectedNode.work_orders || []}
-                      workCenters={workCenters || []}
-                      locations={locations || []}
-                      onAdd={onCreateWO}
-                      onUpdate={onUpdateWO}
-                      onUpdateStatus={onUpdateWOStatus}
-                      onDelete={onDeleteWO}
-                      onLogWO={(wo) => { setCompletionWO(wo); setCompletionMO(selectedNode); }}
-                      parentMO={selectedNode}
-                  />
-              </div>
-          )}
-      </SunkenPanel>
-      );
-  };
-
   return (
       <div className="row g-4 fade-in print-container">
-          {printPreviewWO && (
-            <MOPrintModal
-                wo={printPreviewWO}
-                onClose={() => setPrintPreviewWO(null)}
-                printSettings={printSettings}
-                onPrintSettingsChange={setPrintSettings}
-                currentStyle={currentStyle}
-                companyProfile={companyProfile}
-                boms={boms}
-                getItemName={getItemName}
-                getItemCode={getItemCode}
-                getLocationName={getLocationName}
-                getAttributeValueName={getAttributeValueName}
-                formatDate={formatDate}
-                hideChildMOs={printHideChildren}
-            />
-        )}
-
-        {printPreviewPR && (
-            <PRMaterialPullSheetModal
-                pr={printPreviewPR}
-                reqs={prMaterialReqs[printPreviewPR.id] || []}
-                isLoading={!!prMaterialReqsLoading[printPreviewPR.id]}
-                currentStyle={currentStyle}
-                companyProfile={companyProfile}
-                getLocationName={getLocationName}
-                getAttributeValueName={getAttributeValueName}
-                formatDate={formatDate}
-                onClose={() => setPrintPreviewPR(null)}
-            />
-        )}
-
           <CodeConfigModal isOpen={isConfigOpen} onClose={() => setIsConfigOpen(false)} type="MO" onSave={handleSaveConfig} initialConfig={codeConfig} attributes={attributes} />
 
           <ModalWrapper
@@ -1512,7 +359,7 @@ export default function ManufacturingView({
                   <div style={{
                       width: 380, minWidth: 380, flexShrink: 0,
                       paddingRight: 20,
-                      borderRight: `1px solid ${currentStyle === 'classic' ? '#aca899' : '#e2e8f0'}`,
+                      borderRight: `1px solid ${classic ? '#aca899' : '#e2e8f0'}`,
                   }}>
                       {/* Variant context badge */}
                       {(() => {
@@ -1540,7 +387,7 @@ export default function ManufacturingView({
                       })()}
 
                       {/* MO Details */}
-                      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: '#888', borderBottom: `1px solid ${currentStyle === 'classic' ? '#c0bdb5' : '#e2e8f0'}`, paddingBottom: 2, marginBottom: 8 }}>MO Details</div>
+                      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: '#888', borderBottom: `1px solid ${classic ? '#c0bdb5' : '#e2e8f0'}`, paddingBottom: 2, marginBottom: 8 }}>MO Details</div>
 
                       <div className="mb-2">
                           <label style={xpLabel()}>MO Reference Code</label>
@@ -1578,7 +425,7 @@ export default function ManufacturingView({
                       </div>
 
                       {/* Schedule */}
-                      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: '#888', borderBottom: `1px solid ${currentStyle === 'classic' ? '#c0bdb5' : '#e2e8f0'}`, paddingBottom: 2, marginBottom: 8, marginTop: 14 }}>Schedule</div>
+                      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: '#888', borderBottom: `1px solid ${classic ? '#c0bdb5' : '#e2e8f0'}`, paddingBottom: 2, marginBottom: 8, marginTop: 14 }}>Schedule</div>
                       <div className="row g-2 mb-2">
                           <div className="col-6">
                               <label style={xpLabel()}>Start Date</label>
@@ -1595,7 +442,7 @@ export default function ManufacturingView({
                           item master default / BOM-line override, resolved at staging. */}
 
                       {/* Nested toggle — clean */}
-                      <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${currentStyle === 'classic' ? '#aca899' : '#e2e8f0'}` }}>
+                      <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${classic ? '#aca899' : '#e2e8f0'}` }}>
                           <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', margin: 0 }}>
                               <input
                                   type="checkbox"
@@ -1604,7 +451,7 @@ export default function ManufacturingView({
                                   style={{ marginTop: 2, cursor: 'pointer', flexShrink: 0 }}
                               />
                               <div>
-                                  <div style={{ fontSize: 11, fontWeight: 600, color: currentStyle === 'classic' ? '#000084' : '#1e40af' }}>
+                                  <div style={{ fontSize: 11, fontWeight: 600, color: classic ? '#000084' : '#1e40af' }}>
                                       <i className="bi bi-diagram-3-fill me-1"></i>
                                       Create child MOs for nested BOMs
                                   </div>
@@ -1633,7 +480,7 @@ export default function ManufacturingView({
                           <div style={{
                               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                               height: '100%', minHeight: 280, gap: 10,
-                              color: currentStyle === 'classic' ? '#888' : '#94a3b8',
+                              color: classic ? '#888' : '#94a3b8',
                           }}>
                               <i className="bi bi-diagram-3" style={{ fontSize: 40, opacity: 0.35 }}></i>
                               <div style={{ fontSize: 12, textAlign: 'center', maxWidth: 200 }}>
@@ -1649,46 +496,46 @@ export default function ManufacturingView({
           <div className="col-12 flex-print-fill">
               {/* ── Outer window shell ── */}
               <div style={{
-                  border: currentStyle === 'classic' ? '2px solid' : undefined,
-                  borderColor: currentStyle === 'classic' ? '#dfdfdf #808080 #808080 #dfdfdf' : undefined,
+                  border: classic ? '2px solid' : undefined,
+                  borderColor: classic ? '#dfdfdf #808080 #808080 #dfdfdf' : undefined,
                   borderRadius: 0,
-                  boxShadow: currentStyle === 'classic' ? '2px 2px 4px rgba(0,0,0,0.3)' : undefined,
-                  background: currentStyle === 'classic' ? '#ece9d8' : undefined,
+                  boxShadow: classic ? '2px 2px 4px rgba(0,0,0,0.3)' : undefined,
+                  background: classic ? '#ece9d8' : undefined,
                   display: 'flex', flexDirection: 'column',
                   height: 'calc(100vh - 80px)',
-              }} className={currentStyle === 'classic' ? '' : 'card h-100 border-0 shadow-sm'}>
+              }} className={classic ? '' : 'card h-100 border-0 shadow-sm'}>
 
                   {/* ── Title bar / toolbar ── */}
                   <div
                       className="no-print"
                       style={{
-                          background: currentStyle === 'classic'
+                          background: classic
                               ? 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)'
                               : '#fff',
-                          borderBottom: currentStyle === 'classic' ? '1px solid #003080' : '1px solid #dee2e6',
-                          padding: currentStyle === 'classic' ? '4px 8px' : '8px 16px',
+                          borderBottom: classic ? '1px solid #003080' : '1px solid #dee2e6',
+                          padding: classic ? '4px 8px' : '8px 16px',
                           display: 'flex',
                           justifyContent: 'space-between',
                           alignItems: 'center',
-                          boxShadow: currentStyle === 'classic' ? 'inset 0 1px 0 rgba(255,255,255,0.3)' : undefined,
+                          boxShadow: classic ? 'inset 0 1px 0 rgba(255,255,255,0.3)' : undefined,
                       }}
                   >
                       {/* Left: title + view switcher */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                           <span style={{
-                              fontFamily: currentStyle === 'classic' ? 'Tahoma, Arial, sans-serif' : undefined,
-                              fontSize: currentStyle === 'classic' ? '12px' : undefined,
+                              fontFamily: classic ? 'Tahoma, Arial, sans-serif' : undefined,
+                              fontSize: classic ? '12px' : undefined,
                               fontWeight: 'bold',
-                              color: currentStyle === 'classic' ? '#fff' : '#000',
-                              textShadow: currentStyle === 'classic' ? '1px 1px 1px rgba(0,0,0,0.4)' : undefined,
-                              letterSpacing: currentStyle === 'classic' ? '0.3px' : undefined,
+                              color: classic ? '#fff' : '#000',
+                              textShadow: classic ? '1px 1px 1px rgba(0,0,0,0.4)' : undefined,
+                              letterSpacing: classic ? '0.3px' : undefined,
                           }}>
                               <i className={`bi ${activeTab === 'manufacturing-orders' ? 'bi-list-task' : 'bi-collection-play'} me-2`} style={{ fontSize: '13px' }}></i>
                               {activeTab === 'manufacturing-orders' ? (t('manufacturing_orders') || 'Manufacturing Orders') : 'Production Runs'}
                           </span>
 
                           {/* View-mode buttons */}
-                          <div style={{ display: 'flex', gap: currentStyle === 'classic' ? '2px' : '0' }}>
+                          <div style={{ display: 'flex', gap: classic ? '2px' : '0' }}>
                               {[
                                   { key: 'calendar', icon: 'bi-calendar-event', label: 'Calendar' },
                                   { key: 'list',     icon: 'bi-list-ul',        label: 'List' },
@@ -1696,7 +543,7 @@ export default function ManufacturingView({
                               ].map(({ key, icon, label }) => {
                                   const isActive = viewMode === key;
                                   const handleClick = () => key === 'scanner' ? router.push('/scanner') : setViewMode(key);
-                                  if (currentStyle === 'classic') {
+                                  if (classic) {
                                       return (
                                           <button
                                               key={key}
@@ -1732,7 +579,7 @@ export default function ManufacturingView({
 
                       {/* Right: New Production Run + Create MO + Print */}
                       <div style={{ display: 'flex', gap: '6px' }}>
-                          {currentStyle === 'classic' ? (
+                          {classic ? (
                               <>
                                   {canManage && (
                                   <button
@@ -1787,17 +634,17 @@ export default function ManufacturingView({
 
                   {/* ── Tab bar ── */}
                   {showTabSwitcher && <div className="no-print" style={{
-                      background: currentStyle === 'classic' ? '#ece9d8' : '#f8f9fa',
-                      borderBottom: currentStyle === 'classic' ? '1px solid #808080' : '1px solid #dee2e6',
-                      display: 'flex', gap: currentStyle === 'classic' ? '0' : '4px',
-                      padding: currentStyle === 'classic' ? '4px 8px 0' : '6px 12px 0',
+                      background: classic ? '#ece9d8' : '#f8f9fa',
+                      borderBottom: classic ? '1px solid #808080' : '1px solid #dee2e6',
+                      display: 'flex', gap: classic ? '0' : '4px',
+                      padding: classic ? '4px 8px 0' : '6px 12px 0',
                   }}>
                       {[
                           { key: 'production-runs', label: 'Production Runs', icon: 'bi-collection-play' },
                           { key: 'manufacturing-orders', label: 'Manufacturing Orders', icon: 'bi-list-task' },
                       ].map(({ key, label, icon }) => {
                           const isActive = activeTab === key;
-                          if (currentStyle === 'classic') {
+                          if (classic) {
                               return (
                                   <button
                                       key={key}
@@ -1838,564 +685,55 @@ export default function ManufacturingView({
                   </div>}
 
                   {/* ── Body ── */}
-                  <div style={{ background: currentStyle === 'classic' ? '#ece9d8' : undefined, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }} className={currentStyle === 'classic' ? '' : 'card-body p-0'}>
+                  <div style={{ background: classic ? '#ece9d8' : undefined, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }} className={classic ? '' : 'card-body p-0'}>
 
                       {/* Production Runs tab content */}
                       {activeTab === 'production-runs' && (
-                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                              {((productionRuns && productionRuns.length > 0) || prSearch) && renderSearchBar(
-                                  prSearch, setPrSearch,
-                                  'Search by code, style, or BOM...',
-                                  prTotal,
-                              )}
-                              {productionRuns && productionRuns.length > 0 ? (
-                                  <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-                                      <table style={{
-                                          width: '100%', borderCollapse: 'collapse',
-                                          fontFamily: currentStyle === 'classic' ? 'Tahoma, Arial, sans-serif' : undefined,
-                                          fontSize: currentStyle === 'classic' ? '11px' : undefined,
-                                          background: currentStyle === 'classic' ? '#fff' : undefined,
-                                      }} className={currentStyle === 'classic' ? '' : 'table table-hover align-middle mb-0'}>
-                                          <thead>
-                                              <tr style={{
-                                                  background: currentStyle === 'classic' ? 'linear-gradient(to bottom,#fff 0%,#d4d0c8 100%)' : undefined,
-                                                  fontSize: currentStyle === 'classic' ? '10px' : '9pt',
-                                              }} className={currentStyle === 'classic' ? '' : 'table-light'}>
-                                                  {['', 'Code', 'BOM / Style', 'MOs', 'Progress', 'Status', 'Materials', 'Due Date', 'Actions'].map((h, i) => (
-                                                      <th key={h || `col-${i}`} style={{
-                                                          border: currentStyle === 'classic' ? '1px solid #808080' : undefined,
-                                                          padding: currentStyle === 'classic' ? '3px 8px' : undefined,
-                                                          color: '#000', fontWeight: 'bold', whiteSpace: 'nowrap',
-                                                          textAlign: h === 'Actions' ? 'right' : 'left',
-                                                          width: h === '' ? '22px' : undefined,
-                                                      }}>{h}</th>
-                                                  ))}
-                                              </tr>
-                                          </thead>
-                                          <tbody>
-                                              {filteredProductionRuns.map((pr: any, rowIdx: number) => {
-                                                  const mos = pr.manufacturing_orders || [];
-                                                  const done = mos.filter((m: any) => m.status === 'COMPLETED').length;
-                                                  const total = mos.length;
-                                                  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-                                                  const rowBg = currentStyle === 'classic'
-                                                      ? (rowIdx % 2 === 0 ? '#fff' : '#f5f3ee')
-                                                      : undefined;
-                                                  const tdStyle: React.CSSProperties = currentStyle === 'classic' ? {
-                                                      border: '1px solid #c0bdb5', padding: '4px 8px', color: '#000', verticalAlign: 'middle',
-                                                  } : {};
-                                                  const isExpanded = !!expandedPRs[pr.id];
-                                                  const reqs: any[] = prMaterialReqs[pr.id] || [];
-                                                  const isLoading = !!prMaterialReqsLoading[pr.id];
-                                                  const hasShortfall = reqs.some((r: any) => r.shortfall > 0);
-                                                  const shortfallCount = reqs.filter((r: any) => r.shortfall > 0).length;
-                                                  const sufficientCount = reqs.length - shortfallCount;
-                                                  return (
-                                                      <React.Fragment key={pr.id}>
-                                                      <tr style={{ background: rowBg, cursor: 'pointer' }} onClick={() => togglePR(pr.id)} title="Material Requirements">
-                                                          <td style={{ ...tdStyle, textAlign: 'center' }}>
-                                                              <i
-                                                                  className={`bi ${isExpanded ? 'bi-chevron-down' : 'bi-chevron-right'}`}
-                                                                  style={{ color: hasShortfall && isExpanded ? '#c00000' : '#555' }}
-                                                              ></i>
-                                                          </td>
-                                                          <td style={{ ...tdStyle, fontFamily: 'monospace', fontWeight: 'bold' }}>
-                                                              <div>{pr.code}</div>
-                                                              {pr.sales_order_id && (
-                                                                  <div style={{ marginTop: 3 }}>
-                                                                      <span style={currentStyle === 'classic' ? {
-                                                                          fontSize: '8px', background: '#dce8ff', border: '1px solid #9ab0e0',
-                                                                          color: '#003ea6', padding: '0 5px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', fontFamily: 'Tahoma, Arial, sans-serif',
-                                                                      } : {
-                                                                          fontSize: '0.65rem', background: '#cfe2ff', border: '1px solid #9ec5fe',
-                                                                          color: '#0a58ca', padding: '1px 6px', borderRadius: 3, fontWeight: 'bold', display: 'inline-flex', alignItems: 'center',
-                                                                      }} title="Originating Sales Order">
-                                                                          <i className="bi bi-receipt me-1" style={{ fontSize: currentStyle === 'classic' ? '7px' : undefined }}></i>SO: {pr.sales_order_code || '—'}
-                                                                      </span>
-                                                                  </div>
-                                                              )}
-                                                          </td>
-                                                          <td style={tdStyle}>
-                                                              <div style={{ fontWeight: 'bold', fontSize: currentStyle === 'classic' ? '11px' : undefined }}>
-                                                                  {pr.bom_entries?.length > 0
-                                                                      ? pr.bom_entries.map((e: any) => e.bom?.item_name || e.bom?.item_code || e.bom?.code).filter(Boolean).join(' / ')
-                                                                      : (pr.bom?.item_name || pr.bom?.item_code || pr.bom?.code || pr.bom_id)}
-                                                              </div>
-                                                              {(pr.bom_entries?.length > 0
-                                                                  ? pr.bom_entries.map((e: any) => e.bom?.code).filter(Boolean).join(' / ')
-                                                                  : pr.bom?.code
-                                                              ) && (
-                                                                  <div style={{ fontSize: 9, color: '#666', fontFamily: 'monospace' }}>
-                                                                      {pr.bom_entries?.length > 0
-                                                                          ? pr.bom_entries.map((e: any) => e.bom?.code).filter(Boolean).join(' / ')
-                                                                          : pr.bom?.code}
-                                                                  </div>
-                                                              )}
-                                                          </td>
-                                                          <td style={{ ...tdStyle, textAlign: 'center' }}>{total}</td>
-                                                          <td style={{ ...tdStyle, minWidth: 120 }}>
-                                                              <ProgressBar pct={pct} tone={pct === 100 ? 'green' : 'blue'} label="outside" />
-                                                              <div style={{ fontSize: 9, color: '#666' }}>{done}/{total} done</div>
-                                                          </td>
-                                                          <td style={tdStyle}>
-                                                              {currentStyle === 'classic' ? (
-                                                                  <span style={statusChipStyle(pr.status)}>{(pr.status || 'PENDING').replace('_', ' ')}</span>
-                                                              ) : (
-                                                                  <span className={`badge ${getStatusBadge(pr.status)} extra-small`}>{pr.status}</span>
-                                                              )}
-                                                          </td>
-                                                          <td style={{ ...tdStyle, textAlign: 'center' }} title={isLoading ? 'Loading material requirements...' : reqs.length === 0 ? 'No components' : `${shortfallCount} short / ${sufficientCount} sufficient`}>
-                                                              {isLoading ? (
-                                                                  <span style={{ fontSize: 10, color: '#999' }}>…</span>
-                                                              ) : reqs.length === 0 ? (
-                                                                  <span style={{ fontSize: 10, color: '#999' }}>—</span>
-                                                              ) : (
-                                                                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center' }}>
-                                                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 'bold', minWidth: 18, color: shortfallCount > 0 ? '#c00000' : '#ccc', opacity: shortfallCount > 0 ? 1 : 0.5 }}>
-                                                                          <span style={{ width: 7, height: 7, borderRadius: '50%', background: shortfallCount > 0 ? '#c00000' : '#ccc', display: 'inline-block' }} />
-                                                                          {shortfallCount}
-                                                                      </span>
-                                                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 'bold', minWidth: 18, color: sufficientCount > 0 ? '#2d7a2d' : '#ccc', opacity: sufficientCount > 0 ? 1 : 0.5 }}>
-                                                                          <span style={{ width: 7, height: 7, borderRadius: '50%', background: sufficientCount > 0 ? '#2d7a2d' : '#ccc', display: 'inline-block' }} />
-                                                                          {sufficientCount}
-                                                                      </span>
-                                                                  </div>
-                                                              )}
-                                                          </td>
-                                                          <td style={{ ...tdStyle, fontSize: 10 }}>{formatDate(pr.target_end_date)}</td>
-                                                          <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
-                                                              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
-                                                                  <XPActionButton
-                                                                      classic={currentStyle === 'classic'}
-                                                                      tone="primary"
-                                                                      icon="bi-printer"
-                                                                      title="Print Material Pull Sheet"
-                                                                      onClick={() => handlePrintPR(pr)}
-                                                                  />
-                                                                  <MenuTriggerButton classic={currentStyle === 'classic'} onClick={(e) => togglePrMenu(pr.id, e)} />
-                                                              </div>
-                                                          </td>
-                                                      </tr>
-                                                      {isExpanded && (
-                                                          <tr>
-                                                              <td colSpan={9} className="p-0 border-0">
-                                                              <SunkenPanel classic={currentStyle === 'classic'}>
-                                                              <SunkenPanelBody classic={currentStyle === 'classic'}>
-                                                                  {isLoading ? (
-                                                                      <span style={{ fontSize: 11, color: '#666', fontFamily: currentStyle === 'classic' ? 'Tahoma, Arial, sans-serif' : undefined }}>
-                                                                          Loading material requirements...
-                                                                      </span>
-                                                                  ) : reqs.length === 0 ? (
-                                                                      <span style={{ fontSize: 11, color: '#999', fontFamily: currentStyle === 'classic' ? 'Tahoma, Arial, sans-serif' : undefined }}>
-                                                                          No component requirements found for this Production Run.
-                                                                      </span>
-                                                                  ) : (
-                                                                      <div>
-                                                                          {(() => {
-                                                                              const rootMos = mos.filter((mo: any) => !mo.is_shared_component);
-                                                                              if (rootMos.length === 0) return null;
-                                                                              return (
-                                                                                  <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                                                                                      <span style={{ fontSize: currentStyle === 'classic' ? 9 : 10, color: '#555', fontFamily: currentStyle === 'classic' ? 'Tahoma, Arial, sans-serif' : undefined, marginRight: 2, whiteSpace: 'nowrap' }}>
-                                                                                          Linked MOs:
-                                                                                      </span>
-                                                                                      {rootMos.map((mo: any) => (
-                                                                                              <button
-                                                                                                  key={mo.id}
-                                                                                                  onClick={() => router.push(`/manufacturing-orders?mo=${encodeURIComponent(mo.code)}`)}
-                                                                                                  title={`View ${mo.code} in Manufacturing Orders (${mo.status})`}
-                                                                                                  style={currentStyle === 'classic' ? {
-                                                                                                      fontSize: 9, fontFamily: 'Tahoma, Arial, sans-serif',
-                                                                                                      padding: '1px 6px', cursor: 'pointer',
-                                                                                                      background: 'linear-gradient(to bottom,#4da6ff,#0058e6)',
-                                                                                                      border: '1px solid', borderColor: '#dfdfdf #003080 #003080 #dfdfdf',
-                                                                                                      color: '#fff', fontWeight: 'bold',
-                                                                                                  } : {
-                                                                                                      fontSize: 11, fontFamily: 'monospace',
-                                                                                                      padding: '2px 7px', cursor: 'pointer',
-                                                                                                      background: '#0d6efd', border: '1px solid #0a58ca',
-                                                                                                      color: '#fff', fontWeight: 'bold', borderRadius: 3,
-                                                                                                  }}
-                                                                                              >
-                                                                                                  {mo.code}
-                                                                                              </button>
-                                                                                          ))}
-                                                                                  </div>
-                                                                              );
-                                                                          })()}
-                                                                          <div style={{ fontSize: currentStyle === 'classic' ? 10 : 11, fontWeight: 'bold', marginBottom: 4, fontFamily: currentStyle === 'classic' ? 'Tahoma, Arial, sans-serif' : undefined, color: '#333' }}>
-                                                                              Consolidated Material Requirements — {reqs.length} component{reqs.length !== 1 ? 's' : ''}
-                                                                              {hasShortfall && <span style={{ marginLeft: 8, color: '#c00000', fontWeight: 'bold' }}>SHORTFALL DETECTED</span>}
-                                                                          </div>
-                                                                          <table style={{
-                                                                              width: '100%', borderCollapse: 'collapse', fontSize: currentStyle === 'classic' ? 10 : 12,
-                                                                              fontFamily: currentStyle === 'classic' ? 'Tahoma, Arial, sans-serif' : undefined,
-                                                                          }}>
-                                                                              <thead>
-                                                                                  <tr style={{ background: currentStyle === 'classic' ? '#d4d0c8' : '#e9ecef' }}>
-                                                                                      {['Item Code', 'Item Name', 'UOM', 'Total Required', 'Available', 'Shortfall', 'Contributing MOs'].map(h => (
-                                                                                          <th key={h} style={{ padding: '2px 6px', textAlign: h === 'Total Required' || h === 'Available' || h === 'Shortfall' ? 'right' : 'left', border: currentStyle === 'classic' ? '1px solid #808080' : '1px solid #dee2e6', fontWeight: 'bold' }}>{h}</th>
-                                                                                      ))}
-                                                                                  </tr>
-                                                                              </thead>
-                                                                              <tbody>
-                                                                                  {reqs.map((req: any, ri: number) => {
-                                                                                      const short = req.shortfall > 0;
-                                                                                      const rowColor = currentStyle === 'classic'
-                                                                                          ? (short ? '#fff0f0' : ri % 2 === 0 ? '#fff' : '#ece7dc')
-                                                                                          : (short ? '#fff5f5' : ri % 2 === 0 ? '#fff' : '#eef1f4');
-                                                                                      const cellStyle: React.CSSProperties = {
-                                                                                          padding: '2px 6px', border: currentStyle === 'classic' ? '1px solid #c0bdb5' : '1px solid #dee2e6',
-                                                                                          background: rowColor, verticalAlign: 'middle',
-                                                                                      };
-                                                                                      const moSummary = (req.mo_contributions || []).map((c: any) => `${c.mo_code} (${parseFloat(c.required_qty).toFixed(2)})`).join(', ');
-                                                                                      return (
-                                                                                          <tr key={ri}>
-                                                                                              <td style={{ ...cellStyle, fontFamily: 'monospace', fontWeight: 'bold' }}>{req.item_code}</td>
-                                                                                              <td style={cellStyle}>{req.item_name}</td>
-                                                                                              <td style={cellStyle}>{req.uom}</td>
-                                                                                              <td style={{ ...cellStyle, textAlign: 'right', fontFamily: 'monospace' }}>{parseFloat(req.total_required).toFixed(2)}</td>
-                                                                                              <td style={{ ...cellStyle, textAlign: 'right', fontFamily: 'monospace', color: short ? '#c00000' : '#2d7a2d', fontWeight: short ? 'bold' : undefined }}>
-                                                                                                  {parseFloat(req.qty_available).toFixed(2)}
-                                                                                              </td>
-                                                                                              <td style={{ ...cellStyle, textAlign: 'right', fontFamily: 'monospace', color: short ? '#c00000' : '#2d7a2d', fontWeight: short ? 'bold' : undefined }}>
-                                                                                                  {short ? `-${parseFloat(req.shortfall).toFixed(2)}` : 'OK'}
-                                                                                              </td>
-                                                                                              <td style={{ ...cellStyle, fontSize: currentStyle === 'classic' ? 9 : 11, color: '#555' }}>{moSummary}</td>
-                                                                                          </tr>
-                                                                                      );
-                                                                                  })}
-                                                                              </tbody>
-                                                                          </table>
-                                                                      </div>
-                                                                  )}
-                                                              </SunkenPanelBody>
-                                                              </SunkenPanel>
-                                                              </td>
-                                                          </tr>
-                                                      )}
-                                                      </React.Fragment>
-                                                  );
-                                              })}
-                                          </tbody>
-                                      </table>
-                                  </div>
-                              ) : (
-                                  <div style={{
-                                      padding: '32px', textAlign: 'center',
-                                      fontFamily: currentStyle === 'classic' ? 'Tahoma, Arial, sans-serif' : undefined,
-                                      fontSize: currentStyle === 'classic' ? '11px' : undefined,
-                                      color: '#888',
-                                  }}>
-                                      <i className="bi bi-collection-play" style={{ fontSize: 32, display: 'block', marginBottom: 8, opacity: 0.4 }}></i>
-                                      {prSearch
-                                          ? <>No Production Runs match "<strong>{prSearch}</strong>".</>
-                                          : <>No Production Runs yet. Click <strong>New Production Run</strong> to get started.</>}
-                                  </div>
-                              )}
-                              {renderPager(prPage, prTotal, setPrPage)}
-                              {/* Floating "more actions" menu — Delete */}
-                              {openPrMenuId && (() => {
-                                  const menuPR = (productionRuns || []).find((p: any) => p.id === openPrMenuId);
-                                  if (!menuPR) return null;
-                                  return (
-                                      <FloatingMenu
-                                          pos={prMenuPos}
-                                          items={[
-                                              { key: 'delete', icon: 'bi-trash', label: 'Delete', danger: true, hidden: !canManage, onClick: () => { closePrMenu(); onDeleteProductionRun(menuPR.id); } },
-                                          ]}
-                                      />
-                                  );
-                              })()}
-                          </div>
+                          <ProductionRunsTab
+                              productionRuns={productionRuns}
+                              prPage={prPage}
+                              prTotal={prTotal}
+                              setPrPage={setPrPage}
+                              pageSize={pageSize}
+                              prSearch={prSearch}
+                              setPrSearch={setPrSearch}
+                              onDeleteProductionRun={onDeleteProductionRun}
+                              currentStyle={currentStyle}
+                              canManage={canManage}
+                              companyProfile={companyProfile}
+                              helpers={helpers}
+                          />
                       )}
 
                       {/* Manufacturing Orders tab content */}
-                      {activeTab === 'manufacturing-orders' && viewMode === 'calendar' ? (
-                          <div className="p-3"><CalendarView workOrders={manufacturingOrders} items={items} onMOClick={openMOFromCalendar} endField="target_end_date" startField="target_start_date" showHolidays filterable showLoad /></div>
-                      ) : activeTab === 'manufacturing-orders' && (
-                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                              {renderSearchBar(
-                                  moCodeFilter, setMoCodeFilter,
-                                  'Search by MO code, product, or BOM...',
-                                  totalItems,
-                              )}
-                              <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-                              <table style={{
-                                  width: '100%',
-                                  tableLayout: 'fixed',
-                                  borderCollapse: 'collapse',
-                                  fontFamily: currentStyle === 'classic' ? 'Tahoma, Arial, sans-serif' : undefined,
-                                  fontSize: currentStyle === 'classic' ? '11px' : undefined,
-                                  background: currentStyle === 'classic' ? '#fff' : undefined,
-                              }} className={currentStyle === 'classic' ? '' : 'table table-hover align-middle mb-0'}>
-                                  <colgroup>
-                                      <col style={{ width: '195px' }} />
-                                      <col />
-                                      <col style={{ width: '150px' }} />
-                                      <col style={{ width: '90px' }} />
-                                      <col style={{ width: '120px' }} />
-                                      <col style={{ width: '120px' }} />
-                                      <col style={{ width: '120px' }} />
-                                      <col style={{ width: '90px' }} />
-                                      <col style={{ width: '78px' }} />
-                                  </colgroup>
-                                  <thead>
-                                      <tr style={{
-                                          background: currentStyle === 'classic'
-                                              ? 'linear-gradient(to bottom,#fff 0%,#d4d0c8 100%)'
-                                              : undefined,
-                                          fontSize: currentStyle === 'classic' ? '10px' : '9pt',
-                                      }} className={currentStyle === 'classic' ? '' : 'table-light'}>
-                                          {[
-                                              { label: 'MO Code',           align: 'left',   cls: 'ps-3' },
-                                              { label: 'Product',           align: 'left',   cls: '' },
-                                              { label: 'BOM',               align: 'left',   cls: '' },
-                                              { label: 'Qty',               align: 'center', cls: '' },
-                                              { label: 'Target Timeline',   align: 'left',   cls: '' },
-                                              { label: 'Actual',            align: 'left',   cls: '' },
-                                              { label: 'Progress',          align: 'left',   cls: '' },
-                                              { label: t('status'),         align: 'left',   cls: '' },
-                                              { label: t('actions'),        align: 'right',  cls: 'pe-3 no-print' },
-                                          ].map(({ label, align, cls }) => (
-                                              <th key={label} className={cls} style={{
-                                                  border: currentStyle === 'classic' ? '1px solid #808080' : undefined,
-                                                  padding: currentStyle === 'classic' ? '3px 8px' : undefined,
-                                                  textAlign: align as any,
-                                                  color: '#000',
-                                                  fontWeight: 'bold',
-                                                  whiteSpace: 'nowrap',
-                                                  overflow: 'hidden',
-                                              }}>{label}</th>
-                                          ))}
-                                      </tr>
-                                  </thead>
-                                  <tbody>
-                                      {filteredWorkOrders.length === 0 && (
-                                          <tr><td colSpan={9} style={{ padding: '24px', textAlign: 'center', color: '#888', fontSize: currentStyle === 'classic' ? 11 : undefined }}>
-                                              {moCodeFilter
-                                                  ? <>No Manufacturing Orders match "<strong>{moCodeFilter}</strong>".</>
-                                                  : 'No Manufacturing Orders yet.'}
-                                          </td></tr>
-                                      )}
-                                      {filteredWorkOrders.map((wo: any, rowIdx: number) => {
-                                          const warning = getDueDateWarning(wo);
-                                          const isExpanded = expandedRows[wo.id];
-                                          const isHighlighted = !!moCodeFilter && wo.code.toLowerCase().includes(moCodeFilter.toLowerCase());
-                                          const rowBg = currentStyle === 'classic'
-                                              ? (isHighlighted ? '#fff8c4' : isExpanded ? '#d6e4f7' : rowIdx % 2 === 0 ? '#fff' : '#f5f3ee')
-                                              : (isHighlighted ? '#fffde7' : undefined);
-                                          const tdStyle: React.CSSProperties = currentStyle === 'classic' ? {
-                                              border: '1px solid #c0bdb5',
-                                              padding: '4px 8px',
-                                              color: '#000',
-                                              verticalAlign: 'middle',
-                                              height: 46,
-                                          } : { height: 46, verticalAlign: 'middle' };
-
-                                          const isBlocked = wo.status === 'PENDING' && manufacturingOrders.some(
-                                              (other: any) => other.manufacturing_order_id === wo.manufacturing_order_id
-                                                           && other.sequence < wo.sequence
-                                                           && other.status !== 'COMPLETED'
-                                                           && other.id !== wo.id
-                                          );
-
-                                          // XP-style status chip
-                                          const statusChip = (status: string) => {
-                                              if (currentStyle !== 'classic') {
-                                                  if (isBlocked) return <span className="badge bg-secondary extra-small" title="Earlier routing steps must complete first">BLOCKED</span>;
-                                                  return <span className={`badge ${getStatusBadge(status)} extra-small`}>{status}</span>;
-                                              }
-                                              if (isBlocked) return <span style={statusChipStyle('PENDING', { background: '#888', borderColor: '#555', color: '#fff' })} title="Earlier routing steps must complete first">BLOCKED</span>;
-                                              return <span style={statusChipStyle(status)}>{(status || 'PENDING').replace('_', ' ')}</span>;
-                                          };
-
-                                          // XP-style action button
-                                          const xpBtn = (label: string, colorScheme: 'primary'|'success'|'danger'|'default', onClick: () => void, title?: string, iconCls?: string) => {
-                                              if (currentStyle !== 'classic') return null; // rendered separately below
-                                              const schemes: Record<string, React.CSSProperties> = {
-                                                  primary: { background: 'linear-gradient(to bottom,#5a9ae0,#0058e6)', borderColor: '#003080 #001840 #001840 #003080', color: '#fff' },
-                                                  success: { background: 'linear-gradient(to bottom,#5ec85e,#2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#fff' },
-                                                  danger:  { background: 'linear-gradient(to bottom,#fff,#d4d0c8)', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#c00000' },
-                                                  default: { background: 'linear-gradient(to bottom,#fff,#d4d0c8)', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000' },
-                                              };
-                                              return (
-                                                  <button key={label || title} onClick={onClick} title={title} style={{
-                                                      fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px',
-                                                      padding: '2px 7px', cursor: 'pointer', border: '1px solid',
-                                                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                      ...schemes[colorScheme],
-                                                  }}>
-                                                      {iconCls && <i className={label ? `${iconCls} me-1` : iconCls}></i>}{label}
-                                                  </button>
-                                              );
-                                          };
-
-                                          return (
-                                              <>
-                                              <tr key={wo.id} id={`mo-row-${wo.id}`} style={{ background: rowBg, cursor: 'default' }}
-                                                  className={currentStyle !== 'classic' && isExpanded ? 'table-primary bg-opacity-10' : ''}>
-
-                                                  {/* MO Code */}
-                                                  <td style={{ ...tdStyle, paddingLeft: currentStyle === 'classic' ? '10px' : undefined }}
-                                                      className={currentStyle !== 'classic' ? 'ps-4 fw-bold font-monospace small' : ''}>
-                                                      <span style={{ fontFamily: 'monospace', fontWeight: 'bold', fontSize: '11px', color: '#000' }}>{wo.code}</span>
-                                                  </td>
-
-                                                  {/* Product — name (line 1) + variant chips (line 2); click to expand */}
-                                                  <td style={{ ...tdStyle, cursor: 'pointer' }} onClick={() => toggleRow(wo.id)}>
-                                                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                                                          <i className={`bi bi-chevron-${isExpanded ? 'down' : 'right'}`} style={{ color: '#555', fontSize: '10px', marginTop: 2, flexShrink: 0 }}></i>
-                                                          <div style={{ minWidth: 0 }}>
-                                                              <div style={{ fontWeight: 'bold', color: '#000', fontSize: currentStyle === 'classic' ? '11px' : '9pt', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                                  {wo.item_name || getItemName(wo.item_id)}
-                                                              </div>
-                                                              {((wo.attribute_value_ids || []).length > 0 || wo.bom_size_id) && (
-                                                                  <div style={{ display: 'flex', gap: 3, flexWrap: 'nowrap', overflow: 'hidden', marginTop: 2 }}>
-                                                                      {(wo.attribute_value_ids || []).map((id: string) => (
-                                                                          <span key={id} style={{ fontSize: '9px', padding: '1px 5px', background: currentStyle === 'classic' ? '#dce8ff' : '#dbeafe', color: currentStyle === 'classic' ? '#003ea6' : '#1d4ed8', border: `1px solid ${currentStyle === 'classic' ? '#9ab0e0' : '#93c5fd'}`, borderRadius: currentStyle === 'classic' ? 0 : 3, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                                                                              {getAttributeValueName(id)}
-                                                                          </span>
-                                                                      ))}
-                                                                      {wo.bom_size_id && (() => {
-                                                                          const label = getBomSizeLabel(wo.bom_id, wo.bom_size_id);
-                                                                          return label ? (
-                                                                              <span style={{ fontSize: '9px', padding: '1px 5px', background: currentStyle === 'classic' ? '#e4f5e4' : '#dcfce7', color: currentStyle === 'classic' ? '#1a5e1a' : '#15803d', border: `1px solid ${currentStyle === 'classic' ? '#90c090' : '#86efac'}`, borderRadius: currentStyle === 'classic' ? 0 : 3, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                                                                                  <i className="bi bi-rulers me-1" style={{ fontSize: '7px' }}></i>{label}
-                                                                              </span>
-                                                                          ) : null;
-                                                                      })()}
-                                                                  </div>
-                                                              )}
-                                                          </div>
-                                                      </div>
-                                                  </td>
-
-                                                  {/* BOM — code + originating SO + nested marker */}
-                                                  <td style={tdStyle}>
-                                                      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, fontSize: '9px', color: '#555' }}>
-                                                          <span style={{ fontFamily: 'monospace', color: '#000' }}>{getBOMCode(wo.bom_id)}</span>
-                                                          {wo.sales_order_id && (
-                                                              <span style={currentStyle === 'classic' ? {
-                                                                  fontSize: '8px', background: '#dce8ff', border: '1px solid #9ab0e0',
-                                                                  color: '#003ea6', padding: '0 5px', fontWeight: 'bold', whiteSpace: 'nowrap',
-                                                              } : {
-                                                                  fontSize: '0.65rem', background: '#cfe2ff', border: '1px solid #9ec5fe',
-                                                                  color: '#0a58ca', padding: '1px 6px', borderRadius: 3, fontWeight: 'bold', whiteSpace: 'nowrap',
-                                                              }} title="Originating Sales Order">
-                                                                  <i className="bi bi-receipt me-1" style={{ fontSize: currentStyle === 'classic' ? '7px' : undefined }}></i>SO: {wo.sales_order_code || '—'}
-                                                              </span>
-                                                          )}
-                                                          {wo.child_mos && wo.child_mos.length > 0 && (
-                                                              currentStyle === 'classic'
-                                                                  ? <span style={{ fontSize: '8px', background: '#fff3cd', border: '1px solid #b8860b', color: '#6b4e00', padding: '0 4px', fontWeight: 'bold' }}>NESTED x{wo.child_mos.length}</span>
-                                                                  : <span className="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" style={{fontSize: '0.65rem'}}>NESTED ({wo.child_mos.length})</span>
-                                                          )}
-                                                      </div>
-                                                  </td>
-
-                                                  {/* Qty */}
-                                                  <td style={{ ...tdStyle, fontWeight: 'bold', color: '#000', fontFamily: 'monospace' }}
-                                                      className={currentStyle !== 'classic' ? 'fw-bold' : ''}>
-                                                      {(() => {
-                                                          const qtyStr = typeof wo.qty === 'number' ? wo.qty.toLocaleString('en-US', { maximumFractionDigits: 2 }) : String(wo.qty);
-                                                          const [intPart, decPart] = qtyStr.split('.');
-                                                          return (
-                                                              <div style={{ display: 'flex', justifyContent: 'center' }}>
-                                                                  <span style={{ minWidth: '48px', textAlign: 'right' }}>{intPart}</span>
-                                                                  <span style={{ width: '7px', textAlign: 'left' }}>{decPart ? '.' : ''}</span>
-                                                                  <span style={{ minWidth: '20px', textAlign: 'left' }}>{decPart || ''}</span>
-                                                              </div>
-                                                          );
-                                                      })()}
-                                                  </td>
-
-                                                  {/* Target Timeline */}
-                                                  <td style={tdStyle}>
-                                                      <div style={{ fontSize: currentStyle === 'classic' ? '10px' : undefined, display: 'flex', flexDirection: 'column', gap: '1px' }}
-                                                           className={currentStyle !== 'classic' ? 'extra-small' : ''}>
-                                                          <span style={{ color: '#000' }}>S: {formatDate(wo.target_start_date)}</span>
-                                                          <span style={{ color: warning ? '#c00000' : '#000', fontWeight: warning ? 'bold' : undefined }}>
-                                                              E: {formatDate(wo.target_end_date)}
-                                                              {warning && <i className={`bi ${warning.icon} ms-1`} style={{ fontSize: '9px' }}></i>}
-                                                          </span>
-                                                      </div>
-                                                  </td>
-
-                                                  {/* Actual — start / end only (2 lines) */}
-                                                  <td style={tdStyle}>
-                                                      <div style={{ fontSize: currentStyle === 'classic' ? '10px' : undefined, display: 'flex', flexDirection: 'column', gap: '1px' }}
-                                                           className={currentStyle !== 'classic' ? 'extra-small text-muted' : ''}>
-                                                          <span style={{ color: '#555' }}>S: {formatDateTime(wo.actual_start_date)}</span>
-                                                          <span style={{ color: '#555' }}>E: {formatDateTime(wo.actual_end_date)}</span>
-                                                      </div>
-                                                  </td>
-
-                                                  {/* Progress — bar + completed / target (2 lines) */}
-                                                  <td style={tdStyle}>
-                                                      {(wo.qty_completed_total != null && wo.qty_completed_total > 0) ? (() => {
-                                                          const pct = Math.min(100, Math.round((wo.qty_completed_total / wo.qty) * 100));
-                                                          return (
-                                                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                                  <div className="progress" style={{ height: '6px', width: '100%' }}>
-                                                                      <div className={`progress-bar ${pct >= 100 ? 'bg-success' : 'bg-primary'}`} style={{ width: `${pct}%` }} />
-                                                                  </div>
-                                                                  <span style={{ fontSize: '9px', color: '#555' }}>{parseFloat(wo.qty_completed_total).toFixed(2)} / {wo.qty} ({pct}%)</span>
-                                                              </div>
-                                                          );
-                                                      })() : (
-                                                          <span style={{ color: '#999', fontSize: '10px' }}>-</span>
-                                                      )}
-                                                  </td>
-
-                                                  {/* Status */}
-                                                  <td style={tdStyle}>{statusChip(wo.status)}</td>
-
-                                                  {/* Actions — icon Start + [...] menu (Print / Delete) */}
-                                                  <td style={{ ...tdStyle, textAlign: 'right' }} className="no-print" onClick={(e) => e.stopPropagation()}>
-                                                      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
-                                                          {canManage && wo.status === 'PENDING' && !isBlocked && (
-                                                              currentStyle === 'classic'
-                                                                  ? <span style={{ width: '26px', display: 'inline-flex' }}>{xpBtn('', 'primary', () => onUpdateStatus(wo.id, 'IN_PROGRESS'), 'Start production', 'bi bi-play-fill')}</span>
-                                                                  : <button className="btn btn-sm btn-primary py-0 px-2" title="Start production" onClick={() => onUpdateStatus(wo.id, 'IN_PROGRESS')}><i className="bi bi-play-fill" /></button>
-                                                          )}
-                                                          <MenuTriggerButton classic={currentStyle === 'classic'} onClick={(e) => toggleMoMenu(wo.id, e)} />
-                                                      </div>
-                                                  </td>
-                                              </tr>
-                                              {isExpanded && (
-                                                  <tr key={`${wo.id}-detail`}>
-                                                      <td colSpan={9} className="p-0 border-0">
-                                                          {renderWOExpandedPanel({
-                                                              wo,
-                                                              detailTab: expandedDetailTabs[wo.id] || 'bom',
-                                                              setDetailTab: (t) => setExpandedDetailTabs(prev => ({ ...prev, [wo.id]: t })),
-                                                          })}
-                                                      </td>
-                                                  </tr>
-                                              )}
-                                              </>
-                                          );
-                                      })}
-                                  </tbody>
-                              </table>
-                              </div>
-                              {/* Floating "more actions" menu — Print / Delete */}
-                              {openMoMenuId && (() => {
-                                  const menuMO = filteredWorkOrders.find((m: any) => m.id === openMoMenuId);
-                                  if (!menuMO) return null;
-                                  return (
-                                      <FloatingMenu
-                                          pos={moMenuPos}
-                                          items={[
-                                              { key: 'print', icon: 'bi-printer', label: 'Print', onClick: () => { closeMoMenu(); handlePrintWO(menuMO); } },
-                                              { key: 'delete', icon: 'bi-trash', label: 'Delete', danger: true, hidden: !canManage, onClick: () => { closeMoMenu(); onDeleteMO(menuMO.id); } },
-                                          ]}
-                                      />
-                                  );
-                              })()}
-                              {renderPager(currentPage, totalItems, onPageChange)}
-                          </div>
+                      {activeTab === 'manufacturing-orders' && (
+                          <ManufacturingOrdersTab
+                              items={items}
+                              boms={boms}
+                              locations={locations}
+                              attributes={attributes}
+                              manufacturingOrders={manufacturingOrders}
+                              productionRuns={productionRuns}
+                              workCenters={workCenters}
+                              onUpdateStatus={onUpdateStatus}
+                              onDeleteMO={onDeleteMO}
+                              onCreateWO={onCreateWO}
+                              onUpdateWO={onUpdateWO}
+                              onUpdateWOStatus={onUpdateWOStatus}
+                              onDeleteWO={onDeleteWO}
+                              currentPage={currentPage}
+                              totalItems={totalItems}
+                              pageSize={pageSize}
+                              onPageChange={onPageChange}
+                              moCodeFilter={moCodeFilter}
+                              setMoCodeFilter={setMoCodeFilter}
+                              viewMode={viewMode}
+                              setViewMode={setViewMode}
+                              currentStyle={currentStyle}
+                              canManage={canManage}
+                              companyProfile={companyProfile}
+                              helpers={helpers}
+                          />
                       )}
                   </div>
               </div>
@@ -2418,280 +756,6 @@ export default function ManufacturingView({
                   productionRuns={productionRuns}
               />
           )}
-
-          {completionMO && (
-              <WOCompletionModal
-                  mo={completionMO}
-                  workOrder={completionWO ?? undefined}
-                  onClose={() => { setCompletionMO(null); setCompletionWO(null); }}
-                  onSaved={(updated) => {
-                      setCompletionMO(null);
-                      setCompletionWO(null);
-                      fetchData('work-orders');
-                  }}
-              />
-          )}
-
-          {editAttrsModal && (() => {
-              const xpBtn = (onClick: () => void, label: string, primary: boolean) => (
-                  <button
-                      onClick={onClick}
-                      style={{
-                          fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
-                          padding: '2px 14px', cursor: 'pointer', borderRadius: 0,
-                          background: primary
-                              ? 'linear-gradient(to bottom, #b0e8b0, #70c870)'
-                              : 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-                          border: '1px solid',
-                          borderColor: primary
-                              ? '#d0f0d0 #0a3e0a #0a3e0a #1a5e1a'
-                              : '#dfdfdf #808080 #808080 #dfdfdf',
-                          fontWeight: primary ? 'bold' : 'normal',
-                          color: primary ? '#004000' : '#000',
-                          minWidth: 70,
-                      }}
-                  >{label}</button>
-              );
-              const isClassic = currentStyle === 'classic';
-              return (
-                  <ModalWrapper
-                      isOpen
-                      modeless
-                      onClose={() => setEditAttrsModal(null)}
-                      title={<><i className="bi bi-tags me-1"></i>Edit Attributes — <span style={{ fontFamily: 'monospace' }}>{editAttrsModal.mo.code}</span></>}
-                      size="md"
-                      level={2}
-                      footer={isClassic ? (
-                          <div style={{ display: 'flex', gap: 4 }}>
-                              {xpBtn(() => setEditAttrsModal(null), 'Cancel', false)}
-                              {xpBtn(() => handleUpdateMOAttributes(editAttrsModal.mo.id, editAttrsModal.selected), 'Save', true)}
-                          </div>
-                      ) : (
-                          <div style={{ display: 'flex', gap: 8 }}>
-                              <button className="btn btn-sm btn-secondary" onClick={() => setEditAttrsModal(null)}>Cancel</button>
-                              <button className="btn btn-sm btn-primary" onClick={() => handleUpdateMOAttributes(editAttrsModal.mo.id, editAttrsModal.selected)}>Save</button>
-                          </div>
-                      )}
-                  >
-                      {/* Attribute rows: label + dropdown */}
-                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                          <tbody>
-                              {(attributes || []).map((attr: any) => {
-                                  const currentVal = (attr.values || []).find((v: any) => editAttrsModal.selected.includes(v.id));
-                                  return (
-                                      <tr key={attr.id}>
-                                          <td style={{
-                                              padding: isClassic ? '3px 8px 3px 0' : '4px 10px 4px 0',
-                                              fontFamily: isClassic ? 'Tahoma, sans-serif' : undefined,
-                                              fontSize: isClassic ? 11 : 12,
-                                              fontWeight: isClassic ? 'normal' : 500,
-                                              color: '#333',
-                                              whiteSpace: 'nowrap',
-                                              width: 1,
-                                          }}>{attr.name}</td>
-                                          <td style={{ padding: isClassic ? '3px 0' : '4px 0' }}>
-                                              <select
-                                                  value={currentVal?.id ?? ''}
-                                                  onChange={e => {
-                                                      const newValId = e.target.value;
-                                                      setEditAttrsModal(prev => {
-                                                          if (!prev) return prev;
-                                                          const attrValueIds = (attr.values || []).map((v: any) => v.id);
-                                                          const without = prev.selected.filter((id: string) => !attrValueIds.includes(id));
-                                                          return { ...prev, selected: newValId ? [...without, newValId] : without };
-                                                      });
-                                                  }}
-                                                  style={isClassic ? {
-                                                      fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
-                                                      border: '1px solid', borderColor: '#808080 #dfdfdf #dfdfdf #808080',
-                                                      background: '#fff', height: 20, padding: '0 2px',
-                                                      outline: 'none', width: '100%', borderRadius: 0,
-                                                  } : { fontSize: 12, width: '100%' }}
-                                                  className={isClassic ? undefined : 'form-select form-select-sm'}
-                                              >
-                                                  <option value="">— none —</option>
-                                                  {(attr.values || []).map((val: any) => (
-                                                      <option key={val.id} value={val.id}>{val.value}</option>
-                                                  ))}
-                                              </select>
-                                          </td>
-                                      </tr>
-                                  );
-                              })}
-                          </tbody>
-                      </table>
-                  </ModalWrapper>
-              );
-          })()}
-
-          {editColorModal && (() => {
-              const isClassic = currentStyle === 'classic';
-              const mo = editColorModal.mo;
-              const xpBtn = (onClick: () => void, label: string, primary: boolean) => (
-                  <button
-                      onClick={onClick}
-                      style={{
-                          fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
-                          padding: '2px 14px', cursor: 'pointer', borderRadius: 0,
-                          background: primary ? 'linear-gradient(to bottom, #b0e8b0, #70c870)' : 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-                          border: '1px solid',
-                          borderColor: primary ? '#d0f0d0 #0a3e0a #0a3e0a #1a5e1a' : '#dfdfdf #808080 #808080 #dfdfdf',
-                          fontWeight: primary ? 'bold' : 'normal', color: primary ? '#004000' : '#000', minWidth: 70,
-                      }}
-                  >{label}</button>
-              );
-              return (
-                  <ModalWrapper
-                      isOpen
-                      modeless
-                      onClose={() => setEditColorModal(null)}
-                      title={<><i className="bi bi-palette me-1"></i>Set Color — <span style={{ fontFamily: 'monospace' }}>{mo.code}</span></>}
-                      size="md"
-                      level={2}
-                      footer={isClassic ? (
-                          <div style={{ display: 'flex', gap: 4 }}>
-                              {mo.color_id && xpBtn(() => handleSetMOColor(mo.id, null), 'Clear', false)}
-                              {xpBtn(() => setEditColorModal(null), 'Close', false)}
-                          </div>
-                      ) : (
-                          <div style={{ display: 'flex', gap: 8 }}>
-                              {mo.color_id && <button className="btn btn-sm btn-outline-danger" onClick={() => handleSetMOColor(mo.id, null)}>Clear</button>}
-                              <button className="btn btn-sm btn-secondary" onClick={() => setEditColorModal(null)}>Close</button>
-                          </div>
-                      )}
-                  >
-                      <div style={{ fontFamily: isClassic ? 'Tahoma, sans-serif' : undefined, fontSize: isClassic ? 11 : 13 }}>
-                          {mo.color_code && (
-                              <div style={{ marginBottom: 8 }}>Current color: <b>{mo.color_code}</b>{mo.color_name && mo.color_name !== mo.color_code ? ` — ${mo.color_name}` : ''}</div>
-                          )}
-                          {mo.labdip_variant_code && (
-                              <div style={{ marginBottom: 8, padding: '4px 8px', background: '#fbf4dd', border: '1px solid #e8dca8', color: '#8a6d00' }}>
-                                  Ordered against lab dip <b>{mo.labdip_variant_code}</b>. It backfills the color automatically on approval — set one here only to override.
-                              </div>
-                          )}
-                          {colorModalLabdips.length > 0 && (
-                              <div style={{ marginBottom: 8 }}>
-                                  <div style={{ fontWeight: 'bold', color: '#8a6d00', marginBottom: 2 }}>Lab dips in progress for this item</div>
-                                  {colorModalLabdips.map((v: any) => (
-                                      <div key={v.labdip_item_id} style={{ fontSize: isClassic ? 10 : 12, color: '#555' }}>{v.variant_code} · {v.request_code || 'lab dip'} · {v.status}</div>
-                                  ))}
-                              </div>
-                          )}
-                          <div style={{ fontWeight: 'bold', marginBottom: 4 }}>Pick an approved color</div>
-                          <input
-                              type="text"
-                              placeholder="Search color code / name / Pantone..."
-                              value={colorModalSearch}
-                              onChange={e => setColorModalSearch(e.target.value)}
-                              style={isClassic ? { fontFamily: 'Tahoma, sans-serif', fontSize: 11, border: '1px solid', borderColor: '#808080 #dfdfdf #dfdfdf #808080', background: '#fff', height: 22, padding: '0 4px', outline: 'none', width: '100%', borderRadius: 0 } : { fontSize: 12, width: '100%' }}
-                              className={isClassic ? undefined : 'form-control form-control-sm'}
-                          />
-                          <div style={{ maxHeight: 200, overflowY: 'auto', border: colorModalResults.length ? '1px solid #ccc' : 'none', marginTop: 4 }}>
-                              {colorModalResults.map((c: any) => (
-                                  <div
-                                      key={c.id}
-                                      onClick={() => handleSetMOColor(mo.id, c.id)}
-                                      style={{ padding: '3px 6px', cursor: 'pointer', fontSize: isClassic ? 11 : 12, borderBottom: '1px solid #eee' }}
-                                  >
-                                      <b>{c.code}</b>{c.name ? ` — ${c.name}` : ''}{c.pantone_ref ? <span style={{ color: '#888' }}> · {c.pantone_ref}</span> : null}
-                                  </div>
-                              ))}
-                          </div>
-                      </div>
-                  </ModalWrapper>
-              );
-          })()}
-
-          {putawayModal && (() => {
-              const xpBtn = (onClick: () => void, label: string, primary: boolean) => (
-                  <button
-                      onClick={onClick}
-                      style={{
-                          fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
-                          padding: '2px 14px', cursor: 'pointer', borderRadius: 0,
-                          background: primary
-                              ? 'linear-gradient(to bottom, #b0e8b0, #70c870)'
-                              : 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
-                          border: '1px solid',
-                          borderColor: primary
-                              ? '#d0f0d0 #0a3e0a #0a3e0a #1a5e1a'
-                              : '#dfdfdf #808080 #808080 #dfdfdf',
-                          fontWeight: primary ? 'bold' : 'normal',
-                          color: primary ? '#004000' : '#000',
-                          minWidth: 70,
-                      }}
-                  >{label}</button>
-              );
-              const isClassic = currentStyle === 'classic';
-              const pm = putawayModal;
-              const reasonText = pm.reason === 'same_item' ? 'bin already holds this item'
-                  : pm.reason === 'empty_bin' ? 'first empty bin'
-                  : pm.reason === 'configured' ? 'currently assigned bin'
-                  : pm.reason === 'item_default' ? "item's default putaway bin"
-                  : pm.reason === 'first_bin' ? 'first bin by code'
-                  : null;
-              const selStyle = isClassic ? {
-                  fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
-                  border: '1px solid', borderColor: '#808080 #dfdfdf #dfdfdf #808080',
-                  background: '#fff', height: 20, padding: '0 2px',
-                  outline: 'none', width: '100%', borderRadius: 0,
-              } as React.CSSProperties : { fontSize: 12, width: '100%' } as React.CSSProperties;
-              return (
-                  <ModalWrapper
-                      isOpen
-                      modeless
-                      onClose={() => setPutawayModal(null)}
-                      title={<><i className="bi bi-box-arrow-in-down me-1"></i>Putaway Bin — <span style={{ fontFamily: 'monospace' }}>{pm.mo.code}</span></>}
-                      size="md"
-                      level={2}
-                      footer={isClassic ? (
-                          <div style={{ display: 'flex', gap: 4 }}>
-                              {xpBtn(() => setPutawayModal(null), 'Cancel', false)}
-                              {xpBtn(() => handleSavePutaway(pm.mo.id, pm.selected), 'Save', true)}
-                          </div>
-                      ) : (
-                          <div style={{ display: 'flex', gap: 8 }}>
-                              <button className="btn btn-sm btn-secondary" onClick={() => setPutawayModal(null)}>Cancel</button>
-                              <button className="btn btn-sm btn-primary" onClick={() => handleSavePutaway(pm.mo.id, pm.selected)}>Save</button>
-                          </div>
-                      )}
-                  >
-                      <div style={{ fontFamily: isClassic ? 'Tahoma, sans-serif' : undefined, fontSize: isClassic ? 11 : 12, color: '#333', marginBottom: 8 }}>
-                          Where this output will be stored when produced. Operators see this on the work order — they do not choose it.
-                      </div>
-                      {pm.loading ? (
-                          <div style={{ fontSize: 11, color: '#888' }}>Loading bins...</div>
-                      ) : pm.bins.length === 0 ? (
-                          <div style={{ fontSize: 11, color: '#888' }}>
-                              No candidate bins found — set an output location on the routing&apos;s final work center (or a work order), and create bins under it on the Locations page.
-                          </div>
-                      ) : (
-                          <>
-                              <select
-                                  value={pm.selected}
-                                  onChange={e => setPutawayModal(prev => prev ? { ...prev, selected: e.target.value } : prev)}
-                                  style={selStyle}
-                                  className={isClassic ? undefined : 'form-select form-select-sm'}
-                              >
-                                  <option value="">— none (fall back to WO output location) —</option>
-                                  {pm.bins.map((b: any) => (
-                                      <option key={b.id} value={b.id}>
-                                          {b.full_path}
-                                          {b.item_on_hand > 0 ? ` — ${Number(b.item_on_hand).toFixed(2)} same item` : b.total_on_hand <= 0 ? ' — empty' : ''}
-                                          {b.id === pm.suggested ? ' (suggested)' : ''}
-                                      </option>
-                                  ))}
-                              </select>
-                              {reasonText && (
-                                  <div style={{ fontSize: 10, color: '#666', marginTop: 4 }}>
-                                      Suggestion: {reasonText}.
-                                  </div>
-                              )}
-                          </>
-                      )}
-                  </ModalWrapper>
-              );
-          })()}
       </div>
   );
 }
