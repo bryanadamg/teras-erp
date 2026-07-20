@@ -1357,7 +1357,10 @@ export default function ManufacturingView({
           )}
 
           {detailTab === 'steps' && (
-              <div style={{ padding: '8px 12px', height: PANEL_BODY_H, overflowY: 'auto', boxSizing: 'border-box' }}>
+              <div style={{
+                  padding: '8px 12px', height: PANEL_BODY_H, overflowY: 'auto', boxSizing: 'border-box',
+                  background: '#fff', border: classic ? '1px solid #808080' : undefined,
+              }}>
                   <WorkOrderPanel
                       manufacturingOrderId={selectedNode.id}
                       workOrders={selectedNode.work_orders || []}

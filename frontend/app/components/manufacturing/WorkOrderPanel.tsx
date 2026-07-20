@@ -313,8 +313,11 @@ export default function WorkOrderPanel({
         new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
     );
 
+    // Shared column widths for the table header + every data row so cells line up.
+    const COLS = '92px 62px 82px minmax(110px,1fr) 96px 92px 108px 34px 92px 116px';
+
     return (
-        <div style={{ fontFamily: xpFont, fontSize: 11 }}>
+        <div style={{ fontFamily: xpFont, fontSize: 11, background: '#fff' }}>
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: parentMO ? 4 : 8 }}>
                 <span style={{ fontWeight: 'bold', fontSize: 11, color: '#000080' }}>
@@ -386,21 +389,40 @@ export default function WorkOrderPanel({
             )}
 
             {/* Pipeline */}
-            <div>
+            <div style={{ border: '1px solid #d4d0c8' }}>
                 {sorted.length === 0 && !addingRow && (
-                    <div style={{ color: '#888', fontStyle: 'italic', fontSize: 11, padding: '4px 0' }}>
+                    <div style={{ color: '#888', fontStyle: 'italic', fontSize: 11, padding: '6px 8px' }}>
                         No work orders yet. Click + Add Work Order.
                     </div>
                 )}
 
-                {sorted.map((wo) => {
+                {sorted.length > 0 && (
+                    <div style={{
+                        display: 'grid', gridTemplateColumns: COLS, gap: 6, alignItems: 'center',
+                        padding: '3px 7px', background: '#eef0f3', borderBottom: '1px solid #d4d0c8',
+                        fontSize: 9, fontWeight: 'bold', color: '#555', textTransform: 'uppercase', letterSpacing: '0.03em',
+                    }}>
+                        <span>WO Code</span>
+                        <span>Print</span>
+                        <span>Type</span>
+                        <span>Work Center</span>
+                        <span>Route</span>
+                        <span>Staging</span>
+                        <span>Progress</span>
+                        <span>Hrs</span>
+                        <span>Status</span>
+                        <span>Actions</span>
+                    </div>
+                )}
+
+                {sorted.map((wo, idx) => {
                     const pct = wo.qty ? Math.min(100, ((wo.qty_completed_total ?? 0) / wo.qty) * 100) : 0;
                     const done = wo.qty != null && (wo.qty_completed_total ?? 0) >= wo.qty;
                     const chipStyle = getChipStyle(wo.work_center_type);
                     const isEditing = editId === wo.id;
 
                     return (
-                        <div key={wo.id} style={{ marginBottom: 5 }}>
+                        <div key={wo.id} style={{ marginBottom: isEditing ? 5 : 0 }}>
 
                             {isEditing ? (
                                 /* ── Edit row ── */
@@ -538,24 +560,28 @@ export default function WorkOrderPanel({
                                     )}
                                 </div>
                             ) : (
-                                /* ── Display row ── */
+                                /* ── Display row (table row) ── */
                                 <div style={{
-                                    display: 'flex', alignItems: 'center', gap: 5,
-                                    padding: '3px 7px',
-                                    background: '#f8f7f2',
-                                    border: '1px solid #d4d0c8',
-                                    borderLeft: `3px solid ${STATUS_BORDER[wo.status] || '#c8c6be'}`,
+                                    display: 'grid', gridTemplateColumns: COLS, gap: 6, alignItems: 'center',
+                                    padding: '4px 7px',
+                                    background: idx % 2 === 0 ? '#fff' : '#fafaf8',
+                                    borderBottom: '1px solid #e8e6e0',
                                 }}>
-                                    {/* WO Code */}
+                                    {/* WO Code — small status dot instead of a side-tab bar */}
                                     <span
                                         style={{
                                             fontFamily: 'monospace', fontWeight: 'bold', fontSize: 10,
-                                            color: '#0058e6', minWidth: 90, whiteSpace: 'nowrap',
+                                            color: '#0058e6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                                             cursor: 'pointer', textDecoration: 'underline',
+                                            display: 'flex', alignItems: 'center', gap: 4,
                                         }}
                                         title="View in Work Orders list"
                                         onClick={() => { window.location.href = `/work-orders?wo=${wo.id}`; }}
                                     >
+                                        <span style={{
+                                            width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                                            background: STATUS_BORDER[wo.status] || '#c8c6be',
+                                        }} />
                                         {wo.code || `Step ${wo.sequence}`}
                                     </span>
 
@@ -563,17 +589,17 @@ export default function WorkOrderPanel({
                                     <PrintChips wo={wo} />
 
                                     {/* Work center type chip */}
-                                    {wo.work_center_type && (
+                                    {wo.work_center_type ? (
                                         <span style={{
                                             padding: '0 5px', fontSize: 9, fontWeight: 'bold',
                                             border: `1px solid ${chipStyle.borderColor}`,
                                             background: chipStyle.background,
                                             color: chipStyle.color,
-                                            whiteSpace: 'nowrap',
+                                            whiteSpace: 'nowrap', justifySelf: 'start',
                                         }}>
                                             {wo.work_center_type.toUpperCase()}
                                         </span>
-                                    )}
+                                    ) : <span />}
 
                                     {/* Work center name */}
                                     <span style={{ fontSize: 11, color: '#222', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -581,8 +607,8 @@ export default function WorkOrderPanel({
                                     </span>
 
                                     {/* Location flow chips */}
-                                    {(wo.input_location || wo.output_location) && (
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0, fontSize: 9 }}>
+                                    {(wo.input_location || wo.output_location) ? (
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, whiteSpace: 'nowrap' }}>
                                             <span style={{ background: '#e8f0fe', color: '#1a56c4', border: '1px solid #b0c8f8', padding: '0 4px' }}>
                                                 {wo.input_location?.code || '?'}
                                             </span>
@@ -591,13 +617,13 @@ export default function WorkOrderPanel({
                                                 {wo.output_location?.code || '?'}
                                             </span>
                                         </span>
-                                    )}
+                                    ) : <span style={{ color: '#ccc', fontSize: 9 }}>—</span>}
 
                                     {/* Staging status badge (routing step, or a staging-capable center) */}
-                                    {(wo.bom_operation_id || ['WEAVING', 'DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase())) && (
+                                    {(wo.bom_operation_id || ['WEAVING', 'DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase())) ? (
                                         <span style={{
                                             padding: '0 5px', fontSize: 9, fontWeight: 'bold', whiteSpace: 'nowrap',
-                                            border: '1px solid',
+                                            border: '1px solid', justifySelf: 'start',
                                             ...(wo.staging_status === 'STAGED'
                                                 ? { background: '#d4f0d4', color: '#005500', borderColor: '#99cc99' }
                                                 : wo.staging_status === 'PARTIAL'
@@ -607,18 +633,15 @@ export default function WorkOrderPanel({
                                             {wo.staging_status === 'STAGED' ? 'STAGED'
                                                 : wo.staging_status === 'PARTIAL' ? 'PART. STAGED' : 'NOT STAGED'}
                                         </span>
-                                    )}
-
-                                    {/* Flex spacer */}
-                                    <span style={{ flex: 1 }} />
+                                    ) : <span style={{ color: '#ccc', fontSize: 9 }}>—</span>}
 
                                     {/* Progress bar */}
                                     {wo.qty != null ? (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                             <div style={{
-                                                width: 68, height: 10,
+                                                width: 60, height: 10,
                                                 border: '1px solid #7f9db9', background: '#fff',
-                                                position: 'relative', overflow: 'hidden',
+                                                position: 'relative', overflow: 'hidden', flexShrink: 0,
                                             }}>
                                                 {pct > 0 && (
                                                     <div style={{
@@ -634,12 +657,12 @@ export default function WorkOrderPanel({
                                             </span>
                                         </div>
                                     ) : (
-                                        <span style={{ fontSize: 9, color: '#bbb', width: 100, textAlign: 'right', flexShrink: 0 }}>—</span>
+                                        <span style={{ fontSize: 9, color: '#ccc' }}>—</span>
                                     )}
 
                                     {/* Planned hours */}
-                                    <span style={{ fontSize: 9, color: '#666', minWidth: 26, textAlign: 'right', flexShrink: 0 }}>
-                                        {wo.planned_duration_hours != null ? `${wo.planned_duration_hours}h` : ''}
+                                    <span style={{ fontSize: 9, color: '#666', textAlign: 'right' }}>
+                                        {wo.planned_duration_hours != null ? `${wo.planned_duration_hours}h` : '—'}
                                     </span>
 
                                     {/* Status select */}
@@ -651,7 +674,7 @@ export default function WorkOrderPanel({
                                             fontFamily: xpFont, fontSize: 9, height: 16,
                                             border: '1px solid #aca899', background: '#ece9d8',
                                             color: STATUS_BORDER[wo.status] || '#000',
-                                            padding: '0 2px', flexShrink: 0, minWidth: 82,
+                                            padding: '0 2px', width: '100%',
                                         }}
                                     >
                                         {['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].map(s => (
@@ -660,7 +683,7 @@ export default function WorkOrderPanel({
                                     </select>
 
                                     {/* Actions */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'nowrap', justifySelf: 'end' }}>
                                         {canEdit(wo) && (wo.bom_operation_id || ['WEAVING', 'DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase())) && wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED' && (
                                             <button
                                                 onClick={() => (canScanStage(wo) ? setScanStageWO(wo) : setStageWO(wo))}
