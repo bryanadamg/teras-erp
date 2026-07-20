@@ -64,9 +64,19 @@ class SalesOrderLine(Base):
     color_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("colors.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # Pending (not-yet-approved) shade: the ordered color is still in lab dip. The
+    # stable identity is the lab dip variant_code (e.g. '00006-A'), preserved across
+    # reject->resubmit via LabDipItem.locked_variant_code. On approval the minted
+    # Color is auto-backfilled onto the root MO by matching this code. labdip_item_id
+    # is the item row at order time (for display/trace; may go stale if rejected).
+    labdip_variant_code: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    labdip_item_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("lab_dip_items.id", ondelete="SET NULL"), nullable=True
+    )
 
     # Relationships
     item = relationship("Item")
     attribute_values = relationship("AttributeValue", secondary=sales_order_line_values)
     bom_size = relationship("BOMSize", foreign_keys=[bom_size_id])
     color = relationship("Color", foreign_keys=[color_id])
+    labdip_item = relationship("LabDipItem", foreign_keys=[labdip_item_id], lazy="noload")

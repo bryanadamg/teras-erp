@@ -1,17 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update as sa_update
 from sqlalchemy.orm import joinedload
 from app.db.session import get_async_db
 from app.models.lab_dip import LabDipRequest, LabDipItem, LabDipLine
 from app.models.color import Color
 from app.models.attribute import Attribute, AttributeValue
+from app.models.manufacturing import ManufacturingOrder
+from app.models.sales import SalesOrderLine
 from app.schemas import (
     LabDipRequestCreate, LabDipRequestUpdate, LabDipRequestResponse, LabDipLineResponse,
 )
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission
 from app.services import audit_service
+from app.core.ws_manager import manager
 from datetime import datetime, date
 
 router = APIRouter()
@@ -311,6 +314,7 @@ async def update_lab_dip_item_status(
     parent = parent_result.scalars().first()
 
     minted_color_code = None
+    backfilled_mo_ids: list[str] = []
     if status == "APPROVED":
         set_value = (set_value or "").strip()
         if not set_value:
@@ -347,6 +351,36 @@ async def update_lab_dip_item_status(
         item.approved_color_id = color.id
         minted_color_code = code
 
+        # Auto-backfill: any root MO / SO line ordered against this shade while it
+        # was still in lab dip carries our variant_code (e.g. '00006-A'), preserved
+        # across reject->resubmit via locked_variant_code. Now that the color is
+        # minted, stamp it on those still-pending rows so the DYEING WO gate can
+        # resolve the recipe. Only rows without a color_id yet are touched (a manual
+        # MO override is never clobbered).
+        seq_part = parent.code.rsplit("-", 1)[-1] if parent and parent.code else ""
+        variant_code = item.locked_variant_code or f"{seq_part}-{_variant_letter(item.variant_seq)}"
+        mo_ids = (await db.execute(
+            select(ManufacturingOrder.id).filter(
+                ManufacturingOrder.labdip_variant_code == variant_code,
+                ManufacturingOrder.color_id.is_(None),
+            )
+        )).scalars().all()
+        if mo_ids:
+            await db.execute(
+                sa_update(ManufacturingOrder)
+                .where(ManufacturingOrder.id.in_(mo_ids))
+                .values(color_id=color.id)
+            )
+        await db.execute(
+            sa_update(SalesOrderLine)
+            .where(
+                SalesOrderLine.labdip_variant_code == variant_code,
+                SalesOrderLine.color_id.is_(None),
+            )
+            .values(color_id=color.id)
+        )
+        backfilled_mo_ids = [str(m) for m in mo_ids]
+
     if status == "REJECTED":
         item.rejection_reason = (reason or "").strip() or None
         item.rejection_notes = (notes or "").strip() or None
@@ -369,7 +403,11 @@ async def update_lab_dip_item_status(
                 + (f"; minted color {minted_color_code}" if minted_color_code else ""),
         changes={"status": status, "previous_status": previous_status, "approved_color_code": minted_color_code},
     )
-    return {"status": "success", "color_code": minted_color_code}
+    # Nudge the manufacturing UI so backfilled root MOs reflect their new color
+    # (and their DYEING WO gate unblocks) without a manual refresh.
+    for mo_id in backfilled_mo_ids:
+        await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": mo_id})
+    return {"status": "success", "color_code": minted_color_code, "backfilled_mo_count": len(backfilled_mo_ids)}
 
 
 @router.put("/lab-dips/{request_id}/status")

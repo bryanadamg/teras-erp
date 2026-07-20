@@ -401,6 +401,7 @@ async def create_production_run(
             total_qty=bom_entry.total_qty,
             attribute_value_ids=[str(v) for v in (bom_entry.attribute_value_ids or [])],
             color_id=bom_entry.color_id,
+            labdip_variant_code=bom_entry.labdip_variant_code,
             force_create=bom_entry.force_create,
         )
         db.add(pr_entry)
@@ -458,6 +459,7 @@ async def create_production_run(
                 )
                 root_mo.code = await _find_unique_mo_code(db, base_code)
                 root_mo.color_id = bom_entry.color_id
+                root_mo.labdip_variant_code = bom_entry.labdip_variant_code
                 entry_root_mos.append(root_mo)
                 total_root_mo_count += 1
                 await db.flush()
@@ -486,6 +488,7 @@ async def create_production_run(
                 )
                 root_mo.code = await _find_unique_mo_code(db, base_code)
                 root_mo.color_id = bom_entry.color_id
+                root_mo.labdip_variant_code = bom_entry.labdip_variant_code
                 entry_root_mos.append(root_mo)
                 total_root_mo_count += 1
                 await db.flush()

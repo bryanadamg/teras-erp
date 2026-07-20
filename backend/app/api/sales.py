@@ -30,6 +30,7 @@ def _line_opts():
         selectinload(SalesOrder.lines).selectinload(SalesOrderLine.attribute_values),
         selectinload(SalesOrder.lines).selectinload(SalesOrderLine.item),
         selectinload(SalesOrder.lines).selectinload(SalesOrderLine.color),
+        selectinload(SalesOrder.lines).selectinload(SalesOrderLine.labdip_item),
     )
 
 
@@ -43,6 +44,10 @@ def _populate_line(line: SalesOrderLine) -> None:
         line.color_code = line.color.code
         line.color_name = line.color.name
         line.color_hex = line.color.hex
+    # Pending shade: surface the linked lab dip item's current status (PENDING/
+    # IN_PROGRESS/APPROVED/REJECTED). Shown until an approved color_id backfills.
+    if line.labdip_item is not None:
+        line.labdip_status = line.labdip_item.status
 
 @router.post("", response_model=SalesOrderResponse)
 async def create_sales_order(payload: SalesOrderCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('sales.manage'))):
@@ -75,6 +80,8 @@ async def create_sales_order(payload: SalesOrderCreate, db: AsyncSession = Depen
                 uom2_factor=line.uom2_factor,
                 bom_size_id=line.bom_size_id,
                 color_id=line.color_id,
+                labdip_variant_code=line.labdip_variant_code,
+                labdip_item_id=line.labdip_item_id,
             )
             if line.attribute_value_ids:
                 attr_result = await db.execute(select(AttributeValue).filter(AttributeValue.id.in_(line.attribute_value_ids)))
@@ -188,6 +195,8 @@ async def update_sales_order(so_id: uuid.UUID, payload: SalesOrderUpdate, db: As
             uom2_factor=line.uom2_factor,
             bom_size_id=line.bom_size_id,
             color_id=line.color_id,
+            labdip_variant_code=line.labdip_variant_code,
+            labdip_item_id=line.labdip_item_id,
         )
         if line.attribute_value_ids:
             attr_result = await db.execute(select(AttributeValue).filter(AttributeValue.id.in_(line.attribute_value_ids)))

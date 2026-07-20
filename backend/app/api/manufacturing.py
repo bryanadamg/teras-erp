@@ -11,6 +11,7 @@ from app.models.bom import BOM, BOMLine, BOMSize, BOMOperation
 from app.models.routing import Operation as OperationModel, WorkCenter
 from app.models.location import Location
 from app.models.sales import SalesOrder
+from app.models.color import Color
 from app.services import stock_service, audit_service, kpi_service, beam_service, mrp_service, weaving_service
 from app.services.netting_service import Availability, preview_mo
 from app.schemas import (
@@ -21,6 +22,7 @@ from app.schemas import (
     MOCompletionCreate, MOCompletionResponse, MOCompletionItemCreate,
     MOCompletionReject,
     MOAttributeUpdate,
+    MOColorUpdate,
     MOPutawayUpdate,
     MOPreviewRequest, NettingPreviewNode,
     WorkOrderFlatPageResponse, WorkOrderFlatResponse,
@@ -824,6 +826,47 @@ async def update_mo_attributes(
     await audit_service.log_activity(
         db, current_user.id, "UPDATE", "ManufacturingOrder", str(mo.id),
         f"Updated attributes on MO {mo.code}: {old_ids} -> {[str(v) for v in payload.attribute_value_ids]}"
+    )
+    await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": str(mo.id), "status": mo.status, "code": mo.code})
+
+    populate_mo_ids(mo)
+    return mo
+
+@router.patch("/manufacturing-orders/{mo_id}/color", response_model=ManufacturingOrderResponse)
+async def update_mo_color(
+    mo_id: str,
+    payload: MOColorUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('work_order.manage')),
+):
+    """Set (or override) the color on a root MO. Used to confirm an approved Color
+    Library shade for an order placed against a still-pending lab dip — this fills
+    color_id and unblocks the DYEING WO gate. Auto-backfill on lab dip approval does
+    the same automatically; this is the manual escape hatch."""
+    result = await db.execute(
+        select(ManufacturingOrder).filter(ManufacturingOrder.id == mo_id)
+    )
+    mo = result.unique().scalars().first()
+    if not mo:
+        raise HTTPException(status_code=404, detail="Manufacturing Order not found")
+    if mo.status not in ("PENDING", "IN_PROGRESS"):
+        raise HTTPException(status_code=400, detail="Color can only be changed while the MO is PENDING or IN_PROGRESS")
+
+    if payload.color_id is not None:
+        exists = (await db.execute(select(Color.id).filter(Color.id == payload.color_id))).scalars().first()
+        if not exists:
+            raise HTTPException(status_code=404, detail="Color not found")
+
+    old_color = str(mo.color_id) if mo.color_id else None
+    mo.color_id = payload.color_id
+    await db.commit()
+
+    mo_map = await load_mo_tree(db, [mo.id])
+    mo = mo_map.get(mo.id)
+
+    await audit_service.log_activity(
+        db, current_user.id, "UPDATE", "ManufacturingOrder", str(mo.id),
+        f"Set color on MO {mo.code}: {old_color} -> {payload.color_id}"
     )
     await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": str(mo.id), "status": mo.status, "code": mo.code})
 

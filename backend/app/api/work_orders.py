@@ -76,6 +76,15 @@ async def _resolve_dye_recipe(db: AsyncSession, mo) -> DyeRecipe:
             raise HTTPException(status_code=422, detail="No active dyeing recipe found for this order's color")
         return recipe
 
+    # Ordered against a shade still in lab dip: greige can run, but dyeing can't
+    # start until the lab dip is approved (which auto-fills color_id) or a color is
+    # confirmed on the MO. Point the operator at the real blocker.
+    if getattr(mo, "labdip_variant_code", None):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Color still in lab dip ({mo.labdip_variant_code}) — approve the lab dip or set an approved color on the MO before creating the dyeing WO",
+        )
+
     mo_attr_ids = {av.id for av in mo.attribute_values}
     if not mo_attr_ids:
         raise HTTPException(status_code=422, detail="MO has no color or attributes — cannot match a dyeing recipe")

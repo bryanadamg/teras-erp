@@ -40,6 +40,9 @@ class PRBomEntry(Base):
     color_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("colors.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # Pending shade carried from the SO line: lab dip variant_code awaiting approval.
+    # Root MO inherits this; approval backfills the minted color_id by matching it.
+    labdip_variant_code: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
 
     bom = relationship("BOM", foreign_keys=[bom_id])
     sizes: Mapped[List["PRBomEntrySize"]] = relationship(

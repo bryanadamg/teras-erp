@@ -92,6 +92,11 @@ class ManufacturingOrder(Base):
     color_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("colors.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # Pending shade: root MO ordered against a lab dip variant_code still awaiting
+    # approval. color_id stays null until the lab dip is approved (auto-backfill by
+    # matching this code) or a user confirms an approved Color via MO edit. The
+    # DYEING WO gate stays blocked while color_id is null — greige MOs are unaffected.
+    labdip_variant_code: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
 
     qty: Mapped[float] = mapped_column(Numeric(14, 4))
     status: Mapped[str] = mapped_column(String(32), default="PENDING", index=True)

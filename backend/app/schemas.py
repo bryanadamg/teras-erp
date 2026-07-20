@@ -395,6 +395,9 @@ class ManufacturingOrderCreate(BaseModel):
 class MOAttributeUpdate(BaseModel):
     attribute_value_ids: list[UUID]
 
+class MOColorUpdate(BaseModel):
+    color_id: UUID | None = None  # approved Color Library shade; null clears it
+
 class MOPutawayUpdate(BaseModel):
     location_id: UUID | None = None   # null clears the planned putaway bin
 
@@ -425,6 +428,8 @@ class ManufacturingOrderResponse(BaseModel):
     color_id: UUID | None = None
     color_code: str | None = None
     color_name: str | None = None
+    labdip_variant_code: str | None = None
+    labdip_status: str | None = None  # pending shade's lab dip status (PENDING/IN_PROGRESS/APPROVED/REJECTED)
     location_id: UUID | None = None
     source_location_id: UUID | None = None
     planned_putaway_location_id: UUID | None = None
@@ -466,6 +471,7 @@ class PRBomEntryCreate(BaseModel):
     total_qty: float | None = None
     attribute_value_ids: list[UUID] = []
     color_id: UUID | None = None
+    labdip_variant_code: str | None = None
     force_create: bool = False
 
 class PRBomEntrySizeResponse(BaseModel):
@@ -481,6 +487,7 @@ class PRBomEntryResponse(BaseModel):
     total_qty: float | None = None
     attribute_value_ids: list[UUID] = []
     color_id: UUID | None = None
+    labdip_variant_code: str | None = None
     force_create: bool = False
     bom: Optional['BOMResponse'] = None
     sizes: list[PRBomEntrySizeResponse] = []
@@ -1197,6 +1204,8 @@ class SalesOrderLineCreate(BaseModel):
     attribute_value_ids: list[UUID] = []
     bom_size_id: UUID | None = None
     color_id: UUID | None = None
+    labdip_variant_code: str | None = None
+    labdip_item_id: UUID | None = None
 
 class SalesOrderLineResponse(SalesOrderLineCreate):
     id: UUID
@@ -1206,6 +1215,9 @@ class SalesOrderLineResponse(SalesOrderLineCreate):
     color_code: str | None = None
     color_name: str | None = None
     color_hex: str | None = None
+    labdip_variant_code: str | None = None
+    labdip_item_id: UUID | None = None
+    labdip_status: str | None = None
     item_name: str | None = None
     item_code: str | None = None
 
