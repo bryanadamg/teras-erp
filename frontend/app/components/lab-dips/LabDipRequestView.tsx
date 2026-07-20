@@ -762,9 +762,18 @@ export default function LabDipRequestView({
                                         <span style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: classic ? 11 : 13, color: classic ? '#0d3a8a' : '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
                                             <i className="bi bi-box-seam" style={{ marginRight: 5, color: classic ? '#3a6fc4' : '#2563eb' }} />{it.item_label || it.item_id}
                                         </span>
-                                        {/* Two distinct badges: sequence + variant (right) */}
-                                        <span title="Request sequence" style={seqBadge(classic)}>{seqPart(displayCode)}</span>
-                                        <span title="Variant" style={variantBadge(classic)}>{variantLetter(seq)}</span>
+                                        {/* Two distinct badges: sequence + variant (right) — or, for a resubmitted
+                                            item, a single pinned badge showing the code it keeps from the rejected item. */}
+                                        {it.locked_variant_code ? (
+                                            <span title="Pinned code (kept from the rejected item being resubmitted)" style={{ ...variantBadge(classic), background: classic ? '#c77800' : '#fef3c7', color: classic ? '#fff' : '#92400e', borderColor: classic ? '#7a4a00' : '#fde68a' }}>
+                                                <i className="bi bi-pin-angle-fill" style={{ marginRight: 3, fontSize: classic ? 9 : 10 }} />{it.locked_variant_code}
+                                            </span>
+                                        ) : (
+                                            <>
+                                                <span title="Request sequence" style={seqBadge(classic)}>{seqPart(displayCode)}</span>
+                                                <span title="Variant" style={variantBadge(classic)}>{variantLetter(seq)}</span>
+                                            </>
+                                        )}
                                         <button type="button" title="Remove item" onClick={() => removeItem(it.item_id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: classic ? '#a00' : '#dc2626', fontSize: 15, fontWeight: 'bold', lineHeight: 1, padding: '0 2px' }}>×</button>
                                     </div>
                                 );
