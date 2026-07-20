@@ -8,7 +8,8 @@ import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 import { ShellWindow, ShellTitleBar } from '../shared/shellTheme';
 import { Tabs, TabDef } from '../shared/Tabs';
 import Pager from '../shared/Pager';
-import { XPActionButton } from '../shared/xpTheme';
+import ModalWrapper from '../shared/ModalWrapper';
+import { XPActionButton, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
 import { lvBtn, lvPrimaryBtn, lvInput, lvLabel, lvTh, lvTd, lvSep, lvRow } from '../shared/listViewTheme';
 
 const WC_PAGE_SIZE = 20;
@@ -71,6 +72,9 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
   const [wcPage, setWcPage] = useState(1);
   const [opPage, setOpPage] = useState(1);
   const [editingWC, setEditingWC] = useState<any | null>(null);
+  const [isCreateWCOpen, setIsCreateWCOpen] = useState(false);
+  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
+  const { openId: wcMenuOpenId, pos: wcMenuPos, toggle: wcMenuToggle, close: wcMenuClose } = useFloatingMenu(140);
 
   useEffect(() => { setWcPage(1); }, [wcSearch]);
   useEffect(() => { setOpPage(1); }, [opSearch]);
@@ -96,6 +100,15 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
           parent_id: newWorkCenter.parent_id || null,
       });
       setNewWorkCenter({ ...emptyWC });
+      setIsCreateWCOpen(false);
+  };
+
+  const toggleGroup = (id: string) => {
+      setExpandedGroupIds(prev => {
+          const next = new Set(prev);
+          if (next.has(id)) next.delete(id); else next.add(id);
+          return next;
+      });
   };
 
   const handleSaveEdit = (e: React.FormEvent) => {
@@ -120,11 +133,18 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
       setNewOperation({ code: '', name: '' });
   };
 
+  const groupIds = new Set(groups.map((g: any) => g.id));
+  const hasChildren = (gid: string) => wcList.some((w: any) => w.parent_id === gid);
+  const isSearchingWC = wcSearch.trim().length > 0;
   const allWCRows = buildTree(wcList);
-  const filteredWCRows = allWCRows.filter(({ wc }) =>
-      wc.code.toLowerCase().includes(wcSearch.toLowerCase()) ||
-      wc.name.toLowerCase().includes(wcSearch.toLowerCase())
-  );
+  const filteredWCRows = allWCRows.filter(({ wc, isGroup }) => {
+      const q = wcSearch.toLowerCase();
+      const matches = wc.code.toLowerCase().includes(q) || wc.name.toLowerCase().includes(q);
+      if (isSearchingWC) return matches;
+      if (isGroup) return true;
+      if (!groupIds.has(wc.parent_id)) return true; // orphaned machine — no group row to collapse under
+      return expandedGroupIds.has(wc.parent_id);
+  });
   const wcPages = Math.max(1, Math.ceil(filteredWCRows.length / WC_PAGE_SIZE));
   const clampedWcPage = Math.min(wcPage, wcPages);
   const pagedWCRows = filteredWCRows.slice((clampedWcPage - 1) * WC_PAGE_SIZE, clampedWcPage * WC_PAGE_SIZE);
@@ -147,7 +167,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                   <form onSubmit={handleSaveEdit} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', flexWrap: 'wrap' as const }}>
                           <div>
-                              <label style={lvLabel(classic)}>{t('item_code')}</label>
+                              <label style={lvLabel(classic)}>Code</label>
                               <input style={{ ...lvInput(classic), width: 80 }} value={editingWC.code} onChange={e => setEditingWC({ ...editingWC, code: e.target.value })} required />
                           </div>
                           <div style={{ flex: 1, minWidth: 140 }}>
@@ -193,58 +213,21 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
   // ── Work Centers tab ───────────────────────────────────────────────────────
   const renderWorkCentersTab = () => (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-          {canManage && (
-              <div style={{ background: classic ? '#f5f4ef' : '#fff', borderBottom: classic ? '1px solid #b0a898' : '1px solid #dbe1ea', padding: classic ? '6px 8px' : '10px 12px' }}>
-                  <form onSubmit={handleCreateWC} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', flexWrap: 'wrap' as const }}>
-                          <div>
-                              <label style={lvLabel(classic)}>{t('item_code')}</label>
-                              <input style={{ ...lvInput(classic), width: 80 }} placeholder="WC-01" value={newWorkCenter.code} onChange={e => setNewWorkCenter({ ...newWorkCenter, code: e.target.value })} required />
-                          </div>
-                          <div style={{ flex: 1, minWidth: 160 }}>
-                              <label style={lvLabel(classic)}>{t('station_name')}</label>
-                              <input style={lvInput(classic)} placeholder="Dyeing Machine 1" value={newWorkCenter.name} onChange={e => setNewWorkCenter({ ...newWorkCenter, name: e.target.value })} required />
-                          </div>
-                          <div>
-                              <label style={lvLabel(classic)}>Type</label>
-                              <select style={{ ...lvInput(classic), width: 110 }} value={newWorkCenter.center_type} onChange={e => setNewWorkCenter({ ...newWorkCenter, center_type: e.target.value })}>
-                                  {CENTER_TYPES.map(ct => <option key={ct} value={ct}>{ct}</option>)}
-                              </select>
-                          </div>
-                          <div>
-                              <label style={lvLabel(classic)}>Group (optional)</label>
-                              <select style={{ ...lvInput(classic), width: 150 }} value={newWorkCenter.parent_id} onChange={e => setNewWorkCenter({ ...newWorkCenter, parent_id: e.target.value, input_location_id: '', output_location_id: '' })}>
-                                  <option value="">— group node —</option>
-                                  {groups.map((g: any) => <option key={g.id} value={g.id}>{g.code} — {g.name}</option>)}
-                              </select>
-                          </div>
-                          <button type="submit" style={lvPrimaryBtn(classic)}>
-                              <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>{t('add')}
-                          </button>
-                      </div>
-                      {newWorkCenter.parent_id && (
-                          <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', flexWrap: 'wrap' as const }}>
-                              <div style={{ flex: 1, minWidth: 160 }}>
-                                  <label style={lvLabel(classic)}>Input Location</label>
-                                  <TreeSelect options={locPickerTreeOptions} value={newWorkCenter.input_location_id} onChange={id => setNewWorkCenter({ ...newWorkCenter, input_location_id: id })} allowEmpty emptyLabel="— none —" size="sm" style={{ width: '100%' }} />
-                              </div>
-                              <div style={{ flex: 1, minWidth: 160 }}>
-                                  <label style={lvLabel(classic)}>Output Location</label>
-                                  <TreeSelect options={locPickerTreeOptions} value={newWorkCenter.output_location_id} onChange={id => setNewWorkCenter({ ...newWorkCenter, output_location_id: id })} allowEmpty emptyLabel="— none —" size="sm" style={{ width: '100%' }} />
-                              </div>
-                          </div>
-                      )}
-                  </form>
-              </div>
-          )}
-
-          {/* Toolbar: search + count */}
+          {/* Toolbar: add + search + count */}
           <div style={{
               background: classic ? 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)' : '#fff',
               borderBottom: classic ? '1px solid #b0a898' : '1px solid #dbe1ea',
               padding: classic ? '4px 8px' : '8px 10px',
               display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const, flexShrink: 0,
           }}>
+              {canManage && (
+                  <>
+                      <button style={lvPrimaryBtn(classic)} onClick={() => setIsCreateWCOpen(true)}>
+                          <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>New Work Center
+                      </button>
+                      <span style={lvSep(classic)} />
+                  </>
+              )}
               <i className="bi bi-search" style={{ fontSize: 11, color: '#666' }}></i>
               <input style={{ ...lvInput(classic), width: 220, flexBasis: 220 }} placeholder="Search work centers…" value={wcSearch} onChange={e => setWcSearch(e.target.value)} />
               <span style={lvSep(classic)} />
@@ -258,24 +241,33 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead style={classic ? { background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080' } : { background: '#eef1f6' }}>
                       <tr>
-                          <th style={{ ...lvTh(classic), width: 90 }}>{t('item_code')}</th>
+                          <th style={{ ...lvTh(classic), width: 100, paddingLeft: classic ? 10 : 14 }}>Code</th>
                           <th style={lvTh(classic)}>{t('station_name')}</th>
                           <th style={{ ...lvTh(classic), width: 90 }}>Type</th>
                           <th style={{ ...lvTh(classic), width: 100 }}>In Loc</th>
                           <th style={{ ...lvTh(classic), width: 100 }}>Out Loc</th>
-                          <th style={{ ...lvTh(classic), width: 64, textAlign: 'right', borderRight: 'none' }}></th>
+                          <th style={{ ...lvTh(classic), width: 40, textAlign: 'right', borderRight: 'none' }}></th>
                       </tr>
                   </thead>
                   <tbody>
-                      {pagedWCRows.map(({ wc, isGroup, indent }, i) => (
-                          editingWC?.id === wc.id
+                      {pagedWCRows.map(({ wc, isGroup, indent }, i) => {
+                          const expandable = isGroup && hasChildren(wc.id);
+                          const expanded = expandedGroupIds.has(wc.id);
+                          return editingWC?.id === wc.id
                               ? <React.Fragment key={wc.id}>{renderEditRow(6)}</React.Fragment>
                               : (
-                                  <tr key={wc.id} style={isGroup
-                                      ? { background: classic ? '#e8eaf6' : '#eef1fb', borderBottom: classic ? '2px solid #9fa8da' : '2px solid #c7d2ee' }
-                                      : lvRow(classic, i)}>
-                                      <td style={{ ...lvTd(classic), paddingLeft: indent ? (classic ? 20 : 26) : undefined, fontWeight: 'bold', color: isGroup ? (classic ? '#1a237e' : '#1e293b') : (classic ? '#00008b' : '#2563eb') }}>
-                                          {isGroup && <i className="bi bi-folder2" style={{ marginRight: 4, fontSize: classic ? 10 : 12 }}></i>}
+                                  <tr
+                                      key={wc.id}
+                                      style={{
+                                          ...(isGroup
+                                              ? { background: classic ? '#e8eaf6' : '#eef1fb', borderBottom: classic ? '2px solid #9fa8da' : '2px solid #c7d2ee' }
+                                              : lvRow(classic, i)),
+                                          cursor: expandable ? 'pointer' : undefined,
+                                      }}
+                                      onClick={expandable ? () => toggleGroup(wc.id) : undefined}
+                                  >
+                                      <td style={{ ...lvTd(classic), paddingLeft: (classic ? 10 : 14) + (indent ? (classic ? 20 : 26) : 0), fontWeight: 'bold', color: isGroup ? (classic ? '#1a237e' : '#1e293b') : (classic ? '#00008b' : '#2563eb') }}>
+                                          {isGroup && <i className={expandable ? (expanded ? 'bi bi-caret-down-fill' : 'bi bi-caret-right-fill') : 'bi bi-folder2'} style={{ marginRight: 5, fontSize: classic ? 9 : 11, color: expandable ? '#555' : undefined }}></i>}
                                           {indent && <i className="bi bi-dash" style={{ marginRight: 2, fontSize: classic ? 10 : 12, color: '#888' }}></i>}
                                           {wc.code}
                                       </td>
@@ -285,17 +277,12 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                                       </td>
                                       <td style={{ ...lvTd(classic), color: classic ? '#444' : '#64748b', whiteSpace: 'nowrap' }}>{!isGroup ? getLocName(wc.input_location_id) : ''}</td>
                                       <td style={{ ...lvTd(classic), color: classic ? '#444' : '#64748b', whiteSpace: 'nowrap' }}>{!isGroup ? getLocName(wc.output_location_id) : ''}</td>
-                                      <td style={{ ...lvTd(classic), borderRight: 'none', textAlign: 'right' }}>
-                                          {canManage && (
-                                              <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end' }}>
-                                                  <XPActionButton classic={classic} tone="neutral" icon="bi-pencil" title="Edit" onClick={() => setEditingWC({ ...wc })} />
-                                                  <XPActionButton classic={classic} tone="danger" icon="bi-trash" title="Delete" onClick={() => onDeleteWorkCenter && onDeleteWorkCenter(wc.id)} />
-                                              </div>
-                                          )}
+                                      <td style={{ ...lvTd(classic), borderRight: 'none', textAlign: 'right' }} onClick={e => e.stopPropagation()}>
+                                          {canManage && <MenuTriggerButton classic={classic} onClick={e => wcMenuToggle(wc.id, e)} />}
                                       </td>
                                   </tr>
-                              )
-                      ))}
+                              );
+                      })}
                       {filteredWCRows.length === 0 && (
                           <tr><td colSpan={6} style={{ ...lvTd(classic), borderRight: 'none', textAlign: 'center', padding: 20, color: classic ? '#888' : '#64748b', fontStyle: 'italic' }}>No work centers defined</td></tr>
                       )}
@@ -304,6 +291,20 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
           </div>
 
           <Pager page={clampedWcPage} total={filteredWCRows.length} pageSize={WC_PAGE_SIZE} onPageChange={setWcPage} hideWhenEmpty />
+
+          {wcMenuOpenId && (() => {
+              const wc = wcList.find((w: any) => String(w.id) === wcMenuOpenId);
+              if (!wc || !canManage) return null;
+              return (
+                  <FloatingMenu
+                      pos={wcMenuPos}
+                      items={[
+                          { key: 'edit', label: 'Edit', icon: 'bi-pencil-square', onClick: () => { wcMenuClose(); setEditingWC({ ...wc }); } },
+                          { key: 'delete', label: 'Delete', icon: 'bi-trash', danger: true, onClick: () => { wcMenuClose(); onDeleteWorkCenter && onDeleteWorkCenter(wc.id); } },
+                      ]}
+                  />
+              );
+          })()}
 
           {classic && (
               <div style={{
@@ -324,7 +325,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
               <div style={{ background: classic ? '#f5f4ef' : '#fff', borderBottom: classic ? '1px solid #b0a898' : '1px solid #dbe1ea', padding: classic ? '6px 8px' : '10px 12px' }}>
                   <form onSubmit={handleCreateOp} style={{ display: 'flex', gap: 6, alignItems: 'flex-end', flexWrap: 'wrap' as const }}>
                       <div>
-                          <label style={lvLabel(classic)}>{t('item_code')}</label>
+                          <label style={lvLabel(classic)}>Code</label>
                           <input style={{ ...lvInput(classic), width: 80 }} placeholder="OP-10" value={newOperation.code} onChange={e => setNewOperation({ ...newOperation, code: e.target.value })} required />
                       </div>
                       <div style={{ flex: 1, minWidth: 160 }}>
@@ -358,7 +359,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead style={classic ? { background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080' } : { background: '#eef1f6' }}>
                       <tr>
-                          <th style={{ ...lvTh(classic), width: 100 }}>{t('item_code')}</th>
+                          <th style={{ ...lvTh(classic), width: 100, paddingLeft: classic ? 10 : 14 }}>Code</th>
                           <th style={lvTh(classic)}>{t('operation_name')}</th>
                           <th style={{ ...lvTh(classic), width: 50, textAlign: 'right', borderRight: 'none' }}></th>
                       </tr>
@@ -366,7 +367,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                   <tbody>
                       {pagedOp.map((op: any, i: number) => (
                           <tr key={op.id} style={lvRow(classic, i)}>
-                              <td style={{ ...lvTd(classic), fontWeight: 'bold', color: classic ? '#1a5e1a' : '#15803d' }}>
+                              <td style={{ ...lvTd(classic), paddingLeft: classic ? 10 : 14, fontWeight: 'bold', color: classic ? '#1a5e1a' : '#15803d' }}>
                                   {op.code}
                                   {op.is_system && <span style={{ marginLeft: 5, fontSize: 9, fontWeight: 'bold', color: '#555', background: '#ddd', border: '1px solid #aaa', borderRadius: 2, padding: '0 3px' }}>sys</span>}
                               </td>
@@ -400,6 +401,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
   );
 
   return (
+      <>
       <ShellWindow classic={classic} fill="page" className="fade-in">
           <ShellTitleBar
               classic={classic}
@@ -417,5 +419,63 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
               </div>
           </div>
       </ShellWindow>
+
+      {/* Create Work Center panel */}
+      <ModalWrapper
+          isOpen={isCreateWCOpen}
+          modeless
+          onClose={() => setIsCreateWCOpen(false)}
+          title={<><i className="bi bi-plus-circle me-1"></i> Add Work Center</>}
+          variant="primary"
+          footer={
+              <>
+                  <button type="button" style={lvBtn(classic)} onClick={() => setIsCreateWCOpen(false)}>Cancel</button>
+                  <button type="button" style={lvPrimaryBtn(classic)} onClick={handleCreateWC}>
+                      <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>{t('add')}
+                  </button>
+              </>
+          }
+      >
+          <form onSubmit={handleCreateWC} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', gap: 10 }}>
+                  <div style={{ width: 100 }}>
+                      <label style={lvLabel(classic)}>Code</label>
+                      <input style={lvInput(classic)} placeholder="WC-01" value={newWorkCenter.code} onChange={e => setNewWorkCenter({ ...newWorkCenter, code: e.target.value })} required autoFocus />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                      <label style={lvLabel(classic)}>{t('station_name')}</label>
+                      <input style={lvInput(classic)} placeholder="Dyeing Machine 1" value={newWorkCenter.name} onChange={e => setNewWorkCenter({ ...newWorkCenter, name: e.target.value })} required />
+                  </div>
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                  <div style={{ flex: 1 }}>
+                      <label style={lvLabel(classic)}>Type</label>
+                      <select style={lvInput(classic)} value={newWorkCenter.center_type} onChange={e => setNewWorkCenter({ ...newWorkCenter, center_type: e.target.value })}>
+                          {CENTER_TYPES.map(ct => <option key={ct} value={ct}>{ct}</option>)}
+                      </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                      <label style={lvLabel(classic)}>Group (optional)</label>
+                      <select style={lvInput(classic)} value={newWorkCenter.parent_id} onChange={e => setNewWorkCenter({ ...newWorkCenter, parent_id: e.target.value, input_location_id: '', output_location_id: '' })}>
+                          <option value="">— group node —</option>
+                          {groups.map((g: any) => <option key={g.id} value={g.id}>{g.code} — {g.name}</option>)}
+                      </select>
+                  </div>
+              </div>
+              {newWorkCenter.parent_id && (
+                  <div style={{ display: 'flex', gap: 10 }}>
+                      <div style={{ flex: 1 }}>
+                          <label style={lvLabel(classic)}>Input Location</label>
+                          <TreeSelect options={locPickerTreeOptions} value={newWorkCenter.input_location_id} onChange={id => setNewWorkCenter({ ...newWorkCenter, input_location_id: id })} allowEmpty emptyLabel="— none —" size="sm" style={{ width: '100%' }} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                          <label style={lvLabel(classic)}>Output Location</label>
+                          <TreeSelect options={locPickerTreeOptions} value={newWorkCenter.output_location_id} onChange={id => setNewWorkCenter({ ...newWorkCenter, output_location_id: id })} allowEmpty emptyLabel="— none —" size="sm" style={{ width: '100%' }} />
+                      </div>
+                  </div>
+              )}
+          </form>
+      </ModalWrapper>
+      </>
   );
 }
