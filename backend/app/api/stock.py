@@ -114,6 +114,7 @@ async def get_stock_ledger(
             "reference_id": r.reference_id,
             "batch_id": r.batch_id,
             "batch_number": r.batch.batch_number if r.batch else None,
+            "vendor_lot": r.batch.vendor_lot if r.batch else None,
             "created_at": r.created_at,
         })
 

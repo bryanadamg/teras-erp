@@ -93,7 +93,10 @@ function LedgerDocument({ entries, locations, attributes, companyProfile, period
                                     {getWarehouseName(e) && <span style={{ color: '#555' }}>{getWarehouseName(e)} / </span>}
                                     {e.location_name}
                                 </td>
-                                <td style={td}>{e.batch_number || '-'}</td>
+                                <td style={td}>
+                                    {e.batch_number || '-'}
+                                    {e.vendor_lot && <div style={{ color: '#777', fontSize: 7 }}>Supplier: {e.vendor_lot}</div>}
+                                </td>
                                 <td style={{ ...td, textAlign: 'right', fontWeight: 'bold', color: up ? '#1a5e1a' : '#c00000', whiteSpace: 'nowrap' }}>
                                     {up ? '+' : ''}{fmtQty(e.qty_change)} {e.item_uom}
                                 </td>

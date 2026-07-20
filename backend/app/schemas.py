@@ -937,6 +937,7 @@ class StockLedgerResponse(BaseModel):
     reference_id: str
     batch_id: UUID | None = None
     batch_number: str | None = None
+    vendor_lot: str | None = None
     created_at: datetime
 
     class Config:

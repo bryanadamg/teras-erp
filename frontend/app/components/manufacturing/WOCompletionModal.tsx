@@ -484,6 +484,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                                     <label key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '2px 5px', fontSize: 10, cursor: 'pointer', background: selSet.has(b.id) ? '#e6f0ff' : 'transparent' }}>
                                                         <input type="checkbox" checked={selSet.has(b.id)} onChange={e => toggle(b.id, e.target.checked)} />
                                                         <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{b.batch_number}</span>
+                                                        {b.vendor_lot && <span style={{ color: '#8a5a00' }}>(supplier: {b.vendor_lot})</span>}
                                                         <span style={{ color: '#555' }}>— {Number(b.remaining ?? 0).toFixed(2)} kg</span>
                                                         {b.location_name && <span style={{ color: '#0058e6' }}>@ {b.location_name}</span>}
                                                     </label>
@@ -505,7 +506,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                             <option value="">— select lot —</option>
                                             {batchesByItem[itemId].map((b: any) => (
                                                 <option key={b.id} value={b.id}>
-                                                    {b.batch_number} — {Number(b.remaining ?? 0).toFixed(2)} remaining{b.ends ? `, ${b.ends} ends` : ''}
+                                                    {b.batch_number}{b.vendor_lot ? ` (supplier: ${b.vendor_lot})` : ''} — {Number(b.remaining ?? 0).toFixed(2)} remaining{b.ends ? `, ${b.ends} ends` : ''}
                                                 </option>
                                             ))}
                                         </select>
