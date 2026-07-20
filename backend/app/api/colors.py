@@ -84,6 +84,7 @@ async def list_colors(
     customer_id: str | None = Query(None),
     page: int = Query(1, ge=1),
     size: int = Query(50, ge=1, le=500),
+    include_meta: bool = Query(False),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -111,9 +112,12 @@ async def list_colors(
     q = q.order_by(Color.code).offset((page - 1) * size).limit(size)
     colors = (await db.execute(q)).scalars().all()
 
-    color_ids = [c.id for c in colors]
-    counts = await _recipe_counts(db, color_ids)
-    prov = await _lab_dip_provenance(db, color_ids)
+    counts: dict = {}
+    prov: dict = {}
+    if include_meta:
+        color_ids = [c.id for c in colors]
+        counts = await _recipe_counts(db, color_ids)
+        prov = await _lab_dip_provenance(db, color_ids)
     return {
         "items": [_serialize(c, counts.get(c.id, 0), prov.get(c.id)) for c in colors],
         "total": total,

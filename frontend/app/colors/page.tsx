@@ -63,7 +63,7 @@ export default function ColorsPage() {
     const fetchColors = useCallback(async () => {
         setLoading(true);
         try {
-            const params = new URLSearchParams({ page: String(page), size: String(PAGE_SIZE) });
+            const params = new URLSearchParams({ page: String(page), size: String(PAGE_SIZE), include_meta: 'true' });
             if (search) params.set('search', search);
             if (statusFilter !== 'ALL') params.set('status', statusFilter);
             const res = await authFetch(`${API_BASE}/colors?${params.toString()}`);
