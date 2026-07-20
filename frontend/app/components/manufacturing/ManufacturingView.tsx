@@ -790,6 +790,16 @@ export default function ManufacturingView({
       });
   };
 
+  // Eager-fetch material requirements for every visible PR row (not just the
+  // expanded one) so the Materials-status column has data to show up front.
+  useEffect(() => {
+      (productionRuns || []).forEach((pr: any) => {
+          if (!prMaterialReqs[pr.id] && !prMaterialReqsLoading[pr.id]) {
+              fetchPRMaterialRequirements(pr.id);
+          }
+      });
+  }, [productionRuns]);
+
   // --- Inline QR Scanner Widget ---
   const InlineScanWidget = ({ rootWoId, onClose }: { rootWoId: string; onClose: () => void }) => {
       const scannerRef2 = useRef<any>(null);
@@ -1793,7 +1803,7 @@ export default function ManufacturingView({
                                                   background: currentStyle === 'classic' ? 'linear-gradient(to bottom,#fff 0%,#d4d0c8 100%)' : undefined,
                                                   fontSize: currentStyle === 'classic' ? '10px' : '9pt',
                                               }} className={currentStyle === 'classic' ? '' : 'table-light'}>
-                                                  {['', 'Code', 'BOM / Style', 'MOs', 'Progress', 'Status', 'Due Date', 'Actions'].map((h, i) => (
+                                                  {['', 'Code', 'BOM / Style', 'MOs', 'Progress', 'Status', 'Materials', 'Due Date', 'Actions'].map((h, i) => (
                                                       <th key={h || `col-${i}`} style={{
                                                           border: currentStyle === 'classic' ? '1px solid #808080' : undefined,
                                                           padding: currentStyle === 'classic' ? '3px 8px' : undefined,
@@ -1820,10 +1830,12 @@ export default function ManufacturingView({
                                                   const reqs: any[] = prMaterialReqs[pr.id] || [];
                                                   const isLoading = !!prMaterialReqsLoading[pr.id];
                                                   const hasShortfall = reqs.some((r: any) => r.shortfall > 0);
+                                                  const shortfallCount = reqs.filter((r: any) => r.shortfall > 0).length;
+                                                  const sufficientCount = reqs.length - shortfallCount;
                                                   return (
                                                       <React.Fragment key={pr.id}>
-                                                      <tr style={{ background: rowBg }}>
-                                                          <td style={{ ...tdStyle, textAlign: 'center', cursor: 'pointer' }} onClick={() => togglePR(pr.id)} title="Material Requirements">
+                                                      <tr style={{ background: rowBg, cursor: 'pointer' }} onClick={() => togglePR(pr.id)} title="Material Requirements">
+                                                          <td style={{ ...tdStyle, textAlign: 'center' }}>
                                                               <i
                                                                   className={`bi ${isExpanded ? 'bi-chevron-down' : 'bi-chevron-right'}`}
                                                                   style={{ color: hasShortfall && isExpanded ? '#c00000' : '#555' }}
@@ -1879,6 +1891,28 @@ export default function ManufacturingView({
                                                                   <span className={`badge ${getStatusBadge(pr.status)} extra-small`}>{pr.status}</span>
                                                               )}
                                                           </td>
+                                                          <td style={{ ...tdStyle, textAlign: 'center' }} title={isLoading ? 'Loading material requirements...' : reqs.length === 0 ? 'No components' : `${shortfallCount} short / ${sufficientCount} sufficient`}>
+                                                              {isLoading ? (
+                                                                  <span style={{ fontSize: 10, color: '#999' }}>…</span>
+                                                              ) : reqs.length === 0 ? (
+                                                                  <span style={{ fontSize: 10, color: '#999' }}>—</span>
+                                                              ) : (
+                                                                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center' }}>
+                                                                      {shortfallCount > 0 && (
+                                                                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 'bold', color: '#c00000' }}>
+                                                                              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#c00000', display: 'inline-block' }} />
+                                                                              {shortfallCount}
+                                                                          </span>
+                                                                      )}
+                                                                      {sufficientCount > 0 && (
+                                                                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 'bold', color: '#2d7a2d' }}>
+                                                                              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#2d7a2d', display: 'inline-block' }} />
+                                                                              {sufficientCount}
+                                                                          </span>
+                                                                      )}
+                                                                  </div>
+                                                              )}
+                                                          </td>
                                                           <td style={{ ...tdStyle, fontSize: 10 }}>{formatDate(pr.target_end_date)}</td>
                                                           <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
                                                               <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
@@ -1886,7 +1920,6 @@ export default function ManufacturingView({
                                                                       classic={currentStyle === 'classic'}
                                                                       tone="primary"
                                                                       icon="bi-printer"
-                                                                      label={currentStyle === 'classic' ? 'Print' : undefined}
                                                                       title="Print Material Pull Sheet"
                                                                       onClick={() => handlePrintPR(pr)}
                                                                   />
@@ -1895,10 +1928,15 @@ export default function ManufacturingView({
                                                           </td>
                                                       </tr>
                                                       {isExpanded && (
-                                                          <tr style={{ background: currentStyle === 'classic' ? '#f0ede8' : '#f8f9fa' }}>
-                                                              <td colSpan={8} style={{
+                                                          <tr>
+                                                              <td colSpan={9} className="p-0 border-0">
+                                                              <div style={{
+                                                                  border: currentStyle === 'classic' ? '1px solid #808080' : '1px solid #ced4da',
+                                                                  background: currentStyle === 'classic' ? '#d8d3c8' : '#e9edf1',
+                                                                  boxShadow: currentStyle === 'classic'
+                                                                      ? 'inset 0 2px 5px rgba(0,0,0,0.28), inset 0 -2px 5px rgba(0,0,0,0.16)'
+                                                                      : 'inset 0 2px 6px rgba(0,0,0,0.18), inset 0 -2px 6px rgba(0,0,0,0.10)',
                                                                   padding: currentStyle === 'classic' ? '6px 12px' : '8px 16px',
-                                                                  border: currentStyle === 'classic' ? '1px solid #c0bdb5' : undefined,
                                                               }}>
                                                                   {isLoading ? (
                                                                       <span style={{ fontSize: 11, color: '#666', fontFamily: currentStyle === 'classic' ? 'Tahoma, Arial, sans-serif' : undefined }}>
@@ -1988,6 +2026,7 @@ export default function ManufacturingView({
                                                                           </table>
                                                                       </div>
                                                                   )}
+                                                              </div>
                                                               </td>
                                                           </tr>
                                                       )}
