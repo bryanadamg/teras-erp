@@ -1922,6 +1922,10 @@ class BatchResponse(BaseModel):
     created_at: datetime
     ends: Optional[int] = None
     source_wo_id: Optional[UUID] = None
+    # Size identity of the produced lot (sized greige/dyed lots); snapshot carries
+    # the human label {size_name, label, target_measurement, ...} for lot displays.
+    bom_size_id: Optional[UUID] = None
+    bom_size_snapshot: Optional[dict] = None
     quality_status: str = "GOOD"    # GOOD | REJECTED
     remaining: Optional[float] = None  # stock balance for this batch (populated by list endpoint)
     location_id: Optional[UUID] = None    # current location — beam is atomic, always at most one (populated by list endpoint)

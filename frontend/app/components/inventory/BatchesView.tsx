@@ -29,6 +29,9 @@ interface Batch {
   created_at: string;
   ends: number | null;
   source_wo_id: string | null;
+  // Produced-lot size (sized greige/dyed lots); snapshot carries the human label.
+  bom_size_id?: string | null;
+  bom_size_snapshot?: { size_name?: string | null; label?: string | null } | null;
   remaining: number | null;
   location_id: string | null;
   location_name: string | null;
@@ -456,6 +459,28 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
     </div>
   );
 
+  // Product — item code on line 1, with the produced lot's size as a small chip
+  // underneath (e.g. sized greige woven for size L). Size comes from the batch's
+  // stamped bom_size_snapshot; unsized lots show just the code.
+  const sizeLabel = (b: Batch): string | null => {
+    const s = b.bom_size_snapshot;
+    if (!s) return null;
+    const name = (s.size_name || s.label || '').trim();
+    return name || null;
+  };
+  const productCell = (b: Batch) => {
+    const sz = sizeLabel(b);
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start', lineHeight: 1.2 }}>
+        <span>{batchItemCode(b)}</span>
+        {sz && chip(
+          <><i className="bi bi-rulers" style={{ marginRight: 3 }} />{sz}</>,
+          '#3d4d5c', '#e8edf0', '#b8c4cc', { title: `Size: ${sz}` },
+        )}
+      </div>
+    );
+  };
+
   // Remaining — value with the green (or gray, if depleted) status dot pinned to
   // the far right so every row's dot aligns in a column.
   const remainingCell = (b: Batch) => (
@@ -778,7 +803,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                           <span style={{ marginLeft: 5, fontSize: 9, fontWeight: 'bold', color: '#555', border: '1px solid #aaa', background: '#eee', padding: '0 3px' }}>DISPOSED</span>
                         )}
                       </td>
-                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{batchItemCode(b)}</td>
+                      <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{productCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{originCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{moPrCell(b)}</td>
                       <td style={{ ...xpTd(i % 2 === 1), background: expandedRows[b.id] ? '#d6e4f7' : undefined }}>{locationCell(b)}</td>
@@ -891,7 +916,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
                         {b.quality_status === 'REJECTED' && <span className="badge bg-danger ms-1">REJECTED</span>}
                         {b.quality_status === 'DISPOSED' && <span className="badge bg-secondary ms-1">DISPOSED</span>}
                       </td>
-                      <td>{batchItemCode(b)}</td>
+                      <td>{productCell(b)}</td>
                       <td>{originCell(b)}</td>
                       <td>{moPrCell(b)}</td>
                       <td>{locationCell(b)}</td>

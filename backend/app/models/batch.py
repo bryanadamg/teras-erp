@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, Text, ForeignKey, DateTime, Numeric, Integer, func
+from sqlalchemy import String, Text, ForeignKey, DateTime, Numeric, Integer, JSON, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
@@ -20,6 +20,14 @@ class Batch(Base):
     source_wo_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("work_orders.id", ondelete="SET NULL"), nullable=True
     )
+    # Size identity of this produced lot, copied from the source MO at WO-completion
+    # (e.g. a sized greige GRG- lot woven for size L). bom_size_id is the joinable
+    # FK; bom_size_snapshot is the immutable label ({size_name, label, ...}) so a
+    # later BOMSize edit/delete can't corrupt an already-produced physical lot.
+    bom_size_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("bom_sizes.id", ondelete="SET NULL"), nullable=True
+    )
+    bom_size_snapshot: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     created_by: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     # QC status: GOOD | REJECTED. Rejected lots stay physically in stock but are

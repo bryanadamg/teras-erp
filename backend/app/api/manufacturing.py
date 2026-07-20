@@ -1024,6 +1024,9 @@ async def add_mo_completion(
             item_id=mo.item_id,
             ends=beam_ends,
             source_wo_id=wo.id if wo else None,
+            # Stamp the MO's size onto the produced lot (e.g. sized greige GRG- lot).
+            bom_size_id=mo.bom_size_id,
+            bom_size_snapshot=mo.bom_size_snapshot,
             created_by=current_user.username,
         )
         db.add(output_batch)
