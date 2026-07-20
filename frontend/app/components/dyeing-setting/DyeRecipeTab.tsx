@@ -445,142 +445,129 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
     // Expandable-row detail: full recipe breakdown (chemical lines, wash baths,
     // finishing, attribute matches) shown inline under the table row.
     const renderDetail = (recipe: any) => {
-        const sectionHeader = (label: string): React.CSSProperties => classic ? {
-            background: '#dde8f5', borderBottom: '1px solid #7f9db9',
-            padding: '2px 6px', fontWeight: 'bold', fontSize: 11, color: '#1a1a1a',
-            border: '1px solid #7f9db9',
-        } : {
-            background: '#eef1f6', borderBottom: '1px solid #dbe1ea',
-            padding: '7px 12px', fontWeight: 700, fontSize: 11, color: '#475569',
-            textTransform: 'uppercase', letterSpacing: '0.04em',
-            border: '1px solid #dbe1ea', borderTopLeftRadius: 9, borderTopRightRadius: 9,
+        // Dense inline panel — matches WorkOrderListView's expanded-row skin
+        // (flat single-tone columns, tiny uppercase headers, no card chrome).
+        const panelStyle: React.CSSProperties = {
+            display: 'grid', gridTemplateColumns: '260px minmax(180px, 1fr) 260px',
+            border: classic ? '1px solid #7f9db9' : '1px solid #dee2e6',
+            fontFamily: xpFont, fontSize: 10,
         };
-        const panelBox: React.CSSProperties = classic
-            ? { border: '1px solid #7f9db9', borderTop: 'none' }
-            : { border: '1px solid #dbe1ea', borderTop: 'none', borderBottomLeftRadius: 9, borderBottomRightRadius: 9, overflow: 'hidden' };
-        const labelStyle: React.CSSProperties = { fontSize: classic ? 10 : 12, color: classic ? '#555' : '#64748b', marginBottom: 2 };
-        const emptyStyle: React.CSSProperties = { color: classic ? '#888' : '#64748b', fontSize: classic ? 10 : 12 };
+        const colHeaderStyle: React.CSSProperties = {
+            fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', color: '#555',
+            letterSpacing: 0.5, borderBottom: '1px solid #c0bdb5', paddingBottom: 2, marginBottom: 4, width: '100%',
+        };
+        const infoRow = (label: string, val: React.ReactNode) => (
+            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 1, fontSize: 9, gap: 6 }}>
+                <span style={{ color: '#888', flexShrink: 0 }}>{label}</span>
+                <span style={{ fontWeight: 'bold', color: '#222', textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{val}</span>
+            </div>
+        );
+        const emptyStyle: React.CSSProperties = { color: '#aaa', fontStyle: 'italic', fontSize: 9 };
         return (
-            <div style={{ padding: classic ? '8px 12px' : '10px 14px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1fr)', gap: 12, alignItems: 'start' }}>
+            <div style={panelStyle}>
 
-                    {/* ── Column 1: Recipe Info ── */}
-                    <div>
-                        <div style={sectionHeader('Recipe Info')}>Recipe Info</div>
-                        <div style={{ ...panelBox, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                            <DetailField label="Color Standard" value={recipe.color_standard} classic={classic} />
-                            <DetailField label="Substrate Type" value={recipe.substrate_type} classic={classic} />
-                            <DetailField label="Notes" value={recipe.notes} classic={classic} />
-                            {recipe.attribute_value_ids?.length > 0 && (
-                                <div>
-                                    <div style={labelStyle}>Attribute Match</div>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 6px' }}>
-                                        {recipe.attribute_value_ids.map((vid: string) => {
-                                            let label = vid;
-                                            for (const attr of attributes) {
-                                                const v = (attr.values || []).find((av: any) => String(av.id) === String(vid));
-                                                if (v) { label = `${attr.name}: ${v.value}`; break; }
-                                            }
-                                            return (
-                                                <span key={vid} style={classic ? {
-                                                    background: '#dde8f5', border: '1px solid #7fa8e8',
-                                                    padding: '1px 6px', borderRadius: 2, fontSize: 10, color: '#1a3d90',
-                                                } : {
-                                                    background: '#eff6ff', border: '1px solid #bfd3f5',
-                                                    padding: '2px 8px', borderRadius: 6, fontSize: 12, color: '#1d4ed8', fontWeight: 500,
-                                                }}>{label}</span>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
+                {/* Recipe Info */}
+                <div style={{ borderRight: '1px solid #c0bdb5', padding: '6px 8px', background: '#f5f4ef' }}>
+                    <div style={colHeaderStyle}>Recipe Info</div>
+                    {infoRow('Color Standard', recipe.color_standard || '—')}
+                    {infoRow('Substrate Type', recipe.substrate_type || '—')}
+                    {recipe.notes && (
+                        <div style={{ marginTop: 4, padding: '2px 5px', background: '#fffbe6', border: '1px solid #e0d080', fontSize: 9, fontStyle: 'italic', color: '#666' }}>
+                            {recipe.notes}
                         </div>
-                    </div>
+                    )}
+                    {recipe.attribute_value_ids?.length > 0 && (
+                        <div style={{ marginTop: 5 }}>
+                            <div style={{ color: '#888', fontSize: 9, marginBottom: 2 }}>Attribute Match</div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 4px' }}>
+                                {recipe.attribute_value_ids.map((vid: string) => {
+                                    let label = vid;
+                                    for (const attr of attributes) {
+                                        const v = (attr.values || []).find((av: any) => String(av.id) === String(vid));
+                                        if (v) { label = `${attr.name}: ${v.value}`; break; }
+                                    }
+                                    return (
+                                        <span key={vid} style={{
+                                            background: '#e8f0fe', color: '#1a56c4', border: '1px solid #b0c8f8',
+                                            padding: '0 4px', fontSize: 9,
+                                        }}>{label}</span>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </div>
 
-                    {/* ── Column 2: Chemical Lines ── */}
-                    <div>
-                        <div style={sectionHeader('Chemical Lines')}>Chemical Lines</div>
-                        <div style={{ ...panelBox, overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: classic ? 10 : 13 }}>
+                {/* Chemical Lines */}
+                <div style={{ borderRight: '1px solid #c0bdb5', padding: '6px 8px', background: '#f5f4ef', overflow: 'hidden' }}>
+                    <div style={colHeaderStyle}>Chemical Lines ({(recipe.lines || []).length})</div>
+                    {(!recipe.lines || recipe.lines.length === 0) ? (
+                        <div style={emptyStyle}>No chemical lines defined.</div>
+                    ) : (
+                        <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9 }}>
                                 <thead>
-                                    <tr style={classic ? { background: '#eef2f8' } : {}}>
-                                        <th style={thStyle({ width: 28 })}>#</th>
-                                        <th style={thStyle({ width: 70 })}>Type</th>
-                                        <th style={thStyle()}>Item</th>
-                                        <th style={thStyle({ textAlign: 'right', width: 80 })}>Qty/100kg</th>
-                                        <th style={thStyle({ width: 50 })}>UOM</th>
-                                        <th style={thStyle({ textAlign: 'center', width: 44 })}>Sort</th>
+                                    <tr style={{ background: 'linear-gradient(to bottom,#ece9d8,#d4d0c8)', borderBottom: '1px solid #aca899' }}>
+                                        <th style={{ padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444', width: 20 }}>#</th>
+                                        <th style={{ padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444', width: 60 }}>Type</th>
+                                        <th style={{ padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444' }}>Item</th>
+                                        <th style={{ padding: '1px 5px', textAlign: 'right', fontWeight: 'bold', color: '#444', width: 70 }}>Qty/100kg</th>
+                                        <th style={{ padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444', width: 40 }}>UOM</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {(!recipe.lines || recipe.lines.length === 0) && (
-                                        <tr>
-                                            <td colSpan={6} style={{ padding: '8px', color: classic ? '#888' : '#64748b', textAlign: 'center' }}>
-                                                No chemical lines defined.
-                                            </td>
-                                        </tr>
-                                    )}
                                     {(recipe.lines || []).map((line: any, idx: number) => {
                                         const linkedItem = items.find(it => String(it.id) === String(line.item_id));
                                         return (
-                                            <tr key={idx} style={{ background: classic ? (idx % 2 === 0 ? 'white' : '#f7f9fc') : (idx % 2 === 0 ? '#fff' : '#f8fafc') }}>
-                                                <td style={{ padding: classic ? '3px 6px' : '6px 10px', color: classic ? '#666' : '#64748b', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>{idx + 1}</td>
-                                                <td style={{ padding: classic ? '3px 6px' : '6px 10px', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
+                                            <tr key={idx} style={{ background: idx % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #e8e6e0' }}>
+                                                <td style={{ padding: '2px 5px', color: '#666' }}>{idx + 1}</td>
+                                                <td style={{ padding: '2px 5px' }}>
                                                     <span style={{
                                                         background: typeColor(line.chemical_type, classic).bg,
                                                         color: typeColor(line.chemical_type, classic).fg,
-                                                        padding: classic ? '1px 5px' : '2px 7px', borderRadius: classic ? 2 : 6,
-                                                        fontWeight: classic ? 'bold' : 600, fontSize: classic ? 9 : 11,
+                                                        padding: '0 4px', fontWeight: 'bold', fontSize: 8,
                                                         border: `1px solid ${typeColor(line.chemical_type, classic).border}`,
                                                     }}>
                                                         {line.chemical_type || '-'}
                                                     </span>
                                                 </td>
-                                                <td style={{ padding: classic ? '3px 6px' : '6px 10px', color: classic ? undefined : '#334155', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
+                                                <td style={{ padding: '2px 5px', color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }} title={line.item_name || linkedItem?.name}>
                                                     {line.item_name || linkedItem?.name || (line.item_id || '-')}
                                                 </td>
-                                                <td style={{ padding: classic ? '3px 6px' : '6px 10px', textAlign: 'right', color: classic ? undefined : '#334155', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
+                                                <td style={{ padding: '2px 5px', textAlign: 'right', fontWeight: 'bold', color: '#000080' }}>
                                                     {line.qty_per_100kg != null ? Number(line.qty_per_100kg).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '-'}
                                                 </td>
-                                                <td style={{ padding: classic ? '3px 6px' : '6px 10px', color: classic ? undefined : '#334155', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>{line.uom_name || '-'}</td>
-                                                <td style={{ padding: classic ? '3px 6px' : '6px 10px', textAlign: 'center', color: classic ? undefined : '#334155', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>{line.sort_order ?? '-'}</td>
+                                                <td style={{ padding: '2px 5px', color: '#555' }}>{line.uom_name || '-'}</td>
                                             </tr>
                                         );
                                     })}
                                 </tbody>
                             </table>
                         </div>
-                    </div>
-
-                    {/* ── Column 3: Wash Baths + Finishing ── */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div>
-                            <div style={sectionHeader('Bak Cuci')}>Bak Cuci</div>
-                            <div style={{ ...panelBox, padding: '6px 8px' }}>
-                                {(!recipe.wash_baths || recipe.wash_baths.length === 0)
-                                    ? <span style={emptyStyle}>None.</span>
-                                    : (recipe.wash_baths || []).map((wb: any, i: number) => (
-                                        <div key={i} style={{ fontSize: classic ? 10 : 12, color: classic ? '#1a1a1a' : '#334155', padding: '1px 0' }}>
-                                            <b>{wb.bath_number}.</b> {wb.description || '-'}
-                                        </div>
-                                    ))}
-                            </div>
-                        </div>
-                        <div>
-                            <div style={sectionHeader('Finishing')}>Finishing</div>
-                            <div style={{ ...panelBox, padding: '6px 8px' }}>
-                                {(!recipe.finishing_steps || recipe.finishing_steps.length === 0)
-                                    ? <span style={emptyStyle}>None.</span>
-                                    : (recipe.finishing_steps || []).map((fs: any, i: number) => (
-                                        <div key={i} style={{ fontSize: classic ? 10 : 12, color: classic ? '#1a1a1a' : '#334155', padding: '1px 0' }}>
-                                            {i + 1}. {fs.description || '-'}
-                                        </div>
-                                    ))}
-                            </div>
-                        </div>
-                    </div>
-
+                    )}
                 </div>
+
+                {/* Wash Baths + Finishing */}
+                <div style={{ padding: '6px 8px', background: '#f5f4ef' }}>
+                    <div style={colHeaderStyle}>Bak Cuci</div>
+                    {(!recipe.wash_baths || recipe.wash_baths.length === 0)
+                        ? <div style={emptyStyle}>None.</div>
+                        : (recipe.wash_baths || []).map((wb: any, i: number) => (
+                            <div key={i} style={{ fontSize: 9, color: '#222', padding: '1px 0' }}>
+                                <b>{wb.bath_number}.</b> {wb.description || '-'}
+                            </div>
+                        ))}
+                    <div style={{ borderTop: '1px solid #e0ddd8', margin: '5px 0 3px' }} />
+                    <div style={colHeaderStyle}>Finishing</div>
+                    {(!recipe.finishing_steps || recipe.finishing_steps.length === 0)
+                        ? <div style={emptyStyle}>None.</div>
+                        : (recipe.finishing_steps || []).map((fs: any, i: number) => (
+                            <div key={i} style={{ fontSize: 9, color: '#222', padding: '1px 0' }}>
+                                {i + 1}. {fs.description || '-'}
+                            </div>
+                        ))}
+                </div>
+
             </div>
         );
     };
@@ -686,12 +673,7 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                                     </tr>
                                     {expanded && (
                                         <tr>
-                                            <td colSpan={9} style={{
-                                                padding: 0,
-                                                background: classic ? '#ece9d8' : '#eef2f7',
-                                                borderBottom: classic ? '1px solid #808080' : '1px solid #cbd3df',
-                                                boxShadow: classic ? 'inset 0 2px 4px rgba(0,0,0,0.12)' : 'inset 0 2px 4px rgba(15,23,42,0.06)',
-                                            }}>
+                                            <td colSpan={9} style={{ padding: '0 4px 6px', background: '#eef2ff' }}>
                                                 {renderDetail(recipe)}
                                             </td>
                                         </tr>

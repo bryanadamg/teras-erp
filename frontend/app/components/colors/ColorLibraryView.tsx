@@ -7,7 +7,7 @@ import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
+import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton } from '../shared/xpTheme';
 import {
     LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow,
 } from '../shared/listViewTheme';
@@ -242,22 +242,22 @@ export default function ColorLibraryView({
                                 <td style={{ ...lvTd(classic), borderRight: 'none', textAlign: 'right' }}>
                                     <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end', alignItems: 'center' }}>
                                         {canManage && c.l_star == null && (
-                                        <button
+                                        <XPActionButton
+                                            classic={classic}
+                                            tone="warning"
+                                            icon="bi-rulers"
                                             title="Complete L*a*b* measurement for this color"
                                             onClick={() => openEdit(c)}
-                                            style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#a15c00' : '#d97706', fontSize: 13 }}
-                                        >
-                                            <i className="bi bi-rulers" />
-                                        </button>
+                                        />
                                         )}
                                         {canManage && (
-                                        <button
+                                        <XPActionButton
+                                            classic={classic}
+                                            tone="primary"
+                                            icon="bi-droplet-half"
                                             title="Create dyeing recipe for this color"
                                             onClick={() => createRecipeForColor(c)}
-                                            style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#1a3d90' : '#2563eb', fontSize: 13 }}
-                                        >
-                                            <i className="bi bi-droplet-half" />
-                                        </button>
+                                        />
                                         )}
                                         <MenuTriggerButton classic={classic} onClick={e => menuToggle(String(c.id), e)} />
                                     </div>
