@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../shared/Toast';
+import ModalWrapper from '../shared/ModalWrapper';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -90,68 +90,61 @@ export default function LeftoverBeamModal({ wo, onClose }: Props) {
         }
     };
 
-    return createPortal(
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ width: 380, background: '#ece9d8', border: '2px solid #0a246a', fontFamily: xpFont, borderRadius: 4, overflow: 'hidden' }}>
-
-                {/* Title bar */}
-                <div style={{ background: 'linear-gradient(to right, #0a246a, #a6caf0, #0a246a)', padding: '3px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none' }}>
-                    <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 12, textShadow: '1px 1px 2px rgba(0,0,0,0.6)' }}>
-                        Leftover Beam — {wo.code || wo.name}
-                    </span>
-                    <button onClick={onClose} style={{ width: 21, height: 21, background: 'linear-gradient(to bottom, #e06060, #b03030)', border: '1px solid #800', borderRadius: 2, cursor: 'pointer', color: '#fff', fontSize: 12, fontWeight: 'bold', lineHeight: 1 }}>x</button>
+    return (
+        <ModalWrapper
+            isOpen
+            onClose={onClose}
+            title={`Leftover Beam — ${wo.code || wo.name}`}
+            modeless
+            size="sm"
+            footer={
+                <>
+                    <button type="button" onClick={onClose} style={xpBtn()}>Cancel</button>
+                    <button type="submit" form="leftover-beam-form" disabled={submitting} style={{ ...xpBtn(true), opacity: submitting ? 0.6 : 1 }}>
+                        {submitting ? 'Saving...' : 'Create Beam Lot'}
+                    </button>
+                </>
+            }
+        >
+            <form id="leftover-beam-form" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 8, fontFamily: xpFont }}>
+                <div style={{ fontSize: 10, color: '#555', background: '#f5f4ee', border: '1px solid #aca899', padding: '4px 8px' }}>
+                    Registers unwoven warp left on the loom as a new beam lot.
+                    Quantity is taken from the merged kg pool at this WO's input location.
                 </div>
 
-                <form onSubmit={handleSubmit}>
-                    <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <div style={{ fontSize: 10, color: '#555', background: '#f5f4ee', border: '1px solid #aca899', padding: '4px 8px' }}>
-                            Registers unwoven warp left on the loom as a new beam lot.
-                            Quantity is taken from the merged kg pool at this WO's input location.
-                        </div>
+                <div>
+                    <label style={{ ...xpLabel, fontWeight: 'bold' }}>Beam Item</label>
+                    <select style={{ ...xpInput, height: 22 }} value={itemId} onChange={e => setItemId(e.target.value)}>
+                        <option value="">— select item —</option>
+                        {materials.map((m: any) => (
+                            <option key={m.item_id} value={m.item_id}>
+                                {m.item_code || m.item_id}{m.item_name && m.item_name !== m.item_code ? ` — ${m.item_name}` : ''}
+                            </option>
+                        ))}
+                    </select>
+                </div>
 
-                        <div>
-                            <label style={{ ...xpLabel, fontWeight: 'bold' }}>Beam Item</label>
-                            <select style={{ ...xpInput, height: 22 }} value={itemId} onChange={e => setItemId(e.target.value)}>
-                                <option value="">— select item —</option>
-                                {materials.map((m: any) => (
-                                    <option key={m.item_id} value={m.item_id}>
-                                        {m.item_code || m.item_id}{m.item_name && m.item_name !== m.item_code ? ` — ${m.item_name}` : ''}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: 8 }}>
-                            <div style={{ flex: 1 }}>
-                                <label style={{ ...xpLabel, fontWeight: 'bold' }}>Leftover Qty (kg)</label>
-                                <input type="number" style={xpInput} value={qty} onChange={e => setQty(e.target.value)} min="0.0001" step="any" autoFocus required />
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <label style={xpLabel}>Ends (utas)</label>
-                                <input type="number" style={xpInput} value={ends} onChange={e => setEnds(e.target.value)} min="1" step="1" placeholder="Optional" />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label style={xpLabel}>Beam No.</label>
-                            <input type="text" style={xpInput} value={beamNumber} onChange={e => setBeamNumber(e.target.value)} placeholder="Leave empty to auto-generate (BM-YYYYMMDD-NNNN)" />
-                        </div>
-
-                        <div>
-                            <label style={xpLabel}>Notes</label>
-                            <input type="text" style={xpInput} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional" />
-                        </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ flex: 1 }}>
+                        <label style={{ ...xpLabel, fontWeight: 'bold' }}>Leftover Qty (kg)</label>
+                        <input type="number" style={xpInput} value={qty} onChange={e => setQty(e.target.value)} min="0.0001" step="any" autoFocus required />
                     </div>
-
-                    <div style={{ borderTop: '1px solid #aca899', padding: '6px 10px', display: 'flex', justifyContent: 'flex-end', gap: 6, background: '#ece9d8' }}>
-                        <button type="button" onClick={onClose} style={xpBtn()}>Cancel</button>
-                        <button type="submit" disabled={submitting} style={{ ...xpBtn(true), opacity: submitting ? 0.6 : 1 }}>
-                            {submitting ? 'Saving...' : 'Create Beam Lot'}
-                        </button>
+                    <div style={{ flex: 1 }}>
+                        <label style={xpLabel}>Ends (utas)</label>
+                        <input type="number" style={xpInput} value={ends} onChange={e => setEnds(e.target.value)} min="1" step="1" placeholder="Optional" />
                     </div>
-                </form>
-            </div>
-        </div>,
-        document.body
+                </div>
+
+                <div>
+                    <label style={xpLabel}>Beam No.</label>
+                    <input type="text" style={xpInput} value={beamNumber} onChange={e => setBeamNumber(e.target.value)} placeholder="Leave empty to auto-generate (BM-YYYYMMDD-NNNN)" />
+                </div>
+
+                <div>
+                    <label style={xpLabel}>Notes</label>
+                    <input type="text" style={xpInput} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional" />
+                </div>
+            </form>
+        </ModalWrapper>
     );
 }
