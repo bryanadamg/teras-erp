@@ -17,11 +17,11 @@ const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const SIDEBAR_BG   = '#d6dff7';
 const SUB_BG       = '#bcc9e8';
 const SUB_BG_DEEP  = '#a8b4cc';
-const HOVER_BG     = '#316ac5';
+const HOVER_BG     = '#0058e6';
 const ACTIVE_BG    = '#ffffff';
-const ACTIVE_COLOR = '#00309c';
-const NAV_COLOR    = '#00309c';
-const HDR_BORDER_B = '#0a2060';
+const ACTIVE_COLOR = '#003080';
+const NAV_COLOR    = '#003080';
+const HDR_BORDER_B = '#003080';
 
 function navItemStyle(
   isActive: boolean,
@@ -41,7 +41,7 @@ function navItemStyle(
     color:      isHovered ? '#fff' : ACTIVE_COLOR,
     background: bg,
     fontWeight: isActive ? 'bold' : 'normal',
-    borderLeft: isActive && !isHovered ? '3px solid #316ac5' : '3px solid transparent',
+    borderLeft: isActive && !isHovered ? `3px solid ${HOVER_BG}` : '3px solid transparent',
     borderBottom: '1px solid #c0ccee',
     cursor: 'pointer',
     display: 'flex',
@@ -59,8 +59,8 @@ function navItemStyle(
 function sectionHdrStyle(isHovered: boolean): React.CSSProperties {
   return {
     background: isHovered
-      ? 'linear-gradient(to right, #4070c8, #2a4da0)'
-      : 'linear-gradient(to right, #3060b8, #1a3d90)',
+      ? 'linear-gradient(to right, #2a7cff, #0058e6)'
+      : 'linear-gradient(to right, #0058e6, #003080)',
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 10,
@@ -231,7 +231,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
     >
       {/* ── Header ── */}
       <div style={classic ? {
-        background: 'linear-gradient(to bottom, #1e4eb8 0%, #0a246a 100%)',
+        background: 'linear-gradient(to bottom, #0058e6 0%, #003080 100%)',
         padding: '8px 10px',
         color: '#fff',
         fontSize: 13,
@@ -240,7 +240,7 @@ export default function Sidebar({ activeTab, setActiveTab, onTabHover, appName, 
         alignItems: 'center',
         gap: 7,
         flexShrink: 0,
-        borderBottom: '2px solid #0a246a',
+        borderBottom: '2px solid #003080',
         textShadow: '0 1px 2px rgba(0,0,0,0.5)',
         letterSpacing: '0.2px',
         userSelect: 'none',
