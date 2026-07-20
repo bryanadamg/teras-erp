@@ -8,6 +8,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 const SalesPrintModal = dynamic(() => import('./SalesPrintModal'), { ssr: false });
 const SOTablePrintModal = dynamic(() => import('./SOTablePrintModal'), { ssr: false });
 import { useTheme } from '../../context/ThemeContext';
+import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import { useSortable, SortMark, StatusChip, statusTint, XPLoading, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
@@ -705,16 +706,17 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   const getItemCode = (id: string, embedded?: string) => resolveItem(id)?.code || embedded || itemIndex?.[String(id)]?.code || id;
   const isSample = (id: string) => resolveItem(id)?.category === 'Sample';
 
+  const { formatDate: tzDate, formatCustom: tzFmt } = useTimezone();
+
   const formatDate = (date: string | null) => {
       if (!date) return '—';
-      return new Date(date).toLocaleDateString();
+      return tzDate(date);
   };
 
   const formatShortDate = (date: string | null | undefined) => {
       if (!date) return '';
       try {
-          const d = new Date(date);
-          return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+          return tzFmt(date, { day: '2-digit', month: '2-digit' }, 'en-GB');
       } catch { return ''; }
   };
 
@@ -1677,7 +1679,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                        <tr key={so.id}>
                                            <td style={soTd()} className={classic ? '' : 'ps-3'}>{poCellContent}</td>
                                            <td style={soTd()}>{so.customer_name}</td>
-                                           <td style={soTd({ fontSize:'10px' })} className={classic ? '' : 'small'}>{new Date(so.order_date).toLocaleDateString()}</td>
+                                           <td style={soTd({ fontSize:'10px' })} className={classic ? '' : 'small'}>{tzDate(so.order_date)}</td>
                                            <td colSpan={6} style={classic ? { ...tdBase, background:rowBg, borderBottom:'1px solid #c0bdb5', color:'#aaa', fontStyle:'italic', fontSize:'10px' } : { background:rowBg, padding:'6px 10px', borderBottom:'1px solid #dee2e6', color:'#aaa', fontStyle:'italic', fontSize:'0.78rem' }}>No lines</td>
                                            <td style={soTd()}>{statusCellContent}</td>
                                            <td style={soTd({ textAlign:'right' as const, borderRight:'none' })} className={classic ? '' : 'pe-3 text-end'}>{actionsCellContent}</td>
@@ -1694,7 +1696,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                <>
                                                    <td rowSpan={lineCount} style={soTd()} className={classic ? '' : 'ps-3'}>{poCellContent}</td>
                                                    <td rowSpan={lineCount} style={soTd()}>{so.customer_name}</td>
-                                                   <td rowSpan={lineCount} style={soTd({ fontSize:'10px' })} className={classic ? '' : 'small'}>{new Date(so.order_date).toLocaleDateString()}</td>
+                                                   <td rowSpan={lineCount} style={soTd({ fontSize:'10px' })} className={classic ? '' : 'small'}>{tzDate(so.order_date)}</td>
                                                </>
                                            )}
 

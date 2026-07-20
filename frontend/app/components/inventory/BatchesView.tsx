@@ -5,6 +5,7 @@ import { useToast } from '../shared/Toast';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
+import { useTimezone } from '../../context/TimezoneContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
@@ -85,6 +86,7 @@ interface BatchesViewProps {
 export default function BatchesView({ items, locations, authFetch, apiBase }: BatchesViewProps) {
   const { showToast } = useToast();
   const { uiStyle } = useTheme();
+  const { formatDate: tzDate } = useTimezone();
   const { confirm } = useConfirm();
   const classic = uiStyle === 'classic';
 
@@ -449,7 +451,7 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
   // Created — date on line 1, created-by as a small chip underneath.
   const createdCell = (b: Batch) => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, lineHeight: 1.2, alignItems: 'flex-start' }}>
-      <span>{new Date(b.created_at).toLocaleDateString()}</span>
+      <span>{tzDate(b.created_at)}</span>
       {b.created_by && chip(b.created_by, '#555', '#eceae2', '#c4c2ba')}
     </div>
   );

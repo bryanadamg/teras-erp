@@ -10,6 +10,7 @@ import LeftoverBeamModal from './LeftoverBeamModal';
 import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
+import { useTimezone } from '../../context/TimezoneContext';
 import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle } from '../shared/xpTheme';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
@@ -47,13 +48,13 @@ export function computePrintState(wo: any): { cardPrinted: boolean; hasBags: boo
     return { cardPrinted: !!wo.card_printed_at, hasBags, labelsPrinted };
 }
 
-const _printChipFmt = (v: any) =>
-    v ? new Date(v).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
-
 // Two small "printed" indicators for a WO row: Card (Kartu Kerja) + Label (bags).
 // Green = printed, gray = card not printed yet, amber = labels missing/stale.
 export function PrintChips({ wo }: { wo: any }) {
     const { cardPrinted, hasBags, labelsPrinted } = computePrintState(wo);
+    const { formatCustom: tzFmt } = useTimezone();
+    const _printChipFmt = (v: any) =>
+        v ? tzFmt(v, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }, 'id-ID') : '';
     const variantStyle = (v: 'green' | 'gray' | 'amber'): React.CSSProperties =>
         v === 'green' ? { background: '#d4f0d4', color: '#005500', borderColor: '#99cc99' }
             : v === 'amber' ? { background: '#fff3cc', color: '#664400', borderColor: '#f0d888' }

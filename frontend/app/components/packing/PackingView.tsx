@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
+import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { XPStatusBar, XPEmptyState, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
@@ -46,6 +47,7 @@ export default function PackingView() {
     // packaging route, so this view self-fetches them.
     const { partners, locations, attributes, companyProfile, itemIndex, authFetch } = useData();
     const { uiStyle } = useTheme();
+    const { formatDate: tzDate } = useTimezone();
     const { showToast } = useToast();
     const { confirm } = useConfirm();
     const { hasPermission } = useUser();
@@ -205,7 +207,7 @@ export default function PackingView() {
                                     <td style={td}><StatusChip status={po.status} /></td>
                                     <td style={{ ...td, textAlign: 'right' }}>{(po.packages || []).length}</td>
                                     <td style={td}>{po.delivery_note_number || '-'}</td>
-                                    <td style={td}>{po.dispatched_at ? new Date(po.dispatched_at).toLocaleDateString() : '-'}</td>
+                                    <td style={td}>{po.dispatched_at ? tzDate(po.dispatched_at) : '-'}</td>
                                     <td style={{ ...td, textAlign: 'right' }}>
                                         <MenuTriggerButton classic onClick={e => menuToggle(String(po.id), e)} />
                                     </td>

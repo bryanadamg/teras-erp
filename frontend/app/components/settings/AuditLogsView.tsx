@@ -1,6 +1,7 @@
 import React, { useState, memo } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useTimezone } from '../../context/TimezoneContext';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
 
 function getActionXPStyle(action: string): React.CSSProperties {
@@ -30,6 +31,7 @@ function getActionColor(action: string) {
 
 const AuditLogRow = memo(({ log, classic }: any) => {
     const [showChanges, setShowChanges] = useState(false);
+    const { formatDateTime: tzDateTime } = useTimezone();
 
     if (classic) {
         return (
@@ -39,7 +41,7 @@ const AuditLogRow = memo(({ log, classic }: any) => {
                     onClick={() => log.changes && setShowChanges(!showChanges)}
                 >
                     <td style={{ padding: '3px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#555', fontVariant: 'all-small-caps' }}>
-                        {new Date(log.timestamp).toLocaleString()}
+                        {tzDateTime(log.timestamp)}
                     </td>
                     <td style={{ padding: '3px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#000' }}>
                         User {log.user_id ? log.user_id.split('-')[0] : 'System'}
@@ -77,7 +79,7 @@ const AuditLogRow = memo(({ log, classic }: any) => {
     return (
         <>
             <tr style={{ cursor: log.changes ? 'pointer' : 'default' }} onClick={() => log.changes && setShowChanges(!showChanges)}>
-                <td className="ps-4 text-muted font-monospace">{new Date(log.timestamp).toLocaleString()}</td>
+                <td className="ps-4 text-muted font-monospace">{tzDateTime(log.timestamp)}</td>
                 <td><span className="fw-medium text-dark">User {log.user_id ? log.user_id.split('-')[0] : 'System'}</span></td>
                 <td>
                     <span className={`badge bg-${getActionColor(log.action)} bg-opacity-10 text-${getActionColor(log.action)} border border-${getActionColor(log.action)} border-opacity-25`}>

@@ -9,6 +9,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
+import { useTimezone } from '../../context/TimezoneContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import PrintHeader from '../shared/PrintHeader';
@@ -662,14 +663,16 @@ export default function ManufacturingView({
       }
   };
 
+  const { formatDate: tzFormatDate, formatDateTime: tzFormatDateTime } = useTimezone();
+
   const formatDate = (date: string | null) => {
       if (!date) return '-';
-      return new Date(date).toLocaleDateString();
+      return tzFormatDate(date);
   };
 
   const formatDateTime = (date: string | null) => {
       if (!date) return '-';
-      return new Date(date).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+      return tzFormatDateTime(date);
   };
 
   const getDueDateWarning = (wo: any) => {

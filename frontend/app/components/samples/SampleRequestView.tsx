@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useTheme } from '../../context/ThemeContext';
+import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
@@ -22,6 +23,7 @@ const SAMPLE_PAGE_SIZE = 50;
 export default function SampleRequestView({ samples, customers, onCreateSample, onEditSample, onUpdateStatus, onUpdateColorStatus, onDeleteSample, onMarkRead, onMarkUnread, onMarkAllRead }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
+  const { formatDate: tzDate } = useTimezone();
   const { hasPermission } = useUser();
   const canManage = hasPermission('sales.manage');
 
@@ -1303,7 +1305,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                    {s.code}
                                                </div>
                                                <div style={classic ? { fontSize: '9px', color: '#555' } : undefined} className={classic ? '' : 'small text-muted'}>
-                                                   {new Date(s.created_at).toLocaleDateString()}
+                                                   {tzDate(s.created_at)}
                                                </div>
                                            </div>
                                        </div>

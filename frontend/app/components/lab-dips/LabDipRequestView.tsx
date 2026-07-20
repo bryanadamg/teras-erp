@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '../shared/Toast';
 import { useTheme } from '../../context/ThemeContext';
+import { useTimezone } from '../../context/TimezoneContext';
 import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -146,6 +147,7 @@ export default function LabDipRequestView({
     useToast();
     const router = useRouter();
     const { uiStyle } = useTheme();
+    const { formatDate: tzDate } = useTimezone();
     const classic = uiStyle === 'classic';
     const { hasPermission } = useUser();
     const canManage = hasPermission('dyeing.manage');
@@ -395,7 +397,7 @@ export default function LabDipRequestView({
                                                     <div style={classic
                                                         ? { fontFamily: "'Courier New', monospace", fontWeight: 'bold', color: '#0047c8', fontSize: 10 }
                                                         : { fontFamily: "'Courier New', monospace", fontWeight: 700, color: '#2563eb', fontSize: 12 }}>{r.code}</div>
-                                                    <div style={{ fontSize: classic ? 9 : 11, color: classic ? '#555' : '#64748b' }}>{r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}</div>
+                                                    <div style={{ fontSize: classic ? 9 : 11, color: classic ? '#555' : '#64748b' }}>{r.created_at ? tzDate(r.created_at) : ''}</div>
                                                 </div>
                                             </div>
                                         </td>

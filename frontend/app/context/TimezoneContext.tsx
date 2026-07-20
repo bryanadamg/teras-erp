@@ -10,6 +10,9 @@ interface TimezoneContextType {
     formatDate: (value: string | Date) => string;
     formatTime: (value: string | Date) => string;
     formatDateTime: (value: string | Date) => string;
+    // Escape hatch for call sites that need a specific locale/option combo
+    // (e.g. 'id-ID' short-month labels) while still respecting `timezone`.
+    formatCustom: (value: string | Date, opts: Intl.DateTimeFormatOptions, locale?: string | string[]) => string;
 }
 
 const STORAGE_KEY = 'display_timezone';
@@ -81,8 +84,11 @@ export function TimezoneProvider({ children }: { children: React.ReactNode }) {
         return `${d.toLocaleDateString(undefined, safeOpts({}))} ${d.toLocaleTimeString([], safeOpts({ hour: '2-digit', minute: '2-digit' }))}`;
     }, [safeOpts]);
 
+    const formatCustom = useCallback((value: string | Date, opts: Intl.DateTimeFormatOptions, locale?: string | string[]) =>
+        parseUTC(value).toLocaleString(locale, safeOpts(opts)), [safeOpts]);
+
     return (
-        <TimezoneContext.Provider value={{ timezone, setTimezone, formatDate, formatTime, formatDateTime }}>
+        <TimezoneContext.Provider value={{ timezone, setTimezone, formatDate, formatTime, formatDateTime, formatCustom }}>
             {children}
         </TimezoneContext.Provider>
     );
@@ -94,6 +100,7 @@ const defaultCtx: TimezoneContextType = {
     formatDate: (v) => parseUTC(v).toLocaleDateString(),
     formatTime: (v) => parseUTC(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     formatDateTime: (v) => { const d = parseUTC(v); return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`; },
+    formatCustom: (v, opts, locale) => parseUTC(v).toLocaleString(locale, opts),
 };
 
 export const useTimezone = (): TimezoneContextType => {

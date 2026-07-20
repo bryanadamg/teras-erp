@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useTimezone } from '../../context/TimezoneContext';
 import CalendarView from '../shared/CalendarView';
 import { STATUS_COLORS } from '../shared/xpTheme';
 
@@ -214,6 +215,7 @@ const TREND_METRICS = [
 
 export default function DashboardView({ items, locations, stockBalance, workOrders, stockEntries, samples, salesOrders, kpis, summary, itemIndex, kpiHistory }: any) {
     const { t } = useLanguage();
+    const { formatDateTime: tzDateTime, formatCustom: tzFmt } = useTimezone();
     const { uiStyle: currentStyle } = useTheme();
     const classic = currentStyle === 'classic';
     const router = useRouter();
@@ -591,7 +593,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                         <li key={entry.key} className="list-group-item d-flex justify-content-between align-items-center py-2 border-0 border-bottom">
                                             <div style={{ minWidth: 0 }}>
                                                 <div className="fw-medium text-truncate small">{entry.itemName}</div>
-                                                <small className="text-muted d-block font-monospace" style={{ fontSize: '0.65rem' }}>{new Date(entry.created_at).toLocaleString()}</small>
+                                                <small className="text-muted d-block font-monospace" style={{ fontSize: '0.65rem' }}>{tzDateTime(entry.created_at)}</small>
                                             </div>
                                             <div className={`fw-bold ms-2 small ${entry.qty_change > 0 ? 'text-success' : 'text-danger'}`}>
                                                 {entry.qty_change > 0 ? '+' : ''}{entry.qty_change}
@@ -982,7 +984,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                             {entry.location_name || '—'}
                                         </td>
                                         <td style={{ ...xpTd(idx % 2 === 1), fontSize: '9px', color: '#666', borderRight: 'none' }}>
-                                            {new Date(entry.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                            {tzFmt(entry.created_at, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                         </td>
                                     </tr>
                                 ))}

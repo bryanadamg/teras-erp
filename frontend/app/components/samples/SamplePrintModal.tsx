@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import PrintModalShell from '../shared/PrintModalShell';
+import { useTimezone } from '../../context/TimezoneContext';
 
 interface SamplePrintSettings {
     preparedBy: string;
@@ -60,6 +61,7 @@ function SPKDocument({
     settings: SamplePrintSettings;
 }) {
     const { preparedBy, preparedRole, showSampleBox, showChecklist } = settings;
+    const { formatCustom: tzFmt } = useTimezone();
 
     const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '');
     const customerName = sample.customer_id ? getCustomerName(sample.customer_id) : '';
@@ -87,7 +89,7 @@ function SPKDocument({
 
     const formatDate = (d: string | null | undefined) => {
         if (!d) return '';
-        try { return new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: '2-digit' }); }
+        try { return tzFmt(d, { day: '2-digit', month: 'short', year: '2-digit' }, 'id-ID'); }
         catch { return d; }
     };
 

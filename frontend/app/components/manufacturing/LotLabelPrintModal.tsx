@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import JsBarcode from 'jsbarcode';
 import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useTimezone } from '../../context/TimezoneContext';
 import PrintModalShell from '../shared/PrintModalShell';
 
 // Code 128 (1D) alongside the QR so old laser scanners can read the lot too.
@@ -38,6 +39,7 @@ export default function LotLabelPrintModal({
     const { companyProfile } = useData() as any;
     const { uiStyle } = useTheme();
     const isClassic = uiStyle === 'classic';
+    const { formatCustom: tzFmt } = useTimezone();
 
     const doPrint = () => {
         window.addEventListener('afterprint', onClose, { once: true });
@@ -70,7 +72,9 @@ export default function LotLabelPrintModal({
 
     const renderLabel = (lot: any) => {
         const kg = Number(lot.remaining ?? 0);
-        const tgl = new Date(lot.created_at || Date.now()).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const tgl = lot.created_at
+            ? tzFmt(lot.created_at, { day: '2-digit', month: '2-digit', year: 'numeric' }, 'id-ID')
+            : new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
         return (
             <div key={lot.id} className="bag-label-card" style={{ background: '#fff', color: '#000', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ fontFamily: 'Arial, sans-serif', color: '#000', lineHeight: 1.3, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
+import { useTimezone } from '../../context/TimezoneContext';
 import { API_BASE } from './apiBase';
 
 interface HistoryPaneProps {
@@ -214,6 +215,7 @@ const S = {
 
 export default function HistoryPane({ entityType, entityId, onClose }: HistoryPaneProps) {
     const { t } = useLanguage();
+    const { formatCustom: tzFmt } = useTimezone();
     const [logs, setLogs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
@@ -259,11 +261,8 @@ export default function HistoryPane({ entityType, entityId, onClose }: HistoryPa
         );
     };
 
-    const fmt = (ts: string) => {
-        const d = new Date(ts);
-        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })
-            + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    };
+    const fmt = (ts: string) =>
+        tzFmt(ts, { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }, 'en-GB');
 
     return (
         <>

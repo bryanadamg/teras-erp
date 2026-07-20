@@ -1,6 +1,7 @@
 'use client';
 import React from 'react';
 import type { KartuKerjaSettings } from './KartuKerjaCardBeaming';
+import { useTimezone } from '../../context/TimezoneContext';
 
 /**
  * Kartu Kerja (WO step card) body for DYEING work centers — placeholder pass,
@@ -19,6 +20,7 @@ export default function KartuKerjaCardDyeing({
     settings: KartuKerjaSettings;
     companyName?: string;
 }) {
+    const { formatCustom: tzFmt } = useTimezone();
     const woQty = workOrder.qty ?? 0;
     const displayCompany = companyName || '';
 
@@ -102,7 +104,7 @@ export default function KartuKerjaCardDyeing({
                         <td style={{ ...gridLbl, width: '24%' }}>Status</td>
                         <td style={{ ...gridVal, width: '26%' }}>{workOrder.status}</td>
                         <td style={{ ...gridLbl, width: '22%' }}>Target Selesai</td>
-                        <td style={gridVal}>{workOrder.target_end_date ? new Date(workOrder.target_end_date).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—'}</td>
+                        <td style={gridVal}>{workOrder.target_end_date ? tzFmt(workOrder.target_end_date, { day: '2-digit', month: '2-digit', year: '2-digit' }, 'id-ID') : '—'}</td>
                     </tr>
                     {(workOrder.next_destination_work_center_name || workOrder.next_destination_location_name) && (
                         <tr>

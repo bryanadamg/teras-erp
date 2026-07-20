@@ -1,6 +1,7 @@
 'use client';
 import React from 'react';
 import type { KartuKerjaSettings } from './KartuKerjaCardBeaming';
+import { useTimezone } from '../../context/TimezoneContext';
 
 /**
  * Kartu Kerja (WO step card) body — generic fallback for any work center type
@@ -21,6 +22,7 @@ export default function KartuKerjaCardGeneral({
     settings: KartuKerjaSettings;
     companyName?: string;
 }) {
+    const { formatCustom: tzFmt } = useTimezone();
     const woQty = workOrder.qty ?? 0;
     const doneQty = workOrder.qty_completed_total ?? 0;
     const pct = woQty > 0 ? Math.min(100, Math.round((doneQty / woQty) * 100)) : 0;
@@ -108,7 +110,7 @@ export default function KartuKerjaCardGeneral({
                         <td style={{ ...gridLbl, width: '24%' }}>Status</td>
                         <td style={{ ...gridVal, width: '26%' }}>{workOrder.status}</td>
                         <td style={{ ...gridLbl, width: '22%' }}>Target Selesai</td>
-                        <td style={gridVal}>{workOrder.target_end_date ? new Date(workOrder.target_end_date).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—'}</td>
+                        <td style={gridVal}>{workOrder.target_end_date ? tzFmt(workOrder.target_end_date, { day: '2-digit', month: '2-digit', year: '2-digit' }, 'id-ID') : '—'}</td>
                     </tr>
                     {(workOrder.next_destination_work_center_name || workOrder.next_destination_location_name) && (
                         <tr>

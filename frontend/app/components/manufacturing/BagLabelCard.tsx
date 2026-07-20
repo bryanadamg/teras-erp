@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import { useTimezone } from '../../context/TimezoneContext';
 
 /**
  * Bag output label — one physical sticker per bag produced at a WEAVING WO.
@@ -27,6 +28,7 @@ export default function BagLabelCard({
     companyName?: string;
     attributes?: any[];
 }) {
+    const { formatCustom: tzFmt } = useTimezone();
     const bom = parentMO?.bom;
     const lotNo = completion?.output_batch_number || '—';
     const berat = Number(completion?.qty_completed ?? 0);
@@ -42,7 +44,7 @@ export default function BagLabelCard({
     const operator = completion?.operator_name || null;
     const mesin = completion?.work_center_name || workOrder?.work_center_name || null;
     const tgl = completion?.created_at
-        ? new Date(completion.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        ? tzFmt(completion.created_at, { day: '2-digit', month: '2-digit', year: 'numeric' }, 'id-ID')
         : new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
     const gridLbl: React.CSSProperties = { background: '#f0f0f0', border: '1px solid #bbb', padding: '3px 6px', fontSize: '9px', color: '#333', fontWeight: 'bold', whiteSpace: 'nowrap' };

@@ -5,6 +5,7 @@ import { useToast } from '../shared/Toast';
 import { useTheme } from '../../context/ThemeContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useData } from '../../context/DataContext';
+import { useTimezone } from '../../context/TimezoneContext';
 import { xpBtn, xpInput } from '../shared/xpTheme';
 import { xpBevel, xpTitleBar, xpSectionHead, xpTableHeader, xpThCell, tdBase } from './settingsStyles';
 
@@ -48,6 +49,7 @@ export default function SettingsDatabaseTab() {
     const { showToast } = useToast();
     const { confirm } = useConfirm();
     const { uiStyle } = useTheme();
+    const { formatDateTime: tzDateTime } = useTimezone();
     const { wsStatus } = useData();
     const classic = uiStyle === 'classic';
 
@@ -447,7 +449,7 @@ export default function SettingsDatabaseTab() {
                                         style={classic ? { background: i % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' } : undefined}
                                     >
                                         <td style={classic ? { ...tdBase, fontFamily: "'Courier New', monospace", fontSize: '10px' } : undefined} className={classic ? '' : 'ps-4 font-monospace'}>{s.name}</td>
-                                        <td style={classic ? tdBase : undefined}>{new Date(s.created_at).toLocaleString()}</td>
+                                        <td style={classic ? tdBase : undefined}>{tzDateTime(s.created_at)}</td>
                                         <td style={classic ? tdBase : undefined}>{(s.size / 1024 / 1024).toFixed(2)} MB</td>
                                         <td style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'right' as const } : undefined} className={classic ? '' : 'text-end pe-4'}>
                                             <div style={classic ? { display: 'flex', gap: 4, justifyContent: 'flex-end' } : undefined} className={classic ? '' : 'd-flex gap-2 justify-content-end'}>

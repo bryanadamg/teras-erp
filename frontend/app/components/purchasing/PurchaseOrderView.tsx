@@ -8,6 +8,7 @@ import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 const PurchaseOrderPrintModal = dynamic(() => import('./PurchaseOrderPrintModal'), { ssr: false });
 import ModalWrapper from '../shared/ModalWrapper';
 import { useTheme } from '../../context/ThemeContext';
+import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import { useSortable, SortMark, StatusChip, XPLoading, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
@@ -20,6 +21,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
   const { showToast } = useToast();
   const { t } = useLanguage();
   const { itemIndex, loading: dataLoading } = useData();
+  const { formatDate: tzDate } = useTimezone();
   const { hasPermission } = useUser();
   const canManage = hasPermission('purchasing.manage');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -616,7 +618,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                    <span style={{color:classic?'#555':'',marginLeft:8,fontSize:classic?'10px':''}}>{getItemCode(line.item_id)}</span>
                                    {getItemUom(line.item_id) && <span style={{display:'inline-block',marginLeft:8,padding:'1px 6px',fontSize:'9px',fontWeight:'bold',background:'#dfe8f5',border:'1px solid #7f9db9',color:'#1a3d6b',borderRadius:classic?0:3,textTransform:'uppercase'}}>{getItemUom(line.item_id)}</span>}
                                    {getItemCatLabel(line.item_id) && <span style={{display:'inline-block',marginLeft:4,padding:'1px 6px',fontSize:'9px',fontWeight:'bold',background:'#f0e8d8',border:'1px solid #b8a060',color:'#6b4e1a',borderRadius:classic?0:3}}>{getItemCatLabel(line.item_id)}</span>}
-                                   {line.due_date && <span style={{color:classic?'#666':'',marginLeft:8,fontSize:classic?'10px':''}}><i className="bi bi-calendar2" style={{marginRight:3}}></i>{new Date(line.due_date).toLocaleDateString()}</span>}
+                                   {line.due_date && <span style={{color:classic?'#666':'',marginLeft:8,fontSize:classic?'10px':''}}><i className="bi bi-calendar2" style={{marginRight:3}}></i>{tzDate(line.due_date)}</span>}
                                    {(line.attribute_value_ids||[]).length>0 && <div style={{color:classic?'#666':'',fontSize:classic?'10px':'',fontStyle:'italic'}}>{(line.attribute_value_ids||[]).map(getAttributeValueName).join(', ')}</div>}
                                </div>
                                <div style={{display:'flex',alignItems:'center',gap:classic?6:10}}>
@@ -927,7 +929,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                    </td>
                                    <td style={classic ? tdBase : undefined}>{getSupplierName(po.supplier_id)}</td>
                                    <td style={classic ? { ...tdBase, fontSize: '10px' } : undefined} className={classic ? '' : 'small'}>
-                                       {new Date(po.order_date).toLocaleDateString()}
+                                       {tzDate(po.order_date)}
                                    </td>
                                    <td style={classic ? tdBase : undefined}>
                                        {classic ? (
@@ -1070,7 +1072,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                                                            <tbody>
                                                                {allLines.map((rl: any) => (
                                                                    <tr key={rl.id}>
-                                                                       <td style={classic ? poLineTdXp : undefined} className={classic ? '' : 'small'}>{new Date(rl._receipt.receipt_date).toLocaleDateString()}</td>
+                                                                       <td style={classic ? poLineTdXp : undefined} className={classic ? '' : 'small'}>{tzDate(rl._receipt.receipt_date)}</td>
                                                                        {hasDn && (
                                                                            <td style={classic ? poLineTdXp : undefined}>
                                                                                {rl._receipt.delivery_note_number || <span style={{ color: '#bbb' }}>—</span>}

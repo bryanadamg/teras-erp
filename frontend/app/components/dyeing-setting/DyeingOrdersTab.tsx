@@ -6,6 +6,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
+import { useTimezone } from '../../context/TimezoneContext';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const modernFont = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -148,6 +149,7 @@ const emptyCompleteForm: CompleteForm = {
 
 export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrdersTabProps) {
     const { uiStyle } = useTheme();
+    const { formatCustom: tzFmt } = useTimezone();
     const classic = uiStyle === 'classic';
     const { hasPermission } = useUser();
     const canManage = hasPermission('dyeing.manage');
@@ -422,7 +424,7 @@ export default function DyeingOrdersTab({ items, recipes, authFetch }: DyeingOrd
     const formatDateTime = (dt: string | null | undefined) => {
         if (!dt) return '-';
         try {
-            return new Date(dt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' });
+            return tzFmt(dt, { dateStyle: 'short', timeStyle: 'short' } as Intl.DateTimeFormatOptions, 'en-GB');
         } catch {
             return dt;
         }

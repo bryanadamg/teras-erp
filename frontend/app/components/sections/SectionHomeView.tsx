@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useData } from '../../context/DataContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useTimezone } from '../../context/TimezoneContext';
 import { xpFont, StatusChip } from '../shared/xpTheme';
 import { NAV_SECTIONS, navLabel, NavSection } from '../shared/navConfig';
 
@@ -34,7 +35,7 @@ const ACCENT_GRAD: Record<string, string> = {
 };
 
 // ── Per-section content builder (client-side filter of loaded data) ───────────
-function buildSection(key: string, d: any): SectionData {
+function buildSection(key: string, d: any, tzDate: (v: string | Date) => string): SectionData {
   const items: any[]        = d.items || [];
   const locations: any[]    = d.locations || [];
   const stockBalance: any[] = d.stockBalance || [];
@@ -65,7 +66,7 @@ function buildSection(key: string, d: any): SectionData {
       const activeSamples = kpis.active_samples ?? samples.length;
       const rows: ListRow[] = [...salesOrders].sort(byDateDesc).slice(0, 6).map((s) => ({
         code: s.code || s.id, primary: partnerName(s.partner_id ?? s.customer_id) || '—',
-        status: s.status, right: (s.created_at || '').slice(0, 10),
+        status: s.status, right: s.created_at ? tzDate(s.created_at) : '',
       }));
       return {
         kpis: [
@@ -84,7 +85,7 @@ function buildSection(key: string, d: any): SectionData {
       const suppliers = partners.filter((p) => p.type === 'SUPPLIER' && p.active).length;
       const rows: ListRow[] = [...purchaseOrders].sort(byDateDesc).slice(0, 6).map((p) => ({
         code: p.code || p.id, primary: partnerName(p.partner_id ?? p.supplier_id) || '—',
-        status: p.status, right: (p.created_at || '').slice(0, 10),
+        status: p.status, right: p.created_at ? tzDate(p.created_at) : '',
       }));
       return {
         kpis: [
@@ -177,9 +178,10 @@ export default function SectionHomeView({ sectionKey }: { sectionKey: string }) 
   const { t } = useLanguage();
   const { uiStyle } = useTheme();
   const classic = uiStyle === 'classic';
+  const { formatDate: tzDate } = useTimezone();
 
   const meta = SECTION_META[sectionKey];
-  const section = useMemo(() => buildSection(sectionKey, data), [sectionKey, data]);
+  const section = useMemo(() => buildSection(sectionKey, data, tzDate), [sectionKey, data, tzDate]);
   // Quick links mirror the sidebar's children for this section (navConfig).
   const links = useMemo(
     () => (meta ? meta.items.map((i) => ({ label: navLabel(t, i), tab: i.tab, icon: i.icon })) : []),

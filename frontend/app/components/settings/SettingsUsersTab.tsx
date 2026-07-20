@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useToast } from '../shared/Toast';
 import { useTheme } from '../../context/ThemeContext';
+import { useTimezone } from '../../context/TimezoneContext';
 import { useUser, User } from '../../context/UserContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import { xpBtn, xpInput } from '../shared/xpTheme';
@@ -17,12 +18,12 @@ const USERS_PAGE_SIZE = 10;
 
 type StatusFilter = 'all' | 'active' | 'inactive';
 
-function formatLastLogin(value?: string | null): string {
-    if (!value) return 'Never';
-    return new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-}
-
 export default function SettingsUsersTab() {
+    const { formatCustom: tzFmt } = useTimezone();
+    const formatLastLogin = (value?: string | null): string => {
+        if (!value) return 'Never';
+        return tzFmt(value, { dateStyle: 'medium', timeStyle: 'short' } as Intl.DateTimeFormatOptions);
+    };
     const { showToast } = useToast();
     const { confirm } = useConfirm();
     const { users, setCurrentUser, currentUser, refreshUsers } = useUser();

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
+import { useTimezone } from '../../context/TimezoneContext';
 
 import { useToast } from '../shared/Toast';
 const WOCompletionModal = dynamic(() => import('./WOCompletionModal'), { ssr: false });
@@ -30,18 +31,6 @@ const WO_TABS: TabDef<WOTabKey>[] = [
     { key: 'DYEING',  label: 'Dyeing',  icon: 'bi-droplet-half' },
     { key: 'OTHERS',  label: 'Others',  icon: 'bi-three-dots' },
 ];
-
-const fmtDate = (v: any) => {
-    if (!v) return '—';
-    const d = new Date(v);
-    return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
-};
-
-const fmtDateTime = (v: any) => {
-    if (!v) return '—';
-    const d = new Date(v);
-    return isNaN(d.getTime()) ? '—' : d.toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-};
 
 interface Props {
     workOrders: any[];
@@ -122,6 +111,15 @@ export default function WorkOrderListView({
     const classic = uiStyle === 'classic';
     const { hasPermission } = useUser();
     const canManage = hasPermission('work_order.manage');
+    const { formatCustom: tzFmt } = useTimezone();
+    const fmtDate = (v: any) => {
+        if (!v) return '—';
+        return tzFmt(v, { day: '2-digit', month: 'short', year: 'numeric' }, 'id-ID');
+    };
+    const fmtDateTime = (v: any) => {
+        if (!v) return '—';
+        return tzFmt(v, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }, 'id-ID');
+    };
 
     const { showToast } = useToast();
     // Floating "more actions" menu (Print / Edit / Delete)

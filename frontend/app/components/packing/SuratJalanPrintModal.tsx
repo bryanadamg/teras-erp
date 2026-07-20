@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
+import { useTimezone } from '../../context/TimezoneContext';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from '../shared/shellTheme';
 
 const font = 'Tahoma, "Segoe UI", sans-serif';
@@ -9,6 +10,7 @@ const font = 'Tahoma, "Segoe UI", sans-serif';
 function SJDocument({ po, so, attributes, companyProfile, customerAddr, preparedBy }: any) {
     const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '');
     const { itemIndex } = useData();
+    const { formatCustom: tzFmt } = useTimezone();
 
     const itemName = (id: string) => itemIndex?.[String(id)]?.name || id;
     const itemUOM = (id: string) => itemIndex?.[String(id)]?.uom || '';
@@ -16,7 +18,7 @@ function SJDocument({ po, so, attributes, companyProfile, customerAddr, prepared
         for (const attr of attributes) { const v = attr.values?.find((x: any) => x.id === vid); if (v) return v.value; }
         return '';
     };
-    const fmt = (d: any) => { if (!d) return ''; try { const dt = new Date(d); return `${String(dt.getDate()).padStart(2, '0')}.${String(dt.getMonth() + 1).padStart(2, '0')}.${dt.getFullYear()}`; } catch { return ''; } };
+    const fmt = (d: any) => { if (!d) return ''; try { return tzFmt(d, { day: '2-digit', month: '2-digit', year: 'numeric' }, 'en-GB').replace(/\//g, '.'); } catch { return ''; } };
 
     const lines: any[] = po.lines || [];
     // Resolve carton-content keys against whichever id shape the line carries

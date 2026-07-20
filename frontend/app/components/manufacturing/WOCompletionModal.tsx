@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useData } from '../../context/DataContext';
+import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -56,6 +57,7 @@ interface WOCompletionModalProps {
 export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: WOCompletionModalProps) {
     const { authFetch, workCenters, items } = useData() as any;
     const { showToast } = useToast();
+    const { formatDateTime: tzDateTime } = useTimezone();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
@@ -774,7 +776,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                                             ? c.actual_items.map((ai: any) => `${ai.item_code || ai.item_id} ×${parseFloat(ai.qty_used).toFixed(2)}`).join(', ')
                                                             : '—'}
                                                     </td>
-                                                    <td style={{ padding: '2px 6px', color: '#555' }}>{new Date(c.created_at).toLocaleString()}</td>
+                                                    <td style={{ padding: '2px 6px', color: '#555' }}>{tzDateTime(c.created_at)}</td>
                                                     <td style={{ padding: '2px 4px', textAlign: 'center' }}>
                                                         {/* QC disposition lives on the Lot Management page — read-only marker here */}
                                                         {c.rejected ? (
