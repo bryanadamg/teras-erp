@@ -11,7 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, StatusChip, statusTint, XPLoading, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
+import { useSortable, SortMark, StatusChip, statusTint, XPLoading, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase } from '../shared/xpTheme';
 import { useArchivedComboValueIds } from '../shared/useArchivedCombos';
 import Pager from '../shared/Pager';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
@@ -181,30 +181,10 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   const classic = currentStyle === 'classic';
 
   // ── XP shared inline styles ──────────────────────────────────────────────
-  const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-      fontFamily: 'Tahoma, Arial, sans-serif',
-      fontSize: '11px',
-      padding: '2px 10px',
-      cursor: 'pointer',
-      background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
-      border: '1px solid',
-      borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-      color: '#000000',
-      borderRadius: 0,
-      ...extra,
-  });
-
-  const xpInput: React.CSSProperties = {
-      fontFamily: 'Tahoma, Arial, sans-serif',
-      fontSize: '11px',
-      border: '1px solid #7f9db9',
-      boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)',
-      padding: '1px 6px',
-      background: '#ffffff',
-      color: '#000000',
-      height: '20px',
-      outline: 'none',
-  };
+  // Local wrapper keeps this form's inset-shadow input treatment while sourcing
+  // the base style from the shared xpTheme factory (was a hand-duplicated object).
+  const xpInput = (extra: React.CSSProperties = {}): React.CSSProperties =>
+      xpInputBase({ boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', ...extra });
 
   const xpSep: React.CSSProperties = {
       width: '1px',
@@ -973,24 +953,22 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
            )}
        >
            <form onSubmit={handleSubmit} id="create-so-form">
-               <div className="row g-3 mb-3">
+               <FormSection title="① Order Details" classic={classic}>
+               <div className="row g-3">
                    <div className="col-md-4">
-                       <label style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:2} : undefined} className={classic ? '' : 'form-label d-flex justify-content-between align-items-center small text-muted'}>
-                           Ref No. (PO#)
-                           <i className="bi bi-gear-fill" style={{cursor:'pointer',color:classic?'#555':'',fontSize:classic?'11px':''}} onClick={() => setIsConfigOpen(true)} title="Configure Auto-Suggestion"></i>
-                       </label>
-                       <input className="form-control" style={classic ? xpInput : undefined} placeholder="Auto-generated" value={newSO.po_number} onChange={e => setNewSO({...newSO, po_number: e.target.value})} required />
+                       <FieldLabel classic={classic} right={<i className="bi bi-gear-fill" style={{cursor:'pointer',color:classic?'#555':'',fontSize:classic?'11px':''}} onClick={() => setIsConfigOpen(true)} title="Configure Auto-Suggestion"></i>}>Ref No. (PO#)</FieldLabel>
+                       <input className="form-control" style={classic ? xpInput() : undefined} placeholder="Auto-generated" value={newSO.po_number} onChange={e => setNewSO({...newSO, po_number: e.target.value})} required />
                    </div>
                    <div className="col-md-4">
-                       <label style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2} : undefined} className={classic ? '' : 'form-label small text-muted'}>Customer PO Ref</label>
-                       <input className="form-control" style={classic ? xpInput : undefined} placeholder="Customer's own PO reference" value={newSO.customer_po_ref} onChange={e => setNewSO({...newSO, customer_po_ref: e.target.value})} />
+                       <FieldLabel classic={classic}>Customer PO Ref</FieldLabel>
+                       <input className="form-control" style={classic ? xpInput() : undefined} placeholder="Customer's own PO reference" value={newSO.customer_po_ref} onChange={e => setNewSO({...newSO, customer_po_ref: e.target.value})} />
                    </div>
                    <div className="col-md-4">
-                       <label style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2} : undefined} className={classic ? '' : 'form-label small text-muted'}>Date</label>
-                       <input type="date" className="form-control" style={classic ? {...xpInput,width:'100%',height:'22px'} : undefined} value={newSO.order_date} onChange={e => setNewSO({...newSO, order_date: e.target.value})} required />
+                       <FieldLabel classic={classic}>Date</FieldLabel>
+                       <input type="date" className="form-control" style={classic ? xpInput({width:'100%',height:'22px'}) : undefined} value={newSO.order_date} onChange={e => setNewSO({...newSO, order_date: e.target.value})} required />
                    </div>
                    <div className="col-md-12">
-                       <label style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2} : undefined} className={classic ? '' : 'form-label small text-muted'}>Customer</label>
+                       <FieldLabel classic={classic}>Customer</FieldLabel>
                        <SearchableSelect
                            options={customers.map((c: any) => ({ value: c.name, label: c.name, subLabel: c.address }))}
                            value={newSO.customer_name}
@@ -1000,17 +978,13 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                        />
                    </div>
                </div>
+               </FormSection>
 
-               {classic
-                   ? <div style={{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',fontWeight:'bold',color:'#444',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:4,paddingBottom:2,borderBottom:'1px solid #c0bdb5'}}>Order Items</div>
-                   : <h6 className="small text-uppercase text-muted fw-bold mb-2">Order Items</h6>
-               }
-               <div style={{background:classic?'#f5f4ef':'rgba(0,0,0,0.02)',border:classic?'1px solid #b0a898':'1px solid #dee2e6',padding:classic?'6px 8px':'12px',marginBottom:classic?6:12}}>
+               <FormSection title="② Line Items" classic={classic}>
                    {/* Item selector — full width */}
                    <div className="row g-2 mb-2">
                        <div className="col-12">
-                           <label style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'flex',alignItems:'center',gap:6,marginBottom:2} : undefined} className={classic ? '' : 'form-label small text-muted mb-1 d-flex align-items-center gap-2'}>
-                               Item
+                           <FieldLabel classic={classic} right={
                                <span
                                    title="Only items in the Finished Goods category can be ordered"
                                    style={{
@@ -1022,7 +996,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                >
                                    Finished Goods only
                                </span>
-                           </label>
+                           }>Item</FieldLabel>
                            <SearchableSelect
                                options={finishedGoodsItems.map((item: any) => ({ value: item.id, label: item.name, subLabel: item.code }))}
                                value={newLine.item_id}
@@ -1047,16 +1021,16 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                        }
                                        <div style={{ paddingTop: classic ? 4 : 0, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: classic ? 5 : 8 }}>
                                            <div>
-                                               <label style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2} : undefined} className={classic ? '' : 'form-label small text-muted mb-1'}>Yard</label>
-                                               <input type="number" className="form-control" style={classic ? {...xpInput, width:'100%'} : undefined} placeholder="0" value={newLine.qty || ''} onChange={e => handleQtyYardChange(e.target.value)} />
+                                               <FieldLabel classic={classic}>Yard</FieldLabel>
+                                               <input type="number" className="form-control" style={classic ? xpInput({width:'100%'}) : undefined} placeholder="0" value={newLine.qty || ''} onChange={e => handleQtyYardChange(e.target.value)} />
                                            </div>
                                            <div>
-                                               <label style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2} : undefined} className={classic ? '' : 'form-label small text-muted mb-1'}>Meter</label>
-                                               <input type="number" className="form-control" style={classic ? {...xpInput, width:'100%'} : undefined} placeholder="0" value={qtyMeter} onChange={e => handleQtyMeterChange(e.target.value)} />
+                                               <FieldLabel classic={classic}>Meter</FieldLabel>
+                                               <input type="number" className="form-control" style={classic ? xpInput({width:'100%'}) : undefined} placeholder="0" value={qtyMeter} onChange={e => handleQtyMeterChange(e.target.value)} />
                                            </div>
                                            <div>
-                                               <label style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2} : undefined} className={classic ? '' : 'form-label small text-muted mb-1'}>Gross Yd <span style={{ fontWeight: 'normal', fontSize: '10px', color: '#888' }}>(144 yd)</span></label>
-                                               <input type="number" className="form-control" style={classic ? {...xpInput, width:'100%'} : undefined} placeholder="0" value={qtyGrossYd} onChange={e => handleQtyGrossYdChange(e.target.value)} />
+                                               <FieldLabel classic={classic}>Gross Yd <span style={{ fontWeight: 'normal', fontSize: '10px', color: '#888' }}>(144 yd)</span></FieldLabel>
+                                               <input type="number" className="form-control" style={classic ? xpInput({width:'100%'}) : undefined} placeholder="0" value={qtyGrossYd} onChange={e => handleQtyGrossYdChange(e.target.value)} />
                                            </div>
                                        </div>
                                    </div>
@@ -1082,7 +1056,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                const onQtyChange = uomName === 'Roll' ? handleQtyRollChange : handleQtyPicChange;
                                                return (
                                                    <div key={uomName}>
-                                                       <label style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2} : undefined} className={classic ? '' : 'form-label small text-muted mb-1'}>{uomName}</label>
+                                                       <FieldLabel classic={classic}>{uomName}</FieldLabel>
                                                        {factors.length > 0 ? (
                                                            <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 2, marginBottom: 3 }}>
                                                                {factors.map((f: any) => {
@@ -1106,7 +1080,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                            <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'10px', color:'#aaa', marginBottom: 3 }}>no factors defined</div>
                                                        )}
                                                        <input type="number" className="form-control"
-                                                           style={classic ? {...xpInput, width:'100%', background: factor ? '#fff' : '#f5f5f0'} : undefined}
+                                                           style={classic ? xpInput({width:'100%', background: factor ? '#fff' : '#f5f5f0'}) : undefined}
                                                            placeholder={factor ? '0' : '—'}
                                                            disabled={!factor}
                                                            value={qty}
@@ -1127,9 +1101,9 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                        <div style={{ paddingTop: classic ? 4 : 0 }}>
                                            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4 }}>
                                                <div style={{ flex: 1 }}>
-                                                   <label style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2} : undefined} className={classic ? '' : 'form-label small text-muted mb-1'}>Kilogram</label>
+                                                   <FieldLabel classic={classic}>Kilogram</FieldLabel>
                                                    <input type="number" className="form-control"
-                                                       style={classic ? {...xpInput, width:'100%'} : undefined}
+                                                       style={classic ? xpInput({width:'100%'}) : undefined}
                                                        placeholder="0"
                                                        value={newLine.qty_kg}
                                                        onChange={e => handleQtyKgChange(e.target.value)}
@@ -1161,7 +1135,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
 
                                    {/* Qty 3 compound input */}
                                    <div>
-                                       <label style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2} : undefined} className={classic ? '' : 'form-label small text-muted mb-1'}>Qty 3</label>
+                                       <FieldLabel classic={classic}>Qty 3</FieldLabel>
                                        {(() => {
                                            const selectedUom = uoms.find((u: any) => u.name === newLine.uom2);
                                            const factors = selectedUom?.factors || [];
@@ -1171,7 +1145,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                <div>
                                                    <div style={{ display: 'flex' }}>
                                                        <input type="number" className="form-control"
-                                                           style={{ ...xpInput, flex: 1, borderRight: 'none', minWidth: 0 }}
+                                                           style={xpInput({ flex: 1, borderRight: 'none', minWidth: 0 })}
                                                            placeholder="0" value={newLine.qty2} onChange={e => handleQty2Change(e.target.value)} />
                                                        <select
                                                            style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'11px', border:'1px solid #7f9db9', height:'20px', borderRadius:0, padding:'1px 4px', background:'#ffffff', outline:'none', color:'#000', flexShrink: 0 }}
@@ -1260,16 +1234,16 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                {/* Right: Dates + Stock Notes */}
                                <div style={{ display: 'flex', flexDirection: 'column', gap: classic ? 5 : 8 }}>
                                    <div>
-                                       <label style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2} : undefined} className={classic ? '' : 'form-label small text-muted mb-1'}>Del. Request</label>
-                                       <input type="date" className="form-control" style={classic ? {...xpInput,width:'100%',height:'22px'} : undefined} value={newLine.due_date} onChange={e => setNewLine({...newLine, due_date: e.target.value})} />
+                                       <FieldLabel classic={classic}>Del. Request</FieldLabel>
+                                       <input type="date" className="form-control" style={classic ? xpInput({width:'100%',height:'22px'}) : undefined} value={newLine.due_date} onChange={e => setNewLine({...newLine, due_date: e.target.value})} />
                                    </div>
                                    <div>
-                                       <label style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2} : undefined} className={classic ? '' : 'form-label small text-muted mb-1'}>Del. Confirmation</label>
-                                       <input type="date" className="form-control" style={classic ? {...xpInput,width:'100%',height:'22px'} : undefined} value={newLine.internal_confirmation_date} onChange={e => setNewLine({...newLine, internal_confirmation_date: e.target.value})} />
+                                       <FieldLabel classic={classic}>Del. Confirmation</FieldLabel>
+                                       <input type="date" className="form-control" style={classic ? xpInput({width:'100%',height:'22px'}) : undefined} value={newLine.internal_confirmation_date} onChange={e => setNewLine({...newLine, internal_confirmation_date: e.target.value})} />
                                    </div>
                                    <div>
-                                       <label style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2} : undefined} className={classic ? '' : 'form-label small text-muted mb-1'}>Stock Notes</label>
-                                       <input className="form-control" style={classic ? {...xpInput, width:'100%'} : undefined} placeholder="e.g. 1 IKAT 60 PCS" value={newLine.ket_stock} onChange={e => setNewLine({...newLine, ket_stock: e.target.value})} />
+                                       <FieldLabel classic={classic}>Stock Notes</FieldLabel>
+                                       <input className="form-control" style={classic ? xpInput({width:'100%'}) : undefined} placeholder="e.g. 1 IKAT 60 PCS" value={newLine.ket_stock} onChange={e => setNewLine({...newLine, ket_stock: e.target.value})} />
                                    </div>
                                </div>
 
@@ -1447,7 +1421,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                    <div style={{display:'flex',flexDirection:'column',gap:1}}>
                                        <span style={{color:classic?'#999':'',fontSize:'9px'}} className={classic?'':'text-muted'}>Req</span>
                                        <input type="date"
-                                           style={classic ? {...xpInput, width:110, height:'20px'} : {width:130}}
+                                           style={classic ? xpInput({width:110, height:'20px'}) : {width:130}}
                                            className={classic?'':'form-control form-control-sm'}
                                            value={line.due_date || ''}
                                            onChange={e => handleLineDateChange(idx, 'due_date', e.target.value)}
@@ -1457,7 +1431,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                    <div style={{display:'flex',flexDirection:'column',gap:1}}>
                                        <span style={{color:classic?'#999':'',fontSize:'9px'}} className={classic?'':'text-muted'}>Conf</span>
                                        <input type="date"
-                                           style={classic ? {...xpInput, width:110, height:'20px'} : {width:130}}
+                                           style={classic ? xpInput({width:110, height:'20px'}) : {width:130}}
                                            className={classic?'':'form-control form-control-sm'}
                                            value={line.internal_confirmation_date || ''}
                                            onChange={e => handleLineDateChange(idx, 'internal_confirmation_date', e.target.value)}
@@ -1466,7 +1440,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                    </div>
                                    <span style={{fontWeight:'bold'}}>×</span>
                                    <input type="number" min="0" step="any"
-                                       style={classic ? {...xpInput, width:70, textAlign:'right'} : {width:80,textAlign:'right'}}
+                                       style={classic ? xpInput({width:70, textAlign:'right'}) : {width:80,textAlign:'right'}}
                                        className={classic?'':'form-control form-control-sm'}
                                        value={line.qty || ''}
                                        onChange={e => handleLineQtyChange(idx, e.target.value)}
@@ -1481,7 +1455,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                        ))}
                        {newSO.lines.length === 0 && <div style={{textAlign:'center',padding:classic?'8px':'8px',fontFamily:classic?'Tahoma,Arial,sans-serif':'',fontSize:classic?'11px':'',color:classic?'#888':'',fontStyle:'italic'}} className={classic?'':'text-center text-muted small fst-italic py-2'}>No items added yet</div>}
                    </div>
-               </div>
+               </FormSection>
            </form>
        </ModalWrapper>
 
@@ -1522,13 +1496,13 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
            {classic ? (
                <div style={xpToolbar()}>
                    <input
-                       style={{ ...xpInput, width: 150 }}
+                       style={xpInput({ width: 150 })}
                        placeholder="Search PO#…"
                        value={searchTerm}
                        onChange={e => setSearchTerm(e.target.value)}
                    />
                    <input
-                       style={{ ...xpInput, width: 150 }}
+                       style={xpInput({ width: 150 })}
                        placeholder="Search Customer…"
                        value={customerSearch}
                        onChange={e => setCustomerSearch(e.target.value)}
