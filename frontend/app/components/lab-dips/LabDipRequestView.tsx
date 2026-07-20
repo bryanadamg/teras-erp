@@ -101,7 +101,7 @@ const today = () => new Date().toISOString().split('T')[0];
 const LABDIP_PAGE_SIZE = 20;
 
 type DipDraft = { id?: string; color_name: string; color_id?: string | null; submission_round: number; recipe_ref?: string };
-type ItemDraft = { id?: string; item_id: string; item_label?: string; variant_seq?: number; dips: DipDraft[] };
+type ItemDraft = { id?: string; item_id: string; item_label?: string; variant_seq?: number; locked_variant_code?: string; dips: DipDraft[] };
 
 // 0 → A, 1 → B, … 25 → Z, 26 → AA (spreadsheet-column style).
 const variantLetter = (seq: number): string => {
@@ -111,6 +111,11 @@ const variantLetter = (seq: number): string => {
 };
 // Numeric portion of the request code: "LD-2026-00001" → "00001".
 const seqPart = (code?: string): string => (code || '').split('-').pop() || '';
+// Splits a variant code ("00003-A") back into its seq/letter parts for the two-tone badge pair.
+const splitVariantCode = (code: string): { seq: string; variant: string } => {
+    const idx = code.lastIndexOf('-');
+    return idx === -1 ? { seq: code, variant: '' } : { seq: code.slice(0, idx), variant: code.slice(idx + 1) };
+};
 
 // Two distinct chips: the request sequence (neutral) and the item's variant letter (accent).
 const seqBadge = (classic: boolean): React.CSSProperties => classic ? {
@@ -135,6 +140,10 @@ const emptyForm = () => ({
     season: '',
     request_type: 'NEW',
     notes: '',
+    // Not exposed as form fields (no UI for these yet) — carried through as-is so
+    // editing/resubmitting never silently wipes them.
+    customer_article_code: '',
+    internal_article_code: '',
     items: [] as ItemDraft[],
     // Legacy dips with no item, carried through on edit so they aren't dropped.
     legacyDips: [] as DipDraft[],
@@ -242,7 +251,30 @@ export default function LabDipRequestView({
             season: r.season || '',
             request_type: r.request_type || 'NEW',
             notes: r.notes || '',
-            items: (r.items || []).map((it: any) => ({ id: it.id, item_id: it.item_id, item_label: it.item_code ? `${it.item_code} — ${it.item_name}` : it.item_name, variant_seq: it.variant_seq, dips: (it.dips || []).map(mapDip) })),
+            customer_article_code: r.customer_article_code || '',
+            internal_article_code: r.internal_article_code || '',
+            items: (r.items || []).map((it: any) => ({ id: it.id, item_id: it.item_id, item_label: it.item_code ? `${it.item_code} — ${it.item_name}` : it.item_name, variant_seq: it.variant_seq, locked_variant_code: it.locked_variant_code || undefined, dips: (it.dips || []).map(mapDip) })),
+            legacyDips: (r.dips || []).filter((d: any) => !d.lab_dip_item_id).map(mapDip),
+        });
+        setPendingItem('');
+        setIsModalOpen(true);
+    };
+
+    // Resubmit: opens a NEW request (own LD-code) pre-filled from a rejected item — same
+    // FG item, same request-level colors, same customer/season/article codes — but the
+    // item's variant code (e.g. "0003-A") is pinned via locked_variant_code so it never
+    // changes even though the new request gets its own sequence.
+    const openResubmit = (r: any, it: any) => {
+        setEditing(null);
+        const mapDip = (d: any): DipDraft => ({ color_name: d.color_name, color_id: d.color_id || null, submission_round: d.submission_round, recipe_ref: d.recipe_ref || '' });
+        setForm({
+            ...emptyForm(),
+            customer_id: r.customer_id || '',
+            season: r.season || '',
+            request_type: 'RESUBMIT',
+            customer_article_code: r.customer_article_code || '',
+            internal_article_code: r.internal_article_code || '',
+            items: [{ item_id: it.item_id, item_label: it.item_code ? `${it.item_code} — ${it.item_name}` : it.item_name, locked_variant_code: it.variant_code, dips: [] }],
             legacyDips: (r.dips || []).filter((d: any) => !d.lab_dip_item_id).map(mapDip),
         });
         setPendingItem('');
@@ -276,10 +308,13 @@ export default function LabDipRequestView({
             season: form.season,
             request_type: form.request_type,
             notes: form.notes,
+            customer_article_code: form.customer_article_code || null,
+            internal_article_code: form.internal_article_code || null,
             items: form.items.map((it, gi) => ({
                 id: it.id,
                 item_id: it.item_id,
                 order: gi,
+                locked_variant_code: it.locked_variant_code || null,
                 dips: it.dips.filter(d => d.color_name.trim() !== ''),
             })),
             dips: form.legacyDips.filter(d => d.color_name.trim() !== ''),
@@ -434,11 +469,13 @@ export default function LabDipRequestView({
                                                 const its = r.items || [];
                                                 if (!its.length) return <span style={{ fontSize: classic ? 9 : 12, color: classic ? '#888' : '#94a3b8', fontStyle: 'italic' }}>—</span>;
                                                 const first = its[0];
+                                                const firstCode = first.variant_code || `${seqPart(r.code)}-${variantLetter(first.variant_seq ?? 0)}`;
+                                                const firstParts = splitVariantCode(firstCode);
                                                 return (
                                                     <>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                            <span style={{ ...seqBadge(classic), fontSize: classic ? 9 : 11, padding: '0 5px' }}>{seqPart(r.code)}</span>
-                                                            <span style={{ ...variantBadge(classic), fontSize: classic ? 9 : 11, padding: '0 5px' }}>{variantLetter(first.variant_seq ?? 0)}</span>
+                                                            <span style={{ ...seqBadge(classic), fontSize: classic ? 9 : 11, padding: '0 5px' }}>{firstParts.seq}</span>
+                                                            <span style={{ ...variantBadge(classic), fontSize: classic ? 9 : 11, padding: '0 5px' }}>{firstParts.variant}</span>
                                                             <span style={{ fontWeight: 'bold', fontSize: classic ? 11 : 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{first.item_name || first.item_code || '—'}</span>
                                                         </div>
                                                         {its.length > 1 && <div style={{ fontSize: classic ? 9 : 11, color: classic ? '#555' : '#64748b' }}>+{its.length - 1} more</div>}
@@ -498,7 +535,8 @@ export default function LabDipRequestView({
                                         const rows = (r.items || []).map((it: any) => {
                                             const status = it.status || 'PENDING';
                                             const locked = status === 'APPROVED' || status === 'REJECTED';
-                                            const variantCode = `${seqPart(r.code)}-${variantLetter(it.variant_seq ?? 0)}`;
+                                            const variantCode = it.variant_code || `${seqPart(r.code)}-${variantLetter(it.variant_seq ?? 0)}`;
+                                            const codeParts = splitVariantCode(variantCode);
                                             const stripe = getStatusStripe(status);
                                             return {
                                                 key: it.id,
@@ -516,11 +554,11 @@ export default function LabDipRequestView({
                                                     canManage ? (
                                                         <div style={{ display: 'inline-flex', opacity: locked ? 0.85 : 1 }}>
                                                             <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'IN_PROGRESS', 'progress'), ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => setItemStatus(it.id, status, 'IN_PROGRESS')}>Progress</button>
-                                                            <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'APPROVED', 'approved'), ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => openApproval(r.id, { id: it.id, status, seq: seqPart(r.code), variant: variantLetter(it.variant_seq ?? 0) })}>Approved</button>
-                                                            <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'REJECTED', 'rejected'), borderRight: '1px solid', ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => openReject(r.id, { id: it.id, status, seq: seqPart(r.code), variant: variantLetter(it.variant_seq ?? 0) })}>Rejected</button>
+                                                            <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'APPROVED', 'approved'), ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => openApproval(r.id, { id: it.id, status, seq: codeParts.seq, variant: codeParts.variant })}>Approved</button>
+                                                            <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'REJECTED', 'rejected'), borderRight: '1px solid', ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => openReject(r.id, { id: it.id, status, seq: codeParts.seq, variant: codeParts.variant })}>Rejected</button>
                                                         </div>
                                                     ) : <span style={{ color: '#999' }}>—</span>,
-                                                    // Jump to the minted color code in the Color Library (approved variants only).
+                                                    // Jump to the minted color code in the Color Library (approved), or resubmit a fresh request (rejected).
                                                     (status === 'APPROVED' && it.approved_color_code) ? (
                                                         <button
                                                             type="button"
@@ -529,6 +567,15 @@ export default function LabDipRequestView({
                                                             onClick={() => router.push(`/colors?search=${encodeURIComponent(it.approved_color_code)}`)}
                                                         >
                                                             <i className="bi bi-box-arrow-up-right" style={{ fontSize: classic ? 10 : 12 }} />
+                                                        </button>
+                                                    ) : (status === 'REJECTED' && canManage) ? (
+                                                        <button
+                                                            type="button"
+                                                            title={`Resubmit ${variantCode} as a new Lab Dip Request`}
+                                                            style={{ ...xpBtn(classic, { padding: classic ? '1px 5px' : '3px 7px', lineHeight: 1, color: classic ? '#a05a00' : '#b45309' }) }}
+                                                            onClick={() => openResubmit(r, it)}
+                                                        >
+                                                            <i className="bi bi-arrow-repeat" style={{ fontSize: classic ? 10 : 12 }} />
                                                         </button>
                                                     ) : <span style={{ color: '#bbb' }}>—</span>,
                                                 ],

@@ -76,6 +76,9 @@ class LabDipItem(Base):
     # Captured when a variant is rejected (mirrors the sample-request reject flow).
     rejection_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
     rejection_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Overrides the derived variant_code (request seq + letter) when set — carries a
+    # rejected item's original code onto its resubmitted (new-request) replacement.
+    locked_variant_code: Mapped[str | None] = mapped_column(String(32), nullable=True, default=None)
 
     item = relationship("Item", foreign_keys=[item_id])
     approved_color = relationship("Color", foreign_keys=[approved_color_id])

@@ -48,7 +48,7 @@ def _decorate(req: LabDipRequest) -> LabDipRequest:
     """Attach the derived variant_code (e.g. '00001-A') and denormalized item name/code."""
     seq_part = req.code.rsplit("-", 1)[-1] if req.code else ""
     for it in (req.items or []):
-        it.variant_code = f"{seq_part}-{_variant_letter(it.variant_seq)}"
+        it.variant_code = it.locked_variant_code or f"{seq_part}-{_variant_letter(it.variant_seq)}"
         # Full approved code appends the free-text "set" captured at approval.
         it.approved_color_code = f"{it.variant_code}-{it.approved_set}" if it.approved_set else None
         it.item_code = it.item.code if it.item else None
@@ -103,7 +103,7 @@ async def create_lab_dip_request(
 
     # Per-item groups, each with its own dips. New request → variant_seq == position.
     for gi, group in enumerate(payload.items):
-        item = LabDipItem(lab_dip_request_id=req.id, item_id=group.item_id, order=gi, variant_seq=gi)
+        item = LabDipItem(lab_dip_request_id=req.id, item_id=group.item_id, order=gi, variant_seq=gi, locked_variant_code=group.locked_variant_code)
         db.add(item)
         await db.flush()
         for i, dip in enumerate(group.dips):
@@ -246,8 +246,9 @@ async def update_lab_dip_request(
             item = existing_items[str(group.id)]
             item.item_id = group.item_id
             item.order = gi
+            item.locked_variant_code = group.locked_variant_code
         else:
-            item = LabDipItem(lab_dip_request_id=req.id, item_id=group.item_id, order=gi, variant_seq=next_seq)
+            item = LabDipItem(lab_dip_request_id=req.id, item_id=group.item_id, order=gi, variant_seq=next_seq, locked_variant_code=group.locked_variant_code)
             next_seq += 1
             db.add(item)
             await db.flush()

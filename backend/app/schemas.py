@@ -1480,12 +1480,14 @@ class LabDipItemCreate(BaseModel):
     item_id: UUID
     order: int = 0
     dips: list[LabDipLineCreate] = []
+    locked_variant_code: Optional[str] = None  # preserves a resubmitted item's original code.
 
 class LabDipItemUpdate(BaseModel):
     id: Optional[UUID] = None
     item_id: UUID
     order: int = 0
     dips: list[LabDipLineUpdate] = []
+    locked_variant_code: Optional[str] = None
 
 class LabDipItemResponse(BaseModel):
     id: UUID
@@ -1495,6 +1497,7 @@ class LabDipItemResponse(BaseModel):
     order: int = 0
     variant_seq: int = 0
     variant_code: Optional[str] = None  # e.g. "00001-A"; set by the API layer.
+    locked_variant_code: Optional[str] = None
     status: str = "PENDING"
     approved_set: Optional[str] = None
     approved_color_id: Optional[UUID] = None
