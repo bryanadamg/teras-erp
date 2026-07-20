@@ -268,7 +268,7 @@ export default function ReportsView(_props: any) {
                 </td>
                 <td style={{ padding: '4px 8px', fontFamily: xpFont, whiteSpace: 'nowrap' }}>
                     <span style={{ background: rm.classic.bg, border: `1px solid ${rm.classic.border}`, padding: '0 5px', fontSize: '10px', color: rm.classic.color }}>{rm.label}</span>
-                    <span style={{ fontSize: '10px', color: '#999', marginLeft: 4 }} title={e.reference_id}>#{shortRef(e.reference_id)}</span>
+                    <span style={{ fontSize: '10px', color: '#999', marginLeft: 4 }} title={e.reference_id}>#{e.reference_label || shortRef(e.reference_id)}</span>
                 </td>
             </tr>
         );
@@ -562,7 +562,7 @@ export default function ReportsView(_props: any) {
                                             </td>
                                             <td className="pe-4" style={{ whiteSpace: 'nowrap' }}>
                                                 <span className={`badge ${rm.modern}`}>{rm.label}</span>
-                                                <span className="ms-2 text-muted small" title={e.reference_id}>#{shortRef(e.reference_id)}</span>
+                                                <span className="ms-2 text-muted small" title={e.reference_id}>#{e.reference_label || shortRef(e.reference_id)}</span>
                                             </td>
                                         </tr>
                                     );

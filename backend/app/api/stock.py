@@ -12,8 +12,16 @@ from app.models.item import Item
 from app.models.location import Location
 from app.models.stock_balance import StockBalance
 from app.models.audit import AuditLog
+from app.models.work_order import WorkOrder
+from app.models.goods_receipt import GoodsReceipt
+from app.models.purchase import PurchaseOrder
 from datetime import datetime
 from typing import Optional
+import uuid as _uuid
+
+# reference_types whose reference_id is a raw entity UUID (str(entity.id)) rather
+# than a human-readable code — these need a resolved label for display.
+_WO_REF_TYPES = {"Staging", "Leftover Beam", "Beam Merge", "Work Order"}
 
 router = APIRouter()
 
@@ -94,6 +102,40 @@ async def get_stock_ledger(
         )).all():
             loc_map[lid] = nm
 
+    # Some reference_types store the raw entity UUID (str(entity.id)) instead of a
+    # human-readable code — resolve those to a friendly label so the ledger never
+    # surfaces a bare UUID to the user.
+    ref_label_map: dict[str, str] = {}
+    wo_ref_ids = {r.reference_id for r in rows if r.reference_type in _WO_REF_TYPES and r.reference_id}
+    if wo_ref_ids:
+        wo_uuids = []
+        for rid in wo_ref_ids:
+            try:
+                wo_uuids.append(_uuid.UUID(rid))
+            except (ValueError, TypeError):
+                pass
+        if wo_uuids:
+            for wid, code, name in (await db.execute(
+                select(WorkOrder.id, WorkOrder.code, WorkOrder.name).where(WorkOrder.id.in_(wo_uuids))
+            )).all():
+                ref_label_map[str(wid)] = code or name
+
+    gr_ref_ids = {r.reference_id for r in rows if r.reference_type == "Goods Receipt" and r.reference_id}
+    if gr_ref_ids:
+        gr_uuids = []
+        for rid in gr_ref_ids:
+            try:
+                gr_uuids.append(_uuid.UUID(rid))
+            except (ValueError, TypeError):
+                pass
+        if gr_uuids:
+            for gid, po_number in (await db.execute(
+                select(GoodsReceipt.id, PurchaseOrder.po_number)
+                .join(PurchaseOrder, PurchaseOrder.id == GoodsReceipt.po_id)
+                .where(GoodsReceipt.id.in_(gr_uuids))
+            )).all():
+                ref_label_map[str(gid)] = po_number
+
     items = []
     for r in rows:
         nm, cd, uom = item_map.get(r.item_id, ("", "", ""))
@@ -112,6 +154,7 @@ async def get_stock_ledger(
             "qty_drums_change": r.qty_drums_change,
             "reference_type": r.reference_type,
             "reference_id": r.reference_id,
+            "reference_label": ref_label_map.get(r.reference_id),
             "batch_id": r.batch_id,
             "batch_number": r.batch.batch_number if r.batch else None,
             "vendor_lot": r.batch.vendor_lot if r.batch else None,

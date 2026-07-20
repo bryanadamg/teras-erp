@@ -1,8 +1,24 @@
 'use client';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import PrintModalShell from '../shared/PrintModalShell';
 import { useTimezone } from '../../context/TimezoneContext';
+
+type ColumnDef = { key: string; label: string; width: number };
+const COLUMN_DEFS: ColumnDef[] = [
+    { key: 'no', label: 'No', width: 3 },
+    { key: 'date', label: 'Date', width: 9 },
+    { key: 'item', label: 'Item', width: 16 },
+    { key: 'attributes', label: 'Attributes', width: 10 },
+    { key: 'location', label: 'Location', width: 13 },
+    { key: 'lot', label: 'Lot', width: 9 },
+    { key: 'movement', label: 'Movement', width: 10 },
+    { key: 'packaging', label: 'Packaging', width: 9 },
+    { key: 'source', label: 'Source', width: 11 },
+    { key: 'ref', label: 'Ref #', width: 10 },
+];
+const DEFAULT_VISIBLE_COLS: Record<string, boolean> = Object.fromEntries(COLUMN_DEFS.map(c => [c.key, true]));
+const COLUMNS_STORAGE_KEY = 'stock_ledger_print_columns';
 
 type RefMeta = { label: string; classic: { bg: string; border: string; color: string } };
 const REF_META: Record<string, RefMeta> = {
@@ -23,7 +39,7 @@ const shortRef = (id: string) => {
 };
 const fmtQty = (n: number) => Number(n).toLocaleString(undefined, { maximumFractionDigits: 4 });
 
-function LedgerDocument({ entries, locations, attributes, companyProfile, periodLabel, totals, filtersSummary, hiddenCount }: any) {
+function LedgerDocument({ entries, locations, attributes, companyProfile, periodLabel, totals, filtersSummary, hiddenCount, visibleCols }: any) {
     const { formatDateTime: tzDateTime } = useTimezone();
     const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '');
     const locMap: Record<string, any> = {};
@@ -34,9 +50,63 @@ function LedgerDocument({ entries, locations, attributes, companyProfile, period
         return '';
     };
 
+    const cols = COLUMN_DEFS.filter(c => (visibleCols || DEFAULT_VISIBLE_COLS)[c.key] !== false);
+    const totalWeight = cols.reduce((s, c) => s + c.width, 0) || 1;
+
     const border = '1px solid #777';
     const th: React.CSSProperties = { border, padding: '3px 4px', background: '#e8e8e8', fontWeight: 'bold', textAlign: 'center', verticalAlign: 'middle', fontSize: '8px', lineHeight: 1.2 };
     const td: React.CSSProperties = { border, padding: '3px 4px', verticalAlign: 'top', fontSize: '8px', lineHeight: 1.3 };
+
+    const renderCell = (colKey: string, e: any, idx: number) => {
+        switch (colKey) {
+            case 'no':
+                return <td key={colKey} style={{ ...td, textAlign: 'center' }}>{idx + 1}</td>;
+            case 'date':
+                return <td key={colKey} style={{ ...td, whiteSpace: 'nowrap' }}>{tzDateTime(e.created_at)}</td>;
+            case 'item':
+                return (
+                    <td key={colKey} style={td}>
+                        <div style={{ fontWeight: 'bold' }}>{e.item_name}</div>
+                        <div style={{ color: '#777', fontSize: 7 }}>{e.item_code}</div>
+                    </td>
+                );
+            case 'attributes':
+                return <td key={colKey} style={td}>{(e.attribute_value_ids || []).map((vid: string) => getAttrName(vid)).filter(Boolean).join(', ')}</td>;
+            case 'location':
+                return (
+                    <td key={colKey} style={td}>
+                        {getWarehouseName(e) && <span style={{ color: '#555' }}>{getWarehouseName(e)} / </span>}
+                        {e.location_name}
+                    </td>
+                );
+            case 'lot':
+                return (
+                    <td key={colKey} style={td}>
+                        {e.batch_number || '-'}
+                        {e.vendor_lot && <div style={{ color: '#777', fontSize: 7 }}>Supplier: {e.vendor_lot}</div>}
+                    </td>
+                );
+            case 'movement': {
+                const up = e.qty_change >= 0;
+                return (
+                    <td key={colKey} style={{ ...td, textAlign: 'right', fontWeight: 'bold', color: up ? '#1a5e1a' : '#c00000', whiteSpace: 'nowrap' }}>
+                        {up ? '+' : ''}{fmtQty(e.qty_change)} {e.item_uom}
+                    </td>
+                );
+            }
+            case 'packaging': {
+                const c = e.qty_cones_change || 0, b = e.qty_boxes_change || 0, d = e.qty_drums_change || 0;
+                const pkg = [c ? `${c > 0 ? '+' : ''}${c} cones` : '', b ? `${b > 0 ? '+' : ''}${b} boxes` : '', d ? `${d > 0 ? '+' : ''}${d} drums` : ''].filter(Boolean).join(', ');
+                return <td key={colKey} style={{ ...td, fontSize: 7 }}>{pkg || '-'}</td>;
+            }
+            case 'source':
+                return <td key={colKey} style={td}>{refMeta(e.reference_type).label}</td>;
+            case 'ref':
+                return <td key={colKey} style={{ ...td, fontSize: 7, wordBreak: 'break-all' }} title={e.reference_id}>{e.reference_label || shortRef(e.reference_id)}</td>;
+            default:
+                return null;
+        }
+    };
 
     return (
         <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '8px', color: '#000', lineHeight: 1.3 }}>
@@ -62,52 +132,17 @@ function LedgerDocument({ entries, locations, attributes, companyProfile, period
             <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', marginBottom: 6 }}>
                 <thead>
                     <tr>
-                        <th style={{ ...th, width: '3%' }}>No</th>
-                        <th style={{ ...th, width: '9%' }}>Date</th>
-                        <th style={{ ...th, width: '16%' }}>Item</th>
-                        <th style={{ ...th, width: '10%' }}>Attributes</th>
-                        <th style={{ ...th, width: '13%' }}>Location</th>
-                        <th style={{ ...th, width: '9%' }}>Lot</th>
-                        <th style={{ ...th, width: '10%' }}>Movement</th>
-                        <th style={{ ...th, width: '9%' }}>Packaging</th>
-                        <th style={{ ...th, width: '11%' }}>Source</th>
-                        <th style={{ ...th, width: '10%' }}>Ref #</th>
+                        {cols.map(c => <th key={c.key} style={{ ...th, width: `${(c.width / totalWeight * 100).toFixed(2)}%` }}>{c.label}</th>)}
                     </tr>
                 </thead>
                 <tbody>
-                    {entries.map((e: any, idx: number) => {
-                        const rm = refMeta(e.reference_type);
-                        const up = e.qty_change >= 0;
-                        const c = e.qty_cones_change || 0, b = e.qty_boxes_change || 0, d = e.qty_drums_change || 0;
-                        const pkg = [c ? `${c > 0 ? '+' : ''}${c} cones` : '', b ? `${b > 0 ? '+' : ''}${b} boxes` : '', d ? `${d > 0 ? '+' : ''}${d} drums` : ''].filter(Boolean).join(', ');
-                        return (
-                            <tr key={e.id} style={{ background: idx % 2 === 0 ? '#fff' : '#f9f9f9' }}>
-                                <td style={{ ...td, textAlign: 'center' }}>{idx + 1}</td>
-                                <td style={{ ...td, whiteSpace: 'nowrap' }}>{tzDateTime(e.created_at)}</td>
-                                <td style={td}>
-                                    <div style={{ fontWeight: 'bold' }}>{e.item_name}</div>
-                                    <div style={{ color: '#777', fontSize: 7 }}>{e.item_code}</div>
-                                </td>
-                                <td style={td}>{(e.attribute_value_ids || []).map((vid: string) => getAttrName(vid)).filter(Boolean).join(', ')}</td>
-                                <td style={td}>
-                                    {getWarehouseName(e) && <span style={{ color: '#555' }}>{getWarehouseName(e)} / </span>}
-                                    {e.location_name}
-                                </td>
-                                <td style={td}>
-                                    {e.batch_number || '-'}
-                                    {e.vendor_lot && <div style={{ color: '#777', fontSize: 7 }}>Supplier: {e.vendor_lot}</div>}
-                                </td>
-                                <td style={{ ...td, textAlign: 'right', fontWeight: 'bold', color: up ? '#1a5e1a' : '#c00000', whiteSpace: 'nowrap' }}>
-                                    {up ? '+' : ''}{fmtQty(e.qty_change)} {e.item_uom}
-                                </td>
-                                <td style={{ ...td, fontSize: 7 }}>{pkg || '-'}</td>
-                                <td style={td}>{rm.label}</td>
-                                <td style={{ ...td, fontSize: 7, wordBreak: 'break-all' }} title={e.reference_id}>{shortRef(e.reference_id)}</td>
-                            </tr>
-                        );
-                    })}
+                    {entries.map((e: any, idx: number) => (
+                        <tr key={e.id} style={{ background: idx % 2 === 0 ? '#fff' : '#f9f9f9' }}>
+                            {cols.map(c => renderCell(c.key, e, idx))}
+                        </tr>
+                    ))}
                     {entries.length === 0 && (
-                        <tr><td colSpan={10} style={{ ...td, textAlign: 'center', padding: '12px', color: '#888', fontStyle: 'italic' }}>No movements match these filters.</td></tr>
+                        <tr><td colSpan={cols.length} style={{ ...td, textAlign: 'center', padding: '12px', color: '#888', fontStyle: 'italic' }}>No movements match these filters.</td></tr>
                     )}
                 </tbody>
             </table>
@@ -145,6 +180,22 @@ export default function StockLedgerPrintModal({
 }) {
     const isClassic = currentStyle === 'classic';
     const hiddenCount = Math.max(0, totals.total - entries.length);
+
+    const [visibleCols, setVisibleCols] = useState<Record<string, boolean>>(() => {
+        try {
+            const saved = localStorage.getItem(COLUMNS_STORAGE_KEY);
+            return saved ? { ...DEFAULT_VISIBLE_COLS, ...JSON.parse(saved) } : { ...DEFAULT_VISIBLE_COLS };
+        } catch { return { ...DEFAULT_VISIBLE_COLS }; }
+    });
+    const toggleCol = (key: string) => {
+        setVisibleCols(prev => {
+            const shownCount = COLUMN_DEFS.filter(c => prev[c.key] !== false).length;
+            if (prev[key] !== false && shownCount <= 1) return prev; // keep at least one column
+            const next = { ...prev, [key]: prev[key] === false };
+            try { localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify(next)); } catch {}
+            return next;
+        });
+    };
 
     useEffect(() => {
         document.body.classList.add('stock-ledger-print-active');
@@ -184,6 +235,7 @@ export default function StockLedgerPrintModal({
             totals={totals}
             filtersSummary={filtersSummary}
             hiddenCount={hiddenCount}
+            visibleCols={visibleCols}
         />
     );
 
@@ -198,6 +250,16 @@ export default function StockLedgerPrintModal({
                 height="90vh"
                 bevel={false}
             >
+                    <div style={{ padding: '6px 12px', borderBottom: '1px solid #dee2e6', background: '#f8f9fa', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, fontSize: 11 }}>
+                        <span style={{ color: '#555', fontWeight: 'bold' }}>Columns:</span>
+                        {COLUMN_DEFS.map(c => (
+                            <label key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', color: '#333' }}>
+                                <input type="checkbox" checked={visibleCols[c.key] !== false} onChange={() => toggleCol(c.key)} />
+                                {c.label}
+                            </label>
+                        ))}
+                    </div>
+
                     <div style={{ flex: 1, background: '#e0e0e0', overflowY: 'auto', overflowX: 'auto', padding: 16 }}>
                         <div className="stock-ledger-print-paper" style={{ background: '#fff', width: 1090, minWidth: 1090, padding: '12px 16px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', fontSize: '8px', lineHeight: 1.4, color: '#000', fontFamily: 'Arial, sans-serif' }}>
                             {docContent}

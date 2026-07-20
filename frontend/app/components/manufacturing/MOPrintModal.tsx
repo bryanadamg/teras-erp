@@ -381,7 +381,7 @@ export default function MOPrintModal({
 
     return (
         <>
-            <PrintModalShell title={`Print SPK Produksi — ${wo.code}`} onClose={onClose}>
+            <PrintModalShell title={`Print SPK Produksi — ${wo.code}`} onClose={onClose} modeless>
                     {/* Body */}
                     <div style={{ display: 'flex', flexDirection: 'row', flex: 1, overflow: 'hidden' }}>
 

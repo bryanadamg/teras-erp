@@ -935,6 +935,7 @@ class StockLedgerResponse(BaseModel):
     qty_drums_change: int | None = None
     reference_type: str
     reference_id: str
+    reference_label: str | None = None
     batch_id: UUID | None = None
     batch_number: str | None = None
     vendor_lot: str | None = None
