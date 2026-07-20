@@ -261,6 +261,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       bom_size_id: '',
       color_id: '',
       color_label: '',
+      color_hex: '',
   });
   const [colorSearch, setColorSearch] = useState('');
   const [colorResults, setColorResults] = useState<any[]>([]);
@@ -320,7 +321,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       setNewSO({ ...newSO, lines: [...newSO.lines, { ...lineToSave, bom_size_id: newLine.bom_size_id || null }] });
       const nextDates = { due_date: newLine.due_date, internal_confirmation_date: newLine.internal_confirmation_date };
       setLastDeliveryDates(nextDates);
-      setNewLine({ item_id: '', qty: 0, due_date: nextDates.due_date, attribute_value_ids: [], ket_stock: '', internal_confirmation_date: nextDates.internal_confirmation_date, qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_id: '', bom_size_id: '', color_id: '', color_label: '' });
+      setNewLine({ item_id: '', qty: 0, due_date: nextDates.due_date, attribute_value_ids: [], ket_stock: '', internal_confirmation_date: nextDates.internal_confirmation_date, qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_id: '', bom_size_id: '', color_id: '', color_label: '', color_hex: '' });
       setQtyMeter('');
       setQtyGrossYd('');
       setQtyRoll('');
@@ -357,6 +358,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   };
 
   const comboAttr = (attributes || []).find((a: any) => a.system_role === 'combo');
+  const colorAttr = (attributes || []).find((a: any) => a.system_role === 'color');
 
   const handleValueChange = (valId: string, attrId: string) => {
       const attr = attributes.find((a: any) => a.id === attrId);
@@ -431,7 +433,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       // Item change resets attributes, so no Combo filter yet — show all BOMs for item
       const itemBoms = (boms || []).filter((b: any) => b.item_id === val);
       const autoBomId = itemBoms.length === 1 ? itemBoms[0].id : '';
-      setNewLine({ ...newLine, item_id: val, attribute_value_ids: [], bom_id: autoBomId, bom_size_id: '', color_id: '', color_label: '', qty_kg: kg !== null ? kg : newLine.qty_kg });
+      setNewLine({ ...newLine, item_id: val, attribute_value_ids: [], bom_id: autoBomId, bom_size_id: '', color_id: '', color_label: '', color_hex: '', qty_kg: kg !== null ? kg : newLine.qty_kg });
       const selectedItem = resolveItem(val);
       const factorIds = (selectedItem?.packaging_factor_ids || []).map(String);
       const allFactors = uoms.flatMap((u: any) => u.factors || []);
@@ -613,7 +615,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   const resetForm = () => {
       setNewSO({ po_number: '', customer_po_ref: '', customer_name: '', order_date: new Date().toISOString().split('T')[0], lines: [] });
       setLastDeliveryDates({ due_date: '', internal_confirmation_date: '' });
-      setNewLine({ item_id: '', qty: 0, due_date: '', attribute_value_ids: [], ket_stock: '', internal_confirmation_date: '', qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_id: '', bom_size_id: '', color_id: '', color_label: '' });
+      setNewLine({ item_id: '', qty: 0, due_date: '', attribute_value_ids: [], ket_stock: '', internal_confirmation_date: '', qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_id: '', bom_size_id: '', color_id: '', color_label: '', color_hex: '' });
       setQtyMeter('');
       setQtyGrossYd('');
       setQtyRoll('');
@@ -644,6 +646,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
               attribute_value_ids: l.attribute_value_ids || [],
               color_id: l.color_id || '',
               color_label: l.color_code ? `${l.color_code}${l.color_name ? ' — ' + l.color_name : ''}` : '',
+              color_hex: l.color_hex || '',
           })),
       });
       setLastDeliveryDates({ due_date: '', internal_confirmation_date: '' });
@@ -657,7 +660,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
           customer_po_ref: newSO.customer_po_ref || null,
           order_date: newSO.order_date || null,
           lines: newSO.lines.map((line: any) => {
-              const { color_label, ...rest } = line;
+              const { color_label, color_hex, ...rest } = line;
               return {
                   ...rest,
                   due_date: line.due_date || null,
@@ -720,22 +723,17 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       } catch { return ''; }
   };
 
-  const getAttributeValues = (ids: string[]) =>
-      ids.map(vid => {
-          for (const attr of attributes) {
-              const val = attr.values?.find((v: any) => v.id === vid);
-              if (val) return val.value;
-          }
-          return '';
-      }).filter(Boolean).join(', ');
-
   // Variant picker source is driven by the finished-good's variant_type:
   //   'combo' -> the Combo attribute dropdown (gates BOM, unchanged)
-  //   'color' -> the Color Library typeahead (writes color_id, drives dyeing recipe)
+  //   'color' -> BOTH the Color Library typeahead (color_id, drives dyeing recipe match)
+  //              AND the registered Colors attribute dropdown (attribute_value_ids,
+  //              the actual product variant — e.g. Item-A-Black-318)
   //   null    -> no variant picker
   const currentItem = resolveItem(newLine.item_id);
   const currentVariantType: string = currentItem?.variant_type || '';
-  const currentBoundAttrs = (currentVariantType === 'combo' && comboAttr) ? [comboAttr] : [];
+  const currentBoundAttrs = currentVariantType === 'combo' && comboAttr ? [comboAttr]
+      : currentVariantType === 'color' && colorAttr ? [colorAttr]
+      : [];
 
   // Color Library typeahead — server-side search (30k+ shades can't be client-cached).
   useEffect(() => {
@@ -754,11 +752,11 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   }, [colorSearch, currentVariantType]);
 
   const selectColor = (c: any) => {
-      setNewLine(prev => ({ ...prev, color_id: c.id, color_label: `${c.code}${c.name ? ' — ' + c.name : ''}` }));
+      setNewLine(prev => ({ ...prev, color_id: c.id, color_label: `${c.code}${c.name ? ' — ' + c.name : ''}`, color_hex: c.hex || '' }));
       setColorSearch('');
       setColorResults([]);
   };
-  const clearColor = () => setNewLine(prev => ({ ...prev, color_id: '', color_label: '' }));
+  const clearColor = () => setNewLine(prev => ({ ...prev, color_id: '', color_label: '', color_hex: '' }));
 
   const getAttributeValueName = (valId: string) => {
       for (const attr of attributes) {
@@ -767,6 +765,44 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       }
       return valId;
   };
+
+  const getAttributeValueHex = (valId: string): string | null => {
+      for (const attr of attributes) {
+          const val = attr.values?.find((v: any) => v.id === valId);
+          if (val) return val.hex || null;
+      }
+      return null;
+  };
+
+  // Splits a line's attribute_value_ids into "registered color variant" chips
+  // (the Colors-attribute value, e.g. Black-318) vs plain-text attrs (size, etc.),
+  // and builds a matching chip for the Color Library code if present.
+  const buildVariantChips = (attrIds: string[], colorLabel?: string | null, colorHex?: string | null) => {
+      const colorValId = colorAttr ? attrIds.find(vid => colorAttr.values?.some((v: any) => v.id === vid)) : undefined;
+      const plainIds = attrIds.filter(vid => vid !== colorValId);
+      const chips: { label: string; hex: string | null }[] = [];
+      if (colorValId) chips.push({ label: getAttributeValueName(colorValId), hex: getAttributeValueHex(colorValId) });
+      if (colorLabel) chips.push({ label: colorLabel, hex: colorHex || null });
+      return { chips, plainIds };
+  };
+
+  const renderChipRow = (chips: { label: string; hex: string | null }[]) => (
+      <div style={{display:'flex',flexWrap:'wrap' as const,gap:4,marginTop:2}}>
+          {chips.map((c, i) => (
+              <span key={i} style={{display:'inline-flex',alignItems:'center',gap:4,
+                  background:classic?'#f0ede4':'#eef1f4',
+                  border:classic?'1px solid #b0a898':'1px solid #dee2e6',
+                  borderRadius:classic?0:10,
+                  padding:'1px 6px 1px 4px',
+                  fontSize:'9px',
+                  fontFamily:classic?'Tahoma,Arial,sans-serif':undefined,
+                  color:classic?'#333':'#495057'}}>
+                  {c.hex && <span style={{width:8,height:8,borderRadius:'50%',flexShrink:0,display:'inline-block',background:c.hex,border:'1px solid rgba(0,0,0,0.25)'}}></span>}
+                  {c.label}
+              </span>
+          ))}
+      </div>
+  );
 
   const handlePrintSO = (so: any) => {
       setPrintingSO(so);
@@ -1276,7 +1312,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                        {currentVariantType === 'color' && newLine.item_id && (
                            <div className="col-12 mt-1">
                                <div style={{background:'#ffffff',border:classic?'1px solid #b0a898':'1px solid #dee2e6',padding:classic?'4px 6px':'8px'}}>
-                                   <div style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',fontWeight:'bold',color:'#444',marginBottom:4} : undefined} className={classic ? '' : 'text-muted fw-bold mb-2 small'}>Color</div>
+                                   <div style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',fontWeight:'bold',color:'#444',marginBottom:4} : undefined} className={classic ? '' : 'text-muted fw-bold mb-2 small'}>Color Code</div>
                                    {newLine.color_id ? (
                                        <div style={{display:'flex',alignItems:'center',gap:8}}>
                                            <span style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000'}:undefined} className={classic?'':'small'}>{newLine.color_label}</span>
@@ -1393,8 +1429,15 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                    <span style={{fontWeight:'bold'}}>{getItemName(line.item_id, line.item_name)}</span>
                                    <span style={{color:classic?'#555':'',marginLeft:8,fontFamily:classic?'Tahoma,Arial,sans-serif':'',fontSize:classic?'10px':''}} className={classic?'':'text-muted ms-2 font-monospace small'}>{getItemCode(line.item_id, line.item_code)}</span>
                                    {isSample(line.item_id) && <span style={{background:'#fff8dc',border:'1px solid #c8a000',color:'#4a3000',padding:'0 4px',fontSize:'9px',fontFamily:classic?'Tahoma,Arial,sans-serif':'',marginLeft:6}} className={classic?'':'badge bg-warning text-dark ms-2'}>Sample</span>}
-                                   {(line.attribute_value_ids || []).length > 0 && <div style={{color:classic?'#666':'',fontSize:classic?'10px':'',fontStyle:'italic'}} className={classic?'':'small text-muted fst-italic'}>{(line.attribute_value_ids || []).map(getAttributeValueName).join(', ')}</div>}
-                                   {line.color_label && <div style={{color:classic?'#666':'',fontSize:classic?'10px':'',fontStyle:'italic'}} className={classic?'':'small text-muted fst-italic'}>Color: {line.color_label}</div>}
+                                   {(() => {
+                                       const { chips, plainIds } = buildVariantChips(line.attribute_value_ids || [], line.color_label, line.color_hex);
+                                       return (
+                                           <>
+                                               {plainIds.length > 0 && <div style={{color:classic?'#666':'',fontSize:classic?'10px':'',fontStyle:'italic'}} className={classic?'':'small text-muted fst-italic'}>{plainIds.map(getAttributeValueName).join(', ')}</div>}
+                                               {chips.length > 0 && renderChipRow(chips)}
+                                           </>
+                                       );
+                                   })()}
                                    {line.bom_size_id && <div style={{color:classic?'#005':'',fontSize:classic?'10px':'',fontWeight:'bold'}} className={classic?'':'small text-primary fw-semibold'}><i className="bi bi-rulers me-1"></i>{getBomSizeLabelById(line.bom_size_id)}</div>}
                                </div>
                                <div style={{display:'flex',alignItems:'center',gap:classic?6:10,flexWrap:'wrap' as const}}>
@@ -1706,16 +1749,20 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                    {getItemName(line.item_id, line.item_name)}
                                                    {isSample(line.item_id) && <i className="bi bi-star-fill text-warning ms-1" style={{fontSize:'0.6rem'}}></i>}
                                                </div>
-                                               {(line.attribute_value_ids || []).length > 0 && (
-                                                   <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', color:'#666', fontStyle:'italic' }}>
-                                                       {getAttributeValues(line.attribute_value_ids)}
-                                                   </div>
-                                               )}
-                                               {line.color_code && (
-                                                   <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', color:'#666', fontStyle:'italic' }}>
-                                                       {line.color_code}{line.color_name ? ` — ${line.color_name}` : ''}
-                                                   </div>
-                                               )}
+                                               {(() => {
+                                                   const colorLabel = line.color_code ? `${line.color_code}${line.color_name ? ' — ' + line.color_name : ''}` : null;
+                                                   const { chips, plainIds } = buildVariantChips(line.attribute_value_ids || [], colorLabel, line.color_hex);
+                                                   return (
+                                                       <>
+                                                           {plainIds.length > 0 && (
+                                                               <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', color:'#666', fontStyle:'italic' }}>
+                                                                   {plainIds.map(getAttributeValueName).join(', ')}
+                                                               </div>
+                                                           )}
+                                                           {chips.length > 0 && renderChipRow(chips)}
+                                                       </>
+                                                   );
+                                               })()}
                                            </td>
 
                                            {/* Size */}

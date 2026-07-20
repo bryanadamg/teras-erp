@@ -1198,6 +1198,7 @@ class SalesOrderLineResponse(SalesOrderLineCreate):
     color_id: UUID | None = None
     color_code: str | None = None
     color_name: str | None = None
+    color_hex: str | None = None
     item_name: str | None = None
     item_code: str | None = None
 

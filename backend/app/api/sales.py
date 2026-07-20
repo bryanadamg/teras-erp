@@ -42,6 +42,7 @@ def _populate_line(line: SalesOrderLine) -> None:
     if line.color:
         line.color_code = line.color.code
         line.color_name = line.color.name
+        line.color_hex = line.color.hex
 
 @router.post("", response_model=SalesOrderResponse)
 async def create_sales_order(payload: SalesOrderCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('sales.manage'))):
