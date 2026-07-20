@@ -108,6 +108,55 @@ const WC_ALIAS: Record<string, keyof typeof WC_CHIP> = {
 };
 const WC_NEUTRAL = { background: '#e4e2dc', color: '#444444', borderColor: '#c4c2ba' };
 
+// AttributeValue has no stored hex, so variant color swatches are derived
+// from the value text via this EN+ID name map (display aid only; the text
+// label always stays for unmapped values). Single source — do not re-copy
+// this map into individual views (was duplicated in BOMView before).
+export const COLOR_HEX: Record<string, string> = {
+    red: '#d32f2f', merah: '#d32f2f',
+    blue: '#1565c0', biru: '#1565c0',
+    green: '#2e7d32', hijau: '#2e7d32',
+    yellow: '#f9a825', kuning: '#f9a825',
+    black: '#111111', hitam: '#111111',
+    white: '#fbfbf7', putih: '#fbfbf7',
+    grey: '#757575', gray: '#757575', abu: '#757575',
+    orange: '#ef6c00', oranye: '#ef6c00', jingga: '#ef6c00',
+    purple: '#6a1b9a', ungu: '#6a1b9a',
+    pink: '#ec407a',
+    brown: '#5d4037', coklat: '#5d4037', cokelat: '#5d4037',
+    navy: '#1a237e', dongker: '#1a237e',
+    gold: '#c9a227', emas: '#c9a227',
+    silver: '#b0bec5', perak: '#b0bec5',
+    cream: '#efe7d2', krem: '#efe7d2',
+    maroon: '#7b1f2b', marun: '#7b1f2b',
+    tosca: '#12a4a4', toska: '#12a4a4',
+    tan: '#d2b48c', beige: '#e8dcc0',
+};
+export function colorHexFor(name?: string): string | null {
+    if (!name) return null;
+    const k = name.trim().toLowerCase();
+    if (COLOR_HEX[k]) return COLOR_HEX[k];
+    for (const tok of k.split(/[\s\-_/]+/)) if (COLOR_HEX[tok]) return COLOR_HEX[tok];
+    return null;
+}
+
+// Swatch + label chip for a color-attribute value (e.g. "ABU", "HITAM").
+// `onRemove` renders a small "x" for removable pick-lists (e.g. lab dip request colors).
+export function ColorSwatchChip({ label, classic, onRemove }: { label: string; classic: boolean; onRemove?: () => void }) {
+    const hex = colorHexFor(label);
+    return (
+        <span style={classic
+            ? { display: 'inline-flex', alignItems: 'center', gap: 4, background: '#e8e4d8', border: '1px solid #b0aaa0', color: '#333', fontSize: 10, padding: '1px 5px', fontFamily: xpFont, whiteSpace: 'nowrap' }
+            : { display: 'inline-flex', alignItems: 'center', gap: 5, background: '#eef1f6', border: '1px solid #cbd3df', color: '#334155', fontSize: 12, borderRadius: 5, padding: '2px 8px', fontFamily: modernFont, whiteSpace: 'nowrap' }}>
+            {hex && <span style={{ width: 10, height: 10, background: hex, border: '1px solid rgba(0,0,0,0.35)', flexShrink: 0, display: 'inline-block' }} />}
+            {label}
+            {onRemove && (
+                <button type="button" onClick={onRemove} title="Remove" style={{ background: 'none', border: 'none', cursor: 'pointer', color: classic ? '#a00' : '#dc2626', fontWeight: 'bold', lineHeight: 1, padding: 0, marginLeft: 1, fontSize: classic ? 11 : 13 }}>×</button>
+            )}
+        </span>
+    );
+}
+
 export function workCenterChipStyle(centerType?: string | null, name?: string | null): React.CSSProperties {
     const t = (centerType || '').toUpperCase();
     const hit = WC_CHIP[t] || (WC_ALIAS[t] && WC_CHIP[WC_ALIAS[t]]);

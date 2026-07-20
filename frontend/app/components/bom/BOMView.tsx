@@ -10,7 +10,7 @@ import { MODAL_Z } from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
-import { workCenterChipStyle, xpFont } from '../shared/xpTheme';
+import { workCenterChipStyle, xpFont, colorHexFor } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 
 const xpTh: React.CSSProperties = {
@@ -54,36 +54,7 @@ const xpSectionHdr: React.CSSProperties = {
 };
 
 // --- Dense-row display helpers -----------------------------------------
-// AttributeValue has no stored hex, so variant color swatches are derived
-// from the value text via this EN+ID name map (display aid only; the text
-// label always stays for unmapped values).
-const COLOR_HEX: Record<string, string> = {
-    red: '#d32f2f', merah: '#d32f2f',
-    blue: '#1565c0', biru: '#1565c0',
-    green: '#2e7d32', hijau: '#2e7d32',
-    yellow: '#f9a825', kuning: '#f9a825',
-    black: '#111111', hitam: '#111111',
-    white: '#fbfbf7', putih: '#fbfbf7',
-    grey: '#757575', gray: '#757575', abu: '#757575',
-    orange: '#ef6c00', oranye: '#ef6c00', jingga: '#ef6c00',
-    purple: '#6a1b9a', ungu: '#6a1b9a',
-    pink: '#ec407a',
-    brown: '#5d4037', coklat: '#5d4037', cokelat: '#5d4037',
-    navy: '#1a237e', dongker: '#1a237e',
-    gold: '#c9a227', emas: '#c9a227',
-    silver: '#b0bec5', perak: '#b0bec5',
-    cream: '#efe7d2', krem: '#efe7d2',
-    maroon: '#7b1f2b', marun: '#7b1f2b',
-    tosca: '#12a4a4', toska: '#12a4a4',
-    tan: '#d2b48c', beige: '#e8dcc0',
-};
-function colorHexFor(name?: string): string | null {
-    if (!name) return null;
-    const k = name.trim().toLowerCase();
-    if (COLOR_HEX[k]) return COLOR_HEX[k];
-    for (const tok of k.split(/[\s\-_/]+/)) if (COLOR_HEX[tok]) return COLOR_HEX[tok];
-    return null;
-}
+// colorHexFor() now lives in components/shared/xpTheme.tsx (shared with lab dips).
 
 // "S–XL" range from a BOM's sizes (ordered by sort_order); count fallback.
 function sizeTag(sizes: any[]): string {

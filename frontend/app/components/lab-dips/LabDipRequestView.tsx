@@ -8,7 +8,7 @@ import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
+import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip } from '../shared/xpTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 
 // ── XP style constants (consistent with DyeingSettingView) ──────────────────
@@ -141,7 +141,7 @@ const emptyForm = () => ({
 });
 
 export default function LabDipRequestView({
-    labDips, customers, items, onSearchItems, recipes,
+    labDips, customers, items, onSearchItems, recipes, attributes,
     onCreate, onEdit, onUpdateStatus, onUpdateItemStatus, onDelete,
 }: any) {
     useToast();
@@ -160,7 +160,15 @@ export default function LabDipRequestView({
     const [editing, setEditing] = useState<any>(null);
     const [form, setForm] = useState(emptyForm());
     const [pendingItem, setPendingItem] = useState('');
+    const [pendingColor, setPendingColor] = useState('');
     const [page, setPage] = useState(1);
+
+    // "Colors" system variant attribute — request-level color picks (apply to all items).
+    const colorOptions = useMemo(() => {
+        const attr = (attributes as any[] || []).find((a: any) => a.system_role === 'color');
+        return (attr?.values ?? []).map((v: any) => ({ value: v.value, label: v.value }));
+    }, [attributes]);
+    const colorsAttrName = useMemo(() => (attributes as any[] || []).find((a: any) => a.system_role === 'color')?.name ?? 'Colors', [attributes]);
 
     // Approval dialog: captures the "set" index (+ optional notes) that completes the
     // approved color code, then mints a Color library entry via onUpdateItemStatus.
@@ -242,6 +250,15 @@ export default function LabDipRequestView({
         setPendingItem('');
     };
     const removeItem = (itemId: string) => setForm(prev => ({ ...prev, items: prev.items.filter(it => it.item_id !== itemId) }));
+
+    // Request-level colors (apply to all items) — picked from the "Colors" variant attribute.
+    const addColor = () => {
+        if (!pendingColor) return;
+        if (form.legacyDips.some(d => d.color_name === pendingColor)) { setPendingColor(''); return; }
+        setForm(prev => ({ ...prev, legacyDips: [...prev.legacyDips, { color_name: pendingColor, submission_round: 1 }] }));
+        setPendingColor('');
+    };
+    const removeColor = (colorName: string) => setForm(prev => ({ ...prev, legacyDips: prev.legacyDips.filter(d => d.color_name !== colorName) }));
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -370,6 +387,7 @@ export default function LabDipRequestView({
                             <th style={{ ...xpThCell(classic), width: 140 }}>Request Code</th>
                             <th style={{ ...xpThCell(classic), width: 120 }}>Customer</th>
                             <th style={xpThCell(classic)}>Items</th>
+                            <th style={{ ...xpThCell(classic), width: 140 }}>{colorsAttrName}</th>
                             <th style={{ ...xpThCell(classic), width: 90 }}>Type</th>
                             <th style={{ ...xpThCell(classic), width: 110 }}>Status</th>
                             <th style={{ ...xpThCell(classic), width: 90 }}>Variants</th>
@@ -378,7 +396,7 @@ export default function LabDipRequestView({
                     </thead>
                     <tbody>
                         {filtered.length === 0 && (
-                            <tr><td colSpan={7} style={{ ...tdBase(classic), textAlign: 'center' as const, color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>No lab dip requests yet.</td></tr>
+                            <tr><td colSpan={8} style={{ ...tdBase(classic), textAlign: 'center' as const, color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>No lab dip requests yet.</td></tr>
                         )}
                         {paged.map((r: any, idx: number) => {
                             const approved = (r.items || []).filter((it: any) => it.status === 'APPROVED').length;
@@ -418,6 +436,17 @@ export default function LabDipRequestView({
                                                         </div>
                                                         {its.length > 1 && <div style={{ fontSize: classic ? 9 : 11, color: classic ? '#555' : '#64748b' }}>+{its.length - 1} more</div>}
                                                     </>
+                                                );
+                                            })()}
+                                        </td>
+                                        <td style={tdBase(classic)}>
+                                            {(() => {
+                                                const dips = (r.dips || []).filter((d: any) => !d.lab_dip_item_id);
+                                                if (!dips.length) return <span style={{ fontSize: classic ? 9 : 12, color: classic ? '#888' : '#94a3b8', fontStyle: 'italic' }}>—</span>;
+                                                return (
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 3 }}>
+                                                        {dips.map((d: any) => <ColorSwatchChip key={d.id || d.color_name} label={d.color_name} classic={classic} />)}
+                                                    </div>
                                                 );
                                             })()}
                                         </td>
@@ -506,7 +535,18 @@ export default function LabDipRequestView({
                                                 { label: 'Request Type', value: r.request_type || '—' },
                                                 { label: 'Request Date', value: fmt(r.request_date) },
                                             ]},
-                                            { title: '② Recipe & Notes', fields: [
+                                            { title: `② ${colorsAttrName}`, fields: [
+                                                { label: colorsAttrName, value: (() => {
+                                                    const dips = (r.dips || []).filter((d: any) => !d.lab_dip_item_id);
+                                                    if (!dips.length) return '—';
+                                                    return (
+                                                        <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 5 }}>
+                                                            {dips.map((d: any) => <ColorSwatchChip key={d.id || d.color_name} label={d.color_name} classic={classic} />)}
+                                                        </div>
+                                                    );
+                                                })(), full: true },
+                                            ]},
+                                            { title: '③ Recipe & Notes', fields: [
                                                 { label: 'Approved Recipe', value: recipeLabel || '—', full: true },
                                                 { label: 'Notes', value: r.notes || '—', full: true },
                                             ]},
@@ -523,7 +563,7 @@ export default function LabDipRequestView({
 
                                         return (
                                         <tr>
-                                            <td colSpan={7} style={classic
+                                            <td colSpan={8} style={classic
                                                 ? { padding: 6, borderBottom: '2px solid #9a9690', background: '#d8d3c8' }
                                                 : { padding: 8, borderBottom: '1px solid #dbe1ea', background: '#e9edf1' }}>
                                                 <div style={{
@@ -678,8 +718,35 @@ export default function LabDipRequestView({
                             })()}
                     </FormSection>
 
-                    {/* ③ Recipe link & notes */}
-                    <FormSection title="③ Approved Recipe & Notes" classic={classic}>
+                    {/* ③ Colors — applies to all items on this request */}
+                    <FormSection title={`③ ${colorsAttrName}`} classic={classic}>
+                            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10 }}>
+                                <div style={{ flex: 1 }}>
+                                    <SearchableSelect
+                                        options={colorOptions.filter((o: any) => !form.legacyDips.some(d => d.color_name === o.value))}
+                                        value={pendingColor}
+                                        onChange={setPendingColor}
+                                        placeholder={`Add ${colorsAttrName.toLowerCase()}…`}
+                                        size="sm"
+                                    />
+                                </div>
+                                <button type="button" style={classic ? xpBtn(true) : xpBtn(false, modernPrimaryBtn)} onClick={addColor}><i className="bi bi-plus-lg" /> Add</button>
+                            </div>
+                            {form.legacyDips.length === 0 ? (
+                                <div style={{ fontSize: classic ? 11 : 13, color: classic ? '#999' : '#94a3b8', fontStyle: 'italic', padding: '4px 2px' }}>
+                                    No colors picked yet — applies to all items above.
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6 }}>
+                                    {form.legacyDips.map(d => (
+                                        <ColorSwatchChip key={d.color_name} label={d.color_name} classic={classic} onRemove={() => removeColor(d.color_name)} />
+                                    ))}
+                                </div>
+                            )}
+                    </FormSection>
+
+                    {/* ④ Recipe link & notes */}
+                    <FormSection title="④ Approved Recipe & Notes" classic={classic}>
                             <div style={{ marginBottom: 8 }}>
                                 <label style={xpLbl(classic)}>Approved Dye Recipe (Optional)</label>
                                 <SearchableSelect options={[{ value: '', label: 'Not yet linked' }, ...recipeOptions]} value={form.approved_recipe_id} onChange={(v: string) => setField('approved_recipe_id', v)} placeholder="Link approved recipe…" />
