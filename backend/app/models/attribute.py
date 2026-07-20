@@ -26,3 +26,4 @@ class AttributeValue(Base):
         UUID(as_uuid=True), ForeignKey("attributes.id"), index=True
     )
     value: Mapped[str] = mapped_column(String(255)) # e.g. "Red"
+    hex: Mapped[str | None] = mapped_column(String(9), nullable=True, default=None)

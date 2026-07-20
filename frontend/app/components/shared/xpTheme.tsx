@@ -141,9 +141,10 @@ export function colorHexFor(name?: string): string | null {
 }
 
 // Swatch + label chip for a color-attribute value (e.g. "ABU", "HITAM").
+// `hex` overrides the derived lookup with a stored AttributeValue.hex, when known.
 // `onRemove` renders a small "x" for removable pick-lists (e.g. lab dip request colors).
-export function ColorSwatchChip({ label, classic, onRemove }: { label: string; classic: boolean; onRemove?: () => void }) {
-    const hex = colorHexFor(label);
+export function ColorSwatchChip({ label, classic, hex: hexOverride, onRemove }: { label: string; classic: boolean; hex?: string | null; onRemove?: () => void }) {
+    const hex = hexOverride ?? colorHexFor(label);
     return (
         <span style={classic
             ? { display: 'inline-flex', alignItems: 'center', gap: 4, background: '#e8e4d8', border: '1px solid #b0aaa0', color: '#333', fontSize: 10, padding: '1px 5px', fontFamily: xpFont, whiteSpace: 'nowrap' }

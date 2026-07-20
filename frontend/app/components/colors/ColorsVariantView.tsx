@@ -7,8 +7,8 @@ import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvRow } from '../shared/listV
 interface Props {
     values: any[];                 // AttributeValue rows of the Colors variant attribute
     canManage: boolean;
-    onAdd: (value: string) => void;
-    onRename: (valueId: string, value: string) => void;
+    onAdd: (value: string, hex?: string | null) => void;
+    onRename: (valueId: string, value: string, hex?: string | null) => void;
     onDelete: (valueId: string) => void;
 }
 
@@ -22,8 +22,12 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
     const classic = uiStyle === 'classic';
 
     const [newValue, setNewValue] = useState('');
+    const [newHexOn, setNewHexOn] = useState(false);
+    const [newHex, setNewHex] = useState('#cccccc');
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editText, setEditText] = useState('');
+    const [editHexOn, setEditHexOn] = useState(false);
+    const [editHex, setEditHex] = useState('#cccccc');
 
     const sorted = [...(values || [])].sort((a, b) => String(a.value).localeCompare(String(b.value)));
 
@@ -31,14 +35,17 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
         const v = newValue.trim();
         if (!v) return;
         if (sorted.some(x => String(x.value).toLowerCase() === v.toLowerCase())) return;
-        onAdd(v);
+        onAdd(v, newHexOn ? newHex : null);
         setNewValue('');
+        setNewHexOn(false);
+        setNewHex('#cccccc');
     };
 
-    const startEdit = (v: any) => { setEditingId(v.id); setEditText(v.value); };
+    const startEdit = (v: any) => { setEditingId(v.id); setEditText(v.value); setEditHexOn(!!v.hex); setEditHex(v.hex || '#cccccc'); };
     const commitEdit = (v: any) => {
         const t = editText.trim();
-        if (t && t !== v.value) onRename(v.id, t);
+        const nextHex = editHexOn ? editHex : null;
+        if (t && (t !== v.value || nextHex !== (v.hex || null))) onRename(v.id, t, nextHex);
         setEditingId(null);
     };
 
@@ -63,6 +70,13 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
                         onChange={e => setNewValue(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && handleAdd()}
                     />
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: classic ? 11 : 12, color: classic ? '#333' : '#475569', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        <input type="checkbox" checked={newHexOn} onChange={e => setNewHexOn(e.target.checked)} />
+                        Set exact color
+                    </label>
+                    {newHexOn && (
+                        <input type="color" title="Swatch color" value={newHex} onChange={e => setNewHex(e.target.value)} style={{ width: 28, height: 22, padding: 0, border: '1px solid #a0988c', cursor: 'pointer' }} />
+                    )}
                     <button style={lvPrimaryBtn(classic)} onClick={handleAdd}><i className="bi bi-plus-lg" /> Add Color</button>
                     <span style={classic ? { marginLeft: 'auto', fontSize: 11, color: '#333' } : { marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>
                         {sorted.length} color{sorted.length !== 1 ? 's' : ''}
@@ -76,18 +90,31 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
                         ? { background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080' }
                         : { background: '#eef1f6' }}>
                         <tr>
+                            <th style={{ ...lvTh(classic), width: 60 }}>Swatch</th>
                             <th style={lvTh(classic)}>Color</th>
                             <th style={{ ...lvTh(classic), width: 120, textAlign: 'right', borderRight: 'none' }}>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {sorted.length === 0 && (
-                            <tr><td colSpan={2} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
+                            <tr><td colSpan={3} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
                                 No color variants yet.
                             </td></tr>
                         )}
                         {sorted.map((v, idx) => (
                             <tr key={v.id} style={lvRow(classic, idx)}>
+                                <td style={lvTd(classic)}>
+                                    {editingId === v.id ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                            <input type="checkbox" title="Set exact color" checked={editHexOn} onChange={e => setEditHexOn(e.target.checked)} />
+                                            {editHexOn && (
+                                                <input type="color" value={editHex} onChange={e => setEditHex(e.target.value)} style={{ width: 28, height: 22, padding: 0, border: '1px solid #a0988c', cursor: 'pointer' }} />
+                                            )}
+                                        </div>
+                                    ) : v.hex ? (
+                                        <span title={v.hex} style={{ width: 16, height: 16, background: v.hex, border: '1px solid rgba(0,0,0,0.35)', display: 'inline-block' }} />
+                                    ) : <span style={{ color: classic ? '#999' : '#94a3b8', fontSize: 11 }}>—</span>}
+                                </td>
                                 <td style={lvTd(classic)}>
                                     {editingId === v.id ? (
                                         <input
@@ -96,19 +123,31 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
                                             value={editText}
                                             onChange={e => setEditText(e.target.value)}
                                             onKeyDown={e => { if (e.key === 'Enter') commitEdit(v); if (e.key === 'Escape') setEditingId(null); }}
-                                            onBlur={() => commitEdit(v)}
                                         />
                                     ) : v.value}
                                 </td>
                                 <td style={{ ...lvTd(classic), borderRight: 'none', textAlign: 'right' }}>
                                     {canManage && (
                                         <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end', alignItems: 'center' }}>
-                                            <button title="Rename" onClick={() => startEdit(v)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#555' : '#64748b', fontSize: 13 }}>
-                                                <i className="bi bi-pencil" />
-                                            </button>
-                                            <button title="Delete" onClick={() => handleDelete(v)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#a00' : '#dc2626', fontSize: 13 }}>
-                                                <i className="bi bi-trash" />
-                                            </button>
+                                            {editingId === v.id ? (
+                                                <>
+                                                    <button title="Save" onClick={() => commitEdit(v)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#1a6e1a' : '#15803d', fontSize: 13 }}>
+                                                        <i className="bi bi-check-lg" />
+                                                    </button>
+                                                    <button title="Cancel" onClick={() => setEditingId(null)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#555' : '#64748b', fontSize: 13 }}>
+                                                        <i className="bi bi-x-lg" />
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <button title="Rename" onClick={() => startEdit(v)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#555' : '#64748b', fontSize: 13 }}>
+                                                        <i className="bi bi-pencil" />
+                                                    </button>
+                                                    <button title="Delete" onClick={() => handleDelete(v)} style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', padding: '1px 4px', color: classic ? '#a00' : '#dc2626', fontSize: 13 }}>
+                                                        <i className="bi bi-trash" />
+                                                    </button>
+                                                </>
+                                            )}
                                         </div>
                                     )}
                                 </td>

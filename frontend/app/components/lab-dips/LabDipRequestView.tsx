@@ -169,6 +169,13 @@ export default function LabDipRequestView({
         return (attr?.values ?? []).map((v: any) => ({ value: v.value, label: v.value }));
     }, [attributes]);
     const colorsAttrName = useMemo(() => (attributes as any[] || []).find((a: any) => a.system_role === 'color')?.name ?? 'Colors', [attributes]);
+    // Stored swatch color (user-picked on the Colors master) by value name, falls back to the derived name lookup in ColorSwatchChip.
+    const hexByColorName = useMemo(() => {
+        const attr = (attributes as any[] || []).find((a: any) => a.system_role === 'color');
+        const map: Record<string, string> = {};
+        (attr?.values ?? []).forEach((v: any) => { if (v.hex) map[v.value] = v.hex; });
+        return map;
+    }, [attributes]);
 
     // Approval dialog: captures the "set" index (+ optional notes) that completes the
     // approved color code, then mints a Color library entry via onUpdateItemStatus.
@@ -445,7 +452,7 @@ export default function LabDipRequestView({
                                                 if (!dips.length) return <span style={{ fontSize: classic ? 9 : 12, color: classic ? '#888' : '#94a3b8', fontStyle: 'italic' }}>—</span>;
                                                 return (
                                                     <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 3 }}>
-                                                        {dips.map((d: any) => <ColorSwatchChip key={d.id || d.color_name} label={d.color_name} classic={classic} />)}
+                                                        {dips.map((d: any) => <ColorSwatchChip key={d.id || d.color_name} label={d.color_name} classic={classic} hex={hexByColorName[d.color_name]} />)}
                                                     </div>
                                                 );
                                             })()}
@@ -541,7 +548,7 @@ export default function LabDipRequestView({
                                                     if (!dips.length) return '—';
                                                     return (
                                                         <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 5 }}>
-                                                            {dips.map((d: any) => <ColorSwatchChip key={d.id || d.color_name} label={d.color_name} classic={classic} />)}
+                                                            {dips.map((d: any) => <ColorSwatchChip key={d.id || d.color_name} label={d.color_name} classic={classic} hex={hexByColorName[d.color_name]} />)}
                                                         </div>
                                                     );
                                                 })(), full: true },
@@ -739,7 +746,7 @@ export default function LabDipRequestView({
                             ) : (
                                 <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6 }}>
                                     {form.legacyDips.map(d => (
-                                        <ColorSwatchChip key={d.color_name} label={d.color_name} classic={classic} onRemove={() => removeColor(d.color_name)} />
+                                        <ColorSwatchChip key={d.color_name} label={d.color_name} classic={classic} hex={hexByColorName[d.color_name]} onRemove={() => removeColor(d.color_name)} />
                                     ))}
                                 </div>
                             )}

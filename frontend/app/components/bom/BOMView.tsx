@@ -191,6 +191,15 @@ export default function BOMView({
         }
         return valId;
     };
+    // Stored swatch color (user-picked), when set — falls back to the derived name lookup at the render site.
+    const getAttributeValueHex = (valId: string): string | null => {
+        if (!valId || !attributes) return null;
+        for (const attr of attributes) {
+            const val = attr.values.find((v: any) => v.id === valId);
+            if (val) return val.hex || null;
+        }
+        return null;
+    };
 
     // Server already filters by search + root_only; boms is the current page result
     const allSelected = boms.length > 0 && boms.every((b: any) => selectedIds.has(b.id));
@@ -965,7 +974,7 @@ export default function BOMView({
                                                             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 3 }}>
                                                                 {(bom.attribute_value_ids || []).map((valId: string) => {
                                                                     const label = getAttributeValueName(valId);
-                                                                    const hex = colorHexFor(label);
+                                                                    const hex = getAttributeValueHex(valId) ?? colorHexFor(label);
                                                                     return (
                                                                         <span key={valId} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: '#e8e4d8', border: '1px solid #b0aaa0', color: '#333', fontSize: 10, padding: '1px 5px', fontFamily: 'Tahoma, Arial, sans-serif', whiteSpace: 'nowrap' }}>
                                                                             {hex && <span style={{ width: 10, height: 10, background: hex, border: '1px solid rgba(0,0,0,0.35)', flexShrink: 0, display: 'inline-block' }} />}

@@ -111,18 +111,18 @@ export default function ColorsPage() {
     const colorAttr = (attributes || []).find((a: any) => a.system_role === 'color');
     const colorValues = colorAttr?.values ?? [];
 
-    const handleAddColorValue = async (value: string) => {
+    const handleAddColorValue = async (value: string, hex?: string | null) => {
         if (!colorAttr) return;
         const res = await authFetch(`${API_BASE}/attributes/${colorAttr.id}/values`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value }),
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value, hex: hex || null }),
         });
         if (res.ok) { refreshItemMetadata(); showToast('Color added', 'success'); }
         else { const e = await res.json().catch(() => ({})); showToast(e.detail || 'Failed to add color', 'danger'); }
     };
 
-    const handleRenameColorValue = async (valueId: string, value: string) => {
+    const handleRenameColorValue = async (valueId: string, value: string, hex?: string | null) => {
         const res = await authFetch(`${API_BASE}/attributes/values/${valueId}`, {
-            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value }),
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value, hex: hex || null }),
         });
         if (res.ok) { refreshItemMetadata(); showToast('Color renamed', 'success'); }
         else { const e = await res.json().catch(() => ({})); showToast(e.detail || 'Failed to rename color', 'danger'); }

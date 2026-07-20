@@ -22,7 +22,7 @@ def create_attribute(payload: AttributeCreate, db: Session = Depends(get_db), cu
     db.refresh(attribute)
 
     for v in payload.values:
-        attr_val = AttributeValue(attribute_id=attribute.id, value=v.value)
+        attr_val = AttributeValue(attribute_id=attribute.id, value=v.value, hex=v.hex)
         db.add(attr_val)
 
     db.add(AuditLog(user_id=current_user.id, action="CREATE", entity_type="attribute", entity_id=str(attribute.id), details=f"Created attribute {attribute.name}"))
@@ -73,7 +73,7 @@ def add_attribute_value(attribute_id: str, payload: AttributeValueCreate, db: Se
     if not attribute:
         raise HTTPException(status_code=404, detail="Attribute not found")
 
-    attr_val = AttributeValue(attribute_id=attribute.id, value=payload.value)
+    attr_val = AttributeValue(attribute_id=attribute.id, value=payload.value, hex=payload.hex)
     db.add(attr_val)
     db.commit()
     db.refresh(attr_val)
@@ -89,6 +89,7 @@ def update_attribute_value(value_id: str, payload: AttributeValueUpdate, db: Ses
 
     old_value = val.value
     val.value = payload.value
+    val.hex = payload.hex
     db.add(AuditLog(user_id=current_user.id, action="UPDATE", entity_type="attribute_value", entity_id=str(val.id), details=f"Renamed value '{old_value}' -> '{payload.value}'"))
     db.commit()
     db.refresh(val)

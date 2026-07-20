@@ -17,9 +17,11 @@ class VariantResponse(VariantCreate):
 
 class AttributeValueCreate(BaseModel):
     value: str
+    hex: Optional[str] = None
 
 class AttributeValueUpdate(BaseModel):
     value: str
+    hex: Optional[str] = None
 
 class AttributeValueResponse(AttributeValueCreate):
     id: UUID
