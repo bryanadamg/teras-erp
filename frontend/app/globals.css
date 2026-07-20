@@ -905,6 +905,25 @@ body {
   transition: all 0.3s;
 }
 
+/* Locations page: 3-pane (stores/zones/bins) stacks vertically on narrow
+   screens instead of overflowing horizontally; each pane keeps its own
+   internal vertical scroll. */
+.locations-panes {
+  display: flex;
+  min-height: 0;
+}
+@media (max-width: 900px) {
+  .locations-panes {
+    flex-direction: column;
+  }
+  .locations-panes .loc-pane {
+    width: 100% !important;
+    max-height: 260px;
+    border-right: none !important;
+    border-bottom: 1px solid #b0a898;
+  }
+}
+
 /* Mobile Responsive Styles */
 @media (max-width: 768px) {
   :root {

@@ -3,7 +3,9 @@ import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
+import { xpToolbar as sharedXpToolbar, ShellWindow, ShellTitleBar } from '../shared/shellTheme';
+import { lvTh, lvTd, lvRow } from '../shared/listViewTheme';
+import { XPActionButton } from '../shared/xpTheme';
 
 const ALL = '__all__';
 
@@ -54,8 +56,6 @@ export default function LocationsView({
   const [hoveredBin, setHoveredBin] = useState<string | null>(null);
 
   // ---------- styles (classic XP) ----------
-  const xpBevel: React.CSSProperties = sharedXpBevel();
-  const xpTitleBar: React.CSSProperties = sharedXpTitleBar();
   const xpToolbar: React.CSSProperties = sharedXpToolbar({ gap: 6 });
   const xpBtn = (extra: any = {}) => ({ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, padding: '2px 10px', cursor: 'pointer', background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', color: '#000', borderRadius: 0, ...extra });
   const xpInput: React.CSSProperties = { fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, border: '1px solid #7f9db9', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px', background: '#fff', color: '#000', height: 20, outline: 'none' };
@@ -242,28 +242,36 @@ export default function LocationsView({
       );
     };
 
-    const binRow = (loc: any) => {
+    const binRow = (loc: any, i: number) => {
       const renaming = renamingId === loc.id;
       return (
-        <div
+        <tr
           key={loc.id}
           draggable={!renaming}
           onDragStart={(e) => onDragStart(e, loc)}
           onDragEnd={onDragEnd}
           onMouseEnter={() => setHoveredBin(loc.id)}
           onMouseLeave={() => setHoveredBin(null)}
-          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px', borderBottom: '1px solid #e3e0d8', background: draggingId === loc.id ? '#fff7d6' : hoveredBin === loc.id ? '#f0f6ff' : '#fff', cursor: 'grab' }}
+          style={{ ...lvRow(true, i), background: draggingId === loc.id ? '#fff7d6' : hoveredBin === loc.id ? '#f0f6ff' : lvRow(true, i).background, cursor: 'grab' }}
         >
-          <i className="bi bi-grip-vertical" style={{ color: '#aaa' }} />
-          <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, fontWeight: 'bold', color: '#00008b', fontVariant: 'all-small-caps', width: 130 }}>{loc.code}</span>
-          {renaming ? (
-            <input autoFocus style={{ ...xpInput, flex: 1, minWidth: 0 }} value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onBlur={commitRename} onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenamingId(null); }} />
-          ) : (
-            <span style={{ flex: 1, minWidth: 0, fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{loc.name}</span>
-          )}
-          {canManage && <i className="bi bi-pencil" title="Rename" onClick={() => startRename(loc)} style={{ color: '#666', cursor: 'pointer' }} />}
-          {canManage && <button style={xpBtn({ padding: '1px 5px', background: 'transparent', border: '1px solid transparent' })} onClick={() => handleDelete(loc.id)} title="Delete"><i className="bi bi-trash" style={{ color: '#c00000' }} /></button>}
-        </div>
+          <td style={{ ...lvTd(true), width: 24, textAlign: 'center' }}><i className="bi bi-grip-vertical" style={{ color: '#aaa' }} /></td>
+          <td style={{ ...lvTd(true), width: 150, fontWeight: 'bold', color: '#00008b' }}>{loc.code}</td>
+          <td style={lvTd(true)}>
+            {renaming ? (
+              <input autoFocus style={{ ...xpInput, width: '100%' }} value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onBlur={commitRename} onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenamingId(null); }} />
+            ) : (
+              <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{loc.name}</span>
+            )}
+          </td>
+          <td style={{ ...lvTd(true), borderRight: 'none', width: 60, textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+            {canManage && (
+              <span style={{ display: 'inline-flex', gap: 4 }}>
+                <XPActionButton classic icon="bi-pencil" title="Rename" onClick={() => startRename(loc)} />
+                <XPActionButton classic tone="danger" icon="bi-trash" title="Delete" onClick={() => handleDelete(loc.id)} />
+              </span>
+            )}
+          </td>
+        </tr>
       );
     };
 
@@ -276,24 +284,34 @@ export default function LocationsView({
       return zones.map(zoneRow);
     };
 
+    const bins = selectedZone ? binsOf(selectedZone).filter(matches) : [];
     const renderBinPanel = () => {
       if (!selectedZone) {
         return <div style={{ textAlign: 'center', padding: 24, fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, color: '#888' }}>Select a zone to manage bins.</div>;
       }
-      const bins = binsOf(selectedZone).filter(matches);
       if (bins.length === 0) return <div style={{ textAlign: 'center', padding: 24, fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, color: '#888' }}>No bins{q ? ' match' : ' yet — add one above'}.</div>;
-      return bins.map(binRow);
+      return (
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead style={{ background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080', position: 'sticky', top: 0 }}>
+            <tr>
+              <th style={{ ...lvTh(true), width: 24 }}></th>
+              <th style={{ ...lvTh(true), width: 150 }}>Code</th>
+              <th style={lvTh(true)}>Name</th>
+              <th style={{ ...lvTh(true), width: 60, borderRight: 'none' }}></th>
+            </tr>
+          </thead>
+          <tbody>{bins.map(binRow)}</tbody>
+        </table>
+      );
     };
 
     return (
-      <div className="row justify-content-center fade-in">
-        <div className="col-12">
-          <div style={xpBevel}>
-            <div style={xpTitleBar}><span><i className="bi bi-geo-alt-fill" style={{ marginRight: 6 }} />{t('locations')}</span></div>
-            <div style={{ display: 'flex', minHeight: 440 }}>
+      <ShellWindow classic fill="page" className="fade-in">
+        <ShellTitleBar classic icon="bi-geo-alt-fill" title={t('locations')} />
+        <div className="locations-panes" style={{ flex: 1, minHeight: 0 }}>
 
               {/* LEFT: stores */}
-              <div style={{ width: 210, flexShrink: 0, borderRight: '1px solid #b0a898', background: '#f5f4ef', display: 'flex', flexDirection: 'column' }}>
+              <div className="loc-pane" style={{ width: 210, flexShrink: 0, borderRight: '1px solid #b0a898', background: '#f5f4ef', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ ...xpToolbar, justifyContent: 'space-between' }}>
                   <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, fontWeight: 'bold' }}>Stores</span>
                   {canManage && <button style={xpBtn({ padding: '1px 6px' })} onClick={() => setAddingStore(v => !v)} title="New store"><i className="bi bi-plus-lg" /></button>}
@@ -319,7 +337,7 @@ export default function LocationsView({
               </div>
 
               {/* MIDDLE: zones */}
-              <div style={{ width: 200, flexShrink: 0, borderRight: '1px solid #b0a898', background: '#f5f4ef', display: 'flex', flexDirection: 'column' }}>
+              <div className="loc-pane" style={{ width: 200, flexShrink: 0, borderRight: '1px solid #b0a898', background: '#f5f4ef', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ ...xpToolbar, justifyContent: 'space-between' }}>
                   <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, fontWeight: 'bold', color: '#003080' }}>
                     {selectedStoreObj ? selectedStoreObj.name : 'Zones'}
@@ -338,7 +356,7 @@ export default function LocationsView({
               </div>
 
               {/* RIGHT: bins */}
-              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+              <div className="loc-pane" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                 <div style={xpToolbar}>
                   <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 12, fontWeight: 'bold', color: '#003080' }}>
                     {selectedZoneObj ? selectedZoneObj.name : 'Bins'}
@@ -366,10 +384,8 @@ export default function LocationsView({
                 <div style={{ flex: 1, overflowY: 'auto' }}>{renderBinPanel()}</div>
               </div>
 
-            </div>
-          </div>
         </div>
-      </div>
+      </ShellWindow>
     );
   }
 
@@ -443,42 +459,40 @@ export default function LocationsView({
     );
   };
 
-  const mBinRow = (loc: any) => {
+  const mBinRow = (loc: any, i: number) => {
     const renaming = renamingId === loc.id;
     return (
-      <li
+      <tr
         key={loc.id}
         draggable={!renaming}
         onDragStart={(e) => onDragStart(e, loc)}
         onDragEnd={onDragEnd}
-        className="list-group-item d-flex align-items-center gap-2"
-        style={{ cursor: 'grab', background: draggingId === loc.id ? '#fff7d6' : undefined }}
+        style={{ ...lvRow(false, i), cursor: 'grab', background: draggingId === loc.id ? '#fff7d6' : lvRow(false, i).background }}
       >
-        <i className="bi bi-grip-vertical text-muted" />
-        <span className="fw-medium font-monospace text-primary" style={{ width: 140 }}>{loc.code}</span>
-        {renaming ? (
-          <input autoFocus className="form-control form-control-sm" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onBlur={commitRename} onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenamingId(null); }} />
-        ) : (
-          <span className="flex-grow-1 text-truncate">{loc.name}</span>
-        )}
-        {canManage && <i className="bi bi-pencil text-muted" title="Rename" style={{ cursor: 'pointer' }} onClick={() => startRename(loc)} />}
-        {canManage && <button className="btn btn-sm btn-link text-danger p-0 px-1" onClick={() => handleDelete(loc.id)} title="Delete"><i className="bi bi-trash" /></button>}
-      </li>
+        <td style={{ ...lvTd(false), width: 24, textAlign: 'center' }}><i className="bi bi-grip-vertical text-muted" /></td>
+        <td style={{ ...lvTd(false), width: 150 }}><span className="fw-medium font-monospace text-primary">{loc.code}</span></td>
+        <td style={lvTd(false)}>
+          {renaming ? (
+            <input autoFocus className="form-control form-control-sm" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onBlur={commitRename} onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenamingId(null); }} />
+          ) : (
+            <span className="text-truncate d-block">{loc.name}</span>
+          )}
+        </td>
+        <td style={{ ...lvTd(false), width: 70, textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+          {canManage && <i className="bi bi-pencil text-muted" title="Rename" style={{ cursor: 'pointer' }} onClick={() => startRename(loc)} />}
+          {canManage && <button className="btn btn-sm btn-link text-danger p-0 px-1" onClick={() => handleDelete(loc.id)} title="Delete"><i className="bi bi-trash" /></button>}
+        </td>
+      </tr>
     );
   };
 
   return (
-    <div className="row justify-content-center fade-in">
-      <div className="col-12">
-        <div className="card h-100">
-          <div className="card-header bg-white d-flex align-items-center">
-            <h5 className="card-title mb-0"><i className="bi bi-geo-alt-fill me-2" />{t('locations')}</h5>
-          </div>
-          <div className="card-body p-0">
-            <div className="d-flex" style={{ minHeight: 460 }}>
+    <ShellWindow classic={false} fill="page" className="fade-in">
+      <ShellTitleBar classic={false} icon="bi-geo-alt-fill" title={t('locations')} />
+        <div className="locations-panes" style={{ flex: 1, minHeight: 0 }}>
 
               {/* LEFT: stores */}
-              <div style={{ width: 220, flexShrink: 0 }} className="border-end d-flex flex-column">
+              <div className="loc-pane border-end d-flex flex-column" style={{ width: 220, flexShrink: 0 }}>
                 <div className="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
                   <span className="text-muted text-uppercase small fw-bold">Stores</span>
                   {canManage && <button className="btn btn-sm btn-outline-secondary py-0" onClick={() => setAddingStore(v => !v)} title="New store"><i className="bi bi-plus-lg" /></button>}
@@ -501,7 +515,7 @@ export default function LocationsView({
               </div>
 
               {/* MIDDLE: zones */}
-              <div style={{ width: 200, flexShrink: 0 }} className="border-end d-flex flex-column">
+              <div className="loc-pane border-end d-flex flex-column" style={{ width: 200, flexShrink: 0 }}>
                 <div className="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
                   <span className="text-muted text-uppercase small fw-bold">{selectedStoreObj ? selectedStoreObj.name : 'Zones'}</span>
                   {canManage && selectedStoreObj && (
@@ -525,7 +539,7 @@ export default function LocationsView({
               </div>
 
               {/* RIGHT: bins */}
-              <div className="flex-grow-1 d-flex flex-column" style={{ minWidth: 0 }}>
+              <div className="loc-pane flex-grow-1 d-flex flex-column" style={{ minWidth: 0 }}>
                 <div className="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
                   <h6 className="mb-0 text-primary">{selectedZoneObj ? selectedZoneObj.name : 'Bins'}</h6>
                   <div className="flex-grow-1" />
@@ -547,19 +561,28 @@ export default function LocationsView({
                   </form>
                 )}
                 <div className="flex-grow-1 overflow-auto">
-                  {!selectedZone
-                    ? <div className="text-center text-muted py-4 small">Select a zone to manage bins.</div>
-                    : binsOf(selectedZone).filter(matches).length === 0
-                      ? <div className="text-center text-muted py-4 small">No bins{q ? ' match' : ' yet — add one above.'}.</div>
-                      : <ul className="list-group list-group-flush">{binsOf(selectedZone).filter(matches).map(mBinRow)}</ul>
-                  }
+                  {(() => {
+                    if (!selectedZone) return <div className="text-center text-muted py-4 small">Select a zone to manage bins.</div>;
+                    const mBins = binsOf(selectedZone).filter(matches);
+                    if (mBins.length === 0) return <div className="text-center text-muted py-4 small">No bins{q ? ' match' : ' yet — add one above.'}.</div>;
+                    return (
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead style={{ position: 'sticky', top: 0 }}>
+                          <tr>
+                            <th style={{ ...lvTh(false), width: 24 }}></th>
+                            <th style={{ ...lvTh(false), width: 150 }}>Code</th>
+                            <th style={lvTh(false)}>Name</th>
+                            <th style={{ ...lvTh(false), width: 70 }}></th>
+                          </tr>
+                        </thead>
+                        <tbody>{mBins.map(mBinRow)}</tbody>
+                      </table>
+                    );
+                  })()}
                 </div>
               </div>
 
-            </div>
-          </div>
         </div>
-      </div>
-    </div>
+    </ShellWindow>
   );
 }
