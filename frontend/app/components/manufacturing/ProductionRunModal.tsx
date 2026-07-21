@@ -1,9 +1,10 @@
 'use client';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ModalWrapper from '../shared/ModalWrapper';
+import SearchableSelect from '../shared/SearchableSelect';
 import { useData } from '../../context/DataContext';
 import NettingPlanTable, { useNettingPreview } from './NettingPlanTable';
-import { xpFont, xpInput as _xpInput, xpLabel as _xpLabel } from '../shared/xpTheme';
+import { xpFont, xpInput as _xpInput, xpLabel as _xpLabel, ModalFooterActions } from '../shared/xpTheme';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
@@ -134,17 +135,13 @@ function BomEntryRow({
             )}
             <div style={{ marginBottom: 6 }}>
                 <label style={xpLabel()}>Product Recipe (BOM)</label>
-                <select
-                    style={xpInput({ height: '22px' })}
+                <SearchableSelect
+                    options={boms.map((b: any) => ({ value: b.id, label: b.item_name || b.item_code, subLabel: b.code }))}
                     value={entry.bomId}
-                    onChange={e => onChange({ ...entry, bomId: e.target.value, sizeQtys: {}, totalQty: '', attributeValueIds: [] })}
+                    onChange={val => onChange({ ...entry, bomId: val, sizeQtys: {}, totalQty: '', attributeValueIds: [] })}
                     disabled={entry.locked}
-                >
-                    <option value="">-- Select a BOM --</option>
-                    {boms.map((b: any) => (
-                        <option key={b.id} value={b.id}>[{b.code}]  {b.item_name || b.item_code}</option>
-                    ))}
-                </select>
+                    placeholder="-- Select a BOM --"
+                />
             </div>
 
             {freeAttributes.map((attr: any) => {
@@ -441,12 +438,14 @@ export default function ProductionRunModal({
             variant="success"
             size="xxl"
             footer={
-                <>
-                    <button onClick={onClose} className="btn btn-sm btn-link text-muted text-decoration-none">Cancel</button>
-                    <button onClick={handleSave} disabled={isSaving} className="btn btn-sm btn-success px-4 fw-bold shadow-sm">
-                        {isSaving ? 'Creating...' : 'CREATE PRODUCTION RUN'}
-                    </button>
-                </>
+                <ModalFooterActions
+                    onCancel={onClose}
+                    onSubmit={handleSave}
+                    submitting={isSaving}
+                    submitLabel="CREATE PRODUCTION RUN"
+                    submittingLabel="Creating..."
+                    variant="success"
+                />
             }
         >
             {/* Two-panel layout: left = form, right = live netting preview */}

@@ -281,6 +281,36 @@ export const xpPanel = (extra: React.CSSProperties = {}): React.CSSProperties =>
     ...extra,
 });
 
+// THE standard footer for create/edit modals (PR, MO, and similar full-form
+// modals): a muted link-style Cancel + a solid primary submit button. Classic
+// theme is handled by the global .btn-* CSS overrides — no manual branch
+// needed here. Don't hand-roll Cancel/Create buttons per modal.
+export function ModalFooterActions({
+    onCancel, cancelLabel = 'Cancel',
+    onSubmit, submitLabel, submittingLabel = 'Saving...', submitting = false,
+    variant = 'success', disabled = false,
+}: {
+    onCancel: () => void;
+    cancelLabel?: string;
+    onSubmit: () => void;
+    submitLabel: string;
+    submittingLabel?: string;
+    submitting?: boolean;
+    variant?: 'success' | 'primary' | 'danger';
+    disabled?: boolean;
+}) {
+    return (
+        <>
+            <button type="button" className="btn btn-sm btn-link text-muted text-decoration-none" onClick={onCancel}>
+                {cancelLabel}
+            </button>
+            <button type="button" className={`btn btn-sm btn-${variant} px-4 fw-bold shadow-sm`} onClick={onSubmit} disabled={submitting || disabled}>
+                {submitting ? submittingLabel : submitLabel}
+            </button>
+        </>
+    );
+}
+
 // Groups related fields in a create/edit form under a labeled section.
 // THE standard section chrome for every sectioned create/edit panel (Colors, Lab Dip,
 // Sample Request, Inventory, …). Classic: raised bevel box with a solid-blue gradient

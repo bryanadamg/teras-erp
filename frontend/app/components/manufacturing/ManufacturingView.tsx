@@ -10,7 +10,7 @@ import { useUser } from '../../context/UserContext';
 import ModalWrapper from '../shared/ModalWrapper';
 import ProductionRunModal from './ProductionRunModal';
 import MOCreationPreview from './MOCreationPreview';
-import { xpFont, xpInput, xpLabel } from '../shared/xpTheme';
+import { xpFont, xpInput, xpLabel, ModalFooterActions } from '../shared/xpTheme';
 import { useManufacturingHelpers } from './useManufacturingHelpers';
 import ProductionRunsTab from './ProductionRunsTab';
 import ManufacturingOrdersTab from './ManufacturingOrdersTab';
@@ -346,10 +346,15 @@ export default function ManufacturingView({
               variant="success"
               size="xxl"
               footer={
-                  <>
-                      <button type="button" className="btn btn-sm btn-link text-muted text-decoration-none" onClick={() => setIsCreateOpen(false)}>{t('cancel')}</button>
-                      <button type="button" className="btn btn-sm btn-success px-4 fw-bold shadow-sm" onClick={handleSubmit} disabled={isSubmitting}>{isSubmitting ? 'Creating...' : 'CREATE MANUFACTURING ORDER'}</button>
-                  </>
+                  <ModalFooterActions
+                      onCancel={() => setIsCreateOpen(false)}
+                      cancelLabel={t('cancel')}
+                      onSubmit={handleSubmit}
+                      submitting={isSubmitting}
+                      submitLabel="CREATE MANUFACTURING ORDER"
+                      submittingLabel="Creating..."
+                      variant="success"
+                  />
               }
           >
               {/* Two-panel layout: left=form, right=live preview */}
