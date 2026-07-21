@@ -1,61 +1,53 @@
-import React, { useState, memo } from 'react';
+import React, { useState, useEffect, useMemo, memo } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
+import { useUser } from '../../context/UserContext';
 import { xpToolbar as sharedXpToolbar, ShellWindow, ShellTitleBar } from '../shared/shellTheme';
-import { lvTh } from '../shared/listViewTheme';
+import { lvTh, lvRow, LV_XP_FONT, LV_MODERN_FONT } from '../shared/listViewTheme';
+import { StatusChip } from '../shared/xpTheme';
 import Pager from '../shared/Pager';
 
-function getActionXPStyle(action: string): React.CSSProperties {
-    const map: Record<string, { bg: string; border: string; color: string }> = {
-        CREATE:        { bg: '#e8f5e9', border: '#2e7d32', color: '#1b4620' },
-        UPDATE:        { bg: '#fff8e1', border: '#c77800', color: '#4a3000' },
-        DELETE:        { bg: '#fce4ec', border: '#b71c1c', color: '#6b0000' },
-        UPDATE_STATUS: { bg: '#e3f2fd', border: '#1565c0', color: '#0a3070' },
-    };
-    const s = map[action] || { bg: '#e8e8e8', border: '#6a6a6a', color: '#222' };
-    return {
-        background: s.bg, border: `1px solid ${s.border}`, color: s.color,
-        padding: '1px 5px', fontSize: '9px', fontFamily: 'Tahoma,Arial,sans-serif',
-        fontWeight: 'bold', whiteSpace: 'nowrap' as const,
-    };
+// entity_type is a raw model name (WorkOrder, attribute_value, work_center_holiday, ...) — humanize for display.
+function formatEntityType(entityType: string): string {
+    return entityType
+        .replace(/_/g, ' ')
+        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+        .split(' ')
+        .filter(Boolean)
+        .map(w => w[0].toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ');
 }
 
-function getActionColor(action: string) {
-    switch (action) {
-        case 'CREATE': return 'success';
-        case 'UPDATE': return 'warning';
-        case 'DELETE': return 'danger';
-        case 'UPDATE_STATUS': return 'info';
-        default: return 'secondary';
-    }
-}
-
-const AuditLogRow = memo(({ log, classic }: any) => {
+const AuditLogRow = memo(({ log, classic, rowIndex, userName }: any) => {
     const [showChanges, setShowChanges] = useState(false);
     const { formatDateTime: tzDateTime } = useTimezone();
+    const userShort = log.user_id ? log.user_id.split('-')[0] : 'System';
+    const userLabel = userName || (log.user_id ? `User ${userShort}` : 'System');
+    const entityShort = log.entity_id ? log.entity_id.split('-')[0] : '';
 
     if (classic) {
+        const rowStyle = { ...lvRow(true, rowIndex ?? 0), cursor: log.changes ? 'pointer' : 'default' };
         return (
             <>
                 <tr
-                    style={{ cursor: log.changes ? 'pointer' : 'default', background: showChanges ? '#e8f0ff' : undefined }}
+                    style={showChanges ? { ...rowStyle, background: '#e8f0ff' } : rowStyle}
                     onClick={() => log.changes && setShowChanges(!showChanges)}
                 >
-                    <td style={{ padding: '3px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#555', fontVariant: 'all-small-caps' }}>
+                    <td style={{ padding: '3px 8px', fontFamily: LV_XP_FONT, fontSize: '10px', color: '#555' }}>
                         {tzDateTime(log.timestamp)}
                     </td>
-                    <td style={{ padding: '3px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#000' }}>
-                        User {log.user_id ? log.user_id.split('-')[0] : 'System'}
+                    <td style={{ padding: '3px 8px', fontFamily: LV_XP_FONT, fontSize: '11px', color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={log.user_id}>
+                        {userLabel}
+                    </td>
+                    <td style={{ padding: '3px 8px', overflow: 'hidden' }}>
+                        <StatusChip status={log.action} title={log.action.replace(/_/g, ' ')} style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }} />
                     </td>
                     <td style={{ padding: '3px 8px' }}>
-                        <span style={getActionXPStyle(log.action)}>{log.action}</span>
+                        <span style={{ background: '#e0dfd8', border: '1px solid #b0a898', padding: '1px 5px', fontFamily: LV_XP_FONT, fontSize: '10px', color: '#333' }}>{formatEntityType(log.entity_type)}</span>
+                        <span style={{ fontFamily: LV_XP_FONT, fontSize: '10px', color: '#777', marginLeft: 4 }} title={log.entity_id}>{entityShort}…</span>
                     </td>
-                    <td style={{ padding: '3px 8px' }}>
-                        <span style={{ background: '#e0dfd8', border: '1px solid #b0a898', padding: '0 4px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#333' }}>{log.entity_type}</span>
-                        <span style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', color: '#777', marginLeft: 4 }}>{log.entity_id.split('-')[0]}…</span>
-                    </td>
-                    <td style={{ padding: '3px 8px', fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#444' }}>
+                    <td style={{ padding: '3px 8px', fontFamily: LV_XP_FONT, fontSize: '11px', color: '#444' }}>
                         {log.details}
                         {log.changes && (
                             <i className={`bi bi-chevron-${showChanges ? 'up' : 'down'} ms-2`} style={{ color: '#0058e6', fontSize: '10px' }}></i>
@@ -66,7 +58,7 @@ const AuditLogRow = memo(({ log, classic }: any) => {
                     <tr style={{ background: '#f0f4ff' }}>
                         <td colSpan={5} style={{ padding: 0 }}>
                             <div style={{ padding: '6px 12px 8px 32px', borderBottom: '1px solid #c0bdb5' }}>
-                                <div style={{ fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '10px', fontWeight: 'bold', color: '#444', textTransform: 'uppercase', marginBottom: 4 }}>Technical Diff (JSON)</div>
+                                <div style={{ fontFamily: LV_XP_FONT, fontSize: '10px', fontWeight: 'bold', color: '#444', textTransform: 'uppercase', marginBottom: 4 }}>Technical Diff (JSON)</div>
                                 <pre style={{ fontFamily: 'Consolas,monospace', fontSize: '10px', background: '#ffffff', border: '1px solid #7f9db9', padding: '4px 6px', margin: 0, maxHeight: '160px', overflowY: 'auto', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)' }}>
                                     {JSON.stringify(log.changes, null, 2)}
                                 </pre>
@@ -80,17 +72,15 @@ const AuditLogRow = memo(({ log, classic }: any) => {
 
     return (
         <>
-            <tr style={{ cursor: log.changes ? 'pointer' : 'default' }} onClick={() => log.changes && setShowChanges(!showChanges)}>
+            <tr style={{ ...lvRow(false, rowIndex ?? 0), cursor: log.changes ? 'pointer' : 'default' }} onClick={() => log.changes && setShowChanges(!showChanges)}>
                 <td className="ps-4 text-muted font-monospace">{tzDateTime(log.timestamp)}</td>
-                <td><span className="fw-medium text-dark">User {log.user_id ? log.user_id.split('-')[0] : 'System'}</span></td>
-                <td>
-                    <span className={`badge bg-${getActionColor(log.action)} bg-opacity-10 text-${getActionColor(log.action)} border border-${getActionColor(log.action)} border-opacity-25`}>
-                        {log.action}
-                    </span>
+                <td><span className="fw-medium text-dark text-truncate d-inline-block" style={{ maxWidth: '100%' }} title={log.user_id}>{userLabel}</span></td>
+                <td style={{ overflow: 'hidden' }}>
+                    <StatusChip status={log.action} title={log.action.replace(/_/g, ' ')} style={{ fontFamily: LV_MODERN_FONT, borderRadius: 4, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }} />
                 </td>
                 <td>
-                    <span className="badge bg-light text-dark border">{log.entity_type}</span>
-                    <span className="ms-1 font-monospace text-muted">{log.entity_id.split('-')[0]}...</span>
+                    <span className="badge bg-light text-dark border">{formatEntityType(log.entity_type)}</span>
+                    <span className="ms-1 font-monospace text-muted" title={log.entity_id}>{entityShort}...</span>
                 </td>
                 <td className="text-muted">
                     {log.details}
@@ -119,6 +109,13 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
   const { t } = useLanguage();
   const { uiStyle: currentStyle } = useTheme();
   const classic = currentStyle === 'classic';
+  const { users, refreshUsers } = useUser();
+
+  useEffect(() => { if (users.length === 0) refreshUsers(); }, []);
+
+  const userNameById = useMemo(() => Object.fromEntries(
+      users.map((u: any) => [u.id, u.full_name || u.username])
+  ), [users]);
 
   // ── XP inline styles ─────────────────────────────────────────────────────
   const xpToolbar: React.CSSProperties = sharedXpToolbar();
@@ -158,11 +155,11 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
               {/* Table */}
               <div style={{ flex: 1, minHeight: 0, background: '#ffffff', overflowY: 'auto', overflowX: 'hidden' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-                      <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+                      <thead style={{ background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080', position: 'sticky', top: 0, zIndex: 1 }}>
                           <tr>
-                              <th style={{ ...lvTh(true), width: 150 }}>Timestamp</th>
+                              <th style={{ ...lvTh(true), width: 140 }}>Timestamp</th>
                               <th style={{ ...lvTh(true), width: 110 }}>User</th>
-                              <th style={{ ...lvTh(true), width: 100 }}>Action</th>
+                              <th style={{ ...lvTh(true), width: 140 }}>Action</th>
                               <th style={{ ...lvTh(true), width: 160 }}>Entity</th>
                               <th style={{ ...lvTh(true), borderRight: 'none' }}>Details</th>
                           </tr>
@@ -170,7 +167,7 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
                       <tbody>
                           {auditLogs.map((log: any, i: number) => (
                               <React.Fragment key={log.id}>
-                                  <AuditLogRow log={log} classic={true} rowIndex={i} />
+                                  <AuditLogRow log={log} classic={true} rowIndex={i} userName={userNameById[log.user_id]} />
                               </React.Fragment>
                           ))}
                           {auditLogs.length === 0 && (
@@ -212,16 +209,16 @@ export default function AuditLogsView({ auditLogs, currentPage, totalItems, page
               <table className="table table-hover align-middle mb-0 small" style={{ tableLayout: 'fixed' }}>
                   <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                       <tr>
-                          <th style={{ ...lvTh(false), width: 150 }} className="ps-4">Timestamp</th>
+                          <th style={{ ...lvTh(false), width: 140 }} className="ps-4">Timestamp</th>
                           <th style={{ ...lvTh(false), width: 110 }}>User</th>
-                          <th style={{ ...lvTh(false), width: 100 }}>Action</th>
+                          <th style={{ ...lvTh(false), width: 140 }}>Action</th>
                           <th style={{ ...lvTh(false), width: 160 }}>Entity</th>
                           <th style={lvTh(false)}>Details</th>
                       </tr>
                   </thead>
                   <tbody>
-                      {auditLogs.map((log: any) => (
-                          <AuditLogRow key={log.id} log={log} classic={false} />
+                      {auditLogs.map((log: any, i: number) => (
+                          <AuditLogRow key={log.id} log={log} classic={false} rowIndex={i} userName={userNameById[log.user_id]} />
                       ))}
                       {auditLogs.length === 0 && <tr><td colSpan={5} className="text-center py-5 text-muted">No activity logs found</td></tr>}
                   </tbody>

@@ -26,6 +26,15 @@ export const STATUS_FAMILY: Record<string, StatusFamily> = {
     ACTIVE: 'green', DISPATCHED: 'green',
     CANCELLED: 'red', REJECTED: 'red',
     ARCHIVED: 'gray', INACTIVE: 'gray',
+    // Audit-log action verbs (backend log_activity() call sites) — same 5-family
+    // palette, not a domain status, but reuses it for one consistent chip everywhere.
+    // Full set as of 2026-07: grep `log_activity(` across backend/app for the source list.
+    CREATE: 'green', REACTIVATE: 'green', COMPLETE: 'green', COMPLETION: 'green', DISPATCH: 'green',
+    UPDATE: 'amber',
+    STATUS_CHANGE: 'blue', UPDATE_STATUS: 'blue', UPDATE_ITEM_STATUS: 'blue', UPDATE_COLOR_STATUS: 'blue',
+    UPDATE_DIP_STATUS: 'blue', STAGE: 'blue', TRANSFER: 'blue', IMPORT: 'blue',
+    DELETE: 'red', DEACTIVATE: 'red', REJECT: 'red', DISPOSE: 'red',
+    PRINT: 'gray', SPLIT: 'gray', ARCHIVE: 'gray', REBUILD: 'gray',
 };
 
 const FAMILY_SOLID: Record<StatusFamily, string> = {
