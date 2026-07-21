@@ -325,16 +325,27 @@ async def get_stock_balance_api(db: AsyncSession = Depends(get_async_db), curren
     return await stock_service.get_all_stock_balances(db, user=current_user)
 
 
-@router.get("/stock/availability", response_model=PaginatedBookingStockResponse)
-async def get_stock_availability(
-    location_id: Optional[str] = Query(None, description="Restrict to a single location"),
-    search: Optional[str] = Query(None, description="Matches item code or name"),
-    page: int = Query(1, ge=1),
-    size: int = Query(50, ge=1, le=500),
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Booking-stock / material-availability view.
+# The netting pass below walks every ONGOING MO plant-wide and is independent of
+# location_id/search/page/size (those only trim the already-computed row set) — so
+# the expensive part is cached briefly and dropped whenever something that could
+# change it broadcasts, instead of recomputed on every page load/refresh. Each
+# process/worker holds its own cache and independently receives every broadcast
+# (local or via Redis), so invalidation stays correct across multiple workers.
+_booking_cache: dict = {"rows": None, "at": 0.0}
+_BOOKING_TTL_SECONDS = 20
+_BOOKING_INVALIDATING_TYPES = {"STOCK_UPDATE", "MANUFACTURING_ORDER_UPDATE", "WORK_ORDER_UPDATE", "PRODUCTION_RUN_UPDATE"}
+
+
+def _invalidate_booking_cache(message: dict):
+    if message.get("type") in _BOOKING_INVALIDATING_TYPES:
+        _booking_cache["rows"] = None
+
+
+manager.register_invalidation_hook(_invalidate_booking_cache)
+
+
+async def _compute_booking_rows(db: AsyncSession) -> list:
+    """Booking-stock / material-availability netting.
 
     For every component demanded by an ONGOING manufacturing order (PENDING or
     IN_PROGRESS), nets physical on-hand against outstanding demand and against
@@ -352,8 +363,7 @@ async def get_stock_availability(
     output (MO.qty - completed), so already-produced quantity stops counting.
 
     Plant-level (location-agnostic) netting: rows are keyed by (item, variant);
-    on-hand is summed across ALL stock locations. The ``location_id`` query param
-    is retained for API compatibility but no longer scopes the result.
+    on-hand is summed across ALL stock locations.
     """
     from collections import defaultdict
     from uuid import UUID
@@ -420,7 +430,7 @@ async def get_stock_availability(
         ))
 
     if not demand:
-        return PaginatedBookingStockResponse(items=[], total=0, page=page, size=size)
+        return []
 
     # Display lookups: item code/name/uom.
     item_ids = {v["item_id"] for v in demand.values()}
@@ -465,9 +475,34 @@ async def get_stock_availability(
             supply_mos=sup["contributions"] if sup else [],
         ))
 
+    return rows
+
+
+@router.get("/stock/availability", response_model=PaginatedBookingStockResponse)
+async def get_stock_availability(
+    location_id: Optional[str] = Query(None, description="Restrict to a single location"),
+    search: Optional[str] = Query(None, description="Matches item code or name"),
+    page: int = Query(1, ge=1),
+    size: int = Query(50, ge=1, le=500),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Booking-stock / material-availability view. See _compute_booking_rows for the
+    netting logic. The ``location_id`` query param is retained for API compatibility
+    but no longer scopes the result (netting is plant-wide/location-agnostic)."""
+    now = time.monotonic()
+    if _booking_cache["rows"] is not None and now - _booking_cache["at"] < _BOOKING_TTL_SECONDS:
+        rows = _booking_cache["rows"]
+    else:
+        rows = await _compute_booking_rows(db)
+        _booking_cache["rows"] = rows
+        _booking_cache["at"] = now
+
     if search:
         term = search.strip().lower()
         rows = [r for r in rows if term in r.item_code.lower() or term in r.item_name.lower()]
+    else:
+        rows = list(rows)  # copy before sorting — never mutate the cached list in place
 
     # Shortfalls first (most actionable), then by item code.
     rows.sort(key=lambda r: (r.qty_net_free >= 0, r.item_code))

@@ -48,6 +48,25 @@ async def _usage_count(db: AsyncSession, attribute_value_id: uuid.UUID | None) -
     return total
 
 
+async def _usage_counts(db: AsyncSession, attribute_value_ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
+    """Batched form of _usage_count for a page of combos — 5 grouped queries total
+    instead of 5 per row. list_combos was awaiting _usage_count per row (N+1: page
+    size 50 = 250 sequential round trips), which is fine against a handful of combos
+    but not against the thousands the library is meant to hold."""
+    counts: dict[uuid.UUID, int] = {av_id: 0 for av_id in attribute_value_ids}
+    if not attribute_value_ids:
+        return counts
+    for tbl in _VALUE_TABLES:
+        rows = await db.execute(
+            select(tbl.c.attribute_value_id, func.count())
+            .where(tbl.c.attribute_value_id.in_(attribute_value_ids))
+            .group_by(tbl.c.attribute_value_id)
+        )
+        for av_id, n in rows.all():
+            counts[av_id] = counts.get(av_id, 0) + n
+    return counts
+
+
 def _serialize(c: Combo, usage_count: int = 0) -> dict:
     d = {col.name: getattr(c, col.name) for col in c.__table__.columns}
     d["usage_count"] = usage_count
@@ -79,8 +98,11 @@ async def list_combos(
     q = q.order_by(Combo.code).offset((page - 1) * size).limit(size)
     combos = (await db.execute(q)).scalars().all()
 
+    av_ids = [c.attribute_value_id for c in combos if c.attribute_value_id is not None]
+    usage_map = await _usage_counts(db, av_ids)
+
     return {
-        "items": [_serialize(c, await _usage_count(db, c.attribute_value_id)) for c in combos],
+        "items": [_serialize(c, usage_map.get(c.attribute_value_id, 0)) for c in combos],
         "total": total,
         "page": page,
         "size": size,

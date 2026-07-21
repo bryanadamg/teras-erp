@@ -16,6 +16,13 @@ class ConnectionManager:
         self.pubsub: aioredis.client.PubSub | None = None
         self._listener_task: asyncio.Task | None = None
         self.channel_name = "terras_events"
+        self._invalidation_hooks: List[callable] = []
+
+    def register_invalidation_hook(self, fn: callable):
+        """Run fn(message) on every broadcast this instance receives (local or via
+        Redis), so a request-scoped in-process cache can drop itself when the data
+        it holds changed — without a dedicated pub/sub subscription per cache."""
+        self._invalidation_hooks.append(fn)
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -63,6 +70,11 @@ class ConnectionManager:
 
     async def _local_broadcast(self, message: dict):
         """Broadcasts to connections on THIS server instance."""
+        for fn in self._invalidation_hooks:
+            try:
+                fn(message)
+            except Exception:
+                pass
         for connection in self.active_connections:
             try:
                 await connection.send_json(message)
