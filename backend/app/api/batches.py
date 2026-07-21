@@ -283,7 +283,7 @@ async def list_batches_paginated(
         # Lots whose current stock sits at any of the given leaf locations.
         loc_keys = (
             select(StockBalance.batch_key)
-            .filter(StockBalance.location_id.in_(location_id), StockBalance.qty > 0)
+            .filter(StockBalance.location_id.in_(location_id), StockBalance.qty > 0, StockBalance.batch_key != "")
             .group_by(StockBalance.batch_key)
         )
         filters.append(cast(Batch.id, String).in_(loc_keys))
@@ -291,8 +291,13 @@ async def list_batches_paginated(
         # remaining = sum of StockBalance rows keyed by str(batch id). "active" =
         # any positive balance; "depleted" = no positive balance (summed <= 0 or
         # never had a balance row). batch_key is text, so cast Batch.id to match.
+        # Exclude batch_key="" (the vast majority of rows — all non-lot-tracked
+        # stock across the whole plant) up front, or this aggregate drags every
+        # unrelated stock row in the system into one giant group just to answer
+        # a question about the handful of real lots.
         active_keys = (
             select(StockBalance.batch_key)
+            .filter(StockBalance.batch_key != "")
             .group_by(StockBalance.batch_key)
             .having(func.sum(StockBalance.qty) > 0)
         )
