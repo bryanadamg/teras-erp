@@ -67,8 +67,13 @@ export default function ReportsView(_props: any) {
     // Filters
     const [search, setSearch] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
+    // Default to the trailing 30 days, not all-time — an unbounded ledger query
+    // scans the whole (ever-growing) stock_ledger history for its count/sum
+    // aggregates. "All time" is still one click away via the preset/clear button.
+    const [startDate, setStartDate] = useState(() => {
+        const s = new Date(); s.setDate(s.getDate() - 29); return fmtDate(s);
+    });
+    const [endDate, setEndDate] = useState(() => fmtDate(new Date()));
     const [locationFilter, setLocationFilter] = useState(''); // TreeSelect value: '' | 'wh:<id>' | 'loc:<id>'
     const [refTypeFilter, setRefTypeFilter] = useState('');
     const [direction, setDirection] = useState<'' | 'in' | 'out'>('');

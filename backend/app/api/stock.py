@@ -17,6 +17,7 @@ from app.models.goods_receipt import GoodsReceipt
 from app.models.purchase import PurchaseOrder
 from datetime import datetime
 from typing import Optional
+import time
 import uuid as _uuid
 
 # reference_types whose reference_id is a raw entity UUID (str(entity.id)) rather
@@ -24,6 +25,28 @@ import uuid as _uuid
 _WO_REF_TYPES = {"Staging", "Leftover Beam", "Beam Merge", "Work Order"}
 
 router = APIRouter()
+
+# reference_type vocabulary is a handful of fixed strings stamped by services when
+# they write ledger rows — it changes essentially never. Without caching, the ledger
+# page ran an unconditional (unfiltered by date/location/etc) DISTINCT scan over the
+# WHOLE stock_ledger table on every single load just to fill a filter dropdown; on a
+# prod DB with real history that's a full-table scan for a value that hasn't changed
+# since last request.
+_ref_types_cache: dict = {"value": None, "at": 0.0}
+_REF_TYPES_TTL_SECONDS = 300
+
+
+async def _get_reference_types(db: AsyncSession) -> list[str]:
+    now = time.monotonic()
+    if _ref_types_cache["value"] is not None and now - _ref_types_cache["at"] < _REF_TYPES_TTL_SECONDS:
+        return _ref_types_cache["value"]
+    from app.models.stock_ledger import StockLedger
+    result = sorted([
+        rt for rt in (await db.execute(select(StockLedger.reference_type).distinct())).scalars().all() if rt
+    ])
+    _ref_types_cache["value"] = result
+    _ref_types_cache["at"] = now
+    return result
 
 @router.get("/stock", response_model=PaginatedStockLedgerResponse)
 async def get_stock_ledger(
@@ -161,11 +184,7 @@ async def get_stock_ledger(
             "created_at": r.created_at,
         })
 
-    reference_types = sorted([
-        rt for rt in (await db.execute(
-            select(StockLedger.reference_type).distinct()
-        )).scalars().all() if rt
-    ])
+    reference_types = await _get_reference_types(db)
 
     return {
         "items": items,
