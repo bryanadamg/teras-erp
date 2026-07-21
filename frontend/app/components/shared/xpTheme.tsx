@@ -281,15 +281,25 @@ export const xpPanel = (extra: React.CSSProperties = {}): React.CSSProperties =>
     ...extra,
 });
 
+const MODAL_FOOTER_CLASSIC_TONES: Record<'success' | 'primary' | 'danger', React.CSSProperties> = {
+    success: { background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#8fe08f #0a3e0a #0a3e0a #8fe08f', color: '#fff' },
+    primary: { background: 'linear-gradient(to bottom, #6090e0, #2050c0)', borderColor: '#90b8f0 #102060 #102060 #90b8f0', color: '#fff' },
+    danger:  { background: 'linear-gradient(to bottom, #e08080, #c03030)', borderColor: '#f0b0b0 #801010 #801010 #f0b0b0', color: '#fff' },
+};
+
 // THE standard footer for create/edit modals (PR, MO, and similar full-form
-// modals): a muted link-style Cancel + a solid primary submit button. Classic
-// theme is handled by the global .btn-* CSS overrides — no manual branch
-// needed here. Don't hand-roll Cancel/Create buttons per modal.
+// modals): a muted Cancel + a solid bevel-gradient submit button. Classic
+// theme needs the same manual bevel branch as XPActionButton/ConfirmModal —
+// the global .btn-success/.btn-primary CSS override flattens color to plain
+// gray, which is why a Bootstrap-only button looks unstyled in Classic.
+// Don't hand-roll Cancel/Create buttons per modal — use this.
 export function ModalFooterActions({
+    classic,
     onCancel, cancelLabel = 'Cancel',
     onSubmit, submitLabel, submittingLabel = 'Saving...', submitting = false,
     variant = 'success', disabled = false,
 }: {
+    classic: boolean;
     onCancel: () => void;
     cancelLabel?: string;
     onSubmit: () => void;
@@ -299,6 +309,36 @@ export function ModalFooterActions({
     variant?: 'success' | 'primary' | 'danger';
     disabled?: boolean;
 }) {
+    if (classic) {
+        const tone = MODAL_FOOTER_CLASSIC_TONES[variant];
+        return (
+            <>
+                <button
+                    type="button"
+                    onClick={onCancel}
+                    style={{
+                        fontFamily: xpFont, fontSize: 11, padding: '3px 16px', cursor: 'pointer',
+                        borderRadius: 0, border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
+                        background: 'linear-gradient(to bottom, #fff, #d4d0c8)', color: '#000',
+                    }}
+                >
+                    {cancelLabel}
+                </button>
+                <button
+                    type="button"
+                    onClick={onSubmit}
+                    disabled={submitting || disabled}
+                    style={{
+                        fontFamily: xpFont, fontSize: 11, fontWeight: 'bold', padding: '3px 20px', cursor: submitting || disabled ? 'default' : 'pointer',
+                        borderRadius: 0, border: '1px solid', opacity: submitting || disabled ? 0.6 : 1,
+                        ...tone,
+                    }}
+                >
+                    {(submitting ? submittingLabel : submitLabel).toUpperCase()}
+                </button>
+            </>
+        );
+    }
     return (
         <>
             <button type="button" className="btn btn-sm btn-link text-muted text-decoration-none" onClick={onCancel}>

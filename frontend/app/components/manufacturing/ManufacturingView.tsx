@@ -291,8 +291,8 @@ export default function ManufacturingView({
       setNewWO({...newWO, bom_id: bomId, code: suggestedCode});
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-      e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+      e?.preventDefault();
       if (isSubmitting) return;
       if (!newWO.bom_id) { showToast('Select a product recipe (BOM).', 'danger'); return; }
       if (!newWO.code) { showToast('Enter an MO code.', 'danger'); return; }
@@ -347,9 +347,10 @@ export default function ManufacturingView({
               size="xxl"
               footer={
                   <ModalFooterActions
+                      classic={classic}
                       onCancel={() => setIsCreateOpen(false)}
                       cancelLabel={t('cancel')}
-                      onSubmit={handleSubmit}
+                      onSubmit={() => handleSubmit()}
                       submitting={isSubmitting}
                       submitLabel="CREATE MANUFACTURING ORDER"
                       submittingLabel="Creating..."
