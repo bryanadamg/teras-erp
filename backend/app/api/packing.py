@@ -23,8 +23,13 @@ router = APIRouter(prefix="/packing", tags=["packing"])
 # --- helpers ---------------------------------------------------------------
 
 def _load_options():
+    # sales_order is loaded plain (no .lines) — _decorate() only reads po_number/
+    # customer_name, both columns on SalesOrder itself. dispatch_packing_order is
+    # the one place that needs sales_order.lines, and it already runs its own
+    # dedicated query for it; loading it here on every list/detail fetch was two
+    # pure-waste queries that scale with SO line count for zero benefit.
     return (
-        selectinload(PackingOrder.sales_order).selectinload(SalesOrder.lines),
+        selectinload(PackingOrder.sales_order),
         selectinload(PackingOrder.lines).selectinload(PackingLine.item),
         selectinload(PackingOrder.lines).selectinload(PackingLine.batch),
         selectinload(PackingOrder.packages).selectinload(PackingPackage.contents),
