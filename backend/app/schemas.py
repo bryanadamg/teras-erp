@@ -830,6 +830,113 @@ class WorkOrderMarkPrintedBulk(BaseModel):
 # Resolve forward references now that all referenced schemas are defined
 ManufacturingOrderResponse.update_forward_refs()
 
+
+# ── Slimmed Production-Run LIST schemas ───────────────────────────────────────
+# Returned by GET /production-runs instead of the full ProductionRunResponse.
+# They drop the two heaviest, list-unused parts of the embedded MO tree: each MO's
+# deep BOM sub-tree (bom.lines + line items + line attrs + operations + sizes) and
+# planned_components. An audit of every consumer of the shared `productionRuns`
+# state confirmed nothing reads those off list MOs — the SO-page PR-dedup and the
+# MO-page shared-component tree read only scalars + the shallow relations retained
+# below. `bom` is omitted from the MO item so the loader can skip the per-MO BOM
+# fan-out entirely (Pydantic would otherwise lazy-load it and raise MissingGreenlet).
+class ManufacturingOrderListItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    code: str
+    bom_id: UUID
+    item_id: UUID
+    item_code: str | None = None
+    item_name: str | None = None
+    item_ends: int | None = None
+    sales_order_id: UUID | None = None
+    sales_order_code: str | None = None
+    parent_mo_id: UUID | None = None
+    production_run_id: UUID | None = None
+    bom_size_id: UUID | None = None
+    bom_size_snapshot: dict | None = None
+    is_shared_component: bool = False
+    attribute_value_ids: list[UUID] = []
+    color_id: UUID | None = None
+    color_code: str | None = None
+    color_name: str | None = None
+    labdip_variant_code: str | None = None
+    labdip_status: str | None = None
+    location_id: UUID | None = None
+    source_location_id: UUID | None = None
+    planned_putaway_location_id: UUID | None = None
+    planned_putaway_location_name: str | None = None
+    qty: float
+    status: str
+    target_start_date: datetime | None
+    target_end_date: datetime | None
+    actual_start_date: datetime | None
+    actual_end_date: datetime | None
+    created_at: datetime
+    is_material_available: bool = True
+    qty_completed_total: float = 0.0
+    required_mo_ids: list[UUID] = []
+    # `bom` intentionally omitted (see class docstring above).
+    child_mos: list['ManufacturingOrderListItem'] = []
+    work_orders: list['WorkOrderResponse'] = []
+    batch_trace: list[BatchConsumptionInMO] = []
+    completions: list[MOCompletionResponse] = []
+
+ManufacturingOrderListItem.update_forward_refs()
+
+
+class PRListBomRef(BaseModel):
+    """Shallow BOM reference for the PR list — code + item identity only. `item_code`
+    / `item_name` are BOM properties over `self.item`, so the loader must eager-load
+    BOM.item; no bom.lines / operations / sizes are pulled."""
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    code: str
+    item_code: str | None = None
+    item_name: str | None = None
+
+
+class PRListEntryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    bom_id: UUID
+    total_qty: float | None = None
+    attribute_value_ids: list[UUID] = []
+    color_id: UUID | None = None
+    labdip_variant_code: str | None = None
+    force_create: bool = False
+    bom: Optional[PRListBomRef] = None
+    # `sizes` and the deep `bom` tree intentionally omitted (unused by list consumers).
+
+
+class ProductionRunListItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    code: str
+    bom_id: UUID | None = None
+    sales_order_id: UUID | None = None
+    sales_order_code: str | None = None
+    location_id: UUID | None = None
+    source_location_id: UUID | None = None
+    status: str
+    notes: str | None = None
+    target_start_date: datetime | None = None
+    target_end_date: datetime | None = None
+    actual_start_date: datetime | None = None
+    actual_end_date: datetime | None = None
+    created_at: datetime
+    bom: Optional[PRListBomRef] = None
+    bom_entries: list[PRListEntryResponse] = []
+    manufacturing_orders: list[ManufacturingOrderListItem] = []
+
+
+class PaginatedProductionRunListResponse(BaseModel):
+    items: list[ProductionRunListItem]
+    total: int
+    page: int
+    size: int
+
+
 class ItemCreate(BaseModel):
     code: str
     name: str

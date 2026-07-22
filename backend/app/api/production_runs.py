@@ -12,7 +12,8 @@ from app.models.location import Location
 from app.models.batch import BatchConsumption
 from app.schemas import (
     ProductionRunCreate, ProductionRunResponse,
-    PaginatedProductionRunResponse, ManufacturingOrderCreate,
+    PaginatedProductionRunResponse, PaginatedProductionRunListResponse,
+    ManufacturingOrderCreate,
     PRMaterialRequirementItem, PRMOContribution,
     ProductionRunPreviewRequest, NettingPreviewNode,
 )
@@ -96,6 +97,36 @@ def _pr_load_options():
     ]
 
 
+def _pr_list_load_options():
+    """Eager-load set for the Production Runs LIST view (serialized via
+    ProductionRunListItem). Identical to _pr_load_options for the MO branch EXCEPT
+    it omits the two heaviest, list-unused pieces: each MO's deep BOM sub-tree
+    (bom.item/customer/work_center/lines/lines.item/lines.attribute_values/
+    operations/sizes) and planned_components. The BOM/entry BOMs are loaded shallow
+    (item only) — enough for the code/item_name/item_code the list renders — instead
+    of the full nested tree. Everything the SO-page PR-dedup and the MO-page
+    shared-component tree read (work_orders, completions, child_mos,
+    required_dependencies, batch_consumptions, item, attribute_values, all scalars)
+    is retained."""
+    mos = selectinload(ProductionRun.manufacturing_orders)
+    return [
+        joinedload(ProductionRun.sales_order),
+        # Legacy single-bom fallback + multi-bom entries — shallow (item only)
+        joinedload(ProductionRun.bom).joinedload(BOM.item),
+        selectinload(ProductionRun.bom_entries).joinedload(PRBomEntry.bom).joinedload(BOM.item),
+        # MO branch: everything except the deep bom tree + planned_components
+        mos.selectinload(ManufacturingOrder.item),
+        mos.selectinload(ManufacturingOrder.attribute_values),
+        mos.selectinload(ManufacturingOrder.child_mos),
+        mos.selectinload(ManufacturingOrder.required_dependencies),
+        mos.selectinload(ManufacturingOrder.completions),
+        mos.selectinload(ManufacturingOrder.batch_consumptions).selectinload(BatchConsumption.input_batch),
+        mos.selectinload(ManufacturingOrder.batch_consumptions).selectinload(BatchConsumption.output_batch),
+        mos.selectinload(ManufacturingOrder.work_orders).selectinload(WorkOrderModel.work_center),
+        mos.selectinload(ManufacturingOrder.work_orders).selectinload(WorkOrderModel.completions),
+    ]
+
+
 def _pr_material_req_load_options():
     """Minimal eager-load set for the /material-requirements endpoint. Called once
     per visible PR row on the Production Runs page, so it must stay lean. Loads ONLY
@@ -135,7 +166,7 @@ async def get_available_pr_code(
             return {"code": code}
         counter += 1
 
-@router.get("/production-runs", response_model=PaginatedProductionRunResponse)
+@router.get("/production-runs", response_model=PaginatedProductionRunListResponse)
 async def list_production_runs(
     skip: int = 0,
     limit: int = 50,
@@ -172,7 +203,7 @@ async def list_production_runs(
     count_query = select(func.count()).select_from(ProductionRun)
     list_query = (
         select(ProductionRun)
-        .options(*_pr_load_options())
+        .options(*_pr_list_load_options())
         .order_by(ProductionRun.created_at.desc())
     )
     if conditions:
