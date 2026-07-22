@@ -132,6 +132,12 @@ export default function ProductionRunsTab({
                 <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
                     <table style={{
                         width: '100%', borderCollapse: 'collapse',
+                        // Fixed layout: column widths come from the header row only, so an
+                        // expanded colSpan detail row (MO chips + nested material table) can
+                        // never widen the columns. Prevents the width flash on expand/collapse
+                        // when a PR has many linked MOs. BOM/Style has no width -> it flexes to
+                        // absorb the remaining space.
+                        tableLayout: 'fixed',
                         fontFamily: classic ? 'Tahoma, Arial, sans-serif' : undefined,
                         fontSize: classic ? '11px' : undefined,
                         background: classic ? '#fff' : undefined,
@@ -141,15 +147,28 @@ export default function ProductionRunsTab({
                                 background: classic ? 'linear-gradient(to bottom,#fff 0%,#d4d0c8 100%)' : undefined,
                                 fontSize: classic ? '10px' : '9pt',
                             }} className={classic ? '' : 'table-light'}>
-                                {['', 'Code', 'BOM / Style', 'MOs', 'Progress', 'Status', 'Materials', 'Due Date', 'Actions'].map((h, i) => (
-                                    <th key={h || `col-${i}`} style={{
-                                        border: classic ? '1px solid #808080' : undefined,
-                                        padding: classic ? '3px 8px' : undefined,
-                                        color: '#000', fontWeight: 'bold', whiteSpace: 'nowrap',
-                                        textAlign: h === 'Actions' ? 'right' : 'left',
-                                        width: h === '' ? '22px' : undefined,
-                                    }}>{h}</th>
-                                ))}
+                                {(() => {
+                                    const colWidths: Record<string, string | undefined> = {
+                                        '': '22px',
+                                        'Code': '210px',
+                                        'BOM / Style': undefined, // flexes
+                                        'MOs': '48px',
+                                        'Progress': '150px',
+                                        'Status': '92px',
+                                        'Materials': '130px',
+                                        'Due Date': '92px',
+                                        'Actions': '104px',
+                                    };
+                                    return ['', 'Code', 'BOM / Style', 'MOs', 'Progress', 'Status', 'Materials', 'Due Date', 'Actions'].map((h, i) => (
+                                        <th key={h || `col-${i}`} style={{
+                                            border: classic ? '1px solid #808080' : undefined,
+                                            padding: classic ? '3px 8px' : undefined,
+                                            color: '#000', fontWeight: 'bold', whiteSpace: 'nowrap',
+                                            textAlign: h === 'Actions' ? 'right' : 'left',
+                                            width: colWidths[h],
+                                        }}>{h}</th>
+                                    ));
+                                })()}
                             </tr>
                         </thead>
                         <tbody>
