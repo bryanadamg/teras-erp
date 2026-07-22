@@ -16,6 +16,7 @@ from app.schemas import (
     ManufacturingOrderCreate,
     PRMaterialRequirementItem, PRMOContribution,
     ProductionRunPreviewRequest, NettingPreviewNode,
+    PRMaterialStatusRequest, PRMaterialStatusItem,
 )
 from app.models.production_run import PRBomEntry, PRBomEntrySize
 from app.models.item import Item
@@ -359,6 +360,84 @@ async def get_production_run_material_requirements(
         r.item_code,
     ))
     return results
+
+
+@router.post("/production-runs/material-status", response_model=list[PRMaterialStatusItem])
+async def get_production_runs_material_status(
+    payload: PRMaterialStatusRequest,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Lightweight per-PR material summary (component counts + how many are short)
+    for the Production Runs LIST 'Materials' column. Replaces the old per-row
+    /material-requirements fan-out (one heavy call per visible row) with ONE batched
+    call: components netted in a single pass, on-hand summed in a single StockBalance
+    query. Netting math MUST stay in sync with get_production_run_material_requirements
+    above — same required/tolerance formula, same plant-wide on-hand match — so the
+    column counts match the expand-row detail exactly."""
+    if not payload.pr_ids:
+        return []
+
+    result = await db.execute(
+        select(ProductionRun)
+        .options(
+            selectinload(ProductionRun.manufacturing_orders).selectinload(ManufacturingOrder.planned_components),
+            selectinload(ProductionRun.manufacturing_orders).selectinload(ManufacturingOrder.bom),
+        )
+        .filter(ProductionRun.id.in_([str(i) for i in payload.pr_ids]))
+    )
+    prs = result.unique().scalars().all()
+
+    # Per-PR aggregate: key = (item_id, attr_key) -> total_required (mirrors the
+    # single-PR endpoint's `agg`). Collect all item_ids for one batched on-hand query.
+    per_pr_agg: dict[str, dict[tuple, float]] = {}
+    all_item_ids: set = set()
+    for pr in prs:
+        agg: dict[tuple, float] = defaultdict(float)
+        for mo in pr.manufacturing_orders:
+            tol = float(mo.bom.tolerance_percentage or 0) if mo.bom else 0
+            for comp in mo.planned_components:
+                if not comp.percentage and not comp.qty:
+                    continue
+                req = (float(mo.qty) * float(comp.percentage)) / 100 if comp.percentage else float(mo.qty) * float(comp.qty)
+                if tol > 0:
+                    req *= (1 + tol / 100)
+                attr_key = ",".join(sorted(comp.attribute_value_ids))
+                agg[(str(comp.item_id), attr_key)] += req
+                all_item_ids.add(comp.item_id)
+        per_pr_agg[str(pr.id)] = agg
+
+    # Plant-wide on-hand, one query for every item across every requested PR.
+    onhand_map: dict[tuple, float] = {}
+    onhand_by_item: dict[str, float] = defaultdict(float)
+    item_map: dict[str, Item] = {}
+    if all_item_ids:
+        for iid, vk, q in (await db.execute(
+            select(StockBalance.item_id, StockBalance.variant_key, func.sum(StockBalance.qty))
+            .where(StockBalance.item_id.in_(all_item_ids))
+            .group_by(StockBalance.item_id, StockBalance.variant_key)
+        )).all():
+            onhand_map[(str(iid), vk or "")] = float(q or 0)
+            onhand_by_item[str(iid)] += float(q or 0)
+        item_result = await db.execute(select(Item).filter(Item.id.in_(all_item_ids)))
+        item_map = {str(i.id): i for i in item_result.scalars().all()}
+
+    out: list[PRMaterialStatusItem] = []
+    for pr_id, agg in per_pr_agg.items():
+        short = suff = 0
+        for (item_id_str, attr_key), total in agg.items():
+            item = item_map.get(item_id_str)
+            is_batch_identity = bool(item and (item.lot_tracked or (item.category and (item.category.name or "").lower() == "beam")))
+            available = onhand_by_item.get(item_id_str, 0.0) if is_batch_identity else onhand_map.get((item_id_str, attr_key), 0.0)
+            if total - available > 0:
+                short += 1
+            else:
+                suff += 1
+        out.append(PRMaterialStatusItem(
+            pr_id=UUID(pr_id), total_count=short + suff,
+            shortfall_count=short, sufficient_count=suff,
+        ))
+    return out
 
 
 @router.post("/production-runs/preview", response_model=list[NettingPreviewNode])

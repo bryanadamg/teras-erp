@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import ManufacturingSearchBar from './ManufacturingSearchBar';
@@ -32,6 +32,11 @@ export default function ProductionRunsTab({
     const [expandedPRs, setExpandedPRs] = useState<Record<string, boolean>>({});
     const [prMaterialReqs, setPrMaterialReqs] = useState<Record<string, any[]>>({});
     const [prMaterialReqsLoading, setPrMaterialReqsLoading] = useState<Record<string, boolean>>({});
+    // Lightweight per-PR material summary (component counts + shortfall count) for the
+    // Materials column. Fetched for ALL visible rows in ONE batched call, so the column
+    // stays populated up front without the old per-row /material-requirements fan-out.
+    const [prMaterialStatus, setPrMaterialStatus] = useState<Record<string, { total_count: number; shortfall_count: number; sufficient_count: number }>>({});
+    const [prStatusLoading, setPrStatusLoading] = useState(false);
     const [printPreviewPR, setPrintPreviewPR] = useState<any>(null);
     const { openId: openPrMenuId, pos: prMenuPos, toggle: togglePrMenu, close: closePrMenu } = useFloatingMenu();
 
@@ -59,12 +64,39 @@ export default function ProductionRunsTab({
         });
     };
 
-    // Material requirements are fetched lazily — only when a PR row is expanded
-    // (togglePR) or printed (handlePrintPR). The old eager loop fired one
+    // One batched call for the Materials column of every visible PR (replaces the
+    // old per-row storm). Full material rows are still fetched lazily on expand/print.
+    useEffect(() => {
+        const ids = (productionRuns || []).map((pr: any) => pr.id);
+        if (ids.length === 0) { setPrMaterialStatus({}); return; }
+        let cancelled = false;
+        (async () => {
+            setPrStatusLoading(true);
+            try {
+                const res = await authFetch(`${API_BASE}/production-runs/material-status`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pr_ids: ids }),
+                });
+                if (res.ok && !cancelled) {
+                    const data = await res.json();
+                    const map: Record<string, any> = {};
+                    for (const s of (data || [])) map[String(s.pr_id)] = s;
+                    setPrMaterialStatus(map);
+                }
+            } finally {
+                if (!cancelled) setPrStatusLoading(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [productionRuns]);
+
+    // Full material requirement ROWS are fetched lazily — only when a PR row is
+    // expanded (togglePR) or printed (handlePrintPR). The old eager loop fired one
     // /material-requirements call per visible row on mount (up to `pageSize`
     // concurrent heavy queries), which dominated PR-page load on the low-power
-    // backend. The Materials-status column shows a neutral "not checked" dash
-    // until the row is expanded.
+    // backend. The Materials column's shortfall/sufficient COUNTS come from the
+    // single batched /material-status call above instead.
 
     const handlePrintPR = (pr: any) => {
         if (!prMaterialReqs[pr.id] && !prMaterialReqsLoading[pr.id]) fetchPRMaterialRequirements(pr.id);
@@ -134,11 +166,14 @@ export default function ProductionRunsTab({
                                 } : {};
                                 const isExpanded = !!expandedPRs[pr.id];
                                 const reqs: any[] = prMaterialReqs[pr.id] || [];
-                                const loaded = prMaterialReqs[pr.id] !== undefined;
                                 const isLoading = !!prMaterialReqsLoading[pr.id];
-                                const hasShortfall = reqs.some((r: any) => r.shortfall > 0);
-                                const shortfallCount = reqs.filter((r: any) => r.shortfall > 0).length;
-                                const sufficientCount = reqs.length - shortfallCount;
+                                // Materials column is driven by the batched summary; the
+                                // full `reqs` (loaded on expand) only powers the detail panel.
+                                const mstat = prMaterialStatus[pr.id];
+                                const statusShort = mstat?.shortfall_count ?? 0;
+                                const statusSuff = mstat?.sufficient_count ?? 0;
+                                const statusTotal = mstat?.total_count ?? 0;
+                                const hasShortfall = mstat ? statusShort > 0 : reqs.some((r: any) => r.shortfall > 0);
                                 return (
                                     <React.Fragment key={pr.id}>
                                     <tr style={{ background: rowBg, cursor: 'pointer' }} onClick={() => togglePR(pr.id)} title="Material Requirements">
@@ -193,22 +228,22 @@ export default function ProductionRunsTab({
                                                 <span className={`badge ${getStatusBadge(pr.status)} extra-small`}>{pr.status}</span>
                                             )}
                                         </td>
-                                        <td style={{ ...tdStyle, textAlign: 'center' }} title={isLoading ? 'Loading material requirements...' : !loaded ? 'Expand row to check materials' : reqs.length === 0 ? 'No components' : `${shortfallCount} short / ${sufficientCount} sufficient`}>
-                                            {isLoading ? (
+                                        <td style={{ ...tdStyle, textAlign: 'center' }} title={!mstat && prStatusLoading ? 'Loading material status...' : !mstat ? 'Material status unavailable' : statusTotal === 0 ? 'No components' : `${statusShort} short / ${statusSuff} sufficient`}>
+                                            {!mstat && prStatusLoading ? (
                                                 <span style={{ fontSize: 10, color: '#999' }}>…</span>
-                                            ) : !loaded ? (
+                                            ) : !mstat ? (
                                                 <span style={{ fontSize: 10, color: '#bbb' }}>·</span>
-                                            ) : reqs.length === 0 ? (
+                                            ) : statusTotal === 0 ? (
                                                 <span style={{ fontSize: 10, color: '#999' }}>—</span>
                                             ) : (
                                                 <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center' }}>
-                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 'bold', minWidth: 18, color: shortfallCount > 0 ? '#c00000' : '#ccc', opacity: shortfallCount > 0 ? 1 : 0.5 }}>
-                                                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: shortfallCount > 0 ? '#c00000' : '#ccc', display: 'inline-block' }} />
-                                                        {shortfallCount}
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 'bold', minWidth: 18, color: statusShort > 0 ? '#c00000' : '#ccc', opacity: statusShort > 0 ? 1 : 0.5 }}>
+                                                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: statusShort > 0 ? '#c00000' : '#ccc', display: 'inline-block' }} />
+                                                        {statusShort}
                                                     </span>
-                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 'bold', minWidth: 18, color: sufficientCount > 0 ? '#2d7a2d' : '#ccc', opacity: sufficientCount > 0 ? 1 : 0.5 }}>
-                                                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: sufficientCount > 0 ? '#2d7a2d' : '#ccc', display: 'inline-block' }} />
-                                                        {sufficientCount}
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 'bold', minWidth: 18, color: statusSuff > 0 ? '#2d7a2d' : '#ccc', opacity: statusSuff > 0 ? 1 : 0.5 }}>
+                                                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: statusSuff > 0 ? '#2d7a2d' : '#ccc', display: 'inline-block' }} />
+                                                        {statusSuff}
                                                     </span>
                                                 </div>
                                             )}

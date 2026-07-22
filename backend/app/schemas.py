@@ -937,6 +937,17 @@ class PaginatedProductionRunListResponse(BaseModel):
     size: int
 
 
+class PRMaterialStatusRequest(BaseModel):
+    pr_ids: list[UUID] = []
+
+
+class PRMaterialStatusItem(BaseModel):
+    pr_id: UUID
+    total_count: int = 0
+    shortfall_count: int = 0
+    sufficient_count: int = 0
+
+
 class ItemCreate(BaseModel):
     code: str
     name: str
