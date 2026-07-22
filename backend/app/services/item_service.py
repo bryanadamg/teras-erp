@@ -11,7 +11,13 @@ from app.models.uom import UOMFactor
 
 
 def _source_opts():
-    return [joinedload(Item.source_sample), joinedload(Item.source_color)]
+    # category chain eager-loaded 2 parent levels deep so Category.path_names
+    # (touches self.parent.parent) never triggers a lazy load in async routes
+    return [
+        joinedload(Item.source_sample),
+        joinedload(Item.source_color),
+        joinedload(Item.category).joinedload(Category.parent).joinedload(Category.parent),
+    ]
 
 
 async def get_descendant_category_ids(db: AsyncSession, category_id: uuid.UUID) -> list[uuid.UUID]:
