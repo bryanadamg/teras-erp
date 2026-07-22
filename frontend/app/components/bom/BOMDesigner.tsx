@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, memo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import CodeConfigModal, { CodeConfig, buildCodeWithCounter } from '../shared/CodeConfigModal';
 import BOMAutomatorModal from './BOMAutomatorModal';
@@ -402,18 +402,34 @@ export default function BOMDesigner({
         }
     }, [rootItemCode]);
 
+    // Precomputed lookups so per-row helpers are O(1) map hits instead of a linear
+    // items.find / existingBOMs.filter on every call (each runs many times/render).
+    const itemByCode = useMemo(() => {
+        const m = new Map<string, any>();
+        for (const i of items) m.set((i.code || '').trim().toLowerCase(), i);
+        return m;
+    }, [items]);
+    const existingBomsByItemId = useMemo(() => {
+        const m = new Map<string, any[]>();
+        for (const b of existingBOMs) {
+            const arr = m.get(b.item_id) || [];
+            arr.push(b); m.set(b.item_id, arr);
+        }
+        return m;
+    }, [existingBOMs]);
+
     const getItemName = useCallback((code: string) =>
-        items.find((i: any) => (i.code || '').trim().toLowerCase() === (code || '').trim().toLowerCase())?.name || code,
-    [items]);
+        itemByCode.get((code || '').trim().toLowerCase())?.name || code,
+    [itemByCode]);
 
     const getItemUom = useCallback((code: string) =>
-        items.find((i: any) => (i.code || '').trim().toLowerCase() === (code || '').trim().toLowerCase())?.uom || '',
-    [items]);
+        itemByCode.get((code || '').trim().toLowerCase())?.uom || '',
+    [itemByCode]);
 
     // Beam finished items: BOM "Batch Size" (qty) is repurposed as the warp-ends (utas) count.
     const getItemByCode = useCallback((code: string) =>
-        items.find((i: any) => (i.code || '').trim().toLowerCase() === (code || '').trim().toLowerCase()),
-    [items]);
+        itemByCode.get((code || '').trim().toLowerCase()),
+    [itemByCode]);
     const isBeamCode = useCallback((code: string) => {
         const it = getItemByCode(code);
         return !!it && (((it.category_path || []).some((c: string) => (c || '').toLowerCase() === 'beam')) || it.ends != null);
@@ -432,9 +448,9 @@ export default function BOMDesigner({
     [isBeamCode, isBeamWc]);
 
     const hasExistingBOM = useCallback((code: string, attributeValueIds: string[] = []): boolean => {
-        const item = items.find((i: any) => (i.code || '').trim().toLowerCase() === (code || '').trim().toLowerCase());
+        const item = itemByCode.get((code || '').trim().toLowerCase());
         if (!item) return false;
-        const candidates = existingBOMs.filter((b: any) => b.item_id === item.id);
+        const candidates = existingBomsByItemId.get(item.id) || [];
         if (candidates.length === 0) return false;
         const sortedAttrs = [...attributeValueIds].sort();
         const exactMatch = candidates.some((b: any) => {
@@ -443,7 +459,7 @@ export default function BOMDesigner({
         });
         if (exactMatch) return true;
         return candidates.some((b: any) => (b.attribute_value_ids || []).length === 0);
-    }, [items, existingBOMs]);
+    }, [itemByCode, existingBomsByItemId]);
 
     const getWcName = (id: string) => workCenters.find((wc: any) => wc.id === id)?.name || id;
 
@@ -702,11 +718,29 @@ export default function BOMDesigner({
         updateSelectedNode({ sizes: newSizes });
     };
 
-    const selectedNode = findNodeById(rootBOM, selectedNodeId);
+    // Memoized so the tree walks run once per data change, not on every render
+    // (both were re-walking the whole tree each keystroke).
+    const selectedNode = useMemo(() => findNodeById(rootBOM, selectedNodeId), [rootBOM, selectedNodeId]);
 
     // Count nodes
     const countNodes = (node: BOMNodeData): number =>
         1 + node.lines.reduce((sum, l) => sum + (l.subBOM ? countNodes(l.subBOM) : 0), 0);
+    const nodeCount = useMemo(() => countNodes(rootBOM), [rootBOM]);
+
+    // Attributes shown for the selected node (its item's, else root item's). Computed
+    // once instead of two items.find scans inside a filter run twice per render.
+    const visibleAttributes = useMemo(() => {
+        const itm = itemByCode.get((selectedNode?.item_code || '').trim().toLowerCase());
+        const rootItm = itemByCode.get((rootBOM.item_code || '').trim().toLowerCase());
+        const allowed = itm?.attribute_ids || rootItm?.attribute_ids || [];
+        return attributes.filter((a: any) => allowed.includes(a.id));
+    }, [attributes, itemByCode, selectedNode?.item_code, rootBOM.item_code]);
+
+    // Selected node's routing steps, sorted once (was re-sorted twice per render).
+    const sortedOps = useMemo(
+        () => [...(selectedNode?.operations || [])].sort((a: any, b: any) => a.sequence - b.sequence),
+        [selectedNode?.operations],
+    );
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '80vh', fontFamily: xpFont, fontSize: 11, background: '#ece9d8' }}>
@@ -743,7 +777,7 @@ export default function BOMDesigner({
                             background: 'rgba(255,255,255,0.2)', color: 'white',
                             fontSize: 9, padding: '0 5px', borderRadius: 2,
                         }}>
-                            {countNodes(rootBOM)} nodes
+                            {nodeCount} nodes
                         </span>
                     </div>
 
@@ -888,17 +922,9 @@ export default function BOMDesigner({
                                     </div>
 
                                     {/* Attributes row */}
-                                    {attributes.filter((a: any) => {
-                                        const itm = items.find((i: any) => (i.code || '').trim().toLowerCase() === (selectedNode.item_code || '').trim().toLowerCase());
-                                        const rootItm = items.find((i: any) => (i.code || '').trim().toLowerCase() === (rootBOM.item_code || '').trim().toLowerCase());
-                                        return (itm?.attribute_ids || rootItm?.attribute_ids || []).includes(a.id);
-                                    }).length > 0 && (
+                                    {visibleAttributes.length > 0 && (
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                            {attributes.filter((a: any) => {
-                                                const itm = items.find((i: any) => (i.code || '').trim().toLowerCase() === (selectedNode.item_code || '').trim().toLowerCase());
-                                                const rootItm = items.find((i: any) => (i.code || '').trim().toLowerCase() === (rootBOM.item_code || '').trim().toLowerCase());
-                                                return (itm?.attribute_ids || rootItm?.attribute_ids || []).includes(a.id);
-                                            }).map((attr: any) => (
+                                            {visibleAttributes.map((attr: any) => (
                                                 <div key={attr.id} style={{ minWidth: 130 }}>
                                                     <label style={{ ...xpLabel, fontSize: 10, color: '#555' }}>{attr.name}</label>
                                                     <select
@@ -1506,7 +1532,7 @@ export default function BOMDesigner({
                                                                 }}
                                                             >
                                                                 <option value="">Any step</option>
-                                                                {[...selectedNode.operations].sort((a: any, b: any) => a.sequence - b.sequence).map((op: any) => {
+                                                                {sortedOps.map((op: any) => {
                                                                     const wc = workCenters?.find((w: any) => w.id === op.work_center_id);
                                                                     return (
                                                                         <option key={op._key} value={String(op.sequence)}>
@@ -1600,7 +1626,7 @@ export default function BOMDesigner({
                                                 {selectedNode.operations.length === 0 && (
                                                     <div style={{ padding: '4px 6px', fontSize: 10, color: '#888', fontStyle: 'italic' }}>No routing steps.</div>
                                                 )}
-                                                {[...selectedNode.operations].sort((a: any, b: any) => a.sequence - b.sequence).map((op: any, i: number) => {
+                                                {sortedOps.map((op: any, i: number) => {
                                                     const wc = workCenters?.find((w: any) => w.id === op.work_center_id);
                                                     const opType = operations?.find((o: any) => o.id === op.operation_id);
                                                     return (

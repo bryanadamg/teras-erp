@@ -53,6 +53,23 @@ async def _sync_beam_ends(db: AsyncSession, bom: BOM) -> None:
         await db.commit()
 
 
+async def _resolve_line_refs(db: AsyncSession, lines: list) -> tuple[dict, dict]:
+    """Bulk-resolve material items (by code) and source locations (by code) for a
+    set of BOM lines in one query each, returning code→row maps. Avoids the per-line
+    N+1 that a 50-line BOM otherwise incurs on create/update."""
+    codes = {l.item_code for l in lines if l.item_code}
+    loc_codes = {l.source_location_code for l in lines if getattr(l, "source_location_code", None)}
+    material_map: dict = {}
+    if codes:
+        rows = await db.execute(select(Item).filter(Item.code.in_(codes)))
+        material_map = {m.code: m for m in rows.scalars().all()}
+    location_map: dict = {}
+    if loc_codes:
+        rows = await db.execute(select(Location).filter(Location.code.in_(loc_codes)))
+        location_map = {loc.code: loc for loc in rows.scalars().all()}
+    return material_map, location_map
+
+
 def _validate_line_percentages(lines: list) -> None:
     if not lines:
         return
@@ -172,9 +189,11 @@ async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db
     await db.flush()
 
     # 6. Create BOM Lines
+    # Bulk-resolve all material items + source locations up front (one query each)
+    # instead of a SELECT per line — a 50-line BOM was 50+ sequential round-trips.
+    material_map, location_map = await _resolve_line_refs(db, payload.lines)
     for line in payload.lines:
-        result = await db.execute(select(Item).filter(Item.code == line.item_code))
-        material = result.scalars().first()
+        material = material_map.get(line.item_code)
         if not material:
             raise HTTPException(status_code=404, detail=f"Material item '{line.item_code}' not found")
 
@@ -189,8 +208,7 @@ async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db
         )
 
         if line.source_location_code:
-            result = await db.execute(select(Location).filter(Location.code == line.source_location_code))
-            loc = result.scalars().first()
+            loc = location_map.get(line.source_location_code)
             if not loc:
                 raise HTTPException(status_code=404, detail=f"Source Location '{line.source_location_code}' not found")
             bom_line.source_location_id = loc.id
@@ -348,8 +366,13 @@ async def get_boms_summary(
     for bid, cnt in rows.all():
         op_counts[bid] = cnt
 
-    # Compute is_root: item_id not used as a component in any BOM line
-    component_rows = await db.execute(select(BOMLine.item_id).distinct())
+    # Compute is_root: item_id not used as a component in any BOM line. Scope the
+    # scan to just this page's produced items (was pulling EVERY component item_id
+    # in the DB on every page request).
+    page_item_ids = {b.item_id for b in boms}
+    component_rows = await db.execute(
+        select(BOMLine.item_id).distinct().where(BOMLine.item_id.in_(page_item_ids))
+    )
     component_item_ids = {r[0] for r in component_rows.all()}
 
     for b in boms:
@@ -381,18 +404,25 @@ async def _load_bom_subtree(bom_id: str, db: AsyncSession, visited: set) -> any:
     if not bom:
         return None
     bom.attribute_value_ids = [v.id for v in bom.attribute_values]
-    for bl in bom.lines:
-        bl.attribute_value_ids = [v.id for v in bl.attribute_values]
-        # Candidates eager-load attribute_values up front (one query) instead of
-        # re-querying each candidate individually just to compare its attributes —
-        # was O(candidates) extra round-trips per line, recursively down the tree.
-        sub_result = await db.execute(
+
+    # Bulk-load ALL sub-BOM candidates for this node's lines in ONE query (grouped
+    # by produced item_id), instead of a candidate SELECT per line. Was O(lines)
+    # round-trips per node, recursively down the whole tree.
+    line_item_ids = {bl.item_id for bl in bom.lines}
+    candidates_by_item: dict = {}
+    if line_item_ids:
+        cand_result = await db.execute(
             select(BOM)
             .options(selectinload(BOM.attribute_values))
-            .filter(BOM.item_id == bl.item_id)
+            .filter(BOM.item_id.in_(line_item_ids))
             .order_by(BOM.created_at.desc())
         )
-        sub_boms = sub_result.scalars().all()
+        for cand in cand_result.scalars().all():
+            candidates_by_item.setdefault(cand.item_id, []).append(cand)
+
+    for bl in bom.lines:
+        bl.attribute_value_ids = [v.id for v in bl.attribute_values]
+        sub_boms = candidates_by_item.get(bl.item_id, [])  # already newest-first
         matched = None
         if sub_boms:
             line_av_ids = set(str(v) for v in bl.attribute_value_ids)
@@ -549,16 +579,16 @@ async def update_bom(
         for bl in list(bom.lines):
             await db.delete(bl)
         await db.flush()
+        # Bulk-resolve materials + source locations (avoid per-line N+1)
+        material_map, location_map = await _resolve_line_refs(db, payload.lines)
         for lc in payload.lines:
-            item_result = await db.execute(select(Item).filter(Item.code == lc.item_code))
-            material = item_result.scalars().first()
+            material = material_map.get(lc.item_code)
             if not material:
                 raise HTTPException(status_code=404, detail=f"Material item '{lc.item_code}' not found")
             resolved_op = seq_to_op_id.get(lc.bom_operation_sequence) if lc.bom_operation_sequence is not None else None
             bom_line = BOMLine(bom_id=bom.id, item_id=material.id, qty=lc.qty, percentage=lc.percentage, bom_operation_id=resolved_op.id if resolved_op else None, is_decoupling_point=lc.is_decoupling_point)
             if lc.source_location_code:
-                loc_result = await db.execute(select(Location).filter(Location.code == lc.source_location_code))
-                loc = loc_result.scalars().first()
+                loc = location_map.get(lc.source_location_code)
                 if not loc:
                     raise HTTPException(status_code=404, detail=f"Source location '{lc.source_location_code}' not found")
                 bom_line.source_location_id = loc.id
