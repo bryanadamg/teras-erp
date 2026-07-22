@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import ManufacturingSearchBar from './ManufacturingSearchBar';
@@ -59,15 +59,12 @@ export default function ProductionRunsTab({
         });
     };
 
-    // Eager-fetch material requirements for every visible PR row (not just the
-    // expanded one) so the Materials-status column has data to show up front.
-    useEffect(() => {
-        (productionRuns || []).forEach((pr: any) => {
-            if (!prMaterialReqs[pr.id] && !prMaterialReqsLoading[pr.id]) {
-                fetchPRMaterialRequirements(pr.id);
-            }
-        });
-    }, [productionRuns]);
+    // Material requirements are fetched lazily — only when a PR row is expanded
+    // (togglePR) or printed (handlePrintPR). The old eager loop fired one
+    // /material-requirements call per visible row on mount (up to `pageSize`
+    // concurrent heavy queries), which dominated PR-page load on the low-power
+    // backend. The Materials-status column shows a neutral "not checked" dash
+    // until the row is expanded.
 
     const handlePrintPR = (pr: any) => {
         if (!prMaterialReqs[pr.id] && !prMaterialReqsLoading[pr.id]) fetchPRMaterialRequirements(pr.id);
@@ -137,6 +134,7 @@ export default function ProductionRunsTab({
                                 } : {};
                                 const isExpanded = !!expandedPRs[pr.id];
                                 const reqs: any[] = prMaterialReqs[pr.id] || [];
+                                const loaded = prMaterialReqs[pr.id] !== undefined;
                                 const isLoading = !!prMaterialReqsLoading[pr.id];
                                 const hasShortfall = reqs.some((r: any) => r.shortfall > 0);
                                 const shortfallCount = reqs.filter((r: any) => r.shortfall > 0).length;
@@ -195,9 +193,11 @@ export default function ProductionRunsTab({
                                                 <span className={`badge ${getStatusBadge(pr.status)} extra-small`}>{pr.status}</span>
                                             )}
                                         </td>
-                                        <td style={{ ...tdStyle, textAlign: 'center' }} title={isLoading ? 'Loading material requirements...' : reqs.length === 0 ? 'No components' : `${shortfallCount} short / ${sufficientCount} sufficient`}>
+                                        <td style={{ ...tdStyle, textAlign: 'center' }} title={isLoading ? 'Loading material requirements...' : !loaded ? 'Expand row to check materials' : reqs.length === 0 ? 'No components' : `${shortfallCount} short / ${sufficientCount} sufficient`}>
                                             {isLoading ? (
                                                 <span style={{ fontSize: 10, color: '#999' }}>…</span>
+                                            ) : !loaded ? (
+                                                <span style={{ fontSize: 10, color: '#bbb' }}>·</span>
                                             ) : reqs.length === 0 ? (
                                                 <span style={{ fontSize: 10, color: '#999' }}>—</span>
                                             ) : (

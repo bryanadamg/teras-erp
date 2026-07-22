@@ -96,6 +96,23 @@ def _pr_load_options():
     ]
 
 
+def _pr_material_req_load_options():
+    """Minimal eager-load set for the /material-requirements endpoint. Called once
+    per visible PR row on the Production Runs page, so it must stay lean. Loads ONLY
+    what the requirements aggregation (mo.qty, mo.planned_components, mo.bom.tolerance)
+    and _bom_traversal_order (mo.bom.operations, mo.required_dependencies,
+    mo.is_shared_component, mo.bom_id) actually read — NOT the full nested MO tree
+    that _pr_load_options pulls for the list view. Item + StockBalance are fetched
+    separately in the endpoint, so no bom.lines / bom.item / work_orders / completions
+    / batch_consumptions / bom_entries here."""
+    mos = selectinload(ProductionRun.manufacturing_orders)
+    return [
+        mos.selectinload(ManufacturingOrder.planned_components),
+        mos.selectinload(ManufacturingOrder.required_dependencies),
+        mos.selectinload(ManufacturingOrder.bom).selectinload(BOM.operations),
+    ]
+
+
 def _post_process_pr(pr: ProductionRun):
     """Populate all calculated fields on every MO within a PR after eager loading."""
     from app.api.manufacturing import populate_mo_ids
@@ -224,7 +241,7 @@ async def get_production_run_material_requirements(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(ProductionRun).options(*_pr_load_options()).filter(ProductionRun.id == pr_id)
+        select(ProductionRun).options(*_pr_material_req_load_options()).filter(ProductionRun.id == pr_id)
     )
     pr = result.unique().scalars().first()
     if not pr:
