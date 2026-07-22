@@ -9,7 +9,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 const BOM_PAGE_SIZE = 50;
 
 export default function BOMPage() {
-    const { items, attributes, sizes, locations, operations, workCenters, partners, companyProfile, productionRuns, fetchData, authFetch, filters } = useData();
+    const { items, attributes, sizes, locations, operations, workCenters, partners, companyProfile, productionRuns, fetchData, authFetch, filters, subscribeLiveEvents } = useData();
     const { confirm } = useConfirm();
     const searchParams = useSearchParams();
     const [initialCreateState, setInitialCreateState] = useState<any>(null);
@@ -44,6 +44,11 @@ export default function BOMPage() {
 
     // Initial load
     useEffect(() => { fetchBomList(1, bomSearch, showRootOnly); }, []);
+
+    // Live refresh: a BOM created/updated/deleted elsewhere (WS BOM_UPDATE) reloads
+    // the current page in place. This page owns its own list, so DataContext can't
+    // refresh it for us — subscribe and re-pull the same page/search/filter.
+    useEffect(() => subscribeLiveEvents((kind) => { if (kind === 'bom') fetchBomList(); }), [subscribeLiveEvents, fetchBomList]);
 
     // Page change → immediate fetch
     useEffect(() => { fetchBomList(bomPage, bomSearch, showRootOnly); }, [bomPage]);

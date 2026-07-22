@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
+import { useData } from '../../context/DataContext';
 import CodeConfigModal, { CodeConfig, buildCodeWithCounter } from '../shared/CodeConfigModal';
 import BOMAutomatorModal from './BOMAutomatorModal';
 import SearchableSelect from '../shared/SearchableSelect';
@@ -336,6 +337,7 @@ export default function BOMDesigner({
     onSearchItem
 }: any) {
     const { t } = useLanguage();
+    const { itemIndex } = useData();
 
     const [rootBOM, setRootBOM] = useState<BOMNodeData>(() => {
         if (initialBOMData) {
@@ -409,6 +411,19 @@ export default function BOMDesigner({
         for (const i of items) m.set((i.code || '').trim().toLowerCase(), i);
         return m;
     }, [items]);
+    // Fallback lookup from the cached full item index (name/code/uom/ends for EVERY
+    // item, not just the paginated `items` slice). Lets the designer resolve names,
+    // uom and beam-detection for components that aren't on the current items page —
+    // otherwise editing a BOM whose parts are off-page showed raw codes. itemIndex
+    // is keyed by id; re-key by code and carry the id through for existing-BOM lookup.
+    const indexByCode = useMemo(() => {
+        const m = new Map<string, any>();
+        for (const id in itemIndex) {
+            const e = itemIndex[id];
+            if (e?.code) m.set(e.code.trim().toLowerCase(), { ...e, id });
+        }
+        return m;
+    }, [itemIndex]);
     const existingBomsByItemId = useMemo(() => {
         const m = new Map<string, any[]>();
         for (const b of existingBOMs) {
@@ -418,18 +433,20 @@ export default function BOMDesigner({
         return m;
     }, [existingBOMs]);
 
+    // Beam finished items: BOM "Batch Size" (qty) is repurposed as the warp-ends (utas) count.
+    // Prefer the freshest paginated `items` row, fall back to the cached index.
+    const getItemByCode = useCallback((code: string) => {
+        const k = (code || '').trim().toLowerCase();
+        return itemByCode.get(k) || indexByCode.get(k);
+    }, [itemByCode, indexByCode]);
+
     const getItemName = useCallback((code: string) =>
-        itemByCode.get((code || '').trim().toLowerCase())?.name || code,
-    [itemByCode]);
+        getItemByCode(code)?.name || code,
+    [getItemByCode]);
 
     const getItemUom = useCallback((code: string) =>
-        itemByCode.get((code || '').trim().toLowerCase())?.uom || '',
-    [itemByCode]);
-
-    // Beam finished items: BOM "Batch Size" (qty) is repurposed as the warp-ends (utas) count.
-    const getItemByCode = useCallback((code: string) =>
-        itemByCode.get((code || '').trim().toLowerCase()),
-    [itemByCode]);
+        getItemByCode(code)?.uom || '',
+    [getItemByCode]);
     const isBeamCode = useCallback((code: string) => {
         const it = getItemByCode(code);
         return !!it && (((it.category_path || []).some((c: string) => (c || '').toLowerCase() === 'beam')) || it.ends != null);
@@ -448,7 +465,7 @@ export default function BOMDesigner({
     [isBeamCode, isBeamWc]);
 
     const hasExistingBOM = useCallback((code: string, attributeValueIds: string[] = []): boolean => {
-        const item = itemByCode.get((code || '').trim().toLowerCase());
+        const item = getItemByCode(code);
         if (!item) return false;
         const candidates = existingBomsByItemId.get(item.id) || [];
         if (candidates.length === 0) return false;
@@ -459,7 +476,7 @@ export default function BOMDesigner({
         });
         if (exactMatch) return true;
         return candidates.some((b: any) => (b.attribute_value_ids || []).length === 0);
-    }, [itemByCode, existingBomsByItemId]);
+    }, [getItemByCode, existingBomsByItemId]);
 
     const getWcName = (id: string) => workCenters.find((wc: any) => wc.id === id)?.name || id;
 
@@ -664,6 +681,7 @@ export default function BOMDesigner({
         const success = await saveNode(rootBOM);
         setIsSaving(false);
         if (success) onCancel();
+        else setPctError('Save failed — check that all items and source locations exist, then retry. Note: sub-BOMs saved before the failure may have persisted.');
     };
 
     const findNodeAndReplace = (root: BOMNodeData, targetId: string, newNode: BOMNodeData): BOMNodeData => {
@@ -901,7 +919,7 @@ export default function BOMDesigner({
                                                 type="number"
                                                 style={xpInput}
                                                 value={selectedNode.qty}
-                                                onChange={e => updateSelectedNode({ qty: parseFloat(e.target.value) })}
+                                                onChange={e => updateSelectedNode({ qty: parseFloat(e.target.value) || 0 })}
                                             />
                                         </div>
 
@@ -914,7 +932,7 @@ export default function BOMDesigner({
                                                     type="number"
                                                     style={{ ...xpInput, flex: 1 }}
                                                     value={selectedNode.tolerance_percentage}
-                                                    onChange={e => updateSelectedNode({ tolerance_percentage: parseFloat(e.target.value) })}
+                                                    onChange={e => updateSelectedNode({ tolerance_percentage: parseFloat(e.target.value) || 0 })}
                                                 />
                                                 <span style={{ fontSize: 10, color: '#555' }}>%</span>
                                             </div>

@@ -18,6 +18,7 @@ from app.models.auth import User, BOMAutomatorProfile
 from app.api.auth import get_current_user, require_permission
 from app.services import audit_service
 from app.models.attribute import AttributeValue
+from app.core.ws_manager import manager
 
 router = APIRouter()
 
@@ -250,6 +251,8 @@ async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db
     )
 
     await _sync_beam_ends(db, bom)
+
+    await manager.broadcast({"type": "BOM_UPDATE", "action": "CREATE", "bom_id": str(refresh_bom.id), "code": refresh_bom.code})
 
     refresh_bom.attribute_value_ids = [v.id for v in refresh_bom.attribute_values]
     for bl in refresh_bom.lines:
@@ -660,6 +663,8 @@ async def update_bom(
 
     await _sync_beam_ends(db, updated_bom)
 
+    await manager.broadcast({"type": "BOM_UPDATE", "action": "UPDATE", "bom_id": str(updated_bom.id), "code": updated_bom.code})
+
     updated_bom.attribute_value_ids = [v.id for v in updated_bom.attribute_values]
     for bl in updated_bom.lines:
         bl.attribute_value_ids = [v.id for v in bl.attribute_values]
@@ -700,6 +705,7 @@ async def delete_bom(bom_id: str, db: AsyncSession = Depends(get_async_db), curr
     all_ids = sub_ids + [bom.id]  # children deleted before parent
 
     details = f"Deleted BOM {bom.code} and {len(sub_ids)} sub-BOM(s)"
+    deleted_code = bom.code
 
     try:
         for bid in all_ids:
@@ -723,6 +729,8 @@ async def delete_bom(bom_id: str, db: AsyncSession = Depends(get_async_db), curr
         entity_id=bom_id,
         details=details
     )
+
+    await manager.broadcast({"type": "BOM_UPDATE", "action": "DELETE", "bom_id": bom_id, "code": deleted_code})
 
     return {"status": "success", "message": f"BOM and {len(sub_ids)} sub-BOM(s) deleted"}
 

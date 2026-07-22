@@ -80,7 +80,7 @@ interface DataContextType {
     refreshRouting: () => Promise<void>;
     handleTabHover: (tab: string) => void;
     authFetch: (url: string, options?: any) => Promise<Response>;
-    subscribeLiveEvents: (fn: (kind: 'production' | 'kpi' | 'stock' | 'weaving') => void) => () => void;
+    subscribeLiveEvents: (fn: (kind: 'production' | 'kpi' | 'stock' | 'weaving' | 'bom') => void) => () => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -627,8 +627,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     // Pages that own their data (e.g. /work-orders fetches its own list) subscribe
     // here to be told when a debounced batch of live events has arrived.
-    const liveSubsRef = useRef<Set<(kind: 'production' | 'kpi' | 'stock' | 'weaving') => void>>(new Set());
-    const subscribeLiveEvents = useCallback((fn: (kind: 'production' | 'kpi' | 'stock' | 'weaving') => void) => {
+    const liveSubsRef = useRef<Set<(kind: 'production' | 'kpi' | 'stock' | 'weaving' | 'bom') => void>>(new Set());
+    const subscribeLiveEvents = useCallback((fn: (kind: 'production' | 'kpi' | 'stock' | 'weaving' | 'bom') => void) => {
         liveSubsRef.current.add(fn);
         return () => { liveSubsRef.current.delete(fn); };
     }, []);
@@ -648,7 +648,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         // fan-out) collapses into ONE refetch + ONE toast per 800ms window instead
         // of one heavy refetch per message. Each of those refetches used to pull
         // items + the full nested /boms + all-level MOs + PRs — a storm.
-        const pending = { kinds: new Set<'production' | 'kpi' | 'stock' | 'weaving'>(), codes: new Map<string, string>() };
+        const pending = { kinds: new Set<'production' | 'kpi' | 'stock' | 'weaving' | 'bom'>(), codes: new Map<string, string>() };
 
         const flushLive = () => {
             flushTimer = null;
@@ -694,8 +694,18 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 // Pages that self-fetch (WeavingMonitorView) subscribe and reload themselves.
                 liveSubsRef.current.forEach(fn => { try { fn('weaving'); } catch {} });
             }
+            if (kinds.has('bom')) {
+                // A BOM was created/updated/deleted elsewhere. The /bom page owns its
+                // own paginated /boms/summary list and reloads via subscription below;
+                // DataContext.boms consumers (manufacturing/MES/sales) re-pull the full
+                // /boms on their route refetch. Route-aware: only what's on screen.
+                if (path.startsWith('/manufacturing') || path.startsWith('/production-runs') || path.startsWith('/sales-orders')) {
+                    fetchDataRef.current(path.replace(/^\//, ''));
+                }
+                liveSubsRef.current.forEach(fn => { try { fn('bom'); } catch {} });
+            }
         };
-        const queueLive = (kind: 'production' | 'kpi' | 'stock' | 'weaving', code?: string, status?: string) => {
+        const queueLive = (kind: 'production' | 'kpi' | 'stock' | 'weaving' | 'bom', code?: string, status?: string) => {
             pending.kinds.add(kind);
             if (code) pending.codes.set(code, status || '');
             if (!flushTimer) flushTimer = setTimeout(flushLive, 800);
@@ -739,6 +749,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                             break;
                         case 'STOCK_UPDATE':
                             queueLive('stock');
+                            break;
+                        case 'BOM_UPDATE':
+                            queueLive('bom');
                             break;
                         case 'weaving_run':
                             queueLive('weaving');
