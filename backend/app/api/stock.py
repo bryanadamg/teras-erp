@@ -17,6 +17,7 @@ from app.models.goods_receipt import GoodsReceipt
 from app.models.purchase import PurchaseOrder
 from datetime import datetime
 from typing import Optional
+import asyncio as _asyncio
 import time
 import uuid as _uuid
 
@@ -331,17 +332,63 @@ async def get_stock_balance_api(db: AsyncSession = Depends(get_async_db), curren
 # change it broadcasts, instead of recomputed on every page load/refresh. Each
 # process/worker holds its own cache and independently receives every broadcast
 # (local or via Redis), so invalidation stays correct across multiple workers.
-_booking_cache: dict = {"rows": None, "at": 0.0}
-_BOOKING_TTL_SECONDS = 20
+# Booking-stock netting is expensive (loads every open MO with 4 eager relations
+# + a plant-wide on-hand aggregate). It changes on stock, MO, WO and PR mutations —
+# all common in an active plant — so nulling the cache on every such event left it
+# cold on nearly every page load. Instead we serve stale-while-revalidate: an
+# invalidating event marks the rows stale but keeps serving them; the next request
+# returns the stale rows immediately and kicks off a single background recompute so
+# the following request is fresh. Booking stock is an advisory planning view, so a
+# few-seconds-stale netting number between a mutation and the background refresh is
+# an acceptable trade for never blocking a load on the full recompute.
+_booking_cache: dict = {"rows": None, "at": 0.0, "stale": True, "refreshing": False}
+_BOOKING_TTL_SECONDS = 60
 _BOOKING_INVALIDATING_TYPES = {"STOCK_UPDATE", "MANUFACTURING_ORDER_UPDATE", "WORK_ORDER_UPDATE", "PRODUCTION_RUN_UPDATE"}
+
+# Keep strong refs to in-flight background tasks so the event loop doesn't GC them
+# mid-run (documented asyncio.create_task footgun).
+_booking_bg_tasks: set = set()
 
 
 def _invalidate_booking_cache(message: dict):
     if message.get("type") in _BOOKING_INVALIDATING_TYPES:
-        _booking_cache["rows"] = None
+        _booking_cache["stale"] = True
 
 
 manager.register_invalidation_hook(_invalidate_booking_cache)
+
+
+async def _recompute_booking_cache() -> list:
+    """Recompute booking rows on a fresh session and store them. Returns the rows."""
+    from app.core.db_manager import db_manager
+    async for session in db_manager.get_async_session():
+        rows = await _compute_booking_rows(session)
+        _booking_cache["rows"] = rows
+        _booking_cache["at"] = time.monotonic()
+        _booking_cache["stale"] = False
+        return rows
+    return []
+
+
+async def _refresh_booking_cache_bg():
+    """Background stale-while-revalidate refresh; at most one runs at a time."""
+    if _booking_cache["refreshing"]:
+        return
+    _booking_cache["refreshing"] = True
+    try:
+        await _recompute_booking_cache()
+    except Exception:
+        # A failed background refresh must not crash anything — the stale rows keep
+        # serving and the next invalidation/expiry will retry.
+        pass
+    finally:
+        _booking_cache["refreshing"] = False
+
+
+def _spawn_booking_refresh():
+    task = _asyncio.create_task(_refresh_booking_cache_bg())
+    _booking_bg_tasks.add(task)
+    task.add_done_callback(_booking_bg_tasks.discard)
 
 
 async def _compute_booking_rows(db: AsyncSession) -> list:
@@ -491,12 +538,15 @@ async def get_stock_availability(
     netting logic. The ``location_id`` query param is retained for API compatibility
     but no longer scopes the result (netting is plant-wide/location-agnostic)."""
     now = time.monotonic()
-    if _booking_cache["rows"] is not None and now - _booking_cache["at"] < _BOOKING_TTL_SECONDS:
-        rows = _booking_cache["rows"]
+    if _booking_cache["rows"] is None:
+        # Cold cache (first load / after restart): must compute synchronously.
+        rows = await _recompute_booking_cache()
     else:
-        rows = await _compute_booking_rows(db)
-        _booking_cache["rows"] = rows
-        _booking_cache["at"] = now
+        rows = _booking_cache["rows"]
+        # Serve the (possibly stale) cached rows now; if they are stale or past TTL,
+        # kick off a single background recompute so the next request is fresh.
+        if _booking_cache["stale"] or now - _booking_cache["at"] >= _BOOKING_TTL_SECONDS:
+            _spawn_booking_refresh()
 
     if search:
         term = search.strip().lower()

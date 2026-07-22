@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, cast, String
+from sqlalchemy import select, func, cast
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import selectinload, joinedload, aliased
 from app.db.session import get_async_db
 from app.models.batch import Batch, BatchConsumption
@@ -281,12 +282,16 @@ async def list_batches_paginated(
         filters.append(Batch.item_id == item_id)
     if location_id:
         # Lots whose current stock sits at any of the given leaf locations.
+        # Cast the (text) batch_key to UUID inside the subquery and compare against
+        # Batch.id directly — casting Batch.id to text instead would defeat the PK
+        # index and force a seq scan on batches. batch_key != "" guarantees every
+        # remaining value is a real lot uuid, so the cast never sees a bad value.
         loc_keys = (
-            select(StockBalance.batch_key)
+            select(cast(StockBalance.batch_key, PG_UUID(as_uuid=True)))
             .filter(StockBalance.location_id.in_(location_id), StockBalance.qty > 0, StockBalance.batch_key != "")
             .group_by(StockBalance.batch_key)
         )
-        filters.append(cast(Batch.id, String).in_(loc_keys))
+        filters.append(Batch.id.in_(loc_keys))
     if status in ("active", "depleted"):
         # remaining = sum of StockBalance rows keyed by str(batch id). "active" =
         # any positive balance; "depleted" = no positive balance (summed <= 0 or
@@ -295,16 +300,20 @@ async def list_batches_paginated(
         # stock across the whole plant) up front, or this aggregate drags every
         # unrelated stock row in the system into one giant group just to answer
         # a question about the handful of real lots.
+        # Cast batch_key → UUID in the subquery (not Batch.id → text in the outer
+        # predicate) so the outer filter can use the Batch.id PK index instead of
+        # seq-scanning every batch row. batch_key != "" both prunes the huge block
+        # of non-lot stock rows and guarantees the cast only sees real lot uuids.
         active_keys = (
-            select(StockBalance.batch_key)
+            select(cast(StockBalance.batch_key, PG_UUID(as_uuid=True)))
             .filter(StockBalance.batch_key != "")
             .group_by(StockBalance.batch_key)
             .having(func.sum(StockBalance.qty) > 0)
         )
         if status == "active":
-            filters.append(cast(Batch.id, String).in_(active_keys))
+            filters.append(Batch.id.in_(active_keys))
         else:
-            filters.append(cast(Batch.id, String).not_in(active_keys))
+            filters.append(Batch.id.not_in(active_keys))
     if search:
         pattern = f"%{search.strip()}%"
         filters.append(
