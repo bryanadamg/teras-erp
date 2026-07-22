@@ -80,6 +80,7 @@ export default function BOMView({
     companyProfile,
     initialCreateState, onClearInitialState,
     onCreateProductionRun, productionRuns,
+    onEnsureItems,
     // Pagination props (managed by bom/page.tsx)
     bomPage = 1, bomTotal = 0, bomPageSize = 50,
     bomSearch = '', onBomSearch,
@@ -151,9 +152,22 @@ export default function BOMView({
         return map;
     }, [boms, bomTreeCache]);
 
+    // Index boms by item_id once per data change so findSubBOM is an O(1) map hit
+    // plus a tiny same-item filter — not an O(all boms) scan on every call (it runs
+    // many times per render across the line list + recursive tree walk).
+    const bomsByItemId = useMemo<Record<string, any[]>>(() => {
+        const map: Record<string, any[]> = {};
+        for (const b of Object.values(allBomsById)) {
+            (map[(b as any).item_id] ||= []).push(b);
+        }
+        return map;
+    }, [allBomsById]);
+
     // Attribute-aware sub-BOM lookup: searches current page + all cached trees
     const findSubBOM = (line: any, excludeIds: Set<string> = new Set()): any | undefined => {
-        const candidates = Object.values(allBomsById).filter((b: any) => b.item_id === line.item_id && !excludeIds.has(b.id));
+        const pool = bomsByItemId[line.item_id];
+        if (!pool) return undefined;
+        const candidates = excludeIds.size ? pool.filter((b: any) => !excludeIds.has(b.id)) : pool;
         if (candidates.length === 0) return undefined;
         const lineAttrs = [...(line.attribute_value_ids || [])].sort();
         const exact = candidates.find((b: any) => {
@@ -165,11 +179,14 @@ export default function BOMView({
     };
 
     // Lookup helpers
+    // Line/tree display resolves from itemIndex (full, cached) so the BOM page does
+    // not depend on the paginated items array being loaded. items.find still wins
+    // when present (freshest during an open designer session).
     const getItemName = (id: string, provided?: string) => provided || items.find((i: any) => i.id === id)?.name || itemIndex?.[String(id)]?.name || id;
     const getItemCode = (id: string, provided?: string) => provided || items.find((i: any) => i.id === id)?.code || itemIndex?.[String(id)]?.code || id;
-    const getItemUom = (id: string) => items.find((i: any) => i.id === id)?.uom || '';
+    const getItemUom = (id: string) => items.find((i: any) => i.id === id)?.uom || itemIndex?.[String(id)]?.uom || '';
     // Beam items carry a warp-ends count; for a beam BOM the qty IS the ends (set on BOM creation).
-    const getItemEnds = (id: string): number | null => { const e = items.find((i: any) => i.id === id)?.ends; return e != null ? e : null; };
+    const getItemEnds = (id: string): number | null => { const e = items.find((i: any) => i.id === id)?.ends ?? itemIndex?.[String(id)]?.ends; return e != null ? e : null; };
     const uomBadge: React.CSSProperties = { background: '#dde8f5', border: '1px solid #7f9db9', color: '#336', fontSize: 9, padding: '0 4px', whiteSpace: 'nowrap', fontWeight: 'normal' };
     const getWcName = (id: string | null) => id ? (workCenters.find((w: any) => w.id === id)?.name || id) : '—';
     const getAttrValues = (ids: string[]) => {
@@ -226,10 +243,15 @@ export default function BOMView({
     const initialItemCode = initialCreateState ? (items.find((i: any) => i.id === initialCreateState.item_id)?.code || '') : '';
     const initialAttributeIds = initialCreateState ? (initialCreateState.attribute_value_ids || '').split(',').filter(Boolean) : [];
 
+    // The paginated items array is only pulled on demand now (see DataContext:
+    // /bom no longer fetches it). The designer needs it, so load it whenever the
+    // designer opens or a deep-link create arrives without items yet.
+    useEffect(() => { if (isDesignerOpen) onEnsureItems?.(); }, [isDesignerOpen]);
+
     useEffect(() => {
-        if (initialCreateState && items.length > 0) {
-            if (items.find((i: any) => i.id === initialCreateState.item_id)) setIsDesignerOpen(true);
-        }
+        if (!initialCreateState) return;
+        if (items.length === 0) { onEnsureItems?.(); return; }  // wait for items, effect re-runs
+        if (items.find((i: any) => i.id === initialCreateState.item_id)) setIsDesignerOpen(true);
     }, [initialCreateState, items]);
 
     const handleCloseDesigner = () => { setIsDesignerOpen(false); setEditingBOM(null); if (onClearInitialState) onClearInitialState(); };

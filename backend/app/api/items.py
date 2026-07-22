@@ -25,9 +25,9 @@ async def get_items_lookup(db: AsyncSession = Depends(get_async_db), current_use
     captured as an item_id path param. Columns only — no eager loads, no pagination.
     """
     from app.models.item import Item
-    result = await db.execute(select(Item.id, Item.code, Item.name, Item.uom, Item.lot_tracked))
+    result = await db.execute(select(Item.id, Item.code, Item.name, Item.uom, Item.lot_tracked, Item.ends))
     return [
-        {"id": str(row.id), "name": row.name, "code": row.code, "uom": row.uom, "lot_tracked": row.lot_tracked}
+        {"id": str(row.id), "name": row.name, "code": row.code, "uom": row.uom, "lot_tracked": row.lot_tracked, "ends": row.ends}
         for row in result.all()
     ]
 

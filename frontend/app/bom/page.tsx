@@ -83,6 +83,14 @@ export default function BOMPage() {
     }, [setItemSearch]);
     useEffect(() => () => { if (itemSearchTimer.current) clearTimeout(itemSearchTimer.current); }, []);
 
+    // /bom no longer auto-fetches the paginated items array (BOMView list renders
+    // off itemIndex). Pull it on demand for the BOMDesigner picker — first designer
+    // open / deep-link create. fetchData dedupes concurrent identical targets.
+    const handleEnsureItems = useCallback(() => {
+        if (items.length > 0) return;
+        fetchData('bom-items');
+    }, [items.length, fetchData]);
+
     // After mutations: refresh BOM list + DataContext (items/attributes may have changed)
     const afterMutation = useCallback(() => {
         fetchBomList(bomPage, bomSearch, showRootOnly);
@@ -193,6 +201,7 @@ export default function BOMPage() {
             companyProfile={companyProfile}
             initialCreateState={initialCreateState}
             onClearInitialState={handleClearInitialState}
+            onEnsureItems={handleEnsureItems}
         />
     );
 }

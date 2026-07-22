@@ -38,7 +38,7 @@ interface DataContextType {
     dashboardSummary: any;
     dashboardKpiHistory: any;
     dashboardWorkOrders: any[];
-    itemIndex: Record<string, { name: string; code: string; uom?: string; lot_tracked?: boolean }>;
+    itemIndex: Record<string, { name: string; code: string; uom?: string; lot_tracked?: boolean; ends?: number | null }>;
     companyProfile: any;
     wsStatus: 'connecting' | 'open' | 'closed';
 
@@ -112,7 +112,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const [dashboardSummary, setDashboardSummary] = useState<any>(null);
     const [dashboardKpiHistory, setDashboardKpiHistory] = useState<any>({});
     const [dashboardWorkOrders, setDashboardWorkOrders] = useState<any[]>([]);
-    const [itemIndex, setItemIndex] = useState<Record<string, { name: string; code: string; uom?: string; lot_tracked?: boolean }>>({});
+    const [itemIndex, setItemIndex] = useState<Record<string, { name: string; code: string; uom?: string; lot_tracked?: boolean; ends?: number | null }>>({});
     const [companyProfile, setCompanyProfile] = useState<any>(null);
     const [wsStatus, setWsStatus] = useState<'connecting' | 'open' | 'closed'>('connecting');
 
@@ -213,9 +213,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         try {
             const token = localStorage.getItem('access_token');
             const headers = { 'Authorization': `Bearer ${token}` };
-            // v3: itemIndex now carries uom/lot_tracked (needed by PackingView) —
-            // bump so a stale v2 cache doesn't serve an index missing those fields.
-            const CACHE_KEY = 'terras_master_cache_v3';
+            // v4: itemIndex now carries ends (beam warp-ends, needed by BOMView so
+            // line display resolves without the paginated items array) on top of
+            // v3's uom/lot_tracked — bump so a stale cache doesn't serve a thin index.
+            const CACHE_KEY = 'terras_master_cache_v4';
             const CACHE_TTL = 3600000; 
             const savedCache = localStorage.getItem(CACHE_KEY);
             let masterFetched = false;
@@ -254,7 +255,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             // Only fetch what matches the current route to minimize load
             
             // Items & Inventory
-            if (['dashboard', 'inventory', 'sample-masters', 'bom', 'manufacturing', 'work-orders', 'manufacturing-orders', 'production-runs', 'sales-orders', 'purchase-orders', 'stock', 'reports', 'samples'].some(t => fetchTarget.includes(t))) {
+            // NOTE: 'bom' is deliberately NOT in this list. The BOM page renders its
+            // line/tree display entirely off itemIndex (/items/lookup, cached), so a
+            // plain /bom load no longer pulls the paginated /items page. The array is
+            // only needed by the BOMDesigner (create/edit modal) — fetched on demand
+            // via fetchTarget 'bom-items' (designer open / deep-link create) or when
+            // an item search is active (the designer's server-side picker search).
+            const wantItems = ['dashboard', 'inventory', 'sample-masters', 'manufacturing', 'work-orders', 'manufacturing-orders', 'production-runs', 'sales-orders', 'purchase-orders', 'stock', 'reports', 'samples'].some(t => fetchTarget.includes(t))
+                || fetchTarget === 'bom-items'
+                || (fetchTarget.includes('bom') && !!itemSearch);
+            if (wantItems) {
                 const skip = (itemPage - 1) * pageSize;
                 const effectiveCategoryId = categoryL3 || categoryL2 || categoryL1;
                 const categoryParam = effectiveCategoryId ? `&category_id=${effectiveCategoryId}` : '';
@@ -384,7 +394,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     case 'partners': setPartners(data.items || []); newMasterData.partners = data.items || []; break;
                     case 'company-profile': setCompanyProfile(data); newMasterData.companyProfile = data; break;
                     case 'items': setItems(data.items); setItemTotal(data.total); break;
-                    case 'item-lookup': { const idx: Record<string, { name: string; code: string; uom?: string; lot_tracked?: boolean }> = {}; for (const it of (data || [])) idx[String(it.id)] = { name: it.name, code: it.code, uom: it.uom, lot_tracked: it.lot_tracked }; setItemIndex(idx); newMasterData.itemIndex = idx; break; }
+                    case 'item-lookup': { const idx: Record<string, { name: string; code: string; uom?: string; lot_tracked?: boolean; ends?: number | null }> = {}; for (const it of (data || [])) idx[String(it.id)] = { name: it.name, code: it.code, uom: it.uom, lot_tracked: it.lot_tracked, ends: it.ends }; setItemIndex(idx); newMasterData.itemIndex = idx; break; }
                     case 'kpis': setDashboardKPIs(data); break;
                     case 'dashboard-summary': setDashboardSummary(data); break;
                     case 'kpi-history': setDashboardKpiHistory(data); break;
