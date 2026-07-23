@@ -111,6 +111,22 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
                                                 <input type="color" value={editHex} onChange={e => setEditHex(e.target.value)} style={{ width: 28, height: 22, padding: 0, border: '1px solid #a0988c', cursor: 'pointer' }} />
                                             )}
                                         </div>
+                                    ) : canManage ? (
+                                        <label
+                                            title={v.hex ? `${v.hex} — click to change` : 'Click to set color'}
+                                            style={{
+                                                width: 18, height: 18, display: 'inline-block', cursor: 'pointer',
+                                                background: v.hex || (classic ? '#e8e6df' : '#f1f5f9'),
+                                                border: v.hex ? '1px solid rgba(0,0,0,0.35)' : `1px dashed ${classic ? '#a0988c' : '#94a3b8'}`,
+                                            }}
+                                        >
+                                            <input
+                                                type="color"
+                                                value={v.hex || '#cccccc'}
+                                                onChange={e => onRename(v.id, v.value, e.target.value)}
+                                                style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+                                            />
+                                        </label>
                                     ) : v.hex ? (
                                         <span title={v.hex} style={{ width: 16, height: 16, background: v.hex, border: '1px solid rgba(0,0,0,0.35)', display: 'inline-block' }} />
                                     ) : <span style={{ color: classic ? '#999' : '#94a3b8', fontSize: 11 }}>—</span>}
