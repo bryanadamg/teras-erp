@@ -9,6 +9,7 @@ from app.models.color import Color
 from app.models.attribute import Attribute, AttributeValue
 from app.models.dyeing_setting import DyeRecipe
 from app.models.lab_dip import LabDipRequest, LabDipLine, LabDipItem
+from app.models.item import Item
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission
 from app.services import audit_service
@@ -42,9 +43,10 @@ async def _recipe_counts(db: AsyncSession, color_ids: list[uuid.UUID]) -> dict:
 
 
 async def _lab_dip_provenance(db: AsyncSession, color_ids: list[uuid.UUID]) -> dict:
-    """Map color_id → (request_id, request_code) of the LabDip it came from.
-    Two paths: approval-minted (LabDipItem.approved_color_id) takes priority; manual
-    "+ Color" spawns (Color.source_lab_dip_line_id → line → request) fill the rest."""
+    """Map color_id → (request_id, request_code, item_name, item_code) of the LabDip it came
+    from. Two paths: approval-minted (LabDipItem.approved_color_id) takes priority; manual
+    "+ Color" spawns (Color.source_lab_dip_line_id → line → request) fill the rest. The
+    approval-minted path also carries the FG item the shade was approved for."""
     if not color_ids:
         return {}
     prov: dict = {}
@@ -56,15 +58,16 @@ async def _lab_dip_provenance(db: AsyncSession, color_ids: list[uuid.UUID]) -> d
         .filter(Color.id.in_(color_ids))
     )).all()
     for cid, rid, code in line_rows:
-        prov[cid] = (rid, code)
+        prov[cid] = (rid, code, None, None)
     # Priority path: the variant approval that minted the shade.
     item_rows = (await db.execute(
-        select(LabDipItem.approved_color_id, LabDipRequest.id, LabDipRequest.code)
+        select(LabDipItem.approved_color_id, LabDipRequest.id, LabDipRequest.code, Item.name, Item.code)
         .join(LabDipRequest, LabDipItem.lab_dip_request_id == LabDipRequest.id)
+        .join(Item, LabDipItem.item_id == Item.id)
         .filter(LabDipItem.approved_color_id.in_(color_ids))
     )).all()
-    for cid, rid, code in item_rows:
-        prov[cid] = (rid, code)
+    for cid, rid, code, item_name, item_code in item_rows:
+        prov[cid] = (rid, code, item_name, item_code)
     return prov
 
 
@@ -74,6 +77,8 @@ def _serialize(c: Color, recipe_count: int = 0, provenance: tuple | None = None)
     d["recipe_count"] = recipe_count
     d["source_lab_dip_request_id"] = provenance[0] if provenance else None
     d["source_lab_dip_code"] = provenance[1] if provenance else None
+    d["source_item_name"] = provenance[2] if provenance else None
+    d["source_item_code"] = provenance[3] if provenance else None
     return d
 
 

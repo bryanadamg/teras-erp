@@ -201,6 +201,7 @@ export default function ColorLibraryView({
                             <th style={{ ...lvTh(classic), width: 120 }}>Customer</th>
                             <th style={{ ...lvTh(classic), width: 90 }}>Cust. Code</th>
                             <th style={{ ...lvTh(classic), width: 110 }}>From Lab Dip</th>
+                            <th style={{ ...lvTh(classic), width: 140 }}>Item</th>
                             <th style={{ ...lvTh(classic), width: 60, textAlign: 'center' }}>Recipes</th>
                             <th style={{ ...lvTh(classic), width: 80 }}>Status</th>
                             <th style={{ ...lvTh(classic), width: 70, textAlign: 'right', borderRight: 'none' }}></th>
@@ -208,7 +209,7 @@ export default function ColorLibraryView({
                     </thead>
                     <tbody>
                         {colors.length === 0 && (
-                            <tr><td colSpan={12} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
+                            <tr><td colSpan={13} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
                                 {loading ? 'Loading…' : 'No colors found.'}
                             </td></tr>
                         )}
@@ -236,6 +237,9 @@ export default function ColorLibraryView({
                                     ? <span title="Minted from this lab dip request" style={classic
                                         ? { fontFamily: "'Courier New', monospace", color: '#0047c8', fontSize: 11 }
                                         : { fontFamily: "'Courier New', monospace", color: '#2563eb', fontSize: 12 }}>{c.source_lab_dip_code}</span>
+                                    : <span style={{ color: '#aaa' }}>—</span>}</td>
+                                <td style={lvTd(classic)}>{c.source_item_name
+                                    ? <span title={c.source_item_code || undefined}>{c.source_item_name}</span>
                                     : <span style={{ color: '#aaa' }}>—</span>}</td>
                                 <td style={{ ...lvTd(classic), textAlign: 'center' }}>{c.recipe_count || 0}</td>
                                 <td style={lvTd(classic)}><StatusChip status={c.status} /></td>

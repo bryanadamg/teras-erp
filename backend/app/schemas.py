@@ -1546,6 +1546,8 @@ class ColorResponse(BaseModel):
     # from (manual "+ Color"). Derived in the list endpoint, not stored on the row.
     source_lab_dip_request_id: Optional[UUID] = None
     source_lab_dip_code: Optional[str] = None
+    source_item_name: Optional[str] = None
+    source_item_code: Optional[str] = None
     recipe_count: int = 0
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
