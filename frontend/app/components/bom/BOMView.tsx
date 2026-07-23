@@ -825,7 +825,7 @@ export default function BOMView({
                 variant="primary"
                 modeless
             >
-                <div style={{ width: 'min(1160px, 94vw)', height: 'min(82vh, 860px)', overflow: 'hidden' }}>
+                <div style={{ width: '100%', height: 'min(82vh, 860px)', overflow: 'hidden' }}>
                     <BOMDesigner
                         rootItemCode={editingBOM ? editingBOM.item_code : (initialItemCode || '')}
                         initialAttributeValueIds={editingBOM ? (editingBOM.attribute_value_ids || []) : initialAttributeIds}
