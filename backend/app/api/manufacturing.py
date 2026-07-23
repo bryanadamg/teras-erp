@@ -32,6 +32,7 @@ from app.models.attribute import AttributeValue
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, require_any_permission, wo_scope_ok
 from app.models.item import Item
+from app.models.category import Category
 from app.models.stock_balance import StockBalance
 from app.models.batch import Batch, BatchConsumption
 from app.api.batches import generate_batch_number
@@ -1143,6 +1144,24 @@ async def add_mo_completion(
                 select(Item.code).filter(Item.id.in_(missing), Item.lot_tracked == True)  # noqa: E712
             )
             lt_codes = list(lt_res.scalars().all())
+            # Weaving beams are exempt: staged beams merge into a batch-less kg pool
+            # on this same completion (merge_staged_beams below), not picked per-lot —
+            # the UI never offers a picker for them either. Without this, the check
+            # above fires before the merge runs and blocks every weaving log.
+            if lt_codes and wo_wc_type in ("WEAVING", "TENUN"):
+                beam_res = await db.execute(
+                    select(Item.code).join(Category, Item.category_id == Category.id, isouter=True).filter(
+                        Item.id.in_(missing),
+                        Item.lot_tracked == True,  # noqa: E712
+                        or_(
+                            func.lower(Category.name) == "beam",
+                            Item.code.startswith("BEAM-"),
+                            Item.ends.isnot(None),
+                        ),
+                    )
+                )
+                beam_codes = set(beam_res.scalars().all())
+                lt_codes = [c for c in lt_codes if c not in beam_codes]
             if lt_codes:
                 raise HTTPException(
                     status_code=400,
