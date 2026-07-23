@@ -117,7 +117,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
     const materialItemIds = workOrder ? Array.from(new Set(materialRows.map(r => r.item_id))) : [];
     useEffect(() => {
         if (!materialItemIds.length) { setBatchesByItem({}); setConsumedBatches({}); return; }
-        const loc = workOrder?.input_location_id;
+        const loc = woInputLocId;
         Promise.all(materialItemIds.map(id =>
             authFetch(`${API_BASE}/batches?item_id=${id}${loc ? `&location_id=${loc}` : ''}&limit=200`)
                 .then((r: Response) => (r.ok ? r.json() : []))
