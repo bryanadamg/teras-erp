@@ -220,6 +220,10 @@ export default function LabDipRequestView({
         setReject(null);
     };
 
+    // Rejection-history viewer: the "Rejected Nx" chip opens this, listing every
+    // reject round (reason + notes) for the item — traceability across reopens.
+    const [historyItem, setHistoryItem] = useState<{ item: any; code: string } | null>(null);
+
     // `items` is the server-side typeahead result page (already scoped to Finished Goods).
     const itemLabel = (it: any) => it.code ? `${it.code} — ${it.name}` : it.name;
     const itemOptions = useMemo(() =>
@@ -254,27 +258,6 @@ export default function LabDipRequestView({
             customer_article_code: r.customer_article_code || '',
             internal_article_code: r.internal_article_code || '',
             items: (r.items || []).map((it: any) => ({ id: it.id, item_id: it.item_id, item_label: it.item_code ? `${it.item_code} — ${it.item_name}` : it.item_name, variant_seq: it.variant_seq, locked_variant_code: it.locked_variant_code || undefined, dips: (it.dips || []).map(mapDip) })),
-            legacyDips: (r.dips || []).filter((d: any) => !d.lab_dip_item_id).map(mapDip),
-        });
-        setPendingItem('');
-        setIsModalOpen(true);
-    };
-
-    // Resubmit: opens a NEW request (own LD-code) pre-filled from a rejected item — same
-    // FG item, same request-level colors, same customer/season/article codes — but the
-    // item's variant code (e.g. "0003-A") is pinned via locked_variant_code so it never
-    // changes even though the new request gets its own sequence.
-    const openResubmit = (r: any, it: any) => {
-        setEditing(null);
-        const mapDip = (d: any): DipDraft => ({ color_name: d.color_name, color_id: d.color_id || null, submission_round: d.submission_round, recipe_ref: d.recipe_ref || '' });
-        setForm({
-            ...emptyForm(),
-            customer_id: r.customer_id || '',
-            season: r.season || '',
-            request_type: 'RESUBMIT',
-            customer_article_code: r.customer_article_code || '',
-            internal_article_code: r.internal_article_code || '',
-            items: [{ item_id: it.item_id, item_label: it.item_code ? `${it.item_code} — ${it.item_name}` : it.item_name, locked_variant_code: it.variant_code, dips: [] }],
             legacyDips: (r.dips || []).filter((d: any) => !d.lab_dip_item_id).map(mapDip),
         });
         setPendingItem('');
@@ -550,7 +533,19 @@ export default function LabDipRequestView({
                                                     ) : (
                                                         <span style={{ ...seqBadge(classic), fontFamily: "'Courier New', monospace", fontSize: classic ? 10 : 11 }}>{variantCode}</span>
                                                     ),
-                                                    <StatusChip status={status} tint />,
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' as const }}>
+                                                        <StatusChip status={status} tint />
+                                                        {(it.rejection_count ?? 0) > 0 && (
+                                                            <button
+                                                                type="button"
+                                                                title="View rejection history"
+                                                                onClick={() => setHistoryItem({ item: it, code: variantCode })}
+                                                                style={{ cursor: 'pointer', border: classic ? '1px solid #a01a1a' : '1px solid #f3c4c4', background: classic ? '#f8d7da' : '#fef2f2', color: classic ? '#7f0000' : '#dc2626', borderRadius: classic ? 0 : 4, fontSize: classic ? 9 : 10, fontWeight: 'bold', lineHeight: 1.4, padding: '0 5px' }}
+                                                            >
+                                                                Rejected {it.rejection_count}x
+                                                            </button>
+                                                        )}
+                                                    </span>,
                                                     canManage ? (
                                                         <div style={{ display: 'inline-flex', opacity: locked ? 0.85 : 1 }}>
                                                             <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'IN_PROGRESS', 'progress'), ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => setItemStatus(it.id, status, 'IN_PROGRESS')}>Progress</button>
@@ -571,9 +566,9 @@ export default function LabDipRequestView({
                                                     ) : (status === 'REJECTED' && canManage) ? (
                                                         <button
                                                             type="button"
-                                                            title={`Resubmit ${variantCode} as a new Lab Dip Request`}
+                                                            title={`Reopen ${variantCode} for another round (keeps rejection history)`}
                                                             style={{ ...xpBtn(classic, { padding: classic ? '1px 5px' : '3px 7px', lineHeight: 1, color: classic ? '#a05a00' : '#b45309' }) }}
-                                                            onClick={() => openResubmit(r, it)}
+                                                            onClick={() => onUpdateItemStatus(r.id, it.id, 'IN_PROGRESS')}
                                                         >
                                                             <i className="bi bi-arrow-repeat" style={{ fontSize: classic ? 10 : 12 }} />
                                                         </button>
@@ -894,7 +889,7 @@ export default function LabDipRequestView({
                             <span style={{ ...variantBadge(classic), fontSize: classic ? 11 : 13 }}>{reject.variant}</span>
                         </div>
                         <div style={{ fontSize: classic ? 11 : 12, color: classic ? '#555' : '#64748b', marginBottom: 10 }}>
-                            Rejecting locks this variant — its status cannot be changed afterwards.
+                            This rejection is logged for traceability. The variant rests as Rejected — reopen it for another round when ready.
                         </div>
                         <label style={xpLbl(classic)}>Rejection Reason</label>
                         <select style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const, marginBottom: 10 }}
@@ -905,6 +900,41 @@ export default function LabDipRequestView({
                         <textarea style={{ ...xpInput(classic), height: 'auto', padding: '4px 6px', width: '100%', resize: 'vertical' as const, boxSizing: 'border-box' as const }} rows={2}
                             value={rejectNotes} onChange={e => setRejectNotes(e.target.value)}
                             placeholder="Extra detail for this rejection…" />
+                    </div>
+                )}
+            </ModalWrapper>
+
+            {/* Rejection history — every reject round with its reason + notes (traceability). */}
+            <ModalWrapper
+                isOpen={!!historyItem}
+                modeless
+                onClose={() => setHistoryItem(null)}
+                title={<><i className="bi bi-clock-history me-2" />Rejection History</>}
+                size="sm"
+                footer={<button type="button" style={xpBtn(classic)} onClick={() => setHistoryItem(null)}>Close</button>}
+            >
+                {historyItem && (
+                    <div style={{ padding: '2px 2px 4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                            <span style={{ fontWeight: 'bold', color: classic ? '#0d3a8a' : '#1e293b', fontSize: classic ? 12 : 13 }}>{historyItem.item.item_name || historyItem.item.item_code || '—'}</span>
+                            <span style={{ ...variantBadge(classic), fontSize: classic ? 10 : 12 }}>{historyItem.code}</span>
+                        </div>
+                        {(historyItem.item.rejections || []).length === 0 ? (
+                            <div style={{ fontSize: classic ? 11 : 12, color: '#888', fontStyle: 'italic' }}>No rejections recorded.</div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 6 }}>
+                                {(historyItem.item.rejections || []).map((rj: any) => (
+                                    <div key={rj.id} style={{ border: classic ? '1px solid #d9b8b8' : '1px solid #f3c4c4', background: classic ? '#fbeeee' : '#fef2f2', borderRadius: classic ? 0 : 4, padding: '5px 7px' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                                            <span style={{ fontWeight: 'bold', fontSize: classic ? 10 : 11, color: classic ? '#7f0000' : '#dc2626' }}>Round {rj.round_no}</span>
+                                            <span style={{ fontSize: classic ? 9 : 10, color: '#888' }}>{rj.rejected_at ? new Date(rj.rejected_at).toLocaleString() : ''}</span>
+                                        </div>
+                                        <div style={{ fontSize: classic ? 11 : 12, color: classic ? '#333' : '#334155' }}>{rj.reason || '—'}</div>
+                                        {rj.notes && <div style={{ fontSize: classic ? 10 : 11, color: classic ? '#666' : '#64748b', marginTop: 2, whiteSpace: 'pre-wrap' as const }}>{rj.notes}</div>}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
             </ModalWrapper>

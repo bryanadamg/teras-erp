@@ -90,6 +90,30 @@ class LabDipItem(Base):
         viewonly=True,
         primaryjoin="LabDipItem.id == LabDipLine.lab_dip_item_id",
     )
+    # Full rejection history (one row per reject). Count = times rejected (survives
+    # reopen); each row keeps its reason/notes for traceability.
+    rejections = relationship(
+        "LabDipRejection",
+        order_by="LabDipRejection.round_no",
+        cascade="all, delete-orphan",
+    )
+
+
+class LabDipRejection(Base):
+    __tablename__ = "lab_dip_rejections"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    lab_dip_item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("lab_dip_items.id", ondelete="CASCADE"), index=True
+    )
+    # 1-based reject sequence for this item (1 = first rejection).
+    round_no: Mapped[int] = mapped_column(Integer, default=1)
+    reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rejected_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    rejected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class LabDipLine(Base):

@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text, update as sa_update
 from sqlalchemy.orm import joinedload
 from app.db.session import get_async_db
-from app.models.lab_dip import LabDipRequest, LabDipItem, LabDipLine
+from app.models.lab_dip import LabDipRequest, LabDipItem, LabDipLine, LabDipRejection
 from app.models.color import Color
 from app.models.attribute import Attribute, AttributeValue
 from app.models.manufacturing import ManufacturingOrder
@@ -31,6 +31,7 @@ def _load_full(request_id):
         .options(
             joinedload(LabDipRequest.items).joinedload(LabDipItem.dips),
             joinedload(LabDipRequest.items).joinedload(LabDipItem.item),
+            joinedload(LabDipRequest.items).joinedload(LabDipItem.rejections),
             joinedload(LabDipRequest.dips),
         )
         .filter(LabDipRequest.id == request_id)
@@ -56,6 +57,7 @@ def _decorate(req: LabDipRequest) -> LabDipRequest:
         it.approved_color_code = f"{it.variant_code}-{it.approved_set}" if it.approved_set else None
         it.item_code = it.item.code if it.item else None
         it.item_name = it.item.name if it.item else None
+        it.rejection_count = len(it.rejections or [])
     return req
 
 
@@ -162,6 +164,7 @@ async def get_lab_dips(
         .options(
             joinedload(LabDipRequest.items).joinedload(LabDipItem.dips),
             joinedload(LabDipRequest.items).joinedload(LabDipItem.item),
+            joinedload(LabDipRequest.items).joinedload(LabDipItem.rejections),
             joinedload(LabDipRequest.dips),
         )
         .order_by(LabDipRequest.created_at.desc())
@@ -344,9 +347,13 @@ async def update_lab_dip_item_status(
     if status not in valid_statuses:
         raise HTTPException(status_code=400, detail="Invalid status")
 
-    # APPROVED / REJECTED are terminal — a decided variant can never be re-opened.
-    if item.status in ("APPROVED", "REJECTED"):
-        raise HTTPException(status_code=400, detail=f"Variant is {item.status} and locked; its status cannot be changed")
+    # APPROVED is terminal — a minted shade can never be re-opened.
+    if item.status == "APPROVED":
+        raise HTTPException(status_code=400, detail="Variant is APPROVED and locked; its status cannot be changed")
+    # REJECTED rests but is reopenable: the only exit is back to IN_PROGRESS for another
+    # round. Re-rejecting or jumping straight to APPROVED from REJECTED is blocked.
+    if item.status == "REJECTED" and status != "IN_PROGRESS":
+        raise HTTPException(status_code=400, detail="A rejected variant can only be reopened to IN_PROGRESS")
 
     parent_result = await db.execute(select(LabDipRequest).filter(LabDipRequest.id == request_id))
     parent = parent_result.scalars().first()
@@ -420,8 +427,23 @@ async def update_lab_dip_item_status(
         backfilled_mo_ids = [str(m) for m in mo_ids]
 
     if status == "REJECTED":
-        item.rejection_reason = (reason or "").strip() or None
-        item.rejection_notes = (notes or "").strip() or None
+        reason_v = (reason or "").strip() or None
+        notes_v = (notes or "").strip() or None
+        # Mirror the latest reject onto the item for existing reads...
+        item.rejection_reason = reason_v
+        item.rejection_notes = notes_v
+        # ...and append an immutable log row so every reject is preserved (the count of
+        # these rows is the "rejected Nx" indicator, and it survives a later reopen).
+        prior = (await db.execute(
+            select(LabDipRejection).filter(LabDipRejection.lab_dip_item_id == item.id)
+        )).scalars().all()
+        db.add(LabDipRejection(
+            lab_dip_item_id=item.id,
+            round_no=len(prior) + 1,
+            reason=reason_v,
+            notes=notes_v,
+            rejected_by=current_user.id,
+        ))
 
     previous_status = item.status
     item.status = status

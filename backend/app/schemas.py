@@ -1614,6 +1614,15 @@ class LabDipLineResponse(BaseModel):
     order: int = 0
     model_config = ConfigDict(from_attributes=True)
 
+class LabDipRejectionResponse(BaseModel):
+    id: UUID
+    round_no: int = 1
+    reason: Optional[str] = None
+    notes: Optional[str] = None
+    rejected_by: Optional[UUID] = None
+    rejected_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
 class LabDipItemCreate(BaseModel):
     item_id: UUID
     order: int = 0
@@ -1640,8 +1649,10 @@ class LabDipItemResponse(BaseModel):
     approved_set: Optional[str] = None
     approved_color_id: Optional[UUID] = None
     approved_color_code: Optional[str] = None  # e.g. "00001-A-5"; set by the API layer.
-    rejection_reason: Optional[str] = None
+    rejection_reason: Optional[str] = None  # latest reject's reason (mirror of newest log row).
     rejection_notes: Optional[str] = None
+    rejection_count: int = 0  # times rejected (== len(rejections)); survives reopen.
+    rejections: list[LabDipRejectionResponse] = []  # full reject history for traceability.
     dips: list[LabDipLineResponse] = []
     model_config = ConfigDict(from_attributes=True)
 
