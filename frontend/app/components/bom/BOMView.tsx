@@ -2,11 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { createPortal } from 'react-dom';
 import BOMDesigner from './BOMDesigner';
 const BOMPrintModal = dynamic(() => import('./BOMPrintModal'), { ssr: false });
 import ProductionRunModal from '../manufacturing/ProductionRunModal';
-import { MODAL_Z } from '../shared/ModalWrapper';
+import ModalWrapper from '../shared/ModalWrapper';
 import { useToast } from '../shared/Toast';
 import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
@@ -818,35 +817,30 @@ export default function BOMView({
         <>
         <div className="row g-4 fade-in">
             {/* BOM Designer Modal */}
-            {isDesignerOpen && createPortal(
-                <div role="dialog" aria-modal="true" aria-label={editingBOM ? `Edit BOM: ${editingBOM.code}` : 'BOM Designer'} style={{ position: 'fixed', inset: 0, zIndex: MODAL_Z[1], background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', width: 'min(1200px, 96vw)', height: 'min(860px, 94vh)', background: '#ece9d8', border: '2px solid #0a246a', boxShadow: '4px 4px 20px rgba(0,0,0,0.6), inset 0 0 0 1px #a6caf0', fontFamily: 'Tahoma, "Segoe UI", sans-serif', borderRadius: 4, overflow: 'hidden' }}>
-                        <div style={{ background: 'linear-gradient(to right, #0a246a, #a6caf0, #0a246a)', padding: '3px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, userSelect: 'none' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <i className="bi bi-collection-fill" style={{ fontSize: 14 }} />
-                                <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 12, fontFamily: 'Tahoma, "Segoe UI", sans-serif', textShadow: '1px 1px 2px rgba(0,0,0,0.6)' }}>{editingBOM ? `Edit BOM: ${editingBOM.code}` : 'BOM Designer (Recursive)'}</span>
-                            </div>
-                            <button onClick={() => setIsDesignerOpen(false)} style={{ width: 21, height: 21, padding: 0, background: 'linear-gradient(to bottom, #e06060, #b03030)', border: '1px solid #800', borderRadius: 2, cursor: 'pointer', color: '#fff', fontSize: 12, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>✕</button>
-                        </div>
-                        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                            <BOMDesigner
-                                rootItemCode={editingBOM ? editingBOM.item_code : (initialItemCode || '')}
-                                initialAttributeValueIds={editingBOM ? (editingBOM.attribute_value_ids || []) : initialAttributeIds}
-                                initialBOMData={editingBOM || null}
-                                items={items} locations={locations || []} attributes={attributes}
-                                sizes={sizes || []}
-                                partners={partners || []}
-                                workCenters={workCenters} operations={operations} existingBOMs={boms}
-                                onSave={handleCreateBOMWrapper} onCreateItem={onCreateItem}
-                                onUploadPhoto={onUploadBOMPhoto}
-                                onUploadDesign={onUploadBOMDesign}
-                                onCancel={handleCloseDesigner} onSearchItem={onSearchItem}
-                            />
-                        </div>
-                    </div>
-                </div>,
-                document.body
-            )}
+            <ModalWrapper
+                isOpen={isDesignerOpen}
+                onClose={handleCloseDesigner}
+                title={<><i className="bi bi-collection-fill" style={{ marginRight: 6 }} />{editingBOM ? `Edit BOM: ${editingBOM.code}` : 'BOM Designer (Recursive)'}</>}
+                size="xxl"
+                variant="primary"
+                modeless
+            >
+                <div style={{ width: 'min(1160px, 94vw)', height: 'min(82vh, 860px)', overflow: 'hidden' }}>
+                    <BOMDesigner
+                        rootItemCode={editingBOM ? editingBOM.item_code : (initialItemCode || '')}
+                        initialAttributeValueIds={editingBOM ? (editingBOM.attribute_value_ids || []) : initialAttributeIds}
+                        initialBOMData={editingBOM || null}
+                        items={items} locations={locations || []} attributes={attributes}
+                        sizes={sizes || []}
+                        partners={partners || []}
+                        workCenters={workCenters} operations={operations} existingBOMs={boms}
+                        onSave={handleCreateBOMWrapper} onCreateItem={onCreateItem}
+                        onUploadPhoto={onUploadBOMPhoto}
+                        onUploadDesign={onUploadBOMDesign}
+                        onCancel={handleCloseDesigner} onSearchItem={onSearchItem}
+                    />
+                </div>
+            </ModalWrapper>
 
             {/* BOM List */}
             <div className="col-12">
