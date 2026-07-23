@@ -119,7 +119,7 @@ const RowActionMenu = memo(({ items, classic, isSelected }: { items: { label: st
 RowActionMenu.displayName = 'RowActionMenu';
 
 // Memoized Row Component
-const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSelect, onEdit, onDelete, onViewHistory, getAttributeList, classic }: any) => {
+const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSelect, onEdit, onDelete, onViewHistory, classic }: any) => {
     const { hasPermission } = useUser();
     const canManage = hasPermission('inventory.manage');
     const canDelete = hasPermission('inventory.delete');
@@ -216,33 +216,25 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
                     <span style={classic ? { color: isSelected ? '#cce0ff' : '#999', fontSize: '9px' } : undefined} className={classic ? '' : 'text-muted small'}>-</span>
                 )}
             </td>
-            <td style={tdBase}>
+            <td style={{ ...tdBase, width: '70px' }}>
                 {(() => {
-                    const names = getAttributeList(item.attribute_ids);
-                    if (names.length === 0) {
-                        return classic
-                            ? <span style={{ color: isSelected ? '#cce0ff' : '#999', fontSize: '9px' }}>-</span>
-                            : <span className="text-muted small">-</span>;
-                    }
-                    return (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: classic ? 3 : 4 }}>
-                            {names.map((name, i) => classic ? (
-                                <span key={i} style={{
-                                    background: isSelected ? 'rgba(255,255,255,0.2)' : '#eef2fb',
-                                    border: `1px solid ${isSelected ? 'rgba(255,255,255,0.5)' : '#9fb3d9'}`,
-                                    color: isSelected ? '#fff' : '#2a3f6b',
-                                    padding: '1px 5px',
-                                    fontSize: '9px',
-                                    fontFamily: 'Tahoma, Arial, sans-serif',
-                                    fontWeight: 'bold',
-                                    whiteSpace: 'nowrap',
-                                }}>
-                                    {name}
-                                </span>
-                            ) : (
-                                <span key={i} className="badge bg-light text-dark border fw-normal">{name}</span>
-                            ))}
-                        </div>
+                    const vt = item.variant_type;
+                    const label = vt === 'color' ? 'Color' : vt === 'combo' ? 'Combo' : 'None';
+                    return classic ? (
+                        <span style={{
+                            background: isSelected ? 'rgba(255,255,255,0.2)' : '#eef2fb',
+                            border: `1px solid ${isSelected ? 'rgba(255,255,255,0.5)' : '#9fb3d9'}`,
+                            color: isSelected ? '#fff' : '#2a3f6b',
+                            padding: '1px 5px',
+                            fontSize: '9px',
+                            fontFamily: 'Tahoma, Arial, sans-serif',
+                            fontWeight: 'bold',
+                            whiteSpace: 'nowrap',
+                        }}>
+                            {label}
+                        </span>
+                    ) : (
+                        <span className="badge bg-light text-dark border fw-normal">{label}</span>
                     );
                 })()}
             </td>
@@ -692,11 +684,6 @@ export default function InventoryView({
   };
 
   useEffect(() => { setSelectedIds(new Set()); }, [currentPage]);
-
-  const getAttributeList = (ids: string[]): string[] => {
-      if (!ids || ids.length === 0) return [];
-      return ids.map(id => attributes.find((a: any) => a.id === id)?.name).filter(Boolean);
-  };
 
   const handleEdit = (item: any) => {
       setEditingItem({...item, attribute_ids: item.attribute_ids || [], packaging_factor_ids: (item.packaging_factor_ids || []).map(String)});
@@ -1397,7 +1384,7 @@ export default function InventoryView({
                     <th style={classic ? { ...xpThCell, width: '110px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggleSort('category')} title="Sort">{t('categories')}<SortMark sort={sort} colKey="category" /></th>
                     <th style={classic ? { ...xpThCell, width: '55px' } : { width: '55px' }}>{t('uom')}</th>
                     <th style={classic ? { ...xpThCell, width: '90px' } : undefined}>{t('source_sample')}</th>
-                    <th style={classic ? xpThCell : undefined}>{t('attributes')}</th>
+                    <th style={classic ? { ...xpThCell, width: '70px' } : { width: '70px' }}>{t('item_type')}</th>
                     <th style={classic ? { ...xpThCell, width: '90px', cursor: 'pointer' } : { width: '90px', cursor: 'pointer' }} onClick={() => toggleSort('weight')} title="Sort">{t('weight_per_unit')}<SortMark sort={sort} colKey="weight" /></th>
                     <th style={classic ? { ...xpThCell, width: '80px', borderRight: 'none' } : { width: '80px' }}>{t('actions')}</th>
                   </tr>
@@ -1414,7 +1401,6 @@ export default function InventoryView({
                         onEdit={handleEdit}
                         onDelete={onDeleteItem}
                         onViewHistory={setHistoryEntityId}
-                        getAttributeList={getAttributeList}
                         classic={classic}
                     />
                   ))}
