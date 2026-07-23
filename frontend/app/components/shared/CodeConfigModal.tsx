@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { useTheme } from '../../context/ThemeContext';
+import ModalWrapper from './ModalWrapper';
 
 export interface CodeConfig {
     prefix: string;
@@ -497,6 +498,36 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
   const classic = currentStyle === 'classic';
   const palette = getAvailablePalette(segments, attributes);
 
+  const title = (
+    <>
+      <i className="bi bi-gear-fill" style={{ marginRight: 6 }}></i>
+      Configure {getTypeName(type)} Code
+    </>
+  );
+
+  const footer = classic ? (
+    <>
+      <button onClick={onClose} style={{
+        fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '4px 18px',
+        background: 'linear-gradient(to bottom, #fff, #d4d0c8)',
+        border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer',
+      }}>Cancel</button>
+      <button onClick={handleSave} style={{
+        fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '4px 18px',
+        fontWeight: 'bold', background: 'linear-gradient(to bottom, #6699cc, #3366aa)',
+        border: '1px solid', borderColor: '#99bbee #224477 #224477 #99bbee',
+        color: '#fff', cursor: 'pointer',
+      }}>Save Configuration</button>
+    </>
+  ) : (
+    <>
+      <button type="button" className="btn btn-sm btn-secondary" onClick={onClose}>Cancel</button>
+      <button type="button" className="btn btn-sm btn-primary px-4" onClick={handleSave}>
+        Save Configuration
+      </button>
+    </>
+  );
+
   if (classic) {
     const xpGap = (gapIndex: number) => (
       <div
@@ -651,37 +682,8 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
     };
 
     return (
-      <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 20100,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{
-          width: '540px', maxWidth: '96vw',
-          border: '2px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-          boxShadow: '3px 3px 8px rgba(0,0,0,0.4)',
-          background: '#ece9d8', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px',
-        }}>
-          {/* XP Title Bar */}
-          <div style={{
-            background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)',
-            color: '#fff', padding: '4px 6px 4px 8px', fontWeight: 'bold', fontSize: '12px',
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)', borderBottom: '1px solid #003080',
-            userSelect: 'none',
-          }}>
-            <span>
-              <i className="bi bi-gear-fill" style={{ marginRight: '6px' }}></i>
-              Configure {getTypeName(type)} Code
-            </span>
-            <button onClick={onClose} style={{
-              background: 'linear-gradient(to bottom, #d9a0a0, #b03030)',
-              border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-              color: '#fff', fontWeight: 'bold', fontSize: '9px',
-              width: '16px', height: '16px', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
-            }}>✕</button>
-          </div>
-
-          {/* Body */}
-          <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <ModalWrapper isOpen={isOpen} onClose={onClose} title={title} footer={footer} size="lg" variant="primary" modeless>
+        <div style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
 
             {/* Separator row */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '6px' }}>
@@ -773,76 +775,15 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
               </div>
             </div>
 
-          </div>
-
-          {/* XP Footer */}
-          <div style={{
-            borderTop: '1px solid #b0aaa0', padding: '7px 12px',
-            display: 'flex', justifyContent: 'flex-end', gap: '6px', background: '#ece9d8',
-          }}>
-            <button onClick={onClose} style={{
-              fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '4px 18px',
-              background: 'linear-gradient(to bottom, #fff, #d4d0c8)',
-              border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer',
-            }}>Cancel</button>
-            <button onClick={handleSave} style={{
-              fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', padding: '4px 18px',
-              fontWeight: 'bold', background: 'linear-gradient(to bottom, #6699cc, #3366aa)',
-              border: '1px solid', borderColor: '#99bbee #224477 #224477 #99bbee',
-              color: '#fff', cursor: 'pointer',
-            }}>Save Configuration</button>
-          </div>
         </div>
-      </div>
+      </ModalWrapper>
     );
   }
 
   // ─── Default (Modern) Mode ────────────────────────────────────────────────
   return (
-    <div style={{
-      position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.55)',
-      zIndex: 20100, display: 'flex', alignItems: 'center', justifyContent: 'center',
-    }}>
-      <div className={`ui-style-${currentStyle}`} style={{
-        width: '600px', maxWidth: '96vw',
-        background: '#fff', borderRadius: '12px',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.2), 0 4px 16px rgba(0,0,0,0.08)',
-        overflow: 'hidden', display: 'flex', flexDirection: 'column',
-      }}>
-
-        {/* Header */}
-        <div style={{
-          background: 'linear-gradient(135deg, #1e3a5f 0%, #2d5a9e 100%)',
-          padding: '14px 18px',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          flexShrink: 0,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{
-              width: '30px', height: '30px', borderRadius: '7px',
-              background: 'rgba(255,255,255,0.15)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            }}>
-              <i className="bi bi-gear-fill" style={{ color: '#fff', fontSize: '13px' }}></i>
-            </div>
-            <div>
-              <div style={{ color: '#fff', fontWeight: 600, fontSize: '13px', lineHeight: 1.2 }}>
-                Configure {getTypeName(type)} Code
-              </div>
-              <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: '11px', marginTop: '1px' }}>
-                Drag segments to build your ID format
-              </div>
-            </div>
-          </div>
-          <button onClick={onClose} style={{
-            background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '6px',
-            color: 'rgba(255,255,255,0.75)', cursor: 'pointer',
-            padding: '2px 8px 4px', fontSize: '18px', lineHeight: 1,
-          }}>×</button>
-        </div>
-
-        {/* Body */}
-        <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto' }}>
+    <ModalWrapper isOpen={isOpen} onClose={onClose} title={title} footer={footer} size="lg" variant="primary" modeless>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
 
           {/* Separator row */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px' }}>
@@ -983,21 +924,7 @@ export default function CodeConfigModal({ isOpen, onClose, type, onSave, initial
             </span>
           </div>
 
-        </div>
-
-        {/* Footer */}
-        <div style={{
-          padding: '11px 20px', borderTop: '1px solid #f1f5f9',
-          display: 'flex', justifyContent: 'flex-end', gap: '8px',
-          background: '#fafafa', flexShrink: 0,
-        }}>
-          <button type="button" className="btn btn-sm btn-secondary" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn btn-sm btn-primary px-4" onClick={handleSave}>
-            Save Configuration
-          </button>
-        </div>
-
       </div>
-    </div>
+    </ModalWrapper>
   );
 }

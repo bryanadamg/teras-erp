@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, memo } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
-import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
+import ModalWrapper from '../shared/ModalWrapper';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
@@ -201,7 +201,6 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
     const [profiles, setProfiles] = useState<AutoBOMProfile[]>([]);
     const [profileName, setProfileName] = useState('');
     const [saving, setSaving] = useState(false);
-    const { uiStyle: currentStyle } = useTheme();
     const { authFetch } = useData();
 
     useEffect(() => {
@@ -276,57 +275,40 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
     const gbTip = xpGroupbox('Tip');
 
     return (
-        <div
-            data-testid="bom-automator-modal"
-            style={{
-                position: 'fixed', inset: 0,
-                background: 'rgba(0,0,0,0.55)',
-                zIndex: 20100,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
+        <ModalWrapper
+            isOpen={isOpen}
+            onClose={onClose}
+            title="BOM Automator — Configure Structure"
+            size="lg"
+            variant="primary"
+            modeless
+            footer={<>
+                <button style={xpBtn} onClick={onClose}>{t('cancel')}</button>
+                <button
+                    data-testid="generate-structure-btn"
+                    style={xpBtnPrimary}
+                    onClick={handleSaveAndApply}
+                >
+                    Generate Structure
+                </button>
+            </>}
         >
-            <div style={{
-                width: 680,
-                maxWidth: '96vw',
-                maxHeight: '90vh',
-                display: 'flex',
-                flexDirection: 'column',
-                fontFamily: 'Tahoma, "Segoe UI", sans-serif',
-                fontSize: 11,
-                boxShadow: '4px 4px 16px rgba(0,0,0,0.6)',
-                border: '1px solid #0a246a',
-            }}>
-                {/* XP Title Bar */}
-                <div style={{
-                    background: 'linear-gradient(to right, #0a246a 0%, #3a72d0 45%, #0a246a 100%)',
-                    display: 'flex', alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '3px 4px 3px 8px',
-                    height: 22, flexShrink: 0,
-                }}>
-                    <span style={{ color: 'white', fontSize: 11, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 5 }}>
-                        BOM Automator — Configure Structure
-                    </span>
-                    <div style={{ display: 'flex', gap: 2 }}>
-                        <button onClick={onClose} style={{
-                            width: 16, height: 14,
-                            background: 'linear-gradient(to bottom, #d06060, #a03030)',
-                            borderTop: '1px solid #e08080', borderLeft: '1px solid #e08080',
-                            borderRight: '1px solid #600', borderBottom: '1px solid #600',
-                            fontSize: 9, color: 'white', cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold',
-                        }}>X</button>
-                    </div>
-                </div>
-
+            <div
+                data-testid="bom-automator-modal"
+                style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    maxHeight: '70vh',
+                    fontFamily: 'Tahoma, "Segoe UI", sans-serif',
+                    fontSize: 11,
+                }}
+            >
                 {/* Body: two columns */}
                 <div style={{
-                    background: '#ece9d8',
                     display: 'flex',
                     gap: 8,
-                    padding: 8,
-                    flex: 1,
                     overflow: 'hidden',
+                    flex: 1,
                     minHeight: 0,
                 }}>
                     {/* Left: config + levels (scrollable) */}
@@ -425,28 +407,8 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
                         </div>
                     </div>
                 </div>
-
-                {/* XP Footer */}
-                <div style={{
-                    background: '#ece9d8',
-                    borderTop: '1px solid #aca899',
-                    padding: '5px 8px',
-                    display: 'flex',
-                    justifyContent: 'flex-end',
-                    gap: 6,
-                    flexShrink: 0,
-                }}>
-                    <button style={xpBtn} onClick={onClose}>{t('cancel')}</button>
-                    <button
-                        data-testid="generate-structure-btn"
-                        style={xpBtnPrimary}
-                        onClick={handleSaveAndApply}
-                    >
-                        Generate Structure
-                    </button>
-                </div>
             </div>
-        </div>
+        </ModalWrapper>
     );
 });
 
