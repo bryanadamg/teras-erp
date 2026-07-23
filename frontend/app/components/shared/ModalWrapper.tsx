@@ -47,6 +47,12 @@ interface ModalWrapperProps {
      * confirmations and destructive dialogs blocking.
      */
     modeless?: boolean;
+    /**
+     * Set false when children manage their own internal scroll regions
+     * (e.g. a designer with its own scrollable panels) — prevents a
+     * second, near-empty scrollbar on the body wrapper itself.
+     */
+    bodyScroll?: boolean;
 }
 
 const xpTitleGradients: Record<string, string> = {
@@ -67,7 +73,7 @@ const xpSizeWidths: Record<string, number> = { sm: 340, md: 480, lg: 640, xl: 82
 
 export default function ModalWrapper({
     isOpen, onClose, title, children, footer,
-    level = 1, size = 'md', variant = 'primary', modeless = false
+    level = 1, size = 'md', variant = 'primary', modeless = false, bodyScroll = true
 }: ModalWrapperProps) {
     const { uiStyle: currentStyle } = useTheme();
     const isMobile = useIsMobile();
@@ -233,7 +239,7 @@ export default function ModalWrapper({
                 {/* Body — ui-style-classic triggers CSS overrides for Bootstrap controls */}
                 <div
                     className="ui-style-classic"
-                    style={{ padding: '12px 14px', overflowY: 'auto', background: 'linear-gradient(to bottom, #f1efe5 0%, #e5e2d3 100%)', flex: 1 }}
+                    style={{ padding: '12px 14px', overflowY: bodyScroll ? 'auto' : 'hidden', background: 'linear-gradient(to bottom, #f1efe5 0%, #e5e2d3 100%)', flex: 1 }}
                 >
                     {children}
                 </div>
@@ -290,7 +296,7 @@ export default function ModalWrapper({
                 <h5 id={titleId} className="modal-title small fw-bold d-flex align-items-center gap-2">{title}</h5>
                 <button type="button" className={`btn-close ${variant === 'dark' ? 'btn-close-white' : ''}`} onClick={onClose} aria-label="Close"></button>
             </div>
-            <div className="modal-body p-4" style={{ maxHeight: floating ? 'calc(100vh - 160px)' : '85vh', overflowY: 'auto', background: 'white' }}>
+            <div className="modal-body p-4" style={{ maxHeight: floating ? 'calc(100vh - 160px)' : '85vh', overflowY: bodyScroll ? 'auto' : 'hidden', background: 'white' }}>
                 {children}
             </div>
             {footer && (

@@ -824,6 +824,7 @@ export default function BOMView({
                 size="xxl"
                 variant="primary"
                 modeless
+                bodyScroll={false}
             >
                 <div style={{ width: '100%', height: 'min(82vh, 860px)', overflow: 'hidden' }}>
                     <BOMDesigner
