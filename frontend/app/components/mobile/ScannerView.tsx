@@ -490,7 +490,7 @@ export default function MobileScannerView({
                                     <option value="">— pilih lot —</option>
                                     {batchesByItem[itemId].map((b: any) => (
                                         <option key={b.id} value={b.id}>
-                                            {b.batch_number} — {Number(b.remaining ?? 0).toFixed(2)} sisa{b.ends ? `, ${b.ends} ends` : ''}
+                                            {b.batch_number}{b.vendor_lot ? ` (supplier: ${b.vendor_lot})` : ''} — {Number(b.remaining ?? 0).toFixed(2)} sisa{b.ends ? `, ${b.ends} ends` : ''}
                                         </option>
                                     ))}
                                 </select>
