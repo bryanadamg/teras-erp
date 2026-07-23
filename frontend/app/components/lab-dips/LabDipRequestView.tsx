@@ -8,7 +8,7 @@ import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip } from '../shared/xpTheme';
+import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, ColorSwatchChip, useSortable, SortMark } from '../shared/xpTheme';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
 
 // ── XP style constants (consistent with DyeingSettingView) ──────────────────
@@ -156,7 +156,7 @@ export default function LabDipRequestView({
     useToast();
     const router = useRouter();
     const { uiStyle } = useTheme();
-    const { formatDate: tzDate } = useTimezone();
+    const { formatDate: tzDate, formatDateTime: tzDateTime } = useTimezone();
     const classic = uiStyle === 'classic';
     const { hasPermission } = useUser();
     const canManage = hasPermission('dyeing.manage');
@@ -317,11 +317,24 @@ export default function LabDipRequestView({
         return matchSearch && matchStatus;
     });
 
+    // Sortable columns for the request list. Default sort = most-recently-updated first,
+    // so a freshly rejected/reopened request (its parent updated_at is bumped on any item
+    // status change) floats to the top.
+    const sortCols = useMemo(() => ({
+        code:     (r: any) => r.code,
+        customer: (r: any) => r.customer_id ? getCustomerName(r.customer_id) : '',
+        type:     (r: any) => r.request_type,
+        status:   (r: any) => r.status,
+        updated:  (r: any) => new Date(r.updated_at || r.created_at || 0).getTime(),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }), [customers]);
+    const { sorted, sort, toggle: toggleSort } = useSortable(filtered, sortCols, { key: 'updated', dir: -1 });
+
     // Search/filter change → reset to page 1
     React.useEffect(() => { setPage(1); }, [searchTerm, statusFilter]);
-    const totalPages = Math.max(1, Math.ceil(filtered.length / LABDIP_PAGE_SIZE));
+    const totalPages = Math.max(1, Math.ceil(sorted.length / LABDIP_PAGE_SIZE));
     const clampedPage = Math.min(page, totalPages);
-    const paged = filtered.slice((clampedPage - 1) * LABDIP_PAGE_SIZE, clampedPage * LABDIP_PAGE_SIZE);
+    const paged = sorted.slice((clampedPage - 1) * LABDIP_PAGE_SIZE, clampedPage * LABDIP_PAGE_SIZE);
 
     const setField = (k: string, v: any) => setForm(prev => ({ ...prev, [k]: v }));
 
@@ -409,19 +422,20 @@ export default function LabDipRequestView({
                         ? { background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080' }
                         : { background: '#eef1f6' }}>
                         <tr>
-                            <th style={{ ...xpThCell(classic), width: 140 }}>Request Code</th>
-                            <th style={{ ...xpThCell(classic), width: 120 }}>Customer</th>
+                            <th style={{ ...xpThCell(classic), width: 140, cursor: 'pointer' }} onClick={() => toggleSort('code')} title="Sort">Request Code<SortMark sort={sort} colKey="code" /></th>
+                            <th style={{ ...xpThCell(classic), width: 120, cursor: 'pointer' }} onClick={() => toggleSort('customer')} title="Sort">Customer<SortMark sort={sort} colKey="customer" /></th>
                             <th style={xpThCell(classic)}>Items</th>
                             <th style={{ ...xpThCell(classic), width: 140 }}>{colorsAttrName}</th>
-                            <th style={{ ...xpThCell(classic), width: 90 }}>Type</th>
-                            <th style={{ ...xpThCell(classic), width: 110 }}>Status</th>
+                            <th style={{ ...xpThCell(classic), width: 90, cursor: 'pointer' }} onClick={() => toggleSort('type')} title="Sort">Type<SortMark sort={sort} colKey="type" /></th>
+                            <th style={{ ...xpThCell(classic), width: 110, cursor: 'pointer' }} onClick={() => toggleSort('status')} title="Sort">Status<SortMark sort={sort} colKey="status" /></th>
                             <th style={{ ...xpThCell(classic), width: 90 }}>Variants</th>
+                            <th style={{ ...xpThCell(classic), width: 128, cursor: 'pointer' }} onClick={() => toggleSort('updated')} title="Sort by last update">Updated<SortMark sort={sort} colKey="updated" /></th>
                             <th style={{ ...xpThCell(classic), width: 44, textAlign: 'right' as const, borderRight: 'none' }}></th>
                         </tr>
                     </thead>
                     <tbody>
                         {filtered.length === 0 && (
-                            <tr><td colSpan={8} style={{ ...tdBase(classic), textAlign: 'center' as const, color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>No lab dip requests yet.</td></tr>
+                            <tr><td colSpan={9} style={{ ...tdBase(classic), textAlign: 'center' as const, color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>No lab dip requests yet.</td></tr>
                         )}
                         {paged.map((r: any, idx: number) => {
                             const approved = (r.items || []).filter((it: any) => it.status === 'APPROVED').length;
@@ -487,6 +501,11 @@ export default function LabDipRequestView({
                                                     <span style={{ fontSize: classic ? 9 : 11, color: classic ? '#555' : '#64748b', marginLeft: 3 }}>approved</span>
                                                 </span>
                                             ) : <span style={{ fontSize: classic ? 9 : 12, color: classic ? '#888' : '#94a3b8', fontStyle: 'italic' }}>—</span>}
+                                        </td>
+                                        <td style={tdBase(classic)}>
+                                            <span style={{ fontSize: classic ? 10 : 12, color: classic ? '#333' : '#475569', whiteSpace: 'nowrap' as const }}>
+                                                {r.updated_at ? tzDateTime(r.updated_at) : (r.created_at ? tzDateTime(r.created_at) : '—')}
+                                            </span>
                                         </td>
                                         <td style={{ ...tdBase(classic), borderRight: 'none', textAlign: 'right' as const }} onClick={e => e.stopPropagation()}>
                                             <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end', alignItems: 'center' }}>
@@ -614,7 +633,7 @@ export default function LabDipRequestView({
 
                                         return (
                                         <tr>
-                                            <td colSpan={8} style={classic
+                                            <td colSpan={9} style={classic
                                                 ? { padding: 6, borderBottom: '2px solid #9a9690', background: '#d8d3c8' }
                                                 : { padding: 8, borderBottom: '1px solid #dbe1ea', background: '#e9edf1' }}>
                                                 <div style={{

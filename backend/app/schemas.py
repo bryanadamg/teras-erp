@@ -1700,6 +1700,7 @@ class LabDipRequestResponse(BaseModel):
     status: str
     request_type: str = "NEW"
     created_at: datetime
+    updated_at: Optional[datetime] = None  # bumped on any item status change; drives default list sort.
     customer_id: Optional[UUID] = None
     base_item_id: Optional[UUID] = None
     approved_recipe_id: Optional[UUID] = None

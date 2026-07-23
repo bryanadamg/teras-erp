@@ -35,6 +35,9 @@ export const STATUS_FAMILY: Record<string, StatusFamily> = {
     UPDATE_DIP_STATUS: 'blue', STAGE: 'blue', TRANSFER: 'blue', IMPORT: 'blue',
     DELETE: 'red', DEACTIVATE: 'red', REJECT: 'red', DISPOSE: 'red',
     PRINT: 'gray', SPLIT: 'gray', ARCHIVE: 'gray', REBUILD: 'gray',
+    // Item.variant_type tags (Inventory table "Type" column) — not a lifecycle
+    // status, but reuses the same 5-family palette for a consistent chip.
+    NONE: 'gray', COLOR: 'blue', COMBO: 'amber',
 };
 
 const FAMILY_SOLID: Record<StatusFamily, string> = {

@@ -10,7 +10,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { XPEmptyState, useSortable, SortMark, FormSection, FieldLabel } from '../shared/xpTheme';
+import { XPEmptyState, useSortable, SortMark, FormSection, FieldLabel, StatusChip } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
 import TreeSelect, { buildCategoryTree, buildLocationPickerTree } from '../shared/TreeSelect';
 
@@ -219,23 +219,9 @@ const InventoryRow = memo(({ item, rowIndex, isEditing, isSelected, onToggleSele
             <td style={{ ...tdBase, width: '70px' }}>
                 {(() => {
                     const vt = item.variant_type;
+                    const status = vt === 'color' ? 'COLOR' : vt === 'combo' ? 'COMBO' : 'NONE';
                     const label = vt === 'color' ? 'Color' : vt === 'combo' ? 'Combo' : 'None';
-                    return classic ? (
-                        <span style={{
-                            background: isSelected ? 'rgba(255,255,255,0.2)' : '#eef2fb',
-                            border: `1px solid ${isSelected ? 'rgba(255,255,255,0.5)' : '#9fb3d9'}`,
-                            color: isSelected ? '#fff' : '#2a3f6b',
-                            padding: '1px 5px',
-                            fontSize: '9px',
-                            fontFamily: 'Tahoma, Arial, sans-serif',
-                            fontWeight: 'bold',
-                            whiteSpace: 'nowrap',
-                        }}>
-                            {label}
-                        </span>
-                    ) : (
-                        <span className="badge bg-light text-dark border fw-normal">{label}</span>
-                    );
+                    return <StatusChip status={status} label={label} tint />;
                 })()}
             </td>
             <td style={tdBase}>
