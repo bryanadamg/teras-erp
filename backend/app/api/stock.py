@@ -322,8 +322,27 @@ async def transfer_stock(
 
 
 @router.get("/stock/balance", response_model=list[StockBalanceResponse])
-async def get_stock_balance_api(db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
-    return await stock_service.get_all_stock_balances(db, user=current_user)
+async def get_stock_balance_api(
+    item_ids: Optional[str] = None,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    # item_ids (comma-separated) scopes the plant-wide balance table to a handful
+    # of items — pages that only need availability for a specific item set (e.g.
+    # Packing) should pass this instead of pulling every balance row in the plant.
+    ids = None
+    if item_ids:
+        import uuid as _uuid
+        ids = []
+        for raw in item_ids.split(","):
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                ids.append(_uuid.UUID(raw))
+            except ValueError:
+                continue
+    return await stock_service.get_all_stock_balances(db, user=current_user, item_ids=ids)
 
 
 # The netting pass below walks every ONGOING MO plant-wide and is independent of

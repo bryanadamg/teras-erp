@@ -43,8 +43,9 @@ const PKG_PAGE_SIZE = 20;
 
 export default function PackingView() {
     // partners/locations/attributes/companyProfile/itemIndex come from DataContext
-    // master data (loaded on initial app load). salesOrders are NOT loaded on the
-    // packaging route, so this view self-fetches them.
+    // master data (loaded on initial app load). Packing orders, sales orders and
+    // stock balances are all fetched here scoped to what's actually on screen
+    // (paginated list, per-editor SO/balance lookups) rather than in bulk.
     const { partners, locations, attributes, companyProfile, itemIndex, authFetch } = useData();
     const { uiStyle } = useTheme();
     const { formatDate: tzDate } = useTimezone();
@@ -54,8 +55,14 @@ export default function PackingView() {
     const canManage = hasPermission('sales.manage');
 
     const [packingOrders, setPackingOrders] = useState<any[]>([]);
-    const [balances, setBalances] = useState<any[]>([]);
-    const [salesOrders, setSalesOrders] = useState<any[]>([]);
+    const [pkgTotal, setPkgTotal] = useState(0);
+    const [draftCount, setDraftCount] = useState(0);
+    const [dispatchedCount, setDispatchedCount] = useState(0);
+    // packableSOs / draftSoIds are only needed while the SO picker is open — this
+    // page no longer keeps every sales order (with full nested lines) in memory
+    // just to populate that one modal.
+    const [packableSOs, setPackableSOs] = useState<any[]>([]);
+    const [draftSoIds, setDraftSoIds] = useState<Set<string>>(new Set());
     const [loading, setLoading] = useState(false);
     const [picking, setPicking] = useState(false);
     const [editing, setEditing] = useState<any | null>(null);
@@ -74,58 +81,57 @@ export default function PackingView() {
 
     const locPickerTreeOptions = useMemo(() => buildLocationPickerTree(locations || []), [locations]);
 
-    const loadPacking = useCallback(async () => {
-        const [poRes, balRes] = await Promise.all([
-            authFetch(`${API_BASE}/packing?size=500`),
-            authFetch(`${API_BASE}/stock/balance`),
+    // Real server-side pagination — only the visible page's packing orders (each
+    // carrying nested lines/items/batches/packages) come over the wire, not every
+    // packing order ever created.
+    const loadPackingPage = useCallback(async (page: number) => {
+        setLoading(true);
+        try {
+            const res = await authFetch(`${API_BASE}/packing?page=${page}&size=${PKG_PAGE_SIZE}`);
+            if (res.ok) { const d = await res.json(); setPackingOrders(d.items || []); setPkgTotal(d.total || 0); }
+        } finally { setLoading(false); }
+    }, [authFetch]);
+
+    // Cheap total-only lookups (size=1) for the status-bar counts — avoids pulling
+    // every packing order just to count two statuses.
+    const loadCounts = useCallback(async () => {
+        const [dRes, sRes] = await Promise.all([
+            authFetch(`${API_BASE}/packing?status=DRAFT&page=1&size=1`),
+            authFetch(`${API_BASE}/packing?status=DISPATCHED&page=1&size=1`),
         ]);
-        if (poRes.ok) { const d = await poRes.json(); setPackingOrders(d.items || []); }
-        if (balRes.ok) { const b = await balRes.json(); setBalances(Array.isArray(b) ? b : (b.items || [])); }
+        if (dRes.ok) { const d = await dRes.json(); setDraftCount(d.total || 0); }
+        if (sRes.ok) { const d = await sRes.json(); setDispatchedCount(d.total || 0); }
     }, [authFetch]);
 
     const loadAll = useCallback(async () => {
         setLoading(true);
         try {
-            const so = await authFetch(`${API_BASE}/sales-orders`);
-            if (so.ok) { const d = await so.json(); setSalesOrders(Array.isArray(d) ? d : (d.items || [])); }
-            await loadPacking();
+            await Promise.all([loadPackingPage(pkgPage), loadCounts()]);
         } finally { setLoading(false); }
-    }, [authFetch, loadPacking]);
+    }, [loadPackingPage, loadCounts, pkgPage]);
 
-    useEffect(() => { loadAll(); }, [loadAll]);
+    // Split so page navigation doesn't also re-run the count queries: the pkgPage
+    // effect alone covers the initial page-1 load, loadCounts runs once on mount.
+    useEffect(() => { loadCounts(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => { loadPackingPage(pkgPage); }, [pkgPage, loadPackingPage]);
 
-    const availMap = useMemo(() => {
-        const m: Record<string, number> = {};
-        for (const b of balances) {
-            const attrs = [...(b.attribute_value_ids || [])].map(String).sort().join(',');
-            const key = `${b.item_id}|${b.location_id}|${attrs}`;
-            m[key] = (m[key] || 0) + num(b.qty);
-        }
-        return m;
-    }, [balances]);
-
-    const availableFor = useCallback((itemId: string, locId: string, attrIds: string[]) => {
-        if (!locId) return null;
-        const attrs = [...(attrIds || [])].map(String).sort().join(',');
-        return availMap[`${itemId}|${locId}|${attrs}`] || 0;
-    }, [availMap]);
-
-    const packableSOs = useMemo(
-        () => (salesOrders || []).filter((so: any) => ['PENDING', 'READY', 'PARTIAL'].includes(so.status)),
-        [salesOrders]
-    );
-
-    const packedByOthers = useCallback((soLineId: string, excludePoId?: string) => {
-        let sum = 0;
-        for (const po of packingOrders) {
-            if (po.status === 'CANCELLED') continue;
-            if (excludePoId && String(po.id) === String(excludePoId)) continue;
-            for (const l of (po.lines || [])) {
-                if (String(l.sales_order_line_id) === String(soLineId)) sum += num(l.qty_packed);
+    // SO picker needs only packable orders (small, status-bounded) plus which of
+    // them already have an open DRAFT — fetched lazily when the modal opens rather
+    // than kept loaded on every packaging page visit.
+    useEffect(() => {
+        if (!picking) return;
+        (async () => {
+            const [soRes, draftRes] = await Promise.all([
+                authFetch(`${API_BASE}/sales-orders?status=PENDING,READY,PARTIAL`),
+                authFetch(`${API_BASE}/packing?status=DRAFT&size=200`),
+            ]);
+            if (soRes.ok) { const d = await soRes.json(); setPackableSOs(Array.isArray(d) ? d : (d.items || [])); }
+            if (draftRes.ok) {
+                const d = await draftRes.json();
+                setDraftSoIds(new Set((d.items || []).map((p: any) => String(p.sales_order_id))));
             }
-        }
-        return sum;
-    }, [packingOrders]);
+        })();
+    }, [picking, authFetch]);
 
     const createForSO = async (so: any) => {
         const res = await authFetch(`${API_BASE}/packing`, {
@@ -153,12 +159,9 @@ export default function PackingView() {
 
     const customerAddr = (name: string) => (partners || []).find((p: any) => p.name === name)?.address || '';
 
-    const drafts = packingOrders.filter((p: any) => p.status === 'DRAFT').length;
-    const dispatched = packingOrders.filter((p: any) => p.status === 'DISPATCHED').length;
-
-    const pkgPages = Math.max(1, Math.ceil(packingOrders.length / PKG_PAGE_SIZE));
+    const pkgPages = Math.max(1, Math.ceil(pkgTotal / PKG_PAGE_SIZE));
     const clampedPkgPage = Math.min(pkgPage, pkgPages);
-    const pagedPackingOrders = packingOrders.slice((clampedPkgPage - 1) * PKG_PAGE_SIZE, clampedPkgPage * PKG_PAGE_SIZE);
+    const pagedPackingOrders = packingOrders;
 
     return (
         <ShellWindow classic fill="page" className="fade-in" style={{ fontFamily: xpFont }}>
@@ -166,7 +169,7 @@ export default function PackingView() {
                 classic
                 icon="bi-box2"
                 title="Packing & Dispatch"
-                right={<span style={{ fontSize: 10, opacity: 0.85 }}>{packingOrders.length} orders</span>}
+                right={<span style={{ fontSize: 10, opacity: 0.85 }}>{pkgTotal} orders</span>}
             />
                 <div style={xpToolbar()}>
                     {canManage && (
@@ -216,7 +219,7 @@ export default function PackingView() {
                         </tbody>
                     </table>
                 </div>
-                <Pager page={clampedPkgPage} total={packingOrders.length} pageSize={PKG_PAGE_SIZE} onPageChange={setPkgPage} hideWhenEmpty />
+                <Pager page={clampedPkgPage} total={pkgTotal} pageSize={PKG_PAGE_SIZE} onPageChange={setPkgPage} hideWhenEmpty />
 
             {/* Row ⋯ menu: Edit/View, Surat Jalan, Delete */}
             {menuOpenId && (() => {
@@ -233,14 +236,14 @@ export default function PackingView() {
                     />
                 );
             })()}
-            <XPStatusBar right={`${drafts} draft · ${dispatched} dispatched`}>
-                {loading ? 'Loading...' : `${packingOrders.length} packing order(s)`}
+            <XPStatusBar right={`${draftCount} draft · ${dispatchedCount} dispatched`}>
+                {loading ? 'Loading...' : `${pkgTotal} packing order(s)`}
             </XPStatusBar>
 
             {picking && (
                 <SOPickerModal
                     packableSOs={packableSOs}
-                    packingOrders={packingOrders}
+                    draftSoIds={draftSoIds}
                     onClose={() => setPicking(false)}
                     onPick={createForSO}
                 />
@@ -249,11 +252,8 @@ export default function PackingView() {
             {editing && (
                 <PackingEditor
                     po={editing}
-                    salesOrders={salesOrders}
                     itemById={itemById}
                     locPickerTreeOptions={locPickerTreeOptions}
-                    packedByOthers={packedByOthers}
-                    availableFor={availableFor}
                     authFetch={authFetch}
                     onClose={() => setEditing(null)}
                     onSaved={async () => { await loadAll(); }}
@@ -265,7 +265,6 @@ export default function PackingView() {
             {printPO && (
                 <SuratJalanPrintModal
                     po={printPO}
-                    salesOrders={salesOrders}
                     attributes={attributes}
                     companyProfile={companyProfile}
                     customerAddr={customerAddr}
@@ -278,8 +277,8 @@ export default function PackingView() {
 }
 
 // ── SO picker ────────────────────────────────────────────────────────────────
-function SOPickerModal({ packableSOs, packingOrders, onClose, onPick }: any) {
-    const hasOpenDraft = (soId: string) => packingOrders.some((p: any) => String(p.sales_order_id) === String(soId) && p.status === 'DRAFT');
+function SOPickerModal({ packableSOs, draftSoIds, onClose, onPick }: any) {
+    const hasOpenDraft = (soId: string) => draftSoIds.has(String(soId));
     return (
         <ModalWrapper isOpen onClose={onClose} title="Select an Order to Pack" size="lg" modeless>
             <div style={{ fontFamily: xpFont }}>
@@ -321,12 +320,57 @@ function SOPickerModal({ packableSOs, packingOrders, onClose, onPick }: any) {
 }
 
 // ── editor ───────────────────────────────────────────────────────────────────
-function PackingEditor({ po, salesOrders, itemById, locPickerTreeOptions, packedByOthers, availableFor, authFetch, onClose, onSaved, onPrint, showToast }: any) {
+function PackingEditor({ po, itemById, locPickerTreeOptions, authFetch, onClose, onSaved, onPrint, showToast }: any) {
     const { hasPermission } = useUser();
     const canManage = hasPermission('sales.manage');
     const readOnly = po.status !== 'DRAFT' || !canManage;
-    const so = useMemo(() => (salesOrders || []).find((s: any) => String(s.id) === String(po.sales_order_id)), [salesOrders, po]);
+
+    // This SO (with full line detail), stock balances for just its items, and
+    // per-line "packed by other orders" totals are all editor-scoped fetches —
+    // the page no longer keeps every sales order / every stock balance in memory
+    // just so one open editor can look them up.
+    const [so, setSo] = useState<any | null>(null);
+    const [soLoading, setSoLoading] = useState(true);
+    const [availMap, setAvailMap] = useState<Record<string, number>>({});
+    const [remainingMap, setRemainingMap] = useState<Record<string, number>>({});
     const soLines: any[] = so?.lines || [];
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            setSoLoading(true);
+            const soRes = await authFetch(`${API_BASE}/sales-orders/${po.sales_order_id}`);
+            const soData = soRes.ok ? await soRes.json() : null;
+            if (cancelled) return;
+            setSo(soData);
+            setSoLoading(false);
+
+            const itemIds = Array.from(new Set((soData?.lines || []).map((l: any) => String(l.item_id))));
+            const [balRes, remRes] = await Promise.all([
+                itemIds.length ? authFetch(`${API_BASE}/stock/balance?item_ids=${itemIds.join(',')}`) : Promise.resolve(null),
+                authFetch(`${API_BASE}/packing/${po.id}/remaining`),
+            ]);
+            if (cancelled) return;
+            if (balRes && balRes.ok) {
+                const balances = await balRes.json();
+                const m: Record<string, number> = {};
+                for (const b of (balances || [])) {
+                    const attrs = [...(b.attribute_value_ids || [])].map(String).sort().join(',');
+                    const key = `${b.item_id}|${b.location_id}|${attrs}`;
+                    m[key] = (m[key] || 0) + num(b.qty);
+                }
+                setAvailMap(m);
+            }
+            if (remRes && remRes.ok) { setRemainingMap(await remRes.json()); }
+        })();
+        return () => { cancelled = true; };
+    }, [po.sales_order_id, po.id, authFetch]);
+
+    const availableFor = useCallback((itemId: string, locId: string, attrIds: string[]) => {
+        if (!locId) return null;
+        const attrs = [...(attrIds || [])].map(String).sort().join(',');
+        return availMap[`${itemId}|${locId}|${attrs}`] || 0;
+    }, [availMap]);
 
     const initLines = () => {
         const map: Record<string, any> = {};
@@ -378,7 +422,7 @@ function PackingEditor({ po, salesOrders, itemById, locPickerTreeOptions, packed
     }, [soLines]);
 
     const setLine = (solId: string, patch: any) => setLineState(prev => ({ ...prev, [solId]: { ...prev[solId], ...patch } }));
-    const remainingFor = (l: any) => Math.max(0, num(l.qty) - packedByOthers(String(l.id), po.id));
+    const remainingFor = (l: any) => remainingMap[String(l.id)] ?? num(l.qty);
     const effLoc = (l: any) => (lineState[String(l.id)]?.source_location_id) || sourceLoc || '';
     const availFor = (l: any) => availableFor(String(l.item_id), effLoc(l), l.attribute_value_ids || []);
 
@@ -525,6 +569,9 @@ function PackingEditor({ po, salesOrders, itemById, locPickerTreeOptions, packed
                         </tr>
                     </thead>
                     <tbody>
+                        {soLoading && (
+                            <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: '#999' }}>Loading order lines...</td></tr>
+                        )}
                         {soLines.map((l: any) => {
                             const it = itemById[String(l.item_id)];
                             const ls = lineState[String(l.id)] || {};

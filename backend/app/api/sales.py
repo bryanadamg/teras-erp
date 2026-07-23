@@ -137,7 +137,11 @@ async def get_sales_orders(
         .options(*_line_opts())
     )
     if status:
-        query = query.filter(SalesOrder.status == status)
+        # comma-separated so callers that only need packable orders (e.g. Packing's
+        # SO picker) can scope to a few statuses instead of pulling every SO ever
+        # placed, which otherwise fetches unbounded and grows with order history.
+        statuses = [s.strip() for s in status.split(",") if s.strip()]
+        query = query.filter(SalesOrder.status.in_(statuses)) if len(statuses) > 1 else query.filter(SalesOrder.status == statuses[0])
     result = await db.execute(
         query.order_by(SalesOrder.created_at.desc())
     )
@@ -148,6 +152,23 @@ async def get_sales_orders(
             _populate_line(line)
 
     return orders
+
+
+@router.get("/{so_id}", response_model=SalesOrderResponse)
+async def get_sales_order(
+    so_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(SalesOrder).options(*_line_opts()).filter(SalesOrder.id == so_id)
+    )
+    so = result.scalars().first()
+    if not so:
+        raise HTTPException(status_code=404, detail="Sales order not found")
+    for line in so.lines:
+        _populate_line(line)
+    return so
 
 @router.put("/{so_id}", response_model=SalesOrderResponse)
 async def update_sales_order(so_id: uuid.UUID, payload: SalesOrderUpdate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('sales.manage'))):

@@ -204,8 +204,10 @@ async def get_stock_entries(db: AsyncSession, skip: int = 0, limit: int = 100) -
     items = result.scalars().all()
     return items, total
 
-async def get_all_stock_balances(db: AsyncSession, user=None):
+async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | None = None):
     query = select(StockBalance)
+    if item_ids:
+        query = query.filter(StockBalance.item_id.in_(item_ids))
 
     # item/location are to-one (joinedload = single JOIN, no row multiplication).
     # attribute_values is a collection — joinedload would multiply rows by value count

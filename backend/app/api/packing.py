@@ -67,14 +67,22 @@ async def _next_code(db: AsyncSession) -> str:
     return f"PK-{n:05d}"
 
 
-async def _remaining_by_so_line(db: AsyncSession, so: SalesOrder) -> dict:
-    """qty remaining to ship per SO line = ordered - already packed (non-cancelled)."""
-    packed = await db.execute(
+async def _remaining_by_so_line(db: AsyncSession, so: SalesOrder, exclude_po_id=None) -> dict:
+    """qty remaining to ship per SO line = ordered - already packed (non-cancelled).
+
+    exclude_po_id drops one packing order's own lines from the "packed" sum — used
+    when editing a DRAFT so it doesn't count its own not-yet-saved allocation against
+    itself.
+    """
+    query = (
         select(PackingLine.sales_order_line_id, func.coalesce(func.sum(PackingLine.qty_packed), 0))
         .join(PackingOrder, PackingLine.packing_order_id == PackingOrder.id)
         .filter(PackingOrder.sales_order_id == so.id, PackingOrder.status != "CANCELLED")
         .group_by(PackingLine.sales_order_line_id)
     )
+    if exclude_po_id:
+        query = query.filter(PackingOrder.id != exclude_po_id)
+    packed = await db.execute(query)
     packed_map = {str(sol_id): float(qty) for sol_id, qty in packed.all()}
     return {
         str(line.id): max(0.0, float(line.qty) - packed_map.get(str(line.id), 0.0))
@@ -110,6 +118,28 @@ async def list_packing_orders(
     for po in orders:
         _decorate(po)
     return PackingOrderListResponse(items=orders, total=total, page=page, size=size)
+
+
+@router.get("/{po_id}/remaining")
+async def get_remaining_for_po(
+    po_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Per-SO-line qty still available to allocate to this DRAFT, excluding its own
+    lines. Lets the editor compute remaining/over-pack without loading every packing
+    order in the system to sum qty_packed client-side."""
+    po_result = await db.execute(select(PackingOrder).filter(PackingOrder.id == po_id))
+    po = po_result.scalars().first()
+    if not po:
+        raise HTTPException(status_code=404, detail="Packing order not found")
+    so_result = await db.execute(
+        select(SalesOrder).options(selectinload(SalesOrder.lines)).filter(SalesOrder.id == po.sales_order_id)
+    )
+    so = so_result.scalars().first()
+    if not so:
+        raise HTTPException(status_code=404, detail="Sales order not found")
+    return await _remaining_by_so_line(db, so, exclude_po_id=po_id)
 
 
 @router.post("", response_model=PackingOrderResponse)

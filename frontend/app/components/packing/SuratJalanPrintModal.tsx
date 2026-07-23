@@ -165,8 +165,10 @@ function SJDocument({ po, so, attributes, companyProfile, customerAddr, prepared
     );
 }
 
-export default function SuratJalanPrintModal({ po, salesOrders, attributes, companyProfile, customerAddr, currentStyle, onClose }: any) {
-    const so = (salesOrders || []).find((s: any) => String(s.id) === String(po.sales_order_id));
+export default function SuratJalanPrintModal({ po, attributes, companyProfile, customerAddr, currentStyle, onClose }: any) {
+    // po already carries sales_order_code/customer_name denormalized server-side —
+    // no need to hold the full salesOrders list in memory just to print one.
+    const so = { po_number: po.sales_order_code, customer_name: po.customer_name };
     const [preparedBy, setPreparedBy] = useState('');
 
     useEffect(() => {
