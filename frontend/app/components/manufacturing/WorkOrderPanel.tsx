@@ -116,11 +116,16 @@ interface Props {
     onDelete: (id: string) => Promise<any>;
     onLogWO?: (wo: WO) => void;
     parentMO?: any;
+    // Full BOM object (with work_center_id/operations) for parentMO. Pass this when
+    // parentMO may be a shared/consolidated component MO — those come from the PR
+    // list's slimmed ManufacturingOrderListItem schema, which omits `bom` entirely
+    // (see project_pr_page_perf memory), so parentMO.bom is undefined there.
+    bom?: any;
 }
 
 export default function WorkOrderPanel({
     manufacturingOrderId, workOrders, workCenters, locations,
-    onAdd, onUpdate, onUpdateStatus, onDelete, onLogWO, parentMO,
+    onAdd, onUpdate, onUpdateStatus, onDelete, onLogWO, parentMO, bom,
 }: Props) {
     const { showToast } = useToast();
     const { operations: opMaster } = useData() as any;
@@ -151,12 +156,18 @@ export default function WorkOrderPanel({
     // Floating status menu — click the status badge to change lifecycle status
     const { openId: openStatusMenuId, pos: statusMenuPos, toggle: toggleStatusMenu, close: closeStatusMenu } = useFloatingMenu();
 
+    // parentMO.bom is missing when parentMO is a shared/consolidated component MO
+    // sourced from the PR list's slimmed ManufacturingOrderListItem schema (bom
+    // omitted there — see project_pr_page_perf memory). Fall back to the `bom` prop
+    // (looked up by bom_id from the global boms list) in that case.
+    const effectiveBom = bom || parentMO?.bom;
+
     // Work center group assigned to this MO's BOM
     const bomWcGroup = useMemo(() => {
-        const wcId = parentMO?.bom?.work_center_id;
+        const wcId = effectiveBom?.work_center_id;
         if (!wcId) return null;
         return workCenters.find((wc: any) => String(wc.id) === String(wcId)) ?? null;
-    }, [parentMO, workCenters]);
+    }, [effectiveBom, workCenters]);
 
     // BEAMING machines = children of the BOM's WC group, when that group is BEAMING type
     const beamingMachines = useMemo(() => {
@@ -167,16 +178,16 @@ export default function WorkOrderPanel({
     const locationList = locations || [];
 
     // Group locked by BOM's work_center_id (null = not locked, show standard group+machine selects)
-    const lockedGroupId: string | null = parentMO?.bom?.work_center_id
-        ? String(parentMO.bom.work_center_id)
+    const lockedGroupId: string | null = effectiveBom?.work_center_id
+        ? String(effectiveBom.work_center_id)
         : null;
 
     // Routing steps defined on this MO's BOM. A WO must declare which step it runs
     // (L2) so staging/consumption only touch that step's materials.
     const bomOperations = useMemo(() => {
-        const ops = parentMO?.bom?.operations || [];
+        const ops = effectiveBom?.operations || [];
         return [...ops].sort((a: any, b: any) => (a.sequence ?? 0) - (b.sequence ?? 0));
-    }, [parentMO]);
+    }, [effectiveBom]);
     const stepLabel = (op: any) => {
         const name = op.operation_name
             || (opMaster || []).find((o: any) => String(o.id) === String(op.operation_id))?.name

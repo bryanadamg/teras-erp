@@ -890,6 +890,7 @@ export default function ManufacturingOrdersTab({
                         onDelete={onDeleteWO}
                         onLogWO={(wo) => { setCompletionWO(wo); setCompletionMO(selectedNode); }}
                         parentMO={selectedNode}
+                        bom={bom}
                     />
                 </div>
             )}
