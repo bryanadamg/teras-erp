@@ -510,6 +510,7 @@ export default function LabDipRequestView({
                                             { header: 'Item' },
                                             { header: 'Code', width: 104 },
                                             { header: 'Status', width: 96 },
+                                            { header: 'Rejections', width: 92, align: 'center' as const },
                                             { header: 'Update Status', width: 224, align: 'center' as const },
                                             { header: '', width: 40, align: 'center' as const },
                                         ];
@@ -533,19 +534,20 @@ export default function LabDipRequestView({
                                                     ) : (
                                                         <span style={{ ...seqBadge(classic), fontFamily: "'Courier New', monospace", fontSize: classic ? 10 : 11 }}>{variantCode}</span>
                                                     ),
-                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' as const }}>
-                                                        <StatusChip status={status} tint />
-                                                        {(it.rejection_count ?? 0) > 0 && (
-                                                            <button
-                                                                type="button"
-                                                                title="View rejection history"
-                                                                onClick={() => setHistoryItem({ item: it, code: variantCode })}
-                                                                style={{ cursor: 'pointer', border: classic ? '1px solid #a01a1a' : '1px solid #f3c4c4', background: classic ? '#f8d7da' : '#fef2f2', color: classic ? '#7f0000' : '#dc2626', borderRadius: classic ? 0 : 4, fontSize: classic ? 9 : 10, fontWeight: 'bold', lineHeight: 1.4, padding: '0 5px' }}
-                                                            >
-                                                                Rejected {it.rejection_count}x
-                                                            </button>
-                                                        )}
-                                                    </span>,
+                                                    <StatusChip status={status} tint />,
+                                                    // Rejections column: a clear "log" button (icon + count) that opens the
+                                                    // history trace. Bordered/underlined so it reads as clickable, not a static tag.
+                                                    (it.rejection_count ?? 0) > 0 ? (
+                                                        <button
+                                                            type="button"
+                                                            title={`View ${it.rejection_count} rejection${it.rejection_count === 1 ? '' : 's'} — reasons & notes`}
+                                                            onClick={() => setHistoryItem({ item: it, code: variantCode })}
+                                                            style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, border: classic ? '1px solid #a01a1a' : '1px solid #f3c4c4', background: classic ? '#f8d7da' : '#fef2f2', color: classic ? '#7f0000' : '#dc2626', borderRadius: classic ? 0 : 4, fontSize: classic ? 10 : 11, fontWeight: 'bold', lineHeight: 1.5, padding: '0 6px', textDecoration: 'underline', textUnderlineOffset: 2 }}
+                                                        >
+                                                            <i className="bi bi-clock-history" style={{ fontSize: classic ? 10 : 12, textDecoration: 'none' }} />
+                                                            {it.rejection_count}x
+                                                        </button>
+                                                    ) : <span style={{ color: classic ? '#aaa' : '#cbd5e1', fontSize: classic ? 11 : 12 }}>—</span>,
                                                     canManage ? (
                                                         <div style={{ display: 'inline-flex', opacity: locked ? 0.85 : 1 }}>
                                                             <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'IN_PROGRESS', 'progress'), ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => setItemStatus(it.id, status, 'IN_PROGRESS')}>Progress</button>
@@ -625,7 +627,7 @@ export default function LabDipRequestView({
                                                     <RequestDetailPanel
                                                         classic={classic}
                                                         leftTitle={<><i className="bi bi-box-seam" /> Variants — {total} total · {approved} approved</>}
-                                                        leftWidth="48%"
+                                                        leftWidth="62%"
                                                         columns={columns}
                                                         rows={rows}
                                                         emptyText="No items on this request."
