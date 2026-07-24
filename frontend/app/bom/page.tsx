@@ -86,7 +86,13 @@ export default function BOMPage() {
         if (itemSearchTimer.current) clearTimeout(itemSearchTimer.current);
         itemSearchTimer.current = setTimeout(() => setItemSearch(term), 350);
     }, [setItemSearch]);
-    useEffect(() => () => { if (itemSearchTimer.current) clearTimeout(itemSearchTimer.current); }, []);
+    // On unmount: cancel the pending debounce AND clear the global item search, so a
+    // material search typed in the BOM designer picker doesn't leak into other pages
+    // (e.g. Inventory opening pre-filtered) — `itemSearch` is app-global in DataContext.
+    useEffect(() => () => {
+        if (itemSearchTimer.current) clearTimeout(itemSearchTimer.current);
+        setItemSearch('');
+    }, [setItemSearch]);
 
     // /bom no longer auto-fetches the paginated items array (BOMView list renders
     // off itemIndex). Pull it on demand for the BOMDesigner picker — first designer
