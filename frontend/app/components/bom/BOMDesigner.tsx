@@ -411,6 +411,38 @@ export default function BOMDesigner({
         for (const i of items) m.set((i.code || '').trim().toLowerCase(), i);
         return m;
     }, [items]);
+    // Append-only snapshot of each item's attribute_ids, keyed by code. The material
+    // picker (SearchableSelect) drives the GLOBAL item search, which narrows the shared
+    // `items` list server-side and can drop the root (or any already-configured) item
+    // off the current page — which would blank its attribute_ids and make the
+    // combo/attribute dropdowns vanish mid-edit. We resolve dropdowns from this snapshot
+    // instead of the volatile `items` list, so an item's attributes stay stable for the
+    // editing session once seen. Seeded synchronously on mount (no first-render flash)
+    // and kept current in an effect (the correct place for this side effect).
+    const [attrIdsByCode, setAttrIdsByCode] = useState<Map<string, string[]>>(() => {
+        const m = new Map<string, string[]>();
+        for (const i of items) {
+            if (Array.isArray(i.attribute_ids)) m.set((i.code || '').trim().toLowerCase(), i.attribute_ids);
+        }
+        return m;
+    });
+    useEffect(() => {
+        setAttrIdsByCode(prev => {
+            let next = prev;
+            for (const i of items) {
+                if (!Array.isArray(i.attribute_ids)) continue;
+                const key = (i.code || '').trim().toLowerCase();
+                const cur = prev.get(key);
+                const changed = !cur || cur.length !== i.attribute_ids.length
+                    || cur.some((v, idx) => v !== i.attribute_ids[idx]);
+                if (changed) {
+                    if (next === prev) next = new Map(prev);
+                    next.set(key, i.attribute_ids);
+                }
+            }
+            return next; // same reference when nothing changed → no re-render
+        });
+    }, [items]);
     // Fallback lookup from the cached full item index (name/code/uom/ends for EVERY
     // item, not just the paginated `items` slice). Lets the designer resolve names,
     // uom and beam-detection for components that aren't on the current items page —
@@ -748,11 +780,14 @@ export default function BOMDesigner({
     // Attributes shown for the selected node (its item's, else root item's). Computed
     // once instead of two items.find scans inside a filter run twice per render.
     const visibleAttributes = useMemo(() => {
-        const itm = itemByCode.get((selectedNode?.item_code || '').trim().toLowerCase());
-        const rootItm = itemByCode.get((rootBOM.item_code || '').trim().toLowerCase());
-        const allowed = itm?.attribute_ids || rootItm?.attribute_ids || [];
+        const selCode = (selectedNode?.item_code || '').trim().toLowerCase();
+        const rootCode = (rootBOM.item_code || '').trim().toLowerCase();
+        // `??` (not `||`) preserves intent: an item KNOWN to have no attributes
+        // (a raw material, snapshotted as []) shows no dropdown, while an item not yet
+        // seen (undefined) borrows the root item's attributes, as before.
+        const allowed = attrIdsByCode.get(selCode) ?? attrIdsByCode.get(rootCode) ?? [];
         return attributes.filter((a: any) => allowed.includes(a.id));
-    }, [attributes, itemByCode, selectedNode?.item_code, rootBOM.item_code]);
+    }, [attributes, attrIdsByCode, selectedNode?.item_code, rootBOM.item_code]);
 
     // Selected node's routing steps, sorted once (was re-sorted twice per render).
     const sortedOps = useMemo(
