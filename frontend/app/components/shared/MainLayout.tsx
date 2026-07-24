@@ -107,7 +107,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 isOpen={isMobileSidebarOpen} 
             />
 
-            <div className="main-content flex-grow-1 overflow-auto bg-light">
+            <div className="main-content flex-grow-1 overflow-y-auto overflow-x-hidden bg-light">
                 <div className={`app-header sticky-top bg-white border-bottom shadow-sm px-4 d-flex justify-content-between align-items-center no-print ${uiStyle === 'classic' ? 'classic-header' : ''}`}>
                     <div className="d-flex align-items-center gap-3">
                         <button className="btn btn-link d-md-none p-0 text-dark" onClick={() => setIsMobileSidebarOpen(true)}><i className="bi bi-list fs-3"></i></button>
