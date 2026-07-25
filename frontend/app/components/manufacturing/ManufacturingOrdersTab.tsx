@@ -10,6 +10,7 @@ import type { PrintSettings } from './MOPrintModal';
 import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, SunkenPanel, SunkenPanelBody, ProgressBar } from '../shared/xpTheme';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
 import WorkOrderPanel from './WorkOrderPanel';
+import { resolveMoBom } from '../shared/moHelpers';
 const WOCompletionModal = dynamic(() => import('./WOCompletionModal'), { ssr: false });
 
 export default function ManufacturingOrdersTab({
@@ -888,7 +889,7 @@ export default function ManufacturingOrdersTab({
                         onUpdate={onUpdateWO}
                         onUpdateStatus={onUpdateWOStatus}
                         onDelete={onDeleteWO}
-                        onLogWO={(wo) => { setCompletionWO(wo); setCompletionMO(selectedNode.bom ? selectedNode : { ...selectedNode, bom }); }}
+                        onLogWO={(wo) => { setCompletionWO(wo); setCompletionMO(resolveMoBom(selectedNode, boms)); }}
                         parentMO={selectedNode}
                         bom={bom}
                     />
