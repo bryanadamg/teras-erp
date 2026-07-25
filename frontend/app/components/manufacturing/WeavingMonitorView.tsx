@@ -64,6 +64,39 @@ export default function WeavingMonitorView() {
 
     const openCard = (m: any) => setSelected({ id: m.id, code: m.code, name: m.name, center_type: m.center_type });
 
+    // Warp on the loom. A beam belongs to the machine, not to a work order — every
+    // WO that runs here draws from it — so its readiness reads in whole beams
+    // against the machine's beam positions, and lives on the machine card.
+    const BeamStrip = ({ m }: { m: any }) => {
+        const beams: any[] = m.mounted_beams || [];
+        const slots = m.beam_slots ?? 1;
+        const pcs = m.mounted_pcs ?? 0;
+        const full = pcs >= slots;
+        const border = cls ? '#c8c4b8' : '#e3e3e3';
+        return (
+            <div style={{ marginTop: 5, paddingTop: 4, borderTop: `1px solid ${border}`, fontSize: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
+                    <span style={{ color: '#888' }}>{t('warp_mounted')}</span>
+                    <span style={{ fontWeight: 'bold', color: full ? GREEN : pcs > 0 ? '#b06000' : '#999' }}>
+                        {pcs} / {slots} {t('pcs')}
+                        {pcs > 0 ? <span style={{ color: '#666', fontWeight: 'normal' }}> · {fmt(m.mounted_kg, 1)} kg</span> : null}
+                    </span>
+                </div>
+                {beams.length > 0 && (
+                    <div style={{ marginTop: 2, color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {beams.map((b, i) => (
+                            <span key={b.mount_id}>
+                                {i > 0 ? ', ' : ''}
+                                <b style={{ color: BLUE }}>{b.beam_number}</b>
+                                <span style={{ color: '#888' }}> {fmt(b.remaining, 1)}kg</span>
+                            </span>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     const modal = (
         <WorkCenterMonitorModal
             isOpen={!!selected}
@@ -131,6 +164,7 @@ export default function WeavingMonitorView() {
                                 <i className="bi bi-pause-circle" style={{ fontSize: 16 }} />{t('no_active_run')}
                             </div>
                         )}
+                        <BeamStrip m={m} />
                     </div>
                 </div>
             );
@@ -198,6 +232,7 @@ export default function WeavingMonitorView() {
                             <span>{t('no_active_run')}</span>
                         </div>
                     )}
+                    <BeamStrip m={m} />
                 </div>
             </div>
         );

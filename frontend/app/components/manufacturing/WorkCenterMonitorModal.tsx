@@ -40,9 +40,11 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, ma
     const canManage = hasPermission('work_order.manage');
     const cls = uiStyle === 'classic';
 
-    const [tab, setTab] = useState<'performance' | 'calendar'>('performance');
+    const [tab, setTab] = useState<'performance' | 'calendar' | 'beams'>('performance');
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
+    const [loom, setLoom] = useState<any>(null);
+    const [dismounting, setDismounting] = useState<string | null>(null);
 
     const [showStart, setShowStart] = useState(false);
     const [moId, setMoId] = useState('');
@@ -65,17 +67,36 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, ma
         if (!wcId) return;
         setLoading(true);
         try {
-            const res = await authFetch(`${apiBase}/work-centers/${wcId}/performance`);
+            const [res, bres] = await Promise.all([
+                authFetch(`${apiBase}/work-centers/${wcId}/performance`),
+                authFetch(`${apiBase}/work-centers/${wcId}/beam-mounts`),
+            ]);
             if (res.ok) {
                 const d = await res.json();
                 setData(d);
                 setWeekdays(d?.calendar?.working_weekdays || [0, 1, 2, 3, 4]);
                 setHolidays(d?.calendar?.holidays || []);
             }
+            setLoom(bres.ok ? await bres.json() : null);
         } finally {
             setLoading(false);
         }
     }, [wcId, apiBase, authFetch]);
+
+    // Take a beam off this loom. The remnant keeps its own lot and remaining kg —
+    // nothing to re-lot, unlike the old merge-to-pool model.
+    const dismount = async (mountId: string) => {
+        setDismounting(mountId);
+        try {
+            await authFetch(`${apiBase}/beam-mounts/${mountId}/dismount`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ to_location_id: null }),
+            });
+            await load();
+        } finally {
+            setDismounting(null);
+        }
+    };
 
     useEffect(() => {
         if (isOpen && wcId) {
@@ -196,6 +217,11 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, ma
     const tabs: [string, string, string][] = [
         ['performance', t('performance'), 'bi-graph-up-arrow'],
         ['calendar', t('work_calendar'), 'bi-calendar3'],
+        // Warp is machine state, so it lives on the machine — not on any WO.
+        ...(((workCenter?.center_type || '').toUpperCase() === 'WEAVING'
+            || (workCenter?.center_type || '').toUpperCase() === 'TENUN')
+            ? [['beams', t('beams_on_loom'), 'bi-arrow-bar-up'] as [string, string, string]]
+            : []),
     ];
     const tabBar = cls ? (
         <div style={{ display: 'flex', alignItems: 'flex-end', borderBottom: '2px solid #808080', gap: 2, marginBottom: 12 }}>
@@ -547,6 +573,82 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, ma
                     <p className={cls ? '' : 'text-muted small mt-1'} style={cls ? { fontFamily: xpFont, fontSize: 10, color: '#777', marginTop: 4 } : undefined}>{t('calendar_click_hint')}</p>
                 </div>
             )}
+
+            {tab === 'beams' && (() => {
+                const mounts: any[] = loom?.mounts || [];
+                const slots = loom?.beam_slots ?? 1;
+                const pcs = loom?.mounted_pcs ?? 0;
+                const cellPad = cls ? '3px 6px' : undefined;
+                return (
+                    <div style={cls ? { fontFamily: xpFont, fontSize: 11 } : undefined}>
+                        <div className={cls ? '' : 'text-muted small mb-2'}
+                            style={cls ? { fontSize: 10, color: '#555', marginBottom: 8 } : undefined}>
+                            {t('beam_loom_hint')}
+                        </div>
+
+                        <div className={cls ? '' : 'mb-2'} style={{
+                            display: 'flex', alignItems: 'baseline', gap: 8,
+                            marginBottom: cls ? 8 : undefined,
+                        }}>
+                            <span style={{
+                                fontSize: cls ? 18 : 22, fontWeight: 'bold',
+                                color: pcs >= slots ? GREEN : pcs > 0 ? '#b06000' : '#888', lineHeight: 1,
+                            }}>{pcs} / {slots}</span>
+                            <span style={{ fontSize: 11, color: '#777' }}>
+                                {t('beam_positions_filled')} · {fmt(loom?.total_remaining, 1)} kg
+                            </span>
+                        </div>
+
+                        {mounts.length === 0 ? (
+                            <div className={cls ? '' : 'text-muted small'}
+                                style={cls ? { color: '#888', padding: 10 } : undefined}>
+                                {t('no_beams_mounted')}
+                            </div>
+                        ) : (
+                            <div className={cls ? undefined : 'table-responsive'} style={{ overflowX: 'auto' }}>
+                                <table className={cls ? undefined : 'table table-sm align-middle small mb-0'}
+                                    style={cls ? { width: '100%', borderCollapse: 'collapse', fontSize: 10 } : undefined}>
+                                    <thead className={cls ? undefined : 'table-light'}>
+                                        <tr style={cls ? { background: '#d4d0c8', textAlign: 'left' } : undefined}>
+                                            <th style={{ padding: cellPad }}>{t('lot')}</th>
+                                            <th style={{ padding: cellPad }}>{t('ends')}</th>
+                                            <th style={{ padding: cellPad, textAlign: 'right' }}>{t('remaining')}</th>
+                                            <th style={{ padding: cellPad }}>{t('mounted')}</th>
+                                            <th style={{ padding: cellPad }} />
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {mounts.map(m => (
+                                            <tr key={m.id} style={cls ? { borderBottom: '1px solid #cfccc4' } : undefined}>
+                                                <td style={{ padding: cellPad, fontWeight: 'bold', color: BLUE }}>{m.beam_number || '—'}</td>
+                                                <td style={{ padding: cellPad }}>{m.ends ?? '—'}</td>
+                                                <td style={{ padding: cellPad, textAlign: 'right' }}>{fmt(m.remaining, 1)} kg</td>
+                                                <td style={{ padding: cellPad, color: '#666' }}>
+                                                    {fmtDate(m.mounted_at)}
+                                                    {m.mounted_by ? ` · ${m.mounted_by}` : ''}
+                                                </td>
+                                                <td style={{ padding: cellPad, textAlign: 'right' }}>
+                                                    {canManage && (
+                                                        <button
+                                                            onClick={() => dismount(m.id)}
+                                                            disabled={dismounting === m.id}
+                                                            className={cls ? undefined : 'btn btn-sm btn-outline-warning'}
+                                                            style={cls ? { ...xpBtn(), fontSize: 10 } : undefined}
+                                                            title={t('dismount_hint')}
+                                                        >
+                                                            {dismounting === m.id ? '...' : t('dismount')}
+                                                        </button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                );
+            })()}
         </ModalWrapper>
     );
 }

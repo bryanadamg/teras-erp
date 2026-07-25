@@ -36,6 +36,32 @@ interface RequiredMaterial {
     shortfall: number;
     lot_tracked: boolean;
     suggested_batch_id: string | null;
+    // Warp beams are mounted on the loom, not staged to this WO: `staged` is the kg
+    // mounted on the machine (shared by every WO running there) and readiness is
+    // counted in whole beams against the machine's beam positions.
+    is_beam: boolean;
+    mounted_pcs: number;
+    required_pcs: number;
+}
+
+interface BeamMount {
+    id: string;
+    batch_id: string;
+    beam_number: string | null;
+    item_id: string;
+    ends: number | null;
+    remaining: number;
+    mounted_at: string | null;
+    mounted_by: string | null;
+}
+
+interface LoomBeamStatus {
+    work_center_id: string;
+    work_center_code: string | null;
+    beam_slots: number;
+    mounted_pcs: number;
+    total_remaining: number;
+    mounts: BeamMount[];
 }
 
 interface Props {
@@ -58,6 +84,7 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
     const [batchesByItem, setBatchesByItem] = useState<Record<string, any[]>>({});
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [loom, setLoom] = useState<LoomBeamStatus | null>(null);
     const locPickerTreeOptions = useMemo(() => buildLocationPickerTree(locations || []), [locations]);
 
     useEffect(() => {
@@ -68,6 +95,16 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                 const data: RequiredMaterial[] = res.ok ? await res.json() : [];
                 if (!alive) return;
                 setRows(data);
+                // What warp is already up on this machine — mounted beams belong to the
+                // loom, so they're shown as context and kept out of the mount picker.
+                let mountedIds = new Set<string>();
+                if (data.some(r => r.is_beam)) {
+                    const lres = await authFetch(`${API_BASE}/work-orders/${wo.id}/beam-mounts`);
+                    const ls: LoomBeamStatus | null = lres.ok ? await lres.json() : null;
+                    if (!alive) return;
+                    setLoom(ls);
+                    mountedIds = new Set((ls?.mounts || []).map(m => m.batch_id));
+                }
                 // default qty-to-stage = remaining shortfall
                 const q: Record<string, string> = {};
                 data.forEach(r => { q[r.item_id] = r.shortfall > 0 ? String(r.shortfall) : ''; });
@@ -78,7 +115,12 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                 const entries = await Promise.all(lotRows.map(async r => {
                     const b = await authFetch(`${API_BASE}/batches?item_id=${r.item_id}&limit=200&with_source_lots=true`);
                     const list = b.ok ? await b.json() : [];
-                    return [r.item_id, (list || []).filter((x: any) => (x.remaining ?? 0) > 0 && x.quality_status !== 'REJECTED')] as const;
+                    const avail = (list || []).filter((x: any) =>
+                        (x.remaining ?? 0) > 0 && x.quality_status !== 'REJECTED'
+                        // A beam already up on this loom isn't a candidate to mount again.
+                        && !(r.is_beam && mountedIds.has(x.id))
+                    );
+                    return [r.item_id, avail] as const;
                 }));
                 if (!alive) return;
                 const byItem = Object.fromEntries(entries);
@@ -98,6 +140,8 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
         })();
         return () => { alive = false; };
     }, [wo.id]);
+
+    const hasBeams = rows.some(r => r.is_beam);
 
     // Sum of remaining qty across the beams/lots selected for this item.
     const selectedLotQty = (itemId: string) => {
@@ -142,9 +186,20 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
             const r = rows.find(x => x.item_id === missingSrc.item_id);
             showToast(`Pick a source location for ${r?.item_code || r?.item_name}.`, 'danger'); return;
         }
-        // lot-tracked rows with a shortfall must have at least one beam/lot selected
-        const missingLot = rows.find(r => r.lot_tracked && r.shortfall > 0 && !(batchByItem[r.item_id] || []).length);
-        if (missingLot) { showToast(`Select a beam/lot for ${missingLot.item_code || missingLot.item_name}.`, 'danger'); return; }
+        // lot-tracked rows with a shortfall must have at least one beam/lot selected.
+        // Beams are counted in pieces against the loom's positions, not in kg —
+        // a warp that's already up needs nothing selected.
+        const missingLot = rows.find(r => r.lot_tracked
+            && (r.is_beam ? r.mounted_pcs < Math.max(1, r.required_pcs) : r.shortfall > 0)
+            && !(batchByItem[r.item_id] || []).length);
+        if (missingLot) {
+            showToast(
+                missingLot.is_beam
+                    ? `Select a beam to mount for ${missingLot.item_code || missingLot.item_name}.`
+                    : `Select a beam/lot for ${missingLot.item_code || missingLot.item_name}.`,
+                'danger',
+            ); return;
+        }
 
         setSubmitting(true);
         try {
@@ -159,7 +214,7 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                 return;
             }
             const updated = await res.json().catch(() => null);
-            showToast('Materials staged to line.', 'success');
+            showToast(hasBeams ? 'Beam mounted on machine.' : 'Materials staged to line.', 'success');
             onStaged(updated);
             onClose();
         } finally {
@@ -171,14 +226,16 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
         <ModalWrapper
             isOpen
             onClose={onClose}
-            title={`Stage Materials — ${wo.code || wo.name}`}
+            title={`${hasBeams ? 'Mount Beam' : 'Stage Materials'} — ${wo.code || wo.name}`}
             modeless
             size="xl"
             footer={
                 <>
                     <button style={xpBtn(false)} onClick={onClose} disabled={submitting}>Cancel</button>
                     <button style={xpBtn(true)} onClick={submit} disabled={submitting || loading || rows.length === 0}>
-                        {submitting ? 'Staging...' : 'Stage Materials'}
+                        {submitting
+                            ? (hasBeams ? 'Mounting...' : 'Staging...')
+                            : (hasBeams ? 'Mount Beam' : 'Stage Materials')}
                     </button>
                 </>
             }
@@ -195,6 +252,37 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                     (<b>{wo.input_location?.code || wo.input_location_id || 'no input location'}</b>).
                 </div>
 
+                {hasBeams && (
+                    <div style={{
+                        border: '1px solid #7f9db9', background: '#f4f8ff',
+                        padding: '5px 7px', marginBottom: 8, fontSize: 10, color: '#243a5e',
+                    }}>
+                        <b>Beams belong to the machine, not this work order.</b> A mounted warp stays up
+                        and feeds every WO that runs on{' '}
+                        <b>{loom?.work_center_code || wo.work_center?.code || 'this machine'}</b> — size S,
+                        then M, then L — so it is mounted once and never re-staged per size.
+                        {loom ? (
+                            <>
+                                {' '}Currently <b>{loom.mounted_pcs} of {loom.beam_slots}</b> beam
+                                position{loom.beam_slots === 1 ? '' : 's'} filled
+                                ({loom.total_remaining.toFixed(1)} kg warp up).
+                            </>
+                        ) : null}
+                        {loom && loom.mounts.length > 0 && (
+                            <div style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid #c8d8ef' }}>
+                                {loom.mounts.map(m => (
+                                    <div key={m.id}>
+                                        <b>{m.beam_number}</b>
+                                        {m.ends ? <span style={{ color: '#666' }}> — {m.ends} ends</span> : null}
+                                        <span style={{ color: '#0058e6' }}> {m.remaining.toFixed(1)} kg left</span>
+                                        {m.mounted_by ? <span style={{ color: '#777' }}> · by {m.mounted_by}</span> : null}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                     {loading ? (
                         <div style={{ color: '#888', padding: 12 }}>Loading required materials...</div>
                     ) : rows.length === 0 ? (
@@ -210,9 +298,11 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                                         <th style={{ padding: '3px 5px' }}>Source</th>
                                         <th style={{ padding: '3px 5px', textAlign: 'right' }}>Required</th>
                                         <th style={{ padding: '3px 5px', textAlign: 'right' }}>On hand</th>
-                                        <th style={{ padding: '3px 5px', textAlign: 'right' }}>Staged</th>
+                                        <th style={{ padding: '3px 5px', textAlign: 'right' }}>
+                                            {hasBeams ? 'Staged / Mounted' : 'Staged'}
+                                        </th>
                                         <th style={{ padding: '3px 5px', textAlign: 'right' }}>Stage now</th>
-                                        <th style={{ padding: '3px 5px' }}>Lot</th>
+                                        <th style={{ padding: '3px 5px' }}>{hasBeams ? 'Beam / Lot' : 'Lot'}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -237,13 +327,40 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                                                         />
                                                     )}
                                                 </td>
-                                                <td style={{ padding: '3px 5px', textAlign: 'right' }}>{r.required_qty.toFixed(2)}</td>
+                                                <td style={{ padding: '3px 5px', textAlign: 'right' }}>
+                                                    {r.is_beam ? (
+                                                        <>
+                                                            <div style={{ fontWeight: 'bold' }}>
+                                                                {Math.max(1, r.required_pcs)} pcs
+                                                            </div>
+                                                            <div style={{ color: '#777' }}>{r.required_qty.toFixed(1)} kg</div>
+                                                        </>
+                                                    ) : r.required_qty.toFixed(2)}
+                                                </td>
                                                 <td style={{ padding: '3px 5px', textAlign: 'right', color: short ? '#b00' : '#333' }}>
                                                     {r.on_hand.toFixed(2)}
                                                 </td>
-                                                <td style={{ padding: '3px 5px', textAlign: 'right' }}>{r.staged.toFixed(2)}</td>
                                                 <td style={{ padding: '3px 5px', textAlign: 'right' }}>
-                                                    {r.lot_tracked ? (
+                                                    {r.is_beam ? (
+                                                        <>
+                                                            <div style={{
+                                                                fontWeight: 'bold',
+                                                                color: r.mounted_pcs >= Math.max(1, r.required_pcs) ? '#0a6b0a' : '#b06000',
+                                                            }}>
+                                                                {r.mounted_pcs} / {Math.max(1, r.required_pcs)} pcs
+                                                            </div>
+                                                            <div style={{ color: '#777' }}>{r.staged.toFixed(1)} kg up</div>
+                                                        </>
+                                                    ) : r.staged.toFixed(2)}
+                                                </td>
+                                                <td style={{ padding: '3px 5px', textAlign: 'right' }}>
+                                                    {r.is_beam ? (
+                                                        <span style={{ fontWeight: 'bold' }}>
+                                                            {(batchByItem[r.item_id] || []).length
+                                                                ? `+${(batchByItem[r.item_id] || []).length} pcs`
+                                                                : '—'}
+                                                        </span>
+                                                    ) : r.lot_tracked ? (
                                                         <span style={{ fontWeight: 'bold' }}>{stageQty.toFixed(2)}</span>
                                                     ) : (
                                                         <input
@@ -261,7 +378,9 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                                                             maxHeight: 220, overflowY: 'auto', minWidth: 150,
                                                         }}>
                                                             {(batchesByItem[r.item_id] || []).length === 0 ? (
-                                                                <div style={{ color: '#aaa', padding: '2px 4px' }}>— no beams/lots available —</div>
+                                                                <div style={{ color: '#aaa', padding: '2px 4px' }}>
+                                                                    {r.is_beam ? '— no free beams to mount —' : '— no beams/lots available —'}
+                                                                </div>
                                                             ) : (batchesByItem[r.item_id] || []).map((b: any) => {
                                                                 const checked = (batchByItem[r.item_id] || []).includes(b.id);
                                                                 return (

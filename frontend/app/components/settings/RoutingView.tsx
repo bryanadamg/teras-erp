@@ -17,7 +17,10 @@ const OP_PAGE_SIZE = 20;
 
 const CENTER_TYPES = ['GENERAL', 'BEAMING', 'WARPING', 'WEAVING', 'DYEING', 'SETTING', 'FINISHING', 'CUTTING'];
 
-const emptyWC = { code: '', name: '', cost_per_hour: 0, center_type: 'GENERAL', input_location_id: '', output_location_id: '', parent_id: '' };
+const emptyWC = { code: '', name: '', cost_per_hour: 0, center_type: 'GENERAL', input_location_id: '', output_location_id: '', parent_id: '', beam_slots: 1 };
+// Beam positions on a loom: how many warp beams must be mounted for a weaving WO
+// to count as beam-ready. Machine config, not per-order — see beam_service.py.
+const beamSlots = (v: any) => Math.max(1, parseInt(String(v ?? 1), 10) || 1);
 
 function getWcTypeChip(t?: string): React.CSSProperties {
     switch ((t || '').toUpperCase()) {
@@ -98,6 +101,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
           input_location_id: newWorkCenter.input_location_id || null,
           output_location_id: newWorkCenter.output_location_id || null,
           parent_id: newWorkCenter.parent_id || null,
+          beam_slots: beamSlots(newWorkCenter.beam_slots),
       });
       setNewWorkCenter({ ...emptyWC });
       setIsCreateWCOpen(false);
@@ -123,6 +127,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
           input_location_id: editingWC.input_location_id || null,
           output_location_id: editingWC.output_location_id || null,
           parent_id: editingWC.parent_id || null,
+          beam_slots: beamSlots(editingWC.beam_slots),
       });
       setEditingWC(null);
   };
@@ -198,6 +203,18 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                                   <label style={lvLabel(classic)}>Output Location</label>
                                   <TreeSelect options={locPickerTreeOptions} value={editingWC.output_location_id || ''} onChange={id => setEditingWC({ ...editingWC, output_location_id: id })} allowEmpty emptyLabel="— none —" size="sm" style={{ width: '100%' }} />
                               </div>
+                              {['WEAVING', 'TENUN'].includes((editingWC.center_type || '').toUpperCase()) && (
+                                  <div style={{ width: 120 }}>
+                                      <label style={lvLabel(classic)}>Beam Slots</label>
+                                      <input
+                                          type="number" min={1} step={1}
+                                          style={{ ...lvInput(classic), width: '100%' }}
+                                          value={editingWC.beam_slots ?? 1}
+                                          onChange={e => setEditingWC({ ...editingWC, beam_slots: e.target.value })}
+                                          title="Beam positions on this loom — a weaving WO is beam-ready when this many beams are mounted"
+                                      />
+                                  </div>
+                              )}
                           </div>
                       )}
                       <div style={{ display: 'flex', gap: 6 }}>
@@ -472,6 +489,18 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                           <label style={lvLabel(classic)}>Output Location</label>
                           <TreeSelect options={locPickerTreeOptions} value={newWorkCenter.output_location_id} onChange={id => setNewWorkCenter({ ...newWorkCenter, output_location_id: id })} allowEmpty emptyLabel="— none —" size="sm" style={{ width: '100%' }} />
                       </div>
+                      {['WEAVING', 'TENUN'].includes((newWorkCenter.center_type || '').toUpperCase()) && (
+                          <div style={{ width: 120 }}>
+                              <label style={lvLabel(classic)}>Beam Slots</label>
+                              <input
+                                  type="number" min={1} step={1}
+                                  style={{ ...lvInput(classic), width: '100%' }}
+                                  value={newWorkCenter.beam_slots}
+                                  onChange={e => setNewWorkCenter({ ...newWorkCenter, beam_slots: beamSlots(e.target.value) })}
+                                  title="Beam positions on this loom — a weaving WO is beam-ready when this many beams are mounted"
+                              />
+                          </div>
+                      )}
                   </div>
               )}
           </form>

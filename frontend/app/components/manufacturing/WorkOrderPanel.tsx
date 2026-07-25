@@ -141,6 +141,9 @@ export default function WorkOrderPanel({
     const canScanStage = (wo: any) =>
         ['DYEING', 'CELUP'].includes((wo.work_center_type || '').toUpperCase()) &&
         wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED';
+    // Weaving "staging" is really mounting a warp beam on the loom — a machine-level
+    // action shared by every WO on that loom, so it gets its own wording.
+    const isWeaving = (wo: any) => ['WEAVING', 'TENUN'].includes((wo.work_center_type || '').toUpperCase());
     const [addingRow, setAddingRow] = useState(false);
     const [editId, setEditId] = useState<string | null>(null);
     const [form, setForm] = useState({ ...emptyForm });
@@ -682,8 +685,10 @@ export default function WorkOrderPanel({
                                             <XPActionButton
                                                 classic
                                                 tone="primary"
-                                                icon="bi-box-seam"
-                                                title="Stage — issue this step's materials to the line"
+                                                icon={isWeaving(wo) ? 'bi-arrow-bar-up' : 'bi-box-seam'}
+                                                title={isWeaving(wo)
+                                                    ? 'Mount beam — gait warp onto this machine (shared by every WO on the loom)'
+                                                    : "Stage — issue this step's materials to the line"}
                                                 onClick={() => (canScanStage(wo) ? setScanStageWO(wo) : setStageWO(wo))}
                                             />
                                         )}
