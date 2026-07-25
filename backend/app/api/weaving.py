@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, and_, cast, String
 from sqlalchemy.orm import selectinload
 from typing import Optional
 from datetime import date
@@ -11,6 +11,8 @@ from app.db.session import get_async_db
 from app.models.weaving import WeavingRun, WorkCenterHoliday
 from app.models.routing import WorkCenter
 from app.models.manufacturing import ManufacturingOrder
+from app.models.batch import Batch, BeamMount
+from app.models.stock_balance import StockBalance
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission
 from app.schemas import (
@@ -220,13 +222,50 @@ async def weaving_monitor(
     for run in run_res.scalars().all():
         active_run_by_wc.setdefault(run.work_center_id, run)
 
+    # Warp up on each loom. A beam is a machine resource shared by every WO that
+    # runs there, so "what is mounted" is a property of the machine and belongs on
+    # its card. Batched with the remaining-kg balance in one query — one round trip
+    # for the whole grid, not one per loom.
+    mount_res = await db.execute(
+        select(BeamMount, Batch.batch_number, Batch.ends, StockBalance.qty)
+        .join(Batch, BeamMount.batch_id == Batch.id)
+        .outerjoin(
+            StockBalance,
+            and_(
+                StockBalance.item_id == BeamMount.item_id,
+                StockBalance.location_id == BeamMount.location_id,
+                StockBalance.variant_key == "",
+                StockBalance.batch_key == cast(BeamMount.batch_id, String),
+            ),
+        )
+        .where(BeamMount.work_center_id.in_(machine_ids), BeamMount.dismounted_at.is_(None))
+        .order_by(BeamMount.work_center_id, BeamMount.mounted_at)
+    )
+    beams_by_wc: dict = {}
+    for mount, beam_number, ends, qty in mount_res.all():
+        beams_by_wc.setdefault(mount.work_center_id, []).append({
+            "mount_id": str(mount.id),
+            "batch_id": str(mount.batch_id),
+            "beam_number": beam_number,
+            "ends": ends,
+            "remaining": float(qty or 0),
+            "mounted_at": mount.mounted_at,
+            "mounted_by": mount.mounted_by,
+        })
+
     out = []
     for wc in machines:
         weekdays = wc.working_weekdays if wc.working_weekdays else DEFAULT_WEEKDAYS
         holidays = holidays_by_wc.get(wc.id, [])
         run = active_run_by_wc.get(wc.id)
         actual = await _run_actual_kg(db, run) if run else None
-        out.append(_machine_payload(wc, run, actual, weekdays, holidays, today))
+        payload = _machine_payload(wc, run, actual, weekdays, holidays, today)
+        beams = beams_by_wc.get(wc.id, [])
+        payload["beam_slots"] = max(1, int(wc.beam_slots or 1))
+        payload["mounted_beams"] = beams
+        payload["mounted_pcs"] = sum(1 for b in beams if b["remaining"] > 1e-9)
+        payload["mounted_kg"] = sum(b["remaining"] for b in beams)
+        out.append(payload)
 
     running = sum(1 for m in out if m["active_run"])
     effs = [m["active_run"]["efficiency_pct"] for m in out if m["active_run"] and m["active_run"]["efficiency_pct"] is not None]

@@ -720,6 +720,12 @@ class WORequiredMaterial(BaseModel):
     shortfall: float = 0.0      # max(0, required - staged)
     lot_tracked: bool = False
     suggested_batch_id: UUID | None = None   # traced from this MO's BEAMING WO output; still overridable
+    # Warp beams are loom resources, not per-WO material: `staged` for these is
+    # the qty MOUNTED on the WO's machine (shared by every WO running there), and
+    # readiness is counted in whole beams against the loom's beam_slots — not kg.
+    is_beam: bool = False
+    mounted_pcs: int = 0
+    required_pcs: int = 0
 
 
 class WOStageLine(BaseModel):
@@ -736,6 +742,49 @@ class WOStagePayload(BaseModel):
     # exceed the step's required qty. When true, skip the shortfall cap so every
     # scanned lot moves in full; the UI warns the operator it's over-required.
     allow_overstage: bool = False
+
+
+class BeamMountResponse(BaseModel):
+    """One warp beam currently up on a loom (or a closed historical mount)."""
+    id: UUID
+    batch_id: UUID
+    beam_number: str | None = None
+    work_center_id: UUID
+    work_center_code: str | None = None
+    item_id: UUID
+    item_code: str | None = None
+    item_name: str | None = None
+    location_id: UUID | None = None
+    ends: int | None = None
+    qty_mounted: float = 0.0
+    remaining: float = 0.0       # live batch balance at the loom
+    source_wo_id: UUID | None = None
+    mounted_at: datetime | None = None
+    mounted_by: str | None = None
+    dismounted_at: datetime | None = None
+    dismounted_by: str | None = None
+
+
+class BeamMountCreate(BaseModel):
+    batch_id: UUID
+    qty: float | None = None            # default: move the beam's whole remaining stock
+    source_wo_id: UUID | None = None    # WO whose screen triggered it (audit only)
+
+
+class BeamDismountPayload(BaseModel):
+    # Where the remnant goes. Null leaves it parked at the loom — the beam keeps
+    # its lot either way, so there is nothing to re-create.
+    to_location_id: UUID | None = None
+
+
+class LoomBeamStatus(BaseModel):
+    """Beam readiness of one machine, for the weaving monitor loom cards."""
+    work_center_id: UUID
+    work_center_code: str | None = None
+    beam_slots: int = 1
+    mounted_pcs: int = 0
+    total_remaining: float = 0.0
+    mounts: list[BeamMountResponse] = []
 
 
 class PutawayBinOption(BaseModel):
@@ -1149,6 +1198,7 @@ class WorkCenterCreate(BaseModel):
     input_location_id: UUID | None = None
     output_location_id: UUID | None = None
     parent_id: UUID | None = None
+    beam_slots: int = 1
 
 class WorkCenterResponse(BaseModel):
     id: UUID
@@ -1163,6 +1213,7 @@ class WorkCenterResponse(BaseModel):
     input_location: LocationResponse | None = None
     output_location: LocationResponse | None = None
     working_weekdays: list[int] | None = None
+    beam_slots: int = 1
 
     class Config:
         from_attributes = True

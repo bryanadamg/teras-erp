@@ -8,17 +8,17 @@ from app.models.work_order import WorkOrder
 from app.models.manufacturing import ManufacturingOrder
 from app.models.routing import WorkCenter
 from app.models.item import Item
-from app.models.category import Category
 from app.models.bom import BOMOperation
 from app.models.location import Location
-from app.models.batch import Batch
+from app.models.batch import Batch, BeamMount
 from app.models.stock_ledger import StockLedger
 from app.models.stock_balance import StockBalance
 from app.models.dyeing_setting import DyeRecipe, DyeingRun, dye_recipe_attribute_values
 from app.schemas import (
     WorkOrderCreate, WorkOrderResponse, WORequiredMaterial, WOStagePayload,
     LeftoverBeamCreate, BatchResponse, PutawayBinOption, PutawaySuggestionResponse,
-    WorkOrderMarkPrintedBulk,
+    WorkOrderMarkPrintedBulk, BeamMountResponse, BeamMountCreate, BeamDismountPayload,
+    LoomBeamStatus,
 )
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, require_any_permission, wo_scope_ok
@@ -349,20 +349,15 @@ async def update_work_order_status(
     if status == "COMPLETED" and not wo.actual_end_date:
         wo.actual_end_date = datetime.utcnow()
 
-    # Starting a WEAVING WO mounts its staged beams: batch kg merges into the
-    # batch-less pool at the input location (beams leave lot tracking).
-    merged = 0
-    if status == "IN_PROGRESS":
-        merged = await beam_service.merge_staged_beams(db, wo)
-
+    # Starting a WEAVING WO no longer touches the warp: beams are mounted on the
+    # machine and stay lotted for their whole life there, shared by every WO that
+    # runs on the loom. Nothing to merge — see services/beam_service.py.
     await db.commit()
     await audit_service.log_activity(
         db, current_user.id, "STATUS_CHANGE", "WorkOrder", wo_id,
-        details=f"Status -> {status}" + (f" ({merged} beam(s) merged)" if merged else "")
+        details=f"Status -> {status}"
     )
     await manager.broadcast({"type": "WORK_ORDER_UPDATE", "wo_id": wo_id, "status": status})
-    if merged:
-        await manager.broadcast({"type": "STOCK_UPDATE"})
 
     result = await db.execute(
         select(WorkOrder).options(*_wo_options()).filter(WorkOrder.id == wo_id)
@@ -646,14 +641,9 @@ async def _wo_step_components(db: AsyncSession, wo: WorkOrder, mo: Manufacturing
             return by_type
 
     # 3) WEAVING beam special-case.
-    if wc_type.upper() == "WEAVING":
-        item_ids = [c.item_id for c in comps]
-        beam_res = await db.execute(
-            select(Item.id).outerjoin(Category, Item.category_id == Category.id)
-            .where(Item.id.in_(item_ids), (Item.ends.isnot(None)) | (func.lower(Category.name) == "beam"))
-        )
-        beam_item_ids = {str(r[0]) for r in beam_res.all()}
-        beams = [c for c in comps if str(c.item_id) in beam_item_ids]
+    if wc_type.upper() in ("WEAVING", "TENUN"):
+        ids = await beam_service.beam_item_ids(db, [c.item_id for c in comps])
+        beams = [c for c in comps if str(c.item_id) in ids]
         if beams:
             return beams
 
@@ -822,6 +812,24 @@ async def _wo_required_rows(db: AsyncSession, wo: WorkOrder, mo: ManufacturingOr
     staged_by_item = await _wo_staged_by_item(db, wo)
 
     item_ids = [c.item_id for c in comps]
+    # Warp beams don't belong to a WO — they're mounted on the loom and shared by
+    # every WO that runs there (size S, then M, then L, all off one warp). So for
+    # beam items "staged" means "mounted on this machine", read from the loom's
+    # open BeamMounts instead of this WO's staging ledger tags. Without this, the
+    # second size WO sees staged=0 even though the warp is physically up.
+    beam_ids: set[str] = set()
+    beam_slots = 1
+    if await beam_service.is_weaving_wo(db, wo):
+        beam_ids = await beam_service.beam_item_ids(db, item_ids)
+        if beam_ids:
+            beam_slots = max(1, int((await db.execute(
+                select(WorkCenter.beam_slots).where(WorkCenter.id == wo.work_center_id)
+            )).scalar() or 1))
+            for bid in beam_ids:
+                staged_by_item[bid] = await beam_service.mounted_qty(
+                    db, wo.work_center_id, uuid.UUID(bid)
+                )
+
     items_res = await db.execute(select(Item).where(Item.id.in_(item_ids)))
     items = {str(it.id): it for it in items_res.scalars().all()}
 
@@ -884,6 +892,7 @@ async def _wo_required_rows(db: AsyncSession, wo: WorkOrder, mo: ManufacturingOr
                     row = name_res.first()
                     if row:
                         loc_names[str(src)] = row[0] or row[1] or ""
+        is_beam = str(c.item_id) in beam_ids
         rows.append(WORequiredMaterial(
             item_id=c.item_id,
             item_code=it.code if it else None,
@@ -897,6 +906,11 @@ async def _wo_required_rows(db: AsyncSession, wo: WorkOrder, mo: ManufacturingOr
             shortfall=max(0.0, req - staged),
             lot_tracked=batch_required,
             suggested_batch_id=suggested_batch_id,
+            is_beam=is_beam,
+            mounted_pcs=(
+                await beam_service.mounted_pcs(db, wo.work_center_id, c.item_id) if is_beam else 0
+            ),
+            required_pcs=beam_slots if is_beam else 0,
         ))
     return rows
 
@@ -904,12 +918,19 @@ async def _wo_required_rows(db: AsyncSession, wo: WorkOrder, mo: ManufacturingOr
 def _staging_status(rows: list[WORequiredMaterial]) -> str:
     if not rows:
         return "NOT_STAGED"
-    total_staged = sum(r.staged for r in rows)
-    if total_staged <= 0:
+    # Beams are counted in whole pieces against the loom's beam positions ("4
+    # lines = 4 beams"), never in kg — a warp is either up or it isn't.
+    def _ok(r: WORequiredMaterial) -> bool:
+        if r.is_beam:
+            return r.mounted_pcs >= max(1, r.required_pcs)
+        return r.staged + 1e-9 >= r.required_qty
+
+    def _touched(r: WORequiredMaterial) -> bool:
+        return r.mounted_pcs > 0 if r.is_beam else r.staged > 0
+
+    if not any(_touched(r) for r in rows):
         return "NOT_STAGED"
-    if all(r.staged + 1e-9 >= r.required_qty for r in rows):
-        return "STAGED"
-    return "PARTIAL"
+    return "STAGED" if all(_ok(r) for r in rows) else "PARTIAL"
 
 
 @router.get("/work-orders/{wo_id}/required-materials", response_model=list[WORequiredMaterial])
@@ -944,11 +965,29 @@ async def stage_wo_materials(
     moved_so_far: dict[str, float] = {}  # per item, across this request's lines — multiple batches can share an item
     for line in payload.lines:
         qty = float(line.qty or 0)
-        if qty <= 0:
-            continue
         rr = req_by_item.get(str(line.item_id))
         if not rr:
             raise HTTPException(status_code=400, detail=f"Item {line.item_id} is not a material of this WO's step")
+
+        # Warp beam: mount it on the MACHINE, not this WO. The whole physical beam
+        # goes up (pcs, not kg — a partial warp makes no sense), it stays lotted,
+        # and every WO that runs on the loom afterwards sees it. No shortfall cap.
+        if rr.is_beam:
+            if not line.batch_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Select which beam to mount for {rr.item_code or line.item_id}",
+                )
+            await beam_service.mount_beam(
+                db, batch_id=line.batch_id, work_center_id=wo.work_center_id,
+                qty=qty if qty > 0 else None, source_wo_id=wo.id,
+                user=current_user.username,
+            )
+            staged_any = True
+            continue
+
+        if qty <= 0:
+            continue
         # Cap top-up at the remaining shortfall so re-staging (or multiple batch
         # lines for the same item) can't double-count. Scan-to-stage sets
         # allow_overstage to move whole physical lots even past the step's need.
@@ -1096,6 +1135,150 @@ async def create_leftover_beam(
     batch.remaining = qty
     batch.location_id = wo.input_location_id
     return batch
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Beam mounts (loom-level warp)
+#
+# A warp beam is a machine resource: mounted on a loom, shared by every WO that
+# runs there while it is up. These endpoints are keyed on the work center, never
+# on a WO — that is the whole point of the model. See services/beam_service.py.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _mount_out(mount: BeamMount, remaining: float) -> BeamMountResponse:
+    b, it, wc = mount.batch, mount.item, mount.work_center
+    return BeamMountResponse(
+        id=mount.id,
+        batch_id=mount.batch_id,
+        beam_number=b.batch_number if b else None,
+        work_center_id=mount.work_center_id,
+        work_center_code=(wc.code or wc.name) if wc else None,
+        item_id=mount.item_id,
+        item_code=it.code if it else None,
+        item_name=it.name if it else None,
+        location_id=mount.location_id,
+        ends=(b.ends if b and b.ends else (it.ends if it else None)),
+        qty_mounted=float(mount.qty_mounted or 0),
+        remaining=remaining,
+        source_wo_id=mount.source_wo_id,
+        mounted_at=mount.mounted_at,
+        mounted_by=mount.mounted_by,
+        dismounted_at=mount.dismounted_at,
+        dismounted_by=mount.dismounted_by,
+    )
+
+
+@router.get("/work-centers/{wc_id}/beam-mounts", response_model=LoomBeamStatus)
+async def get_loom_beam_status(
+    wc_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """What warp is up on this loom right now — feeds the weaving monitor card."""
+    wc = (await db.execute(select(WorkCenter).where(WorkCenter.id == wc_id))).scalars().first()
+    if not wc:
+        raise HTTPException(status_code=404, detail="Work center not found")
+    mounts = await beam_service.active_mounts(db, wc.id)
+    return LoomBeamStatus(
+        work_center_id=wc.id,
+        work_center_code=wc.code or wc.name,
+        beam_slots=max(1, int(wc.beam_slots or 1)),
+        mounted_pcs=sum(1 for _, q in mounts if q > 1e-9),
+        total_remaining=sum(q for _, q in mounts),
+        mounts=[_mount_out(m, q) for m, q in mounts],
+    )
+
+
+@router.post("/work-centers/{wc_id}/beam-mounts", response_model=BeamMountResponse)
+async def mount_beam_on_loom(
+    wc_id: str,
+    payload: BeamMountCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.edit')),
+):
+    """Gait a beam onto a loom directly (no WO context needed)."""
+    wc = (await db.execute(select(WorkCenter).where(WorkCenter.id == wc_id))).scalars().first()
+    if not wc:
+        raise HTTPException(status_code=404, detail="Work center not found")
+    _require_wo_scope(current_user, wc.center_type)
+
+    mount = await beam_service.mount_beam(
+        db, batch_id=payload.batch_id, work_center_id=wc.id, qty=payload.qty,
+        source_wo_id=payload.source_wo_id, user=current_user.username,
+    )
+    await db.commit()
+
+    await audit_service.log_activity(
+        db, user_id=current_user.id, action="MOUNT", entity_type="BEAM_MOUNT",
+        entity_id=str(mount.id),
+        details=f"Mounted beam on machine '{wc.code or wc.name}'",
+        changes={"batch_id": str(payload.batch_id), "work_center_id": str(wc.id)},
+    )
+    await manager.broadcast({"type": "STOCK_UPDATE"})
+    await manager.broadcast({"type": "WORK_ORDER_UPDATE"})
+
+    for m, q in await beam_service.active_mounts(db, wc.id):
+        if str(m.id) == str(mount.id):
+            return _mount_out(m, q)
+    return _mount_out(mount, 0.0)
+
+
+@router.post("/beam-mounts/{mount_id}/dismount", response_model=BeamMountResponse)
+async def dismount_beam_from_loom(
+    mount_id: str,
+    payload: BeamDismountPayload,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_any_permission('work_order.manage', 'work_order.edit')),
+):
+    """Take a beam off the loom. The remnant keeps its own lot and remaining kg —
+    no re-lotting step. Optionally send it back to a store location."""
+    mount = await beam_service.dismount_beam(
+        db, mount_id, to_location_id=payload.to_location_id, user=current_user.username,
+    )
+    remaining = 0.0
+    await db.commit()
+
+    res = await db.execute(
+        select(BeamMount)
+        .options(joinedload(BeamMount.batch), joinedload(BeamMount.item))
+        .where(BeamMount.id == mount.id)
+    )
+    fresh = res.unique().scalars().first()
+    if fresh and fresh.location_id:
+        bal = (await db.execute(
+            select(StockBalance.qty).where(
+                StockBalance.item_id == fresh.item_id,
+                StockBalance.location_id == (payload.to_location_id or fresh.location_id),
+                StockBalance.variant_key == "",
+                StockBalance.batch_key == str(fresh.batch_id),
+            )
+        )).scalar()
+        remaining = float(bal or 0)
+
+    await audit_service.log_activity(
+        db, user_id=current_user.id, action="DISMOUNT", entity_type="BEAM_MOUNT",
+        entity_id=str(mount.id),
+        details=f"Dismounted beam (remnant {remaining:g})",
+        changes={"to_location_id": str(payload.to_location_id) if payload.to_location_id else None},
+    )
+    await manager.broadcast({"type": "STOCK_UPDATE"})
+    await manager.broadcast({"type": "WORK_ORDER_UPDATE"})
+    return _mount_out(fresh or mount, remaining)
+
+
+@router.get("/work-orders/{wo_id}/beam-mounts", response_model=LoomBeamStatus)
+async def get_wo_beam_status(
+    wo_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Beam readiness for a WO = the readiness of the machine it runs on."""
+    wo = (await db.execute(select(WorkOrder).where(WorkOrder.id == wo_id))).scalars().first()
+    if not wo:
+        raise HTTPException(status_code=404, detail="Work Order not found")
+    if not wo.work_center_id:
+        return LoomBeamStatus(work_center_id=uuid.UUID(int=0))
+    return await get_loom_beam_status(str(wo.work_center_id), db, current_user)
 
 
 @router.delete("/work-orders/{wo_id}")

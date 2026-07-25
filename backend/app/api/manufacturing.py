@@ -32,7 +32,6 @@ from app.models.attribute import AttributeValue
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission, require_any_permission, wo_scope_ok
 from app.models.item import Item
-from app.models.category import Category
 from app.models.stock_balance import StockBalance
 from app.models.batch import Batch, BatchConsumption
 from app.api.batches import generate_batch_number
@@ -1013,14 +1012,12 @@ async def add_mo_completion(
     # a completion on a BEAMING-type work center is also a beam birth.
     if not is_beam_output and wo_wc_type == "BEAMING":
         is_beam_output = True
-    # Beam lineage: beams already merged (Start-WO, or an earlier completion on
-    # this MO) peg to the MO with output_batch_id=None until a lot exists to
-    # claim them. If a beam is about to merge in THIS completion instead, it
-    # would peg the same way. Either case means the output must get a lot now,
-    # even if the item itself isn't flagged lot_tracked — otherwise the beam
-    # lineage is permanently orphaned with nothing to trace back from.
+    # Legacy beam lineage: warp merged into the batch-less pool by the pre-mount
+    # code pegged to the MO with output_batch_id=None until a lot existed to claim
+    # it. Mounted beams no longer peg that way (they peg straight to the beam and
+    # the output lot — see beam_service.consume_from_mounts), but old rows still
+    # need a lot to attach to, or their lineage is orphaned for good.
     pending_beam_pegs = [c for c in mo.batch_consumptions if c.output_batch_id is None]
-    will_merge_beams = bool(wo and wo_input_loc and await beam_service.has_stageable_beams(db, wo))
 
     # Output lot: beams always get one; other items get one when lot_tracked,
     # or when this completion needs to claim/attach beam-consumption lineage.
@@ -1030,9 +1027,9 @@ async def add_mo_completion(
         is_beam_output
         or bool(mo.item and mo.item.lot_tracked)
         or bool(pending_beam_pegs)
-        or will_merge_beams
         # Greige (weaving) and dyed (dyeing) output are always traceable lots,
-        # even when the item itself isn't flagged lot_tracked.
+        # even when the item itself isn't flagged lot_tracked. For weaving this is
+        # also what gives mounted-beam consumption an output lot to peg to.
         or wo_wc_type in ("WEAVING", "DYEING", "CELUP")
     )
     output_batch = None
@@ -1144,24 +1141,18 @@ async def add_mo_completion(
                 select(Item.code).filter(Item.id.in_(missing), Item.lot_tracked == True)  # noqa: E712
             )
             lt_codes = list(lt_res.scalars().all())
-            # Weaving beams are exempt: staged beams merge into a batch-less kg pool
-            # on this same completion (merge_staged_beams below), not picked per-lot —
-            # the UI never offers a picker for them either. Without this, the check
-            # above fires before the merge runs and blocks every weaving log.
+            # Weaving beams are exempt from the lot-pick requirement: warp is drawn
+            # FIFO from whatever is mounted on the loom, so the operator never picks
+            # a beam and the UI offers no picker. Without this the check would fire
+            # and block every weaving log.
             if lt_codes and wo_wc_type in ("WEAVING", "TENUN"):
-                beam_res = await db.execute(
-                    select(Item.code).join(Category, Item.category_id == Category.id, isouter=True).filter(
-                        Item.id.in_(missing),
-                        Item.lot_tracked == True,  # noqa: E712
-                        or_(
-                            func.lower(Category.name) == "beam",
-                            Item.code.startswith("BEAM-"),
-                            Item.ends.isnot(None),
-                        ),
+                beam_ids = await beam_service.beam_item_ids(db, missing)
+                if beam_ids:
+                    beam_res = await db.execute(
+                        select(Item.code).filter(Item.id.in_([uuid.UUID(i) for i in beam_ids]))
                     )
-                )
-                beam_codes = set(beam_res.scalars().all())
-                lt_codes = [c for c in lt_codes if c not in beam_codes]
+                    beam_codes = set(beam_res.scalars().all())
+                    lt_codes = [c for c in lt_codes if c not in beam_codes]
             if lt_codes:
                 raise HTTPException(
                     status_code=400,
@@ -1194,16 +1185,6 @@ async def add_mo_completion(
                 db, wo.work_center_id, wo_wc_type, mo.id
             )
 
-    # WEAVING: any beam still sitting as batch stock at the input location
-    # (WO started via this log, or re-staged mid-run) merges into the
-    # batch-less kg pool now, so the deduction below draws plain pool kg —
-    # no per-beam selection. Idempotent, self-guards on work center type.
-    if wo and wo_input_loc:
-        # Peg at MO level (output_batch_id=None), NOT this completion's lot — the
-        # merged beam feeds a pool every output lot on this WO draws from, so no
-        # single lot owns it. See the beam-peg NOTE above.
-        await beam_service.merge_staged_beams(db, wo, output_batch_id=None)
-
     # Save actual items used (substitutes)
     for ai in payload.actual_items:
         db.add(MOCompletionItem(
@@ -1211,6 +1192,16 @@ async def add_mo_completion(
             item_id=ai.item_id,
             qty_used=ai.qty_used,
         ))
+
+    # Warp beams are drawn FIFO from whatever is mounted on the loom rather than
+    # deducted like ordinary material: the operator picks no beam, and the beam
+    # stays lotted so BatchConsumption pegs to the real physical warp. Identify
+    # them up front so both deduction paths below can hand them off.
+    mount_item_ids: set[str] = set()
+    if wo and wo_wc_type in ("WEAVING", "TENUN") and wo.work_center_id:
+        mount_item_ids = await beam_service.beam_item_ids(
+            db, [c.item_id for c in step_comps]
+        )
 
     # Stock movement driven by WO locations only — no MO-level fallback
     if wo_input_loc:
@@ -1233,6 +1224,13 @@ async def add_mo_completion(
             for ai in payload.actual_items:
                 if str(ai.item_id) in lot_item_ids:
                     continue  # already consumed via explicit lots
+                if str(ai.item_id) in mount_item_ids:
+                    await beam_service.consume_from_mounts(
+                        db, wo, ai.item_id, float(ai.qty_used), mo.id,
+                        output_batch_id=output_batch.id if output_batch else None,
+                        reference_id=mo.code,
+                    )
+                    continue
                 in_batch = batch_by_item.get(str(ai.item_id))
                 await stock_service.add_stock_entry(
                     db,
@@ -1252,8 +1250,17 @@ async def add_mo_completion(
                     continue
                 if str(comp.item_id) in lot_item_ids:
                     continue  # supplied by explicit lots, not BOM% deduction
-                deduct_loc_id = comp.source_location_id or wo_input_loc
                 req = (float(payload.qty_completed) * float(comp.percentage)) / 100
+                if str(comp.item_id) in mount_item_ids:
+                    # Warp: FIFO across the loom's mounted beams (falls back to the
+                    # batch-less pool for warp merged by the old pre-mount code).
+                    await beam_service.consume_from_mounts(
+                        db, wo, comp.item_id, req, mo.id,
+                        output_batch_id=output_batch.id if output_batch else None,
+                        reference_id=mo.code,
+                    )
+                    continue
+                deduct_loc_id = comp.source_location_id or wo_input_loc
                 in_batch = batch_by_item.get(str(comp.item_id))
                 await stock_service.add_stock_entry(
                     db,
@@ -1268,6 +1275,11 @@ async def add_mo_completion(
                 )
                 if in_batch:
                     consumed_by_batch[str(in_batch.id)] = consumed_by_batch.get(str(in_batch.id), 0.0) + req
+
+    # Warp that ran out is off the loom as a matter of physics — close the mount so
+    # the machine's mounted-pcs count stays honest without an operator step.
+    if mount_item_ids and wo and wo.work_center_id:
+        await beam_service.auto_dismount_depleted(db, wo.work_center_id)
 
     unused = [b.batch_number for b in batch_by_item.values() if str(b.id) not in consumed_by_batch]
     if unused:

@@ -1,29 +1,48 @@
-"""Warp-beam lifecycle around the weaving step.
+"""Warp-beam lifecycle: beams are loom resources, not work-order materials.
 
-Staged beams stay individually tracked (batch stock) at the loom's input
-location while they wait. When the WEAVING WO actually starts (or, failing
-that, at its first completion log), the beams are "mounted": each staged
-beam's remaining kg is merged into the batch-less kg pool at the input
-location — the beam disappears from lot tracking — and a BatchConsumption
-row pegs the beam to the MO for genealogy. If an output lot already exists
-for that pegging (the completion that triggered the merge produced one),
-the row's output_batch_id points straight at it; otherwise it's left NULL
-(MO-level peg) and claimed by the first later completion that does produce
-a lot — see `pending_beam_pegs` handling in api/manufacturing.py, which also
-uses `has_stageable_beams` below to force that first lot to exist at all.
-Weaving completions then deduct plain pool kg with no per-beam selection.
-Leftover warp after weaving is re-lotted manually via the leftover-beam
-endpoint in api/work_orders.py.
+Industry shape (SAP production supply area, Oracle operation-pull supply
+subinventory, textile MES beam gaiting): a warp beam is mounted on a machine,
+and every order that runs on that machine draws from what is mounted. It is
+never staged to a single order.
+
+Lifecycle:
+
+    in store  --mount_beam-->  MOUNTED on loom  --consume_from_mounts-->  ...
+                                     |
+                                     +--dismount_beam--> back to store (remnant
+                                        keeps its lot; nothing to re-create)
+
+`mount_beam` moves the beam batch into the loom's input location and opens a
+`BeamMount` row keyed on the WORK CENTER. The beam stays lotted the whole time,
+so:
+
+  * readiness for any WO on that loom reads the loom's active mounts, not
+    per-WO staging ledger tags — so WO size-S, then size-M, then size-L all see
+    the same warp as available without re-staging (the bug this replaced);
+  * weaving completions deduct kg FIFO across active mounts with no per-beam
+    pick by the operator, and peg BatchConsumption straight to the real beam
+    (better genealogy than the old MO-level NULL peg);
+  * leftover warp needs no re-lotting — the beam batch still holds its own
+    remaining kg. Dismount just closes the mount and moves it back to a store.
+
+Replaces the previous merge-into-batch-less-pool model. `consume_from_mounts`
+still falls back to the batch-less pool at the loom input location so beams
+merged by the old code (pre-migration, already pooled) keep deducting.
 """
 
-from sqlalchemy import select
+from datetime import datetime
+
+from fastapi import HTTPException
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.models.work_order import WorkOrder
 from app.models.routing import WorkCenter
-from app.models.stock_ledger import StockLedger
+from app.models.item import Item
+from app.models.category import Category
 from app.models.stock_balance import StockBalance
-from app.models.batch import BatchConsumption
+from app.models.batch import Batch, BatchConsumption, BeamMount
 from app.services import stock_service
 
 WEAVING_TYPES = {"WEAVING", "TENUN"}
@@ -38,77 +57,267 @@ async def is_weaving_wo(db: AsyncSession, wo: WorkOrder) -> bool:
     return (wc_type or "").upper() in WEAVING_TYPES
 
 
-async def _stageable_beams(db: AsyncSession, wo: WorkOrder) -> list[tuple[object, object, float]]:
-    """Beams staged to this WEAVING WO that still carry a positive batch
-    balance at its input location — i.e. what a merge would actually consume
-    right now. Read-only."""
-    if not wo.input_location_id:
-        return []
-    if not await is_weaving_wo(db, wo):
-        return []
-
-    # Beams staged to this WO = positive Staging ledger rows carrying a batch,
-    # posted to its input location.
-    staged = await db.execute(
-        select(StockLedger.batch_id, StockLedger.item_id)
+async def beam_item_ids(db: AsyncSession, item_ids: list) -> set[str]:
+    """Which of these items are warp beams. One definition, three call sites
+    (staging, readiness, completion) used to each carry their own copy."""
+    if not item_ids:
+        return set()
+    res = await db.execute(
+        select(Item.id)
+        .outerjoin(Category, Item.category_id == Category.id)
         .where(
-            StockLedger.reference_type == "Staging",
-            StockLedger.reference_id == str(wo.id),
-            StockLedger.location_id == wo.input_location_id,
-            StockLedger.qty_change > 0,
-            StockLedger.batch_id.isnot(None),
+            Item.id.in_(item_ids),
+            or_(
+                func.lower(Category.name) == "beam",
+                Item.code.startswith("BEAM-"),
+                Item.ends.isnot(None),
+            ),
         )
-        .distinct()
     )
-    result = []
-    for batch_id, item_id in staged.all():
-        bal = (
-            await db.execute(
-                select(StockBalance.qty).where(
-                    StockBalance.item_id == item_id,
-                    StockBalance.location_id == wo.input_location_id,
-                    StockBalance.variant_key == "",
-                    StockBalance.batch_key == str(batch_id),
-                )
+    return {str(r[0]) for r in res.all()}
+
+
+async def _mount_remaining(db: AsyncSession, mount: BeamMount) -> float:
+    """Live remaining kg of a mounted beam — its batch balance at the loom."""
+    if not mount.location_id:
+        return 0.0
+    bal = (
+        await db.execute(
+            select(StockBalance.qty).where(
+                StockBalance.item_id == mount.item_id,
+                StockBalance.location_id == mount.location_id,
+                StockBalance.variant_key == "",
+                StockBalance.batch_key == str(mount.batch_id),
             )
+        )
+    ).scalar()
+    return float(bal or 0)
+
+
+async def active_mounts(
+    db: AsyncSession, work_center_id, item_id=None
+) -> list[tuple[BeamMount, float]]:
+    """Open mounts on a loom, oldest first (FIFO consumption order), each with
+    its live remaining kg. Depleted-but-not-yet-dismounted mounts are included
+    at 0.0 — callers filter as needed."""
+    if not work_center_id:
+        return []
+    q = (
+        select(BeamMount)
+        .options(joinedload(BeamMount.batch), joinedload(BeamMount.item))
+        .where(BeamMount.work_center_id == work_center_id, BeamMount.dismounted_at.is_(None))
+        .order_by(BeamMount.mounted_at.asc())
+    )
+    if item_id is not None:
+        q = q.where(BeamMount.item_id == item_id)
+    mounts = (await db.execute(q)).unique().scalars().all()
+    return [(m, await _mount_remaining(db, m)) for m in mounts]
+
+
+async def mounted_qty(db: AsyncSession, work_center_id, item_id) -> float:
+    """Total warp kg available on the loom for this item."""
+    return sum(q for _, q in await active_mounts(db, work_center_id, item_id))
+
+
+async def mounted_pcs(db: AsyncSession, work_center_id, item_id=None) -> int:
+    """Beam count on the loom — the number Bryan cares about ("4 lines = 4 pcs"),
+    counting only mounts that still hold warp."""
+    return sum(1 for _, q in await active_mounts(db, work_center_id, item_id) if q > 1e-9)
+
+
+async def mount_beam(
+    db: AsyncSession,
+    batch_id,
+    work_center_id,
+    qty: float | None = None,
+    source_wo_id=None,
+    user: str | None = None,
+) -> BeamMount:
+    """Mount a beam on a loom: move it to the loom's input location and open a
+    BeamMount. Idempotent per beam — a beam already mounted on this loom is
+    returned as-is rather than double-moved. Caller commits."""
+    batch = (await db.execute(select(Batch).where(Batch.id == batch_id))).scalars().first()
+    if not batch:
+        raise HTTPException(status_code=404, detail="Beam not found")
+    if batch.quality_status == "REJECTED":
+        raise HTTPException(status_code=400, detail=f"Beam {batch.batch_number} is rejected")
+
+    wc = (await db.execute(select(WorkCenter).where(WorkCenter.id == work_center_id))).scalars().first()
+    if not wc:
+        raise HTTPException(status_code=404, detail="Work center not found")
+    if not wc.input_location_id:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Machine '{wc.code or wc.name}' has no supply area — set its input location first",
+        )
+
+    existing = (
+        await db.execute(
+            select(BeamMount).where(
+                BeamMount.batch_id == batch_id, BeamMount.dismounted_at.is_(None)
+            )
+        )
+    ).scalars().first()
+    if existing:
+        if str(existing.work_center_id) == str(work_center_id):
+            return existing
+        other = (
+            await db.execute(select(WorkCenter.code).where(WorkCenter.id == existing.work_center_id))
         ).scalar()
-        qty = float(bal or 0)
-        if qty <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Beam {batch.batch_number} is already mounted on {other or 'another machine'} — dismount it first",
+        )
+
+    # Where the beam physically is now. A beam is plant-level stock and not
+    # pinned to a fixed store, so find it rather than assume a source.
+    rows = (
+        await db.execute(
+            select(StockBalance.location_id, StockBalance.qty).where(
+                StockBalance.item_id == batch.item_id,
+                StockBalance.batch_key == str(batch_id),
+                StockBalance.qty > 0,
+            )
+        )
+    ).all()
+    if not rows:
+        raise HTTPException(
+            status_code=400, detail=f"Beam {batch.batch_number} has no stock left to mount"
+        )
+
+    moved = 0.0
+    want = float(qty) if qty and float(qty) > 0 else None
+    for loc_id, bal in rows:
+        if str(loc_id) == str(wc.input_location_id):
+            moved += float(bal)   # already at the loom
             continue
-        result.append((batch_id, item_id, qty))
-    return result
-
-
-async def has_stageable_beams(db: AsyncSession, wo: WorkOrder) -> bool:
-    """Peek, before deciding whether this completion needs an output lot,
-    whether merge_staged_beams would find anything to merge right now."""
-    return bool(await _stageable_beams(db, wo))
-
-
-async def merge_staged_beams(db: AsyncSession, wo: WorkOrder, output_batch_id=None) -> int:
-    """Consume every beam staged to a WEAVING WO into the batch-less kg pool
-    at its input location. Idempotent — a beam whose batch balance is already
-    zero (merged earlier, or physically moved away) is skipped. Pass
-    `output_batch_id` when this merge is happening inside a completion that
-    just created an output lot, so the BatchConsumption pegs directly to it
-    instead of being left MO-level (NULL). Returns the number of beams
-    merged. Caller commits."""
-    mergeable = await _stageable_beams(db, wo)
-    for batch_id, item_id, qty in mergeable:
+        take = float(bal) if want is None else min(float(bal), max(0.0, want - moved))
+        if take <= 0:
+            continue
+        # Two-sided transfer, referenced to the WORK CENTER — not a WO. This is
+        # the whole point: attribution follows the machine.
         await stock_service.add_stock_entry(
-            db, item_id=item_id, location_id=wo.input_location_id, qty_change=-qty,
-            reference_type="Beam Merge", reference_id=str(wo.id),
+            db, item_id=batch.item_id, location_id=loc_id, qty_change=-take,
+            reference_type="Beam Mount", reference_id=str(work_center_id),
             attribute_value_ids=[], batch_id=batch_id,
         )
         await stock_service.add_stock_entry(
-            db, item_id=item_id, location_id=wo.input_location_id, qty_change=qty,
-            reference_type="Beam Merge", reference_id=str(wo.id),
-            attribute_value_ids=[], batch_id=None,
+            db, item_id=batch.item_id, location_id=wc.input_location_id, qty_change=take,
+            reference_type="Beam Mount", reference_id=str(work_center_id),
+            attribute_value_ids=[], batch_id=batch_id,
+        )
+        moved += take
+
+    mount = BeamMount(
+        batch_id=batch_id,
+        work_center_id=work_center_id,
+        item_id=batch.item_id,
+        location_id=wc.input_location_id,
+        qty_mounted=moved,
+        source_wo_id=source_wo_id,
+        mounted_by=user,
+    )
+    db.add(mount)
+    await db.flush()
+    return mount
+
+
+async def dismount_beam(
+    db: AsyncSession, mount_id, to_location_id=None, user: str | None = None
+) -> BeamMount:
+    """Close a mount. Remnant warp needs no re-lotting — the beam batch still
+    carries its own remaining kg. Optionally move that remnant back to a store
+    location; otherwise it stays parked at the loom. Caller commits."""
+    mount = (
+        await db.execute(
+            select(BeamMount).options(joinedload(BeamMount.batch)).where(BeamMount.id == mount_id)
+        )
+    ).unique().scalars().first()
+    if not mount:
+        raise HTTPException(status_code=404, detail="Beam mount not found")
+    if mount.dismounted_at:
+        raise HTTPException(status_code=400, detail="Beam already dismounted")
+
+    remaining = await _mount_remaining(db, mount)
+    if to_location_id and remaining > 0 and str(to_location_id) != str(mount.location_id):
+        await stock_service.add_stock_entry(
+            db, item_id=mount.item_id, location_id=mount.location_id, qty_change=-remaining,
+            reference_type="Beam Dismount", reference_id=str(mount.work_center_id),
+            attribute_value_ids=[], batch_id=mount.batch_id,
+        )
+        await stock_service.add_stock_entry(
+            db, item_id=mount.item_id, location_id=to_location_id, qty_change=remaining,
+            reference_type="Beam Dismount", reference_id=str(mount.work_center_id),
+            attribute_value_ids=[], batch_id=mount.batch_id,
+        )
+
+    mount.dismounted_at = datetime.utcnow()
+    mount.dismounted_by = user
+    return mount
+
+
+async def auto_dismount_depleted(db: AsyncSession, work_center_id) -> int:
+    """Close mounts whose warp ran out, so the loom's mounted-pcs count reflects
+    reality without an operator step. Caller commits."""
+    closed = 0
+    for mount, qty in await active_mounts(db, work_center_id):
+        if qty > 1e-9:
+            continue
+        mount.dismounted_at = datetime.utcnow()
+        mount.dismounted_by = "auto (depleted)"
+        closed += 1
+    return closed
+
+
+async def consume_from_mounts(
+    db: AsyncSession,
+    wo: WorkOrder,
+    item_id,
+    qty: float,
+    mo_id,
+    output_batch_id=None,
+    reference_id: str | None = None,
+) -> float:
+    """Deduct `qty` kg of warp for a weaving completion, FIFO across the loom's
+    active mounts. No operator picks a beam — the loom decides. Each mount
+    touched gets a BatchConsumption row pegged to the real beam and (when the
+    completion produced one) to the output lot.
+
+    Any shortfall left after the mounts are drained is deducted from the
+    batch-less pool at the loom input location, which is where beams merged by
+    the old pre-mount code live. Returns the qty taken from that pool.
+    """
+    if qty <= 0:
+        return 0.0
+    remaining_need = float(qty)
+    ref = reference_id or (wo.code if wo and wo.code else str(getattr(wo, "id", "")))
+
+    for mount, avail in await active_mounts(db, wo.work_center_id, item_id):
+        if remaining_need <= 1e-9:
+            break
+        if avail <= 1e-9:
+            continue
+        take = min(avail, remaining_need)
+        await stock_service.add_stock_entry(
+            db, item_id=item_id, location_id=mount.location_id, qty_change=-take,
+            reference_type="Manufacturing Order", reference_id=ref,
+            attribute_value_ids=[], batch_id=mount.batch_id,
         )
         db.add(BatchConsumption(
-            manufacturing_order_id=wo.manufacturing_order_id,
-            input_batch_id=batch_id,
+            manufacturing_order_id=mo_id,
+            input_batch_id=mount.batch_id,
             output_batch_id=output_batch_id,
-            qty_consumed=qty,
+            qty_consumed=take,
         ))
-    return len(mergeable)
+        remaining_need -= take
+
+    if remaining_need > 1e-9 and wo.input_location_id:
+        # Legacy pooled warp (or an over-run past what is mounted): deduct from
+        # the batch-less balance, same as any untracked material.
+        await stock_service.add_stock_entry(
+            db, item_id=item_id, location_id=wo.input_location_id, qty_change=-remaining_need,
+            reference_type="Manufacturing Order", reference_id=ref,
+            attribute_value_ids=[], batch_id=None,
+        )
+        return remaining_need
+    return 0.0
