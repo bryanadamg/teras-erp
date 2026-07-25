@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import LabDipRequestView from '../components/lab-dips/LabDipRequestView';
 import { useData } from '../context/DataContext';
 import { useFinishedGoodsSearch } from '../components/shared/useFinishedGoodsSearch';
@@ -12,6 +13,12 @@ export default function LabDipsPage() {
     const customers = partners.filter((p: any) => p.type === 'CUSTOMER');
     const { showToast } = useToast();
     const { confirm } = useConfirm();
+    const searchParams = useSearchParams();
+    const router = useRouter();
+    // Deep-link from Color Library's "From Lab Dip" cell: /lab-dips?open=<request_id>
+    // expands+scrolls to that request. Cleared from the URL once consumed.
+    const openRequestId = searchParams.get('open');
+    useEffect(() => { if (openRequestId) router.replace('/lab-dips'); }, [openRequestId]); // eslint-disable-line react-hooks/exhaustive-deps
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
 
@@ -103,6 +110,7 @@ export default function LabDipsPage() {
     return (
         <LabDipRequestView
             labDips={labDips}
+            openRequestId={openRequestId}
             customers={customers}
             items={items}
             onSearchItems={handleItemSearch}

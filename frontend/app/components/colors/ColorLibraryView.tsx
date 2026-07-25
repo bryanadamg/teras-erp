@@ -234,9 +234,12 @@ export default function ColorLibraryView({
                                 <td style={lvTd(classic)}>{c.customer_name || <span style={{ color: '#aaa', fontStyle: 'italic' }}>House</span>}</td>
                                 <td style={lvTd(classic)}>{c.customer_color_code || <span style={{ color: '#aaa' }}>—</span>}</td>
                                 <td style={lvTd(classic)}>{c.source_lab_dip_code
-                                    ? <span title="Minted from this lab dip request" style={classic
-                                        ? { fontFamily: "'Courier New', monospace", color: '#0047c8', fontSize: 11 }
-                                        : { fontFamily: "'Courier New', monospace", color: '#2563eb', fontSize: 12 }}>{c.source_lab_dip_code}</span>
+                                    ? <span
+                                        title="Open this lab dip request"
+                                        onClick={e => { e.stopPropagation(); router.push(`/lab-dips?open=${encodeURIComponent(c.source_lab_dip_request_id)}`); }}
+                                        style={classic
+                                            ? { fontFamily: "'Courier New', monospace", color: '#0047c8', fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }
+                                            : { fontFamily: "'Courier New', monospace", color: '#2563eb', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>{c.source_lab_dip_code}</span>
                                     : <span style={{ color: '#aaa' }}>—</span>}</td>
                                 <td style={lvTd(classic)}>{c.source_item_name
                                     ? <span title={c.source_item_code || undefined}>{c.source_item_name}</span>

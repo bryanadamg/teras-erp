@@ -152,6 +152,7 @@ const emptyForm = () => ({
 export default function LabDipRequestView({
     labDips, customers, items, onSearchItems, recipes, attributes,
     onCreate, onEdit, onUpdateStatus, onUpdateItemStatus, onDelete,
+    openRequestId,
 }: any) {
     useToast();
     const router = useRouter();
@@ -336,6 +337,23 @@ export default function LabDipRequestView({
     const clampedPage = Math.min(page, totalPages);
     const paged = sorted.slice((clampedPage - 1) * LABDIP_PAGE_SIZE, clampedPage * LABDIP_PAGE_SIZE);
 
+    // Deep-link from Color Library "From Lab Dip" cell: jump to, expand, and
+    // scroll to the target request regardless of current filters/page.
+    React.useEffect(() => {
+        if (!openRequestId) return;
+        const idx = sorted.findIndex((r: any) => String(r.id) === String(openRequestId));
+        if (idx === -1) return;
+        setStatusFilter('ALL');
+        setSearchTerm('');
+        setExpandedIds(prev => new Set(prev).add(openRequestId));
+        setPage(Math.floor(idx / LABDIP_PAGE_SIZE) + 1);
+        const t = setTimeout(() => {
+            document.getElementById(`labdip-row-${openRequestId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 50);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [openRequestId, labDips]);
+
     const setField = (k: string, v: any) => setForm(prev => ({ ...prev, [k]: v }));
 
     // Request code: real code when editing; else a best-effort preview of the next code.
@@ -442,9 +460,9 @@ export default function LabDipRequestView({
                             const total = (r.items || []).length;
                             return (
                                 <React.Fragment key={r.id}>
-                                    <tr onClick={() => toggleExpand(r.id)} style={classic
-                                        ? { background: idx % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5', cursor: 'pointer' }
-                                        : { background: idx % 2 === 0 ? '#fff' : '#f8fafc', cursor: 'pointer' }}>
+                                    <tr id={`labdip-row-${r.id}`} onClick={() => toggleExpand(r.id)} style={classic
+                                        ? { background: String(r.id) === String(openRequestId) ? '#ffefc0' : idx % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5', cursor: 'pointer' }
+                                        : { background: String(r.id) === String(openRequestId) ? '#fef9e7' : idx % 2 === 0 ? '#fff' : '#f8fafc', cursor: 'pointer' }}>
                                         <td style={tdBase(classic)}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                                 <button onClick={e => { e.stopPropagation(); toggleExpand(r.id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', fontSize: 10, color: classic ? '#333' : '#64748b' }}>
