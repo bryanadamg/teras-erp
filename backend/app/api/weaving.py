@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, cast, String
+from sqlalchemy import select, and_, cast, String, func
 from sqlalchemy.orm import selectinload
 from typing import Optional
 from datetime import date
@@ -13,6 +13,7 @@ from app.models.routing import WorkCenter
 from app.models.manufacturing import ManufacturingOrder
 from app.models.batch import Batch, BeamMount
 from app.models.stock_balance import StockBalance
+from app.models.item import Item
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission
 from app.schemas import (
@@ -227,8 +228,12 @@ async def weaving_monitor(
     # its card. Batched with the remaining-kg balance in one query — one round trip
     # for the whole grid, not one per loom.
     mount_res = await db.execute(
-        select(BeamMount, Batch.batch_number, Batch.ends, StockBalance.qty)
+        # Beam ends: per-beam value wins, else the item default — same fallback as
+        # _mount_out in api/work_orders.py, so the loom card and the WO screen never
+        # disagree about how many ends are up.
+        select(BeamMount, Batch.batch_number, func.coalesce(Batch.ends, Item.ends), StockBalance.qty)
         .join(Batch, BeamMount.batch_id == Batch.id)
+        .join(Item, BeamMount.item_id == Item.id)
         .outerjoin(
             StockBalance,
             and_(
