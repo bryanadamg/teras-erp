@@ -116,8 +116,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                     
                     <div className="d-flex align-items-center gap-2 gap-md-3">
                         <button data-testid="scanner-btn" className={`btn btn-sm ${uiStyle === 'classic' ? 'btn-light' : 'btn-outline-secondary'}`} onClick={() => router.push('/scanner')} title="Scan QR Code"><i className="bi bi-qr-code-scan"></i></button>
-                        {hasPermission('admin.access') && <button data-testid="settings-btn" className={`btn btn-sm ${uiStyle === 'classic' ? 'btn-light' : 'btn-outline-info'}`} onClick={() => router.push('/settings')} title="Settings"><i className="bi bi-gear-fill"></i></button>}
-                        
                         <div className="d-flex align-items-center me-1">
                             <select 
                                 data-testid="language-select"
@@ -131,24 +129,16 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                             </select>
                         </div>
 
-                        <div className="dropdown">
-                            <button data-testid="user-dropdown" className="btn btn-sm btn-light border d-flex align-items-center rounded-pill gap-2 px-2" data-bs-toggle="dropdown" id="userDropdown" style={{ height: 30 }}>
-                                <div style={{ width: 22, height: 22, borderRadius: '4px', background: 'rgba(0,0,0,0.07)', border: '1px solid rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                    <PixelAvatar avatarId={currentUser?.avatar_id} size={18} />
-                                </div>
-                                <span className="small fw-bold d-none d-sm-inline" data-testid="username-display">{currentUser?.username}</span>
-                            </button>
-                            <ul className="dropdown-menu dropdown-menu-end shadow border-0 mt-2" aria-labelledby="userDropdown">
-                                <li className="px-3 py-2 border-bottom mb-1"><div className="small fw-bold">{currentUser?.full_name}</div></li>
-                                <li><button className="dropdown-item py-2 small" onClick={() => router.push('/settings')}><i className="bi bi-gear me-2"></i>Preferences & Admin</button></li>
-                                <li><hr className="dropdown-divider" /></li>
-                                <li><button data-testid="dropdown-logout-btn" className="dropdown-item py-2 small text-danger" onClick={logout}><i className="bi bi-box-arrow-right me-2"></i>Logout</button></li>
-                            </ul>
-                        </div>
+                        <button data-testid="user-dropdown" className="btn btn-sm btn-light border d-flex align-items-center rounded-pill gap-2 px-2" onClick={() => router.push('/settings')} title="Settings" style={{ height: 30 }}>
+                            <div style={{ width: 22, height: 22, borderRadius: '4px', background: 'rgba(0,0,0,0.07)', border: '1px solid rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <PixelAvatar avatarId={currentUser?.avatar_id} size={18} />
+                            </div>
+                            <span className="small fw-bold d-none d-sm-inline" data-testid="username-display">{currentUser?.username}</span>
+                        </button>
 
-                        <button data-testid="logout-btn" className={`btn btn-sm btn-outline-danger d-none d-md-flex align-items-center gap-2`} onClick={logout} title="Terminate Session">
+                        <button data-testid="logout-btn" className={`btn btn-sm btn-outline-danger d-flex align-items-center gap-2`} onClick={logout} title="Terminate Session">
                             <i className="bi bi-box-arrow-right"></i>
-                            <span className="small fw-bold">LOGOUT</span>
+                            <span className="small fw-bold d-none d-sm-inline">LOGOUT</span>
                         </button>
                     </div>
                 </div>
