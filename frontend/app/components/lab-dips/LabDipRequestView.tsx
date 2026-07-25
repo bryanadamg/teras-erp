@@ -417,12 +417,6 @@ export default function LabDipRequestView({
             <div style={classic
                 ? { background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const, flexShrink: 0 }
                 : { background: '#fff', borderBottom: '1px solid #dbe1ea', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const, flexShrink: 0 }}>
-                {canManage && (
-                <button style={primaryToolbarBtn} onClick={openCreate}>
-                    <i className="bi bi-plus-lg" /> New Lab Dip Request
-                </button>
-                )}
-                <span style={classic ? { width: 1, height: 20, background: '#a0988c', margin: '0 2px' } : { width: 1, height: 20, background: '#dbe1ea', margin: '0 2px' }} />
                 <input style={{ ...xpInput(classic), width: 200 }} placeholder="Search code, color standard, article…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                 <span style={classic ? { width: 1, height: 20, background: '#a0988c', margin: '0 2px' } : { width: 1, height: 20, background: '#dbe1ea', margin: '0 2px' }} />
                 {STATUS_FILTERS.map(s => (
@@ -431,6 +425,14 @@ export default function LabDipRequestView({
                     </button>
                 ))}
                 <span style={classic ? { marginLeft: 'auto', fontSize: 11, color: '#333' } : { marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>{filtered.length} item{filtered.length !== 1 ? 's' : ''}</span>
+                {canManage && (
+                    <>
+                        <span style={classic ? { width: 1, height: 20, background: '#a0988c', margin: '0 2px' } : { width: 1, height: 20, background: '#dbe1ea', margin: '0 2px' }} />
+                        <button style={primaryToolbarBtn} onClick={openCreate}>
+                            <i className="bi bi-plus-lg" /> New Lab Dip Request
+                        </button>
+                    </>
+                )}
             </div>
 
             {/* Table */}

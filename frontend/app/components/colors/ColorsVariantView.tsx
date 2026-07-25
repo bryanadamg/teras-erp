@@ -70,10 +70,6 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
             <div style={classic
                 ? { background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', padding: '4px 8px', display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }
                 : { background: '#fff', borderBottom: '1px solid #dbe1ea', padding: '8px 10px', display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-                {canManage && (
-                    <button style={lvPrimaryBtn(classic)} onClick={openCreate}><i className="bi bi-plus-lg" /> New Color</button>
-                )}
-                <span style={lvSep(classic)} />
                 <input
                     style={{ ...lvInput(classic), width: 220 }}
                     placeholder="Search color…"
@@ -83,6 +79,12 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
                 <span style={classic ? { marginLeft: 'auto', fontSize: 11, color: '#333' } : { marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>
                     {filtered.length} color{filtered.length !== 1 ? 's' : ''}
                 </span>
+                {canManage && (
+                    <>
+                        <span style={lvSep(classic)} />
+                        <button style={lvPrimaryBtn(classic)} onClick={openCreate}><i className="bi bi-plus-lg" /> New Color</button>
+                    </>
+                )}
             </div>
 
             <div style={{ flex: 1, minHeight: 0, background: '#fff', overflow: 'auto' }}>

@@ -162,12 +162,6 @@ export default function ColorLibraryView({
             <div style={classic
                 ? { background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }
                 : { background: '#fff', borderBottom: '1px solid #dbe1ea', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
-                {canManage && (
-                <button style={lvPrimaryBtn(classic)} onClick={openCreate}>
-                    <i className="bi bi-plus-lg" /> New Color
-                </button>
-                )}
-                <span style={lvSep(classic)} />
                 <input
                     style={{ ...lvInput(classic), width: 240, flexBasis: 240 }}
                     placeholder="Search code, name, Pantone, customer code…"
@@ -183,6 +177,14 @@ export default function ColorLibraryView({
                 <span style={classic ? { marginLeft: 'auto', fontSize: 11, color: '#333' } : { marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>
                     {total.toLocaleString()} color{total !== 1 ? 's' : ''}
                 </span>
+                {canManage && (
+                    <>
+                        <span style={lvSep(classic)} />
+                        <button style={lvPrimaryBtn(classic)} onClick={openCreate}>
+                            <i className="bi bi-plus-lg" /> New Color
+                        </button>
+                    </>
+                )}
             </div>
 
             {/* Table */}

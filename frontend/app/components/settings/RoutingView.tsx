@@ -237,20 +237,19 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
               padding: classic ? '4px 8px' : '8px 10px',
               display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const, flexShrink: 0,
           }}>
-              {canManage && (
-                  <>
-                      <button style={lvPrimaryBtn(classic)} onClick={() => setIsCreateWCOpen(true)}>
-                          <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>New Work Center
-                      </button>
-                      <span style={lvSep(classic)} />
-                  </>
-              )}
               <i className="bi bi-search" style={{ fontSize: 11, color: '#666' }}></i>
               <input style={{ ...lvInput(classic), width: 220, flexBasis: 220 }} placeholder="Search work centers…" value={wcSearch} onChange={e => setWcSearch(e.target.value)} />
-              <span style={lvSep(classic)} />
               <span style={{ marginLeft: 'auto', fontSize: classic ? 11 : 12, color: classic ? '#444' : '#64748b', fontFamily: classic ? 'Tahoma, Arial, sans-serif' : undefined }}>
                   {filteredWCRows.length.toLocaleString()} station{filteredWCRows.length !== 1 ? 's' : ''}
               </span>
+              {canManage && (
+                  <>
+                      <span style={lvSep(classic)} />
+                      <button style={lvPrimaryBtn(classic)} onClick={() => setIsCreateWCOpen(true)}>
+                          <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>New Work Center
+                      </button>
+                  </>
+              )}
           </div>
 
           {/* Table */}
