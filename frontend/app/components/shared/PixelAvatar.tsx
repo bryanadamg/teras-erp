@@ -184,6 +184,104 @@ const AVATARS: Record<string, AvatarDef> = {
       <rect x="288" y="320" width="32" height="32" fill="#3B1E0C"/>
     </>
   )},
+  '7': { viewBox: '0 0 16 16', content: ( // Warehouse (hi-vis vest)
+    <>
+      <rect x="5" y="1" width="6" height="2" fill="#2A2A2A"/>
+      <rect x="4" y="2" width="1" height="3" fill="#2A2A2A"/>
+      <rect x="11" y="2" width="1" height="3" fill="#2A2A2A"/>
+      <rect x="5" y="2" width="6" height="5" fill="#FDBCB4"/>
+      <rect x="6" y="4" width="1" height="1" fill="#1A1A2E"/>
+      <rect x="9" y="4" width="1" height="1" fill="#1A1A2E"/>
+      <rect x="7" y="6" width="2" height="1" fill="#C8756A"/>
+      <rect x="7" y="7" width="2" height="1" fill="#FDBCB4"/>
+      <rect x="2" y="8" width="2" height="4" fill="#3A3A3A"/>
+      <rect x="12" y="8" width="2" height="4" fill="#3A3A3A"/>
+      <rect x="4" y="8" width="8" height="5" fill="#FF7A00"/>
+      <rect x="4" y="9" width="1" height="3" fill="#3A3A3A"/>
+      <rect x="11" y="9" width="1" height="3" fill="#3A3A3A"/>
+      <rect x="5" y="9" width="1" height="3" fill="#FFE84D"/>
+      <rect x="10" y="9" width="1" height="3" fill="#FFE84D"/>
+      <rect x="6" y="8" width="4" height="1" fill="#FFFFFF"/>
+      <rect x="2" y="12" width="2" height="1" fill="#FDBCB4"/>
+      <rect x="12" y="12" width="2" height="1" fill="#FDBCB4"/>
+      <rect x="4" y="13" width="3" height="3" fill="#2A2A2A"/>
+      <rect x="7" y="13" width="2" height="1" fill="#2A2A2A"/>
+      <rect x="9" y="13" width="3" height="3" fill="#2A2A2A"/>
+    </>
+  )},
+  '8': { viewBox: '0 0 16 16', content: ( // Security Guard
+    <>
+      <rect x="4" y="1" width="8" height="2" fill="#1A1A2E"/>
+      <rect x="4" y="3" width="8" height="1" fill="#0D0D1A"/>
+      <rect x="4" y="2" width="1" height="3" fill="#1A1A2E"/>
+      <rect x="11" y="2" width="1" height="3" fill="#1A1A2E"/>
+      <rect x="5" y="4" width="6" height="4" fill="#FDBCB4"/>
+      <rect x="6" y="5" width="1" height="1" fill="#1A1A2E"/>
+      <rect x="9" y="5" width="1" height="1" fill="#1A1A2E"/>
+      <rect x="7" y="6" width="2" height="1" fill="#C8756A"/>
+      <rect x="7" y="7" width="2" height="1" fill="#FDBCB4"/>
+      <rect x="2" y="8" width="2" height="4" fill="#26364A"/>
+      <rect x="12" y="8" width="2" height="4" fill="#26364A"/>
+      <rect x="4" y="8" width="8" height="5" fill="#26364A"/>
+      <rect x="6" y="8" width="4" height="1" fill="#DDDDDD"/>
+      <rect x="7" y="9" width="2" height="1" fill="#DDDDDD"/>
+      <rect x="7" y="9" width="2" height="3" fill="#C9A227"/>
+      <rect x="2" y="12" width="2" height="1" fill="#FDBCB4"/>
+      <rect x="12" y="12" width="2" height="1" fill="#FDBCB4"/>
+      <rect x="4" y="13" width="3" height="3" fill="#1A2635"/>
+      <rect x="7" y="13" width="2" height="1" fill="#1A2635"/>
+      <rect x="9" y="13" width="3" height="3" fill="#1A2635"/>
+    </>
+  )},
+  '9': { viewBox: '0 0 16 16', content: ( // QC / Lab
+    <>
+      <rect x="5" y="1" width="6" height="2" fill="#3D2914"/>
+      <rect x="4" y="2" width="1" height="3" fill="#3D2914"/>
+      <rect x="11" y="2" width="1" height="3" fill="#3D2914"/>
+      <rect x="5" y="2" width="6" height="5" fill="#FDBCB4"/>
+      <rect x="5" y="4" width="6" height="2" fill="#DCEBFA" opacity="0.6"/>
+      <rect x="5" y="4" width="6" height="1" fill="#333333"/>
+      <rect x="6" y="4" width="1" height="1" fill="#1A1A2E"/>
+      <rect x="9" y="4" width="1" height="1" fill="#1A1A2E"/>
+      <rect x="7" y="6" width="2" height="1" fill="#C8756A"/>
+      <rect x="7" y="7" width="2" height="1" fill="#FDBCB4"/>
+      <rect x="2" y="8" width="2" height="4" fill="#F5F5F0"/>
+      <rect x="12" y="8" width="2" height="4" fill="#F5F5F0"/>
+      <rect x="4" y="8" width="8" height="5" fill="#F5F5F0"/>
+      <rect x="6" y="8" width="4" height="1" fill="#009688"/>
+      <rect x="7" y="9" width="2" height="1" fill="#009688"/>
+      <rect x="8" y="9" width="1" height="4" fill="#CCCCCC"/>
+      <rect x="6" y="11" width="1" height="1" fill="#009688"/>
+      <rect x="9" y="11" width="1" height="1" fill="#009688"/>
+      <rect x="2" y="12" width="2" height="1" fill="#FDBCB4"/>
+      <rect x="12" y="12" width="2" height="1" fill="#FDBCB4"/>
+      <rect x="4" y="13" width="3" height="3" fill="#F5F5F0"/>
+      <rect x="7" y="13" width="2" height="1" fill="#F5F5F0"/>
+      <rect x="9" y="13" width="3" height="3" fill="#F5F5F0"/>
+    </>
+  )},
+  '10': { viewBox: '0 0 16 16', content: ( // Weaver (headscarf)
+    <>
+      <rect x="4" y="1" width="8" height="3" fill="#C0334D"/>
+      <rect x="3" y="2" width="1" height="4" fill="#C0334D"/>
+      <rect x="12" y="2" width="1" height="4" fill="#C0334D"/>
+      <rect x="4" y="3" width="1" height="4" fill="#A81E38"/>
+      <rect x="11" y="3" width="1" height="4" fill="#A81E38"/>
+      <rect x="5" y="3" width="6" height="5" fill="#FDBCB4"/>
+      <rect x="6" y="5" width="1" height="1" fill="#1A1A2E"/>
+      <rect x="9" y="5" width="1" height="1" fill="#1A1A2E"/>
+      <rect x="7" y="7" width="2" height="1" fill="#C8756A"/>
+      <rect x="7" y="8" width="2" height="1" fill="#FDBCB4"/>
+      <rect x="2" y="9" width="2" height="4" fill="#8A5FB0"/>
+      <rect x="12" y="9" width="2" height="4" fill="#8A5FB0"/>
+      <rect x="4" y="9" width="8" height="5" fill="#8A5FB0"/>
+      <rect x="6" y="9" width="4" height="2" fill="#F2C230"/>
+      <rect x="6" y="11" width="4" height="1" fill="#F2C230"/>
+      <rect x="2" y="13" width="2" height="1" fill="#FDBCB4"/>
+      <rect x="12" y="13" width="2" height="1" fill="#FDBCB4"/>
+      <rect x="4" y="14" width="8" height="2" fill="#6B4494"/>
+    </>
+  )},
 };
 
 interface PixelAvatarProps {
