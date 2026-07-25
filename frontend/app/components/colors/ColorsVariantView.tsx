@@ -2,7 +2,9 @@
 import React, { useState } from 'react';
 import { useConfirm } from '../../context/ConfirmContext';
 import { useTheme } from '../../context/ThemeContext';
-import { lvInput, lvBtn, lvPrimaryBtn, lvTh, lvTd, lvRow } from '../shared/listViewTheme';
+import ModalWrapper from '../shared/ModalWrapper';
+import { FormSection } from '../shared/xpTheme';
+import { lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvSep, lvTh, lvTd, lvRow } from '../shared/listViewTheme';
 
 interface Props {
     values: any[];                 // AttributeValue rows of the Colors variant attribute
@@ -21,6 +23,8 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
     const { uiStyle } = useTheme();
     const classic = uiStyle === 'classic';
 
+    const [search, setSearch] = useState('');
+    const [isModalOpen, setIsModalOpen] = useState(false);
     const [newValue, setNewValue] = useState('');
     const [newHexOn, setNewHexOn] = useState(false);
     const [newHex, setNewHex] = useState('#cccccc');
@@ -30,6 +34,9 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
     const [editHex, setEditHex] = useState('#cccccc');
 
     const sorted = [...(values || [])].sort((a, b) => String(a.value).localeCompare(String(b.value)));
+    const filtered = search ? sorted.filter(v => String(v.value).toLowerCase().includes(search.toLowerCase())) : sorted;
+
+    const openCreate = () => { setNewValue(''); setNewHexOn(false); setNewHex('#cccccc'); setIsModalOpen(true); };
 
     const handleAdd = () => {
         const v = newValue.trim();
@@ -39,6 +46,7 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
         setNewValue('');
         setNewHexOn(false);
         setNewHex('#cccccc');
+        setIsModalOpen(false);
     };
 
     const startEdit = (v: any) => { setEditingId(v.id); setEditText(v.value); setEditHexOn(!!v.hex); setEditHex(v.hex || '#cccccc'); };
@@ -58,33 +66,26 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
     };
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {canManage && (
-                <div style={classic
-                    ? { background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', padding: '4px 8px', display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }
-                    : { background: '#fff', borderBottom: '1px solid #dbe1ea', padding: '8px 10px', display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-                    <input
-                        style={{ ...lvInput(classic), width: 220 }}
-                        placeholder="New color name…"
-                        value={newValue}
-                        onChange={e => setNewValue(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleAdd()}
-                    />
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: classic ? 11 : 12, color: classic ? '#333' : '#475569', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                        <input type="checkbox" checked={newHexOn} onChange={e => setNewHexOn(e.target.checked)} />
-                        Set exact color
-                    </label>
-                    {newHexOn && (
-                        <input type="color" title="Swatch color" value={newHex} onChange={e => setNewHex(e.target.value)} style={{ width: 28, height: 22, padding: 0, border: '1px solid #a0988c', cursor: 'pointer' }} />
-                    )}
-                    <button style={lvPrimaryBtn(classic)} onClick={handleAdd}><i className="bi bi-plus-lg" /> Add Color</button>
-                    <span style={classic ? { marginLeft: 'auto', fontSize: 11, color: '#333' } : { marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>
-                        {sorted.length} color{sorted.length !== 1 ? 's' : ''}
-                    </span>
-                </div>
-            )}
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+            <div style={classic
+                ? { background: 'linear-gradient(to bottom, #f5f4ef, #e0dfd8)', borderBottom: '1px solid #b0a898', padding: '4px 8px', display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }
+                : { background: '#fff', borderBottom: '1px solid #dbe1ea', padding: '8px 10px', display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                {canManage && (
+                    <button style={lvPrimaryBtn(classic)} onClick={openCreate}><i className="bi bi-plus-lg" /> New Color</button>
+                )}
+                <span style={lvSep(classic)} />
+                <input
+                    style={{ ...lvInput(classic), width: 220 }}
+                    placeholder="Search color…"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                />
+                <span style={classic ? { marginLeft: 'auto', fontSize: 11, color: '#333' } : { marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>
+                    {filtered.length} color{filtered.length !== 1 ? 's' : ''}
+                </span>
+            </div>
 
-            <div style={{ flex: 1, background: '#fff', overflow: 'auto' }}>
+            <div style={{ flex: 1, minHeight: 0, background: '#fff', overflow: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
                     <thead style={classic
                         ? { background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080' }
@@ -96,12 +97,12 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
                         </tr>
                     </thead>
                     <tbody>
-                        {sorted.length === 0 && (
+                        {filtered.length === 0 && (
                             <tr><td colSpan={3} style={{ ...lvTd(classic), textAlign: 'center', color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>
-                                No color variants yet.
+                                {search ? 'No colors match your search.' : 'No color variants yet.'}
                             </td></tr>
                         )}
-                        {sorted.map((v, idx) => (
+                        {filtered.map((v, idx) => (
                             <tr key={v.id} style={lvRow(classic, idx)}>
                                 <td style={lvTd(classic)}>
                                     {editingId === v.id ? (
@@ -172,6 +173,44 @@ export default function ColorsVariantView({ values, canManage, onAdd, onRename, 
                     </tbody>
                 </table>
             </div>
+
+            <ModalWrapper
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                title="New Color"
+                size="sm"
+                modeless
+                footer={
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                        <button type="button" style={lvBtn(classic)} onClick={() => setIsModalOpen(false)}>Cancel</button>
+                        <button type="submit" form="color-variant-form" style={lvPrimaryBtn(classic)}>Create</button>
+                    </div>
+                }
+            >
+                <form id="color-variant-form" onSubmit={e => { e.preventDefault(); handleAdd(); }}>
+                    <FormSection title="Color" classic={classic}>
+                        <div>
+                            <label style={lvLabel(classic)}>Name *</label>
+                            <input
+                                autoFocus
+                                value={newValue}
+                                onChange={e => setNewValue(e.target.value)}
+                                style={{ ...lvInput(classic), width: '100%' }}
+                                required
+                            />
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: classic ? 11 : 12, color: classic ? '#333' : '#475569', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                <input type="checkbox" checked={newHexOn} onChange={e => setNewHexOn(e.target.checked)} />
+                                Set exact color
+                            </label>
+                            {newHexOn && (
+                                <input type="color" title="Swatch color" value={newHex} onChange={e => setNewHex(e.target.value)} style={{ width: 28, height: 22, padding: 0, border: '1px solid #a0988c', cursor: 'pointer' }} />
+                            )}
+                        </div>
+                    </FormSection>
+                </form>
+            </ModalWrapper>
         </div>
     );
 }
