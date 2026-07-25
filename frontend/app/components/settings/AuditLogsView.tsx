@@ -24,7 +24,6 @@ const AuditLogRow = memo(({ log, classic, rowIndex, userName }: any) => {
     const { formatDateTime: tzDateTime } = useTimezone();
     const userShort = log.user_id ? log.user_id.split('-')[0] : 'System';
     const userLabel = userName || (log.user_id ? `User ${userShort}` : 'System');
-    const entityShort = log.entity_id ? log.entity_id.split('-')[0] : '';
 
     if (classic) {
         const rowStyle = { ...lvRow(true, rowIndex ?? 0), cursor: log.changes ? 'pointer' : 'default' };
@@ -43,9 +42,8 @@ const AuditLogRow = memo(({ log, classic, rowIndex, userName }: any) => {
                     <td style={{ padding: '3px 8px', overflow: 'hidden' }}>
                         <StatusChip status={log.action} title={log.action.replace(/_/g, ' ')} style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }} />
                     </td>
-                    <td style={{ padding: '3px 8px' }}>
-                        <span style={{ background: '#e0dfd8', border: '1px solid #b0a898', padding: '1px 5px', fontFamily: LV_XP_FONT, fontSize: '10px', color: '#333' }}>{formatEntityType(log.entity_type)}</span>
-                        <span style={{ fontFamily: LV_XP_FONT, fontSize: '10px', color: '#777', marginLeft: 4 }} title={log.entity_id}>{entityShort}…</span>
+                    <td style={{ padding: '3px 8px', overflow: 'hidden' }} title={log.entity_id}>
+                        <span style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: '#e0dfd8', border: '1px solid #b0a898', padding: '1px 5px', fontFamily: LV_XP_FONT, fontSize: '10px', color: '#333' }}>{formatEntityType(log.entity_type)}</span>
                     </td>
                     <td style={{ padding: '3px 8px', fontFamily: LV_XP_FONT, fontSize: '11px', color: '#444' }}>
                         {log.details}
@@ -78,9 +76,8 @@ const AuditLogRow = memo(({ log, classic, rowIndex, userName }: any) => {
                 <td style={{ overflow: 'hidden' }}>
                     <StatusChip status={log.action} title={log.action.replace(/_/g, ' ')} style={{ fontFamily: LV_MODERN_FONT, borderRadius: 4, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }} />
                 </td>
-                <td>
-                    <span className="badge bg-light text-dark border">{formatEntityType(log.entity_type)}</span>
-                    <span className="ms-1 font-monospace text-muted" title={log.entity_id}>{entityShort}...</span>
+                <td className="text-truncate" title={log.entity_id}>
+                    <span className="badge bg-light text-dark border fw-normal">{formatEntityType(log.entity_type)}</span>
                 </td>
                 <td className="text-muted">
                     {log.details}
