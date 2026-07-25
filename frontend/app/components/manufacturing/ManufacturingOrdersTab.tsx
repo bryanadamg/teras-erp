@@ -888,7 +888,7 @@ export default function ManufacturingOrdersTab({
                         onUpdate={onUpdateWO}
                         onUpdateStatus={onUpdateWOStatus}
                         onDelete={onDeleteWO}
-                        onLogWO={(wo) => { setCompletionWO(wo); setCompletionMO(selectedNode); }}
+                        onLogWO={(wo) => { setCompletionWO(wo); setCompletionMO(selectedNode.bom ? selectedNode : { ...selectedNode, bom }); }}
                         parentMO={selectedNode}
                         bom={bom}
                     />
