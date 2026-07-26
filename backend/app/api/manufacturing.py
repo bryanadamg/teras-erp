@@ -983,6 +983,7 @@ async def update_mo_tolerance(
     if payload.overdelivery_tolerance_pct is not None and payload.overdelivery_tolerance_pct < 0:
         raise HTTPException(status_code=400, detail="Tolerance cannot be negative")
 
+    mo_pk = mo.id
     before = f"{mo.overdelivery_tolerance_pct}% / unlimited={mo.allow_unlimited_overdelivery}"
     if payload.overdelivery_tolerance_pct is not None:
         mo.overdelivery_tolerance_pct = payload.overdelivery_tolerance_pct
@@ -997,8 +998,8 @@ async def update_mo_tolerance(
     )
     await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": str(mo_id), "status": mo.status, "code": mo.code})
 
-    mo_map = await load_mo_tree(db, [uuid.UUID(str(mo_id))])
-    mo = mo_map.get(uuid.UUID(str(mo_id)))
+    mo_map = await load_mo_tree(db, [mo_pk])
+    mo = mo_map.get(mo_pk)
     populate_mo_ids(mo)
     return mo
 
