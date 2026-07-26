@@ -176,14 +176,15 @@ async def get_dashboard_summary(
     # --- Production yield: over ManufacturingOrder (same model as active_wo/pending_wo) ---
     py_result = await db.execute(
         select(ManufacturingOrder.status, ManufacturingOrder.qty)
-        .where(ManufacturingOrder.status.in_(["COMPLETED", "IN_PROGRESS"]))
+        .where(ManufacturingOrder.status.in_(["COMPLETED", "DELIVERED", "IN_PROGRESS"]))
     )
     completed_qty = 0.0
     total_started_qty = 0.0
     for row in py_result.all():
         q = float(row.qty or 0)
         total_started_qty += q
-        if row.status == "COMPLETED":
+        # DELIVERED = planned qty met (order simply not closed yet) — counts as yield.
+        if row.status in ("COMPLETED", "DELIVERED"):
             completed_qty += q
     production_yield = (completed_qty / total_started_qty * 100) if total_started_qty > 0 else 100.0
 

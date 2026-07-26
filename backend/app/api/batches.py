@@ -598,7 +598,7 @@ async def reject_batch(
                 select(func.sum(MOCompletion.qty_completed))
                 .filter(MOCompletion.mo_id == mo.id, MOCompletion.rejected == False)  # noqa: E712
             )).scalar() or 0)
-            if mo.status == "COMPLETED" and total_good < float(mo.qty):
+            if mo.status in ("DELIVERED", "COMPLETED") and total_good < float(mo.qty):
                 mo.status = "IN_PROGRESS"
                 mo.actual_end_date = None
 

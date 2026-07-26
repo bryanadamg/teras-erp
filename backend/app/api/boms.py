@@ -128,6 +128,8 @@ async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db
         description=payload.description,
         item_id=item.id,
         qty=payload.qty,
+        tolerance_percentage=payload.tolerance_percentage,
+        overdelivery_tolerance_percentage=payload.overdelivery_tolerance_percentage,
         kerapatan_picks=payload.kerapatan_picks,
         kerapatan_unit=payload.kerapatan_unit,
         sisir_no=payload.sisir_no,
@@ -529,7 +531,8 @@ async def update_bom(
 
     # Update header fields
     scalar_fields = [
-        "description", "qty", "tolerance_percentage", "active", "size_mode",
+        "description", "qty", "tolerance_percentage", "overdelivery_tolerance_percentage",
+        "active", "size_mode",
         "customer_id", "work_center_id", "kerapatan_picks", "kerapatan_unit", "sisir_no",
         "pemakaian_obat", "pembuatan_sample_oleh", "berat_bahan_mateng",
         "berat_bahan_mentah_pelesan", "mesin_lebar", "mesin_panjang_tulisan",

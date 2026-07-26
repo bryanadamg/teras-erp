@@ -24,6 +24,7 @@ from app.schemas import (
     MOAttributeUpdate,
     MOColorUpdate,
     MOPutawayUpdate,
+    MOToleranceUpdate,
     MOPreviewRequest, NettingPreviewNode,
     WorkOrderFlatPageResponse, WorkOrderFlatResponse,
     WorkOrderCompletionFlat, WorkOrderCompletionItemFlat,
@@ -41,6 +42,34 @@ from app.core.ws_manager import manager
 import uuid
 
 router = APIRouter()
+
+# Default output overdelivery allowance when neither the MO nor its BOM carries one
+# (legacy rows created before the field existed).
+DEFAULT_OVERDELIVERY_PCT = 10.0
+
+# MO statuses that still accept production logs. DELIVERED means "planned qty met,
+# order still open" — the industry split between delivery and closure (SAP DLV vs
+# TECO). Only an explicit close moves an order to COMPLETED.
+OPEN_MO_STATUSES = ("PENDING", "IN_PROGRESS", "DELIVERED")
+
+
+def mo_overdelivery_pct(mo) -> float:
+    """Effective overdelivery % for an MO: its own snapshot, else the BOM's default,
+    else the system default. Kept in one place — three call sites read it."""
+    if mo.overdelivery_tolerance_pct is not None:
+        return float(mo.overdelivery_tolerance_pct)
+    bom = getattr(mo, "bom", None)
+    if bom is not None and getattr(bom, "overdelivery_tolerance_percentage", None) is not None:
+        return float(bom.overdelivery_tolerance_percentage)
+    return DEFAULT_OVERDELIVERY_PCT
+
+
+def mo_max_loggable_qty(mo) -> float | None:
+    """Highest cumulative good qty this MO may carry. None = no ceiling."""
+    if mo.allow_unlimited_overdelivery:
+        return None
+    return float(mo.qty) * (1 + mo_overdelivery_pct(mo) / 100)
+
 
 # Helper for consistent eager loading
 def get_mo_options():
@@ -352,6 +381,12 @@ async def create_manufacturing_order(payload: ManufacturingOrderCreate, db: Asyn
             qty=payload.qty,
             target_start_date=payload.target_start_date,
             target_end_date=payload.target_end_date,
+            # Snapshot the BOM's output tolerance (see mrp_service.create_mo_recursive);
+            # beam MOs carry no kg ceiling.
+            overdelivery_tolerance_pct=float(bom.overdelivery_tolerance_percentage or 0),
+            allow_unlimited_overdelivery=bool(
+                await beam_service.beam_item_ids(db, [bom.item_id])
+            ),
             status="PENDING"
         )
         # Load attributes from BOM
@@ -752,7 +787,7 @@ async def update_manufacturing_order_status(mo_id: str, status: str, db: AsyncSe
         raise HTTPException(status_code=404, detail="Manufacturing Order not found")
 
     previous_status = mo.status
-    valid_statuses = ["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"]
+    valid_statuses = ["PENDING", "IN_PROGRESS", "DELIVERED", "COMPLETED", "CANCELLED"]
     if status not in valid_statuses:
         raise HTTPException(status_code=400, detail="Invalid status")
 
@@ -760,9 +795,15 @@ async def update_manufacturing_order_status(mo_id: str, status: str, db: AsyncSe
         # No stock gate at start. Material availability is decided at PR/MO creation
         # (plant-level netting) and enforced physically at staging + completion
         # (negative-stock guard). Starting an MO never requires stock to be on hand.
-        mo.actual_start_date = datetime.utcnow()
+        if previous_status in ("DELIVERED", "COMPLETED"):
+            mo.actual_end_date = None      # reopened — it has no end date again
+        else:
+            mo.actual_start_date = datetime.utcnow()
 
-    if status == "COMPLETED" and previous_status != "COMPLETED":
+    # DELIVERED (qty met) and COMPLETED (explicitly closed) both mean the plan is
+    # fulfilled, so both stamp the end date and release the Sales Order. The
+    # difference is only whether further logging is still allowed.
+    if status in ("DELIVERED", "COMPLETED") and previous_status not in ("DELIVERED", "COMPLETED"):
         mo.actual_end_date = datetime.utcnow()
 
         # Stock movement is owned by WO completions — no bulk deduct/credit here.
@@ -920,6 +961,48 @@ async def update_mo_putaway(
     return mo
 
 
+@router.patch("/manufacturing-orders/{mo_id}/tolerance", response_model=ManufacturingOrderResponse)
+async def update_mo_tolerance(
+    mo_id: str,
+    payload: MOToleranceUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('work_order.manage')),
+):
+    """Per-order overdelivery override. Planning raises this when a run is
+    deliberately over-issued (spare beams against bad yarn) rather than editing the
+    BOM, which would loosen every future order of that article."""
+    result = await db.execute(
+        select(ManufacturingOrder).filter(ManufacturingOrder.id == mo_id)
+    )
+    mo = result.unique().scalars().first()
+    if not mo:
+        raise HTTPException(status_code=404, detail="Manufacturing Order not found")
+    if mo.status == "CANCELLED":
+        raise HTTPException(status_code=400, detail="Cannot set tolerance on a CANCELLED MO")
+
+    if payload.overdelivery_tolerance_pct is not None and payload.overdelivery_tolerance_pct < 0:
+        raise HTTPException(status_code=400, detail="Tolerance cannot be negative")
+
+    before = f"{mo.overdelivery_tolerance_pct}% / unlimited={mo.allow_unlimited_overdelivery}"
+    if payload.overdelivery_tolerance_pct is not None:
+        mo.overdelivery_tolerance_pct = payload.overdelivery_tolerance_pct
+    if payload.allow_unlimited_overdelivery is not None:
+        mo.allow_unlimited_overdelivery = payload.allow_unlimited_overdelivery
+    await db.commit()
+
+    await audit_service.log_activity(
+        db, current_user.id, "UPDATE", "ManufacturingOrder", str(mo_id),
+        f"Overdelivery tolerance on MO {mo.code}: {before} -> "
+        f"{mo.overdelivery_tolerance_pct}% / unlimited={mo.allow_unlimited_overdelivery}",
+    )
+    await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": str(mo_id), "status": mo.status, "code": mo.code})
+
+    mo_map = await load_mo_tree(db, [uuid.UUID(str(mo_id))])
+    mo = mo_map.get(uuid.UUID(str(mo_id)))
+    populate_mo_ids(mo)
+    return mo
+
+
 @router.post("/manufacturing-orders/{mo_id}/completions", response_model=ManufacturingOrderResponse)
 async def add_mo_completion(
     mo_id: str,
@@ -936,11 +1019,29 @@ async def add_mo_completion(
     if not mo:
         raise HTTPException(status_code=404, detail="Manufacturing Order not found")
 
+    # DELIVERED is deliberately absent: the planned qty being met does not close the
+    # order. Only an explicit close (COMPLETED) or CANCELLED stops logging.
     if mo.status in ("COMPLETED", "CANCELLED"):
         raise HTTPException(status_code=400, detail=f"Cannot log completion on a {mo.status} MO")
 
     if payload.qty_completed <= 0:
         raise HTTPException(status_code=400, detail="qty_completed must be positive")
+
+    # Overdelivery gate: the order qty is a target, not a ceiling. Logging past it is
+    # allowed up to the tolerance snapshotted on the MO (unlimited for beams).
+    max_loggable = mo_max_loggable_qty(mo)
+    if max_loggable is not None:
+        already = sum(float(c.qty_completed) for c in mo.completions if not c.rejected)
+        if already + float(payload.qty_completed) > max_loggable + 1e-9:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Overdelivery limit reached: logging {float(payload.qty_completed):g} would bring the total to "
+                    f"{already + float(payload.qty_completed):g}, past the allowed "
+                    f"{max_loggable:g} ({float(mo.qty):g} + {mo_overdelivery_pct(mo):g}%). "
+                    "Raise the tolerance on this MO to log more."
+                ),
+            )
 
     # Validate WO if provided
     wo = None
@@ -1320,8 +1421,10 @@ async def add_mo_completion(
     )
     total_completed = float(total_result.scalar() or 0)
 
-    if total_completed >= float(mo.qty):
-        mo.status = "COMPLETED"
+    # Planned qty met -> DELIVERED, NOT COMPLETED. The order stays open so the floor
+    # can keep logging (spare beams, extra bags) until someone closes it explicitly.
+    if total_completed >= float(mo.qty) and mo.status not in ("DELIVERED", "COMPLETED"):
+        mo.status = "DELIVERED"
         mo.actual_end_date = datetime.utcnow()
         if mo.sales_order_id and mo.parent_mo_id is None:
             res = await db.execute(select(SalesOrder).filter(SalesOrder.id == mo.sales_order_id))
@@ -1453,7 +1556,7 @@ async def reject_mo_completion(
         .filter(MOCompletion.mo_id == mo.id, MOCompletion.rejected == False)  # noqa: E712
     )
     total_good = float(total_result.scalar() or 0)
-    if mo.status == "COMPLETED" and total_good < float(mo.qty):
+    if mo.status in ("DELIVERED", "COMPLETED") and total_good < float(mo.qty):
         mo.status = "IN_PROGRESS"
         mo.actual_end_date = None
 
@@ -1498,7 +1601,7 @@ async def complete_manufacturing_order_with_batches(
         raise HTTPException(status_code=404, detail="Manufacturing Order not found")
 
     if mo.status == "COMPLETED":
-        raise HTTPException(status_code=400, detail="Already completed")
+        raise HTTPException(status_code=400, detail="Already closed")
 
     # Build lookup: (item_id, sorted attr ids) -> batch_id + qty from payload
     batch_map: dict[tuple, uuid.UUID] = {}

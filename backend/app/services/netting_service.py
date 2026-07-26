@@ -65,7 +65,10 @@ def rejected_batch_keys():
     never count as good/available."""
     return select(cast(Batch.id, String)).where(Batch.quality_status.in_(("REJECTED", "DISPOSED")))
 
-ONGOING = ("PENDING", "IN_PROGRESS")
+# Orders still open. DELIVERED = planned qty met but not closed; it contributes no
+# remaining demand or supply (outstanding <= 0 short-circuits below) but is included
+# so an order whose qty is later raised, or whose output is rejected, nets correctly.
+ONGOING = ("PENDING", "IN_PROGRESS", "DELIVERED")
 
 
 async def _sales_order_linked_prs(db: AsyncSession, mos) -> set[str]:

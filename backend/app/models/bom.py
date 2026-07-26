@@ -35,7 +35,15 @@ class BOM(Base):
         UUID(as_uuid=True), ForeignKey("items.id"), index=True
     )
     qty: Mapped[float] = mapped_column(Numeric(14, 4), default=1.0)
+    # INPUT side: inflates component requirements by (1 + tol/100) for material
+    # availability / MRP. Process wastage allowance — not an output tolerance.
     tolerance_percentage: Mapped[float] = mapped_column(Numeric(5, 2), default=0.0)
+    # OUTPUT side: how far past the order qty a completion may be logged before
+    # it is rejected (SAP "overdelivery tolerance"). Copied onto each MO at
+    # creation so later BOM edits never retro-change an in-flight order.
+    overdelivery_tolerance_percentage: Mapped[float] = mapped_column(
+        Numeric(5, 2), default=10.0, server_default="10.00", nullable=False
+    )
 
     kerapatan_picks: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
     kerapatan_unit: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)  # '/cm' or '/inch'

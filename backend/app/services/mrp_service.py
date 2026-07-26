@@ -11,6 +11,7 @@ from app.models.bom import BOM, BOMLine, BOMOperation, BOMSize
 from app.models.item import Item
 from app.models.attribute import Attribute, AttributeValue
 from app.models.manufacturing import ManufacturingOrder, MODependency, MOPlannedComponent
+from app.services import beam_service
 
 
 def _line_decoupled(line, item_flag) -> bool:
@@ -131,6 +132,13 @@ async def create_mo_recursive(
         qty=qty,
         target_start_date=target_start_date,
         target_end_date=target_end_date,
+        # Snapshot the BOM's output tolerance so later BOM edits can't retro-change
+        # what an in-flight order is allowed to log. Beams are planned in pcs against
+        # loom demand (kg per beam varies with the yarn) so they carry no kg ceiling.
+        overdelivery_tolerance_pct=float(bom.overdelivery_tolerance_percentage or 0),
+        allow_unlimited_overdelivery=bool(
+            await beam_service.beam_item_ids(db, [bom.item_id])
+        ),
         status="PENDING"
     )
     # Base variant = the BOM's own attribute values, plus any extra values passed

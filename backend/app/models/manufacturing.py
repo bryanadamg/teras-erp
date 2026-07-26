@@ -99,7 +99,23 @@ class ManufacturingOrder(Base):
     labdip_variant_code: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
 
     qty: Mapped[float] = mapped_column(Numeric(14, 4))
+    # PENDING -> IN_PROGRESS -> DELIVERED -> COMPLETED (or CANCELLED).
+    # DELIVERED = planned qty reached, order still OPEN: completions may still be
+    # logged (within tolerance). COMPLETED = explicitly closed by a user; only
+    # then does logging stop. Industry split (SAP DLV vs TECO, Oracle Complete vs
+    # Closed) — an order must never auto-close itself on qty.
     status: Mapped[str] = mapped_column(String(32), default="PENDING", index=True)
+
+    # Overdelivery allowance, snapshotted from BOM.overdelivery_tolerance_percentage
+    # at creation and overridable per order. Null = fall back to the BOM (legacy rows).
+    overdelivery_tolerance_pct: Mapped[float | None] = mapped_column(
+        Numeric(5, 2), nullable=True
+    )
+    # No output ceiling at all. Default for warp-beam MOs: a beam is planned in
+    # pcs against loom demand and its kg varies by yarn, so a kg cap is meaningless.
+    allow_unlimited_overdelivery: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
 
     # True for consolidated component MOs shared across multiple root MOs in a PR
     is_shared_component: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)

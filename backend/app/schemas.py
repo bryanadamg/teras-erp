@@ -131,7 +131,8 @@ class BOMCreate(BaseModel):
     item_code: str
     attribute_value_ids: list[UUID] = []
     qty: float = 1.0
-    tolerance_percentage: float = 0.0
+    tolerance_percentage: float = 0.0          # input side: material wastage
+    overdelivery_tolerance_percentage: float = 10.0   # output side: how far past MO qty may be logged
     size_mode: str = 'sized'
     lines: list[BOMLineCreate]
     operations: list[BOMOperationCreate] = []
@@ -168,6 +169,7 @@ class BOMResponse(BaseModel):
     attribute_value_ids: list[UUID] = [] # We'll populate this in the API
     qty: float
     tolerance_percentage: float = 0.0
+    overdelivery_tolerance_percentage: float = 10.0
     size_mode: str = 'sized'
     active: bool
     lines: list[BOMLineResponse]
@@ -216,6 +218,7 @@ class BOMSummaryResponse(BaseModel):
     attribute_value_ids: list[UUID] = []
     qty: float
     tolerance_percentage: float = 0.0
+    overdelivery_tolerance_percentage: float = 10.0
     size_mode: str = 'sized'
     active: bool
     lines: list[BOMLineResponse]
@@ -272,6 +275,7 @@ class BOMUpdate(BaseModel):
     description: str | None = None
     qty: float | None = None
     tolerance_percentage: float | None = None
+    overdelivery_tolerance_percentage: float | None = None
     active: bool | None = None
     size_mode: str | None = None
     attribute_value_ids: list[UUID] | None = None
@@ -401,6 +405,11 @@ class MOColorUpdate(BaseModel):
 class MOPutawayUpdate(BaseModel):
     location_id: UUID | None = None   # null clears the planned putaway bin
 
+class MOToleranceUpdate(BaseModel):
+    """Per-order overdelivery override. Null pct = fall back to the BOM default."""
+    overdelivery_tolerance_pct: float | None = None
+    allow_unlimited_overdelivery: bool | None = None
+
 class BatchConsumptionInMO(BaseModel):
     input_batch_id: UUID
     input_batch_number: str
@@ -436,6 +445,9 @@ class ManufacturingOrderResponse(BaseModel):
     planned_putaway_location_name: str | None = None
     qty: float
     status: str
+    # Output overdelivery allowance. Null on legacy rows — treat as the 10% default.
+    overdelivery_tolerance_pct: float | None = None
+    allow_unlimited_overdelivery: bool = False
     target_start_date: datetime | None
     target_end_date: datetime | None
     actual_start_date: datetime | None
@@ -917,6 +929,9 @@ class ManufacturingOrderListItem(BaseModel):
     planned_putaway_location_name: str | None = None
     qty: float
     status: str
+    # Output overdelivery allowance. Null on legacy rows — treat as the 10% default.
+    overdelivery_tolerance_pct: float | None = None
+    allow_unlimited_overdelivery: bool = False
     target_start_date: datetime | None
     target_end_date: datetime | None
     actual_start_date: datetime | None

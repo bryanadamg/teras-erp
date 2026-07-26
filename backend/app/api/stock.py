@@ -437,7 +437,7 @@ async def _compute_booking_rows(db: AsyncSession) -> list:
     from app.models.manufacturing import ManufacturingOrder
     from app.services.netting_service import _sales_order_linked_prs, _output_committed
 
-    ONGOING = ("PENDING", "IN_PROGRESS")
+    ONGOING = ("PENDING", "IN_PROGRESS", "DELIVERED")   # see netting_service.ONGOING
     mo_rows = (await db.execute(
         select(ManufacturingOrder)
         .where(ManufacturingOrder.status.in_(ONGOING))
