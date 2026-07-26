@@ -74,7 +74,7 @@ function hasTeknisFor(b: any): boolean {
 
 export default function BOMView({
     items, boms, locations, attributes, sizes, workCenters, operations, partners,
-    onCreateBOM, onUpdateBOM, onDeleteBOM, onDeleteMultipleBOMs, onCreateItem, onSearchItem,
+    onCreateBOM, onUpdateBOM, onDeleteBOM, onDeleteMultipleBOMs, onCreateItem, onUpdateItem, onSearchItem,
     onUploadBOMPhoto, onUploadBOMDesign, onFetchBOMTree,
     companyProfile,
     initialCreateState, onClearInitialState,
@@ -842,7 +842,7 @@ export default function BOMView({
                         sizes={sizes || []}
                         partners={partners || []}
                         workCenters={workCenters} operations={operations} existingBOMs={boms}
-                        onSave={handleCreateBOMWrapper} onCreateItem={onCreateItem}
+                        onSave={handleCreateBOMWrapper} onCreateItem={onCreateItem} onUpdateItem={onUpdateItem}
                         onUploadPhoto={onUploadBOMPhoto}
                         onUploadDesign={onUploadBOMDesign}
                         onCancel={handleCloseDesigner} onSearchItem={onSearchItem}

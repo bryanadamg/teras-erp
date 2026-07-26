@@ -120,6 +120,12 @@ export default function BOMPage() {
         return res;
     };
 
+    const handleUpdateItem = async (id: string, p: any) => {
+        const res = await authFetch(`${API_BASE}/items/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+        if (res.ok) fetchData();
+        return res;
+    };
+
     const handleUpdateBOM = async (id: string, p: any) => {
         const res = await authFetch(`${API_BASE}/boms/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
         if (res.ok) afterMutation();
@@ -206,6 +212,7 @@ export default function BOMPage() {
             onDeleteMultipleBOMs={handleDeleteMultipleBOMs}
             onSearchItem={handleItemSearch}
             onCreateItem={handleCreateItem}
+            onUpdateItem={handleUpdateItem}
             locations={locations || []}
             onCreateProductionRun={handleCreateProductionRun}
             productionRuns={productionRuns || []}

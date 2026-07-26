@@ -341,6 +341,7 @@ export default function BOMDesigner({
     operations,
     onSave,
     onCreateItem,
+    onUpdateItem,
     onUploadPhoto,
     onUploadDesign,
     onCancel,
@@ -560,6 +561,24 @@ export default function BOMDesigner({
         return ids;
     }, [attributes]);
 
+    // Backfill an EXISTING item's attribute types when a BOM node/line carries a value
+    // (e.g. Combo) the item was never bound to. Creation-time attribute_ids assignment
+    // (see onCreateItem calls in saveNode) only covers brand-new items — an item that
+    // already existed without that attribute type would otherwise silently keep
+    // dropping the value on every save with no way to attach it short of editing the
+    // item master by hand. Additive (union with current), never replaces.
+    const ensureItemHasAttributes = useCallback(async (code: string, valueIds: string[] = []) => {
+        if (!onUpdateItem) return;
+        const required = attributeIdsForValues(valueIds);
+        if (required.length === 0) return;
+        const item = getItemByCode(code);
+        if (!item?.id) return;
+        const current = getAttrIds(code) ?? [];
+        const missing = required.filter(id => !current.includes(id));
+        if (missing.length === 0) return;
+        await onUpdateItem(item.id, { attribute_ids: [...current, ...missing] });
+    }, [onUpdateItem, attributeIdsForValues, getItemByCode, getAttrIds]);
+
     // Root's assigned attribute values as "Attr: Value" text — drives the Automator's
     // per-level inherit checkboxes (label, tooltip, and whether they're usable at all).
     const rootAttributeSummary = useMemo(() => {
@@ -693,29 +712,38 @@ export default function BOMDesigner({
         // sits outside the current items page.
         const rootItem = getItemByCode(rootBOM.item_code);
         let item = getItemByCode(node.item_code);
-        if (!item && node.isNewItem) {
+        if (item) {
+            // Item predates this save — creation-time attribute_ids assignment never
+            // ran for it, so backfill any attribute type its own value now requires.
+            await ensureItemHasAttributes(node.item_code, node.attribute_value_ids);
+        } else if (node.isNewItem) {
             const res = await onCreateItem({
                 code: node.item_code, name: node.item_code,
                 uom: rootItem?.uom || 'kg', category: 'WIP',
                 attribute_ids: attributeIdsForValues(node.attribute_value_ids)
             });
             if (res.status === 400) {
-                // item exists, continue
+                // item existed after all (race/stale cache) — backfill same as above
+                await ensureItemHasAttributes(node.item_code, node.attribute_value_ids);
             } else if (!res.ok) {
                 return false;
             }
         }
         for (const line of node.lines) {
-            if (line.isNewItem && !line.subBOM) {
-                await onCreateItem({
+            if (line.subBOM) {
+                const success = await saveNode(line.subBOM, onNodeSaved);
+                if (!success) return false;
+                continue;
+            }
+            if (line.isNewItem) {
+                const res = await onCreateItem({
                     code: line.item_code, name: line.item_code,
                     uom: rootItem?.uom || 'kg', category: 'WIP',
                     attribute_ids: attributeIdsForValues(line.attribute_value_ids)
                 });
-            }
-            if (line.subBOM) {
-                const success = await saveNode(line.subBOM, onNodeSaved);
-                if (!success) return false;
+                if (res?.status === 400) await ensureItemHasAttributes(line.item_code, line.attribute_value_ids);
+            } else {
+                await ensureItemHasAttributes(line.item_code, line.attribute_value_ids);
             }
         }
         if (node.lines.length === 0 && node.operations.length === 0) return true;
