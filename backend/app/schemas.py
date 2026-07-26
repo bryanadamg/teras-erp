@@ -1849,11 +1849,15 @@ class UserResponse(UserBase):
 class BOMAutomatorProfileCreate(BaseModel):
     name: str
     levels: list[list[str]]
+    # Parallel to `levels` — whether each level inherits the root BOM's attribute
+    # values. Optional so older clients keep working; missing means "no inheritance".
+    inherit_attributes: list[bool] | None = None
 
 class BOMAutomatorProfileResponse(BaseModel):
     id: UUID
     name: str
     levels: list[list[str]]
+    inherit_attributes: list[bool] | None = None
     class Config:
         from_attributes = True
 

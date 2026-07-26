@@ -76,6 +76,10 @@ class BOMAutomatorProfile(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     levels: Mapped[list] = mapped_column(JSON, nullable=False)
+    # Per-level "inherit the root BOM's attribute values" flags, parallel to `levels`.
+    # Nullable: profiles saved before this existed have no flags and default to False
+    # (no inheritance), so an old profile never silently stamps a Combo onto children.
+    inherit_attributes: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     user = relationship("User", back_populates="bom_automator_profiles")
 

@@ -540,6 +540,32 @@ export default function BOMDesigner({
         return valId;
     };
 
+    // Attribute (not value) ids owning the given values — what an inline-created item
+    // must be bound to so its BOM's values are actually holdable. Derived from the
+    // node's OWN values rather than the root's: a node saved without a Combo gets an
+    // item without the Combo attribute, so nothing reappears as a stray dropdown.
+    const attributeIdsForValues = useCallback((valueIds: string[] = []): string[] => {
+        if (valueIds.length === 0) return [];
+        const ids: string[] = [];
+        for (const attr of attributes) {
+            if (attr.values.some((v: any) => valueIds.includes(v.id))) ids.push(attr.id);
+        }
+        return ids;
+    }, [attributes]);
+
+    // Root's assigned attribute values as "Attr: Value" text — drives the Automator's
+    // per-level inherit checkboxes (label, tooltip, and whether they're usable at all).
+    const rootAttributeSummary = useMemo(() => {
+        const ids = rootBOM.attribute_value_ids || [];
+        if (ids.length === 0) return '';
+        const parts: string[] = [];
+        for (const attr of attributes) {
+            const val = attr.values.find((v: any) => ids.includes(v.id));
+            if (val) parts.push(`${attr.name}: ${val.value}`);
+        }
+        return parts.join(', ');
+    }, [attributes, rootBOM.attribute_value_ids]);
+
     const suggestBOMCode = useCallback((itemCode: string, attributeValueIds: string[] = [], config = codeConfig) => {
         const valueNames: string[] = [];
         if (config.includeVariant) {
@@ -596,12 +622,19 @@ export default function BOMDesigner({
             celup_panjang_tarikan_bandul_1kg: null, celup_panjang_tarikan_bandul_9kg: null,
         };
 
-    const handleApplyAutomation = useCallback((levels: string[][]) => {
+    const handleApplyAutomation = useCallback((levels: string[][], inheritAttributes: boolean[] = []) => {
         if (!rootBOM.item_code) return;
 
-        const constructTreeRecursive = (parentAttrs: string[], levelIdx: number): any[] => {
+        // Inheritance is per level and opt-in, and always sources from the ROOT — not
+        // from whatever the level above happened to resolve to. That keeps a skipped
+        // level from severing inheritance for the levels beneath it, and guarantees an
+        // unticked level generates children with no attribute values at all.
+        const rootAttrs = rootBOM.attribute_value_ids || [];
+
+        const constructTreeRecursive = (levelIdx: number): any[] => {
             if (levelIdx >= levels.length) return [];
             const currentLevelPatterns = levels[levelIdx];
+            const inheritsHere = !!inheritAttributes[levelIdx];
             const levelLines: any[] = [];
             for (const pattern of currentLevelPatterns) {
                 if (!pattern) continue;
@@ -609,8 +642,13 @@ export default function BOMDesigner({
                 // getItemByCode, not items.find — an existing child outside the current
                 // items page would otherwise be flagged isNewItem and re-created.
                 const isNewItem = !getItemByCode(expectedChildCode);
-                const matchingAttrs = isNewItem ? parentAttrs : findMatchingAttributeIds(expectedChildCode, parentAttrs);
-                const subLines = constructTreeRecursive(matchingAttrs, levelIdx + 1);
+                // A new item has no attribute master yet, so the root's values pass
+                // through as-is; an existing one only takes the values it can actually
+                // hold (same attribute name + value).
+                const matchingAttrs = !inheritsHere
+                    ? []
+                    : isNewItem ? rootAttrs : findMatchingAttributeIds(expectedChildCode, rootAttrs);
+                const subLines = constructTreeRecursive(levelIdx + 1);
                 const subBOM: BOMNodeData = {
                     id: Math.random().toString(36).substr(2, 9),
                     code: suggestBOMCode(expectedChildCode, matchingAttrs),
@@ -636,22 +674,21 @@ export default function BOMDesigner({
             return levelLines;
         };
 
-        const newLines = constructTreeRecursive(rootBOM.attribute_value_ids, 0);
+        const newLines = constructTreeRecursive(0);
         setRootBOM(prev => ({ ...prev, lines: newLines }));
     }, [rootBOM.item_code, rootBOM.attribute_value_ids, getItemByCode, findMatchingAttributeIds, attributes, existingBOMs, suggestBOMCode, inheritFields]);
 
     const saveNode = async (node: BOMNodeData): Promise<boolean> => {
         // Resolved via the code lookups (paginated items + cached full index) so
-        // inline-created WIP items still inherit the root's uom/attributes when the
-        // root item sits outside the current items page.
+        // inline-created WIP items still inherit the root's uom when the root item
+        // sits outside the current items page.
         const rootItem = getItemByCode(rootBOM.item_code);
-        const rootAttrIds = getAttrIds(rootBOM.item_code) || [];
         let item = getItemByCode(node.item_code);
         if (!item && node.isNewItem) {
             const res = await onCreateItem({
                 code: node.item_code, name: node.item_code,
                 uom: rootItem?.uom || 'kg', category: 'WIP',
-                attribute_ids: rootAttrIds
+                attribute_ids: attributeIdsForValues(node.attribute_value_ids)
             });
             if (res.status === 400) {
                 // item exists, continue
@@ -664,7 +701,7 @@ export default function BOMDesigner({
                 await onCreateItem({
                     code: line.item_code, name: line.item_code,
                     uom: rootItem?.uom || 'kg', category: 'WIP',
-                    attribute_ids: rootAttrIds
+                    attribute_ids: attributeIdsForValues(line.attribute_value_ids)
                 });
             }
             if (line.subBOM) {
@@ -864,6 +901,7 @@ export default function BOMDesigner({
                 isOpen={isAutomatorOpen}
                 onClose={() => setIsAutomatorOpen(false)}
                 onApply={handleApplyAutomation}
+                rootAttributeSummary={rootAttributeSummary}
             />
 
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>

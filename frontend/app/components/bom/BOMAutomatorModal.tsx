@@ -10,16 +10,28 @@ interface AutoBOMProfile {
     id: string;
     name: string;
     levels: string[][];
+    inherit_attributes?: boolean[] | null;
 }
 
 interface BOMAutomatorModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onApply: (levels: string[][]) => void;
+    onApply: (levels: string[][], inheritAttributes: boolean[]) => void;
+    /** Human-readable list of the root BOM's assigned attribute values, e.g.
+     *  "Combo: Navy Stripe". Empty when the root has none — the inherit checkboxes
+     *  then have nothing to offer and are disabled. */
+    rootAttributeSummary?: string;
 }
 
 const DUMMY_CODE = "9698/22";
 const DEFAULT_LEVELS = [['WIP CBG {CODE}'], ['WIP CSBG {CODE}'], ['WIP WARPING {CODE}']];
+// Attribute inheritance is opt-in per level: a generated child carries no Combo/
+// attribute value unless its level is explicitly ticked.
+const DEFAULT_INHERIT = DEFAULT_LEVELS.map(() => false);
+
+// Pads/trims a stored flag list to match the level count. Legacy profiles have none.
+const normalizeInherit = (flags: boolean[] | null | undefined, levelCount: number): boolean[] =>
+    Array.from({ length: levelCount }, (_, i) => !!flags?.[i]);
 
 // --- XP style helpers ---
 const xpBtn: React.CSSProperties = {
@@ -121,17 +133,23 @@ BranchingPreview.displayName = 'BranchingPreview';
 const LevelCard = memo(({
     lIdx,
     lvl,
+    inherit,
+    attributeSummary,
     onRemoveLevel,
     onAddPattern,
     onRemovePattern,
-    onPatternChange
+    onPatternChange,
+    onInheritChange
 }: {
     lIdx: number;
     lvl: string[];
+    inherit: boolean;
+    attributeSummary: string;
     onRemoveLevel: (idx: number) => void;
     onAddPattern: (idx: number) => void;
     onRemovePattern: (lIdx: number, pIdx: number) => void;
     onPatternChange: (lIdx: number, pIdx: number, val: string) => void;
+    onInheritChange: (lIdx: number, value: boolean) => void;
 }) => {
     const badgeColor = LEVEL_BADGE_COLORS[lIdx % LEVEL_BADGE_COLORS.length];
     const gb = xpGroupbox(`Level ${lIdx + 1}`);
@@ -190,14 +208,43 @@ const LevelCard = memo(({
             >
                 + Add branching item
             </button>
+
+            {/* Attribute inheritance is per level and opt-in — see DEFAULT_INHERIT. */}
+            <label
+                style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    marginTop: 6, paddingTop: 5, borderTop: '1px solid #e0ddd4',
+                    fontSize: 10, color: attributeSummary ? '#333' : '#999',
+                    cursor: attributeSummary ? 'pointer' : 'default',
+                    fontFamily: 'Tahoma, sans-serif',
+                }}
+                title={attributeSummary
+                    ? `Children on this level are created with the root's ${attributeSummary}`
+                    : 'The root BOM has no attribute values assigned — nothing to inherit'}
+            >
+                <input
+                    type="checkbox"
+                    checked={inherit}
+                    disabled={!attributeSummary}
+                    onChange={e => onInheritChange(lIdx, e.target.checked)}
+                    style={{ margin: 0 }}
+                />
+                Inherit attributes from root
+                {attributeSummary && (
+                    <span style={{ color: '#000080', fontWeight: 'bold' }}>({attributeSummary})</span>
+                )}
+            </label>
         </div>
     );
 });
 LevelCard.displayName = 'LevelCard';
 
-const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalProps) => {
+const BOMAutomatorModal = memo(({ isOpen, onClose, onApply, rootAttributeSummary = '' }: BOMAutomatorModalProps) => {
     const { t } = useLanguage();
     const [levels, setLevels] = useState<string[][]>(DEFAULT_LEVELS);
+    // Parallel to `levels` — index i is level i's "inherit root attributes" flag.
+    // Kept in step with every levels mutation below.
+    const [inheritAttributes, setInheritAttributes] = useState<boolean[]>(DEFAULT_INHERIT);
     const [profiles, setProfiles] = useState<AutoBOMProfile[]>([]);
     const [profileName, setProfileName] = useState('');
     const [saving, setSaving] = useState(false);
@@ -210,6 +257,7 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
             .then(setProfiles)
             .catch(() => setProfiles([]));
         setLevels(DEFAULT_LEVELS);
+        setInheritAttributes(DEFAULT_INHERIT);
     }, [isOpen, authFetch]);
 
     const handlePatternChange = useCallback((lIdx: number, pIdx: number, value: string) => {
@@ -218,10 +266,18 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
         ));
     }, []);
 
-    const addLevel = useCallback(() => { setLevels(prev => [...prev, ['']]); }, []);
+    const handleInheritChange = useCallback((lIdx: number, value: boolean) => {
+        setInheritAttributes(prev => prev.map((v, i) => i === lIdx ? value : v));
+    }, []);
+
+    const addLevel = useCallback(() => {
+        setLevels(prev => [...prev, ['']]);
+        setInheritAttributes(prev => [...prev, false]);
+    }, []);
 
     const removeLevel = useCallback((index: number) => {
         setLevels(prev => prev.filter((_, i) => i !== index));
+        setInheritAttributes(prev => prev.filter((_, i) => i !== index));
     }, []);
 
     const addPatternToLevel = useCallback((lIdx: number) => {
@@ -241,7 +297,7 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
             const res = await authFetch(`${API_BASE}/bom-automator-profiles`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: profileName.trim(), levels }),
+                body: JSON.stringify({ name: profileName.trim(), levels, inherit_attributes: inheritAttributes }),
             });
             if (res.ok) {
                 const newProfile = await res.json();
@@ -251,10 +307,11 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
         } finally {
             setSaving(false);
         }
-    }, [profileName, levels, saving, authFetch]);
+    }, [profileName, levels, inheritAttributes, saving, authFetch]);
 
     const handleLoadProfile = useCallback((profile: AutoBOMProfile) => {
         setLevels(profile.levels);
+        setInheritAttributes(normalizeInherit(profile.inherit_attributes, profile.levels.length));
     }, []);
 
     const handleDeleteProfile = useCallback(async (e: React.MouseEvent, id: string) => {
@@ -264,9 +321,13 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
     }, [authFetch]);
 
     const handleSaveAndApply = useCallback(() => {
-        onApply(levels);
+        // A root with no attribute values has nothing to inherit — send all-false so a
+        // stale tick from a loaded profile can't stamp anything onto the children.
+        onApply(levels, rootAttributeSummary
+            ? normalizeInherit(inheritAttributes, levels.length)
+            : levels.map(() => false));
         onClose();
-    }, [levels, onApply, onClose]);
+    }, [levels, inheritAttributes, rootAttributeSummary, onApply, onClose]);
 
     if (!isOpen) return null;
 
@@ -368,10 +429,13 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
                                 key={lIdx}
                                 lIdx={lIdx}
                                 lvl={lvl}
+                                inherit={!!inheritAttributes[lIdx]}
+                                attributeSummary={rootAttributeSummary}
                                 onRemoveLevel={removeLevel}
                                 onAddPattern={addPatternToLevel}
                                 onRemovePattern={removePatternFromLevel}
                                 onPatternChange={handlePatternChange}
+                                onInheritChange={handleInheritChange}
                             />
                         ))}
 
@@ -403,6 +467,10 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply }: BOMAutomatorModalP
                             <span style={{ ...gbTip.labelStyle, background: '#fffbe6', color: '#806000' }}>Tip</span>
                             <div style={{ fontSize: 10, color: '#555', lineHeight: 1.6 }}>
                                 Each level becomes a child BOM node. Branching items at the same level are created as siblings under the parent.
+                                <div style={{ marginTop: 6 }}>
+                                    Children are generated with <strong>no attribute values</strong> unless you tick
+                                    &quot;Inherit attributes from root&quot; on that level.
+                                </div>
                             </div>
                         </div>
                     </div>

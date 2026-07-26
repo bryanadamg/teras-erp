@@ -805,7 +805,12 @@ async def create_bom_automator_profile(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
-    profile = BOMAutomatorProfile(user_id=current_user.id, name=payload.name, levels=payload.levels)
+    profile = BOMAutomatorProfile(
+        user_id=current_user.id,
+        name=payload.name,
+        levels=payload.levels,
+        inherit_attributes=payload.inherit_attributes,
+    )
     db.add(profile)
     await db.commit()
     await db.refresh(profile)
