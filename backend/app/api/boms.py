@@ -793,8 +793,12 @@ async def list_bom_automator_profiles(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Ordered by name so "first profile" is a stable choice — the client falls back to
+    # it as the default template when it has no remembered last-used profile.
     result = await db.execute(
-        select(BOMAutomatorProfile).where(BOMAutomatorProfile.user_id == current_user.id)
+        select(BOMAutomatorProfile)
+        .where(BOMAutomatorProfile.user_id == current_user.id)
+        .order_by(BOMAutomatorProfile.name)
     )
     return result.scalars().all()
 

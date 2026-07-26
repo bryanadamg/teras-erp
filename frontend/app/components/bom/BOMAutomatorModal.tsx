@@ -29,6 +29,11 @@ const DEFAULT_LEVELS = [['WIP CBG {CODE}'], ['WIP CSBG {CODE}'], ['WIP WARPING {
 // attribute value unless its level is explicitly ticked.
 const DEFAULT_INHERIT = DEFAULT_LEVELS.map(() => false);
 
+// Remembers the last profile the user loaded, so it becomes the suggested template on
+// the next open. Holds a profile id; a stale id (profile deleted elsewhere) simply
+// misses the lookup and falls through to the first profile.
+const LAST_PROFILE_KEY = 'bom_automator_last_profile';
+
 // Pads/trims a stored flag list to match the level count. Legacy profiles have none.
 const normalizeInherit = (flags: boolean[] | null | undefined, levelCount: number): boolean[] =>
     Array.from({ length: levelCount }, (_, i) => !!flags?.[i]);
@@ -248,16 +253,35 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply, rootAttributeSummary
     const [profiles, setProfiles] = useState<AutoBOMProfile[]>([]);
     const [profileName, setProfileName] = useState('');
     const [saving, setSaving] = useState(false);
+    // Which profile the current levels came from, so the chip can show as active and
+    // the choice can be remembered for next open. Null = the built-in DEFAULT_LEVELS.
+    const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
     const { authFetch } = useData();
+
+    const applyProfile = useCallback((profile: AutoBOMProfile) => {
+        setLevels(profile.levels);
+        setInheritAttributes(normalizeInherit(profile.inherit_attributes, profile.levels.length));
+        setActiveProfileId(profile.id);
+    }, []);
 
     useEffect(() => {
         if (!isOpen) return;
-        authFetch(`${API_BASE}/bom-automator-profiles`)
-            .then(r => r.ok ? r.json() : [])
-            .then(setProfiles)
-            .catch(() => setProfiles([]));
+        // Reset to the built-in template first; if the user has saved profiles, the
+        // fetch below replaces it with their preferred one before they can interact.
         setLevels(DEFAULT_LEVELS);
         setInheritAttributes(DEFAULT_INHERIT);
+        setActiveProfileId(null);
+        authFetch(`${API_BASE}/bom-automator-profiles`)
+            .then(r => r.ok ? r.json() : [])
+            .then((list: AutoBOMProfile[]) => {
+                setProfiles(list);
+                if (!list.length) return;
+                // Preferred default: the profile used last time, else the first by name
+                // (the endpoint orders by name, so this is stable across opens).
+                const remembered = list.find(p => p.id === localStorage.getItem(LAST_PROFILE_KEY));
+                applyProfile(remembered || list[0]);
+            })
+            .catch(() => setProfiles([]));
     }, [isOpen, authFetch]);
 
     const handlePatternChange = useCallback((lIdx: number, pIdx: number, value: string) => {
@@ -300,9 +324,14 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply, rootAttributeSummary
                 body: JSON.stringify({ name: profileName.trim(), levels, inherit_attributes: inheritAttributes }),
             });
             if (res.ok) {
-                const newProfile = await res.json();
-                setProfiles(prev => [...prev, newProfile]);
+                const newProfile: AutoBOMProfile = await res.json();
+                // Keep the list name-ordered to match what the endpoint returns, so the
+                // "first profile" fallback is the same before and after a reload.
+                setProfiles(prev => [...prev, newProfile].sort((a, b) => a.name.localeCompare(b.name)));
                 setProfileName('');
+                // Just-saved becomes the active template and the next open's default.
+                setActiveProfileId(newProfile.id);
+                localStorage.setItem(LAST_PROFILE_KEY, newProfile.id);
             }
         } finally {
             setSaving(false);
@@ -310,14 +339,18 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply, rootAttributeSummary
     }, [profileName, levels, inheritAttributes, saving, authFetch]);
 
     const handleLoadProfile = useCallback((profile: AutoBOMProfile) => {
-        setLevels(profile.levels);
-        setInheritAttributes(normalizeInherit(profile.inherit_attributes, profile.levels.length));
-    }, []);
+        applyProfile(profile);
+        localStorage.setItem(LAST_PROFILE_KEY, profile.id);
+    }, [applyProfile]);
 
     const handleDeleteProfile = useCallback(async (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
         await authFetch(`${API_BASE}/bom-automator-profiles/${id}`, { method: 'DELETE' });
         setProfiles(prev => prev.filter(p => p.id !== id));
+        // Drop the remembered pointer if it named this profile — the levels currently
+        // on screen stay put, they just no longer belong to a saved profile.
+        if (localStorage.getItem(LAST_PROFILE_KEY) === id) localStorage.removeItem(LAST_PROFILE_KEY);
+        setActiveProfileId(prev => prev === id ? null : prev);
     }, [authFetch]);
 
     const handleSaveAndApply = useCallback(() => {
@@ -380,12 +413,21 @@ const BOMAutomatorModal = memo(({ isOpen, onClose, onApply, rootAttributeSummary
                             <span style={gb.labelStyle}>Saved Profiles</span>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: 6, minHeight: 20 }}>
                                 {profiles.length === 0 && (
-                                    <span style={{ fontSize: 10, color: '#888', fontStyle: 'italic' }}>No saved configurations.</span>
+                                    <span style={{ fontSize: 10, color: '#888', fontStyle: 'italic' }}>No saved configurations — showing the built-in template.</span>
                                 )}
                                 {profiles.map(p => (
                                     <div key={p.id} style={{ display: 'flex', border: '1px solid #aaa' }}>
+                                        {/* The loaded profile reads as pressed — on open that is the
+                                            remembered/default one, so it is clear where the levels came from. */}
                                         <button
-                                            style={{ ...xpBtn, minWidth: 'auto', borderRight: 'none', fontSize: 10, padding: '1px 8px' }}
+                                            style={{
+                                                ...xpBtn, minWidth: 'auto', borderRight: 'none', fontSize: 10, padding: '1px 8px',
+                                                ...(p.id === activeProfileId ? {
+                                                    background: 'linear-gradient(to bottom, #b4d0f8, #7aacf0)',
+                                                    borderTopColor: '#c8e0ff', borderLeftColor: '#c8e0ff',
+                                                    fontWeight: 'bold', color: '#00007a',
+                                                } : {}),
+                                            }}
                                             onClick={() => handleLoadProfile(p)}
                                         >
                                             {p.name}
