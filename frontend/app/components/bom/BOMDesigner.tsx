@@ -3,6 +3,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
 import CodeConfigModal, { CodeConfig, buildCodeWithCounter } from '../shared/CodeConfigModal';
 import BOMAutomatorModal from './BOMAutomatorModal';
+import BOMConfirmModal, { BOMPlan, BOMPlanNode, BOMPlanLine } from './BOMConfirmModal';
 import SearchableSelect from '../shared/SearchableSelect';
 
 // Types for Recursive Structure
@@ -385,6 +386,10 @@ export default function BOMDesigner({
     const [pendingPercentage, setPendingPercentage] = useState<string>('');
     const [pendingQty, setPendingQty] = useState<string>('');
     const [pctError, setPctError] = useState<string | null>(null);
+    // Save-time confirmation: the plan is snapshotted when the user hits Save so the
+    // panel can't drift from what was reviewed.
+    const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+    const [savePlan, setSavePlan] = useState<BOMPlan | null>(null);
 
     const [pendingOpSeq, setPendingOpSeq] = useState<string>('');
     const [pendingOpWc, setPendingOpWc] = useState<string>('');
@@ -757,7 +762,96 @@ export default function BOMDesigner({
         return null;
     };
 
-    const handleGlobalSave = async () => {
+    // Walks the draft tree and describes exactly what saving will do, in the same order
+    // and by the same rules as saveNode — including its "no lines and no operations →
+    // don't write a BOM" skip. Feeds the confirmation modal; building it here keeps all
+    // the code→name/uom/beam lookups in the one component that owns them.
+    const buildSavePlan = useCallback((): BOMPlan => {
+        let createCount = 0, updateCount = 0, skipCount = 0;
+        const newItemCodes: string[] = [];
+        const noteNewItem = (code: string) => {
+            if (code && !newItemCodes.includes(code)) newItemCodes.push(code);
+        };
+
+        const walk = (node: BOMNodeData, depth: number): BOMPlanNode => {
+            const isSkipped = node.lines.length === 0 && node.operations.length === 0;
+            const action: BOMPlanNode['action'] = isSkipped ? 'skip' : (node.bomId ? 'update' : 'create');
+            if (action === 'create') createCount++;
+            else if (action === 'update') updateCount++;
+            else skipCount++;
+
+            // Mirrors saveNode: the node's own item is created when it is flagged new
+            // and still absent from both item lookups.
+            const nodeItemNew = !!node.isNewItem && !getItemByCode(node.item_code);
+            if (nodeItemNew) noteNewItem(node.item_code);
+
+            const sortedNodeOps = [...(node.operations || [])].sort((a: any, b: any) => a.sequence - b.sequence);
+            const stepLabelFor = (seq: number | null): string | null => {
+                if (seq == null) return null;
+                const op = sortedNodeOps.find((o: any) => o.sequence === seq);
+                if (!op) return `Step ${seq}`;
+                return `${seq} ${getWcName(op.work_center_id) || ''}`.trim();
+            };
+
+            const lines: BOMPlanLine[] = node.lines.map(line => {
+                // saveNode only creates items for lines WITHOUT a sub-BOM; a line that
+                // drills down has its item created when that child node is walked.
+                const lineItemNew = !!line.isNewItem && !line.subBOM && !getItemByCode(line.item_code);
+                if (lineItemNew) noteNewItem(line.item_code);
+                return {
+                    itemCode: line.item_code,
+                    itemName: getItemName(line.item_code),
+                    percentage: line.percentage || 0,
+                    qty: line.qty || 0,
+                    isNewItem: lineItemNew,
+                    hasSubBOM: !!line.subBOM,
+                    stepLabel: stepLabelFor(line.bom_operation_sequence),
+                };
+            });
+
+            const beam = isBeamNode(node);
+            const sizeCount = (node.sizes || []).length;
+
+            return {
+                key: node.id,
+                depth,
+                bomCode: node.code,
+                itemCode: node.item_code,
+                itemName: getItemName(node.item_code),
+                action,
+                skipReason: isSkipped
+                    ? 'No components and no routing steps — no BOM will be written for this node.'
+                    : undefined,
+                itemWillBeCreated: nodeItemNew,
+                qty: node.qty,
+                uom: getItemUom(node.item_code),
+                qtyLabel: beam
+                    ? `${node.qty} utas (warp ends)`
+                    : `Batch ${node.qty}${getItemUom(node.item_code) ? ` ${getItemUom(node.item_code)}` : ''}`,
+                attributeSummary: (node.attribute_value_ids || []).map(getAttributeValueName).join(', '),
+                wastagePct: node.tolerance_percentage ?? 0,
+                overdeliveryPct: node.overdelivery_tolerance_percentage ?? 0,
+                sizeSummary: sizeCount === 0
+                    ? 'No measurements'
+                    : `${node.sizeMode === 'free' ? 'Free' : 'Sized'} · ${sizeCount} row${sizeCount === 1 ? '' : 's'}`,
+                operations: sortedNodeOps.map((op: any) => ({
+                    sequence: op.sequence,
+                    label: getWcName(op.work_center_id) || (operations || []).find((o: any) => o.id === op.operation_id)?.name || 'Step',
+                    minutes: op.time_minutes || 0,
+                })),
+                lines,
+                children: node.lines
+                    .filter(l => l.subBOM)
+                    .map(l => walk(l.subBOM!, depth + 1)),
+            };
+        };
+
+        const root = walk(rootBOM, 0);
+        return { root, createCount, updateCount, skipCount, newItemCodes };
+    }, [rootBOM, getItemByCode, getItemName, getItemUom, isBeamNode, getAttributeValueName, getWcName, operations]);
+
+    // Validate first, then show the plan. Saving only happens once the user confirms.
+    const handleGlobalSave = () => {
         const pctErr = validatePercentages(rootBOM);
         if (pctErr) {
             setPctError(`Components under "${pctErr}" must all have percentages set and sum to 100%.`);
@@ -769,10 +863,17 @@ export default function BOMDesigner({
             return;
         }
         setPctError(null);
+        setSavePlan(buildSavePlan());
+        setIsConfirmOpen(true);
+    };
+
+    const handleConfirmedSave = async () => {
         setIsSaving(true);
         const success = await saveNode(rootBOM);
         setIsSaving(false);
+        setIsConfirmOpen(false);
         if (success) onCancel();
+        // Surface the failure on the designer, not the (now closed) confirmation.
         else setPctError('Save failed — check that all items and source locations exist, then retry. Note: sub-BOMs saved before the failure may have persisted.');
     };
 
@@ -902,6 +1003,13 @@ export default function BOMDesigner({
                 onClose={() => setIsAutomatorOpen(false)}
                 onApply={handleApplyAutomation}
                 rootAttributeSummary={rootAttributeSummary}
+            />
+            <BOMConfirmModal
+                isOpen={isConfirmOpen}
+                plan={savePlan}
+                saving={isSaving}
+                onConfirm={handleConfirmedSave}
+                onClose={() => setIsConfirmOpen(false)}
             />
 
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
