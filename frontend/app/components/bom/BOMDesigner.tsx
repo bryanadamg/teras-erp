@@ -107,6 +107,13 @@ const xpBtnWarning: React.CSSProperties = {
     color: '#604000', minWidth: 'auto', padding: '1px 8px', fontSize: 10,
 };
 
+// Spread over any xpBtn* variant to gray it out — XP disabled controls lose their
+// tint entirely rather than just dimming.
+const xpBtnDisabled: React.CSSProperties = {
+    background: 'linear-gradient(to bottom, #ececec, #d8d4cc)',
+    color: '#999', cursor: 'default',
+};
+
 const xpInput: React.CSSProperties = {
     fontFamily: xpFont, fontSize: 11,
     border: '1px solid #7f9db9', borderTopColor: '#5a7fa8',
@@ -805,6 +812,35 @@ export default function BOMDesigner({
         return attributes.filter((a: any) => allowed.includes(a.id));
     }, [attributes, getAttrIds, selectedNode?.item_code, rootBOM.item_code]);
 
+    // How many measurement entries the selected node actually carries. Drives the
+    // Clear button's enabled state — in sized mode the grid always renders every
+    // master size, so row count is not a usable signal.
+    const sizeEntryCount = (selectedNode?.sizes || []).length;
+
+    // Copy/paste buffer for the measurement panel — designer-session scoped, not
+    // persisted. Carries sizeMode with the entries because a free-mode entry keys off
+    // `label` while a sized one keys off `size_id`; pasting the rows without the mode
+    // they were authored in would produce unrenderable entries. Main use: stamp the
+    // root's measurements onto each child node.
+    const [sizeClipboard, setSizeClipboard] = useState<{ mode: 'sized' | 'free'; sizes: BOMSizeEntry[]; from: string } | null>(null);
+    const copySizes = () => {
+        if (!selectedNode) return;
+        setSizeClipboard({
+            mode: selectedNode.sizeMode,
+            sizes: (selectedNode.sizes || []).map(s => ({ ...s })),
+            from: selectedNode.item_code || selectedNode.code || 'node',
+        });
+    };
+    const pasteSizes = () => {
+        if (!sizeClipboard) return;
+        // Mode travels with the entries; a sized→free paste (or the reverse) would
+        // otherwise render blank rows.
+        updateSelectedNode({
+            sizeMode: sizeClipboard.mode,
+            sizes: sizeClipboard.sizes.map(s => ({ ...s })),
+        });
+    };
+
     // Selected node's routing steps, sorted once (was re-sorted twice per render).
     const sortedOps = useMemo(
         () => [...(selectedNode?.operations || [])].sort((a: any, b: any) => a.sequence - b.sequence),
@@ -1209,17 +1245,61 @@ export default function BOMDesigner({
                                                             </button>
                                                         </div>
                                                     ))}
-                                                    {/* Add row button */}
-                                                    <button type="button" style={{ ...xpBtn, padding: '1px 6px', marginTop: 2, alignSelf: 'flex-start', fontSize: 10 }}
-                                                        onClick={() => updateSelectedNode({ sizes: [...(selectedNode.sizes || []), { size_id: '', label: '', target_measurement: null, measurement_min: null, measurement_max: null }] })}>
-                                                        + Add Row
-                                                    </button>
                                                 </div>
                                             )}
 
                                             {/* Placeholder when sized mode but no sizes configured */}
                                             {selectedNode.sizeMode === 'sized' && (sizes || []).length === 0 && (
                                                 <div style={{ fontSize: 10, color: '#888', fontStyle: 'italic' }}>No sizes configured.</div>
+                                            )}
+
+                                            {/* Footer actions, below the inputs in both modes. Add Row is
+                                                free-mode only (sized mode renders off the master size list).
+                                                Hidden only when sized mode has no master sizes AND nothing is
+                                                stored on the node — otherwise entries could get stranded with
+                                                no Clear to reach them. */}
+                                            {(!(selectedNode.sizeMode === 'sized' && (sizes || []).length === 0) || sizeEntryCount > 0) && (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                                                    {selectedNode.sizeMode === 'free' && (
+                                                        <button type="button" style={{ ...xpBtn, padding: '1px 6px', minWidth: 'auto', fontSize: 10 }}
+                                                            onClick={() => updateSelectedNode({ sizes: [...(selectedNode.sizes || []), { size_id: '', label: '', target_measurement: null, measurement_min: null, measurement_max: null }] })}>
+                                                            + Add Row
+                                                        </button>
+                                                    )}
+                                                    {/* Copy → Paste stamps one node's measurements onto another
+                                                        (typically root → each child), mode included. */}
+                                                    <button
+                                                        type="button"
+                                                        disabled={sizeEntryCount === 0}
+                                                        onClick={copySizes}
+                                                        title={sizeEntryCount === 0 ? 'No measurements to copy' : 'Copy these measurements'}
+                                                        style={{ ...xpBtnInfo, padding: '1px 6px', ...(sizeEntryCount === 0 ? xpBtnDisabled : {}) }}
+                                                    >
+                                                        Copy
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        disabled={!sizeClipboard}
+                                                        onClick={pasteSizes}
+                                                        title={sizeClipboard
+                                                            ? `Paste ${sizeClipboard.sizes.length} measurement row(s) copied from ${sizeClipboard.from} (replaces what is here)`
+                                                            : 'Nothing copied yet'}
+                                                        style={{ ...xpBtnInfo, padding: '1px 6px', ...(!sizeClipboard ? xpBtnDisabled : {}) }}
+                                                    >
+                                                        Paste
+                                                    </button>
+                                                    {/* Wipes every measurement entry on this node, keeping the current
+                                                        mode. Sized mode: grid stays and goes blank. Free: rows go away. */}
+                                                    <button
+                                                        type="button"
+                                                        disabled={sizeEntryCount === 0}
+                                                        onClick={() => updateSelectedNode({ sizes: [] })}
+                                                        title={sizeEntryCount === 0 ? 'No measurements to clear' : 'Clear all measurements on this node'}
+                                                        style={{ ...xpBtnDanger, padding: '1px 6px', fontSize: 10, ...(sizeEntryCount === 0 ? xpBtnDisabled : {}) }}
+                                                    >
+                                                        Clear
+                                                    </button>
+                                                </div>
                                             )}
                                         </div>
 
