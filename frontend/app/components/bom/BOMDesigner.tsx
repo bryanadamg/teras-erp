@@ -1796,12 +1796,21 @@ export default function BOMDesigner({
                                                     style={{ ...xpBtnPrimary, minWidth: 'auto', padding: '2px 10px', alignSelf: 'flex-end' }}
                                                     onClick={() => {
                                                         if (pendingItemCode) {
-                                                            const normalizedCode = pendingItemCode.trim().toLowerCase();
-                                                            const exists = items.some((i: any) => (i.code || '').trim().toLowerCase() === normalizedCode);
+                                                            // getItemByCode (not items.some), so an existing item sitting
+                                                            // off the current items page isn't wrongly flagged new.
+                                                            const exists = !!getItemByCode(pendingItemCode);
+                                                            // A brand-new item has no attribute master yet to match
+                                                            // against — findMatchingAttributeIds would always return []
+                                                            // for it (it requires the child to ALREADY hold the attr
+                                                            // type). Pass the parent's values through unfiltered instead,
+                                                            // same special-case the Automator's constructTreeRecursive uses.
+                                                            const attributeValueIds = exists
+                                                                ? findMatchingAttributeIds(pendingItemCode, selectedNode.attribute_value_ids)
+                                                                : (selectedNode.attribute_value_ids || []);
                                                             const newLine: BOMLineNode = {
                                                                 id: Math.random().toString(36).substr(2, 9),
                                                                 item_code: pendingItemCode,
-                                                                attribute_value_ids: findMatchingAttributeIds(pendingItemCode, selectedNode.attribute_value_ids),
+                                                                attribute_value_ids: attributeValueIds,
                                                                 percentage: parseFloat(pendingPercentage) || 0,
                                                                 qty: parseFloat(pendingQty) || 0,
                                                                 source_location_code: '',
