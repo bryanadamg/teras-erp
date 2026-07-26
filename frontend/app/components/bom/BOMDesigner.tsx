@@ -421,6 +421,7 @@ export default function BOMDesigner({
     // instead of the volatile `items` list, so an item's attributes stay stable for the
     // editing session once seen. Seeded synchronously on mount (no first-render flash)
     // and kept current in an effect (the correct place for this side effect).
+    // Items never seen on any page fall back to `indexByCode` — see getAttrIds below.
     const [attrIdsByCode, setAttrIdsByCode] = useState<Map<string, string[]>>(() => {
         const m = new Map<string, string[]>();
         for (const i of items) {
@@ -445,8 +446,8 @@ export default function BOMDesigner({
             return next; // same reference when nothing changed → no re-render
         });
     }, [items]);
-    // Fallback lookup from the cached full item index (name/code/uom/ends for EVERY
-    // item, not just the paginated `items` slice). Lets the designer resolve names,
+    // Fallback lookup from the cached full item index (name/code/uom/ends plus
+    // attribute_ids/variant_type for EVERY item, not just the paginated `items` slice). Lets the designer resolve names,
     // uom and beam-detection for components that aren't on the current items page —
     // otherwise editing a BOM whose parts are off-page showed raw codes. itemIndex
     // is keyed by id; re-key by code and carry the id through for existing-BOM lookup.
@@ -458,6 +459,16 @@ export default function BOMDesigner({
         }
         return m;
     }, [itemIndex]);
+    // Attribute ids for an item code. The paginated `items` snapshot wins (freshest),
+    // then the cached full item index — which covers EVERY item, so editing a BOM whose
+    // root/child sits outside the current 50-item page still resolves its variant
+    // (Colors/Combo) dropdowns. Returns undefined when the item is unknown to both, so
+    // callers can distinguish "no attributes" ([]) from "not seen yet".
+    const getAttrIds = useCallback((code: string): string[] | undefined => {
+        const k = (code || '').trim().toLowerCase();
+        return attrIdsByCode.get(k) ?? indexByCode.get(k)?.attribute_ids;
+    }, [attrIdsByCode, indexByCode]);
+
     const existingBomsByItemId = useMemo(() => {
         const m = new Map<string, any[]>();
         for (const b of existingBOMs) {
@@ -542,10 +553,10 @@ export default function BOMDesigner({
     }, [codeConfig, attributes, existingBOMs]);
 
     const findMatchingAttributeIds = useCallback((childItemCode: string, parentAttrIds: string[]): string[] => {
-        const childItem = items.find((i: any) =>
-            (i.code || '').trim().toLowerCase() === (childItemCode || '').trim().toLowerCase()
-        );
-        if (!childItem || !childItem.attribute_ids) return [];
+        // Resolved through getAttrIds, not items.find — a child outside the current
+        // items page would otherwise silently inherit nothing.
+        const childAttrIds = getAttrIds(childItemCode);
+        if (!childAttrIds || childAttrIds.length === 0) return [];
         const matches: string[] = [];
         for (const parentValId of parentAttrIds) {
             let attrName = ''; let valName = '';
@@ -554,7 +565,7 @@ export default function BOMDesigner({
                 if (val) { attrName = attr.name; valName = val.value; break; }
             }
             if (attrName && valName) {
-                const childAttr = attributes.find((a: any) => a.name === attrName && childItem.attribute_ids.includes(a.id));
+                const childAttr = attributes.find((a: any) => a.name === attrName && childAttrIds.includes(a.id));
                 if (childAttr) {
                     const childVal = childAttr.values.find((v: any) => v.value === valName);
                     if (childVal) matches.push(childVal.id);
@@ -562,7 +573,7 @@ export default function BOMDesigner({
             }
         }
         return matches;
-    }, [items, attributes]);
+    }, [getAttrIds, attributes]);
 
     const getInheritedFields = (source: BOMNodeData) => inheritFields
         ? extractInheritableFields(source)
@@ -588,10 +599,9 @@ export default function BOMDesigner({
             for (const pattern of currentLevelPatterns) {
                 if (!pattern) continue;
                 const expectedChildCode = pattern.replace('{CODE}', rootBOM.item_code);
-                const childItem = items.find((i: any) =>
-                    (i.code || '').trim().toLowerCase() === (expectedChildCode || '').trim().toLowerCase()
-                );
-                const isNewItem = !childItem;
+                // getItemByCode, not items.find — an existing child outside the current
+                // items page would otherwise be flagged isNewItem and re-created.
+                const isNewItem = !getItemByCode(expectedChildCode);
                 const matchingAttrs = isNewItem ? parentAttrs : findMatchingAttributeIds(expectedChildCode, parentAttrs);
                 const subLines = constructTreeRecursive(matchingAttrs, levelIdx + 1);
                 const subBOM: BOMNodeData = {
@@ -621,16 +631,20 @@ export default function BOMDesigner({
 
         const newLines = constructTreeRecursive(rootBOM.attribute_value_ids, 0);
         setRootBOM(prev => ({ ...prev, lines: newLines }));
-    }, [rootBOM.item_code, rootBOM.attribute_value_ids, items, attributes, existingBOMs, suggestBOMCode, inheritFields]);
+    }, [rootBOM.item_code, rootBOM.attribute_value_ids, getItemByCode, findMatchingAttributeIds, attributes, existingBOMs, suggestBOMCode, inheritFields]);
 
     const saveNode = async (node: BOMNodeData): Promise<boolean> => {
-        const rootItem = items.find((i: any) => (i.code || '').trim().toLowerCase() === (rootBOM.item_code || '').trim().toLowerCase());
-        let item = items.find((i: any) => (i.code || '').trim().toLowerCase() === (node.item_code || '').trim().toLowerCase());
+        // Resolved via the code lookups (paginated items + cached full index) so
+        // inline-created WIP items still inherit the root's uom/attributes when the
+        // root item sits outside the current items page.
+        const rootItem = getItemByCode(rootBOM.item_code);
+        const rootAttrIds = getAttrIds(rootBOM.item_code) || [];
+        let item = getItemByCode(node.item_code);
         if (!item && node.isNewItem) {
             const res = await onCreateItem({
                 code: node.item_code, name: node.item_code,
                 uom: rootItem?.uom || 'kg', category: 'WIP',
-                attribute_ids: rootItem?.attribute_ids || []
+                attribute_ids: rootAttrIds
             });
             if (res.status === 400) {
                 // item exists, continue
@@ -643,7 +657,7 @@ export default function BOMDesigner({
                 await onCreateItem({
                     code: line.item_code, name: line.item_code,
                     uom: rootItem?.uom || 'kg', category: 'WIP',
-                    attribute_ids: rootItem?.attribute_ids || []
+                    attribute_ids: rootAttrIds
                 });
             }
             if (line.subBOM) {
@@ -785,11 +799,11 @@ export default function BOMDesigner({
         const selCode = (selectedNode?.item_code || '').trim().toLowerCase();
         const rootCode = (rootBOM.item_code || '').trim().toLowerCase();
         // `??` (not `||`) preserves intent: an item KNOWN to have no attributes
-        // (a raw material, snapshotted as []) shows no dropdown, while an item not yet
-        // seen (undefined) borrows the root item's attributes, as before.
-        const allowed = attrIdsByCode.get(selCode) ?? attrIdsByCode.get(rootCode) ?? [];
+        // (a raw material, resolved as []) shows no dropdown, while an item not known
+        // to either lookup (undefined) borrows the root item's attributes, as before.
+        const allowed = getAttrIds(selCode) ?? getAttrIds(rootCode) ?? [];
         return attributes.filter((a: any) => allowed.includes(a.id));
-    }, [attributes, attrIdsByCode, selectedNode?.item_code, rootBOM.item_code]);
+    }, [attributes, getAttrIds, selectedNode?.item_code, rootBOM.item_code]);
 
     // Selected node's routing steps, sorted once (was re-sorted twice per render).
     const sortedOps = useMemo(

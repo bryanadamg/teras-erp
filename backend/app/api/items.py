@@ -19,15 +19,31 @@ router = APIRouter()
 
 @router.get("/items/lookup")
 async def get_items_lookup(db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
-    """Lightweight id/code/name/uom/lot_tracked list of ALL items.
+    """Lightweight id/code/name/uom/lot_tracked/variant_type/attribute_ids list of ALL items.
 
     Declared BEFORE any dynamic GET /items/{item_id} route so 'lookup' is not
     captured as an item_id path param. Columns only — no eager loads, no pagination.
+
+    `attribute_ids` comes from a second flat SELECT over the item_attributes
+    association table (grouped in Python), not an ORM eager load — the BOM
+    designer resolves its variant dropdowns (Colors/Combo) from this index, and
+    the paginated /items page it used to read only covers the first 50 items.
     """
-    from app.models.item import Item
-    result = await db.execute(select(Item.id, Item.code, Item.name, Item.uom, Item.lot_tracked, Item.ends))
+    from app.models.item import Item, item_attributes
+    result = await db.execute(
+        select(Item.id, Item.code, Item.name, Item.uom, Item.lot_tracked, Item.ends, Item.variant_type)
+    )
+    attr_rows = await db.execute(select(item_attributes.c.item_id, item_attributes.c.attribute_id))
+    attrs_by_item: dict[str, list[str]] = {}
+    for item_id, attribute_id in attr_rows.all():
+        attrs_by_item.setdefault(str(item_id), []).append(str(attribute_id))
     return [
-        {"id": str(row.id), "name": row.name, "code": row.code, "uom": row.uom, "lot_tracked": row.lot_tracked, "ends": row.ends}
+        {
+            "id": str(row.id), "name": row.name, "code": row.code, "uom": row.uom,
+            "lot_tracked": row.lot_tracked, "ends": row.ends,
+            "variant_type": row.variant_type,
+            "attribute_ids": attrs_by_item.get(str(row.id), []),
+        }
         for row in result.all()
     ]
 

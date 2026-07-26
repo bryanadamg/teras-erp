@@ -15,6 +15,19 @@ const LOADING_KEY: Record<string, string> = {
     'audit-logs': 'auditLogs',
 };
 
+// One entry of the full item index (/items/lookup — EVERY item, not the paginated
+// `items` page). attribute_ids/variant_type are here so variant-aware UI (the BOM
+// designer's Colors/Combo dropdowns) works for items outside the current page.
+export interface ItemIndexEntry {
+    name: string;
+    code: string;
+    uom?: string;
+    lot_tracked?: boolean;
+    ends?: number | null;
+    variant_type?: string | null;
+    attribute_ids?: string[];
+}
+
 interface DataContextType {
     items: any[];
     locations: any[];
@@ -38,7 +51,7 @@ interface DataContextType {
     dashboardSummary: any;
     dashboardKpiHistory: any;
     dashboardWorkOrders: any[];
-    itemIndex: Record<string, { name: string; code: string; uom?: string; lot_tracked?: boolean; ends?: number | null }>;
+    itemIndex: Record<string, ItemIndexEntry>;
     companyProfile: any;
     wsStatus: 'connecting' | 'open' | 'closed';
 
@@ -112,7 +125,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const [dashboardSummary, setDashboardSummary] = useState<any>(null);
     const [dashboardKpiHistory, setDashboardKpiHistory] = useState<any>({});
     const [dashboardWorkOrders, setDashboardWorkOrders] = useState<any[]>([]);
-    const [itemIndex, setItemIndex] = useState<Record<string, { name: string; code: string; uom?: string; lot_tracked?: boolean; ends?: number | null }>>({});
+    const [itemIndex, setItemIndex] = useState<Record<string, ItemIndexEntry>>({});
     const [companyProfile, setCompanyProfile] = useState<any>(null);
     const [wsStatus, setWsStatus] = useState<'connecting' | 'open' | 'closed'>('connecting');
 
@@ -213,10 +226,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         try {
             const token = localStorage.getItem('access_token');
             const headers = { 'Authorization': `Bearer ${token}` };
-            // v4: itemIndex now carries ends (beam warp-ends, needed by BOMView so
-            // line display resolves without the paginated items array) on top of
-            // v3's uom/lot_tracked — bump so a stale cache doesn't serve a thin index.
-            const CACHE_KEY = 'terras_master_cache_v4';
+            // v5: itemIndex now carries attribute_ids + variant_type (BOM designer
+            // variant dropdowns for items off the paginated /items page) on top of
+            // v4's ends and v3's uom/lot_tracked — bump so a stale cache doesn't
+            // serve a thin index.
+            const CACHE_KEY = 'terras_master_cache_v5';
             const CACHE_TTL = 3600000; 
             const savedCache = localStorage.getItem(CACHE_KEY);
             let masterFetched = false;
@@ -394,7 +408,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     case 'partners': setPartners(data.items || []); newMasterData.partners = data.items || []; break;
                     case 'company-profile': setCompanyProfile(data); newMasterData.companyProfile = data; break;
                     case 'items': setItems(data.items); setItemTotal(data.total); break;
-                    case 'item-lookup': { const idx: Record<string, { name: string; code: string; uom?: string; lot_tracked?: boolean; ends?: number | null }> = {}; for (const it of (data || [])) idx[String(it.id)] = { name: it.name, code: it.code, uom: it.uom, lot_tracked: it.lot_tracked, ends: it.ends }; setItemIndex(idx); newMasterData.itemIndex = idx; break; }
+                    case 'item-lookup': { const idx: Record<string, ItemIndexEntry> = {}; for (const it of (data || [])) idx[String(it.id)] = { name: it.name, code: it.code, uom: it.uom, lot_tracked: it.lot_tracked, ends: it.ends, variant_type: it.variant_type, attribute_ids: it.attribute_ids }; setItemIndex(idx); newMasterData.itemIndex = idx; break; }
                     case 'kpis': setDashboardKPIs(data); break;
                     case 'dashboard-summary': setDashboardSummary(data); break;
                     case 'kpi-history': setDashboardKpiHistory(data); break;
