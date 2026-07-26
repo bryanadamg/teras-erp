@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import InventoryView from '../components/inventory/InventoryView';
 import { useData } from '../context/DataContext';
 import { useConfirm } from '../context/ConfirmContext';
+import { useToast } from '../components/shared/Toast';
 
 export default function InventoryPage() {
     const {
@@ -19,6 +20,7 @@ export default function InventoryPage() {
         };
     }, []);
     const { confirm } = useConfirm();
+    const { showToast } = useToast();
 
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
@@ -45,6 +47,10 @@ export default function InventoryPage() {
         if (!confirmed) return;
         const res = await authFetch(`${API_BASE}/items/${id}`, { method: 'DELETE' });
         if (res.ok) fetchData();
+        else {
+            const err = await res.json().catch(() => ({}));
+            showToast(err.detail || 'Failed to delete item', 'danger');
+        }
         return res;
     };
 
@@ -56,7 +62,17 @@ export default function InventoryPage() {
             variant: 'danger'
         });
         if (!confirmed) return;
-        await Promise.all(ids.map(id => authFetch(`${API_BASE}/items/${id}`, { method: 'DELETE' })));
+        const results = await Promise.all(ids.map(id => authFetch(`${API_BASE}/items/${id}`, { method: 'DELETE' })));
+        const failed = results.filter(res => !res.ok);
+        if (failed.length) {
+            const err = await failed[0].json().catch(() => ({}));
+            showToast(
+                failed.length === results.length
+                    ? (err.detail || 'Failed to delete items')
+                    : `${results.length - failed.length} deleted, ${failed.length} failed: ${err.detail || 'still referenced'}`,
+                'danger'
+            );
+        }
         fetchData();
     };
 
