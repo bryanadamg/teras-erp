@@ -49,6 +49,7 @@ const xpStatusBadge = (status: string): React.CSSProperties => {
         padding: '1px 7px', display: 'inline-block', whiteSpace: 'nowrap',
     };
     if (status === 'IN_PROGRESS') return { ...base, background: STATUS_COLORS.IN_PROGRESS, color: '#fff' };
+    if (status === 'DELIVERED')   return { ...base, background: STATUS_COLORS.DELIVERED, color: '#fff' };
     if (status === 'COMPLETED')   return { ...base, background: STATUS_COLORS.COMPLETED, color: '#fff' };
     if (status === 'CANCELLED')   return { ...base, background: STATUS_COLORS.CANCELLED, color: '#fff' };
     return { ...base, background: STATUS_COLORS.PENDING, color: '#fff' };
@@ -99,7 +100,7 @@ export default function MobileManufacturingView({
             .sort((a: any, b: any) => {
                 if (a.isOverdue && !b.isOverdue) return -1;
                 if (!a.isOverdue && b.isOverdue) return 1;
-                const order = ['IN_PROGRESS', 'PENDING', 'COMPLETED', 'CANCELLED'];
+                const order = ['IN_PROGRESS', 'PENDING', 'DELIVERED', 'COMPLETED', 'CANCELLED'];
                 return order.indexOf(a.status) - order.indexOf(b.status);
             });
     }, [manufacturingOrders, filter, search]);
@@ -116,9 +117,11 @@ export default function MobileManufacturingView({
 
     const getRuns = (mo: any) => (mo.work_orders || []).filter((wo: any) => wo.qty != null);
     const getRunQtySum = (mo: any) => getRuns(mo).reduce((s: number, wo: any) => s + parseFloat(wo.qty || 0), 0);
+    // Output-side ceiling. Reads the MO's own overdelivery snapshot — NOT
+    // bom.tolerance_percentage, which is the input-side material wastage allowance.
     const getToleranceMax = (mo: any) => {
-        const bom = mo.bom || boms.find((b: any) => b.id === mo.bom_id);
-        const tol = parseFloat(bom?.tolerance_percentage || 0);
+        if (mo.allow_unlimited_overdelivery) return Infinity;
+        const tol = mo.overdelivery_tolerance_pct ?? 10;
         return mo.qty * (1 + tol / 100);
     };
     const getRemaining = (mo: any) => Math.max(0, mo.qty - getRunQtySum(mo));

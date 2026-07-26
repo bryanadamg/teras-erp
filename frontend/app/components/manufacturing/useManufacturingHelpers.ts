@@ -61,6 +61,7 @@ export function useManufacturingHelpers({
     const getStatusBadge = (status: string) => {
         switch (status) {
             case 'COMPLETED': return 'bg-success';
+            case 'DELIVERED': return 'bg-primary';
             case 'IN_PROGRESS': return 'bg-warning text-dark';
             case 'CANCELLED': return 'bg-danger';
             default: return 'bg-secondary';

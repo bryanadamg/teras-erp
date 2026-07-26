@@ -91,8 +91,8 @@ BOM-B            →  Item-B  [no variant — single shared recipe]
             },
         },
         {
-            heading: 'Wastage Tolerances',
-            body: 'A tolerance percentage set on a BOM inflates all component requirements by (1 + tolerance / 100) during stock availability checks and material requirement planning. This accounts for expected process wastage without requiring manual adjustment of individual line quantities.',
+            heading: 'Tolerances',
+            body: 'A BOM carries two independent tolerances, one per side of the equation. Wastage % (input side) inflates all component requirements by (1 + wastage / 100) during stock availability checks and material requirement planning, accounting for expected process loss without adjusting individual line quantities. Overdelivery % (output side) is how far past an order\'s quantity the floor may log production; it is copied onto every Manufacturing Order created from the BOM and can be overridden per order. Raising one never affects the other.',
         },
         {
             heading: 'Routing',

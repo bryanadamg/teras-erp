@@ -174,7 +174,8 @@ export default function ProductionRunsTab({
                         <tbody>
                             {filteredProductionRuns.map((pr: any, rowIdx: number) => {
                                 const mos = pr.manufacturing_orders || [];
-                                const done = mos.filter((m: any) => m.status === 'COMPLETED').length;
+                                // DELIVERED = qty met, order not closed yet — still "done" for progress.
+                                const done = mos.filter((m: any) => ['COMPLETED', 'DELIVERED'].includes(m.status)).length;
                                 const total = mos.length;
                                 const pct = total > 0 ? Math.round((done / total) * 100) : 0;
                                 const rowBg = classic

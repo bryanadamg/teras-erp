@@ -75,6 +75,7 @@ export default function ManufacturingOrdersTab({
     const [colorModalResults, setColorModalResults] = useState<any[]>([]);
     const [colorModalLabdips, setColorModalLabdips] = useState<any[]>([]);
     const [putawayModal, setPutawayModal] = useState<{ mo: any; bins: any[]; suggested: string | null; reason: string | null; selected: string; loading: boolean } | null>(null);
+    const [toleranceModal, setToleranceModal] = useState<{ mo: any; pct: string; unlimited: boolean } | null>(null);
 
     const defaultPrintSettings: PrintSettings = {
         showBOMTable: true,
@@ -284,6 +285,35 @@ export default function ManufacturingOrdersTab({
             fetchData();
         } catch {
             showToast('Failed to set putaway bin', 'error');
+        }
+    };
+
+    const handleSaveTolerance = async () => {
+        if (!toleranceModal) return;
+        const pct = parseFloat(toleranceModal.pct);
+        if (!toleranceModal.unlimited && (isNaN(pct) || pct < 0)) {
+            showToast('Enter a tolerance of 0 or more', 'error');
+            return;
+        }
+        try {
+            const res = await authFetch(`${API_BASE}/manufacturing-orders/${toleranceModal.mo.id}/tolerance`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    overdelivery_tolerance_pct: toleranceModal.unlimited ? null : pct,
+                    allow_unlimited_overdelivery: toleranceModal.unlimited,
+                }),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                showToast(err.detail || 'Failed to set tolerance', 'error');
+                return;
+            }
+            setToleranceModal(null);
+            showToast('Overdelivery tolerance saved', 'success');
+            fetchData();
+        } catch {
+            showToast('Failed to set tolerance', 'error');
         }
     };
 
@@ -603,6 +633,18 @@ export default function ManufacturingOrdersTab({
                                     <i className="bi bi-play-fill me-1"></i>Start
                                 </button>
                             )}
+                            {/* Delivered = qty met but still open. Closing is the explicit
+                                act that stops further logging (industry: SAP TECO). */}
+                            {canManage && selectedNode.status === 'DELIVERED' && (
+                                <button className="btn btn-sm btn-success py-0 px-2" style={{ fontSize: '0.72rem' }} onClick={() => onUpdateStatus(selectedNode.id, 'COMPLETED')}>
+                                    <i className="bi bi-lock-fill me-1"></i>Close Order
+                                </button>
+                            )}
+                            {canManage && selectedNode.status === 'COMPLETED' && (
+                                <button className="btn btn-sm btn-outline-secondary py-0 px-2" style={{ fontSize: '0.72rem' }} onClick={() => onUpdateStatus(selectedNode.id, 'IN_PROGRESS')}>
+                                    <i className="bi bi-unlock me-1"></i>Reopen
+                                </button>
+                            )}
                             <button
                                 title="Print this MO"
                                 className={classic ? '' : 'btn btn-sm btn-outline-secondary py-0 px-2'}
@@ -615,10 +657,16 @@ export default function ManufacturingOrdersTab({
                     </div>
 
                     {/* Production Progress — prominent, full width under MO code */}
-                    {(selectedNode.status === 'IN_PROGRESS' || selectedNode.status === 'COMPLETED' || (selectedNode.qty_completed_total ?? 0) > 0 || (selectedNode.work_orders || []).some((w: any) => w.status !== 'COMPLETED')) && (() => {
+                    {(selectedNode.status === 'IN_PROGRESS' || selectedNode.status === 'DELIVERED' || selectedNode.status === 'COMPLETED' || (selectedNode.qty_completed_total ?? 0) > 0 || (selectedNode.work_orders || []).some((w: any) => w.status !== 'COMPLETED')) && (() => {
                         const done = selectedNode.qty_completed_total ?? 0;
                         const total = selectedNode.qty ?? 0;
                         const remaining = Math.max(0, total - done);
+                        // Output overdelivery allowance: the order qty is a target, not a
+                        // ceiling. Null pct on legacy rows = the 10% system default.
+                        const tolPct = selectedNode.overdelivery_tolerance_pct ?? 10;
+                        const unlimited = !!selectedNode.allow_unlimited_overdelivery;
+                        const maxLoggable = unlimited ? null : total * (1 + tolPct / 100);
+                        const over = Math.max(0, done - total);
                         // Projected output from WOs that are set up but not yet completed
                         const plannedRaw = (selectedNode.work_orders || [])
                             .filter((w: any) => w.status !== 'COMPLETED')
@@ -648,6 +696,31 @@ export default function ManufacturingOrdersTab({
                                 <span style={{ fontSize: '10px', color: '#555', whiteSpace: 'nowrap' }}>Done: <strong style={{ color: '#000' }}>{done.toFixed(2)}</strong></span>
                                 <span style={{ fontSize: '10px', color: '#555', whiteSpace: 'nowrap' }}>Planned: <strong style={{ color: '#1565c0' }}>{planned.toFixed(2)}</strong></span>
                                 <span style={{ fontSize: '10px', color: '#555', whiteSpace: 'nowrap' }}>Left: <strong style={{ color: left <= 0 ? '#1a6e1a' : '#c00' }}>{left.toFixed(2)}</strong></span>
+                                {over > 0 && (
+                                    <span style={{ fontSize: '10px', color: '#555', whiteSpace: 'nowrap' }}>Over: <strong style={{ color: '#8a6d00' }}>+{over.toFixed(2)}</strong></span>
+                                )}
+                                <span
+                                    title={unlimited
+                                        ? 'No output ceiling on this order — log as much as the floor produces.'
+                                        : `Logging is allowed up to ${maxLoggable!.toFixed(2)} (${total.toFixed(2)} + ${Number(tolPct).toFixed(0)}%). Raise the tolerance to log more.`}
+                                    style={{ fontSize: '9px', padding: '1px 6px', whiteSpace: 'nowrap', border: '1px solid #d1d5db', background: '#f3f4f6', color: '#555', borderRadius: 2, fontWeight: 700 }}
+                                >
+                                    <i className="bi bi-arrow-bar-up me-1"></i>
+                                    {unlimited ? 'Max: unlimited' : `Max: ${maxLoggable!.toFixed(2)}`}
+                                </span>
+                                {canManage && selectedNode.status !== 'CANCELLED' && (
+                                    <button
+                                        title="Set overdelivery tolerance for this order"
+                                        onClick={() => setToleranceModal({
+                                            mo: selectedNode,
+                                            pct: String(tolPct),
+                                            unlimited,
+                                        })}
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', color: '#6b7280', fontSize: '11px' }}
+                                    >
+                                        <i className="bi bi-pencil"></i>
+                                    </button>
+                                )}
                             </div>
                         );
                     })()}
@@ -1476,6 +1549,93 @@ export default function ManufacturingOrdersTab({
                                 )}
                             </>
                         )}
+                    </ModalWrapper>
+                );
+            })()}
+
+            {toleranceModal && (() => {
+                const isClassic = classic;
+                const tm = toleranceModal;
+                const xpBtn = (onClick: () => void, label: string, primary: boolean) => (
+                    <button
+                        onClick={onClick}
+                        style={{
+                            fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
+                            padding: '2px 14px', cursor: 'pointer', borderRadius: 0,
+                            background: primary
+                                ? 'linear-gradient(to bottom, #b0e8b0, #70c870)'
+                                : 'linear-gradient(to bottom, #f0efe6, #dddbd0)',
+                            border: '1px solid',
+                            borderColor: primary
+                                ? '#d0f0d0 #0a3e0a #0a3e0a #1a5e1a'
+                                : '#dfdfdf #808080 #808080 #dfdfdf',
+                            fontWeight: primary ? 'bold' : 'normal',
+                            color: primary ? '#004000' : '#000',
+                            minWidth: 70,
+                        }}
+                    >{label}</button>
+                );
+                const inpStyle = isClassic ? {
+                    fontFamily: 'Tahoma, "Segoe UI", sans-serif', fontSize: 11,
+                    border: '1px solid', borderColor: '#808080 #dfdfdf #dfdfdf #808080',
+                    background: '#fff', height: 20, padding: '0 4px',
+                    outline: 'none', width: 90, borderRadius: 0,
+                } as React.CSSProperties : { fontSize: 12, width: 110 } as React.CSSProperties;
+                const pctNum = parseFloat(tm.pct);
+                const preview = tm.unlimited || isNaN(pctNum)
+                    ? null
+                    : (Number(tm.mo.qty || 0) * (1 + pctNum / 100));
+                return (
+                    <ModalWrapper
+                        isOpen
+                        modeless
+                        onClose={() => setToleranceModal(null)}
+                        title={<><i className="bi bi-arrow-bar-up me-1"></i>Overdelivery Tolerance — <span style={{ fontFamily: 'monospace' }}>{tm.mo.code}</span></>}
+                        size="md"
+                        level={2}
+                        footer={isClassic ? (
+                            <div style={{ display: 'flex', gap: 4 }}>
+                                {xpBtn(() => setToleranceModal(null), 'Cancel', false)}
+                                {xpBtn(handleSaveTolerance, 'Save', true)}
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <button className="btn btn-sm btn-secondary" onClick={() => setToleranceModal(null)}>Cancel</button>
+                                <button className="btn btn-sm btn-primary" onClick={handleSaveTolerance}>Save</button>
+                            </div>
+                        )}
+                    >
+                        <div style={{ fontFamily: isClassic ? 'Tahoma, sans-serif' : undefined, fontSize: isClassic ? 11 : 12, color: '#333', marginBottom: 10 }}>
+                            How far past the order quantity the floor may log. Set this on the order
+                            when a run is deliberately over-issued (spare beams against bad yarn) —
+                            editing the BOM instead would loosen every future order of this article.
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <label style={{ fontSize: isClassic ? 11 : 12, color: '#333', minWidth: 90 }}>Tolerance</label>
+                            <input
+                                type="number"
+                                min={0}
+                                step={1}
+                                disabled={tm.unlimited}
+                                value={tm.pct}
+                                onChange={e => setToleranceModal(prev => prev ? { ...prev, pct: e.target.value } : prev)}
+                                style={{ ...inpStyle, opacity: tm.unlimited ? 0.5 : 1 }}
+                                className={isClassic ? undefined : 'form-control form-control-sm'}
+                            />
+                            <span style={{ fontSize: isClassic ? 11 : 12, color: '#555' }}>%</span>
+                        </div>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: isClassic ? 11 : 12, color: '#333' }}>
+                            <input
+                                type="checkbox"
+                                checked={tm.unlimited}
+                                onChange={e => setToleranceModal(prev => prev ? { ...prev, unlimited: e.target.checked } : prev)}
+                            />
+                            No limit (default for warp beams — kg per beam varies with the yarn)
+                        </label>
+                        <div style={{ fontSize: 10, color: '#666', marginTop: 10 }}>
+                            Order qty {Number(tm.mo.qty || 0).toFixed(2)} —{' '}
+                            {preview == null ? 'no ceiling: log as much as the floor produces.' : `logging allowed up to ${preview.toFixed(2)}.`}
+                        </div>
                     </ModalWrapper>
                 );
             })()}

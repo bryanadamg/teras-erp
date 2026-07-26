@@ -661,8 +661,12 @@ export default function BOMView({
                                             )}
                                         </div>
                                         <div>
-                                            <div style={lbl}>Tolerance</div>
-                                            <div style={val}>±{Number(displayBOM.tolerance_percentage || 0).toFixed(2)}%</div>
+                                            <div style={lbl} title="Process wastage — inflates component requirements">Wastage</div>
+                                            <div style={val}>+{Number(displayBOM.tolerance_percentage || 0).toFixed(2)}%</div>
+                                        </div>
+                                        <div>
+                                            <div style={lbl} title="Overdelivery — how far past an order's qty may be logged">Overdelivery</div>
+                                            <div style={val}>+{Number(displayBOM.overdelivery_tolerance_percentage ?? 10).toFixed(2)}%</div>
                                         </div>
                                         <div>
                                             <div style={lbl}>Status</div>

@@ -22,7 +22,10 @@ export const STATUS_FAMILY: Record<string, StatusFamily> = {
     PARTIAL: 'amber', RECEIVING: 'amber', ON_HOLD: 'amber',
     CONFIRMED: 'blue', IN_PROGRESS: 'blue', READY: 'blue', SENT: 'blue',
     IN_PRODUCTION: 'blue', STAGED: 'blue',
-    COMPLETED: 'green', DONE: 'green', DELIVERED: 'green', RECEIVED: 'green', APPROVED: 'green',
+    // DELIVERED is blue, not green: on an MO it means "planned qty met, order still
+    // open for logging". Green is reserved for closed/terminal.
+    DELIVERED: 'blue',
+    COMPLETED: 'green', DONE: 'green', RECEIVED: 'green', APPROVED: 'green',
     ACTIVE: 'green', DISPATCHED: 'green',
     CANCELLED: 'red', REJECTED: 'red',
     ARCHIVED: 'gray', INACTIVE: 'gray',

@@ -34,7 +34,8 @@ interface BOMNodeData {
     item_code: string;
     attribute_value_ids: string[];
     qty: number;
-    tolerance_percentage: number;
+    tolerance_percentage: number;             // input side: material wastage
+    overdelivery_tolerance_percentage: number; // output side: overdelivery allowance
     operations: any[];
     lines: BOMLineNode[];
     sizes: BOMSizeEntry[];
@@ -266,6 +267,7 @@ function buildNodeFromTree(data: any, locations: any[]): BOMNodeData {
         attribute_value_ids: (data.attribute_value_ids || []).map(String),
         qty: data.qty ?? 1.0,
         tolerance_percentage: data.tolerance_percentage ?? 0.0,
+        overdelivery_tolerance_percentage: data.overdelivery_tolerance_percentage ?? 10.0,
         operations: (data.operations || []).map((op: any) => ({
             _key: op.id || Math.random().toString(36).substr(2, 9),
             operation_id: op.operation_id || null,
@@ -349,7 +351,7 @@ export default function BOMDesigner({
             id: 'root', code: '',
             item_code: rootItemCode || '',
             attribute_value_ids: initialAttributeValueIds || [],
-            qty: 1.0, tolerance_percentage: 0.0,
+            qty: 1.0, tolerance_percentage: 0.0, overdelivery_tolerance_percentage: 10.0,
             operations: [], lines: [], sizes: [],
             kerapatan_picks: null, kerapatan_unit: '/cm',
             sisir_no: null, pemakaian_obat: '', pembuatan_sample_oleh: '',
@@ -597,7 +599,7 @@ export default function BOMDesigner({
                     code: suggestBOMCode(expectedChildCode, matchingAttrs),
                     item_code: expectedChildCode,
                     attribute_value_ids: matchingAttrs,
-                    qty: 1.0, tolerance_percentage: 0.0,
+                    qty: 1.0, tolerance_percentage: 0.0, overdelivery_tolerance_percentage: 10.0,
                     operations: [], lines: subLines,
                     ...getInheritedFields(rootBOM),
                     isNewItem,
@@ -958,9 +960,9 @@ export default function BOMDesigner({
                                             />
                                         </div>
 
-                                        {/* Tolerance */}
-                                        <div style={{ width: 80 }}>
-                                            <label style={xpLabel}>Tolerance %</label>
+                                        {/* Input-side allowance: inflates component requirements */}
+                                        <div style={{ width: 96 }}>
+                                            <label style={xpLabel} title="Process wastage: inflates every component requirement by this much for availability checks and MRP.">Wastage %</label>
                                             <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
                                                 <input
                                                     data-testid="tolerance-input"
@@ -968,6 +970,21 @@ export default function BOMDesigner({
                                                     style={{ ...xpInput, flex: 1 }}
                                                     value={selectedNode.tolerance_percentage}
                                                     onChange={e => updateSelectedNode({ tolerance_percentage: parseFloat(e.target.value) || 0 })}
+                                                />
+                                                <span style={{ fontSize: 10, color: '#555' }}>%</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Output-side allowance: how far past an order's qty may be logged */}
+                                        <div style={{ width: 110 }}>
+                                            <label style={xpLabel} title="Overdelivery: how far past the order quantity the floor may log production. Copied onto every new MO, overridable per order.">Overdelivery %</label>
+                                            <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                                                <input
+                                                    data-testid="overdelivery-tolerance-input"
+                                                    type="number"
+                                                    style={{ ...xpInput, flex: 1 }}
+                                                    value={selectedNode.overdelivery_tolerance_percentage}
+                                                    onChange={e => updateSelectedNode({ overdelivery_tolerance_percentage: parseFloat(e.target.value) || 0 })}
                                                 />
                                                 <span style={{ fontSize: 10, color: '#555' }}>%</span>
                                             </div>
@@ -1620,7 +1637,7 @@ export default function BOMDesigner({
                                                                         code: suggestBOMCode(line.item_code, line.attribute_value_ids),
                                                                         item_code: line.item_code,
                                                                         attribute_value_ids: line.attribute_value_ids,
-                                                                        qty: 1.0, tolerance_percentage: 0.0,
+                                                                        qty: 1.0, tolerance_percentage: 0.0, overdelivery_tolerance_percentage: 10.0,
                                                                         operations: [], lines: [],
                                                                         ...getInheritedFields(selectedNode),
                                                                         isNewItem: line.isNewItem

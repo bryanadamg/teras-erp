@@ -142,7 +142,8 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       const mo = row.mo;
       const wos = mo.work_orders || [];
       const done = wos.filter((w: any) => w.status === 'COMPLETED').length;
-      const pct = wos.length ? Math.round((done / wos.length) * 100) : (mo.status === 'COMPLETED' ? 100 : 0);
+      // DELIVERED = planned qty met (order merely not closed yet) — counts as done.
+      const pct = wos.length ? Math.round((done / wos.length) * 100) : (['COMPLETED', 'DELIVERED'].includes(mo.status) ? 100 : 0);
       return (
         <tr key={key} style={{ background: row.isComponent ? (classic ? '#f3f6ff' : '#f7faff') : (classic ? '#fff' : undefined) }}>
           <td style={lineageTd({ paddingLeft: indent })}>
@@ -908,7 +909,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                            )}
                            {!lineageLoading && lineageData && (lineageData.production_runs || []).map((pr: any) => {
                                const prMos = pr.manufacturing_orders || [];
-                               const prDone = prMos.filter((m: any) => m.status === 'COMPLETED').length;
+                               const prDone = prMos.filter((m: any) => ['COMPLETED', 'DELIVERED'].includes(m.status)).length;
                                const prPct = prMos.length ? Math.round((prDone / prMos.length) * 100) : 0;
                                const rows: any[] = [];
                                prMos.forEach((mo: any) => flattenMO(mo, 0, false, rows));
