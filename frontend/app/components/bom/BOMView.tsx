@@ -302,7 +302,10 @@ export default function BOMView({
             throw new Error(err.detail || 'Not found');
         } else if (res?.ok) {
             const saved = await res.json();
-            showToast(`BOM ${bomData.code} ${isEdit ? 'updated' : 'saved'}`, 'success');
+            // No per-BOM success toast: saving a tree writes many BOMs and that produced
+            // a stack of them. BOMDesigner reports the whole run through one progress
+            // toast instead. Failures below still toast individually — they name the
+            // specific BOM that broke, which the summary can't.
             return saved.id;
         } else {
             try { const err = await res.json(); showToast(`Failed to save BOM ${bomData.code}: ${err.detail}`, 'danger'); } catch (_) { showToast(`Failed to save BOM ${bomData.code}`, 'danger'); }

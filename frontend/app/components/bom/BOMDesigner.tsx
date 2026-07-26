@@ -5,6 +5,7 @@ import CodeConfigModal, { CodeConfig, buildCodeWithCounter } from '../shared/Cod
 import BOMAutomatorModal from './BOMAutomatorModal';
 import BOMConfirmModal, { BOMPlan, BOMPlanNode, BOMPlanLine } from './BOMConfirmModal';
 import SearchableSelect from '../shared/SearchableSelect';
+import { useToast } from '../shared/Toast';
 
 // Types for Recursive Structure
 interface BOMSizeEntry {
@@ -348,6 +349,7 @@ export default function BOMDesigner({
 }: any) {
     const { t } = useLanguage();
     const { itemIndex } = useData();
+    const { showProgressToast } = useToast();
 
     const [rootBOM, setRootBOM] = useState<BOMNodeData>(() => {
         if (initialBOMData) {
@@ -683,7 +685,9 @@ export default function BOMDesigner({
         setRootBOM(prev => ({ ...prev, lines: newLines }));
     }, [rootBOM.item_code, rootBOM.attribute_value_ids, getItemByCode, findMatchingAttributeIds, attributes, existingBOMs, suggestBOMCode, inheritFields]);
 
-    const saveNode = async (node: BOMNodeData): Promise<boolean> => {
+    // onNodeSaved fires once per BOM actually written (skipped nodes don't call it), so
+    // the caller's tally matches the plan's create+update count exactly.
+    const saveNode = async (node: BOMNodeData, onNodeSaved?: (n: BOMNodeData) => void): Promise<boolean> => {
         // Resolved via the code lookups (paginated items + cached full index) so
         // inline-created WIP items still inherit the root's uom when the root item
         // sits outside the current items page.
@@ -710,7 +714,7 @@ export default function BOMDesigner({
                 });
             }
             if (line.subBOM) {
-                const success = await saveNode(line.subBOM);
+                const success = await saveNode(line.subBOM, onNodeSaved);
                 if (!success) return false;
             }
         }
@@ -721,6 +725,7 @@ export default function BOMDesigner({
                 if (pendingPhotoFile && onUploadPhoto) await onUploadPhoto(bomId, pendingPhotoFile);
                 if (pendingDesignFile && onUploadDesign) await onUploadDesign(bomId, pendingDesignFile);
             }
+            onNodeSaved?.(node);
             return true;
         } catch (e) {
             console.error("Save failed for", node.code, e);
@@ -868,13 +873,34 @@ export default function BOMDesigner({
     };
 
     const handleConfirmedSave = async () => {
+        // Total comes from the reviewed plan, so the bar is measured against exactly the
+        // BOMs the user approved — skipped nodes are already excluded from these counts.
+        const total = savePlan ? savePlan.createCount + savePlan.updateCount : 1;
+        let saved = 0;
+        const progress = showProgressToast(
+            `Saving BOM tree — ${total} BOM${total === 1 ? '' : 's'}`,
+            `0 of ${total}`,
+        );
+
         setIsSaving(true);
-        const success = await saveNode(rootBOM);
+        const success = await saveNode(rootBOM, (node) => {
+            saved++;
+            progress.update((saved / total) * 100, `${saved} of ${total} · ${node.item_code || node.code}`);
+        });
         setIsSaving(false);
         setIsConfirmOpen(false);
-        if (success) onCancel();
-        // Surface the failure on the designer, not the (now closed) confirmation.
-        else setPctError('Save failed — check that all items and source locations exist, then retry. Note: sub-BOMs saved before the failure may have persisted.');
+
+        if (success) {
+            progress.finish(`Saved ${saved} BOM${saved === 1 ? '' : 's'}`);
+            onCancel();
+        } else {
+            // Name how far it got — sub-BOMs written before the failure have persisted.
+            progress.fail(saved > 0
+                ? `BOM save failed after ${saved} of ${total} — ${total - saved} not written`
+                : 'BOM save failed — nothing was written');
+            // Surface the failure on the designer, not the (now closed) confirmation.
+            setPctError('Save failed — check that all items and source locations exist, then retry. Note: sub-BOMs saved before the failure may have persisted.');
+        }
     };
 
     const findNodeAndReplace = (root: BOMNodeData, targetId: string, newNode: BOMNodeData): BOMNodeData => {
