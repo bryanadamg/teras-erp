@@ -43,8 +43,8 @@ interface ModalWrapperProps {
     /**
      * Modeless window: no backdrop, background page stays interactive,
      * panel is draggable by its title bar. Ignored on mobile (falls back
-     * to a normal blocking modal). Use for creation/edit forms; keep
-     * confirmations and destructive dialogs blocking.
+     * to a normal blocking modal). Used for creation/edit forms and
+     * ConfirmModal (all confirm() dialogs, including delete confirmations).
      */
     modeless?: boolean;
     /**

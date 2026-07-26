@@ -675,25 +675,63 @@ async def update_bom(
     return updated_bom
 
 
-async def _collect_bom_tree_ids(db: AsyncSession, bom_id: _uuid.UUID, visited: set) -> list[_uuid.UUID]:
-    """DFS collect all sub-BOM IDs reachable from bom_id via BOMLine.item_id → BOM.item_id.
-    Returns IDs in deepest-first order (children before parents)."""
-    if bom_id in visited:
-        return []
-    visited.add(bom_id)
-    item_ids_result = await db.execute(
-        select(BOMLine.item_id).filter(BOMLine.bom_id == bom_id)
-    )
-    item_ids = [r[0] for r in item_ids_result.all()]
-    ordered: list[_uuid.UUID] = []
-    if item_ids:
+async def _collect_bom_tree(db: AsyncSession, root_id: _uuid.UUID):
+    """DFS from root_id via BOMLine.item_id → BOM.item_id.
+    Returns (all_ids incl. root, sub_ids deepest-first excl. root, children_map: parent_id -> [child_id])."""
+    visited = {root_id}
+    order: list[_uuid.UUID] = []
+    children_map: dict = {}
+
+    async def visit(node_id):
+        item_ids_result = await db.execute(
+            select(BOMLine.item_id).filter(BOMLine.bom_id == node_id)
+        )
+        item_ids = [r[0] for r in item_ids_result.all()]
+        children_map[node_id] = []
+        if not item_ids:
+            return
         sub_boms_result = await db.execute(
             select(BOM.id).filter(BOM.item_id.in_(item_ids))
         )
         for (sub_id,) in sub_boms_result.all():
-            ordered.extend(await _collect_bom_tree_ids(db, sub_id, visited))
-            ordered.append(sub_id)
-    return ordered
+            if sub_id in visited:
+                continue
+            visited.add(sub_id)
+            children_map[node_id].append(sub_id)
+            await visit(sub_id)
+            order.append(sub_id)
+
+    await visit(root_id)
+    return visited, order, children_map
+
+
+async def _find_shared_sub_boms(db: AsyncSession, all_ids: set, sub_ids: list, children_map: dict) -> set:
+    """Among sub_ids (candidates for cascade delete), find those still referenced by a BOMLine
+    belonging to a BOM outside the delete tree (all_ids) — these must be preserved.
+    Preservation propagates down: a preserved BOM still needs its own sub-BOMs."""
+    if not sub_ids:
+        return set()
+
+    external_lines = await db.execute(
+        select(BOMLine.item_id).filter(BOMLine.bom_id.notin_(all_ids)).distinct()
+    )
+    external_item_ids = {r[0] for r in external_lines.all()}
+
+    cand_rows = await db.execute(select(BOM.id, BOM.item_id).filter(BOM.id.in_(sub_ids)))
+    cand_item_map = {bid: iid for bid, iid in cand_rows.all()}
+
+    preserved: set = {bid for bid in sub_ids if cand_item_map.get(bid) in external_item_ids}
+
+    def propagate(node_id):
+        for child in children_map.get(node_id, []):
+            if child not in preserved:
+                preserved.add(child)
+                propagate(child)
+
+    for bid in list(preserved):
+        propagate(bid)
+
+    return preserved
 
 
 @router.delete("/boms/{bom_id}")
@@ -704,14 +742,21 @@ async def delete_bom(bom_id: str, db: AsyncSession = Depends(get_async_db), curr
         raise HTTPException(status_code=404, detail="BOM not found")
 
     # Collect all descendant BOM IDs (deepest first), then append root
-    sub_ids = await _collect_bom_tree_ids(db, bom.id, {bom.id})
-    all_ids = sub_ids + [bom.id]  # children deleted before parent
+    all_ids, sub_ids, children_map = await _collect_bom_tree(db, bom.id)
 
-    details = f"Deleted BOM {bom.code} and {len(sub_ids)} sub-BOM(s)"
+    # Sub-BOMs still needed by a BOM outside this tree (shared, e.g. greige base) are preserved
+    preserved = await _find_shared_sub_boms(db, all_ids, sub_ids, children_map)
+    to_delete = [bid for bid in sub_ids if bid not in preserved] + [bom.id]  # children before parent
+
+    deleted_sub_count = len(to_delete) - 1
+    kept_count = len(preserved)
+    details = f"Deleted BOM {bom.code} and {deleted_sub_count} sub-BOM(s)"
+    if kept_count:
+        details += f", kept {kept_count} shared sub-BOM(s)"
     deleted_code = bom.code
 
     try:
-        for bid in all_ids:
+        for bid in to_delete:
             r = await db.execute(select(BOM).filter(BOM.id == bid))
             b = r.scalars().first()
             if b:
@@ -735,7 +780,10 @@ async def delete_bom(bom_id: str, db: AsyncSession = Depends(get_async_db), curr
 
     await manager.broadcast({"type": "BOM_UPDATE", "action": "DELETE", "bom_id": bom_id, "code": deleted_code})
 
-    return {"status": "success", "message": f"BOM and {len(sub_ids)} sub-BOM(s) deleted"}
+    message = f"BOM and {deleted_sub_count} sub-BOM(s) deleted"
+    if kept_count:
+        message += f" ({kept_count} shared sub-BOM(s) kept)"
+    return {"status": "success", "message": message, "kept_shared": kept_count}
 
 
 # --- BOM Automator Profiles ---

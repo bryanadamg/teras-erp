@@ -69,6 +69,7 @@ export default function ConfirmModal({
             level={3}
             variant={variant === 'danger' ? 'danger' : variant === 'success' ? 'success' : 'primary'}
             size="sm"
+            modeless
             footer={
                 <>
                     {classic ? (
