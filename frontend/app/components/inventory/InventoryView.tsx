@@ -13,8 +13,20 @@ import { useUser } from '../../context/UserContext';
 import { XPEmptyState, useSortable, SortMark, FormSection, FieldLabel, StatusChip } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
 import TreeSelect, { buildCategoryTree, buildLocationPickerTree } from '../shared/TreeSelect';
+import { Tabs, TabDef } from '../shared/Tabs';
 
 // XP-style category badge colours derived from category name
+function getCategoryTabIcon(name: string): string {
+    const l = (name || '').toLowerCase();
+    if (l.includes('raw') || l.includes('material')) return 'bi-droplet-half';
+    if (l.includes('wip') || l.includes('work in progress')) return 'bi-gear';
+    if (l.includes('finish') || l.includes('good') || l.includes('product')) return 'bi-check2-circle';
+    if (l.includes('access') || l.includes('hardware')) return 'bi-tools';
+    if (l.includes('pack')) return 'bi-box-seam';
+    if (l.includes('beam')) return 'bi-diagram-3';
+    return 'bi-folder2';
+}
+
 function getCategoryXPStyle(category: string): { bg: string; border: string; color: string } {
     const l = (category || '').toLowerCase();
     if (l.includes('raw') || l.includes('material'))   return { bg: '#fff3e0', border: '#b36b00', color: '#4a2c00' };
@@ -368,6 +380,19 @@ export default function InventoryView({
   // Tree memos for TreeSelect components
   const catTreeOptions = useMemo(() => buildCategoryTree(categories), [categories]);
   const locPickerTreeOptions = useMemo(() => buildLocationPickerTree(locations || []), [locations]);
+
+  // Quick-filter tabs, one per root category — same pattern as the Work Orders page
+  const categoryTabs: TabDef<string>[] = useMemo(() => [
+      { key: 'ALL', label: 'All', icon: 'bi-collection' },
+      ...categories
+          .filter((c: any) => !c.parent_id)
+          .map((c: any) => ({ key: c.id, label: c.name, icon: getCategoryTabIcon(c.name) })),
+  ], [categories]);
+
+  const handleCategoryTabChange = (key: string) => {
+      setCategoryL2(''); setCategoryL3('');
+      setCategoryL1(key === 'ALL' ? '' : key);
+  };
 
   // Filter-level category: maps single TreeSelect value back to L1/L2/L3 DataContext state
   const handleCategoryTreeChange = (id: string) => {
@@ -1300,6 +1325,11 @@ export default function InventoryView({
                   )}
               </div>
             </div>
+          )}
+
+          {/* ── Category quick-filter tabs ── */}
+          {!forcedCategory && (
+              <Tabs<string> tabs={categoryTabs} activeKey={categoryL1 || 'ALL'} onChange={handleCategoryTabChange} classic={classic} />
           )}
 
           {/* ── XP Toolbar (search + filter) ── */}
