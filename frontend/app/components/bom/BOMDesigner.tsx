@@ -565,6 +565,13 @@ export default function BOMDesigner({
         valueIds.map(String).filter(id => comboValueIds.has(id)).sort().join('|'),
     [comboValueIds]);
 
+    // variant_type for an item created inline from a node/line that inherited a
+    // Combo value: it is a combo-variant item, so tag it as one. Undefined (not
+    // null) when there is no combo, so the field is simply absent from the POST.
+    const variantTypeFor = useCallback((valueIds: string[] = []): string | undefined =>
+        comboKeyOf(valueIds) ? 'combo' : undefined,
+    [comboKeyOf]);
+
     const hasExistingBOM = useCallback((code: string, attributeValueIds: string[] = []): boolean => {
         const item = getItemByCode(code);
         if (!item) return false;
@@ -880,7 +887,8 @@ export default function BOMDesigner({
             const res = await onCreateItem({
                 code: node.item_code, name: node.item_code,
                 uom: rootItem?.uom || 'kg', category: 'WIP',
-                attribute_ids: attributeIdsForValues(node.attribute_value_ids)
+                attribute_ids: attributeIdsForValues(node.attribute_value_ids),
+                variant_type: variantTypeFor(node.attribute_value_ids)
             });
             if (res.status === 400) {
                 // item existed after all (race/stale cache) — backfill same as above
@@ -899,7 +907,8 @@ export default function BOMDesigner({
                 const res = await onCreateItem({
                     code: line.item_code, name: line.item_code,
                     uom: rootItem?.uom || 'kg', category: 'WIP',
-                    attribute_ids: attributeIdsForValues(line.attribute_value_ids)
+                    attribute_ids: attributeIdsForValues(line.attribute_value_ids),
+                    variant_type: variantTypeFor(line.attribute_value_ids)
                 });
                 if (res?.status === 400) await ensureItemHasAttributes(line.item_code, line.attribute_value_ids);
             } else {

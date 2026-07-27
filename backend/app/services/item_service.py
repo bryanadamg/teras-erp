@@ -80,13 +80,16 @@ async def create_item(
         attrs = result.scalars().all()
         item.attributes = attrs
 
-    # Combo-type FGs must carry the Combo system attribute so their BOMs can be
+    # Combo-type items must carry the Combo system attribute so their BOMs can be
     # tagged with a combo value (combo gates BOM selection). Color-type FGs use
     # color_id instead and need no attribute binding (greige BOM is unattributed).
+    # Additive (union with attribute_ids), never a replacement — the BOM designer
+    # sends both fields for an inline-created combo sub-assembly, and assigning
+    # would drop every other attribute in the same payload.
     if variant_type == "combo":
         combo = (await db.execute(select(Attribute).filter(Attribute.system_role == "combo"))).scalars().first()
-        if combo:
-            item.attributes = [combo]
+        if combo and combo.id not in [a.id for a in item.attributes]:
+            item.attributes = list(item.attributes) + [combo]
 
     if packaging_factor_ids:
         result = await db.execute(select(UOMFactor).filter(UOMFactor.id.in_(packaging_factor_ids)))
