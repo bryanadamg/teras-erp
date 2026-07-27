@@ -222,6 +222,10 @@ type InheritableFields = Pick<BOMNodeData,
     'celup_panjang_tarikan_bandul_1kg' | 'celup_panjang_tarikan_bandul_9kg'
 >;
 
+// Mirrors the fallback order inside CodeConfigModal's buildCodeWithCounter (which
+// appends 'counter' itself) — needed here to splice an extra variant slot in.
+const DEFAULT_SEGMENT_ORDER = ['prefix', 'item', 'attribute', 'year', 'month', 'suffix'];
+
 // Increment the trailing numeric segment of a code, keeping its zero padding
 // ("BOM-357-00001" → "BOM-357-00002"). Mirrors the server-side resolver in
 // api/boms.py; used only to separate two tree nodes that wanted the same code.
@@ -599,6 +603,30 @@ export default function BOMDesigner({
         return parts.join(', ');
     }, [attributes, rootBOM.attribute_value_ids]);
 
+    const comboAttr = useMemo(() => attributes.find((a: any) =>
+        (a.system_role || '').toLowerCase() === 'combo' || (a.name || '').toLowerCase() === 'combo'
+    ), [attributes]);
+
+    // Combo-variant items bake their Combo value into the BOM code, so RED and BLUE of
+    // the same item read as BOM-<item>-RED-00001 / BOM-<item>-BLUE-00001 instead of
+    // racing the same counter on an identical base. Applies when the item is FG
+    // variant_type 'combo' OR has the system Combo attribute bound — inline-created WIP
+    // children inherit that attribute, so a whole combo tree stays distinguishable.
+    const comboCodeToken = useCallback((itemCode: string, attributeValueIds: string[] = []): string | null => {
+        if (!comboAttr) return null;
+        const val = comboAttr.values.find((v: any) => attributeValueIds.includes(v.id));
+        if (!val) return null;
+        const isCombo = (code: string) => {
+            const it = getItemByCode(code);
+            return (it?.variant_type || '').toLowerCase() === 'combo'
+                || (getAttrIds(code) || []).some((id: string) => String(id) === String(comboAttr.id));
+        };
+        // Root check covers sub-nodes whose item predates this tree and hasn't had the
+        // Combo attribute backfilled yet (that happens at save, via ensureItemHasAttributes).
+        if (!isCombo(itemCode) && !isCombo(rootBOM.item_code)) return null;
+        return String(val.value).toUpperCase().replace(/\s+/g, '');
+    }, [comboAttr, getItemByCode, getAttrIds, rootBOM.item_code]);
+
     const suggestBOMCode = useCallback((itemCode: string, attributeValueIds: string[] = [], config = codeConfig) => {
         const valueNames: string[] = [];
         if (config.includeVariant) {
@@ -609,14 +637,32 @@ export default function BOMDesigner({
                 if (selectedVal) valueNames.push(selectedVal.value.toUpperCase().replace(/\s+/g, ''));
             }
         }
+
+        // Combo token is implicit — it doesn't need (and isn't controlled by) the code
+        // config's variant toggle, so force a variant slot in when the config has none.
+        let effConfig = config;
+        const combo = comboCodeToken(itemCode, attributeValueIds);
+        if (combo && !valueNames.includes(combo)) {
+            valueNames.unshift(combo);
+            const order = config.segmentOrder ?? DEFAULT_SEGMENT_ORDER;
+            const slots = order.filter(s => s === 'attribute').length;
+            let nextOrder = order;
+            if (slots < valueNames.length) {
+                const itemAt = order.indexOf('item');
+                const insertAt = itemAt >= 0 ? itemAt + 1 : 0;
+                nextOrder = [...order.slice(0, insertAt), 'attribute', ...order.slice(insertAt)];
+            }
+            effConfig = { ...config, includeVariant: true, segmentOrder: nextOrder };
+        }
+
         let counter = 1;
-        let code = buildCodeWithCounter(config, counter, itemCode, valueNames);
+        let code = buildCodeWithCounter(effConfig, counter, itemCode, valueNames);
         while (existingBOMs.some((b: any) => b.code === code)) {
             counter++;
-            code = buildCodeWithCounter(config, counter, itemCode, valueNames);
+            code = buildCodeWithCounter(effConfig, counter, itemCode, valueNames);
         }
         return code;
-    }, [codeConfig, attributes, existingBOMs]);
+    }, [codeConfig, attributes, existingBOMs, comboCodeToken]);
 
     const findMatchingAttributeIds = useCallback((childItemCode: string, parentAttrIds: string[]): string[] => {
         // Resolved through getAttrIds, not items.find — a child outside the current
