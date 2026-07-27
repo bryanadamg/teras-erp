@@ -103,12 +103,6 @@ const xpBtnInfo: React.CSSProperties = {
     color: '#003060', minWidth: 'auto', padding: '1px 8px', fontSize: 10,
 };
 
-const xpBtnWarning: React.CSSProperties = {
-    ...xpBtn,
-    background: 'linear-gradient(to bottom, #fff0b0, #e8d060)',
-    color: '#604000', minWidth: 'auto', padding: '1px 8px', fontSize: 10,
-};
-
 // Spread over any xpBtn* variant to gray it out — XP disabled controls lose their
 // tint entirely rather than just dimming.
 const xpBtnDisabled: React.CSSProperties = {
@@ -216,8 +210,6 @@ const TreeView = memo(({
     );
 });
 TreeView.displayName = 'TreeView';
-
-const STATIC_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000').replace(/\/api$/, '');
 
 type InheritableFields = Pick<BOMNodeData,
     'sizes' | 'sizeMode' |
@@ -691,7 +683,7 @@ export default function BOMDesigner({
                     attribute_value_ids: matchingAttrs,
                     percentage: 0, qty: 0, source_location_code: '', bom_operation_sequence: null,
                     is_decoupling_point: null,
-                    subBOM, isExpanded: true, isNewItem,
+                    subBOM, isNewItem,
                 });
             }
             if (levelLines.length === 1) {
@@ -953,18 +945,7 @@ export default function BOMDesigner({
         return null;
     };
 
-    const findParentById = (root: BOMNodeData, targetId: string): BOMNodeData | null => {
-        for (const line of root.lines) {
-            if (line.subBOM) {
-                if (line.subBOM.id === targetId) return root;
-                const found = findParentById(line.subBOM, targetId);
-                if (found) return found;
-            }
-        }
-        return null;
-    };
-
-    const updateSelectedNode = (updatedFields: Partial<BOMNodeData>) => {
+    const updateSelectedNode =(updatedFields: Partial<BOMNodeData>) => {
         const selected = findNodeById(rootBOM, selectedNodeId);
         if (!selected) return;
         const newNode = { ...selected, ...updatedFields };

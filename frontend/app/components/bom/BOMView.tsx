@@ -187,7 +187,6 @@ export default function BOMView({
     // Beam items carry a warp-ends count; for a beam BOM the qty IS the ends (set on BOM creation).
     const getItemEnds = (id: string): number | null => { const e = items.find((i: any) => i.id === id)?.ends ?? itemIndex?.[String(id)]?.ends; return e != null ? e : null; };
     const uomBadge: React.CSSProperties = { background: '#dde8f5', border: '1px solid #7f9db9', color: '#336', fontSize: 9, padding: '0 4px', whiteSpace: 'nowrap', fontWeight: 'normal' };
-    const getWcName = (id: string | null) => id ? (workCenters.find((w: any) => w.id === id)?.name || id) : '—';
     const getAttrValues = (ids: string[]) => {
         if (!ids?.length) return '—';
         const names = ids.map((valId: string) => {
@@ -449,8 +448,6 @@ export default function BOMView({
         const displayBOM = isRootSelected ? bom : (allBomsById[selectedBomId] || bom);
 
         const lines: any[] = displayBOM.lines || [];
-        const ops: any[] = [...(displayBOM.operations || [])].sort((a: any, b: any) => a.sequence - b.sequence);
-        const totalMinutes = ops.reduce((sum: number, op: any) => sum + (op.time_minutes || 0), 0);
         const totalPct = lines.reduce((sum: number, l: any) => sum + (l.percentage || 0), 0);
         const hasPct = lines.some((l: any) => (l.percentage || 0) > 0);
         // Beam BOM: each component line's qty holds that yarn's warp-ends count (independent of % / kg).
@@ -458,7 +455,6 @@ export default function BOMView({
         const totalLineEnds = lines.reduce((sum: number, l: any) => sum + (Number(l.qty) || 0), 0);
         const nodeCount = countTreeNodes(bom);
         const parentName = isRootSelected ? '' : findParentName(bom, selectedBomId);
-        const subBOMCount = lines.filter((l: any) => !!findSubBOM(l)).length;
 
         return (
             <tr key={`${bom.id}-detail`}>
