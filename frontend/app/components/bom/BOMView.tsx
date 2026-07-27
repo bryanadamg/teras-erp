@@ -216,6 +216,22 @@ export default function BOMView({
         return null;
     };
 
+    // Variant chip row (hex swatch + label) — shared by the list Variant column and the detail node header.
+    const renderVariantChips = (valIds: string[], compact = false) => (
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 3 }}>
+            {valIds.map((valId: string) => {
+                const label = getAttributeValueName(valId);
+                const hex = getAttributeValueHex(valId) ?? colorHexFor(label);
+                return (
+                    <span key={valId} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: '#e8e4d8', border: '1px solid #b0aaa0', color: '#333', fontSize: compact ? 9 : 10, padding: compact ? '0 4px' : '1px 5px', fontFamily: 'Tahoma, Arial, sans-serif', whiteSpace: 'nowrap' }}>
+                        {hex && <span style={{ width: compact ? 9 : 10, height: compact ? 9 : 10, background: hex, border: '1px solid rgba(0,0,0,0.35)', flexShrink: 0, display: 'inline-block' }} />}
+                        {label}
+                    </span>
+                );
+            })}
+        </div>
+    );
+
     // Server already filters by search + root_only; boms is the current page result
     const allSelected = boms.length > 0 && boms.every((b: any) => selectedIds.has(b.id));
     const someSelected = boms.some((b: any) => selectedIds.has(b.id)) && !allSelected;
@@ -500,8 +516,11 @@ export default function BOMView({
                             <div style={{ background: 'linear-gradient(to bottom, #e8e4d8, #dddad0)', borderBottom: '1px solid #aca899', padding: '4px 10px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <i className={`bi ${isRootSelected ? 'bi-box-seam' : 'bi-layers'}`} style={{ fontSize: 16, flexShrink: 0 }} />
                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontWeight: 'bold', fontSize: 12, color: '#000080', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {displayBOM.item_name || displayBOM.item_code}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                                        <span style={{ fontWeight: 'bold', fontSize: 12, color: '#000080', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {displayBOM.item_name || displayBOM.item_code}
+                                        </span>
+                                        {(displayBOM.attribute_value_ids || []).length > 0 && renderVariantChips(displayBOM.attribute_value_ids)}
                                     </div>
                                     <div style={{ fontSize: 9, color: '#555', fontFamily: "'Courier New', monospace" }}>
                                         {displayBOM.item_code} · BOM: {displayBOM.code}
@@ -636,7 +655,7 @@ export default function BOMView({
                                         {(displayBOM.attribute_value_ids || []).length > 0 && (
                                             <div style={{ gridColumn: '1/-1' }}>
                                                 <div style={lbl}>Variant</div>
-                                                <div style={{ fontSize: 10, color: '#333' }}>{getAttrValues(displayBOM.attribute_value_ids)}</div>
+                                                {renderVariantChips(displayBOM.attribute_value_ids)}
                                             </div>
                                         )}
                                         {displayBOM.customer_name && (
@@ -991,18 +1010,7 @@ export default function BOMView({
                                                     {/* Variant — color swatches + combo values */}
                                                     <td style={classic ? { padding: '7px 8px', borderRight: '1px solid #c0bdb5', verticalAlign: 'middle' } : undefined}>
                                                         {(bom.attribute_value_ids || []).length > 0 ? (
-                                                            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 3 }}>
-                                                                {(bom.attribute_value_ids || []).map((valId: string) => {
-                                                                    const label = getAttributeValueName(valId);
-                                                                    const hex = getAttributeValueHex(valId) ?? colorHexFor(label);
-                                                                    return (
-                                                                        <span key={valId} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: '#e8e4d8', border: '1px solid #b0aaa0', color: '#333', fontSize: 10, padding: '1px 5px', fontFamily: 'Tahoma, Arial, sans-serif', whiteSpace: 'nowrap' }}>
-                                                                            {hex && <span style={{ width: 10, height: 10, background: hex, border: '1px solid rgba(0,0,0,0.35)', flexShrink: 0, display: 'inline-block' }} />}
-                                                                            {label}
-                                                                        </span>
-                                                                    );
-                                                                })}
-                                                            </div>
+                                                            renderVariantChips(bom.attribute_value_ids)
                                                         ) : (
                                                             <span style={{ color: '#999', fontSize: 10 }} className={classic ? '' : 'text-muted small'}>-</span>
                                                         )}
