@@ -155,14 +155,19 @@ const xpBadge = (color = '#316ac5'): React.CSSProperties => ({
 });
 
 // --- Tree View Component ---
+// The BOM an item already has, when that BOM is the one shared across combos.
+interface SharedBomInfo { id: string; code: string; attrIds: string[] }
+
 const TreeView = memo(({
-    node, level = 0, selectedNodeId, items, onSelect, hasExistingBOM
+    node, level = 0, selectedNodeId, items, onSelect, hasExistingBOM, sharedBomFor
 }: {
     node: BOMNodeData, level: number, selectedNodeId: string,
     items: any[], onSelect: (id: string) => void,
-    hasExistingBOM: (code: string, attributeValueIds: string[]) => boolean
+    hasExistingBOM: (code: string, attributeValueIds: string[]) => boolean,
+    sharedBomFor: (node: BOMNodeData) => SharedBomInfo | null
 }) => {
     const itemExists = items.some((i: any) => (i.code || '').trim().toLowerCase() === (node.item_code || '').trim().toLowerCase());
+    const shared = sharedBomFor(node);
     const recipeExists = hasExistingBOM(node.item_code, node.attribute_value_ids);
     const hasLocalDef = node.lines.length > 0 || node.operations.length > 0;
     const isSelected = selectedNodeId === node.id;
@@ -190,9 +195,10 @@ const TreeView = memo(({
                     {node.item_code || 'Unnamed'}
                 </span>
                 <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
-                    {recipeExists && <span style={xpBadge('#2a7a2a')}>RECIPE✓</span>}
-                    {!recipeExists && hasLocalDef && <span style={xpBadge('#316ac5')}>DRAFT</span>}
-                    {!itemExists && <span style={xpBadge('#a02020')}>NEW</span>}
+                    {shared && <span style={xpBadge('#6a4b9a')} title={`Reuses existing BOM ${shared.code} — shared across combos`}>SHARED</span>}
+                    {!shared && recipeExists && <span style={xpBadge('#2a7a2a')}>RECIPE✓</span>}
+                    {!shared && !recipeExists && hasLocalDef && <span style={xpBadge('#316ac5')}>DRAFT</span>}
+                    {!shared && !itemExists && <span style={xpBadge('#a02020')}>NEW</span>}
                 </div>
             </div>
             {node.lines.map(line => line.subBOM && (
@@ -204,6 +210,7 @@ const TreeView = memo(({
                     items={items}
                     onSelect={onSelect}
                     hasExistingBOM={hasExistingBOM}
+                    sharedBomFor={sharedBomFor}
                 />
             ))}
         </div>
@@ -404,6 +411,8 @@ export default function BOMDesigner({
     // Tree the confirmed save will write — same shape as rootBOM but with every new
     // node's code resolved against the server (see resolveTreeCodes).
     const [pendingTree, setPendingTree] = useState<BOMNodeData | null>(null);
+    // itemCode (lowercased) -> the BOM that item already owns
+    const [sharedBomByItem, setSharedBomByItem] = useState<Record<string, SharedBomInfo>>({});
 
     const [pendingOpSeq, setPendingOpSeq] = useState<string>('');
     const [pendingOpWc, setPendingOpWc] = useState<string>('');
@@ -607,6 +616,17 @@ export default function BOMDesigner({
         (a.system_role || '').toLowerCase() === 'combo' || (a.name || '').toLowerCase() === 'combo'
     ), [attributes]);
 
+    // A combo-variant item is one whose finished-goods variant type IS combo. Anything
+    // else (WIP/greige/beam sub-assemblies) is combo-agnostic: one recipe serves every
+    // combo, so it neither inherits the Combo value nor carries it in its BOM code.
+    const isComboItem = useCallback((itemCode: string) =>
+        (getItemByCode(itemCode)?.variant_type || '').toLowerCase() === 'combo',
+    [getItemByCode]);
+
+    const comboValueIds = useMemo(
+        () => new Set((comboAttr?.values || []).map((v: any) => String(v.id))),
+        [comboAttr]);
+
     // Combo-variant items bake their Combo value into the BOM code, so RED and BLUE of
     // the same item read as BOM-<item>-RED-00001 / BOM-<item>-BLUE-00001 instead of
     // racing the same counter on an identical base. Applies when the item is FG
@@ -616,14 +636,10 @@ export default function BOMDesigner({
         if (!comboAttr) return null;
         const val = comboAttr.values.find((v: any) => attributeValueIds.includes(v.id));
         if (!val) return null;
-        const isCombo = (code: string) => {
-            const it = getItemByCode(code);
-            return (it?.variant_type || '').toLowerCase() === 'combo'
-                || (getAttrIds(code) || []).some((id: string) => String(id) === String(comboAttr.id));
-        };
-        // Root check covers sub-nodes whose item predates this tree and hasn't had the
-        // Combo attribute backfilled yet (that happens at save, via ensureItemHasAttributes).
-        if (!isCombo(itemCode) && !isCombo(rootBOM.item_code)) return null;
+        // Only the combo-variant item itself. A non-combo item's BOM is shared across
+        // combos (see isComboItem/sharedBomFor), so it must NOT get a combo token —
+        // that would fork one shared recipe into one BOM per combo.
+        if (!isComboItem(itemCode)) return null;
         return String(val.value).toUpperCase().replace(/\s+/g, '');
     }, [comboAttr, getItemByCode, getAttrIds, rootBOM.item_code]);
 
@@ -687,6 +703,82 @@ export default function BOMDesigner({
         return matches;
     }, [getAttrIds, attributes]);
 
+    // THE inheritance rule — every node-construction site must call this, never
+    // findMatchingAttributeIds directly (drifting copies of this logic are how children
+    // silently lose or gain variant values).
+    //   1. A brand-new item has no attribute master yet, so the parent's values pass
+    //      through as-is; an existing item takes only values it can actually hold.
+    //   2. The Combo value stops at combo-variant items. A non-combo child (beam,
+    //      greige, any shared sub-assembly) has ONE BOM shared across every combo, so
+    //      inheriting the combo value would fork it per combo.
+    const inheritAttrsFor = useCallback((childItemCode: string, parentAttrIds: string[]): string[] => {
+        const exists = !!getItemByCode(childItemCode);
+        const base = exists
+            ? findMatchingAttributeIds(childItemCode, parentAttrIds)
+            : [...(parentAttrIds || [])];
+        if (isComboItem(childItemCode) || comboValueIds.size === 0) return base;
+        return base.filter(id => !comboValueIds.has(String(id)));
+    }, [getItemByCode, findMatchingAttributeIds, isComboItem, comboValueIds]);
+
+    // Which items in this tree already own a BOM. Asked of the server because
+    // `existingBOMs` is one root-only page of /boms/summary and therefore blind to
+    // exactly the shared sub-assemblies this lookup is for (see /boms/lookup-by-items).
+    const treeItemCodes = useMemo(() => {
+        const codes = new Set<string>();
+        const walk = (node: BOMNodeData, isRoot: boolean) => {
+            if (!isRoot && node.item_code) codes.add(node.item_code);
+            for (const line of node.lines) {
+                if (line.item_code) codes.add(line.item_code);
+                if (line.subBOM) walk(line.subBOM, false);
+            }
+        };
+        walk(rootBOM, true);
+        return Array.from(codes).sort();
+    }, [rootBOM]);
+    const treeItemCodesKey = treeItemCodes.join('|');
+
+    useEffect(() => {
+        if (!treeItemCodesKey) { setSharedBomByItem({}); return; }
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await authFetch(`${API_BASE}/boms/lookup-by-items`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ item_codes: treeItemCodesKey.split('|') }),
+                });
+                if (!res.ok || cancelled) return;
+                const data = await res.json();
+                const map: Record<string, SharedBomInfo> = {};
+                for (const m of (data.matches || [])) {
+                    map[String(m.item_code).trim().toLowerCase()] = {
+                        id: String(m.bom_id), code: m.bom_code, attrIds: (m.attribute_value_ids || []).map(String),
+                    };
+                }
+                if (!cancelled) setSharedBomByItem(map);
+            } catch { /* leave the map as-is; nothing is marked shared */ }
+        })();
+        return () => { cancelled = true; };
+    }, [treeItemCodesKey]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+    // A node is a SHARED reuse when its item is combo-agnostic and already owns a BOM
+    // that isn't this node's own BOM. Those nodes are read-only and written by nobody:
+    // one beam/greige recipe serves every combo. The root is never shared — it IS the
+    // combo-specific BOM being built.
+    const sharedBomForItem = useCallback((itemCode: string): SharedBomInfo | null => {
+        if (!itemCode || isComboItem(itemCode)) return null;
+        return sharedBomByItem[itemCode.trim().toLowerCase()] || null;
+    }, [sharedBomByItem, isComboItem]);
+
+    const sharedBomFor = useCallback((node: BOMNodeData): SharedBomInfo | null => {
+        if (!node || node.id === 'root') return null;
+        const info = sharedBomForItem(node.item_code);
+        if (!info) return null;
+        // Editing an existing tree: this node already *is* that BOM, so it stays editable.
+        if (node.bomId && String(node.bomId) === info.id) return null;
+        return info;
+    }, [sharedBomForItem]);
+
     const getInheritedFields = (source: BOMNodeData) => inheritFields
         ? extractInheritableFields(source)
         : {
@@ -721,12 +813,7 @@ export default function BOMDesigner({
                 // getItemByCode, not items.find — an existing child outside the current
                 // items page would otherwise be flagged isNewItem and re-created.
                 const isNewItem = !getItemByCode(expectedChildCode);
-                // A new item has no attribute master yet, so the root's values pass
-                // through as-is; an existing one only takes the values it can actually
-                // hold (same attribute name + value).
-                const matchingAttrs = !inheritsHere
-                    ? []
-                    : isNewItem ? rootAttrs : findMatchingAttributeIds(expectedChildCode, rootAttrs);
+                const matchingAttrs = !inheritsHere ? [] : inheritAttrsFor(expectedChildCode, rootAttrs);
                 const subLines = constructTreeRecursive(levelIdx + 1);
                 const subBOM: BOMNodeData = {
                     id: Math.random().toString(36).substr(2, 9),
@@ -755,11 +842,14 @@ export default function BOMDesigner({
 
         const newLines = constructTreeRecursive(0);
         setRootBOM(prev => ({ ...prev, lines: newLines }));
-    }, [rootBOM.item_code, rootBOM.attribute_value_ids, getItemByCode, findMatchingAttributeIds, attributes, existingBOMs, suggestBOMCode, inheritFields]);
+    }, [rootBOM.item_code, rootBOM.attribute_value_ids, getItemByCode, inheritAttrsFor, attributes, existingBOMs, suggestBOMCode, inheritFields]);
 
     // onNodeSaved fires once per BOM actually written (skipped nodes don't call it), so
     // the caller's tally matches the plan's create+update count exactly.
     const saveNode = async (node: BOMNodeData, onNodeSaved?: (n: BOMNodeData) => void): Promise<boolean> => {
+        // Shared sub-assembly: the item's one BOM is reused across combos, so this node
+        // and its whole subtree are reference-only — nothing is written for them.
+        if (sharedBomFor(node)) return true;
         // Resolved via the code lookups (paginated items + cached full index) so
         // inline-created WIP items still inherit the root's uom when the root item
         // sits outside the current items page.
@@ -815,6 +905,8 @@ export default function BOMDesigner({
     };
 
     const validatePercentages = (node: BOMNodeData): string | null => {
+        // Shared subtrees aren't written, so their draft lines aren't validated.
+        if (sharedBomFor(node)) return null;
         if (node.lines.length > 0) {
             const hasZero = node.lines.some(l => (l.percentage || 0) === 0);
             const total = node.lines.reduce((sum, l) => sum + (l.percentage || 0), 0);
@@ -834,6 +926,7 @@ export default function BOMDesigner({
     // L2: when a node defines routing operations, every material must be assigned
     // to a step. Mirrors the backend block so the user gets feedback before saving.
     const validateSteps = (node: BOMNodeData): string | null => {
+        if (sharedBomFor(node)) return null;
         if (node.operations.length > 0 && node.lines.length > 0) {
             const validSeqs = new Set(node.operations.map((o: any) => o.sequence));
             const bad = node.lines.some(l => l.bom_operation_sequence == null || !validSeqs.has(l.bom_operation_sequence));
@@ -859,8 +952,11 @@ export default function BOMDesigner({
             if (code && !newItemCodes.includes(code)) newItemCodes.push(code);
         };
 
-        const walk = (node: BOMNodeData, depth: number): BOMPlanNode => {
-            const isSkipped = node.lines.length === 0 && node.operations.length === 0;
+        // `sharedWith` carries the shared BOM code down a reused subtree: saveNode
+        // returns early on the shared node, so nothing under it is written either.
+        const walk = (node: BOMNodeData, depth: number, sharedWith?: string): BOMPlanNode => {
+            const shared = sharedWith || sharedBomFor(node)?.code;
+            const isSkipped = !!shared || (node.lines.length === 0 && node.operations.length === 0);
             const action: BOMPlanNode['action'] = isSkipped ? 'skip' : (node.bomId ? 'update' : 'create');
             if (action === 'create') createCount++;
             else if (action === 'update') updateCount++;
@@ -868,7 +964,7 @@ export default function BOMDesigner({
 
             // Mirrors saveNode: the node's own item is created when it is flagged new
             // and still absent from both item lookups.
-            const nodeItemNew = !!node.isNewItem && !getItemByCode(node.item_code);
+            const nodeItemNew = !shared && !!node.isNewItem && !getItemByCode(node.item_code);
             if (nodeItemNew) noteNewItem(node.item_code);
 
             const sortedNodeOps = [...(node.operations || [])].sort((a: any, b: any) => a.sequence - b.sequence);
@@ -882,7 +978,7 @@ export default function BOMDesigner({
             const lines: BOMPlanLine[] = node.lines.map(line => {
                 // saveNode only creates items for lines WITHOUT a sub-BOM; a line that
                 // drills down has its item created when that child node is walked.
-                const lineItemNew = !!line.isNewItem && !line.subBOM && !getItemByCode(line.item_code);
+                const lineItemNew = !shared && !!line.isNewItem && !line.subBOM && !getItemByCode(line.item_code);
                 if (lineItemNew) noteNewItem(line.item_code);
                 return {
                     itemCode: line.item_code,
@@ -905,9 +1001,13 @@ export default function BOMDesigner({
                 itemCode: node.item_code,
                 itemName: getItemName(node.item_code),
                 action,
-                skipReason: isSkipped
-                    ? 'No components and no routing steps — no BOM will be written for this node.'
-                    : undefined,
+                skipReason: shared
+                    ? (sharedWith
+                        ? `Part of shared BOM ${shared} — nothing is written for this node.`
+                        : `${node.item_code} already has BOM ${shared}, shared across combos — it is reused as-is and nothing is written for it or its components.`)
+                    : isSkipped
+                        ? 'No components and no routing steps — no BOM will be written for this node.'
+                        : undefined,
                 itemWillBeCreated: nodeItemNew,
                 qty: node.qty,
                 uom: getItemUom(node.item_code),
@@ -928,13 +1028,13 @@ export default function BOMDesigner({
                 lines,
                 children: node.lines
                     .filter(l => l.subBOM)
-                    .map(l => walk(l.subBOM!, depth + 1)),
+                    .map(l => walk(l.subBOM!, depth + 1, shared)),
             };
         };
 
         const root = walk(tree, 0);
         return { root, createCount, updateCount, skipCount, newItemCodes };
-    }, [rootBOM, getItemByCode, getItemName, getItemUom, isBeamNode, getAttributeValueName, getWcName, operations]);
+    }, [rootBOM, getItemByCode, getItemName, getItemUom, isBeamNode, getAttributeValueName, getWcName, operations, sharedBomFor]);
 
     // `suggestBOMCode` can only dedup against `existingBOMs`, which is one page of
     // /boms/summary filtered to root BOMs — so a sub-BOM code it generates (e.g.
@@ -945,6 +1045,8 @@ export default function BOMDesigner({
     const resolveTreeCodes = async (tree: BOMNodeData): Promise<BOMNodeData> => {
         const wanted: string[] = [];
         const collect = (node: BOMNodeData) => {
+            // A shared subtree is reused as-is — no node under it needs a code.
+            if (sharedBomFor(node)) return;
             const skipped = node.lines.length === 0 && node.operations.length === 0;
             // Updates keep their own code; skipped nodes write no BOM at all.
             if (!skipped && !node.bomId && node.code) wanted.push(node.code);
@@ -970,6 +1072,7 @@ export default function BOMDesigner({
         // unused one rather than giving two nodes the same resolution.
         const used = new Set<string>();
         const apply = (node: BOMNodeData): BOMNodeData => {
+            if (sharedBomFor(node)) return node;
             const skipped = node.lines.length === 0 && node.operations.length === 0;
             let code = node.code;
             if (!skipped && !node.bomId && node.code) {
@@ -1088,6 +1191,7 @@ export default function BOMDesigner({
     // Memoized so the tree walks run once per data change, not on every render
     // (both were re-walking the whole tree each keystroke).
     const selectedNode = useMemo(() => findNodeById(rootBOM, selectedNodeId), [rootBOM, selectedNodeId]);
+    const selectedShared = selectedNode ? sharedBomFor(selectedNode) : null;
 
     // Count nodes
     const countNodes = (node: BOMNodeData): number =>
@@ -1197,6 +1301,7 @@ export default function BOMDesigner({
                             items={items}
                             onSelect={setSelectedNodeId}
                             hasExistingBOM={hasExistingBOM}
+                            sharedBomFor={sharedBomFor}
                         />
                     </div>
 
@@ -1234,17 +1339,43 @@ export default function BOMDesigner({
                                     </div>
                                 </div>
                                 <div style={{ display: 'flex', gap: 4 }}>
-                                    {selectedNode.isNewItem && (
+                                    {selectedShared && (
+                                        <span style={xpBadge('#6a4b9a')}>Shared Across Combos</span>
+                                    )}
+                                    {!selectedShared && selectedNode.isNewItem && (
                                         <span style={xpBadge('#a02020')}>New Inventory Record</span>
                                     )}
-                                    {hasExistingBOM(selectedNode.item_code, selectedNode.attribute_value_ids) && (
+                                    {!selectedShared && hasExistingBOM(selectedNode.item_code, selectedNode.attribute_value_ids) && (
                                         <span style={xpBadge('#2a7a2a')}>Existing Recipe</span>
                                     )}
                                 </div>
                             </div>
 
+                            {/* A shared sub-assembly's recipe is combo-agnostic: one BOM serves
+                                every combo, so it is shown for reference and never written from
+                                here. Edit it by opening that BOM on its own. */}
+                            {selectedShared && (
+                                <div style={{
+                                    flexShrink: 0, margin: '6px 10px 0', padding: '5px 8px',
+                                    background: '#efe8f8', border: '1px solid #6a4b9a',
+                                    fontFamily: xpFont, fontSize: 10, color: '#3a2a55',
+                                    display: 'flex', alignItems: 'flex-start', gap: 6,
+                                }}>
+                                    <i className="bi bi-link-45deg" style={{ fontSize: 12, marginTop: 1 }} />
+                                    <span>
+                                        <strong>{selectedNode.item_code}</strong> already has BOM{' '}
+                                        <strong style={{ fontFamily: '"Courier New", monospace' }}>{selectedShared.code}</strong>,
+                                        shared across all combos. This node is read-only and nothing is written for it
+                                        on save — the existing recipe is reused. To change the recipe, open that BOM directly.
+                                    </span>
+                                </div>
+                            )}
+
                             {/* Scrollable body */}
-                            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <div style={{
+                                flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8,
+                                ...(selectedShared ? { opacity: 0.55, pointerEvents: 'none' as const } : {}),
+                            }}>
 
                                 {/* BOM Header groupbox */}
                                 <div style={xpGroupWrapper}>
@@ -1901,14 +2032,7 @@ export default function BOMDesigner({
                                                             // getItemByCode (not items.some), so an existing item sitting
                                                             // off the current items page isn't wrongly flagged new.
                                                             const exists = !!getItemByCode(pendingItemCode);
-                                                            // A brand-new item has no attribute master yet to match
-                                                            // against — findMatchingAttributeIds would always return []
-                                                            // for it (it requires the child to ALREADY hold the attr
-                                                            // type). Pass the parent's values through unfiltered instead,
-                                                            // same special-case the Automator's constructTreeRecursive uses.
-                                                            const attributeValueIds = exists
-                                                                ? findMatchingAttributeIds(pendingItemCode, selectedNode.attribute_value_ids)
-                                                                : (selectedNode.attribute_value_ids || []);
+                                                            const attributeValueIds = inheritAttrsFor(pendingItemCode, selectedNode.attribute_value_ids);
                                                             const newLine: BOMLineNode = {
                                                                 id: Math.random().toString(36).substr(2, 9),
                                                                 item_code: pendingItemCode,
@@ -2017,7 +2141,7 @@ export default function BOMDesigner({
                                                                 })}
                                                             </select>
                                                         )}
-                                                        {(line.subBOM || hasExistingBOM(line.item_code, line.attribute_value_ids)) && (
+                                                        {(line.subBOM || hasExistingBOM(line.item_code, line.attribute_value_ids) || sharedBomForItem(line.item_code)) && (
                                                             <select
                                                                 title="MRP planning for this material: Auto follows the item-master default; Pool (make-to-stock) records demand but creates no sub-order here — replenish it on a standalone pooled order; Make here forces an inline sub-order even if the item is make-to-stock."
                                                                 style={{ ...xpInput, width: 92, fontSize: 9, padding: '1px 2px' }}
@@ -2035,7 +2159,15 @@ export default function BOMDesigner({
                                                             </select>
                                                         )}
                                                         <div style={{ width: 96, flexShrink: 0, display: 'flex', gap: 4, justifyContent: 'flex-end', alignItems: 'center' }}>
-                                                            {!hasExistingBOM(line.item_code, line.attribute_value_ids) && !line.subBOM && (
+                                                            {/* Item whose recipe is shared across combos: no per-combo BOM
+                                                                to define here, the existing one is reused. */}
+                                                            {sharedBomForItem(line.item_code) && !line.subBOM && (
+                                                                <span
+                                                                    style={xpBadge('#6a4b9a')}
+                                                                    title={`Reuses existing BOM ${sharedBomForItem(line.item_code)!.code} — shared across combos`}
+                                                                >SHARED</span>
+                                                            )}
+                                                            {!sharedBomForItem(line.item_code) && !hasExistingBOM(line.item_code, line.attribute_value_ids) && !line.subBOM && (
                                                                 <button style={xpBtnInfo} onClick={() => {
                                                                     const subNode: BOMNodeData = {
                                                                         id: Math.random().toString(36).substr(2, 9),

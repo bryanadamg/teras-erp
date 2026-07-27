@@ -13,7 +13,7 @@ from app.models.item import Item
 from app.models.location import Location
 from app.models.routing import WorkCenter, Operation
 from app.models.production_run import PRBomEntrySize
-from app.schemas import BOMCreate, BOMUpdate, BOMResponse, BOMSummaryResponse, BOMSummaryPageResponse, BOMTreeResponse, SizeResponse, BOMAutomatorProfileCreate, BOMAutomatorProfileResponse, BOMCodeResolveRequest, BOMCodeResolveResponse
+from app.schemas import BOMCreate, BOMUpdate, BOMResponse, BOMSummaryResponse, BOMSummaryPageResponse, BOMTreeResponse, SizeResponse, BOMAutomatorProfileCreate, BOMAutomatorProfileResponse, BOMCodeResolveRequest, BOMCodeResolveResponse, BOMItemLookupRequest, BOMItemLookupResponse, BOMItemLookupEntry
 from app.models.auth import User, BOMAutomatorProfile
 from app.api.auth import get_current_user, require_permission
 from app.services import audit_service
@@ -105,6 +105,52 @@ def _validate_steps_assigned(operations: list, lines: list) -> None:
 async def get_sizes(db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(select(Size).order_by(Size.sort_order))
     return result.scalars().all()
+
+@router.post("/boms/lookup-by-items", response_model=BOMItemLookupResponse)
+async def lookup_boms_by_items(
+    payload: BOMItemLookupRequest,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Existing BOM per item code, regardless of pagination.
+
+    The designer's `existingBOMs` prop is one page of /boms/summary filtered to root
+    BOMs, so it can't see the BOM of an item that is a component elsewhere — exactly
+    the shared sub-assemblies (beams, greige) whose recipe is reused across variants.
+    One BOM is returned per item: an attribute-less (variant-agnostic) BOM wins,
+    otherwise the oldest, which is the one the tree should reuse.
+    """
+    codes = [c for c in payload.item_codes if c]
+    if not codes:
+        return BOMItemLookupResponse(matches=[])
+
+    result = await db.execute(
+        select(BOM)
+        .join(Item, BOM.item_id == Item.id)
+        .options(joinedload(BOM.item), selectinload(BOM.attribute_values))
+        .where(Item.code.in_(codes))
+        .order_by(BOM.created_at.asc())
+    )
+    best: dict[str, BOM] = {}
+    for bom in result.unique().scalars().all():
+        code = bom.item.code if bom.item else None
+        if not code:
+            continue
+        current = best.get(code)
+        if current is None:
+            best[code] = bom
+        elif len(current.attribute_values) > 0 and len(bom.attribute_values) == 0:
+            best[code] = bom   # variant-agnostic BOM is the shared one
+    return BOMItemLookupResponse(matches=[
+        BOMItemLookupEntry(
+            item_code=code,
+            bom_id=bom.id,
+            bom_code=bom.code,
+            attribute_value_ids=[v.id for v in bom.attribute_values],
+        )
+        for code, bom in best.items()
+    ])
+
 
 _CODE_TAIL = re.compile(r"^(?P<base>.*?)(?P<sep>[-_/ ]?)(?P<counter>\d+)$")
 

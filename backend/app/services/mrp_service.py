@@ -29,12 +29,18 @@ async def _combo_attr_id(db: AsyncSession):
     )).scalar()
 
 
-def _line_combo_value_ids(line, combo_attr_id) -> list[str]:
+def _line_combo_value_ids(line, combo_attr_id, item_is_combo: bool = True) -> list[str]:
     """Combo attribute value(s) tagged on a BOM line, sorted. Combo assigned on the
     parent→component line in the BOM designer is the driver that pegs each combo
     variant of a shared component to its own consolidated MO (mirrors size split).
-    Empty for color/plain lines (they carry no combo) → those still pool."""
-    if not combo_attr_id:
+    Empty for color/plain lines (they carry no combo) → those still pool.
+
+    `item_is_combo` is False when the component item is NOT a combo-variant item
+    (Item.variant_type != 'combo') — a beam/greige sub-assembly whose recipe is shared
+    across every combo. Those pool into ONE component MO regardless of any combo value
+    a line still carries (older BOM lines were built before the designer stopped
+    inheriting combo onto combo-agnostic children)."""
+    if not combo_attr_id or not item_is_combo:
         return []
     return sorted(
         str(v.id) for v in getattr(line, "attribute_values", [])
@@ -184,9 +190,11 @@ async def create_mo_recursive(
             # or explode its sub-tree. The parent's MOPlannedComponent snapshot
             # (above) already records the demand for netting/booking-stock; the
             # item is replenished independently on a pooled standalone MO.
-            item_decouple = (await db.execute(
-                select(Item.is_decoupling_point).filter(Item.id == line.item_id)
-            )).scalar()
+            item_row = (await db.execute(
+                select(Item.is_decoupling_point, Item.variant_type).filter(Item.id == line.item_id)
+            )).first()
+            item_decouple = item_row.is_decoupling_point if item_row else None
+            item_is_combo = bool(item_row and (item_row.variant_type or '').lower() == 'combo')
             if _line_decoupled(line, item_decouple):
                 continue
             sub_bom_result = await db.execute(
@@ -199,8 +207,9 @@ async def create_mo_recursive(
                 sub_qty = (qty * float(line.percentage)) / 100
                 # Combo tagged on this line pegs/varies the component per combo
                 # (mirrors size). Folded into the produced item's variant so its
-                # netting supply key matches the combo-specific demand.
-                line_combo = _line_combo_value_ids(line, combo_attr_id)
+                # netting supply key matches the combo-specific demand. A
+                # combo-agnostic component (shared recipe) contributes no combo.
+                line_combo = _line_combo_value_ids(line, combo_attr_id, item_is_combo)
                 if availability is not None:
                     # Net this sub-assembly against net-free stock at the planned
                     # source location, using the produced item's own variant.
@@ -315,10 +324,11 @@ async def create_consolidated_component_mos(
                 # PR source (legacy). Plant-level netting consolidates by (item, sub_bom)
                 # alone — location is not part of the key.
                 item_row = (await db.execute(
-                    select(Item.default_source_location_id, Item.is_decoupling_point)
+                    select(Item.default_source_location_id, Item.is_decoupling_point, Item.variant_type)
                     .filter(Item.id == line.item_id)
                 )).first()
                 item_default_src = item_row.default_source_location_id if item_row else None
+                item_is_combo = bool(item_row and (item_row.variant_type or '').lower() == 'combo')
 
                 # Decoupling point (make-to-stock component): skip consolidation +
                 # MO creation for this line. Demand is still recorded on each parent
@@ -337,7 +347,10 @@ async def create_consolidated_component_mos(
                 # component to its own consolidated MO (mirrors size_key). Folded
                 # into the component's variant so its output supply key matches the
                 # combo-specific demand. Empty for color/plain lines → still pool.
-                line_combo = _line_combo_value_ids(line, combo_attr_id)
+                # Also empty for a combo-agnostic item (variant_type != 'combo'):
+                # its recipe is shared across combos, so every combo's demand
+                # consolidates into ONE component MO.
+                line_combo = _line_combo_value_ids(line, combo_attr_id, item_is_combo)
                 sub_attrs = sorted(set(
                     [str(v.id) for v in sub_bom.attribute_values] + line_combo
                 ))

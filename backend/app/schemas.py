@@ -125,6 +125,22 @@ class BOMOperationResponse(BaseModel):
             instance.work_center_type = obj.work_center.center_type
         return instance
 
+class BOMItemLookupRequest(BaseModel):
+    """Item codes whose existing BOM the designer needs to know about."""
+    item_codes: list[str]
+
+
+class BOMItemLookupEntry(BaseModel):
+    item_code: str
+    bom_id: UUID
+    bom_code: str
+    attribute_value_ids: list[UUID] = []
+
+
+class BOMItemLookupResponse(BaseModel):
+    matches: list[BOMItemLookupEntry]
+
+
 class BOMCodeResolveRequest(BaseModel):
     """Desired BOM codes for a tree about to be saved, in save order."""
     codes: list[str]

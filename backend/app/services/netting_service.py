@@ -407,14 +407,18 @@ async def preview_production_run(db, bom_entries, location, source_location, exc
                 sub_bom = await _active_sub_bom(db, line.item_id)
                 if not sub_bom:
                     continue
-                item_flag = (await db.execute(
-                    select(Item.is_decoupling_point).filter(Item.id == line.item_id)
-                )).scalar()
+                item_row = (await db.execute(
+                    select(Item.is_decoupling_point, Item.variant_type).filter(Item.id == line.item_id)
+                )).first()
+                item_flag = item_row.is_decoupling_point if item_row else None
+                item_is_combo = bool(item_row and (item_row.variant_type or '').lower() == 'combo')
                 src = line.source_location_id or (source_location.id if source_location else (location.id if location else None))
                 # Combo tagged on the line splits pegging per combo (mirrors size);
                 # folded into the netting variant. Plant-level netting otherwise
                 # consolidates by (item, sub_bom) — location not part of the key.
-                line_combo = _line_combo_value_ids(line, combo_attr_id)
+                # Combo-agnostic components carry no combo (shared recipe → one pool);
+                # must match mrp_service or the preview diverges from MO creation.
+                line_combo = _line_combo_value_ids(line, combo_attr_id, item_is_combo)
                 comp_attrs = sorted(set(
                     [str(v.id) for v in sub_bom.attribute_values] + line_combo
                 ))
@@ -469,12 +473,15 @@ async def _preview_children(db, avail, bom_id, parent_net, source_location_id, l
             continue
         gross = (parent_net * float(line.percentage)) / 100
         sub_loc = source_location_id or location_id
-        # Combo on the line folds into the produced variant (mirrors create path).
-        line_combo = _line_combo_value_ids(line, combo_attr_id)
+        item_row = (await db.execute(
+            select(Item.is_decoupling_point, Item.variant_type).filter(Item.id == line.item_id)
+        )).first()
+        item_flag = item_row.is_decoupling_point if item_row else None
+        item_is_combo = bool(item_row and (item_row.variant_type or '').lower() == 'combo')
+        # Combo on the line folds into the produced variant (mirrors create path);
+        # combo-agnostic components contribute none (one shared recipe/pool).
+        line_combo = _line_combo_value_ids(line, combo_attr_id, item_is_combo)
         attrs = sorted(set([str(v.id) for v in sub_bom.attribute_values] + line_combo))
-        item_flag = (await db.execute(
-            select(Item.is_decoupling_point).filter(Item.id == line.item_id)
-        )).scalar()
         # Decoupling point: show the demand node, create nothing, don't recurse.
         if _line_decoupled(line, item_flag):
             detail = await _info_detail(avail, sub_bom.item_id, attrs)
