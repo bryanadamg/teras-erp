@@ -112,13 +112,16 @@ async def lookup_boms_by_items(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Existing BOM per item code, regardless of pagination.
+    """Existing BOMs per item code, regardless of pagination.
 
     The designer's `existingBOMs` prop is one page of /boms/summary filtered to root
     BOMs, so it can't see the BOM of an item that is a component elsewhere — exactly
     the shared sub-assemblies (beams, greige) whose recipe is reused across variants.
-    One BOM is returned per item: an attribute-less (variant-agnostic) BOM wins,
-    otherwise the oldest, which is the one the tree should reuse.
+
+    ALL BOMs are returned for each item, oldest first — an item legitimately owns
+    several (one per combo, plus possibly a combo-less one shared across every
+    variant). The caller picks by variant; collapsing to one here would make a
+    RED greige recipe get silently reused for BLUE.
     """
     codes = [c for c in payload.item_codes if c]
     if not codes:
@@ -131,24 +134,15 @@ async def lookup_boms_by_items(
         .where(Item.code.in_(codes))
         .order_by(BOM.created_at.asc())
     )
-    best: dict[str, BOM] = {}
-    for bom in result.unique().scalars().all():
-        code = bom.item.code if bom.item else None
-        if not code:
-            continue
-        current = best.get(code)
-        if current is None:
-            best[code] = bom
-        elif len(current.attribute_values) > 0 and len(bom.attribute_values) == 0:
-            best[code] = bom   # variant-agnostic BOM is the shared one
     return BOMItemLookupResponse(matches=[
         BOMItemLookupEntry(
-            item_code=code,
+            item_code=bom.item.code,
             bom_id=bom.id,
             bom_code=bom.code,
             attribute_value_ids=[v.id for v in bom.attribute_values],
         )
-        for code, bom in best.items()
+        for bom in result.unique().scalars().all()
+        if bom.item and bom.item.code
     ])
 
 

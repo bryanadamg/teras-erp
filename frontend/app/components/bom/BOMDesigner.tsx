@@ -412,7 +412,9 @@ export default function BOMDesigner({
     // node's code resolved against the server (see resolveTreeCodes).
     const [pendingTree, setPendingTree] = useState<BOMNodeData | null>(null);
     // itemCode (lowercased) -> the BOM that item already owns
-    const [sharedBomByItem, setSharedBomByItem] = useState<Record<string, SharedBomInfo>>({});
+    // item code -> every existing BOM for that item (an item owns one per combo, plus
+    // possibly a combo-less one). Reuse is decided per combo, not per item.
+    const [sharedBomByItem, setSharedBomByItem] = useState<Record<string, SharedBomInfo[]>>({});
 
     const [pendingOpSeq, setPendingOpSeq] = useState<string>('');
     const [pendingOpWc, setPendingOpWc] = useState<string>('');
@@ -544,6 +546,25 @@ export default function BOMDesigner({
         !!node && (isBeamCode(node.item_code) || isBeamWc(node.work_center_id)),
     [isBeamCode, isBeamWc]);
 
+    const comboAttr = useMemo(() => attributes.find((a: any) =>
+        (a.system_role || '').toLowerCase() === 'combo' || (a.name || '').toLowerCase() === 'combo'
+    ), [attributes]);
+
+    // NOTE: combo-agnosticism is deliberately NOT read off Item.variant_type. That
+    // field is FG-only, so keying on it made every WIP sub-assembly combo-agnostic by
+    // construction — greige could never hold a combo. What decides is whether the BOM
+    // itself carries a Combo value.
+    const comboValueIds = useMemo(
+        () => new Set((comboAttr?.values || []).map((v: any) => String(v.id))),
+        [comboAttr]);
+
+    // Combo values carried by a given value list, as a stable key. Two BOMs of the
+    // same item are the same recipe only when their combo matches — that, not the
+    // item's type, is what decides reuse vs a new per-combo BOM.
+    const comboKeyOf = useCallback((valueIds: string[] = []): string =>
+        valueIds.map(String).filter(id => comboValueIds.has(id)).sort().join('|'),
+    [comboValueIds]);
+
     const hasExistingBOM = useCallback((code: string, attributeValueIds: string[] = []): boolean => {
         const item = getItemByCode(code);
         if (!item) return false;
@@ -555,8 +576,12 @@ export default function BOMDesigner({
             return bAttrs.length === sortedAttrs.length && bAttrs.every((id: string, i: number) => id === sortedAttrs[i]);
         });
         if (exactMatch) return true;
+        // An attribute-less BOM is the variant-agnostic recipe and covers a node that
+        // carries no combo. It does NOT cover a combo-specific node — RED greige needs
+        // its own recipe, so the node must stay definable.
+        if (comboKeyOf(attributeValueIds)) return false;
         return candidates.some((b: any) => (b.attribute_value_ids || []).length === 0);
-    }, [getItemByCode, existingBomsByItemId]);
+    }, [getItemByCode, existingBomsByItemId, comboKeyOf]);
 
     const getWcName = (id: string) => workCenters.find((wc: any) => wc.id === id)?.name || id;
 
@@ -612,36 +637,17 @@ export default function BOMDesigner({
         return parts.join(', ');
     }, [attributes, rootBOM.attribute_value_ids]);
 
-    const comboAttr = useMemo(() => attributes.find((a: any) =>
-        (a.system_role || '').toLowerCase() === 'combo' || (a.name || '').toLowerCase() === 'combo'
-    ), [attributes]);
-
-    // A combo-variant item is one whose finished-goods variant type IS combo. Anything
-    // else (WIP/greige/beam sub-assemblies) is combo-agnostic: one recipe serves every
-    // combo, so it neither inherits the Combo value nor carries it in its BOM code.
-    const isComboItem = useCallback((itemCode: string) =>
-        (getItemByCode(itemCode)?.variant_type || '').toLowerCase() === 'combo',
-    [getItemByCode]);
-
-    const comboValueIds = useMemo(
-        () => new Set((comboAttr?.values || []).map((v: any) => String(v.id))),
-        [comboAttr]);
-
-    // Combo-variant items bake their Combo value into the BOM code, so RED and BLUE of
-    // the same item read as BOM-<item>-RED-00001 / BOM-<item>-BLUE-00001 instead of
-    // racing the same counter on an identical base. Applies when the item is FG
-    // variant_type 'combo' OR has the system Combo attribute bound — inline-created WIP
-    // children inherit that attribute, so a whole combo tree stays distinguishable.
+    // A BOM carrying a Combo value bakes it into the code, so RED and BLUE of the same
+    // item read as BOM-<item>-RED-00001 / BOM-<item>-BLUE-00001 instead of racing the
+    // same counter on an identical base. Keyed on the VALUE the node holds, not on the
+    // item — a greige/beam whose combo is woven in has a per-combo recipe on a shared
+    // item, and its code has to say which combo it is.
     const comboCodeToken = useCallback((itemCode: string, attributeValueIds: string[] = []): string | null => {
         if (!comboAttr) return null;
         const val = comboAttr.values.find((v: any) => attributeValueIds.includes(v.id));
         if (!val) return null;
-        // Only the combo-variant item itself. A non-combo item's BOM is shared across
-        // combos (see isComboItem/sharedBomFor), so it must NOT get a combo token —
-        // that would fork one shared recipe into one BOM per combo.
-        if (!isComboItem(itemCode)) return null;
         return String(val.value).toUpperCase().replace(/\s+/g, '');
-    }, [comboAttr, getItemByCode, getAttrIds, rootBOM.item_code]);
+    }, [comboAttr]);
 
     const suggestBOMCode = useCallback((itemCode: string, attributeValueIds: string[] = [], config = codeConfig) => {
         const valueNames: string[] = [];
@@ -708,17 +714,22 @@ export default function BOMDesigner({
     // silently lose or gain variant values).
     //   1. A brand-new item has no attribute master yet, so the parent's values pass
     //      through as-is; an existing item takes only values it can actually hold.
-    //   2. The Combo value stops at combo-variant items. A non-combo child (beam,
-    //      greige, any shared sub-assembly) has ONE BOM shared across every combo, so
-    //      inheriting the combo value would fork it per combo.
+    //   2. The Combo value is the exception to (1)'s filter: it flows down whether or
+    //      not the child item is bound to the Combo attribute yet, because combo is
+    //      woven in — a greige/beam under a combo root IS combo-specific and needs its
+    //      own recipe. saveNode's ensureItemHasAttributes binds the type on save.
+    //      Color needs no counterpart rule: color-type FGs carry no attribute value at
+    //      all (they ride color_id), so there is nothing for greige to inherit and it
+    //      stays color-agnostic by construction.
     const inheritAttrsFor = useCallback((childItemCode: string, parentAttrIds: string[]): string[] => {
-        const exists = !!getItemByCode(childItemCode);
-        const base = exists
-            ? findMatchingAttributeIds(childItemCode, parentAttrIds)
-            : [...(parentAttrIds || [])];
-        if (isComboItem(childItemCode) || comboValueIds.size === 0) return base;
-        return base.filter(id => !comboValueIds.has(String(id)));
-    }, [getItemByCode, findMatchingAttributeIds, isComboItem, comboValueIds]);
+        const parent = parentAttrIds || [];
+        if (!getItemByCode(childItemCode)) return [...parent];
+        const base = findMatchingAttributeIds(childItemCode, parent);
+        for (const id of parent.map(String).filter(v => comboValueIds.has(v))) {
+            if (!base.includes(id)) base.push(id);
+        }
+        return base;
+    }, [getItemByCode, findMatchingAttributeIds, comboValueIds]);
 
     // Which items in this tree already own a BOM. Asked of the server because
     // `existingBOMs` is one root-only page of /boms/summary and therefore blind to
@@ -749,11 +760,12 @@ export default function BOMDesigner({
                 });
                 if (!res.ok || cancelled) return;
                 const data = await res.json();
-                const map: Record<string, SharedBomInfo> = {};
+                const map: Record<string, SharedBomInfo[]> = {};
                 for (const m of (data.matches || [])) {
-                    map[String(m.item_code).trim().toLowerCase()] = {
+                    const key = String(m.item_code).trim().toLowerCase();
+                    (map[key] ||= []).push({
                         id: String(m.bom_id), code: m.bom_code, attrIds: (m.attribute_value_ids || []).map(String),
-                    };
+                    });
                 }
                 if (!cancelled) setSharedBomByItem(map);
             } catch { /* leave the map as-is; nothing is marked shared */ }
@@ -761,18 +773,23 @@ export default function BOMDesigner({
         return () => { cancelled = true; };
     }, [treeItemCodesKey]);   // eslint-disable-line react-hooks/exhaustive-deps
 
-    // A node is a SHARED reuse when its item is combo-agnostic and already owns a BOM
-    // that isn't this node's own BOM. Those nodes are read-only and written by nobody:
-    // one beam/greige recipe serves every combo. The root is never shared — it IS the
-    // combo-specific BOM being built.
-    const sharedBomForItem = useCallback((itemCode: string): SharedBomInfo | null => {
-        if (!itemCode || isComboItem(itemCode)) return null;
-        return sharedBomByItem[itemCode.trim().toLowerCase()] || null;
-    }, [sharedBomByItem, isComboItem]);
+    // A node is a SHARED reuse when the item already owns a BOM built for the SAME
+    // combo as this node — that recipe is the one this node would produce, so the node
+    // is read-only and written by nobody. Matching on the item alone would hand a RED
+    // greige recipe to a BLUE tree; matching on combo means a combo-less node reuses
+    // the combo-less recipe (beams, greige under a color tree) exactly as before.
+    // The root is never shared — it IS the BOM being built.
+    const sharedBomForItem = useCallback((itemCode: string, attributeValueIds: string[] = []): SharedBomInfo | null => {
+        if (!itemCode) return null;
+        const list = sharedBomByItem[itemCode.trim().toLowerCase()];
+        if (!list?.length) return null;
+        const want = comboKeyOf(attributeValueIds);
+        return list.find(b => comboKeyOf(b.attrIds) === want) || null;
+    }, [sharedBomByItem, comboKeyOf]);
 
     const sharedBomFor = useCallback((node: BOMNodeData): SharedBomInfo | null => {
         if (!node || node.id === 'root') return null;
-        const info = sharedBomForItem(node.item_code);
+        const info = sharedBomForItem(node.item_code, node.attribute_value_ids);
         if (!info) return null;
         // Editing an existing tree: this node already *is* that BOM, so it stays editable.
         if (node.bomId && String(node.bomId) === info.id) return null;
@@ -1340,7 +1357,7 @@ export default function BOMDesigner({
                                 </div>
                                 <div style={{ display: 'flex', gap: 4 }}>
                                     {selectedShared && (
-                                        <span style={xpBadge('#6a4b9a')}>Shared Across Combos</span>
+                                        <span style={xpBadge('#6a4b9a')}>Shared Recipe</span>
                                     )}
                                     {!selectedShared && selectedNode.isNewItem && (
                                         <span style={xpBadge('#a02020')}>New Inventory Record</span>
@@ -1351,9 +1368,9 @@ export default function BOMDesigner({
                                 </div>
                             </div>
 
-                            {/* A shared sub-assembly's recipe is combo-agnostic: one BOM serves
-                                every combo, so it is shown for reference and never written from
-                                here. Edit it by opening that BOM on its own. */}
+                            {/* The item already has a recipe for this node's combo, so that BOM
+                                is shown for reference and never written from here. Edit it by
+                                opening that BOM on its own. */}
                             {selectedShared && (
                                 <div style={{
                                     flexShrink: 0, margin: '6px 10px 0', padding: '5px 8px',
@@ -1364,8 +1381,8 @@ export default function BOMDesigner({
                                     <i className="bi bi-link-45deg" style={{ fontSize: 12, marginTop: 1 }} />
                                     <span>
                                         <strong>{selectedNode.item_code}</strong> already has BOM{' '}
-                                        <strong style={{ fontFamily: '"Courier New", monospace' }}>{selectedShared.code}</strong>,
-                                        shared across all combos. This node is read-only and nothing is written for it
+                                        <strong style={{ fontFamily: '"Courier New", monospace' }}>{selectedShared.code}</strong>
+                                        {' '}for this variant. This node is read-only and nothing is written for it
                                         on save — the existing recipe is reused. To change the recipe, open that BOM directly.
                                     </span>
                                 </div>
@@ -2141,7 +2158,7 @@ export default function BOMDesigner({
                                                                 })}
                                                             </select>
                                                         )}
-                                                        {(line.subBOM || hasExistingBOM(line.item_code, line.attribute_value_ids) || sharedBomForItem(line.item_code)) && (
+                                                        {(line.subBOM || hasExistingBOM(line.item_code, line.attribute_value_ids) || sharedBomForItem(line.item_code, line.attribute_value_ids)) && (
                                                             <select
                                                                 title="MRP planning for this material: Auto follows the item-master default; Pool (make-to-stock) records demand but creates no sub-order here — replenish it on a standalone pooled order; Make here forces an inline sub-order even if the item is make-to-stock."
                                                                 style={{ ...xpInput, width: 92, fontSize: 9, padding: '1px 2px' }}
@@ -2159,15 +2176,15 @@ export default function BOMDesigner({
                                                             </select>
                                                         )}
                                                         <div style={{ width: 96, flexShrink: 0, display: 'flex', gap: 4, justifyContent: 'flex-end', alignItems: 'center' }}>
-                                                            {/* Item whose recipe is shared across combos: no per-combo BOM
-                                                                to define here, the existing one is reused. */}
-                                                            {sharedBomForItem(line.item_code) && !line.subBOM && (
+                                                            {/* Item already has a recipe for this exact combo: nothing to
+                                                                define here, that BOM is reused. */}
+                                                            {sharedBomForItem(line.item_code, line.attribute_value_ids) && !line.subBOM && (
                                                                 <span
                                                                     style={xpBadge('#6a4b9a')}
-                                                                    title={`Reuses existing BOM ${sharedBomForItem(line.item_code)!.code} — shared across combos`}
+                                                                    title={`Reuses existing BOM ${sharedBomForItem(line.item_code, line.attribute_value_ids)!.code}`}
                                                                 >SHARED</span>
                                                             )}
-                                                            {!sharedBomForItem(line.item_code) && !hasExistingBOM(line.item_code, line.attribute_value_ids) && !line.subBOM && (
+                                                            {!sharedBomForItem(line.item_code, line.attribute_value_ids) && !hasExistingBOM(line.item_code, line.attribute_value_ids) && !line.subBOM && (
                                                                 <button style={xpBtnInfo} onClick={() => {
                                                                     const subNode: BOMNodeData = {
                                                                         id: Math.random().toString(36).substr(2, 9),
