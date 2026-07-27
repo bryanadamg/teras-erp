@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload, joinedload
 from pathlib import Path
-import shutil, os, uuid as _uuid
+import shutil, os, re, uuid as _uuid
 from app.db.session import get_async_db
 from app.models.bom import BOM, BOMLine, BOMOperation, BOMSize, bom_values, bom_line_values
 from app.models.size import Size
@@ -13,7 +13,7 @@ from app.models.item import Item
 from app.models.location import Location
 from app.models.routing import WorkCenter, Operation
 from app.models.production_run import PRBomEntrySize
-from app.schemas import BOMCreate, BOMUpdate, BOMResponse, BOMSummaryResponse, BOMSummaryPageResponse, BOMTreeResponse, SizeResponse, BOMAutomatorProfileCreate, BOMAutomatorProfileResponse
+from app.schemas import BOMCreate, BOMUpdate, BOMResponse, BOMSummaryResponse, BOMSummaryPageResponse, BOMTreeResponse, SizeResponse, BOMAutomatorProfileCreate, BOMAutomatorProfileResponse, BOMCodeResolveRequest, BOMCodeResolveResponse
 from app.models.auth import User, BOMAutomatorProfile
 from app.api.auth import get_current_user, require_permission
 from app.services import audit_service
@@ -105,6 +105,58 @@ def _validate_steps_assigned(operations: list, lines: list) -> None:
 async def get_sizes(db: AsyncSession = Depends(get_async_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(select(Size).order_by(Size.sort_order))
     return result.scalars().all()
+
+_CODE_TAIL = re.compile(r"^(?P<base>.*?)(?P<sep>[-_/ ]?)(?P<counter>\d+)$")
+
+
+@router.post("/boms/resolve-codes", response_model=BOMCodeResolveResponse)
+async def resolve_bom_codes(
+    payload: BOMCodeResolveRequest,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return a free BOM code for each desired code.
+
+    The BOM designer can only dedup against the page of BOMs it has loaded
+    (`/boms/summary`, which is paginated and root-only by default), so any
+    sub-BOM code it generates is invisible to it and collides on save. The
+    server owns `bom.code` uniqueness, so it resolves the counters: a taken
+    code has its trailing numeric segment incremented (same zero padding)
+    until free. Codes already claimed earlier in the same batch are treated
+    as taken, so a tree that repeats a code still gets distinct ones.
+    """
+    taken: set[str] = set()
+    if payload.codes:
+        # One query for every code sharing a base, not one per code.
+        bases = set()
+        for code in payload.codes:
+            m = _CODE_TAIL.match(code or "")
+            bases.add(m.group("base") if m else (code or ""))
+        # autoescape: BOM codes may contain `_`/`%`, which are LIKE wildcards.
+        conditions = [BOM.code.startswith(b, autoescape=True) for b in bases if b]
+        if conditions:
+            rows = await db.execute(select(BOM.code).where(or_(*conditions)))
+            taken = {c for (c,) in rows.all()}
+
+    resolved: dict[str, str] = {}
+    for code in payload.codes:
+        if code in resolved:
+            continue
+        candidate = code
+        if candidate in taken:
+            m = _CODE_TAIL.match(code or "")
+            if m:
+                base, sep, counter = m.group("base"), m.group("sep"), m.group("counter")
+                width, n = len(counter), int(counter)
+            else:
+                base, sep, width, n = code, "-", 5, 0
+            while candidate in taken:
+                n += 1
+                candidate = f"{base}{sep}{str(n).zfill(width)}"
+        resolved[code] = candidate
+        taken.add(candidate)
+    return BOMCodeResolveResponse(resolved=resolved)
+
 
 @router.post("/boms", response_model=BOMResponse)
 async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db), current_user: User = Depends(require_permission('manufacturing.manage'))):
@@ -223,7 +275,12 @@ async def create_bom(payload: BOMCreate, db: AsyncSession = Depends(get_async_db
 
         db.add(bom_line)
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Lost a race on bom.code between the check above and the commit.
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=f"BOM Code '{payload.code}' already exists")
 
     # Re-fetch with FULL eager loading for serialization
     result = await db.execute(

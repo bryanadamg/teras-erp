@@ -125,6 +125,16 @@ class BOMOperationResponse(BaseModel):
             instance.work_center_type = obj.work_center.center_type
         return instance
 
+class BOMCodeResolveRequest(BaseModel):
+    """Desired BOM codes for a tree about to be saved, in save order."""
+    codes: list[str]
+
+
+class BOMCodeResolveResponse(BaseModel):
+    # desired code -> free code (identical when the desired code was already free)
+    resolved: dict[str, str]
+
+
 class BOMCreate(BaseModel):
     code: str
     description: str | None = None

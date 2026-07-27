@@ -222,6 +222,16 @@ type InheritableFields = Pick<BOMNodeData,
     'celup_panjang_tarikan_bandul_1kg' | 'celup_panjang_tarikan_bandul_9kg'
 >;
 
+// Increment the trailing numeric segment of a code, keeping its zero padding
+// ("BOM-357-00001" → "BOM-357-00002"). Mirrors the server-side resolver in
+// api/boms.py; used only to separate two tree nodes that wanted the same code.
+function bumpCodeCounter(code: string): string {
+    const m = /^(.*?)([-_/ ]?)(\d+)$/.exec(code);
+    if (!m) return `${code}-00002`;
+    const [, base, sep, counter] = m;
+    return `${base}${sep}${String(parseInt(counter, 10) + 1).padStart(counter.length, '0')}`;
+}
+
 function extractInheritableFields(source: BOMNodeData): InheritableFields {
     return {
         sizes: (source.sizes || []).map(s => ({ ...s })),
@@ -341,7 +351,9 @@ export default function BOMDesigner({
     onSearchItem
 }: any) {
     const { t } = useLanguage();
-    const { itemIndex } = useData();
+    const { itemIndex, authFetch } = useData();
+    const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
+        .replace(/\/api$/, '') + '/api';
     const { showProgressToast } = useToast();
 
     const [rootBOM, setRootBOM] = useState<BOMNodeData>(() => {
@@ -385,6 +397,9 @@ export default function BOMDesigner({
     // panel can't drift from what was reviewed.
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [savePlan, setSavePlan] = useState<BOMPlan | null>(null);
+    // Tree the confirmed save will write — same shape as rootBOM but with every new
+    // node's code resolved against the server (see resolveTreeCodes).
+    const [pendingTree, setPendingTree] = useState<BOMNodeData | null>(null);
 
     const [pendingOpSeq, setPendingOpSeq] = useState<string>('');
     const [pendingOpWc, setPendingOpWc] = useState<string>('');
@@ -791,7 +806,7 @@ export default function BOMDesigner({
     // and by the same rules as saveNode — including its "no lines and no operations →
     // don't write a BOM" skip. Feeds the confirmation modal; building it here keeps all
     // the code→name/uom/beam lookups in the one component that owns them.
-    const buildSavePlan = useCallback((): BOMPlan => {
+    const buildSavePlan = useCallback((tree: BOMNodeData = rootBOM): BOMPlan => {
         let createCount = 0, updateCount = 0, skipCount = 0;
         const newItemCodes: string[] = [];
         const noteNewItem = (code: string) => {
@@ -871,12 +886,61 @@ export default function BOMDesigner({
             };
         };
 
-        const root = walk(rootBOM, 0);
+        const root = walk(tree, 0);
         return { root, createCount, updateCount, skipCount, newItemCodes };
     }, [rootBOM, getItemByCode, getItemName, getItemUom, isBeamNode, getAttributeValueName, getWcName, operations]);
 
+    // `suggestBOMCode` can only dedup against `existingBOMs`, which is one page of
+    // /boms/summary filtered to root BOMs — so a sub-BOM code it generates (e.g.
+    // BOM-BEAM Y 357-00001, whose item is a component line elsewhere) is invisible
+    // to it and collides on save. The server owns bom.code uniqueness, so ask it to
+    // resolve the counters for every node about to be created, then write those codes
+    // back into the tree so the confirmation panel shows what will actually be saved.
+    const resolveTreeCodes = async (tree: BOMNodeData): Promise<BOMNodeData> => {
+        const wanted: string[] = [];
+        const collect = (node: BOMNodeData) => {
+            const skipped = node.lines.length === 0 && node.operations.length === 0;
+            // Updates keep their own code; skipped nodes write no BOM at all.
+            if (!skipped && !node.bomId && node.code) wanted.push(node.code);
+            node.lines.forEach(l => { if (l.subBOM) collect(l.subBOM); });
+        };
+        collect(tree);
+        if (wanted.length === 0) return tree;
+
+        let resolved: Record<string, string> = {};
+        try {
+            const res = await authFetch(`${API_BASE}/boms/resolve-codes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ codes: wanted }),
+            });
+            if (!res.ok) return tree;   // fall back to local codes; backend still rejects dups
+            resolved = (await res.json()).resolved || {};
+        } catch {
+            return tree;
+        }
+
+        // A repeated desired code maps to one free code, so hand each node the next
+        // unused one rather than giving two nodes the same resolution.
+        const used = new Set<string>();
+        const apply = (node: BOMNodeData): BOMNodeData => {
+            const skipped = node.lines.length === 0 && node.operations.length === 0;
+            let code = node.code;
+            if (!skipped && !node.bomId && node.code) {
+                code = resolved[node.code] || node.code;
+                while (used.has(code)) code = bumpCodeCounter(code);
+                used.add(code);
+            }
+            return {
+                ...node, code,
+                lines: node.lines.map(l => l.subBOM ? { ...l, subBOM: apply(l.subBOM) } : l),
+            };
+        };
+        return apply(tree);
+    };
+
     // Validate first, then show the plan. Saving only happens once the user confirms.
-    const handleGlobalSave = () => {
+    const handleGlobalSave = async () => {
         const pctErr = validatePercentages(rootBOM);
         if (pctErr) {
             setPctError(`Components under "${pctErr}" must all have percentages set and sum to 100%.`);
@@ -888,7 +952,18 @@ export default function BOMDesigner({
             return;
         }
         setPctError(null);
-        setSavePlan(buildSavePlan());
+        // Codes are resolved server-side before the plan is built, so the button is
+        // held disabled for that round trip (no double-submit, no stale plan).
+        setIsSaving(true);
+        let tree: BOMNodeData;
+        try {
+            tree = await resolveTreeCodes(rootBOM);
+        } finally {
+            setIsSaving(false);
+        }
+        setRootBOM(tree);
+        setPendingTree(tree);
+        setSavePlan(buildSavePlan(tree));
         setIsConfirmOpen(true);
     };
 
@@ -903,7 +978,7 @@ export default function BOMDesigner({
         );
 
         setIsSaving(true);
-        const success = await saveNode(rootBOM, (node) => {
+        const success = await saveNode(pendingTree || rootBOM, (node) => {
             saved++;
             progress.update((saved / total) * 100, `${saved} of ${total} · ${node.item_code || node.code}`);
         });
