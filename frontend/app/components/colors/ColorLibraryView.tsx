@@ -21,10 +21,16 @@ interface Props {
     size: number;
     search: string;
     statusFilter: string;
+    customerFilter?: string;
+    variantFilter?: string;
+    itemSearch?: string;
     customers: any[];
     loading?: boolean;
     onSearchChange: (s: string) => void;
     onStatusChange: (s: string) => void;
+    onCustomerFilterChange?: (v: string) => void;
+    onVariantFilterChange?: (v: string) => void;
+    onItemSearchChange?: (s: string) => void;
     onPageChange: (p: number) => void;
     onCreate: (payload: any) => void;
     onEdit: (id: string, payload: any) => void;
@@ -42,8 +48,9 @@ const emptyForm = () => ({
 });
 
 export default function ColorLibraryView({
-    colors, total, page, size, search, statusFilter, customers, loading,
-    onSearchChange, onStatusChange, onPageChange, onCreate, onEdit, onDelete, prefill, embedded,
+    colors, total, page, size, search, statusFilter, customerFilter, variantFilter, itemSearch, customers, loading,
+    onSearchChange, onStatusChange, onCustomerFilterChange, onVariantFilterChange, onItemSearchChange,
+    onPageChange, onCreate, onEdit, onDelete, prefill, embedded,
     colorVariantValues,
 }: Props) {
     const { confirm } = useConfirm();
@@ -62,6 +69,7 @@ export default function ColorLibraryView({
     const [form, setForm] = useState(emptyForm());
     const [sourceLineId, setSourceLineId] = useState<string | null>(null);
     const [searchInput, setSearchInput] = useState(search);
+    const [itemSearchInput, setItemSearchInput] = useState(itemSearch || '');
 
     // Arriving from a LabDip "+ Color" deep-link: open the create modal pre-filled and
     // remember the source dip line so the backend can wire lineage on save.
@@ -80,13 +88,28 @@ export default function ColorLibraryView({
         return () => clearTimeout(t);
     }, [searchInput]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    useEffect(() => {
+        const t = setTimeout(() => onItemSearchChange?.(itemSearchInput.trim()), 350);
+        return () => clearTimeout(t);
+    }, [itemSearchInput]); // eslint-disable-line react-hooks/exhaustive-deps
+
     const customerOptions = useMemo(() =>
         [{ value: '', label: 'No Customer (House Color)' },
          ...(customers || []).map((c: any) => ({ value: c.id, label: c.name }))],
     [customers]);
 
+    const customerFilterOptions = useMemo(() =>
+        [{ value: '', label: 'All Customers' },
+         ...(customers || []).map((c: any) => ({ value: c.id, label: c.name }))],
+    [customers]);
+
     const variantOptions = useMemo(() =>
         [{ value: '', label: 'Not linked to a variant' },
+         ...(colorVariantValues || []).map((v: any) => ({ value: v.id, label: v.value }))],
+    [colorVariantValues]);
+
+    const variantFilterOptions = useMemo(() =>
+        [{ value: '', label: 'All Color Variants' },
          ...(colorVariantValues || []).map((v: any) => ({ value: v.id, label: v.value }))],
     [colorVariantValues]);
 
@@ -183,6 +206,19 @@ export default function ColorLibraryView({
                         {s === 'ALL' ? 'All' : s}
                     </button>
                 ))}
+                <span style={lvSep(classic)} />
+                <div style={{ width: 170 }}>
+                    <SearchableSelect options={variantFilterOptions} value={variantFilter || ''} onChange={v => onVariantFilterChange?.(v)} placeholder="All Color Variants" />
+                </div>
+                <div style={{ width: 170 }}>
+                    <SearchableSelect options={customerFilterOptions} value={customerFilter || ''} onChange={v => onCustomerFilterChange?.(v)} placeholder="All Customers" />
+                </div>
+                <input
+                    style={{ ...lvInput(classic), width: 170, flexBasis: 170 }}
+                    placeholder="Search item…"
+                    value={itemSearchInput}
+                    onChange={e => setItemSearchInput(e.target.value)}
+                />
                 <span style={classic ? { marginLeft: 'auto', fontSize: 11, color: '#333' } : { marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>
                     {total.toLocaleString()} color{total !== 1 ? 's' : ''}
                 </span>

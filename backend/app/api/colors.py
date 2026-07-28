@@ -88,6 +88,8 @@ async def list_colors(
     search: str | None = Query(None),
     status: str | None = Query(None),
     customer_id: str | None = Query(None),
+    variant_attribute_value_id: str | None = Query(None),
+    item_search: str | None = Query(None),
     page: int = Query(1, ge=1),
     size: int = Query(50, ge=1, le=500),
     include_meta: bool = Query(False),
@@ -113,6 +115,21 @@ async def list_colors(
     if customer_id:
         q = q.filter(Color.customer_id == customer_id)
         count_q = count_q.filter(Color.customer_id == customer_id)
+    if variant_attribute_value_id:
+        q = q.filter(Color.variant_attribute_value_id == variant_attribute_value_id)
+        count_q = count_q.filter(Color.variant_attribute_value_id == variant_attribute_value_id)
+    if item_search:
+        item_like = f"%{item_search}%"
+        # "Item" is provenance-derived (the FG variant a shade was approved for via
+        # LabDipItem.approved_color_id), not a direct FK on Color — see _lab_dip_provenance.
+        matching_color_ids = select(LabDipItem.approved_color_id).join(
+            Item, LabDipItem.item_id == Item.id
+        ).filter(
+            LabDipItem.approved_color_id.isnot(None),
+            or_(Item.name.ilike(item_like), Item.code.ilike(item_like)),
+        )
+        q = q.filter(Color.id.in_(matching_color_ids))
+        count_q = count_q.filter(Color.id.in_(matching_color_ids))
 
     total = (await db.execute(count_q)).scalar_one()
     q = q.order_by(Color.code).offset((page - 1) * size).limit(size)

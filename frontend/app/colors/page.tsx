@@ -52,6 +52,9 @@ export default function ColorsPage() {
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState(searchParams.get('search') || '');
     const [statusFilter, setStatusFilter] = useState('ALL');
+    const [customerFilter, setCustomerFilter] = useState('');
+    const [variantFilter, setVariantFilter] = useState('');
+    const [itemSearch, setItemSearch] = useState('');
     const [loading, setLoading] = useState(false);
 
     // Deep-link from LabDip approved-color button: /colors?search=<code> focuses the catalog on that code.
@@ -66,6 +69,9 @@ export default function ColorsPage() {
             const params = new URLSearchParams({ page: String(page), size: String(PAGE_SIZE), include_meta: 'true' });
             if (search) params.set('search', search);
             if (statusFilter !== 'ALL') params.set('status', statusFilter);
+            if (customerFilter) params.set('customer_id', customerFilter);
+            if (variantFilter) params.set('variant_attribute_value_id', variantFilter);
+            if (itemSearch) params.set('item_search', itemSearch);
             const res = await authFetch(`${API_BASE}/colors?${params.toString()}`);
             if (res.ok) {
                 const data = await res.json();
@@ -74,12 +80,15 @@ export default function ColorsPage() {
             }
         } catch { /* silent */ }
         finally { setLoading(false); }
-    }, [authFetch, API_BASE, page, search, statusFilter]);
+    }, [authFetch, API_BASE, page, search, statusFilter, customerFilter, variantFilter, itemSearch]);
 
     useEffect(() => { fetchColors(); }, [fetchColors]);
 
     const handleSearchChange = (s: string) => { setPage(1); setSearch(s); };
     const handleStatusChange = (s: string) => { setPage(1); setStatusFilter(s); };
+    const handleCustomerFilterChange = (v: string) => { setPage(1); setCustomerFilter(v); };
+    const handleVariantFilterChange = (v: string) => { setPage(1); setVariantFilter(v); };
+    const handleItemSearchChange = (s: string) => { setPage(1); setItemSearch(s); };
 
     const handleCreate = async (payload: any) => {
         const res = await authFetch(`${API_BASE}/colors`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -162,10 +171,16 @@ export default function ColorsPage() {
                         size={PAGE_SIZE}
                         search={search}
                         statusFilter={statusFilter}
+                        customerFilter={customerFilter}
+                        variantFilter={variantFilter}
+                        itemSearch={itemSearch}
                         customers={customers}
                         loading={loading}
                         onSearchChange={handleSearchChange}
                         onStatusChange={handleStatusChange}
+                        onCustomerFilterChange={handleCustomerFilterChange}
+                        onVariantFilterChange={handleVariantFilterChange}
+                        onItemSearchChange={handleItemSearchChange}
                         onPageChange={setPage}
                         onCreate={handleCreate}
                         onEdit={handleEdit}
