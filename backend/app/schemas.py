@@ -898,6 +898,8 @@ class WorkOrderFlatResponse(BaseModel):
     mo_code: str
     item_name: str
     item_id: str
+    combo_label: str | None = None   # MO's Combo (system_role='combo') attribute value, if any
+    size_label: str | None = None    # MO's BOM size label/measurement, if any
     completions: list[WorkOrderCompletionFlat] = []
     bom_line_item_ids: list[str] = []
 

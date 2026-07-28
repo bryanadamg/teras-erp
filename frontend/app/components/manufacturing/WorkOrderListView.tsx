@@ -96,6 +96,8 @@ interface FlatWO {
     mo_id: string;
     mo_code: string;
     item_name: string;
+    combo_label?: string | null;
+    size_label?: string | null;
 }
 
 export default function WorkOrderListView({
@@ -686,18 +688,18 @@ export default function WorkOrderListView({
                     </div>
 
                     {/* Table */}
-                    <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0, ...(classic ? { background: '#fff' } : {}) }}>
+                    <div className="table-responsive" style={{ flex: 1, overflow: 'auto', minHeight: 0, ...(classic ? { background: '#fff' } : {}) }}>
                         <table
-                            style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: classic ? 11 : undefined, fontFamily: classic ? xpFont : undefined, background: classic ? '#fff' : undefined }}
+                            style={{ width: '100%', minWidth: 1350, borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: classic ? 11 : undefined, fontFamily: classic ? xpFont : undefined, background: classic ? '#fff' : undefined }}
                             className={classic ? '' : 'table table-hover align-middle mb-0'}
                         >
                             <colgroup>
                                 <col style={{ width: 28 }} />   {/* checkbox */}
                                 <col style={{ width: 22 }} />   {/* chevron */}
                                 <col style={{ width: 34 }} />   {/* # */}
-                                <col style={{ width: '24%' }} />{/* Name */}
-                                <col style={{ width: '9%' }} /> {/* Product */}
-                                <col style={{ width: '15%' }} />{/* Work Center */}
+                                <col style={{ width: '22%' }} />{/* Name */}
+                                <col style={{ width: '13%' }} />{/* Product */}
+                                <col style={{ width: '13%' }} />{/* Work Center */}
                                 <col style={{ width: 86 }} />   {/* Target/Done */}
                                 <col style={{ width: 90 }} />   {/* Target Start */}
                                 <col style={{ width: 90 }} />   {/* Target End */}
@@ -836,8 +838,22 @@ export default function WorkOrderListView({
                                                         </span>
                                                     </div>
                                                 </td>
-                                                <td style={{ ...tdBase, fontSize: classic ? 10 : 11, color: '#444', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                                                    title={wo.item_name || ''}>{wo.item_name || '—'}</td>
+                                                <td style={{ ...tdBase, fontSize: classic ? 10 : 11, color: '#444', overflow: 'hidden' }}
+                                                    title={wo.item_name || ''}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden' }}>
+                                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wo.item_name || '—'}</span>
+                                                        {wo.combo_label && (
+                                                            <span style={{ fontSize: 8, padding: '0 4px', background: '#dbeafe', color: '#1d4ed8', borderRadius: 2, fontWeight: 700, lineHeight: '14px', whiteSpace: 'nowrap', flexShrink: 0 }} title={`Combo: ${wo.combo_label}`}>
+                                                                {wo.combo_label}
+                                                            </span>
+                                                        )}
+                                                        {wo.size_label && (
+                                                            <span style={{ fontSize: 8, padding: '0 4px', background: '#dcfce7', color: '#15803d', borderRadius: 2, fontWeight: 700, lineHeight: '14px', whiteSpace: 'nowrap', flexShrink: 0 }} title={`Size: ${wo.size_label}`}>
+                                                                <i className="bi bi-rulers me-1" style={{ fontSize: 7 }}></i>{wo.size_label}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11, overflow: 'hidden' }}>
                                                     {wo.work_center_name
                                                         ? (() => {

@@ -690,6 +690,7 @@ async def list_work_orders_flat(
             joinedload(WorkOrderModel.manufacturing_order).options(
                 joinedload(ManufacturingOrder.item),
                 joinedload(ManufacturingOrder.bom).selectinload(BOM.lines),
+                selectinload(ManufacturingOrder.attribute_values).joinedload(AttributeValue.attribute),
             ),
         )
         .order_by(WorkOrderModel.created_at.desc(), WorkOrderModel.sequence)
@@ -703,6 +704,30 @@ async def list_work_orders_flat(
     for wo in wos:
         mo = wo.manufacturing_order
         bom_line_item_ids = [str(ln.item_id) for ln in (mo.bom.lines if mo and mo.bom else [])]
+
+        combo_label = None
+        if mo:
+            combo_val = next(
+                (av for av in (mo.attribute_values or []) if av.attribute and av.attribute.system_role == "combo"),
+                None,
+            )
+            combo_label = combo_val.value if combo_val else None
+
+        size_label = None
+        if mo and mo.bom_size_snapshot:
+            snap = mo.bom_size_snapshot
+            parts = []
+            size_name = snap.get("size_name") or (snap.get("size") or {}).get("name")
+            if size_name:
+                parts.append(size_name)
+            if snap.get("label"):
+                parts.append(snap["label"])
+            if snap.get("target_measurement") is not None:
+                meas = f"{float(snap['target_measurement'])}"
+                if snap.get("measurement_min") is not None and snap.get("measurement_max") is not None:
+                    meas += f" ({float(snap['measurement_min'])}–{float(snap['measurement_max'])})"
+                parts.append(meas + " cm")
+            size_label = " — ".join(parts) or None
 
         completions_flat = []
         for c in sorted(wo.completions or [], key=lambda x: x.created_at or datetime.min, reverse=True):
@@ -763,6 +788,8 @@ async def list_work_orders_flat(
             mo_code=mo.code,
             item_name=mo.item.name if mo and mo.item else "",
             item_id=str(mo.item_id) if mo else "",
+            combo_label=combo_label,
+            size_label=size_label,
             completions=completions_flat,
             bom_line_item_ids=bom_line_item_ids,
         ))
