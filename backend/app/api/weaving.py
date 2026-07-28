@@ -340,12 +340,18 @@ async def work_center_performance(
         for r in runs if r.id != (active.id if active else None)
     ]
 
+    hol_rows_res = await db.execute(
+        select(WorkCenterHoliday).where(WorkCenterHoliday.work_center_id == wc.id)
+        .order_by(WorkCenterHoliday.holiday_date)
+    )
+    holiday_rows = hol_rows_res.scalars().all()
+
     return {
         "work_center": {
             "id": str(wc.id), "code": wc.code, "name": wc.name, "center_type": wc.center_type,
         },
         "calendar": {"working_weekdays": weekdays, "holidays": [
-            {"id": None, "holiday_date": h} for h in holidays
+            WorkCenterHolidayResponse.model_validate(h) for h in holiday_rows
         ]},
         "active_run": active_payload,
         "mo_projection": mo_projection,

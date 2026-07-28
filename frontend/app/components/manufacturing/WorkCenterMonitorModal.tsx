@@ -56,6 +56,9 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, ma
     const [overrideVal, setOverrideVal] = useState('');
     const [editingOverride, setEditingOverride] = useState(false);
 
+    const [targetVal, setTargetVal] = useState('');
+    const [editingTarget, setEditingTarget] = useState(false);
+
     const [weekdays, setWeekdays] = useState<number[]>([0, 1, 2, 3, 4]);
     const [holidays, setHolidays] = useState<any[]>([]);
     const [calRef, setCalRef] = useState<Date>(() => new Date());
@@ -142,6 +145,14 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, ma
             method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
         });
         if (res.ok) { setEditingOverride(false); load(); }
+    };
+    const saveTarget = async (runId: string) => {
+        const v = parseFloat(targetVal);
+        if (Number.isNaN(v)) return;
+        const res = await authFetch(`${apiBase}/weaving-runs/${runId}`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target_efficiency_pct: v }),
+        });
+        if (res.ok) { setEditingTarget(false); load(); }
     };
     const toggleWeekday = (d: number) => {
         setWeekdays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort((a, b) => a - b));
@@ -364,8 +375,23 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, ma
                                         <div style={{ width: `${Math.max(0, Math.min(Number(run.efficiency_pct) || 0, 100))}%`, height: '100%', background: effColor }} />
                                         <div title={`${t('target')} ${fmt(run.target_efficiency_pct, 0)}%`} style={{ position: 'absolute', left: `${Math.min(Number(run.target_efficiency_pct) || 0, 100)}%`, top: -2, bottom: -2, width: 2, background: '#000' }} />
                                     </div>
-                                    <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 10, color: '#888', marginTop: 3 }}>
-                                        {t('target')} {fmt(run.target_efficiency_pct, 0)}% · <span style={{ color: effColor, fontWeight: 'bold' }}>{onTarget ? t('on_target') : t('below_target')}</span>
+                                    <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 10, color: '#888', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        {editingTarget ? (
+                                            <div className="d-flex gap-1 align-items-center">
+                                                <input type="number" className="form-control form-control-sm" style={{ maxWidth: 70, height: 22, fontSize: 10 }} value={targetVal} onChange={e => setTargetVal(e.target.value)} />
+                                                <button className="btn btn-sm text-success p-0" onClick={() => saveTarget(run.id)}><i className="bi bi-check" /></button>
+                                                <button className="btn btn-sm text-secondary p-0" onClick={() => setEditingTarget(false)}><i className="bi bi-x" /></button>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <span>{t('target')} {fmt(run.target_efficiency_pct, 0)}% · <span style={{ color: effColor, fontWeight: 'bold' }}>{onTarget ? t('on_target') : t('below_target')}</span></span>
+                                                {canManage && (
+                                                    <button className="btn btn-sm text-secondary p-0" title="Edit target" onClick={() => { setTargetVal(String(run.target_efficiency_pct ?? '')); setEditingTarget(true); }}>
+                                                        <i className="bi bi-pencil-square" style={{ fontSize: 10 }} />
+                                                    </button>
+                                                )}
+                                            </>
+                                        )}
                                     </div>
                                 </div>
 
