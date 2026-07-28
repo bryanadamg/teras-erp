@@ -331,6 +331,17 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
         return valId;
     };
 
+    // Combo (system_role='combo') value carried by a balance row, if any — surfaced
+    // as its own badge since it's the variant identity for shared greige/base stock.
+    const comboValueIds = useMemo(() => {
+        const attr = (attributes || []).find((a: any) => a.system_role === 'combo');
+        return new Set((attr?.values || []).map((v: any) => String(v.id)));
+    }, [attributes]);
+    const getComboLabel = (bal: any): string | null => {
+        const id = (bal.attribute_value_ids || []).find((vid: string) => comboValueIds.has(String(vid)));
+        return id ? getAttrValueName(id) : null;
+    };
+
     // Packaging counts (no UOM conversion) — show only nonzero units.
     const pkgParts = (bal: any): { n: number; label: string }[] => {
         const out: { n: number; label: string }[] = [];
@@ -454,6 +465,20 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                     <td style={{ padding: '4px 8px', fontFamily: xpFont, overflow: 'hidden' }}>
                         <div title={bal.item_name} style={{ fontSize: '11px', fontWeight: 'bold', color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bal.item_name}</div>
                         <div style={{ fontSize: '10px', color: '#666', fontVariant: 'all-small-caps', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bal.item_code}</div>
+                        {(getComboLabel(bal) || bal.size_label) && (
+                            <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 2 }}>
+                                {getComboLabel(bal) && (
+                                    <span style={{ fontSize: 8, padding: '0 4px', background: '#dbeafe', color: '#1d4ed8', borderRadius: 2, fontWeight: 700, lineHeight: '14px' }} title={`Combo: ${getComboLabel(bal)}`}>
+                                        {getComboLabel(bal)}
+                                    </span>
+                                )}
+                                {bal.size_label && (
+                                    <span style={{ fontSize: 8, padding: '0 4px', background: '#dcfce7', color: '#15803d', borderRadius: 2, fontWeight: 700, lineHeight: '14px' }} title={`Size: ${bal.size_label}`}>
+                                        <i className="bi bi-rulers me-1" style={{ fontSize: 7 }}></i>{bal.size_label}
+                                    </span>
+                                )}
+                            </div>
+                        )}
                     </td>
                     <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', maxWidth: 140 }}>
                         {bal.item_category_name ? (
@@ -539,6 +564,20 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                 <td style={{ overflow: 'hidden' }}>
                     <div title={bal.item_name} className="fw-medium text-truncate">{bal.item_name}</div>
                     <small className="text-muted font-monospace text-truncate d-block">{bal.item_code}</small>
+                    {(getComboLabel(bal) || bal.size_label) && (
+                        <div className="d-flex flex-wrap gap-1 mt-1">
+                            {getComboLabel(bal) && (
+                                <span className="badge bg-primary bg-opacity-10 text-primary" style={{ fontSize: 9 }} title={`Combo: ${getComboLabel(bal)}`}>
+                                    {getComboLabel(bal)}
+                                </span>
+                            )}
+                            {bal.size_label && (
+                                <span className="badge bg-success bg-opacity-10 text-success" style={{ fontSize: 9 }} title={`Size: ${bal.size_label}`}>
+                                    <i className="bi bi-rulers me-1" />{bal.size_label}
+                                </span>
+                            )}
+                        </div>
+                    )}
                 </td>
                 <td style={{ maxWidth: 140 }}>
                     {bal.item_category_name ? (

@@ -21,6 +21,24 @@ def _generate_variant_key(attribute_value_ids: list[str], color_id=None) -> str:
     return ",".join(parts)
 
 
+def _bom_size_label(snapshot: dict | None) -> str | None:
+    """Human-readable label from a BOMSize snapshot dict (size_name/label/measurement)."""
+    if not snapshot:
+        return None
+    parts = []
+    size_name = snapshot.get("size_name") or (snapshot.get("size") or {}).get("name")
+    if size_name:
+        parts.append(size_name)
+    if snapshot.get("label"):
+        parts.append(snapshot["label"])
+    if snapshot.get("target_measurement") is not None:
+        meas = f"{float(snapshot['target_measurement'])}"
+        if snapshot.get("measurement_min") is not None and snapshot.get("measurement_max") is not None:
+            meas += f" ({float(snapshot['measurement_min'])}–{float(snapshot['measurement_max'])})"
+        parts.append(meas + " cm")
+    return " — ".join(parts) or None
+
+
 def _parse_variant_key(variant_key: str):
     """Inverse of _generate_variant_key: split a stored key back into
     (attribute_value_ids, color_id). Used when re-posting stock derived from an
@@ -225,6 +243,7 @@ async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | N
     # build its own map (that list is capped and drops older lots/beams from it).
     batch_ids = {r.batch_key for r in results if r.batch_key}
     batch_number_map: dict[str, str] = {}
+    batch_size_label_map: dict[str, str] = {}
     if batch_ids:
         import uuid as _uuid
         from app.models.batch import Batch
@@ -235,8 +254,14 @@ async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | N
             except ValueError:
                 continue
         if valid_ids:
-            batch_rows = await db.execute(select(Batch.id, Batch.batch_number).filter(Batch.id.in_(valid_ids)))
-            batch_number_map = {str(bid): bnum for bid, bnum in batch_rows.all()}
+            batch_rows = await db.execute(
+                select(Batch.id, Batch.batch_number, Batch.bom_size_snapshot).filter(Batch.id.in_(valid_ids))
+            )
+            for bid, bnum, snapshot in batch_rows.all():
+                batch_number_map[str(bid)] = bnum
+                label = _bom_size_label(snapshot)
+                if label:
+                    batch_size_label_map[str(bid)] = label
 
     return [
         {
@@ -256,6 +281,7 @@ async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | N
             "qty_drums": int(r.qty_drums or 0),
             "batch_key": r.batch_key,
             "batch_number": batch_number_map.get(r.batch_key) if r.batch_key else None,
+            "size_label": batch_size_label_map.get(r.batch_key) if r.batch_key else None,
         }
         for r in results
         if r.qty != 0 or r.qty_cones or r.qty_boxes or r.qty_drums
