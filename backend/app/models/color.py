@@ -40,6 +40,13 @@ class Color(Base):
     attribute_value_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("attribute_values.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # User-picked link to an existing `Colors` (system_role='color') variant value —
+    # separate from attribute_value_id above (the auto-mirrored labdip_color entry).
+    # Lets a library shade resolve to the product variant it's produced as, without
+    # creating/renaming variant values from here (that stays owner of ColorsVariantView).
+    variant_attribute_value_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("attribute_values.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     # PLM lineage: the approved LabDip dip line this shade was spawned from (mirrors
     # Item.source_color_id). Note lab_dip_lines also has color_id -> colors, so the two
     # tables reference each other; both nullable, FKs disambiguated via foreign_keys=.
@@ -50,5 +57,6 @@ class Color(Base):
 
     customer = relationship("Partner", foreign_keys=[customer_id])
     attribute_value = relationship("AttributeValue", foreign_keys=[attribute_value_id])
+    variant_attribute_value = relationship("AttributeValue", foreign_keys=[variant_attribute_value_id])
     source_lab_dip_line = relationship("LabDipLine", foreign_keys=[source_lab_dip_line_id])
     recipes: Mapped[List["DyeRecipe"]] = relationship("DyeRecipe", back_populates="color")

@@ -74,6 +74,7 @@ async def _lab_dip_provenance(db: AsyncSession, color_ids: list[uuid.UUID]) -> d
 def _serialize(c: Color, recipe_count: int = 0, provenance: tuple | None = None) -> dict:
     d = {col.name: getattr(c, col.name) for col in c.__table__.columns}
     d["customer_name"] = c.customer.name if c.customer else None
+    d["variant_attribute_value_label"] = c.variant_attribute_value.value if c.variant_attribute_value else None
     d["recipe_count"] = recipe_count
     d["source_lab_dip_request_id"] = provenance[0] if provenance else None
     d["source_lab_dip_code"] = provenance[1] if provenance else None
@@ -93,7 +94,7 @@ async def list_colors(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
-    q = select(Color).options(joinedload(Color.customer))
+    q = select(Color).options(joinedload(Color.customer), joinedload(Color.variant_attribute_value))
     count_q = select(func.count(Color.id))
 
     if search:
@@ -176,7 +177,7 @@ async def create_color(
 
     await db.commit()
     result = await db.execute(
-        select(Color).options(joinedload(Color.customer)).filter(Color.id == color.id)
+        select(Color).options(joinedload(Color.customer), joinedload(Color.variant_attribute_value)).filter(Color.id == color.id)
     )
     c = result.scalars().first()
     await audit_service.log_activity(
@@ -218,7 +219,7 @@ async def update_color(
 
     await db.commit()
     result = await db.execute(
-        select(Color).options(joinedload(Color.customer)).filter(Color.id == color_id)
+        select(Color).options(joinedload(Color.customer), joinedload(Color.variant_attribute_value)).filter(Color.id == color_id)
     )
     c = result.scalars().first()
     counts = await _recipe_counts(db, [c.id])

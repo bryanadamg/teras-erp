@@ -171,6 +171,7 @@ export default function ColorsPage() {
                         onEdit={handleEdit}
                         onDelete={handleDelete}
                         prefill={prefill}
+                        colorVariantValues={colorValues}
                         embedded
                     />
                 ) : (

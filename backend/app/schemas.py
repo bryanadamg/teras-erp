@@ -1189,6 +1189,7 @@ class StockBalanceResponse(BaseModel):
     qty_drums: int = 0
     batch_key: str = ""
     batch_number: str | None = None
+    size_label: str | None = None   # lot's BOM size (from Batch.bom_size_snapshot), if any — mainly sized greige lots
 
 class UOMCreate(BaseModel):
     name: str
@@ -1597,6 +1598,7 @@ class ColorCreate(BaseModel):
     spectro_notes: Optional[str] = None
     notes: Optional[str] = None
     status: str = "active"
+    variant_attribute_value_id: Optional[UUID] = None
     source_lab_dip_line_id: Optional[UUID] = None
 
 class ColorUpdate(BaseModel):
@@ -1615,6 +1617,7 @@ class ColorUpdate(BaseModel):
     spectro_notes: Optional[str] = None
     notes: Optional[str] = None
     status: Optional[str] = None
+    variant_attribute_value_id: Optional[UUID] = None
 
 class ColorResponse(BaseModel):
     id: UUID
@@ -1635,6 +1638,8 @@ class ColorResponse(BaseModel):
     notes: Optional[str] = None
     status: str = "active"
     attribute_value_id: Optional[UUID] = None
+    variant_attribute_value_id: Optional[UUID] = None
+    variant_attribute_value_label: Optional[str] = None
     source_lab_dip_line_id: Optional[UUID] = None
     # Provenance: the LabDip request this shade was minted from (approval) or spawned
     # from (manual "+ Color"). Derived in the list endpoint, not stored on the row.

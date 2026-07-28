@@ -31,18 +31,20 @@ interface Props {
     onDelete: (id: string) => void;
     prefill?: { source_lab_dip_line_id: string; values: Record<string, string> } | null;
     embedded?: boolean;   // when tabbed under the Colors shell, drop own title + outer frame
+    colorVariantValues?: any[];   // `Colors` (system_role='color') attribute values, for the variant link picker
 }
 
 const emptyForm = () => ({
     code: '', name: '', pantone_ref: '', colour_index: '', hex: '',
     substrate: '', customer_id: '', customer_color_code: '',
     l_star: '', a_star: '', b_star: '', lab_illuminant: '',
-    spectro_notes: '', notes: '', status: 'active',
+    spectro_notes: '', notes: '', status: 'active', variant_attribute_value_id: '',
 });
 
 export default function ColorLibraryView({
     colors, total, page, size, search, statusFilter, customers, loading,
     onSearchChange, onStatusChange, onPageChange, onCreate, onEdit, onDelete, prefill, embedded,
+    colorVariantValues,
 }: Props) {
     const { confirm } = useConfirm();
     const { uiStyle } = useTheme();
@@ -83,6 +85,11 @@ export default function ColorLibraryView({
          ...(customers || []).map((c: any) => ({ value: c.id, label: c.name }))],
     [customers]);
 
+    const variantOptions = useMemo(() =>
+        [{ value: '', label: 'Not linked to a variant' },
+         ...(colorVariantValues || []).map((v: any) => ({ value: v.id, label: v.value }))],
+    [colorVariantValues]);
+
     const openCreate = () => { setEditing(null); setForm(emptyForm()); setSourceLineId(null); setIsModalOpen(true); };
     const openEdit = (c: any) => {
         setEditing(c);
@@ -93,6 +100,7 @@ export default function ColorLibraryView({
             l_star: c.l_star ?? '', a_star: c.a_star ?? '', b_star: c.b_star ?? '',
             lab_illuminant: c.lab_illuminant || '',
             spectro_notes: c.spectro_notes || '', notes: c.notes || '', status: c.status || 'active',
+            variant_attribute_value_id: c.variant_attribute_value_id || '',
         });
         setIsModalOpen(true);
     };
@@ -105,6 +113,7 @@ export default function ColorLibraryView({
         const payload: any = {
             ...form,
             customer_id: form.customer_id || null,
+            variant_attribute_value_id: form.variant_attribute_value_id || null,
             l_star: num(form.l_star), a_star: num(form.a_star), b_star: num(form.b_star),
             lab_illuminant: form.lab_illuminant.trim() || null,
         };
@@ -197,7 +206,7 @@ export default function ColorLibraryView({
                             <th style={{ ...lvTh(classic), width: 34 }}></th>
                             <th style={{ ...lvTh(classic), width: 130 }}>Code</th>
                             <th style={lvTh(classic)}>Name</th>
-                            <th style={{ ...lvTh(classic), width: 110 }}>Pantone</th>
+                            <th style={{ ...lvTh(classic), width: 130 }}>Color Variant</th>
                             <th style={{ ...lvTh(classic), width: 150 }}>Colour Index</th>
                             <th style={{ ...lvTh(classic), width: 130 }}>L*a*b*</th>
                             <th style={{ ...lvTh(classic), width: 120 }}>Customer</th>
@@ -224,7 +233,7 @@ export default function ColorLibraryView({
                                         : { fontFamily: "'Courier New', monospace", fontWeight: 700, color: '#2563eb', fontSize: 12 }}>{c.code}</span>
                                 </td>
                                 <td style={lvTd(classic)}>{c.name}</td>
-                                <td style={lvTd(classic)}>{c.pantone_ref || <span style={{ color: '#aaa' }}>—</span>}</td>
+                                <td style={lvTd(classic)}>{c.variant_attribute_value_label || <span style={{ color: '#aaa' }}>—</span>}</td>
                                 <td style={lvTd(classic)}>{c.colour_index || <span style={{ color: '#aaa' }}>—</span>}</td>
                                 <td style={lvTd(classic)}>
                                     {c.l_star != null
@@ -320,6 +329,15 @@ export default function ColorLibraryView({
                             <div>
                                 <label style={lvLabel(classic)}>Name *</label>
                                 <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={lvInput(classic)} required />
+                            </div>
+                            <div>
+                                <label style={lvLabel(classic)}>Color Variant</label>
+                                <SearchableSelect
+                                    options={variantOptions}
+                                    value={form.variant_attribute_value_id}
+                                    onChange={v => setForm({ ...form, variant_attribute_value_id: v })}
+                                    placeholder="Not linked to a variant"
+                                />
                             </div>
                             {editing && (
                                 <div>
