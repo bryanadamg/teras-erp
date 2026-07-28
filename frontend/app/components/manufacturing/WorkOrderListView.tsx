@@ -690,16 +690,16 @@ export default function WorkOrderListView({
                     {/* Table */}
                     <div className="table-responsive" style={{ flex: 1, overflow: 'auto', minHeight: 0, ...(classic ? { background: '#fff' } : {}) }}>
                         <table
-                            style={{ width: '100%', minWidth: 1350, borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: classic ? 11 : undefined, fontFamily: classic ? xpFont : undefined, background: classic ? '#fff' : undefined }}
+                            style={{ width: '100%', minWidth: 1500, borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: classic ? 11 : undefined, fontFamily: classic ? xpFont : undefined, background: classic ? '#fff' : undefined }}
                             className={classic ? '' : 'table table-hover align-middle mb-0'}
                         >
                             <colgroup>
                                 <col style={{ width: 28 }} />   {/* checkbox */}
                                 <col style={{ width: 22 }} />   {/* chevron */}
                                 <col style={{ width: 34 }} />   {/* # */}
-                                <col style={{ width: '22%' }} />{/* Name */}
-                                <col style={{ width: '13%' }} />{/* Product */}
-                                <col style={{ width: '13%' }} />{/* Work Center */}
+                                <col style={{ width: '20%' }} />{/* Name */}
+                                <col style={{ width: '22%' }} />{/* Product */}
+                                <col style={{ width: '12%' }} />{/* Work Center */}
                                 <col style={{ width: 86 }} />   {/* Target/Done */}
                                 <col style={{ width: 90 }} />   {/* Target Start */}
                                 <col style={{ width: 90 }} />   {/* Target End */}
