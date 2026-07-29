@@ -229,8 +229,19 @@ export default function WorkOrderPanel({
         }));
     };
 
+    // A WO with no work center is invisible to every center-type tab (Dyeing /
+    // Weaving / Beaming all filter on WorkCenter.center_type) and skips the DYEING
+    // recipe gate. So when no machine is picked, fall back to the group — it's a
+    // real WorkCenter row carrying the same center_type.
+    const effectiveWorkCenterId = () => form.work_center_id || lockedGroupId || form.group_id || '';
+
     const handleAdd = async () => {
-        const selectedWC = workCenters.find((w: any) => String(w.id) === String(form.work_center_id));
+        const wcId = effectiveWorkCenterId();
+        if (!wcId) {
+            showToast('Select the work center (group or machine) this work order runs on.', 'danger');
+            return;
+        }
+        const selectedWC = workCenters.find((w: any) => String(w.id) === String(wcId));
         const isWeaving = (selectedWC?.center_type || '').toUpperCase() === 'WEAVING';
         if (bomOperations.length > 0 && !form.bom_operation_id && !isWeaving) {
             showToast('Select the routing step this work order runs.', 'danger');
@@ -240,7 +251,7 @@ export default function WorkOrderPanel({
         try {
             const res = await onAdd({
                 manufacturing_order_id: manufacturingOrderId,
-                work_center_id: form.work_center_id || undefined,
+                work_center_id: wcId,
                 bom_operation_id: form.bom_operation_id || undefined,
                 input_location_id: form.input_location_id || undefined,
                 output_location_id: form.output_location_id || undefined,
@@ -273,13 +284,18 @@ export default function WorkOrderPanel({
     };
 
     const handleUpdate = async (wo: WO) => {
+        const wcId = effectiveWorkCenterId();
+        if (!wcId) {
+            showToast('Select the work center (group or machine) this work order runs on.', 'danger');
+            return;
+        }
         setIsSaving(true);
         try {
             const result = await onUpdate(wo.id, {
                 manufacturing_order_id: manufacturingOrderId,
                 sequence: wo.sequence,
                 name: wo.name,
-                work_center_id: form.work_center_id || undefined,
+                work_center_id: wcId,
                 bom_operation_id: form.bom_operation_id || undefined,
                 input_location_id: form.input_location_id || undefined,
                 output_location_id: form.output_location_id || undefined,
