@@ -12,6 +12,7 @@ import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
 import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark, XPActionButton } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from '../shared/shellTheme';
 import TreeSelect, { buildLocationFilterTree, expandLocationFilterValue } from '../shared/TreeSelect';
+import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
 
 const REJECT_TITLE = 'QC reject — lot drops out of good stock; produced qty returns to its MO';
 const SPLIT_TITLE = 'Split — peel a portion off into a new lot (prints a label)';
@@ -32,6 +33,13 @@ interface Batch {
   // Produced-lot size (sized greige/dyed lots); snapshot carries the human label.
   bom_size_id?: string | null;
   bom_size_snapshot?: { size_name?: string | null; label?: string | null } | null;
+  // Variant identity of the producing MO — combo/colour, resolved by the batches
+  // endpoints. Size lives on the lot; these are what separate two same-size lots.
+  variant_attributes?: LotVariantAttr[] | null;
+  color_code?: string | null;
+  color_name?: string | null;
+  color_hex?: string | null;
+  labdip_variant_code?: string | null;
   remaining: number | null;
   location_id: string | null;
   location_name: string | null;
@@ -459,23 +467,43 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
     </div>
   );
 
-  // Product — item code on line 1, with the produced lot's size as a small chip
-  // underneath (e.g. sized greige woven for size L). Size comes from the batch's
-  // stamped bom_size_snapshot; unsized lots show just the code.
-  const sizeLabel = (b: Batch): string | null => {
-    const s = b.bom_size_snapshot;
-    if (!s) return null;
-    const name = (s.size_name || s.label || '').trim();
-    return name || null;
-  };
+  // Product — item code on line 1, then what the lot actually IS as chips: size
+  // (from the lot's stamped bom_size_snapshot), combo and shade (from the producing
+  // MO's variant attributes). Same identity vocabulary as the staging/completion
+  // lot pickers — see components/shared/LotChips.tsx for the label rules.
   const productCell = (b: Batch) => {
-    const sz = sizeLabel(b);
+    const sz = lotSizeLabel(b);
+    const combo = lotComboLabel(b);
+    const shade = lotColorLabel(b);
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start', lineHeight: 1.2 }}>
         <span>{batchItemCode(b)}</span>
-        {sz && chip(
-          <><i className="bi bi-rulers" style={{ marginRight: 3 }} />{sz}</>,
-          '#3d4d5c', '#e8edf0', '#b8c4cc', { title: `Size: ${sz}` },
+        {(sz || combo || shade) && chipRow(
+          <>
+            {sz && chip(
+              <><i className="bi bi-rulers" style={{ marginRight: 3 }} />{sz}</>,
+              '#3d4d5c', '#e8edf0', '#b8c4cc', { title: `Size: ${sz}` },
+            )}
+            {combo && chip(
+              <><i className="bi bi-grid-3x3-gap" style={{ marginRight: 3 }} />{combo}</>,
+              '#5a4499', '#efeaff', '#cabbec', { title: `Combo: ${combo}` },
+            )}
+            {shade && (shade.pending
+              ? chip(`${shade.label} (pending)`, '#7a4500', '#fdf3d8', '#e0c080',
+                { title: `Shade pending lab dip approval: ${shade.label}` })
+              : chip(
+                <>
+                  {shade.hex && (
+                    <span style={{
+                      display: 'inline-block', width: 7, height: 7, marginRight: 3, borderRadius: '50%',
+                      background: shade.hex, border: '1px solid rgba(0,0,0,.35)',
+                    }} />
+                  )}
+                  {shade.label}
+                </>,
+                '#8a3a5a', '#fdeaf1', '#e8bcd0', { title: `Color: ${shade.label}` },
+              ))}
+          </>,
         )}
       </div>
     );
