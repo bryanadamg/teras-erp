@@ -21,6 +21,8 @@ const ROLE_LABELS: Record<string, string> = {
     color: 'Sample Colors',
     labdip_color: 'Labdip Colors',
     combo: 'Sample Combo',
+    wash_bath: 'Dye Recipe Bak Cuci',
+    finishing_step: 'Dye Recipe Finishing',
 };
 
 interface Props {

@@ -49,6 +49,11 @@ def seed_system_attributes(db):
             ("Combo", "combo", None),
             ("Materials", "material", ["Polyester", "Nylon", "Cotton", "Latex", "Spandex"]),
             ("Color Code", "labdip_color", None),
+            # Dye recipe Bak Cuci / Finishing steps are picked from these (values are
+            # curated on the Attributes page, harvested from legacy free text by
+            # migration a5c7e9b1d3f4)
+            ("Wash Bath", "wash_bath", None),
+            ("Finishing Step", "finishing_step", None),
         ]
         for name, role, seed_values in system_attrs:
             existing = db.query(Attribute).filter(Attribute.name == name).first()

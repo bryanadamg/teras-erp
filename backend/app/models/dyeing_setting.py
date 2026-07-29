@@ -67,9 +67,15 @@ class DyeRecipeWashBath(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     recipe_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("dye_recipes.id", ondelete="CASCADE"), index=True)
     bath_number: Mapped[int] = mapped_column(Integer)
+    # description is a snapshot of the picked attribute value's text (kept so print
+    # views and legacy free-text rows keep rendering without a join).
     description: Mapped[str] = mapped_column(String(256))
+    attribute_value_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("attribute_values.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     recipe: Mapped["DyeRecipe"] = relationship("DyeRecipe", back_populates="wash_baths")
+    attribute_value = relationship("AttributeValue", foreign_keys=[attribute_value_id])
 
 
 class DyeRecipeFinishing(Base):
@@ -79,8 +85,12 @@ class DyeRecipeFinishing(Base):
     recipe_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("dye_recipes.id", ondelete="CASCADE"), index=True)
     description: Mapped[str] = mapped_column(String(512))
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    attribute_value_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("attribute_values.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     recipe: Mapped["DyeRecipe"] = relationship("DyeRecipe", back_populates="finishing_steps")
+    attribute_value = relationship("AttributeValue", foreign_keys=[attribute_value_id])
 
 
 class DyeingRun(Base):

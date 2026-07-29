@@ -128,8 +128,10 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
         next.has(id) ? next.delete(id) : next.add(id);
         return next;
     });
-    const [washBaths, setWashBaths] = useState<Array<{bath_number: number; description: string}>>([]);
-    const [finishingSteps, setFinishingSteps] = useState<Array<{description: string; sort_order: number}>>([]);
+    // Bak Cuci / Finishing steps are picked from the system attributes "Wash Bath"
+    // and "Finishing Step" (values curated on the Attributes page), not typed free.
+    const [washBaths, setWashBaths] = useState<Array<{bath_number: number; attribute_value_id: string; description: string}>>([]);
+    const [finishingSteps, setFinishingSteps] = useState<Array<{attribute_value_id: string; description: string; sort_order: number}>>([]);
     const [showPrint, setShowPrint] = useState(false);
     const [showCodeConfig, setShowCodeConfig] = useState(false);
     const [codeConfig, setCodeConfig] = useState<CodeConfig | null>(null);
@@ -152,6 +154,23 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
         [{ value: '', label: 'No library color' },
          ...colors.map((c: any) => ({ value: c.id, label: c.code ? `${c.code} — ${c.name}` : c.name }))],
     [colors]);
+
+    // Bak Cuci / Finishing pickers read the two system attributes; values are
+    // curated on the Attributes page (Item Metadata), never created from here.
+    const stepValues = React.useCallback((role: string) => {
+        const attr = (attributes || []).find((a: any) => a.system_role === role);
+        return (attr?.values || []) as any[];
+    }, [attributes]);
+    const washBathOptions = React.useMemo(() =>
+        [{ value: '', label: 'Select bath…' },
+         ...stepValues('wash_bath').map((v: any) => ({ value: String(v.id), label: v.value }))],
+    [stepValues]);
+    const finishingOptions = React.useMemo(() =>
+        [{ value: '', label: 'Select finishing step…' },
+         ...stepValues('finishing_step').map((v: any) => ({ value: String(v.id), label: v.value }))],
+    [stepValues]);
+    const valueLabel = (options: Array<{value: string; label: string}>, id: string) =>
+        options.find(o => o.value === id)?.label || '';
 
     useEffect(() => {
         authFetch(`${API_BASE}/preferences/code_config_DYE`)
@@ -308,10 +327,12 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
         });
         setWashBaths((recipe.wash_baths || []).map((wb: any) => ({
             bath_number: wb.bath_number,
-            description: wb.description,
+            attribute_value_id: wb.attribute_value_id ? String(wb.attribute_value_id) : '',
+            description: wb.description || '',
         })));
         setFinishingSteps((recipe.finishing_steps || []).map((fs: any) => ({
-            description: fs.description,
+            attribute_value_id: fs.attribute_value_id ? String(fs.attribute_value_id) : '',
+            description: fs.description || '',
             sort_order: fs.sort_order,
         })));
         setShowForm(true);
@@ -345,8 +366,13 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                     qty_per_liter: l.qty_per_liter,
                     sort_order: parseInt(String(l.sort_order)) || idx + 1,
                 })),
-                wash_baths: washBaths,
-                finishing_steps: finishingSteps,
+                // Unpicked rows are dropped — a bath/finishing step is its attribute value.
+                wash_baths: washBaths
+                    .filter(wb => !!wb.attribute_value_id)
+                    .map(wb => ({ bath_number: wb.bath_number, attribute_value_id: wb.attribute_value_id, description: wb.description })),
+                finishing_steps: finishingSteps
+                    .filter(fs => !!fs.attribute_value_id)
+                    .map((fs, idx) => ({ attribute_value_id: fs.attribute_value_id, description: fs.description, sort_order: fs.sort_order ?? idx })),
             };
             let res;
             if (editingRecipe) {
@@ -949,9 +975,17 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                                                 onChange={e => { const u = [...washBaths]; u[i] = { ...u[i], bath_number: parseInt(e.target.value) || i + 1 }; setWashBaths(u); }} />
                                         </td>
                                         <td style={{ padding: classic ? '2px 4px' : '6px 10px', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
-                                            <input type="text" style={{ ...inputStyle(classic), width: '100%' }}
-                                                value={wb.description}
-                                                onChange={e => { const u = [...washBaths]; u[i] = { ...u[i], description: e.target.value }; setWashBaths(u); }} />
+                                            <SearchableSelect
+                                                options={washBathOptions}
+                                                value={wb.attribute_value_id}
+                                                onChange={(v: string) => {
+                                                    const u = [...washBaths];
+                                                    u[i] = { ...u[i], attribute_value_id: v, description: valueLabel(washBathOptions, v) };
+                                                    setWashBaths(u);
+                                                }}
+                                                placeholder="Select bath…"
+                                                size="sm"
+                                            />
                                         </td>
                                         <td style={{ padding: classic ? '2px 4px' : '6px 10px', textAlign: 'center', borderBottom: classic ? undefined : '1px solid #e6eaf1' }}>
                                             <button style={classic
@@ -965,17 +999,31 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                             </tbody>
                         </table>
                         <button style={classic ? { ...xpBtn, marginTop: 4, fontSize: 10 } : { ...modernBtn, marginTop: 4 }}
-                            onClick={() => setWashBaths([...washBaths, { bath_number: washBaths.length + 1, description: '' }])}>+ Add Bath</button>
+                            onClick={() => setWashBaths([...washBaths, { bath_number: washBaths.length + 1, attribute_value_id: '', description: '' }])}>+ Add Bath</button>
+                        {washBathOptions.length <= 1 && (
+                            <div style={{ marginTop: 4, fontSize: classic ? 10 : 12, color: classic ? '#666' : '#64748b' }}>
+                                No bath values defined yet — add them to the &quot;Wash Bath&quot; attribute under Inventory &gt; Item Metadata.
+                            </div>
+                        )}
                     </FormSection>
 
                     {/* ── Finishing ── */}
                     <FormSection title="Finishing" classic={classic}>
                         {finishingSteps.map((fs, i) => (
                             <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 4, alignItems: 'center' }}>
-                                <input type="text" style={{ ...inputStyle(classic), flex: 1 }}
-                                    value={fs.description}
-                                    onChange={e => { const u = [...finishingSteps]; u[i] = { ...u[i], description: e.target.value }; setFinishingSteps(u); }}
-                                    placeholder="e.g. TALASOFT NI 20cc/l CHROMAFIX FRD 10cc/l" />
+                                <div style={{ flex: 1 }}>
+                                    <SearchableSelect
+                                        options={finishingOptions}
+                                        value={fs.attribute_value_id}
+                                        onChange={(v: string) => {
+                                            const u = [...finishingSteps];
+                                            u[i] = { ...u[i], attribute_value_id: v, description: valueLabel(finishingOptions, v) };
+                                            setFinishingSteps(u);
+                                        }}
+                                        placeholder="Select finishing step…"
+                                        size="sm"
+                                    />
+                                </div>
                                 <button style={classic
                                     ? { ...xpBtn, padding: '0px 5px', fontSize: 10, color: '#aa0000', flexShrink: 0 }
                                     : { ...modernBtn, padding: '3px 8px', fontSize: 12, color: '#dc2626', borderColor: '#f0c5c5', flexShrink: 0 }
@@ -984,7 +1032,12 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                             </div>
                         ))}
                         <button style={classic ? { ...xpBtn, fontSize: 10 } : { ...modernBtn }}
-                            onClick={() => setFinishingSteps([...finishingSteps, { description: '', sort_order: finishingSteps.length }])}>+ Add Finishing Step</button>
+                            onClick={() => setFinishingSteps([...finishingSteps, { attribute_value_id: '', description: '', sort_order: finishingSteps.length }])}>+ Add Finishing Step</button>
+                        {finishingOptions.length <= 1 && (
+                            <div style={{ marginTop: 4, fontSize: classic ? 10 : 12, color: classic ? '#666' : '#64748b' }}>
+                                No finishing values defined yet — add them to the &quot;Finishing Step&quot; attribute under Inventory &gt; Item Metadata.
+                            </div>
+                        )}
                     </FormSection>
 
                 </ModalWrapper>

@@ -1958,7 +1958,10 @@ class DyeRecipeLineResponse(DyeRecipeLineCreate):
 
 class DyeRecipeWashBathCreate(BaseModel):
     bath_number: int
-    description: str
+    # attribute_value_id is the source of truth (system attribute "Wash Bath");
+    # description is a snapshot resolved server-side, sent back for display.
+    attribute_value_id: UUID | None = None
+    description: str = ""
 
 class DyeRecipeWashBathResponse(DyeRecipeWashBathCreate):
     id: UUID
@@ -1966,7 +1969,9 @@ class DyeRecipeWashBathResponse(DyeRecipeWashBathCreate):
     model_config = ConfigDict(from_attributes=True)
 
 class DyeRecipeFinishingCreate(BaseModel):
-    description: str
+    # attribute_value_id → system attribute "Finishing Step"; description snapshot
+    attribute_value_id: UUID | None = None
+    description: str = ""
     sort_order: int = 0
 
 class DyeRecipeFinishingResponse(DyeRecipeFinishingCreate):

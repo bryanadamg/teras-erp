@@ -11,7 +11,7 @@ from app.models.dyeing_setting import (
     DyeRecipe, DyeRecipeLine, DyeingRun, DyeingRunChemical, SettingRun,
     DyeRecipeWashBath, DyeRecipeFinishing, dye_recipe_attribute_values,
 )
-from app.models.attribute import AttributeValue
+from app.models.attribute import Attribute, AttributeValue
 from app.models.work_order import WorkOrder as _WorkOrder
 from app.models.manufacturing import ManufacturingOrder as _MO, manufacturing_order_values as _mo_values
 from app.models.batch import Batch
@@ -106,6 +106,31 @@ def _enrich_setting_run(run: SettingRun) -> dict:
     return d
 
 
+async def _resolve_step_descriptions(db: AsyncSession, entries, role: str) -> dict:
+    """Map attribute_value_id -> value text for wash bath / finishing step picks.
+
+    Bak Cuci and Finishing steps are picked from the system attributes
+    'Wash Bath' (role wash_bath) / 'Finishing Step' (role finishing_step); values
+    are curated on the Attributes page. A value from another attribute is a 422.
+    """
+    ids = {e.attribute_value_id for e in (entries or []) if e.attribute_value_id}
+    if not ids:
+        return {}
+    result = await db.execute(
+        select(AttributeValue)
+        .join(Attribute, Attribute.id == AttributeValue.attribute_id)
+        .filter(AttributeValue.id.in_(ids), Attribute.system_role == role)
+    )
+    found = {v.id: v.value for v in result.scalars().all()}
+    missing = ids - set(found.keys())
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid {role} selection: {', '.join(str(m) for m in missing)}",
+        )
+    return found
+
+
 async def _get_next_run_number(db: AsyncSession, model, work_order_id) -> int:
     result = await db.execute(
         select(model).filter(model.work_order_id == work_order_id)
@@ -164,17 +189,21 @@ async def create_dye_recipe(
         )
         db.add(line)
 
+    bath_texts = await _resolve_step_descriptions(db, payload.wash_baths, "wash_bath")
     for wb in payload.wash_baths:
         db.add(DyeRecipeWashBath(
             recipe_id=recipe.id,
             bath_number=wb.bath_number,
-            description=wb.description,
+            attribute_value_id=wb.attribute_value_id,
+            description=bath_texts.get(wb.attribute_value_id, wb.description or ""),
         ))
 
+    fin_texts = await _resolve_step_descriptions(db, payload.finishing_steps, "finishing_step")
     for i, fs in enumerate(payload.finishing_steps):
         db.add(DyeRecipeFinishing(
             recipe_id=recipe.id,
-            description=fs.description,
+            attribute_value_id=fs.attribute_value_id,
+            description=fin_texts.get(fs.attribute_value_id, fs.description or ""),
             sort_order=fs.sort_order if fs.sort_order else i,
         ))
 
@@ -286,6 +315,7 @@ async def update_dye_recipe(
             db.add(line)
 
     if payload.wash_baths is not None:
+        bath_texts = await _resolve_step_descriptions(db, payload.wash_baths, "wash_bath")
         for wb in list(r.wash_baths):
             await db.delete(wb)
         await db.flush()
@@ -293,17 +323,20 @@ async def update_dye_recipe(
             db.add(DyeRecipeWashBath(
                 recipe_id=r.id,
                 bath_number=wb.bath_number,
-                description=wb.description,
+                attribute_value_id=wb.attribute_value_id,
+                description=bath_texts.get(wb.attribute_value_id, wb.description or ""),
             ))
 
     if payload.finishing_steps is not None:
+        fin_texts = await _resolve_step_descriptions(db, payload.finishing_steps, "finishing_step")
         for fs in list(r.finishing_steps):
             await db.delete(fs)
         await db.flush()
         for i, fs in enumerate(payload.finishing_steps):
             db.add(DyeRecipeFinishing(
                 recipe_id=r.id,
-                description=fs.description,
+                attribute_value_id=fs.attribute_value_id,
+                description=fin_texts.get(fs.attribute_value_id, fs.description or ""),
                 sort_order=fs.sort_order if fs.sort_order else i,
             ))
 
