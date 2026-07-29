@@ -7,7 +7,7 @@ import { useUser } from '../../context/UserContext';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import Pager from '../shared/Pager';
-import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton } from '../shared/xpTheme';
+import { StatusChip, FormSection, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ColorSwatchChip } from '../shared/xpTheme';
 import {
     LV_XP_FONT, LV_MODERN_FONT, lvInput, lvBtn, lvPrimaryBtn, lvLabel, lvTh, lvTd, lvSep, lvRow,
 } from '../shared/listViewTheme';
@@ -107,6 +107,14 @@ export default function ColorLibraryView({
         [{ value: '', label: 'Not linked to a variant' },
          ...(colorVariantValues || []).map((v: any) => ({ value: v.id, label: v.value }))],
     [colorVariantValues]);
+
+    // Stored swatch hex per `Colors` variant value, so the Color Variant column renders the
+    // same swatch+label chip as every other variant display (BOM table, lab dip request).
+    const variantHexByLabel = useMemo(() => {
+        const map: Record<string, string> = {};
+        (colorVariantValues || []).forEach((v: any) => { if (v.hex) map[v.value] = v.hex; });
+        return map;
+    }, [colorVariantValues]);
 
     const variantFilterOptions = useMemo(() =>
         [{ value: '', label: 'All Color Variants' },
@@ -269,7 +277,9 @@ export default function ColorLibraryView({
                                         : { fontFamily: "'Courier New', monospace", fontWeight: 700, color: '#2563eb', fontSize: 12 }}>{c.code}</span>
                                 </td>
                                 <td style={lvTd(classic)}>{c.name}</td>
-                                <td style={lvTd(classic)}>{c.variant_attribute_value_label || <span style={{ color: '#aaa' }}>—</span>}</td>
+                                <td style={lvTd(classic)}>{c.variant_attribute_value_label
+                                    ? <ColorSwatchChip label={c.variant_attribute_value_label} classic={classic} hex={variantHexByLabel[c.variant_attribute_value_label]} />
+                                    : <span style={{ color: '#aaa' }}>—</span>}</td>
                                 <td style={lvTd(classic)}>{c.colour_index || <span style={{ color: '#aaa' }}>—</span>}</td>
                                 <td style={lvTd(classic)}>
                                     {c.l_star != null
