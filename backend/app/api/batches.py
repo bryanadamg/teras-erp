@@ -10,7 +10,9 @@ from app.models.item import Item
 from app.models.stock_balance import StockBalance
 from app.models.location import Location
 from app.models.work_order import WorkOrder
-from app.models.manufacturing import ManufacturingOrder
+from app.models.manufacturing import ManufacturingOrder, manufacturing_order_values
+from app.models.attribute import Attribute, AttributeValue
+from app.models.color import Color
 from app.models.production_run import ProductionRun
 from app.models.sales import SalesOrder
 from app.models.goods_receipt import GoodsReceipt, GoodsReceiptLine
@@ -53,6 +55,8 @@ async def _resolve_batch_origins(db: AsyncSession, batches: list[Batch]) -> None
 
     A beam batch carries source_wo_id → WO → MO → (PR, SO). Shared-component MOs have
     sales_order_id=None, so the SO falls back to the MO's Production Run's sales_order_id.
+    Also carries the MO's shade identity (Color Library colour, or the pending lab-dip
+    variant code) so lot pickers can label what a physical lot actually is.
     """
     wo_ids = {b.source_wo_id for b in batches if b.source_wo_id}
     if not wo_ids:
@@ -71,16 +75,22 @@ async def _resolve_batch_origins(db: AsyncSession, batches: list[Batch]) -> None
             mo_so.po_number,
             ProductionRun.sales_order_id,
             pr_so.po_number,
+            Color.code,
+            Color.name,
+            Color.hex,
+            ManufacturingOrder.labdip_variant_code,
         )
         .join(ManufacturingOrder, ManufacturingOrder.id == WorkOrder.manufacturing_order_id)
         .outerjoin(ProductionRun, ProductionRun.id == ManufacturingOrder.production_run_id)
         .outerjoin(mo_so, mo_so.id == ManufacturingOrder.sales_order_id)
         .outerjoin(pr_so, pr_so.id == ProductionRun.sales_order_id)
+        .outerjoin(Color, Color.id == ManufacturingOrder.color_id)
         .filter(WorkOrder.id.in_(wo_ids))
     )
     origin: dict = {}
     for (wo_id, wo_code, mo_id, mo_code, pr_id, pr_code,
-         mo_so_id, mo_so_code, pr_so_id, pr_so_code) in rows.all():
+         mo_so_id, mo_so_code, pr_so_id, pr_so_code,
+         color_code, color_name, color_hex, labdip_code) in rows.all():
         origin[wo_id] = {
             "wo_code": wo_code,
             "mo_id": mo_id,
@@ -89,12 +99,54 @@ async def _resolve_batch_origins(db: AsyncSession, batches: list[Batch]) -> None
             "production_run_code": pr_code,
             "sales_order_id": mo_so_id or pr_so_id,
             "sales_order_code": mo_so_code or pr_so_code,
+            "color_code": color_code,
+            "color_name": color_name,
+            "color_hex": color_hex,
+            "labdip_variant_code": labdip_code,
         }
     for b in batches:
         info = origin.get(b.source_wo_id)
         if info:
             for k, v in info.items():
                 setattr(b, k, v)
+
+
+async def _resolve_batch_variants(db: AsyncSession, batches: list[Batch]) -> None:
+    """Populate variant_attributes: the variant identity (Combo / Colors / Materials …)
+    of the MO that produced each lot.
+
+    A produced lot's size lives on the lot itself (bom_size_snapshot), but its
+    combo/colour identity lives only on the source MO's attribute values — the
+    stager picking greige for a dyeing WO needs both to tell two GRG- lots apart.
+    One grouped query for every lot in the page; no N+1.
+    """
+    wo_ids = {b.source_wo_id for b in batches if b.source_wo_id}
+    if not wo_ids:
+        return
+    rows = await db.execute(
+        select(
+            WorkOrder.id,
+            Attribute.name,
+            Attribute.system_role,
+            AttributeValue.value,
+            AttributeValue.hex,
+        )
+        .join(ManufacturingOrder, ManufacturingOrder.id == WorkOrder.manufacturing_order_id)
+        .join(manufacturing_order_values, manufacturing_order_values.c.manufacturing_order_id == ManufacturingOrder.id)
+        .join(AttributeValue, AttributeValue.id == manufacturing_order_values.c.attribute_value_id)
+        .join(Attribute, Attribute.id == AttributeValue.attribute_id)
+        .filter(WorkOrder.id.in_(wo_ids))
+        .order_by(Attribute.name, AttributeValue.value)
+    )
+    by_wo: dict = {}
+    for wo_id, attr_name, role, value, hex_code in rows.all():
+        by_wo.setdefault(wo_id, []).append({
+            "name": attr_name, "system_role": role, "value": value, "hex": hex_code,
+        })
+    for b in batches:
+        attrs = by_wo.get(b.source_wo_id)
+        if attrs:
+            b.variant_attributes = attrs
 
 
 async def _resolve_source_lots(db: AsyncSession, batches: list[Batch]) -> None:
@@ -237,6 +289,7 @@ async def _enrich_batches(db: AsyncSession, batches: list[Batch], location_id: u
         b.item_name = b.item.name if b.item else None
     await _resolve_gr_origins(db, list(batches))
     await _resolve_batch_origins(db, list(batches))
+    await _resolve_batch_variants(db, list(batches))
     if with_source_lots:
         await _resolve_source_lots(db, list(batches))
     return batches

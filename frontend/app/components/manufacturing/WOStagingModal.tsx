@@ -5,6 +5,7 @@ import { useData } from '../../context/DataContext';
 import { useToast } from '../shared/Toast';
 import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 import ModalWrapper from '../shared/ModalWrapper';
+import { LotChips, LotChip } from '../shared/LotChips';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -72,7 +73,7 @@ interface Props {
 }
 
 export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Props) {
-    const { authFetch, locations } = useData() as any;
+    const { authFetch, locations, manufacturingOrders, attributes } = useData() as any;
     const { showToast } = useToast();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
@@ -86,6 +87,35 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
     const [submitting, setSubmitting] = useState(false);
     const [loom, setLoom] = useState<LoomBeamStatus | null>(null);
     const locPickerTreeOptions = useMemo(() => buildLocationPickerTree(locations || []), [locations]);
+
+    // Order identity for the header strip: what this WO is actually making — size
+    // and combo/shade live on the MO, not on the WO, so the stager otherwise has
+    // only a code to go on when several sizes of the same item are on the floor.
+    const mo = useMemo(
+        () => (manufacturingOrders || []).find((m: any) => String(m.id) === String(wo.manufacturing_order_id)),
+        [manufacturingOrders, wo.manufacturing_order_id],
+    );
+    const attrValueIndex = useMemo(() => {
+        const idx: Record<string, { name: string; value: string; hex?: string | null; system_role?: string | null }> = {};
+        (attributes || []).forEach((a: any) => (a.values || []).forEach((v: any) => {
+            idx[String(v.id)] = { name: a.name, value: v.value, hex: v.hex, system_role: a.system_role };
+        }));
+        return idx;
+    }, [attributes]);
+    // Shape the MO into the same lot-like object LotChips renders, so the order
+    // header and every lot row below it read with one visual vocabulary.
+    const moIdentity = useMemo(() => {
+        if (!mo) return null;
+        return {
+            bom_size_snapshot: mo.bom_size_snapshot,
+            variant_attributes: (mo.attribute_value_ids || [])
+                .map((id: string) => attrValueIndex[String(id)])
+                .filter(Boolean),
+            color_code: mo.color_code,
+            color_name: mo.color_name,
+            labdip_variant_code: mo.labdip_variant_code,
+        };
+    }, [mo, attrValueIndex]);
 
     useEffect(() => {
         let alive = true;
@@ -228,7 +258,7 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
             onClose={onClose}
             title={`${hasBeams ? 'Mount Beam' : 'Stage Materials'} — ${wo.code || wo.name}`}
             modeless
-            size="xl"
+            size="xxl"
             footer={
                 <>
                     <button style={xpBtn(false)} onClick={onClose} disabled={submitting}>Cancel</button>
@@ -245,6 +275,24 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                     <div style={{ display: 'flex', gap: 0, marginBottom: 8, border: '1px solid #7f9db9', width: 'fit-content' }}>
                         <span style={{ padding: '3px 12px', fontWeight: 'bold', background: 'linear-gradient(to bottom,#cfe0ff,#8fb3e8)', color: '#0a2a66' }}>Manual</span>
                         <button onClick={onScanMode} style={{ ...xpBtn(false), border: 'none', borderLeft: '1px solid #7f9db9', padding: '3px 12px' }}>Scan bags</button>
+                    </div>
+                )}
+                {moIdentity && (
+                    <div style={{
+                        display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+                        border: '1px solid #cfccc4', background: '#f7f6f2',
+                        padding: '4px 6px', marginBottom: 8,
+                    }}>
+                        <span style={{ fontWeight: 'bold' }}>{mo?.item_code || mo?.code || ''}</span>
+                        {mo?.code ? (
+                            <LotChip tone="order" mono title="Manufacturing order">{mo.code}</LotChip>
+                        ) : null}
+                        <LotChips batch={moIdentity} />
+                        {wo.work_center_name ? (
+                            <LotChip tone="location" title="Work center">
+                                <i className="bi bi-gear" />{wo.work_center_name}
+                            </LotChip>
+                        ) : null}
                     </div>
                 )}
                 <div style={{ fontSize: 10, color: '#555', marginBottom: 8 }}>
@@ -314,6 +362,15 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                                                 <td style={{ padding: '3px 5px' }}>
                                                     <div style={{ fontWeight: 'bold' }}>{r.item_code || '—'}</div>
                                                     <div style={{ color: '#777' }}>{r.item_name}</div>
+                                                    {/* The variant the BOM line calls for — a material row can be
+                                                        variant-specific (combo/colour) even when the lot rows aren't. */}
+                                                    <LotChips
+                                                        batch={{
+                                                            variant_attributes: (r.attribute_value_ids || [])
+                                                                .map((id: string) => attrValueIndex[String(id)])
+                                                                .filter(Boolean),
+                                                        }}
+                                                    />
                                                 </td>
                                                 <td style={{ padding: '3px 5px' }}>
                                                     {r.source_location_id ? (r.source_location_name || '—') : (
@@ -371,11 +428,11 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                                                         />
                                                     )}
                                                 </td>
-                                                <td style={{ padding: '3px 5px' }}>
+                                                <td style={{ padding: '3px 5px', width: '46%' }}>
                                                     {r.lot_tracked ? (
                                                         <div style={{
                                                             border: '1px solid #7f9db9', background: 'white',
-                                                            maxHeight: 220, overflowY: 'auto', minWidth: 150,
+                                                            maxHeight: 260, overflowY: 'auto', minWidth: 320,
                                                         }}>
                                                             {(batchesByItem[r.item_id] || []).length === 0 ? (
                                                                 <div style={{ color: '#aaa', padding: '2px 4px' }}>
@@ -385,12 +442,14 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                                                                 const checked = (batchByItem[r.item_id] || []).includes(b.id);
                                                                 return (
                                                                     <label key={b.id} style={{
-                                                                        display: 'flex', alignItems: 'center', gap: 4,
-                                                                        padding: '1px 4px', cursor: 'pointer',
+                                                                        display: 'flex', alignItems: 'flex-start', gap: 5,
+                                                                        padding: '3px 5px', cursor: 'pointer',
+                                                                        borderBottom: '1px solid #eceae2',
                                                                         background: checked ? '#e6f0ff' : 'transparent',
                                                                     }}>
                                                                         <input
                                                                             type="checkbox"
+                                                                            style={{ marginTop: 1 }}
                                                                             checked={checked}
                                                                             onChange={e => setBatchByItem(p => {
                                                                                 const cur = p[r.item_id] || [];
@@ -400,17 +459,32 @@ export default function WOStagingModal({ wo, onClose, onStaged, onScanMode }: Pr
                                                                                 return { ...p, [r.item_id]: next };
                                                                             })}
                                                                         />
-                                                                        <span>
-                                                            {b.batch_number}
-                                                            {b.wo_code ? <span style={{ color: '#777' }}> — {b.wo_code}</span> : null}
-                                                            {b.location_name ? <span style={{ color: '#0058e6' }}> @ {b.location_name}</span> : null}
-                                                            {' '}({(b.remaining ?? 0).toFixed(1)})
-                                                            {Array.isArray(b.source_lots) && b.source_lots.length > 0 ? (
-                                                                <span style={{ display: 'block', color: '#777', fontSize: 9, paddingLeft: 18 }}>
-                                                                    RM lot: {b.source_lots.join(', ')}
-                                                                </span>
-                                                            ) : null}
-                                                        </span>
+                                                                        {/* Lot number on line 1; what the lot IS (size, combo,
+                                                                            shade) as chips on line 2 — a stager picking greige
+                                                                            for a dyeing WO can't tell two GRG- lots apart from
+                                                                            the number alone. RM provenance stays last. */}
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
+                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                                                                <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{b.batch_number}</span>
+                                                                                <LotChip tone="qty" title="Quantity remaining">
+                                                                                    {(b.remaining ?? 0).toFixed(1)}
+                                                                                </LotChip>
+                                                                                {b.location_name ? (
+                                                                                    <LotChip tone="location" title="Current location">
+                                                                                        <i className="bi bi-geo-alt" />{b.location_name}
+                                                                                    </LotChip>
+                                                                                ) : null}
+                                                                                {b.ends ? (
+                                                                                    <LotChip tone="order" title="Warp ends">{b.ends} ends</LotChip>
+                                                                                ) : null}
+                                                                            </div>
+                                                                            <LotChips batch={b} showOrder />
+                                                                            {Array.isArray(b.source_lots) && b.source_lots.length > 0 ? (
+                                                                                <span style={{ color: '#777', fontSize: 9 }}>
+                                                                                    RM lot: {b.source_lots.join(', ')}
+                                                                                </span>
+                                                                            ) : null}
+                                                                        </div>
                                                                     </label>
                                                                 );
                                                             })}

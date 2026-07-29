@@ -8,6 +8,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import BagLabelPrintModal from './BagLabelPrintModal';
 import { ProgressBar } from '../shared/xpTheme';
+import { LotChips } from '../shared/LotChips';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
 const xpInput: React.CSSProperties = {
@@ -460,12 +461,18 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                             </label>
                                             <div style={{ border: '1px solid #7f9db9', background: '#fff', maxHeight: 150, overflowY: 'auto' }}>
                                                 {(batchesByItem[itemId] || []).map((b: any) => (
-                                                    <label key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '2px 5px', fontSize: 10, cursor: 'pointer', background: selSet.has(b.id) ? '#e6f0ff' : 'transparent' }}>
-                                                        <input type="checkbox" checked={selSet.has(b.id)} onChange={e => toggle(b.id, e.target.checked)} />
-                                                        <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{b.batch_number}</span>
-                                                        {b.vendor_lot && <span style={{ color: '#8a5a00' }}>(supplier: {b.vendor_lot})</span>}
-                                                        <span style={{ color: '#555' }}>— {Number(b.remaining ?? 0).toFixed(2)} kg</span>
-                                                        {b.location_name && <span style={{ color: '#0058e6' }}>@ {b.location_name}</span>}
+                                                    <label key={b.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 5, padding: '3px 5px', fontSize: 10, cursor: 'pointer', borderBottom: '1px solid #eceae2', background: selSet.has(b.id) ? '#e6f0ff' : 'transparent' }}>
+                                                        <input type="checkbox" style={{ marginTop: 1 }} checked={selSet.has(b.id)} onChange={e => toggle(b.id, e.target.checked)} />
+                                                        {/* Same lot identity chips as the staging picker: two lots of the
+                                                            same item differ only by size / combo / shade. */}
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                                                <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{b.batch_number}</span>
+                                                                <span style={{ color: '#555' }}>{Number(b.remaining ?? 0).toFixed(2)} kg</span>
+                                                                {b.location_name && <span style={{ color: '#0058e6' }}>@ {b.location_name}</span>}
+                                                            </div>
+                                                            <LotChips batch={b} showOrder />
+                                                        </div>
                                                     </label>
                                                 ))}
                                             </div>

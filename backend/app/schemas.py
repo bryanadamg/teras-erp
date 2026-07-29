@@ -2176,6 +2176,14 @@ class LeftoverBeamCreate(BaseModel):
     ends: Optional[int] = None
     notes: Optional[str] = None
 
+class BatchVariantAttr(BaseModel):
+    """One variant attribute value of the MO that produced a lot (Combo, Colors, …)."""
+    name: str
+    value: str
+    hex: Optional[str] = None
+    system_role: Optional[str] = None   # 'combo' | 'color' | 'material' | ...
+
+
 class BatchResponse(BaseModel):
     id: UUID
     batch_number: str
@@ -2205,6 +2213,14 @@ class BatchResponse(BaseModel):
     production_run_code: Optional[str] = None
     sales_order_id: Optional[UUID] = None
     sales_order_code: Optional[str] = None
+    # Variant identity of the producing MO — combo/colour/material attribute values
+    # plus the Color Library shade (or pending lab-dip code). Size is on the lot
+    # itself (bom_size_snapshot); these are what distinguish two same-size lots.
+    variant_attributes: Optional[list[BatchVariantAttr]] = None
+    color_code: Optional[str] = None
+    color_name: Optional[str] = None
+    color_hex: Optional[str] = None
+    labdip_variant_code: Optional[str] = None
     # GR origin — resolved from GoodsReceiptLine → GoodsReceipt → PurchaseOrder
     po_id: Optional[UUID] = None
     po_number: Optional[str] = None
