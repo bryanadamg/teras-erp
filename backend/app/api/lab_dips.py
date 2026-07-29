@@ -1,3 +1,4 @@
+import uuid as uuid_lib
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text, update as sa_update
@@ -46,6 +47,38 @@ def _variant_letter(seq: int) -> str:
         n, r = divmod(n - 1, 26)
         s = chr(65 + r) + s
     return s
+
+
+async def _picked_color_variant_value_ids(db: AsyncSession, request_id, item_id) -> list:
+    """`Colors` (system_role='color') AttributeValue ids the request picked for this variant.
+
+    A dip's `color_name` is a value of the `Colors` variant attribute (that's what the
+    request's ③ Colors picker offers), so the shade minted on approval can inherit the
+    variant it was dipped for. The item's own dips win; otherwise the request-level picks
+    (which apply to every item) are used. Order follows dip order, duplicates dropped.
+    """
+    lines = (await db.execute(
+        select(LabDipLine.color_name, LabDipLine.lab_dip_item_id)
+        .filter(LabDipLine.lab_dip_request_id == request_id)
+        .order_by(LabDipLine.order)
+    )).all()
+    own = [n.strip() for n, iid in lines if iid is not None and str(iid) == str(item_id) and n and n.strip()]
+    shared = [n.strip() for n, iid in lines if iid is None and n and n.strip()]
+    names = own or shared
+    if not names:
+        return []
+    rows = (await db.execute(
+        select(AttributeValue.id, AttributeValue.value)
+        .join(Attribute, AttributeValue.attribute_id == Attribute.id)
+        .filter(Attribute.system_role == "color", AttributeValue.value.in_(names))
+    )).all()
+    by_name = {value: vid for vid, value in rows}
+    out: list = []
+    for n in names:
+        vid = by_name.get(n)
+        if vid is not None and vid not in out:
+            out.append(vid)
+    return out
 
 
 def _decorate(req: LabDipRequest) -> LabDipRequest:
@@ -333,6 +366,7 @@ async def update_lab_dip_item_status(
     set_value: str | None = None,
     notes: str | None = None,
     reason: str | None = None,
+    variant_attribute_value_id: str | None = None,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission('dyeing.manage')),
 ):
@@ -372,11 +406,27 @@ async def update_lab_dip_item_status(
         if dup.scalars().first():
             raise HTTPException(status_code=400, detail=f"Color code '{code}' already exists in the library")
 
+        # Color Variant: the shade inherits the `Colors` variant it was dipped for, so the
+        # Color Codes table shows the lab dip's variant instead of "—". An explicit pick
+        # from the approve dialog wins; otherwise auto-resolve, and only when the request
+        # picked exactly one variant (ambiguous multi-color requests stay unlinked).
+        variant_value_id = None
+        if variant_attribute_value_id:
+            try:
+                variant_value_id = uuid_lib.UUID(str(variant_attribute_value_id))
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid variant_attribute_value_id")
+        else:
+            candidates = await _picked_color_variant_value_ids(db, request_id, item.id)
+            if len(candidates) == 1:
+                variant_value_id = candidates[0]
+
         color = Color(
             code=code,
             name=code,  # the code is the shade identity; a friendly name is optional.
             notes=(notes or None),
             status="active",
+            variant_attribute_value_id=variant_value_id,
         )
         db.add(color)
         await db.flush()

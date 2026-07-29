@@ -117,6 +117,14 @@ const splitVariantCode = (code: string): { seq: string; variant: string } => {
     return idx === -1 ? { seq: code, variant: '' } : { seq: code.slice(0, idx), variant: code.slice(idx + 1) };
 };
 
+// Color-variant names this item was dipped for: its own dips, else the request-level picks
+// (③ Colors applies to every item). These names are `Colors` variant attribute values.
+const itemColorNames = (req: any, item: any): string[] => {
+    const own = (item?.dips || []).map((d: any) => d.color_name).filter(Boolean);
+    if (own.length) return own;
+    return (req?.dips || []).filter((d: any) => !d.lab_dip_item_id).map((d: any) => d.color_name).filter(Boolean);
+};
+
 // Two distinct chips: the request sequence (neutral) and the item's variant letter (accent).
 const seqBadge = (classic: boolean): React.CSSProperties => classic ? {
     fontFamily: "'Courier New', monospace", fontSize: 11, fontWeight: 'bold', color: '#333',
@@ -189,18 +197,48 @@ export default function LabDipRequestView({
 
     // Approval dialog: captures the "set" index (+ optional notes) that completes the
     // approved color code, then mints a Color library entry via onUpdateItemStatus.
-    const [approval, setApproval] = useState<{ reqId: string; itemId: string; seq: string; variant: string } | null>(null);
+    const [approval, setApproval] = useState<{ reqId: string; itemId: string; seq: string; variant: string; colorNames: string[] } | null>(null);
     const [approvalSet, setApprovalSet] = useState('');
     const [approvalNotes, setApprovalNotes] = useState('');
+    // The `Colors` variant the minted shade is linked to (shows in the Color Codes table).
+    const [approvalVariantId, setApprovalVariantId] = useState('');
+
+    // Colors-attribute value id by value name — the dips' color_name are these values.
+    const colorValueIdByName = useMemo(() => {
+        const attr = (attributes as any[] || []).find((a: any) => a.system_role === 'color');
+        const map: Record<string, string> = {};
+        (attr?.values ?? []).forEach((v: any) => { map[v.value] = v.id; });
+        return map;
+    }, [attributes]);
+
+    // Color variants this request dipped for: the item's own dips, else the request-level
+    // picks that apply to every item. Drives the approve dialog's variant link.
+    const approvalVariantOptions = useMemo(() => {
+        const seen = new Set<string>();
+        return (approval?.colorNames || []).reduce((acc: { value: string; label: string }[], n: string) => {
+            const id = colorValueIdByName[n];
+            if (id && !seen.has(id)) { seen.add(id); acc.push({ value: id, label: n }); }
+            return acc;
+        }, []);
+    }, [approval, colorValueIdByName]);
+
     const openApproval = (reqId: string, v: any) => {
         if (v.status === 'APPROVED' || v.status === 'REJECTED') return; // locked
-        setApproval({ reqId, itemId: v.id, seq: v.seq, variant: v.variant });
+        setApproval({ reqId, itemId: v.id, seq: v.seq, variant: v.variant, colorNames: v.colorNames || [] });
         setApprovalSet('');
         setApprovalNotes('');
+        // Single pick → link it automatically; several → the user chooses.
+        const ids = (v.colorNames || []).map((n: string) => colorValueIdByName[n]).filter(Boolean);
+        const unique = Array.from(new Set(ids));
+        setApprovalVariantId(unique.length === 1 ? String(unique[0]) : '');
     };
     const confirmApproval = () => {
         if (!approval || !approvalSet.trim()) return;
-        onUpdateItemStatus(approval.reqId, approval.itemId, 'APPROVED', { set: approvalSet.trim(), notes: approvalNotes.trim() || undefined });
+        onUpdateItemStatus(approval.reqId, approval.itemId, 'APPROVED', {
+            set: approvalSet.trim(),
+            notes: approvalNotes.trim() || undefined,
+            variant_attribute_value_id: approvalVariantId || undefined,
+        });
         setApproval(null);
     };
 
@@ -590,7 +628,7 @@ export default function LabDipRequestView({
                                                     canManage ? (
                                                         <div style={{ display: 'inline-flex', opacity: locked ? 0.85 : 1 }}>
                                                             <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'IN_PROGRESS', 'progress'), ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => setItemStatus(it.id, status, 'IN_PROGRESS')}>Progress</button>
-                                                            <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'APPROVED', 'approved'), ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => openApproval(r.id, { id: it.id, status, seq: codeParts.seq, variant: codeParts.variant })}>Approved</button>
+                                                            <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'APPROVED', 'approved'), ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => openApproval(r.id, { id: it.id, status, seq: codeParts.seq, variant: codeParts.variant, colorNames: itemColorNames(r, it) })}>Approved</button>
                                                             <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'REJECTED', 'rejected'), borderRight: '1px solid', ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => openReject(r.id, { id: it.id, status, seq: codeParts.seq, variant: codeParts.variant })}>Rejected</button>
                                                         </div>
                                                     ) : <span style={{ color: '#999' }}>—</span>,
@@ -897,6 +935,22 @@ export default function LabDipRequestView({
                             </span>
                             {' '}— saved to the Color library.
                         </div>
+                        {/* Color Variant carried onto the minted shade → shows in the Color Codes table.
+                            Prefilled when the request picked exactly one color. */}
+                        <label style={xpLbl(classic)}>Color Variant</label>
+                        {approvalVariantOptions.length === 0 ? (
+                            <div style={{ fontSize: classic ? 11 : 12, color: classic ? '#999' : '#94a3b8', fontStyle: 'italic', marginBottom: 10 }}>
+                                No {colorsAttrName.toLowerCase()} picked on this request — the color will not be linked to a variant.
+                            </div>
+                        ) : (
+                            <div style={{ marginBottom: 10 }}>
+                                <select style={{ ...xpInput(classic), width: '100%', boxSizing: 'border-box' as const }}
+                                    value={approvalVariantId} onChange={e => setApprovalVariantId(e.target.value)}>
+                                    <option value="">Not linked to a variant</option>
+                                    {approvalVariantOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                </select>
+                            </div>
+                        )}
                         <label style={xpLbl(classic)}>Notes (optional)</label>
                         <textarea style={{ ...xpInput(classic), height: 'auto', padding: '4px 6px', width: '100%', resize: 'vertical' as const, boxSizing: 'border-box' as const }} rows={2} value={approvalNotes} onChange={e => setApprovalNotes(e.target.value)} placeholder="Optional note carried onto the color entry…" />
                     </div>
