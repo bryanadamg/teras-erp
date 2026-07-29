@@ -852,7 +852,10 @@ export default function WorkOrderListView({
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11, color: '#444', overflow: 'hidden' }}
                                                     title={wo.item_name || ''}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden' }}>
-                                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wo.item_name || '—'}</span>
+                                                        <span style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wo.item_name || '—'}</span>
+                                                        {/* Variant chips ride the right edge of the column (same as PrintChips
+                                                            on the Name column) so they line up down the table. */}
+                                                        <span style={{ marginLeft: 'auto', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                                                         {wo.combo_label && (
                                                             <span style={{ fontSize: 8, padding: '0 4px', background: '#dbeafe', color: '#1d4ed8', borderRadius: 2, fontWeight: 700, lineHeight: '14px', whiteSpace: 'nowrap', flexShrink: 0 }} title={`Combo: ${wo.combo_label}`}>
                                                                 {wo.combo_label}
@@ -883,6 +886,7 @@ export default function WorkOrderListView({
                                                                 <i className="bi bi-eyedropper me-1" style={{ fontSize: 7 }}></i>{wo.labdip_variant_code}
                                                             </span>
                                                         ) : null}
+                                                        </span>
                                                     </div>
                                                 </td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11, overflow: 'hidden' }}>
