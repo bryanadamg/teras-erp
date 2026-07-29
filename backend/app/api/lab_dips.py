@@ -427,6 +427,9 @@ async def update_lab_dip_item_status(
             notes=(notes or None),
             status="active",
             variant_attribute_value_id=variant_value_id,
+            # A shade dipped for a customer belongs to that customer; without this the
+            # library row reads as a House color. No customer on the request → House.
+            customer_id=(parent.customer_id if parent else None),
         )
         db.add(color)
         await db.flush()

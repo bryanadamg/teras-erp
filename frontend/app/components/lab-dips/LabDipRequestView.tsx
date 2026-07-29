@@ -197,7 +197,7 @@ export default function LabDipRequestView({
 
     // Approval dialog: captures the "set" index (+ optional notes) that completes the
     // approved color code, then mints a Color library entry via onUpdateItemStatus.
-    const [approval, setApproval] = useState<{ reqId: string; itemId: string; seq: string; variant: string; colorNames: string[] } | null>(null);
+    const [approval, setApproval] = useState<{ reqId: string; itemId: string; seq: string; variant: string; colorNames: string[]; customerName?: string | null } | null>(null);
     const [approvalSet, setApprovalSet] = useState('');
     const [approvalNotes, setApprovalNotes] = useState('');
     // The `Colors` variant the minted shade is linked to (shows in the Color Codes table).
@@ -224,7 +224,7 @@ export default function LabDipRequestView({
 
     const openApproval = (reqId: string, v: any) => {
         if (v.status === 'APPROVED' || v.status === 'REJECTED') return; // locked
-        setApproval({ reqId, itemId: v.id, seq: v.seq, variant: v.variant, colorNames: v.colorNames || [] });
+        setApproval({ reqId, itemId: v.id, seq: v.seq, variant: v.variant, colorNames: v.colorNames || [], customerName: v.customerName || null });
         setApprovalSet('');
         setApprovalNotes('');
         // Single pick → link it automatically; several → the user chooses.
@@ -628,7 +628,7 @@ export default function LabDipRequestView({
                                                     canManage ? (
                                                         <div style={{ display: 'inline-flex', opacity: locked ? 0.85 : 1 }}>
                                                             <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'IN_PROGRESS', 'progress'), ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => setItemStatus(it.id, status, 'IN_PROGRESS')}>Progress</button>
-                                                            <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'APPROVED', 'approved'), ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => openApproval(r.id, { id: it.id, status, seq: codeParts.seq, variant: codeParts.variant, colorNames: itemColorNames(r, it) })}>Approved</button>
+                                                            <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'APPROVED', 'approved'), ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => openApproval(r.id, { id: it.id, status, seq: codeParts.seq, variant: codeParts.variant, colorNames: itemColorNames(r, it), customerName: r.customer_id ? getCustomerName(r.customer_id) : null })}>Approved</button>
                                                             <button type="button" disabled={locked} style={{ ...itemStatusBtn(status === 'REJECTED', 'rejected'), borderRight: '1px solid', ...(locked ? { cursor: 'not-allowed' } : {}) }} onClick={() => openReject(r.id, { id: it.id, status, seq: codeParts.seq, variant: codeParts.variant })}>Rejected</button>
                                                         </div>
                                                     ) : <span style={{ color: '#999' }}>—</span>,
@@ -951,6 +951,12 @@ export default function LabDipRequestView({
                                 </select>
                             </div>
                         )}
+                        {/* Read-only: the request's customer is stamped on the minted shade
+                            (House color when the request has none). */}
+                        <label style={xpLbl(classic)}>Customer</label>
+                        <div style={{ fontSize: classic ? 11 : 12, color: approval.customerName ? (classic ? '#333' : '#334155') : (classic ? '#999' : '#94a3b8'), fontStyle: approval.customerName ? 'normal' : 'italic', marginBottom: 10 }}>
+                            {approval.customerName || 'No customer on this request — saved as a House color.'}
+                        </div>
                         <label style={xpLbl(classic)}>Notes (optional)</label>
                         <textarea style={{ ...xpInput(classic), height: 'auto', padding: '4px 6px', width: '100%', resize: 'vertical' as const, boxSizing: 'border-box' as const }} rows={2} value={approvalNotes} onChange={e => setApprovalNotes(e.target.value)} placeholder="Optional note carried onto the color entry…" />
                     </div>
