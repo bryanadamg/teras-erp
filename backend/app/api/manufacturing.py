@@ -715,6 +715,9 @@ async def list_work_orders_flat(
 
         size_label = stock_service._bom_size_label(mo.bom_size_snapshot) if mo else None
 
+        # MO.color is lazy="joined" so it rides along with the MO joinedload above.
+        color = mo.color if mo else None
+
         completions_flat = []
         for c in sorted(wo.completions or [], key=lambda x: x.created_at or datetime.min, reverse=True):
             items_flat = [
@@ -776,6 +779,11 @@ async def list_work_orders_flat(
             item_id=str(mo.item_id) if mo else "",
             combo_label=combo_label,
             size_label=size_label,
+            color_id=str(mo.color_id) if mo and mo.color_id else None,
+            color_code=color.code if color else None,
+            color_name=color.name if color else None,
+            color_hex=color.hex if color else None,
+            labdip_variant_code=mo.labdip_variant_code if mo else None,
             completions=completions_flat,
             bom_line_item_ids=bom_line_item_ids,
         ))

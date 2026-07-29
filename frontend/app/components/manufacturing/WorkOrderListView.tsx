@@ -98,6 +98,11 @@ interface FlatWO {
     item_name: string;
     combo_label?: string | null;
     size_label?: string | null;
+    color_id?: string | null;
+    color_code?: string | null;
+    color_name?: string | null;
+    color_hex?: string | null;
+    labdip_variant_code?: string | null;
 }
 
 export default function WorkOrderListView({
@@ -413,6 +418,12 @@ export default function WorkOrderListView({
                                 >{wo.mo_code}</span>
                             </div>
                             {infoRow('Product', wo.item_name || '—')}
+                            {(wo.color_code || wo.labdip_variant_code) && infoRow(
+                                'Color',
+                                wo.color_code
+                                    ? `${wo.color_code}${wo.color_name && wo.color_name !== wo.color_code ? ` — ${wo.color_name}` : ''}`
+                                    : `${wo.labdip_variant_code} (lab dip pending)`
+                            )}
                             {infoRow('Work Center', wo.work_center_name || '—')}
                             {(wo.input_location || wo.output_location) && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginBottom: 2, marginTop: 1 }}>
@@ -852,6 +863,26 @@ export default function WorkOrderListView({
                                                                 <i className="bi bi-rulers me-1" style={{ fontSize: 7 }}></i>{wo.size_label}
                                                             </span>
                                                         )}
+                                                        {/* Color spec — the shade this WO produces (dyeing steps especially).
+                                                            Falls back to the pending lab-dip code while the shade is unapproved. */}
+                                                        {wo.color_code ? (
+                                                            <span
+                                                                style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 8, padding: '0 4px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 2, fontWeight: 700, lineHeight: '14px', whiteSpace: 'nowrap', flexShrink: 0 }}
+                                                                title={`Color: ${wo.color_code}${wo.color_name && wo.color_name !== wo.color_code ? ` — ${wo.color_name}` : ''}`}
+                                                            >
+                                                                {wo.color_hex
+                                                                    ? <span style={{ width: 7, height: 7, background: wo.color_hex, border: '1px solid rgba(0,0,0,0.35)', flexShrink: 0, display: 'inline-block' }} />
+                                                                    : <i className="bi bi-palette" style={{ fontSize: 7 }}></i>}
+                                                                {wo.color_code}
+                                                            </span>
+                                                        ) : wo.labdip_variant_code ? (
+                                                            <span
+                                                                style={{ fontSize: 8, padding: '0 4px', background: '#fbf4dd', color: '#8a6d00', border: '1px solid #e8dca8', borderRadius: 2, fontWeight: 700, lineHeight: '14px', whiteSpace: 'nowrap', flexShrink: 0 }}
+                                                                title={`Color still in lab dip (${wo.labdip_variant_code}) — dyeing is blocked until approved`}
+                                                            >
+                                                                <i className="bi bi-eyedropper me-1" style={{ fontSize: 7 }}></i>{wo.labdip_variant_code}
+                                                            </span>
+                                                        ) : null}
                                                     </div>
                                                 </td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11, overflow: 'hidden' }}>
