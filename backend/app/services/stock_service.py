@@ -244,6 +244,9 @@ async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | N
     batch_ids = {r.batch_key for r in results if r.batch_key}
     batch_number_map: dict[str, str] = {}
     batch_size_label_map: dict[str, str] = {}
+    # vendor_lot is only ever written when a lot is minted/matched at goods receipt
+    # (api/purchase.py), so its presence alone identifies a supplier-received lot.
+    batch_vendor_lot_map: dict[str, str] = {}
     if batch_ids:
         import uuid as _uuid
         from app.models.batch import Batch
@@ -255,13 +258,15 @@ async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | N
                 continue
         if valid_ids:
             batch_rows = await db.execute(
-                select(Batch.id, Batch.batch_number, Batch.bom_size_snapshot).filter(Batch.id.in_(valid_ids))
+                select(Batch.id, Batch.batch_number, Batch.bom_size_snapshot, Batch.vendor_lot).filter(Batch.id.in_(valid_ids))
             )
-            for bid, bnum, snapshot in batch_rows.all():
+            for bid, bnum, snapshot, vlot in batch_rows.all():
                 batch_number_map[str(bid)] = bnum
                 label = _bom_size_label(snapshot)
                 if label:
                     batch_size_label_map[str(bid)] = label
+                if vlot:
+                    batch_vendor_lot_map[str(bid)] = vlot
 
     return [
         {
@@ -281,6 +286,7 @@ async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | N
             "qty_drums": int(r.qty_drums or 0),
             "batch_key": r.batch_key,
             "batch_number": batch_number_map.get(r.batch_key) if r.batch_key else None,
+            "vendor_lot": batch_vendor_lot_map.get(r.batch_key) if r.batch_key else None,
             "size_label": batch_size_label_map.get(r.batch_key) if r.batch_key else None,
         }
         for r in results

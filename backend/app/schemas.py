@@ -1196,6 +1196,7 @@ class StockBalanceResponse(BaseModel):
     qty_drums: int = 0
     batch_key: str = ""
     batch_number: str | None = None
+    vendor_lot: str | None = None   # supplier's lot ref — only set on goods-receipt lots
     size_label: str | None = None   # lot's BOM size (from Batch.bom_size_snapshot), if any — mainly sized greige lots
 
 class UOMCreate(BaseModel):

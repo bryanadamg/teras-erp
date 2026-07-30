@@ -403,7 +403,8 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
             const loc = (bal.location_name || getLocationName(bal.location_id)).toLowerCase();
             const wh = getWarehouseName(bal.location_id).toLowerCase();
             const batch = bal.batch_key ? (bal.batch_number || bal.batch_key).toLowerCase() : '';
-            return name.includes(s) || code.includes(s) || itemCat.includes(s) || loc.includes(s) || wh.includes(s) || batch.includes(s);
+            const vendorLot = (bal.vendor_lot || '').toLowerCase();
+            return name.includes(s) || code.includes(s) || itemCat.includes(s) || loc.includes(s) || wh.includes(s) || batch.includes(s) || vendorLot.includes(s);
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [stockBalance, search, locationFilter, warehouseFilter, catMatchSet, locMap]);
@@ -503,9 +504,16 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                     </td>
                     <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', whiteSpace: 'nowrap' }}>
                         {bal.batch_key ? (
-                            <span style={{ background: '#fff8dc', border: '1px solid #c8a000', padding: '0 5px', fontSize: '10px', color: '#5a3c00', whiteSpace: 'nowrap' }}>
-                                {batchLabel}
-                            </span>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start' }}>
+                                <span style={{ background: '#fff8dc', border: '1px solid #c8a000', padding: '0 5px', fontSize: '10px', color: '#5a3c00', whiteSpace: 'nowrap' }}>
+                                    {batchLabel}
+                                </span>
+                                {bal.vendor_lot && (
+                                    <span title={`Supplier lot: ${bal.vendor_lot}`} style={{ background: '#f0ece0', border: '1px solid #b0a890', padding: '0 5px', fontFamily: '"Courier New", Courier, monospace', fontSize: '10px', color: '#4a4438', whiteSpace: 'nowrap' }}>
+                                        SUP {bal.vendor_lot}
+                                    </span>
+                                )}
+                            </div>
                         ) : (
                             <span style={{ fontSize: '10px', color: '#999', fontStyle: 'italic' }}>-</span>
                         )}
@@ -596,7 +604,14 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                 </td>
                 <td style={{ whiteSpace: 'nowrap' }}>
                     {bal.batch_key ? (
-                        <span className="badge bg-warning text-dark">{batchLabel}</span>
+                        <div className="d-flex flex-column gap-1 align-items-start">
+                            <span className="badge bg-warning text-dark">{batchLabel}</span>
+                            {bal.vendor_lot && (
+                                <span className="badge bg-secondary-subtle text-secondary-emphasis font-monospace" title={`Supplier lot: ${bal.vendor_lot}`}>
+                                    SUP {bal.vendor_lot}
+                                </span>
+                            )}
+                        </div>
                     ) : (
                         <span className="text-muted">-</span>
                     )}
