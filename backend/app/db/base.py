@@ -42,3 +42,4 @@ from app.models.color import Color
 from app.models.combo import Combo
 from app.models.packing import PackingOrder, PackingLine, PackingPackage, PackingPackageItem
 from app.models.weaving import WeavingRun, WorkCenterHoliday
+from app.models.print_template import PrintTemplate

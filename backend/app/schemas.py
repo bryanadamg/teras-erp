@@ -2458,3 +2458,20 @@ class WorkCenterGroupCalendarUpdate(BaseModel):
     working_weekdays: list[int]
     holidays: list[WorkCenterHolidayCreate] | None = None
     import_national_year: int | None = None
+
+# ── Print Templates ────────────────────────────────────────────────────────────
+# `layout` / `paper` are opaque to the backend — the frontend TemplateRenderer is
+# the only interpreter. Typed as Any so a new band type never needs a schema change.
+
+class PrintTemplateSave(BaseModel):
+    layout: dict[str, Any]
+    paper: dict[str, Any] | None = None
+
+class PrintTemplateResponse(BaseModel):
+    id: UUID
+    doc_type: str
+    layout: dict[str, Any]
+    paper: dict[str, Any] | None = None
+    updated_by_id: UUID | None = None
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)

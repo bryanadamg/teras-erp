@@ -53,6 +53,13 @@ interface DataContextType {
     dashboardWorkOrders: any[];
     itemIndex: Record<string, ItemIndexEntry>;
     companyProfile: any;
+    /**
+     * Client-edited print layouts (one row per customised doc type; absent = the
+     * built-in default applies). Master data: tiny, and any page can open a print
+     * modal, so it loads with the rest of the master set rather than per-route.
+     */
+    printTemplates: any[];
+    refreshPrintTemplates: () => Promise<void>;
     wsStatus: 'connecting' | 'open' | 'closed';
 
     // True until the domain's first fetch attempt (success or failure) resolves.
@@ -127,6 +134,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const [dashboardWorkOrders, setDashboardWorkOrders] = useState<any[]>([]);
     const [itemIndex, setItemIndex] = useState<Record<string, ItemIndexEntry>>({});
     const [companyProfile, setCompanyProfile] = useState<any>(null);
+    const [printTemplates, setPrintTemplates] = useState<any[]>([]);
     const [wsStatus, setWsStatus] = useState<'connecting' | 'open' | 'closed'>('connecting');
 
     // UI & Sync State
@@ -226,11 +234,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         try {
             const token = localStorage.getItem('access_token');
             const headers = { 'Authorization': `Bearer ${token}` };
-            // v5: itemIndex now carries attribute_ids + variant_type (BOM designer
-            // variant dropdowns for items off the paginated /items page) on top of
-            // v4's ends and v3's uom/lot_tracked — bump so a stale cache doesn't
-            // serve a thin index.
-            const CACHE_KEY = 'terras_master_cache_v5';
+            // v6: adds printTemplates to the master set. v5 added itemIndex
+            // attribute_ids + variant_type (BOM designer variant dropdowns for items
+            // off the paginated /items page) on top of v4's ends and v3's
+            // uom/lot_tracked — bump so a stale cache doesn't serve a thin index.
+            const CACHE_KEY = 'terras_master_cache_v6';
             const CACHE_TTL = 3600000; 
             const savedCache = localStorage.getItem(CACHE_KEY);
             let masterFetched = false;
@@ -242,6 +250,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     setLocations(data.locations || []); setAttributes(data.attributes || []); setCategories(data.categories || []);
                     setUoms(data.uoms || []); setSizes(data.sizes || []); setWorkCenters(data.workCenters || []); setOperations(data.operations || []);
                     setPartners(data.partners || []);
+                    setPrintTemplates(data.printTemplates || []);
                     setItemIndex(data.itemIndex || {});
                     setIsInitialLoad(false); masterFetched = true;
                 }
@@ -263,6 +272,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 requests.push(fetch(`${API_BASE}/operations`, { headers })); requestTypes.push('operations');
                 requests.push(fetch(`${API_BASE}/partners`, { headers })); requestTypes.push('partners');
                 requests.push(fetch(`${API_BASE}/settings/company`, { headers })); requestTypes.push('company-profile');
+                requests.push(fetch(`${API_BASE}/print-templates`, { headers })); requestTypes.push('print-templates');
             }
 
             // 2. DOMAIN DATA (Inventory, Orders, etc.)
@@ -407,6 +417,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                     case 'operations': setOperations(data); newMasterData.operations = data; break;
                     case 'partners': setPartners(data.items || []); newMasterData.partners = data.items || []; break;
                     case 'company-profile': setCompanyProfile(data); newMasterData.companyProfile = data; break;
+                    case 'print-templates': setPrintTemplates(data || []); newMasterData.printTemplates = data || []; break;
                     case 'items': setItems(data.items); setItemTotal(data.total); break;
                     case 'item-lookup': { const idx: Record<string, ItemIndexEntry> = {}; for (const it of (data || [])) idx[String(it.id)] = { name: it.name, code: it.code, uom: it.uom, lot_tracked: it.lot_tracked, ends: it.ends, variant_type: it.variant_type, attribute_ids: it.attribute_ids }; setItemIndex(idx); newMasterData.itemIndex = idx; break; }
                     case 'kpis': setDashboardKPIs(data); break;
@@ -579,6 +590,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         } catch (e) { console.error('refreshStockBalance error', e); }
     }, [currentUser]);
 
+    // Targeted refresh for a PRINT_TEMPLATE_UPDATE live event. Deliberately NOT
+    // route-aware (unlike production/stock): a print modal can open from any page,
+    // so a layout the client just saved must reach every screen, not only the
+    // designer's. Cheap — one row per customised document type.
+    const refreshPrintTemplates = useCallback(async () => {
+        if (!currentUser) return;
+        try {
+            const token = localStorage.getItem('access_token');
+            const headers = { 'Authorization': `Bearer ${token}` };
+            const res = await fetch(`${API_BASE}/print-templates`, { headers, cache: 'no-store' });
+            if (res.ok) setPrintTemplates(await res.json() || []);
+        } catch (e) { console.error('refreshPrintTemplates error', e); }
+    }, [currentUser]);
+
     // Targeted refresh for a KPI_UPDATE live event while on the dashboard — only
     // the 3 KPI-ish calls, not the broad fetchData('dashboard') (which also
     // re-pulls paginated items + item-lookup + a slim MO page, none of which a
@@ -638,6 +663,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => { refreshStockBalanceRef.current = refreshStockBalance; }, [refreshStockBalance]);
     const refreshDashboardKPIsRef = useRef(refreshDashboardKPIs);
     useEffect(() => { refreshDashboardKPIsRef.current = refreshDashboardKPIs; }, [refreshDashboardKPIs]);
+    const refreshPrintTemplatesRef = useRef(refreshPrintTemplates);
+    useEffect(() => { refreshPrintTemplatesRef.current = refreshPrintTemplates; }, [refreshPrintTemplates]);
 
     // Pages that own their data (e.g. /work-orders fetches its own list) subscribe
     // here to be told when a debounced batch of live events has arrived.
@@ -756,6 +783,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                         case 'PRODUCTION_RUN_UPDATE':
                             queueLive('production');
                             break;
+                        case 'PRINT_TEMPLATE_UPDATE':
+                            // Not debounced: fires once when an admin saves a layout, and
+                            // the payload is one small row. No toast — a layout change is
+                            // not news to an operator mid-shift.
+                            refreshPrintTemplatesRef.current();
+                            break;
                         case 'KPI_UPDATE':
                             // A mutation invalidated the KPI cache — refresh dashboard
                             // KPIs + summary so the numbers stay live.
@@ -804,6 +837,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         items, locations, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
         partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, dashboardWorkOrders, itemIndex, companyProfile,
+        printTemplates, refreshPrintTemplates,
         wsStatus,
         loading,
         pagination: { itemPage, setItemPage, itemTotal, woPage, setWoPage, woTotal, prPage, setPrPage, prTotal, auditPage, setAuditPage, auditTotal, reportPage, setReportPage, reportTotal, moSearch, setMoSearch: handleSetMoSearch, prSearch, setPrSearch: handleSetPrSearch, pageSize },
@@ -812,7 +846,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }), [
         items, locations, attributes, categories, uoms, sizes, boms, manufacturingOrders, productionRuns,
         stockEntries, stockBalance, workCenters, operations, salesOrders, purchaseOrders, samples, auditLogs,
-        partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, dashboardWorkOrders, itemIndex, companyProfile, wsStatus, loading,
+        partners, dashboardKPIs, dashboardSummary, dashboardKpiHistory, dashboardWorkOrders, itemIndex, companyProfile,
+        printTemplates, refreshPrintTemplates, wsStatus, loading,
         itemPage, itemTotal, woPage, woTotal, prPage, prTotal, auditPage, auditTotal, reportPage, reportTotal, pageSize,
         itemSearchInput, moSearch, prSearch, categoryL1, categoryL2, categoryL3, auditType, fetchData, refreshManufacturing, refreshPurchaseOrders, refreshSalesOrders, refreshSamples, refreshItemMetadata, refreshRouting, handleTabHover, authFetch,
         handleSetCategoryL1, handleSetCategoryL2, handleSetMoSearch, handleSetPrSearch, handleSetItemSearch, subscribeLiveEvents

@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import QRCode from 'qrcode';
 import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
-import KartuKerjaCard from './KartuKerjaCard';
+import KartuKerjaTemplateCard from './KartuKerjaTemplateCard';
 import PrintModalShell from '../shared/PrintModalShell';
 
 interface PrintSettings {
@@ -30,7 +30,7 @@ export default function WOBulkPrintModal({
     manufacturingOrders: any[];
     onClose: () => void;
 }) {
-    const { companyProfile, attributes, authFetch } = useData() as any;
+    const { companyProfile, attributes, authFetch, printTemplates } = useData() as any;
     const { uiStyle } = useTheme();
     const isClassic = uiStyle === 'classic';
 
@@ -100,13 +100,14 @@ export default function WOBulkPrintModal({
                 background: '#fff',
                 breakInside: 'avoid' as any,
             }}>
-                <KartuKerjaCard
+                <KartuKerjaTemplateCard
                     workOrder={wo}
                     parentMO={parentMO}
                     qrDataUrl={qrUrls[wo.id] || ''}
                     settings={settings}
                     companyName={companyProfile?.name}
                     attributes={attributes}
+                    templates={printTemplates}
                 />
             </div>
         );
@@ -167,13 +168,14 @@ export default function WOBulkPrintModal({
                                single-card print, so one WO never wastes 3/4 of an A4 sheet. */
                             <div style={{ flex: 1, background: '#e0e0e0', overflowY: 'auto', padding: '16px', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
                                 <div className="wo-print-paper wo-step-card" style={{ background: '#fff', width: '378px', minHeight: '535px', padding: 0, boxShadow: '0 2px 10px rgba(0,0,0,0.25)', color: '#000', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
-                                    <KartuKerjaCard
+                                    <KartuKerjaTemplateCard
                                         workOrder={selectedWOs[0]}
                                         parentMO={manufacturingOrders.find(m => m.id === selectedWOs[0].mo_id)}
                                         qrDataUrl={qrUrls[selectedWOs[0].id] || ''}
                                         settings={settings}
                                         companyName={companyProfile?.name}
                                         attributes={attributes}
+                                        templates={printTemplates}
                                     />
                                 </div>
                             </div>
@@ -221,13 +223,14 @@ export default function WOBulkPrintModal({
                     /* Single WO — A6 portal (wo-step CSS), no A4 4-up grouping. */
                     <div className="wo-print-paper-portal" style={{ display: 'none' }}>
                         <div className="wo-print-paper wo-step-card" style={{ background: '#fff', width: '100%', color: '#000', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: 'column' }}>
-                            <KartuKerjaCard
+                            <KartuKerjaTemplateCard
                                 workOrder={selectedWOs[0]}
                                 parentMO={manufacturingOrders.find(m => m.id === selectedWOs[0].mo_id)}
                                 qrDataUrl={qrUrls[selectedWOs[0].id] || ''}
                                 settings={settings}
                                 companyName={companyProfile?.name}
                                 attributes={attributes}
+                                templates={printTemplates}
                             />
                         </div>
                     </div>,
