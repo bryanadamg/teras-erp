@@ -17,7 +17,19 @@ const OP_PAGE_SIZE = 20;
 
 const CENTER_TYPES = ['GENERAL', 'BEAMING', 'WARPING', 'WEAVING', 'DYEING', 'SETTING', 'FINISHING', 'CUTTING'];
 
-const emptyWC = { code: '', name: '', cost_per_hour: 0, center_type: 'GENERAL', input_location_id: '', output_location_id: '', parent_id: '', beam_slots: 1 };
+const emptyWC = { code: '', name: '', cost_per_hour: 0, center_type: 'GENERAL', input_location_id: '', output_location_id: '', parent_id: '', node_type: 'MACHINE', beam_slots: 1 };
+
+// 3-level tree: TYPE (root) → GROUP (optional) → MACHINE (leaf, what WO/BOM point
+// at). Depth can't be read off parent_id since a group and a machine both have one,
+// so node_type decides; legacy rows without it fall back to the old 2-level shape.
+const LEVELS = [
+    { value: 'TYPE', label: 'Type (root)' },
+    { value: 'GROUP', label: 'Group' },
+    { value: 'MACHINE', label: 'Machine' },
+];
+const nodeTypeOf = (w: any): string =>
+    String(w?.node_type || (w?.parent_id ? 'MACHINE' : 'TYPE')).toUpperCase();
+const LEVEL_DEPTH: Record<string, number> = { TYPE: 0, GROUP: 1, MACHINE: 2 };
 // Beam positions on a loom: how many warp beams must be mounted for a weaving WO
 // to count as beam-ready. Machine config, not per-order — see beam_service.py.
 const beamSlots = (v: any) => Math.max(1, parseInt(String(v ?? 1), 10) || 1);
@@ -35,20 +47,34 @@ function getWcTypeChip(t?: string): React.CSSProperties {
     }
 }
 
-// Build ordered list: groups first (parent_id=null), then each group's machines indented
-function buildTree(wcs: any[]): { wc: any; isGroup: boolean; indent: boolean }[] {
-    const groups = wcs.filter((w: any) => !w.parent_id);
-    const machines = wcs.filter((w: any) => !!w.parent_id);
-    const rows: { wc: any; isGroup: boolean; indent: boolean }[] = [];
-    const groupIds = new Set(groups.map((g: any) => g.id));
-    for (const g of groups) {
-        rows.push({ wc: g, isGroup: true, indent: false });
-        for (const m of machines.filter((m: any) => m.parent_id === g.id)) {
-            rows.push({ wc: m, isGroup: false, indent: true });
+type WCRow = { wc: any; level: string; depth: number };
+
+// Ordered rows: each TYPE, then its GROUPs with their machines, then the machines
+// that sit straight under the TYPE (the pre-group shape). Anything whose parent is
+// missing lands at the end so it never disappears from the list.
+function buildTree(wcs: any[]): WCRow[] {
+    const rows: WCRow[] = [];
+    const byId = new Map(wcs.map((w: any) => [String(w.id), w]));
+    const childrenOf = (id: string, level: string) =>
+        wcs.filter((w: any) => String(w.parent_id || '') === id && nodeTypeOf(w) === level);
+
+    for (const type of wcs.filter((w: any) => nodeTypeOf(w) === 'TYPE')) {
+        rows.push({ wc: type, level: 'TYPE', depth: 0 });
+        for (const grp of childrenOf(String(type.id), 'GROUP')) {
+            rows.push({ wc: grp, level: 'GROUP', depth: 1 });
+            for (const m of childrenOf(String(grp.id), 'MACHINE')) {
+                rows.push({ wc: m, level: 'MACHINE', depth: 2 });
+            }
+        }
+        for (const m of childrenOf(String(type.id), 'MACHINE')) {
+            rows.push({ wc: m, level: 'MACHINE', depth: 1 });
         }
     }
-    for (const m of machines.filter((m: any) => !groupIds.has(m.parent_id))) {
-        rows.push({ wc: m, isGroup: false, indent: true });
+    const placed = new Set(rows.map(r => String(r.wc.id)));
+    for (const w of wcs) {
+        if (placed.has(String(w.id))) continue;
+        const level = nodeTypeOf(w);
+        rows.push({ wc: w, level, depth: byId.has(String(w.parent_id)) ? LEVEL_DEPTH[level] ?? 1 : 1 });
     }
     return rows;
 }
@@ -85,8 +111,14 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
   const locationList = locations || [];
   const locPickerTreeOptions = useMemo(() => buildLocationPickerTree(locationList), [locationList]);
   const wcList = workCenters || [];
-  // Only groups (no parent) can be selected as parent
-  const groups = wcList.filter((w: any) => !w.parent_id);
+  const typeNodes = wcList.filter((w: any) => nodeTypeOf(w) === 'TYPE');
+  const groupNodes = wcList.filter((w: any) => nodeTypeOf(w) === 'GROUP');
+  const machineNodes = wcList.filter((w: any) => nodeTypeOf(w) === 'MACHINE');
+  // Valid parents per level: a GROUP hangs off a TYPE, a MACHINE off either.
+  const parentOptionsFor = (level: string, selfId?: string) => {
+      const pool = level === 'GROUP' ? typeNodes : [...typeNodes, ...groupNodes];
+      return pool.filter((w: any) => String(w.id) !== String(selfId || ''));
+  };
 
   const getLocName = (id: string | null) => {
       if (!id) return '—';
@@ -100,7 +132,8 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
           ...newWorkCenter,
           input_location_id: newWorkCenter.input_location_id || null,
           output_location_id: newWorkCenter.output_location_id || null,
-          parent_id: newWorkCenter.parent_id || null,
+          parent_id: newWorkCenter.node_type === 'TYPE' ? null : (newWorkCenter.parent_id || null),
+          node_type: newWorkCenter.node_type,
           beam_slots: beamSlots(newWorkCenter.beam_slots),
       });
       setNewWorkCenter({ ...emptyWC });
@@ -118,6 +151,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
   const handleSaveEdit = (e: React.FormEvent) => {
       e.preventDefault();
       if (!editingWC) return;
+      const level = nodeTypeOf(editingWC);
       onUpdateWorkCenter(editingWC.id, {
           code: editingWC.code,
           name: editingWC.name,
@@ -126,7 +160,8 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
           center_type: editingWC.center_type,
           input_location_id: editingWC.input_location_id || null,
           output_location_id: editingWC.output_location_id || null,
-          parent_id: editingWC.parent_id || null,
+          parent_id: level === 'TYPE' ? null : (editingWC.parent_id || null),
+          node_type: level,
           beam_slots: beamSlots(editingWC.beam_slots),
       });
       setEditingWC(null);
@@ -138,17 +173,29 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
       setNewOperation({ code: '', name: '' });
   };
 
-  const groupIds = new Set(groups.map((g: any) => g.id));
-  const hasChildren = (gid: string) => wcList.some((w: any) => w.parent_id === gid);
+  const hasChildren = (gid: string) => wcList.some((w: any) => String(w.parent_id) === String(gid));
   const isSearchingWC = wcSearch.trim().length > 0;
   const allWCRows = buildTree(wcList);
-  const filteredWCRows = allWCRows.filter(({ wc, isGroup }) => {
+  const wcById = new Map(wcList.map((w: any) => [String(w.id), w]));
+  // A row shows only when EVERY container above it is expanded — with three levels a
+  // machine can be hidden by its group, its type, or both.
+  const ancestorsVisible = (wc: any): boolean => {
+      let pid = wc.parent_id ? String(wc.parent_id) : '';
+      const seen = new Set<string>();
+      while (pid && !seen.has(pid)) {
+          seen.add(pid);
+          if (!wcById.has(pid)) return true; // parent not loaded — don't hide the row
+          if (!expandedGroupIds.has(pid)) return false;
+          pid = String((wcById.get(pid) as any).parent_id || '');
+      }
+      return true;
+  };
+  const filteredWCRows = allWCRows.filter(({ wc, level }) => {
       const q = wcSearch.toLowerCase();
       const matches = wc.code.toLowerCase().includes(q) || wc.name.toLowerCase().includes(q);
       if (isSearchingWC) return matches;
-      if (isGroup) return true;
-      if (!groupIds.has(wc.parent_id)) return true; // orphaned machine — no group row to collapse under
-      return expandedGroupIds.has(wc.parent_id);
+      if (level === 'TYPE') return true;
+      return ancestorsVisible(wc);
   });
   const wcPages = Math.max(1, Math.ceil(filteredWCRows.length / WC_PAGE_SIZE));
   const clampedWcPage = Math.min(wcPage, wcPages);
@@ -165,7 +212,8 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
   // ── Shared inline edit row (Work Centers) ─────────────────────────────────
   const renderEditRow = (colSpan: number) => {
       if (!editingWC) return null;
-      const isGroupNode = !editingWC.parent_id && groups.some((g: any) => g.id === editingWC.id);
+      const level = nodeTypeOf(editingWC);
+      const isMachine = level === 'MACHINE';
       return (
           <tr style={{ background: classic ? '#fffde7' : '#fff8e1', borderBottom: classic ? '2px solid #0058e6' : '2px solid #2563eb' }}>
               <td colSpan={colSpan} style={{ padding: '8px 10px' }}>
@@ -186,14 +234,28 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                               </select>
                           </div>
                           <div>
-                              <label style={lvLabel(classic)}>Group</label>
-                              <select style={{ ...lvInput(classic), width: 130 }} value={editingWC.parent_id || ''} onChange={e => setEditingWC({ ...editingWC, parent_id: e.target.value })}>
-                                  <option value="">— group —</option>
-                                  {groups.filter((g: any) => g.id !== editingWC.id).map((g: any) => <option key={g.id} value={g.id}>{g.code} — {g.name}</option>)}
+                              <label style={lvLabel(classic)}>Level</label>
+                              <select
+                                  style={{ ...lvInput(classic), width: 110 }}
+                                  value={level}
+                                  onChange={e => setEditingWC({ ...editingWC, node_type: e.target.value, parent_id: e.target.value === 'TYPE' ? '' : editingWC.parent_id })}
+                              >
+                                  {LEVELS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
                               </select>
                           </div>
+                          {level !== 'TYPE' && (
+                              <div>
+                                  <label style={lvLabel(classic)}>{level === 'GROUP' ? 'Under Type' : 'Under Type / Group'}</label>
+                                  <select style={{ ...lvInput(classic), width: 160 }} value={editingWC.parent_id || ''} onChange={e => setEditingWC({ ...editingWC, parent_id: e.target.value })}>
+                                      <option value="">— none —</option>
+                                      {parentOptionsFor(level, editingWC.id).map((p: any) => (
+                                          <option key={p.id} value={p.id}>{nodeTypeOf(p) === 'GROUP' ? '↳ ' : ''}{p.code} — {p.name}</option>
+                                      ))}
+                                  </select>
+                              </div>
+                          )}
                       </div>
-                      {!isGroupNode && (
+                      {isMachine && (
                           <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', flexWrap: 'wrap' as const }}>
                               <div style={{ flex: 1, minWidth: 160 }}>
                                   <label style={lvLabel(classic)}>Input Location</label>
@@ -266,33 +328,40 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                       </tr>
                   </thead>
                   <tbody>
-                      {pagedWCRows.map(({ wc, isGroup, indent }, i) => {
-                          const expandable = isGroup && hasChildren(wc.id);
+                      {pagedWCRows.map(({ wc, level, depth }, i) => {
+                          const isContainer = level !== 'MACHINE';
+                          const expandable = isContainer && hasChildren(wc.id);
                           const expanded = expandedGroupIds.has(wc.id);
+                          const step = classic ? 20 : 26;
                           return editingWC?.id === wc.id
                               ? <React.Fragment key={wc.id}>{renderEditRow(6)}</React.Fragment>
                               : (
                                   <tr
                                       key={wc.id}
                                       style={{
-                                          ...(isGroup
+                                          ...(level === 'TYPE'
                                               ? { background: classic ? '#e8eaf6' : '#eef1fb', borderBottom: classic ? '2px solid #9fa8da' : '2px solid #c7d2ee' }
-                                              : lvRow(classic, i)),
+                                              : level === 'GROUP'
+                                                  ? { background: classic ? '#f2f3fa' : '#f6f8fd', borderBottom: classic ? '1px solid #c5cae9' : '1px solid #dde4f5' }
+                                                  : lvRow(classic, i)),
                                           cursor: expandable ? 'pointer' : undefined,
                                       }}
                                       onClick={expandable ? () => toggleGroup(wc.id) : undefined}
                                   >
-                                      <td style={{ ...lvTd(classic), paddingLeft: (classic ? 10 : 14) + (indent ? (classic ? 20 : 26) : 0), fontWeight: 'bold', color: isGroup ? (classic ? '#1a237e' : '#1e293b') : (classic ? '#00008b' : '#2563eb') }}>
-                                          {isGroup && <i className={expandable ? (expanded ? 'bi bi-caret-down-fill' : 'bi bi-caret-right-fill') : 'bi bi-folder2'} style={{ marginRight: 5, fontSize: classic ? 9 : 11, color: expandable ? '#555' : undefined }}></i>}
-                                          {indent && <i className="bi bi-dash" style={{ marginRight: 2, fontSize: classic ? 10 : 12, color: '#888' }}></i>}
+                                      <td style={{ ...lvTd(classic), paddingLeft: (classic ? 10 : 14) + depth * step, fontWeight: 'bold', color: isContainer ? (classic ? '#1a237e' : '#1e293b') : (classic ? '#00008b' : '#2563eb') }}>
+                                          {isContainer && <i className={expandable ? (expanded ? 'bi bi-caret-down-fill' : 'bi bi-caret-right-fill') : 'bi bi-folder2'} style={{ marginRight: 5, fontSize: classic ? 9 : 11, color: expandable ? '#555' : undefined }}></i>}
+                                          {!isContainer && <i className="bi bi-dash" style={{ marginRight: 2, fontSize: classic ? 10 : 12, color: '#888' }}></i>}
                                           {wc.code}
                                       </td>
-                                      <td style={{ ...lvTd(classic), paddingLeft: indent ? (classic ? 20 : 26) : undefined, fontStyle: isGroup ? 'italic' : 'normal' }}>{wc.name}</td>
+                                      <td style={{ ...lvTd(classic), paddingLeft: depth * step || undefined, fontStyle: isContainer ? 'italic' : 'normal' }}>
+                                          {wc.name}
+                                          {level === 'GROUP' && <span style={{ marginLeft: 6, fontSize: classic ? 9 : 10, fontStyle: 'normal', color: '#666' }}>GROUP</span>}
+                                      </td>
                                       <td style={lvTd(classic)}>
                                           <span style={{ padding: '1px 6px', borderRadius: classic ? 2 : 6, fontSize: classic ? 10 : 11, ...getWcTypeChip(wc.center_type) }}>{wc.center_type || 'GENERAL'}</span>
                                       </td>
-                                      <td style={{ ...lvTd(classic), color: classic ? '#444' : '#64748b', whiteSpace: 'nowrap' }}>{!isGroup ? getLocName(wc.input_location_id) : ''}</td>
-                                      <td style={{ ...lvTd(classic), color: classic ? '#444' : '#64748b', whiteSpace: 'nowrap' }}>{!isGroup ? getLocName(wc.output_location_id) : ''}</td>
+                                      <td style={{ ...lvTd(classic), color: classic ? '#444' : '#64748b', whiteSpace: 'nowrap' }}>{!isContainer ? getLocName(wc.input_location_id) : ''}</td>
+                                      <td style={{ ...lvTd(classic), color: classic ? '#444' : '#64748b', whiteSpace: 'nowrap' }}>{!isContainer ? getLocName(wc.output_location_id) : ''}</td>
                                       <td style={{ ...lvTd(classic), borderRight: 'none', textAlign: 'right' }} onClick={e => e.stopPropagation()}>
                                           {canManage && <MenuTriggerButton classic={classic} onClick={e => wcMenuToggle(wc.id, e)} />}
                                       </td>
@@ -328,7 +397,10 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                   padding: '2px 8px', display: 'flex', gap: 16,
                   fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, color: '#333',
               }}>
-                  <span><b>{wcList.length}</b> Total</span><span><b>{groups.length}</b> Groups</span>
+                  <span><b>{wcList.length}</b> Total</span>
+                  <span><b>{typeNodes.length}</b> Types</span>
+                  <span><b>{groupNodes.length}</b> Groups</span>
+                  <span><b>{machineNodes.length}</b> Machines</span>
               </div>
           )}
       </div>
@@ -471,14 +543,28 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                       </select>
                   </div>
                   <div style={{ flex: 1 }}>
-                      <label style={lvLabel(classic)}>Group (optional)</label>
-                      <select style={lvInput(classic)} value={newWorkCenter.parent_id} onChange={e => setNewWorkCenter({ ...newWorkCenter, parent_id: e.target.value, input_location_id: '', output_location_id: '' })}>
-                          <option value="">— group node —</option>
-                          {groups.map((g: any) => <option key={g.id} value={g.id}>{g.code} — {g.name}</option>)}
+                      <label style={lvLabel(classic)}>Level</label>
+                      <select
+                          style={lvInput(classic)}
+                          value={newWorkCenter.node_type}
+                          onChange={e => setNewWorkCenter({ ...newWorkCenter, node_type: e.target.value, parent_id: '', input_location_id: '', output_location_id: '' })}
+                      >
+                          {LEVELS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
                       </select>
                   </div>
               </div>
-              {newWorkCenter.parent_id && (
+              {newWorkCenter.node_type !== 'TYPE' && (
+                  <div>
+                      <label style={lvLabel(classic)}>{newWorkCenter.node_type === 'GROUP' ? 'Under Type' : 'Under Type / Group'}</label>
+                      <select style={lvInput(classic)} value={newWorkCenter.parent_id} onChange={e => setNewWorkCenter({ ...newWorkCenter, parent_id: e.target.value })}>
+                          <option value="">— none —</option>
+                          {parentOptionsFor(newWorkCenter.node_type).map((p: any) => (
+                              <option key={p.id} value={p.id}>{nodeTypeOf(p) === 'GROUP' ? '↳ ' : ''}{p.code} — {p.name}</option>
+                          ))}
+                      </select>
+                  </div>
+              )}
+              {newWorkCenter.node_type === 'MACHINE' && (
                   <div style={{ display: 'flex', gap: 10 }}>
                       <div style={{ flex: 1 }}>
                           <label style={lvLabel(classic)}>Input Location</label>

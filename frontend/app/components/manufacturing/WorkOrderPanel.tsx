@@ -11,6 +11,7 @@ import { useToast } from '../shared/Toast';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
+import { isContainerWC, isMachineWC, isTypeWC, machinesUnderWC } from '../shared/workCenterTree';
 import { STATUS_COLORS as STATUS_BORDER, workCenterChipStyle, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar } from '../shared/xpTheme';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
@@ -173,10 +174,11 @@ export default function WorkOrderPanel({
         return workCenters.find((wc: any) => String(wc.id) === String(wcId)) ?? null;
     }, [effectiveBom, workCenters]);
 
-    // BEAMING machines = children of the BOM's WC group, when that group is BEAMING type
+    // BEAMING machines under the BOM's WC group, when that group is BEAMING type.
+    // Walks the whole subtree — a machine can sit one level deeper, behind a GROUP.
     const beamingMachines = useMemo(() => {
         if (!bomWcGroup || (bomWcGroup.center_type || '').toUpperCase() !== 'BEAMING') return [];
-        return workCenters.filter((wc: any) => wc.parent_id && String(wc.parent_id) === String(bomWcGroup.id));
+        return machinesUnderWC(workCenters, bomWcGroup.id);
     }, [workCenters, bomWcGroup]);
 
     const locationList = locations || [];
@@ -199,15 +201,17 @@ export default function WorkOrderPanel({
         return `${op.sequence != null ? op.sequence + '. ' : ''}${name}`;
     };
 
+    // Selectable containers: the TYPE roots plus any GROUP under them, so a WO can be
+    // narrowed to a loom bank and not just "WEAVING".
     const availableGroups = useMemo(() =>
-        workCenters.filter((wc: any) => !wc.parent_id),
+        workCenters.filter((wc: any) => isContainerWC(wc)),
         [workCenters]
     );
 
     const availableMachines = useMemo(() => {
         const gid = lockedGroupId || form.group_id;
         if (!gid) return [];
-        return workCenters.filter((wc: any) => wc.parent_id && String(wc.parent_id) === gid);
+        return machinesUnderWC(workCenters, gid);
     }, [workCenters, lockedGroupId, form.group_id]);
 
     const resetForm = () => {
@@ -505,7 +509,7 @@ export default function WorkOrderPanel({
                                             >
                                                 <option value="">— Group —</option>
                                                 {availableGroups.map((wc: any) => (
-                                                    <option key={wc.id} value={wc.id}>{wc.name}</option>
+                                                    <option key={wc.id} value={wc.id}>{isTypeWC(wc) ? wc.name : `↳ ${wc.name}`}</option>
                                                 ))}
                                             </select>
                                         )}
@@ -584,7 +588,7 @@ export default function WorkOrderPanel({
                                             <span style={{ fontSize: 9, color: '#444', fontWeight: 'bold', alignSelf: 'center' }}>Tujuan:</span>
                                             <select style={{ ...xpInput, minWidth: 110, fontSize: 10 }} value={form.next_destination_work_center_id} onChange={e => setForm(f => ({ ...f, next_destination_work_center_id: e.target.value }))}>
                                                 <option value="">— Mesin —</option>
-                                                {workCenters.filter((wc: any) => wc.parent_id).map((wc: any) => (
+                                                {workCenters.filter((wc: any) => isMachineWC(wc)).map((wc: any) => (
                                                     <option key={wc.id} value={wc.id}>{wc.name}</option>
                                                 ))}
                                             </select>
@@ -795,7 +799,7 @@ export default function WorkOrderPanel({
                                     >
                                         <option value="">— Group —</option>
                                         {availableGroups.map((wc: any) => (
-                                            <option key={wc.id} value={wc.id}>{wc.name}</option>
+                                            <option key={wc.id} value={wc.id}>{isTypeWC(wc) ? wc.name : `↳ ${wc.name}`}</option>
                                         ))}
                                     </select>
                                 )}
@@ -895,7 +899,7 @@ export default function WorkOrderPanel({
                                     title="Next work center this WO's output goes to"
                                 >
                                     <option value="">— Mesin —</option>
-                                    {workCenters.filter((wc: any) => wc.parent_id).map((wc: any) => (
+                                    {workCenters.filter((wc: any) => isMachineWC(wc)).map((wc: any) => (
                                         <option key={wc.id} value={wc.id}>{wc.name}</option>
                                     ))}
                                 </select>
@@ -1011,7 +1015,7 @@ export default function WorkOrderPanel({
                         ends: l.qty != null ? Number(l.qty) : null,
                     }))}
                     locations={locationList.map((l: any) => ({ id: l.id, code: l.code, name: l.name }))}
-                    nextWorkCenters={workCenters.filter((wc: any) => wc.parent_id).map((wc: any) => ({ id: wc.id, name: wc.name }))}
+                    nextWorkCenters={workCenters.filter((wc: any) => isMachineWC(wc)).map((wc: any) => ({ id: wc.id, name: wc.name }))}
                     onClose={() => setBeamPlanOpen(false)}
                 />
             )}

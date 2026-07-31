@@ -1261,6 +1261,9 @@ class WorkCenterCreate(BaseModel):
     input_location_id: UUID | None = None
     output_location_id: UUID | None = None
     parent_id: UUID | None = None
+    # TYPE | GROUP | MACHINE. Null = derive from parent_id the legacy way (no
+    # parent → TYPE root, parent → MACHINE), so older clients keep working.
+    node_type: str | None = None
     beam_slots: int = 1
 
 class WorkCenterResponse(BaseModel):
@@ -1273,6 +1276,7 @@ class WorkCenterResponse(BaseModel):
     input_location_id: UUID | None = None
     output_location_id: UUID | None = None
     parent_id: UUID | None = None
+    node_type: str = "MACHINE"
     input_location: LocationResponse | None = None
     output_location: LocationResponse | None = None
     working_weekdays: list[int] | None = None
@@ -2443,3 +2447,14 @@ class WorkCenterHolidayResponse(BaseModel):
 
 class WorkCenterCalendarUpdate(BaseModel):
     working_weekdays: list[int]  # 0=Mon .. 6=Sun
+
+class WorkCenterGroupCalendarUpdate(BaseModel):
+    """Batch calendar applied to every machine under a TYPE/GROUP node.
+
+    Cascade-copy: each machine keeps its own rows, written from this payload in one
+    transaction. `holidays=None` leaves machine holidays untouched (weekdays only);
+    a list replaces them wholesale so the group is the visible source of truth.
+    """
+    working_weekdays: list[int]
+    holidays: list[WorkCenterHolidayCreate] | None = None
+    import_national_year: int | None = None

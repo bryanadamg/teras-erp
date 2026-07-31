@@ -18,6 +18,7 @@ import { getChipStyle, PrintChips } from './WorkOrderPanel';
 import Pager from '../shared/Pager';
 import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable, SortMark, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, ProgressBar } from '../shared/xpTheme';
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
+import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
 import SearchableSelect from '../shared/SearchableSelect';
 import { Tabs, TabDef } from '../shared/Tabs';
 
@@ -204,24 +205,32 @@ export default function WorkOrderListView({
 
     const flatWOs: FlatWO[] = workOrders;
 
+    // Mirrors the 3-level work-center tree: TYPE > GROUP > machine. A `grp:` value is
+    // any container (type or group) — the backend filter resolves its whole subtree.
     const wcFilterTreeOptions = useMemo((): TreeSelectOption[] => {
-        const grps = workCenters.filter((wc: any) => !wc.parent_id);
-        const result: TreeSelectOption[] = grps.map((g: any) => {
-            const kids = workCenters.filter((wc: any) => wc.parent_id === g.id);
+        const nodeOption = (node: any): TreeSelectOption => {
+            const kids = childrenOfWC(workCenters, node.id);
             return {
-                value: `grp:${g.id}`,
-                label: g.name,
+                value: `grp:${node.id}`,
+                label: node.name,
                 selectable: true,
-                children: kids.length > 0 ? kids.map((wc: any) => ({
-                    value: `wc:${wc.id}`,
-                    label: wc.name,
-                    selectable: true,
-                })) : undefined,
+                children: kids.length > 0
+                    ? kids.map((k: any) => isMachineWC(k)
+                        ? { value: `wc:${k.id}`, label: k.name, selectable: true }
+                        : nodeOption(k))
+                    : undefined,
             };
-        });
-        // ungrouped machines
-        workCenters.filter((wc: any) => wc.parent_id && !grps.find((g: any) => g.id === wc.parent_id))
-            .forEach((wc: any) => result.push({ value: `wc:${wc.id}`, label: wc.name, selectable: true }));
+        };
+        const result: TreeSelectOption[] = workCenters.filter((wc: any) => isTypeWC(wc)).map(nodeOption);
+        // Machines/groups whose parent row isn't loaded — keep them reachable.
+        const known = new Set(workCenters.map((wc: any) => String(wc.id)));
+        workCenters
+            .filter((wc: any) => wc.parent_id && !known.has(String(wc.parent_id)))
+            .forEach((wc: any) => result.push({
+                value: isMachineWC(wc) ? `wc:${wc.id}` : `grp:${wc.id}`,
+                label: wc.name,
+                selectable: true,
+            }));
         return result;
     }, [workCenters]);
 

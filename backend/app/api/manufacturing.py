@@ -12,7 +12,7 @@ from app.models.routing import Operation as OperationModel, WorkCenter
 from app.models.location import Location
 from app.models.sales import SalesOrder
 from app.models.color import Color
-from app.services import stock_service, audit_service, kpi_service, beam_service, mrp_service
+from app.services import stock_service, audit_service, kpi_service, beam_service, mrp_service, work_center_service
 from app.services.netting_service import Availability, preview_mo
 from app.schemas import (
     ManufacturingOrderCreate, ManufacturingOrderResponse,
@@ -657,8 +657,11 @@ async def list_work_orders_flat(
     if work_center_id:
         conditions.append(WorkOrderModel.work_center_id == work_center_id)
     if group_id:
-        wc_subq = select(WorkCenter.id).where(WorkCenter.parent_id == group_id).scalar_subquery()
-        conditions.append(WorkOrderModel.work_center_id.in_(wc_subq))
+        # Whole subtree, not direct children — a TYPE node's machines can now sit one
+        # more level down, behind a GROUP.
+        conditions.append(WorkOrderModel.work_center_id.in_(
+            work_center_service.subtree_ids_query(group_id)
+        ))
     if center_type:
         ct = center_type.upper()
         alias_map = {"BEAMING": ["BEAMING"], "WEAVING": ["WEAVING", "TENUN"], "DYEING": ["DYEING", "CELUP"]}

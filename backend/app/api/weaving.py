@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, cast, String, func
+from sqlalchemy import select, and_, cast, String, func, update, delete
 from sqlalchemy.orm import selectinload
 from typing import Optional
 from datetime import date
@@ -20,8 +20,9 @@ from app.api.auth import get_current_user, require_permission
 from app.schemas import (
     WeavingRunCreate, WeavingRunUpdate, WeavingRunResponse,
     WorkCenterHolidayCreate, WorkCenterHolidayResponse, WorkCenterCalendarUpdate,
+    WorkCenterGroupCalendarUpdate,
 )
-from app.services import audit_service, weaving_service, id_holidays
+from app.services import audit_service, weaving_service, id_holidays, work_center_service
 from app.core.ws_manager import manager
 
 router = APIRouter()
@@ -237,17 +238,41 @@ async def weaving_monitor(
     current_user: User = Depends(get_current_user),
 ):
     today = date.today()
+    # Leaves only. `parent_id IS NOT NULL` used to identify a machine, but with the
+    # optional GROUP tier a group also has a parent — node_type is the only reliable
+    # discriminator.
     res = await db.execute(
         select(WorkCenter)
         .where(WorkCenter.center_type == "WEAVING")
-        .where(WorkCenter.parent_id.isnot(None))
+        .where(func.upper(WorkCenter.node_type) == "MACHINE")
         .order_by(WorkCenter.code)
     )
     machines = res.scalars().all()
     if not machines:
-        return {"machines": [], "total": 0, "running": 0, "avg_efficiency_pct": None}
+        return {"machines": [], "total": 0, "running": 0, "groups": [], "avg_efficiency_pct": None}
 
     machine_ids = [wc.id for wc in machines]
+
+    # Group each machine sits in (nearest GROUP ancestor). One query for the whole
+    # non-machine tree, then walk up in memory — the tree is tiny.
+    node_res = await db.execute(
+        select(WorkCenter.id, WorkCenter.code, WorkCenter.name, WorkCenter.parent_id, WorkCenter.node_type)
+        .where(func.upper(WorkCenter.node_type) != "MACHINE")
+    )
+    nodes = {r.id: r for r in node_res.all()}
+
+    def group_for(wc: WorkCenter):
+        seen = set()
+        pid = wc.parent_id
+        while pid is not None and pid not in seen:
+            seen.add(pid)
+            node = nodes.get(pid)
+            if node is None:
+                return None
+            if (node.node_type or "").upper() == "GROUP":
+                return node
+            pid = node.parent_id
+        return None
 
     # Batch holidays for every machine in one query instead of one query per
     # machine (_load_calendar was called per-wc in a loop before this).
@@ -320,12 +345,27 @@ async def weaving_monitor(
         payload["mounted_beams"] = beams
         payload["mounted_pcs"] = sum(1 for b in beams if b["remaining"] > 1e-9)
         payload["mounted_kg"] = sum(b["remaining"] for b in beams)
+        grp = group_for(wc)
+        payload["group_id"] = str(grp.id) if grp else None
+        payload["group_code"] = grp.code if grp else None
+        payload["group_name"] = grp.name if grp else None
+        payload["working_weekdays"] = weekdays
+        payload["holiday_count"] = len(holidays)
         out.append(payload)
+
+    # Group index for the monitor's section headers + batch calendar action.
+    groups: list[dict] = []
+    seen_groups: set = set()
+    for m in out:
+        if m["group_id"] and m["group_id"] not in seen_groups:
+            seen_groups.add(m["group_id"])
+            groups.append({"id": m["group_id"], "code": m["group_code"], "name": m["group_name"]})
+    groups.sort(key=lambda g: (g["code"] or ""))
 
     running = sum(1 for m in out if m["active_run"])
     effs = [m["active_run"]["efficiency_pct"] for m in out if m["active_run"] and m["active_run"]["efficiency_pct"] is not None]
     avg_eff = round(sum(effs) / len(effs), 1) if effs else None
-    return {"machines": out, "total": len(out), "running": running, "avg_efficiency_pct": avg_eff}
+    return {"machines": out, "total": len(out), "running": running, "groups": groups, "avg_efficiency_pct": avg_eff}
 
 
 @router.get("/weaving/id-holidays")
@@ -503,6 +543,96 @@ async def update_calendar(
     )
     await manager.broadcast({"type": "weaving_run", "action": "calendar", "work_center_id": str(wc.id)})
     return {"work_center_id": str(wc.id), "working_weekdays": wc.working_weekdays}
+
+
+@router.get("/work-center-groups/{group_id}/calendar")
+async def get_group_calendar(
+    group_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Calendar held on a TYPE/GROUP node + the machines a batch apply would hit."""
+    grp = await _get_wc(db, group_id)
+    if (grp.node_type or "MACHINE").upper() == "MACHINE":
+        raise HTTPException(status_code=422, detail="Not a work center group")
+    machine_ids = await work_center_service.descendant_ids(db, grp.id, machines_only=True)
+    weekdays, _ = await _load_calendar(db, grp)
+    hol_res = await db.execute(
+        select(WorkCenterHoliday).where(WorkCenterHoliday.work_center_id == grp.id)
+        .order_by(WorkCenterHoliday.holiday_date)
+    )
+    machines = []
+    if machine_ids:
+        m_res = await db.execute(
+            select(WorkCenter).where(WorkCenter.id.in_(machine_ids)).order_by(WorkCenter.code)
+        )
+        machines = [{"id": str(m.id), "code": m.code, "name": m.name} for m in m_res.scalars().all()]
+    return {
+        "group_id": str(grp.id),
+        "code": grp.code,
+        "name": grp.name,
+        "node_type": grp.node_type,
+        "working_weekdays": weekdays,
+        "holidays": [WorkCenterHolidayResponse.model_validate(h) for h in hol_res.scalars().all()],
+        "machines": machines,
+    }
+
+
+@router.put("/work-center-groups/{group_id}/calendar")
+async def update_group_calendar(
+    group_id: str,
+    payload: WorkCenterGroupCalendarUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('work_order.manage')),
+):
+    """Batch-set the production calendar for a whole group of machines.
+
+    Cascade-copy (see WorkCenterGroupCalendarUpdate): the group node stores the
+    values so the form reopens with them, and every descendant MACHINE gets the same
+    weekdays — and, when holidays are supplied, the same holiday set. One
+    transaction, so machines never end up half-applied.
+    """
+    grp = await _get_wc(db, group_id)
+    if (grp.node_type or "MACHINE").upper() == "MACHINE":
+        raise HTTPException(status_code=422, detail="Not a work center group")
+
+    weekdays = sorted(set(int(d) for d in payload.working_weekdays if 0 <= int(d) <= 6))
+    machine_ids = await work_center_service.descendant_ids(db, grp.id, machines_only=True)
+    target_ids = [grp.id, *machine_ids]
+
+    await db.execute(
+        update(WorkCenter).where(WorkCenter.id.in_(target_ids)).values(working_weekdays=weekdays)
+    )
+
+    holidays_written = 0
+    if payload.holidays is not None or payload.import_national_year:
+        merged: dict = {h.holiday_date: h.note for h in (payload.holidays or [])}
+        if payload.import_national_year:
+            for h in id_holidays.holidays_for_year(payload.import_national_year):
+                merged.setdefault(date.fromisoformat(h["date"]), h["name"])
+        # Replace wholesale: the group is the source of truth for the batch, so a
+        # date removed in the form must disappear from every machine too.
+        await db.execute(
+            delete(WorkCenterHoliday).where(WorkCenterHoliday.work_center_id.in_(target_ids))
+        )
+        for wc_id in target_ids:
+            for hd, note in merged.items():
+                db.add(WorkCenterHoliday(work_center_id=wc_id, holiday_date=hd, note=note))
+                holidays_written += 1
+
+    await db.commit()
+    await audit_service.log_activity(
+        db, current_user.id, "UPDATE", "work_center_calendar", str(grp.id),
+        details=f"Batch calendar on {grp.code} → {len(machine_ids)} machines",
+        changes={"working_weekdays": weekdays, "machines": len(machine_ids)},
+    )
+    await manager.broadcast({"type": "weaving_run", "action": "calendar", "work_center_id": str(grp.id)})
+    return {
+        "group_id": str(grp.id),
+        "working_weekdays": weekdays,
+        "machines_updated": len(machine_ids),
+        "holidays_written": holidays_written,
+    }
 
 
 @router.post("/work-centers/{wc_id}/holidays", response_model=WorkCenterHolidayResponse)

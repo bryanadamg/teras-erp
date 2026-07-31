@@ -16,7 +16,7 @@ from app.models.production_run import PRBomEntrySize
 from app.schemas import BOMCreate, BOMUpdate, BOMResponse, BOMSummaryResponse, BOMSummaryPageResponse, BOMTreeResponse, SizeResponse, BOMAutomatorProfileCreate, BOMAutomatorProfileResponse, BOMCodeResolveRequest, BOMCodeResolveResponse, BOMItemLookupRequest, BOMItemLookupResponse, BOMItemLookupEntry
 from app.models.auth import User, BOMAutomatorProfile
 from app.api.auth import get_current_user, require_permission
-from app.services import audit_service
+from app.services import audit_service, work_center_service
 from app.models.attribute import AttributeValue
 from app.core.ws_manager import manager
 
@@ -36,10 +36,13 @@ async def _sync_beam_ends(db: AsyncSession, bom: BOM) -> None:
         if wc:
             if (wc.center_type or '').upper() == 'BEAMING':
                 is_beam = True
-            elif wc.parent_id:
-                parent = (await db.execute(select(WorkCenter).filter(WorkCenter.id == wc.parent_id))).scalars().first()
-                if parent and (parent.center_type or '').upper() == 'BEAMING':
-                    is_beam = True
+            else:
+                # Walk the whole ancestor chain: with the optional GROUP tier the
+                # BEAMING type node can be two hops up, not one.
+                for anc in await work_center_service.ancestors(db, wc.id):
+                    if (anc.center_type or '').upper() == 'BEAMING':
+                        is_beam = True
+                        break
 
     result = await db.execute(
         select(Item).options(joinedload(Item.category)).filter(Item.id == bom.item_id)

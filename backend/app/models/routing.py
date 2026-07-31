@@ -22,6 +22,14 @@ class WorkCenter(Base):
 
     parent_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("work_centers.id"), nullable=True, index=True)
 
+    # Where this row sits in the 3-level tree: TYPE (root, e.g. WEAVING) → GROUP
+    # (optional, e.g. a hall or loom bank) → MACHINE (leaf, the physical center all
+    # WO/BOM/run rows point at). The GROUP tier is optional: a MACHINE may still
+    # hang directly off a TYPE, which is how every pre-existing tree is shaped.
+    # Depth is NOT inferred from parent_id — a group and a machine both have a
+    # parent, so only this discriminator tells them apart.
+    node_type: Mapped[str] = mapped_column(String(16), default="MACHINE", server_default="MACHINE", index=True)
+
     # Production calendar (performance monitoring): weekdays this machine runs.
     # 0=Mon .. 6=Sun. Default Mon-Fri. Non-working holidays live in work_center_holidays.
     working_weekdays: Mapped[list] = mapped_column(JSON, default=lambda: [0, 1, 2, 3, 4], server_default="[0, 1, 2, 3, 4]")

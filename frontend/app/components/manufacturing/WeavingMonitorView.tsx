@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useUser } from '../../context/UserContext';
 import { xpFont, xpBtn, StatusChip, XPLoading, XPEmptyState } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from '../shared/shellTheme';
 import WorkCenterMonitorModal from './WorkCenterMonitorModal';
+import GroupCalendarModal from './GroupCalendarModal';
 
 const GREEN = '#2d7a2d';
 const RED = '#c00000';
@@ -23,6 +25,8 @@ export default function WeavingMonitorView() {
     const { authFetch, subscribeLiveEvents } = useData();
     const { t } = useLanguage();
     const { uiStyle } = useTheme();
+    const { hasPermission } = useUser();
+    const canManage = hasPermission('work_order.manage');
     const cls = uiStyle === 'classic';
 
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
@@ -31,6 +35,7 @@ export default function WeavingMonitorView() {
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [selected, setSelected] = useState<any>(null);
+    const [calGroup, setCalGroup] = useState<any>(null);
 
     const load = useCallback(async () => {
         try {
@@ -51,6 +56,23 @@ export default function WeavingMonitorView() {
 
     const closeModal = () => { setSelected(null); load(); };
     const machines: any[] = data?.machines || [];
+
+    // Looms are shown per work-center GROUP so a whole group's calendar can be set in
+    // one go. Machines that sit straight under their TYPE node (the pre-group shape)
+    // collect in a trailing Ungrouped section — no group, so no batch action.
+    const sections = useMemo(() => {
+        const byGroup = new Map<string, { id: string | null; code: string; name: string; machines: any[] }>();
+        for (const m of machines) {
+            const key = m.group_id || '__ungrouped__';
+            if (!byGroup.has(key)) {
+                byGroup.set(key, { id: m.group_id || null, code: m.group_code || '', name: m.group_name || '', machines: [] });
+            }
+            byGroup.get(key)!.machines.push(m);
+        }
+        return [...byGroup.values()].sort((a, b) =>
+            (a.id ? 0 : 1) - (b.id ? 0 : 1) || (a.code || '').localeCompare(b.code || ''));
+    }, [machines]);
+    const isGrouped = sections.some(s => !!s.id);
 
     const EffBar = ({ eff, target }: { eff: number; target: number }) => {
         const on = (eff ?? 0) >= (target ?? 0);
@@ -98,13 +120,23 @@ export default function WeavingMonitorView() {
     };
 
     const modal = (
-        <WorkCenterMonitorModal
-            isOpen={!!selected}
-            onClose={closeModal}
-            workCenter={selected}
-            authFetch={authFetch}
-            apiBase={API_BASE}
-        />
+        <>
+            <WorkCenterMonitorModal
+                isOpen={!!selected}
+                onClose={closeModal}
+                workCenter={selected}
+                authFetch={authFetch}
+                apiBase={API_BASE}
+            />
+            <GroupCalendarModal
+                isOpen={!!calGroup}
+                onClose={() => setCalGroup(null)}
+                group={calGroup}
+                authFetch={authFetch}
+                apiBase={API_BASE}
+                onApplied={load}
+            />
+        </>
     );
 
     const summaryText = data ? (
@@ -184,9 +216,36 @@ export default function WeavingMonitorView() {
                             <XPLoading label={t('loading')} />
                         ) : machines.length === 0 ? (
                             <XPEmptyState icon="bi-cpu" message={t('no_weaving_machines')} />
-                        ) : (
+                        ) : !isGrouped ? (
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>
                                 {machines.map(card)}
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                {sections.map(sec => (
+                                    <div key={sec.id || 'ungrouped'}>
+                                        <div style={{
+                                            display: 'flex', alignItems: 'center', gap: 8,
+                                            background: 'linear-gradient(to bottom, #f5f4ef, #dedbd0)',
+                                            border: '1px solid #b0a898', padding: '2px 7px', marginBottom: 6,
+                                            fontFamily: xpFont, fontSize: 11, fontWeight: 'bold', color: BLUE,
+                                        }}>
+                                            <i className="bi bi-collection" />
+                                            <span>{sec.id ? `${sec.code}${sec.name ? ' — ' + sec.name : ''}` : 'Ungrouped'}</span>
+                                            <span style={{ fontWeight: 'normal', color: '#555' }}>
+                                                {sec.machines.length} {t('machines')} · {sec.machines.filter((m: any) => m.active_run).length} {t('running')}
+                                            </span>
+                                            {sec.id && canManage && (
+                                                <button style={{ ...xpBtn(), marginLeft: 'auto' }} onClick={() => setCalGroup(sec)}>
+                                                    <i className="bi bi-calendar3" style={{ marginRight: 4 }} />{t('work_calendar')}
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>
+                                            {sec.machines.map(card)}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </div>
@@ -248,9 +307,31 @@ export default function WeavingMonitorView() {
                 <XPLoading label={t('loading')} />
             ) : machines.length === 0 ? (
                 <XPEmptyState icon="bi-cpu" message={t('no_weaving_machines')} />
-            ) : (
+            ) : !isGrouped ? (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 12 }}>
                     {machines.map(card)}
+                </div>
+            ) : (
+                <div className="d-flex flex-column gap-4">
+                    {sections.map(sec => (
+                        <div key={sec.id || 'ungrouped'}>
+                            <div className="d-flex align-items-center gap-2 mb-2 pb-1 border-bottom">
+                                <i className="bi bi-collection text-secondary" />
+                                <span className="fw-semibold">{sec.id ? `${sec.code}${sec.name ? ' — ' + sec.name : ''}` : 'Ungrouped'}</span>
+                                <span className="text-muted small">
+                                    {sec.machines.length} {t('machines')} · {sec.machines.filter((m: any) => m.active_run).length} {t('running')}
+                                </span>
+                                {sec.id && canManage && (
+                                    <button className="btn btn-sm btn-outline-secondary ms-auto" onClick={() => setCalGroup(sec)}>
+                                        <i className="bi bi-calendar3 me-1" />{t('work_calendar')}
+                                    </button>
+                                )}
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 12 }}>
+                                {sec.machines.map(card)}
+                            </div>
+                        </div>
+                    ))}
                 </div>
             )}
             {modal}

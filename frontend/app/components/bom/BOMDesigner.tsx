@@ -539,8 +539,17 @@ export default function BOMDesigner({
         const wc = (workCenters || []).find((w: any) => String(w.id) === String(wcId));
         if (!wc) return false;
         if ((wc.center_type || '').toUpperCase() === 'BEAMING') return true;
-        const parent = wc.parent_id ? (workCenters || []).find((w: any) => String(w.id) === String(wc.parent_id)) : null;
-        return (parent?.center_type || '').toUpperCase() === 'BEAMING';
+        // Walk all the way up — with the optional GROUP tier the BEAMING type node can
+        // be more than one hop away (mirrors _sync_beam_item in api/boms.py).
+        let cursor = wc;
+        const seen = new Set<string>([String(wc.id)]);
+        while (cursor?.parent_id && !seen.has(String(cursor.parent_id))) {
+            seen.add(String(cursor.parent_id));
+            cursor = (workCenters || []).find((w: any) => String(w.id) === String(cursor.parent_id));
+            if (!cursor) break;
+            if ((cursor.center_type || '').toUpperCase() === 'BEAMING') return true;
+        }
+        return false;
     }, [workCenters]);
     const isBeamNode = useCallback((node: any) =>
         !!node && (isBeamCode(node.item_code) || isBeamWc(node.work_center_id)),
