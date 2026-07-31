@@ -7,7 +7,18 @@ import { buildPrintContext } from '../shared/printTemplate/renderContext';
 import { docTypeForWorkCenter } from '../shared/printTemplate/defaults/kartuKerja';
 import { resolveLayout } from '../shared/printTemplate/templateStore';
 import type { PrintTemplateRecord } from '../shared/printTemplate/types';
-import type { KartuKerjaSettings } from './KartuKerjaCardBeaming';
+
+/**
+ * Print-time preferences from the modal's sidebar. Declared here rather than
+ * imported from KartuKerjaCardBeaming so the old hardcoded cards can be deleted
+ * once visual parity is signed off.
+ */
+export interface KartuKerjaSettings {
+    showMaterials: boolean;
+    showFillFields: boolean;
+    showSignature: boolean;
+    headerDepartment: string;
+}
 
 /**
  * Kartu Kerja card body, rendered from a print template.

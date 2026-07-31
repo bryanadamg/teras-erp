@@ -2,7 +2,7 @@
 import React from 'react';
 
 import type {
-    PrintLayout, Band, GridBand, GridItem, KeyValueBand, KeyValueRow,
+    PrintLayout, Band, GridBand, GridItem, FieldSpec, KeyValueBand, KeyValueRow,
     TableBand, TallyBand, SignatureBand, SpacerBand, Align,
 } from './types';
 import type { PrintContext } from './renderContext';
@@ -65,8 +65,16 @@ function fmtNumber(v: any, decimals: number | undefined, emptyText: string): str
     return decimals != null ? Number(v).toFixed(decimals) : String(v);
 }
 
-/** A resolved field rendered with its placement styling. */
-function FieldValue({ item, ctx, docType }: { item: GridItem; ctx: PrintContext; docType: string }) {
+/**
+ * A resolved field rendered with its placement styling. `field` is optional because
+ * a grid cell that holds a `stack` carries no field of its own.
+ */
+function FieldValue({ item, ctx, docType }: {
+    item: Omit<FieldSpec, 'field'> & { field?: string };
+    ctx: PrintContext;
+    docType: string;
+}) {
+    if (!item.field) return null;
     const def = fieldDef(docType, item.field);
     const resolved = resolveField(item.field, ctx);
 
@@ -144,10 +152,17 @@ function GridBandView({ band, ctx, docType, selectedId, onSelect }: {
             alignItems: band.alignItems ?? 'start',
         }}>
             {band.items.map((item, i) => {
-                const def = fieldDef(docType, item.field);
                 const itemId = `${band.id}:${i}`;
-                const label = item.label ?? def?.label ?? '';
-                if (item.hideWhenEmpty && resolveField(item.field, ctx).empty) return null;
+
+                // Stacked cell: several fields at their natural spacing in one grid
+                // cell, so a tall sibling (the QR) can't stretch them apart.
+                const stack: FieldSpec[] | null = item.stack
+                    ? item.stack.filter(f => !(f.hideWhenEmpty && resolveField(f.field, ctx).empty))
+                    : null;
+
+                if (!stack && item.hideWhenEmpty && item.field && resolveField(item.field, ctx).empty) return null;
+                if (stack && stack.length === 0) return null;
+
                 return (
                     <div
                         key={itemId}
@@ -160,10 +175,34 @@ function GridBandView({ band, ctx, docType, selectedId, onSelect }: {
                             ...(item.align === 'right' ? { textAlign: 'right' as const } : {}),
                             ...(selectedId === itemId ? { outline: '2px solid #0058e6', outlineOffset: 1 } : {}),
                             cursor: onSelect ? 'pointer' : undefined,
+                            ...(stack ? {
+                                display: 'flex',
+                                flexDirection: 'column' as const,
+                                gap: item.stackGap ?? 1,
+                            } : {}),
                         }}
                     >
-                        {item.showLabel && label && <div style={MINI_LABEL}>{label}</div>}
-                        <FieldValue item={item} ctx={ctx} docType={docType} />
+                        {stack
+                            ? stack.map((f, fi) => {
+                                const fDef = fieldDef(docType, f.field);
+                                const fLabel = f.label ?? fDef?.label ?? '';
+                                return (
+                                    <div key={fi} style={{ minWidth: 0 }}>
+                                        {f.showLabel && fLabel && <div style={MINI_LABEL}>{fLabel}</div>}
+                                        <FieldValue item={f} ctx={ctx} docType={docType} />
+                                    </div>
+                                );
+                            })
+                            : (() => {
+                                const def = fieldDef(docType, item.field);
+                                const label = item.label ?? def?.label ?? '';
+                                return (
+                                    <>
+                                        {item.showLabel && label && <div style={MINI_LABEL}>{label}</div>}
+                                        <FieldValue item={item} ctx={ctx} docType={docType} />
+                                    </>
+                                );
+                            })()}
                     </div>
                 );
             })}
@@ -254,11 +293,11 @@ function KeyValueBandView({ band, ctx, docType, selectedId, onSelect }: {
     );
 }
 
-function TableBandView({ band, ctx, docType }: { band: TableBand; ctx: PrintContext; docType: string }) {
+function TableBandView({ band, ctx, rows }: {
+    band: TableBand; ctx: PrintContext; rows: Record<string, any>[];
+}) {
     const source = rowSource(band.source);
     if (!source) return null;
-    const { rows } = source.resolve(ctx);
-    if (band.hideWhenEmpty !== false && rows.length === 0) return null;
 
     const fontSize = band.fontSize ?? 9;
 
@@ -428,6 +467,21 @@ function BandView(props: {
         return <div style={{ flexGrow: 1, minHeight: spacer.minHeight ?? 6 }} />;
     }
 
+    // Table bands resolve their rows HERE, not inside TableBandView. The child
+    // returning null is invisible to this component (the element itself is always
+    // truthy), which orphaned the band title above an empty table — the old cards
+    // gated title and table together, and so must this.
+    let rows: Record<string, any>[] | null = null;
+    let autoTitle: string | undefined;
+    if (band.type === 'table') {
+        const source = rowSource((band as TableBand).source);
+        if (!source) return null;
+        const resolved = source.resolve(ctx);
+        rows = resolved.rows;
+        autoTitle = resolved.autoTitle;
+        if ((band as TableBand).hideWhenEmpty !== false && rows.length === 0) return null;
+    }
+
     let content: React.ReactNode = null;
     switch (band.type) {
         case 'grid':
@@ -437,7 +491,7 @@ function BandView(props: {
             content = <KeyValueBandView band={band} ctx={ctx} docType={docType} selectedId={selectedId} onSelect={onSelect} />;
             break;
         case 'table':
-            content = <TableBandView band={band} ctx={ctx} docType={docType} />;
+            content = <TableBandView band={band} ctx={ctx} rows={rows || []} />;
             break;
         case 'tally':
             content = <TallyBandView band={band} />;
@@ -447,15 +501,10 @@ function BandView(props: {
             break;
     }
 
-    // A table band that resolved to nothing swallows its own title too.
     if (content === null) return null;
 
     // '{auto}' defers to the row source's suggested title.
-    let title = band.title;
-    if (title === '{auto}' && band.type === 'table') {
-        const source = rowSource((band as TableBand).source);
-        title = source ? source.resolve(ctx).autoTitle : undefined;
-    }
+    const title = band.title === '{auto}' ? autoTitle : band.title;
 
     const selected = selectedId === band.id;
 
@@ -498,6 +547,11 @@ export default function TemplateRenderer({
             flexDirection: 'column',
             flex: 1,
             minHeight: 0,
+            // Content inset in mm so preview and paper agree. The wrapper's print CSS
+            // forces `padding: 0` on the paper element, so the inset has to live here
+            // on the document root rather than on the card wrapper.
+            padding: layout.paddingMm ? `${layout.paddingMm}mm` : undefined,
+            boxSizing: 'border-box',
         }}>
             {layout.bands.map(band => {
                 const override = bandOverrides?.[band.id];

@@ -71,24 +71,34 @@ const BASE_IDENTITY = (productLabel: string): KeyValueRow[] => [
 ];
 
 function buildLayout(spec: VariantSpec): PrintLayout {
+    // Code / company / date are ONE stacked cell beside the QR, not three grid rows:
+    // a row-spanning QR distributes its height across the rows it spans and pulls the
+    // text lines ~50px apart. Stacking keeps the 1px spacing the paper ticket has.
     const headerItems: GridItem[] = [
-        { field: spec.headerCodeField, col: 1, span: 7, row: 1, fontSize: 12, bold: true, mono: true },
-        // Omitted rather than dashed when the company profile has no name.
-        { field: 'company.name', col: 1, span: 7, row: 2, fontSize: 8, bold: true, color: '#555', hideWhenEmpty: true },
-        { field: 'print.date_department', col: 1, span: 7, row: 3, fontSize: 8, color: '#666' },
-        { field: 'wo.qr', col: 8, span: 5, row: 1, rowSpan: 3, align: 'right', qrSize: 140 },
+        {
+            col: 1, span: 7, row: 1, stackGap: 1,
+            stack: [
+                { field: spec.headerCodeField, fontSize: 12, bold: true, mono: true },
+                // Omitted rather than dashed when the company profile has no name.
+                { field: 'company.name', fontSize: 8, bold: true, color: '#555', hideWhenEmpty: true },
+                { field: 'print.date_department', fontSize: 8, color: '#666' },
+            ],
+        },
+        { field: 'wo.qr', col: 8, span: 5, row: 1, align: 'right', qrSize: 140 },
     ];
 
     const heroItems: GridItem[] = [
         {
-            field: 'wo.name', col: 1, span: 7, row: 1, rowSpan: 2,
+            field: 'wo.name', col: 1, span: 7, row: 1,
             fontSize: 20, bold: true, showLabel: true, label: spec.operationLabel,
         },
         {
-            field: 'wo.work_center_name', col: 8, span: 5, row: 1,
-            fontSize: 13, bold: true, align: 'right', showLabel: true, label: spec.workCenterLabel,
+            col: 8, span: 5, row: 1, align: 'right', stackGap: 0,
+            stack: [
+                { field: 'wo.work_center_name', fontSize: 13, bold: true, align: 'right', showLabel: true, label: spec.workCenterLabel },
+                { field: 'wo.step_label', fontSize: 9, color: '#555', align: 'right' },
+            ],
         },
-        { field: 'wo.step_label', col: 8, span: 5, row: 2, fontSize: 9, color: '#555', align: 'right' },
     ];
 
     const metricSpan = Math.floor(12 / spec.metrics.length);
@@ -144,7 +154,10 @@ function buildLayout(spec: VariantSpec): PrintLayout {
         },
     ];
 
-    return { version: 1, paper: A6, fontFamily: 'Arial, sans-serif', bands };
+    // 3mm inset on top of the 6mm page margin. The old cards ran content to the very
+    // edge of the paper element, which read as "margins gone" against the printed
+    // ticket. Client-adjustable in the designer.
+    return { version: 1, paper: A6, fontFamily: 'Arial, sans-serif', paddingMm: 3, bands };
 }
 
 export const KARTU_KERJA_WEAVING: PrintLayout = buildLayout({

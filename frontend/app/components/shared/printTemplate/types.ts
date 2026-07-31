@@ -13,17 +13,13 @@
 
 export type Align = 'left' | 'center' | 'right';
 
-/** A placed field inside a `grid` band. */
-export interface GridItem {
+/**
+ * How one field is styled. Shared by standalone grid cells and by fields inside a
+ * stacked cell.
+ */
+export interface FieldSpec {
     /** Field key from the doc type's registry (see fieldRegistry.ts). */
     field: string;
-    /** 1-based column start on the 12-col grid. */
-    col: number;
-    /** Column count, 1..12. */
-    span: number;
-    /** 1-based row. Items sharing a row sit side by side. */
-    row: number;
-    rowSpan?: number;
     fontSize?: number;
     bold?: boolean;
     mono?: boolean;
@@ -46,6 +42,35 @@ export interface GridItem {
     /** `qr` fields only: rendered pixel size and the caption under it. */
     qrSize?: number;
     qrCaption?: string;
+}
+
+/**
+ * A positioned cell in a `grid` band. Holds either a single field or a vertical
+ * `stack` of them.
+ *
+ * The stack exists because CSS grid cannot put a tall item beside a tight column of
+ * short ones: a row-spanning cell distributes its height across the rows it spans,
+ * so a 140px QR next to three text lines stretched each line to ~53px apart. A
+ * stack keeps those lines in ONE cell at their natural spacing, with the QR in a
+ * sibling cell on the same row.
+ */
+export interface GridItem extends Omit<FieldSpec, 'field'> {
+    /** The field rendered in this cell. Ignored (and optional) when `stack` is set. */
+    field?: string;
+    /** 1-based column start on the 12-col grid. */
+    col: number;
+    /** Column count, 1..12. */
+    span: number;
+    /** 1-based row. Items sharing a row sit side by side. */
+    row: number;
+    rowSpan?: number;
+    /**
+     * When present, `field` is ignored and these render stacked top-to-bottom in
+     * this one cell.
+     */
+    stack?: FieldSpec[];
+    /** Gap between stacked fields, px. */
+    stackGap?: number;
 }
 
 /** A label/value row inside a `keyvalue` band. */
@@ -190,6 +215,12 @@ export interface PrintLayout {
     paper: PaperSpec;
     /** Base font family + colour for the whole document. */
     fontFamily?: string;
+    /**
+     * Inset between the paper edge and the document content, mm. This is *on top of*
+     * the printer's page margin (`paper.marginMm`) — the page margin is what the
+     * printer cannot reach, this is breathing room the design asks for.
+     */
+    paddingMm?: number;
     bands: Band[];
 }
 

@@ -88,6 +88,13 @@ export const NAV_SECTIONS: NavSection[] = [
             { tab: 'audit-logs', label: 'Audit Logs', icon: 'bi-clipboard-check', permission: 'admin.access' },
         ],
     },
+    {
+        key: 'administration', label: 'Administration', icon: 'bi-sliders', accent: 'grey',
+        permissions: ['admin.access'],
+        items: [
+            { tab: 'print-designer', label: 'Print Layouts', icon: 'bi-printer', permission: 'admin.access' },
+        ],
+    },
 ];
 
 /** Resolve a nav entry's display label: i18n when the key exists, else the English fallback. */
