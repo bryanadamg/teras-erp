@@ -17,11 +17,9 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.manufacturing import MOCompletion
-from app.models.weaving import WeavingRun
 
 MINUTES_PER_DAY = 24 * 60
 _MAX_PROJECT_DAYS = 3650  # 10y guard against runaway walks
-WEAVING_CENTER_TYPES = {"WEAVING", "TENUN"}
 
 
 # ── Calendar primitives ──────────────────────────────────────────────────────
@@ -115,32 +113,6 @@ async def sum_actual_kg(db: AsyncSession, work_center_id, mo_id, start_date: dat
         q = q.where(MOCompletion.created_at < end_date + timedelta(days=1))
     result = await db.execute(q)
     return float(result.scalar() or 0)
-
-
-# ── Auto-start ────────────────────────────────────────────────────────────────
-
-async def auto_start_run_for_wo(db: AsyncSession, work_center_id, work_center_type: str, mo_id) -> Optional[WeavingRun]:
-    """Auto-create a RUNNING WeavingRun when a WO on a weaving machine starts.
-
-    Fired from the WO's PENDING->IN_PROGRESS transition (first completion log).
-    No-op off a weaving machine, or if that machine already has a RUNNING run
-    (manual or auto) — never clobbers an in-progress run. lines/rate/target
-    default to the model's placeholder values; the monitor page lets the
-    operator correct them after the fact.
-    """
-    if (work_center_type or "").upper() not in WEAVING_CENTER_TYPES:
-        return None
-    existing = await db.execute(
-        select(WeavingRun.id)
-        .where(WeavingRun.work_center_id == work_center_id)
-        .where(WeavingRun.status == "RUNNING")
-    )
-    if existing.scalars().first():
-        return None
-    run = WeavingRun(work_center_id=work_center_id, mo_id=mo_id, start_date=date.today(), status="RUNNING")
-    db.add(run)
-    await db.flush()
-    return run
 
 
 # ── Run metrics ──────────────────────────────────────────────────────────────

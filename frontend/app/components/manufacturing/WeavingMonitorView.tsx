@@ -20,7 +20,7 @@ function fmt(n: any, d = 1): string {
 }
 
 export default function WeavingMonitorView() {
-    const { manufacturingOrders, authFetch, subscribeLiveEvents } = useData();
+    const { authFetch, subscribeLiveEvents } = useData();
     const { t } = useLanguage();
     const { uiStyle } = useTheme();
     const cls = uiStyle === 'classic';
@@ -102,7 +102,6 @@ export default function WeavingMonitorView() {
             isOpen={!!selected}
             onClose={closeModal}
             workCenter={selected}
-            manufacturingOrders={manufacturingOrders || []}
             authFetch={authFetch}
             apiBase={API_BASE}
         />

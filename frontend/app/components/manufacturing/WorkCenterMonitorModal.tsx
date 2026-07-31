@@ -28,12 +28,11 @@ interface Props {
     isOpen: boolean;
     onClose: () => void;
     workCenter: any;
-    manufacturingOrders: any[];
     authFetch: (url: string, opts?: any) => Promise<Response>;
     apiBase: string;
 }
 
-export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, manufacturingOrders, authFetch, apiBase }: Props) {
+export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, authFetch, apiBase }: Props) {
     const { t } = useLanguage();
     const { uiStyle } = useTheme();
     const { hasPermission } = useUser();
@@ -48,6 +47,12 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, ma
 
     const [showStart, setShowStart] = useState(false);
     const [moId, setMoId] = useState('');
+    // MO candidates come from the server scoped to this machine (MOs with a WO
+    // dispatched here) — the global manufacturingOrders list is page-1 roots only
+    // and misses consolidated component MOs, which is what weaving usually runs.
+    const [moCands, setMoCands] = useState<any[]>([]);
+    const [moCandsAll, setMoCandsAll] = useState(false);
+    const [moCandsLoading, setMoCandsLoading] = useState(false);
     const [lines, setLines] = useState('1');
     const [rate, setRate] = useState('5');
     const [eff, setEff] = useState('50');
@@ -107,9 +112,25 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, ma
             setShowStart(false);
             setEditingOverride(false);
             setCalRef(new Date());
+            setMoCands([]);
+            setMoCandsAll(false);
             load();
         }
     }, [isOpen, wcId, load]);
+
+    // MOs offered in the start-run picker: scoped to this machine's WOs, widened
+    // to every open MO only when the operator asks for it.
+    useEffect(() => {
+        if (!isOpen || !wcId || !showStart) return;
+        let cancelled = false;
+        setMoCandsLoading(true);
+        authFetch(`${apiBase}/work-centers/${wcId}/candidate-mos?include_all=${moCandsAll}`)
+            .then(r => r.ok ? r.json() : null)
+            .then(d => { if (!cancelled) setMoCands(d?.items || []); })
+            .catch(() => { if (!cancelled) setMoCands([]); })
+            .finally(() => { if (!cancelled) setMoCandsLoading(false); });
+        return () => { cancelled = true; };
+    }, [isOpen, wcId, showStart, moCandsAll, apiBase, authFetch]);
 
     // Indonesian national holidays for the displayed year (reference/highlight)
     useEffect(() => {
@@ -180,7 +201,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, ma
         if (res.ok) load();
     };
 
-    const moOptions = (manufacturingOrders || []).map((mo: any) => ({
+    const moOptions = moCands.map((mo: any) => ({
         value: mo.id,
         label: `${mo.code}${mo.item_code ? ' — ' + mo.item_code : ''}`,
         subLabel: mo.qty ? `${fmt(mo.qty, 2)}` : undefined,
@@ -305,7 +326,27 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, ma
                             <div className="row g-2 align-items-end">
                                 <div className="col-md-5">
                                     <label className="form-label small mb-0">{t('manufacturing_order')}</label>
-                                    <SearchableSelect options={moOptions} value={moId} onChange={setMoId} placeholder="Select MO..." />
+                                    <SearchableSelect
+                                        options={moOptions}
+                                        value={moId}
+                                        onChange={setMoId}
+                                        placeholder={moCandsLoading ? 'Loading...' : (moOptions.length ? 'Select MO...' : 'No MO on this machine')}
+                                    />
+                                    <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>
+                                        {moCandsAll
+                                            ? 'Showing all open MOs.'
+                                            : `On this machine${moCandsLoading ? '' : `: ${moOptions.length}`}`}
+                                        {!moCandsAll && (
+                                            <button
+                                                type="button"
+                                                className="btn btn-link p-0 ms-1"
+                                                style={{ fontSize: 10, verticalAlign: 'baseline' }}
+                                                onClick={() => { setMoId(''); setMoCandsAll(true); }}
+                                            >
+                                                show all
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="col-md-2 col-4">
                                     <label className="form-label small mb-0">{t('lines')}</label>

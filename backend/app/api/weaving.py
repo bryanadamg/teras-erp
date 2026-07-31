@@ -11,6 +11,7 @@ from app.db.session import get_async_db
 from app.models.weaving import WeavingRun, WorkCenterHoliday
 from app.models.routing import WorkCenter
 from app.models.manufacturing import ManufacturingOrder
+from app.models.work_order import WorkOrder
 from app.models.batch import Batch, BeamMount
 from app.models.stock_balance import StockBalance
 from app.models.item import Item
@@ -52,6 +53,55 @@ async def _run_actual_kg(db: AsyncSession, run: WeavingRun) -> float:
     return await weaving_service.sum_actual_kg(
         db, run.work_center_id, run.mo_id, run.start_date, run.end_date
     )
+
+
+CLOSED_MO_STATUSES = ("COMPLETED", "CANCELLED")
+
+
+@router.get("/work-centers/{wc_id}/candidate-mos")
+async def work_center_candidate_mos(
+    wc_id: str,
+    include_all: bool = Query(False, description="Ignore the machine link and list every open MO"),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Open MOs a run can be started against on this machine.
+
+    A run is monitored per loom, so the picker must only offer the MOs actually
+    dispatched there — i.e. MOs with a WorkOrder assigned to this work center.
+    `include_all=true` is the deliberate escape hatch for a machine with no WO
+    assigned yet (the frontend surfaces it as a link, not the default).
+    """
+    await _get_wc(db, wc_id)
+    q = (
+        select(ManufacturingOrder)
+        .options(selectinload(ManufacturingOrder.item))
+        .where(ManufacturingOrder.status.notin_(CLOSED_MO_STATUSES))
+    )
+    if not include_all:
+        q = q.where(
+            select(WorkOrder.id)
+            .where(WorkOrder.manufacturing_order_id == ManufacturingOrder.id)
+            .where(WorkOrder.work_center_id == wc_id)
+            .exists()
+        )
+    q = q.order_by(ManufacturingOrder.created_at.desc()).limit(200)
+    mos = (await db.execute(q)).scalars().all()
+    return {
+        "work_center_id": wc_id,
+        "machine_linked": not include_all,
+        "items": [
+            {
+                "id": str(mo.id),
+                "code": mo.code,
+                "item_code": mo.item_code,
+                "item_name": mo.item_name,
+                "qty": float(mo.qty or 0),
+                "status": mo.status,
+            }
+            for mo in mos
+        ],
+    }
 
 
 # ── Weaving runs ─────────────────────────────────────────────────────────────
