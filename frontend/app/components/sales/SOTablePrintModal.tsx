@@ -214,6 +214,7 @@ export default function SOTablePrintModal({
                 maxWidth={1300}
                 height="90vh"
                 bevel={false}
+                modeless
             >
                     {/* Preview — A4 landscape: 297mm × 210mm ≈ 1122px × 794px at 96dpi */}
                     <div style={{ flex: 1, background: '#e0e0e0', overflowY: 'auto', overflowX: 'auto', padding: 16 }}>

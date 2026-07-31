@@ -344,7 +344,7 @@ export default function BOMPrintModal({ bom, companyProfile, getAttributeValueNa
 
     return (
         <>
-            <PrintModalShell title={`Print BOM — ${bom.code}`} onClose={onClose} width="90vw" maxWidth={980} height="88vh">
+            <PrintModalShell modeless title={`Print BOM — ${bom.code}`} onClose={onClose} width="90vw" maxWidth={980} height="88vh">
                     {/* Body */}
                     <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 

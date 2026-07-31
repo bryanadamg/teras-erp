@@ -357,6 +357,7 @@ export default function PurchaseOrderPrintModal({
                 maxWidth={1020}
                 height="90vh"
                 bevel={false}
+                modeless
             >
                     {/* Body */}
                     <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
