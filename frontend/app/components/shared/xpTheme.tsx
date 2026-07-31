@@ -598,7 +598,7 @@ const XP_ACTION_MODERN: Record<XPActionTone, string> = {
 };
 
 export function XPActionButton({
-    classic, tone = 'neutral', icon, label, title, onClick, disabled = false,
+    classic, tone = 'neutral', icon, label, title, onClick, disabled = false, className,
 }: {
     classic: boolean;
     tone?: XPActionTone;
@@ -607,6 +607,7 @@ export function XPActionButton({
     title?: string;
     onClick: (e: React.MouseEvent) => void;
     disabled?: boolean;
+    className?: string;          // extra classes — pass 'xp-menu-trigger' when this button opens a FloatingMenu
 }) {
     const iconEl = icon ? <i className={`bi ${icon}`} /> : null;
     if (classic) {
@@ -616,6 +617,7 @@ export function XPActionButton({
                 onClick={onClick}
                 title={title}
                 disabled={disabled}
+                className={className}
                 style={{
                     fontFamily: xpFont, fontSize: 11, lineHeight: 1, padding: '2px 4px',
                     cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1,

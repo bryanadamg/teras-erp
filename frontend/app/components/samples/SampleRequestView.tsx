@@ -12,7 +12,7 @@ import SearchableSelect from '../shared/SearchableSelect';
 import HistoryPane from '../shared/HistoryPane';
 import ModalWrapper from '../shared/ModalWrapper';
 const SamplePrintModal = dynamic(() => import('./SamplePrintModal'), { ssr: false });
-import { StatusChip, XPLoading, FormSection, useFloatingMenu, FloatingMenu } from '../shared/xpTheme';
+import { StatusChip, XPLoading, FormSection, useFloatingMenu, FloatingMenu, MenuTriggerButton, XPActionButton } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import RequestDetailPanel, { getStatusStripe } from '../shared/RequestDetailPanel';
@@ -55,6 +55,8 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
   const [editingSample, setEditingSample] = useState<any>(null);
   const [printSample, setPrintSample] = useState<any>(null);
   const { openId: openDropdownId, pos: dropdownPos, toggle: toggleDropdown, close: closeDropdown } = useFloatingMenu(180);
+  // Row "⋯" overflow menu (Edit / Print / Log) — separate from the status-update menu above
+  const { openId: rowMenuId, pos: rowMenuPos, toggle: toggleRowMenu, close: closeRowMenu } = useFloatingMenu(170);
   const [historyEntityId, setHistoryEntityId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -1148,6 +1150,23 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
            />
        )}
 
+       {/* Row "⋯" overflow menu — Edit / Print / Event Log */}
+       {rowMenuId && (() => {
+           const s = samples.find((x: any) => String(x.id) === String(rowMenuId));
+           if (!s) return null;
+           return (
+               <FloatingMenu
+                   pos={rowMenuPos}
+                   minWidth={170}
+                   items={[
+                       { key: 'edit', label: 'Edit Request', icon: 'bi-pencil', hidden: !canManage, onClick: () => { closeRowMenu(); openEditModal(s); } },
+                       { key: 'print', label: 'Print SPK Sample', icon: 'bi-printer', onClick: () => { closeRowMenu(); setPrintSample(s); } },
+                       { key: 'log', label: 'View Event Log', icon: 'bi-clock-history', onClick: () => { closeRowMenu(); setHistoryEntityId(s.id); } },
+                   ]}
+               />
+           );
+       })()}
+
        {/* ── Outer shell ── */}
        <ShellWindow classic={classic} fill="page" className="fade-in">
            <ShellTitleBar
@@ -1268,7 +1287,7 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                <th style={classic ? xpThCell : undefined}>Specs</th>
                                <th style={classic ? { ...xpThCell, width: '100px' } : undefined}>Status</th>
                                <th style={classic ? { ...xpThCell, width: '90px' } : undefined}>Colors</th>
-                               <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '130px' } : undefined} className={classic ? '' : 'text-end pe-4'}>Actions</th>
+                               <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '80px' } : undefined} className={classic ? '' : 'text-end pe-4'}>Actions</th>
                            </tr>
                        </thead>
                        <tbody>
@@ -1392,68 +1411,20 @@ export default function SampleRequestView({ samples, customers, onCreateSample, 
                                                  className={classic ? '' : 'text-muted small fst-italic'}>—</span>
                                        )}
                                    </td>
-                                   {/* Actions — history icon + split Update button */}
+                                   {/* Actions — Update icon button + "⋯" overflow (Edit / Print / Log) */}
                                    <td style={classic ? { ...tdBase, borderRight: 'none', textAlign: 'right' as const } : undefined} className={classic ? '' : 'pe-4 text-end'}>
-                                       <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end', alignItems: 'center' }}>
-                                           {/* Edit button */}
+                                       <div style={{ display: 'flex', gap: 3, justifyContent: 'flex-end', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
                                            {canManage && (
-                                           <button
-                                               title="Edit Sample Request"
-                                               onClick={(e) => { e.stopPropagation(); openEditModal(s); }}
-                                               style={classic ? { background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', padding: '1px 4px', color: '#555', fontSize: '13px' } : undefined}
-                                               className={classic ? '' : 'btn btn-sm btn-link text-muted p-0'}
-                                               onMouseEnter={classic ? e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; } : undefined}
-                                               onMouseLeave={classic ? e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; } : undefined}
-                                           >
-                                               <i className="bi bi-pencil"></i>
-                                           </button>
-                                           )}
-                                           {/* Print button */}
-                                           <button
-                                               title="Print SPK Sample"
-                                               onClick={(e) => { e.stopPropagation(); setPrintSample(s); }}
-                                               style={classic ? { background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', padding: '1px 4px', color: '#555', fontSize: '13px' } : undefined}
-                                               className={classic ? '' : 'btn btn-sm btn-link text-muted p-0'}
-                                               onMouseEnter={classic ? e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; } : undefined}
-                                               onMouseLeave={classic ? e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; } : undefined}
-                                           >
-                                               <i className="bi bi-printer"></i>
-                                           </button>
-                                           {/* History button */}
-                                           <button
-                                               title="View Event Log"
-                                               onClick={(e) => { e.stopPropagation(); setHistoryEntityId(s.id); }}
-                                               style={classic ? { background: 'none', border: '1px solid transparent', borderRadius: 2, cursor: 'pointer', padding: '1px 4px', color: '#555', fontSize: '13px' } : undefined}
-                                               className={classic ? '' : 'btn btn-sm btn-link text-muted p-0'}
-                                               onMouseEnter={classic ? e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#7f9db9'; (e.currentTarget as HTMLButtonElement).style.background = '#e8f0f8'; } : undefined}
-                                               onMouseLeave={classic ? e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; } : undefined}
-                                           >
-                                               <i className="bi bi-clock-history"></i>
-                                           </button>
-                                           {/* Update split button (classic) / plain button (modern) */}
-                                           {canManage && (classic ? (
-                                               <div
+                                               <XPActionButton
+                                                   classic={classic}
+                                                   tone="primary"
+                                                   icon="bi-arrow-repeat"
+                                                   title="Update Status"
                                                    className="xp-menu-trigger"
-                                                   style={{ display: 'inline-flex', border: '1px solid', borderColor: '#dfdfdf #808080 #808080 #dfdfdf', cursor: 'pointer' }}
-                                                   onClick={(e) => toggleDropdown(s.id, e as any)}
-                                               >
-                                                   <button style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, padding: '2px 9px', background: 'linear-gradient(to bottom, #fff, #d4d0c8)', border: 'none', borderRight: '1px solid #b0a898', cursor: 'pointer', color: '#000' }}>
-                                                       Update
-                                                   </button>
-                                                   <button style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 10, padding: '2px 6px', background: 'linear-gradient(to bottom, #fff, #d4d0c8)', border: 'none', cursor: 'pointer', color: '#000' }}>
-                                                       ▾
-                                                   </button>
-                                               </div>
-                                           ) : (
-                                               <button
-                                                   className="btn btn-sm btn-light border xp-menu-trigger py-0 px-2"
-                                                   style={{ fontSize: 11 }}
-                                                   type="button"
-                                                   onClick={(e) => toggleDropdown(s.id, e)}
-                                               >
-                                                   Update <i className="bi bi-caret-down-fill ms-1" style={{fontSize: '0.65em'}}></i>
-                                               </button>
-                                           ))}
+                                                   onClick={(e) => { closeRowMenu(); toggleDropdown(s.id, e); }}
+                                               />
+                                           )}
+                                           <MenuTriggerButton classic={classic} onClick={(e) => { closeDropdown(); toggleRowMenu(s.id, e); }} />
                                            {/* Read/unread dot */}
                                            <span
                                                title={s.is_unread ? 'Unread — click to mark as read' : 'Read — click to mark as unread'}
