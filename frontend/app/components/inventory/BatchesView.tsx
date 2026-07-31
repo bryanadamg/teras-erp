@@ -11,7 +11,7 @@ import BagLabelPrintModal from '../manufacturing/BagLabelPrintModal';
 import LotLabelPrintModal from '../manufacturing/LotLabelPrintModal';
 import { useFloatingMenu, MenuTriggerButton, FloatingMenu, useSortable, SortMark, XPActionButton } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from '../shared/shellTheme';
-import TreeSelect, { buildLocationFilterTree, expandLocationFilterValue } from '../shared/TreeSelect';
+import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, expandLocationFilterValue } from '../shared/TreeSelect';
 import { lotSizeLabel, lotComboLabel, lotColorLabel, type LotVariantAttr } from '../shared/LotChips';
 
 const REJECT_TITLE = 'QC reject — lot drops out of good stock; produced qty returns to its MO';
@@ -128,12 +128,23 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
   const [rejectBatch, setRejectBatch] = useState<Batch | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [rejectQty, setRejectQty] = useState('');
+  const [rejectLocId, setRejectLocId] = useState('');
   const [rejecting, setRejecting] = useState(false);
+
+  // Rejected stock is quarantined, so the picker is a leaf-selectable location tree.
+  const locationPickerTree = React.useMemo(() => buildLocationPickerTree(locations || []), [locations]);
+  // A plant normally keeps one defect/quarantine store — preselect it by name so the
+  // common case is one click, while any location stays selectable.
+  const defaultDefectLocId = React.useMemo(() => {
+    const hit = (locations || []).find((l: any) => /defect|reject|quarantine|scrap|karantina|cacat/i.test(`${l.name || ''} ${l.code || ''}`));
+    return hit ? String(hit.id) : '';
+  }, [locations]);
 
   const openReject = (b: Batch) => {
     setRejectBatch(b);
     setRejectReason('');
     setRejectQty(b.remaining != null ? String(Number(b.remaining)) : '');
+    setRejectLocId(defaultDefectLocId);
   };
 
   // Split — peel a portion of a lot into a new GOOD sub-lot, then offer to print
@@ -301,15 +312,25 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
       const res = await authFetch(`${apiBase}/batches/${rejectBatch.id}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: rejectReason.trim() || null, qty: partial ? q : null }),
+        body: JSON.stringify({
+          reason: rejectReason.trim() || null,
+          qty: partial ? q : null,
+          // Defect store: the rejected stock is transferred there so it never sits
+          // on the good-stock shelf. Blank = leave it in its current location.
+          location_id: rejectLocId || null,
+        }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || 'Failed to reject lot');
       }
-      showToast(`Lot ${rejectBatch.batch_number} rejected`, 'success');
+      const destName = rejectLocId
+        ? ((locations || []).find((l: any) => String(l.id) === rejectLocId)?.name || '')
+        : '';
+      showToast(`Lot ${rejectBatch.batch_number} rejected${destName ? ` — moved to ${destName}` : ''}`, 'success');
       setRejectBatch(null);
       setRejectReason('');
+      setRejectLocId('');
       fetchBatches();
     } catch (err: any) {
       showToast(err.message, 'danger');
@@ -1068,6 +1089,25 @@ export default function BatchesView({ items, locations, authFetch, apiBase }: Ba
               {partial
                 ? `Splits off ${q.toFixed(2)} into a REJECTED sub-lot; ${goodLeft.toFixed(2)} stays active.`
                 : 'Full quantity — rejects the whole lot.'}
+            </div>
+          </div>
+          <div className="mb-3">
+            <label style={classic ? { fontFamily: 'Tahoma', fontSize: 11 } : {}}>Move to defect store</label>
+            <div className="mt-1">
+              <TreeSelect
+                options={locationPickerTree}
+                value={rejectLocId}
+                onChange={setRejectLocId}
+                allowEmpty
+                emptyLabel="Leave in current location"
+                size="sm"
+                style={classic ? { width: '100%' } : undefined}
+              />
+            </div>
+            <div style={classic ? { fontFamily: 'Tahoma', fontSize: 10, color: '#555', marginTop: 2 } : { fontSize: 12, color: '#666', marginTop: 2 }}>
+              {rejectLocId
+                ? `Rejected stock is transferred out of ${rejectBatch.location_name || 'its current location'} into the selected store.`
+                : `Rejected stock stays in ${rejectBatch.location_name || 'its current location'} — it will show on stock on-hand there, flagged REJECTED.`}
             </div>
           </div>
           <div className="mb-3" style={classic ? { fontFamily: 'Tahoma', fontSize: 10, color: '#663300' } : { fontSize: 13, color: '#664d03' }}>

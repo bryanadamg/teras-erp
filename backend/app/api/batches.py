@@ -492,6 +492,36 @@ async def _move_batch_stock(db: AsyncSession, *, item_id, src_batch_id, dst_batc
     return moved
 
 
+async def _relocate_batch_stock(db: AsyncSession, *, item_id, batch_id, location_id, reference_type: str, reference_id: str) -> float:
+    """Move every on-hand row of one lot into ``location_id``, keeping the lot and
+    its variant intact. Two-sided per source row (OUT at the old location, IN at
+    the new one) so the balance table stays consistent — same shape as a stock
+    transfer, but lot-scoped. Used to quarantine QC-rejected stock in a defect
+    store. Returns qty actually relocated."""
+    rows = (await db.execute(
+        select(StockBalance)
+        .filter(StockBalance.batch_key == str(batch_id), StockBalance.qty > 0)
+    )).scalars().all()
+    moved = 0.0
+    for r in rows:
+        if str(r.location_id) == str(location_id):
+            continue    # already in the defect store
+        portion = float(r.qty)
+        ids, cid = stock_service._parse_variant_key(r.variant_key)
+        await stock_service.add_stock_entry(
+            db, item_id=item_id, location_id=r.location_id, qty_change=-portion,
+            reference_type=reference_type, reference_id=reference_id,
+            attribute_value_ids=ids, color_id=cid, batch_id=batch_id,
+        )
+        await stock_service.add_stock_entry(
+            db, item_id=item_id, location_id=location_id, qty_change=portion,
+            reference_type=reference_type, reference_id=reference_id,
+            attribute_value_ids=ids, color_id=cid, batch_id=batch_id,
+        )
+        moved += portion
+    return moved
+
+
 @router.post("/{batch_id}/split", response_model=BatchResponse)
 async def split_batch(
     batch_id: uuid.UUID,
@@ -563,7 +593,11 @@ async def reject_batch(
     REJECTED — excluded from good-stock netting and consumption pickers. If
     the lot was born from a production completion, that completion stops
     counting toward MO/WO progress and the MO reopens if it had
-    auto-completed; rework is a new WO created manually."""
+    auto-completed; rework is a new WO created manually.
+
+    ``location_id`` quarantines the rejected stock: every on-hand row of the
+    rejected lot is transferred into that defect store so bad goods never sit on
+    the good-stock shelf. Omit it to leave the stock where it is."""
     result = await db.execute(select(Batch).options(joinedload(Batch.item)).filter(Batch.id == batch_id))
     batch = result.scalars().first()
     if not batch:
@@ -572,6 +606,14 @@ async def reject_batch(
         raise HTTPException(status_code=400, detail="Lot is already rejected")
 
     reason = (payload.reason or "").strip() or None
+
+    defect_loc = None
+    if payload.location_id:
+        defect_loc = (await db.execute(
+            select(Location).filter(Location.id == payload.location_id)
+        )).scalars().first()
+        if not defect_loc:
+            raise HTTPException(status_code=404, detail="Defect store location not found")
 
     # Current on-hand across every balance row keyed to this lot.
     bal_rows = (await db.execute(
@@ -613,6 +655,16 @@ async def reject_batch(
         )
     else:
         batch.quality_status = "REJECTED"
+
+    # Quarantine: move the rejected lot's stock into the defect store. On a partial
+    # reject only the split-off sub-lot moves — the GOOD remainder stays put.
+    relocated = 0.0
+    if defect_loc:
+        relocated = await _relocate_batch_stock(
+            db, item_id=batch.item_id, batch_id=(sub.id if sub else batch.id),
+            location_id=defect_loc.id, reference_type="QC_REJECT",
+            reference_id=(sub.batch_number if sub else batch.batch_number),
+        )
 
     # Producing completion (if any): return the rejected qty to MO progress.
     comp = (await db.execute(
@@ -661,6 +713,7 @@ async def reject_batch(
         details=(f"Rejected {reject_qty:g} of lot {batch.batch_number} → sub-lot {sub.batch_number}" if partial
                  else f"Rejected lot {batch.batch_number}")
         + (f" ({returned:g} returned to {mo.code})" if comp and mo and returned else "")
+        + (f" → moved {relocated:g} to {defect_loc.name}" if defect_loc and relocated else "")
         + (f": {reason}" if reason else ""),
     )
     await manager.broadcast({"type": "STOCK_UPDATE"})

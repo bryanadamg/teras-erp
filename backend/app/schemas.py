@@ -389,6 +389,10 @@ class BatchReject(BaseModel):
     # (flag it REJECTED). A value below remaining splits off a REJECTED sub-lot
     # for that qty and leaves the balance GOOD/active.
     qty: float | None = None
+    # Defect store to move the rejected stock into. Rejected goods stay physically
+    # on-hand until disposed, so quarantining them in a separate location is what
+    # keeps them off the good-stock shelf. None = leave the stock where it is.
+    location_id: UUID | None = None
 
 class BatchSplit(BaseModel):
     """Split a GOOD lot: move `qty` off into a new GOOD sub-lot (same item,
