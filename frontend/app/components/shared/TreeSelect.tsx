@@ -192,7 +192,9 @@ export default function TreeSelect({
               paddingBottom: 2,
               cursor: canSelect || hasKids ? 'pointer' : 'default',
               background: isSelected ? 'linear-gradient(to bottom,#3c8cf0,#1a5fd0)' : 'transparent',
-              color: isSelected ? '#fff' : '#000',
+              // A node that can't be picked (e.g. a transfer's own source location)
+              // is greyed but still expandable so its children stay reachable.
+              color: isSelected ? '#fff' : (canSelect || hasKids ? '#000' : '#9a9a9a'),
               userSelect: 'none',
               gap: 2,
             }}
@@ -263,7 +265,7 @@ export default function TreeSelect({
             userSelect: 'none',
             gap: 3,
             background: isSelected ? '#0d6efd' : undefined,
-            color: isSelected ? '#fff' : undefined,
+            color: isSelected ? '#fff' : (canSelect || hasKids ? undefined : '#9a9a9a'),
           }}
           onMouseEnter={e => {
             if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = '#f0f6ff';
@@ -465,8 +467,15 @@ export function buildLocationFilterTree(locations: any[]): TreeSelectOption[] {
  * Build tree options for a PICKER dropdown (select any location, any level).
  * Warehouses, zones, and bins are all selectable.
  * value = location UUID
+ *
+ * `excludeId` (e.g. a transfer's source location) is greyed out but KEPT in the
+ * tree — pre-filtering it out of `locations` would orphan every descendant that
+ * hangs off it by parent_id, which silently blocks the legal moves within the
+ * same warehouse/zone (zone -> its own bin, warehouse -> any bin under it).
  */
-export function buildLocationPickerTree(locations: any[]): TreeSelectOption[] {
+export function buildLocationPickerTree(locations: any[], excludeId?: string): TreeSelectOption[] {
+  const ex = excludeId ? String(excludeId) : null;
+  const pick = (l: any): boolean => !ex || String(l.id) !== ex;
   const warehouses = (locations || []).filter((l: any) => l.location_type === 'warehouse');
   return warehouses.map((w: any) => {
     const zones = locations.filter((l: any) => l.parent_id === w.id);
@@ -474,19 +483,19 @@ export function buildLocationPickerTree(locations: any[]): TreeSelectOption[] {
       value: w.id,
       label: w.name,
       subLabel: w.code,
-      selectable: true,
+      selectable: pick(w),
       children: zones.map((z: any) => {
         const bins = locations.filter((l: any) => l.parent_id === z.id);
         return {
           value: z.id,
           label: z.name,
           subLabel: z.code,
-          selectable: true,
+          selectable: pick(z),
           children: bins.length > 0 ? bins.map((b: any) => ({
             value: b.id,
             label: b.name,
             subLabel: b.code,
-            selectable: true,
+            selectable: pick(b),
           })) : undefined,
         };
       }),

@@ -708,7 +708,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                 <div style={{ marginBottom: 8 }}>
                     <label style={{ display: 'block', marginBottom: 2 }} className={classic ? '' : 'form-label small text-muted'}>Destination</label>
                     <TreeSelect
-                        options={buildLocationPickerTree(locations.filter((l: any) => l.id !== transferTarget.location_id))}
+                        options={buildLocationPickerTree(locations, transferTarget.location_id)}
                         value={transferToLoc}
                         onChange={setTransferToLoc}
                         placeholder="— select location —"
