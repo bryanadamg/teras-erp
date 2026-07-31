@@ -97,6 +97,7 @@ interface WO {
     actual_duration_hours?: number;
     qty?: number;
     qty_completed_total?: number;
+    qty_rejected_total?: number;   // scrap logged on this step (MO yield analysis)
     notes?: string;
     target_start_date?: string | null;
     target_end_date?: string | null;
@@ -663,6 +664,19 @@ export default function WorkOrderPanel({
                                             <span style={{ fontSize: 9, color: done ? '#b87000' : '#555', whiteSpace: 'nowrap' }}>
                                                 {(wo.qty_completed_total ?? 0).toFixed(1)}/{wo.qty}
                                             </span>
+                                            {(wo.qty_rejected_total ?? 0) > 0 && (() => {
+                                                // Step-level scrap: this WO's share of the MO's yield loss.
+                                                const rej = wo.qty_rejected_total ?? 0;
+                                                const prod = (wo.qty_completed_total ?? 0) + rej;
+                                                return (
+                                                    <span
+                                                        title={`${rej.toFixed(2)} rejected on this step of ${prod.toFixed(2)} produced — yield ${((wo.qty_completed_total ?? 0) / prod * 100).toFixed(1)}%`}
+                                                        style={{ fontSize: 9, fontWeight: 700, color: '#a01010', whiteSpace: 'nowrap' }}
+                                                    >
+                                                        rej {rej.toFixed(1)}
+                                                    </span>
+                                                );
+                                            })()}
                                         </div>
                                     ) : (
                                         <span style={{ fontSize: 9, color: '#ccc' }}>—</span>

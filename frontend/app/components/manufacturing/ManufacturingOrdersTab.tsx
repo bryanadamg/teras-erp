@@ -548,6 +548,22 @@ export default function ManufacturingOrdersTab({
                                                 })()}
                                             </div>
                                         )}
+                                        {(node.qty_rejected_total ?? 0) > 0 && (() => {
+                                            // Scrap on the tree row so a bad order is visible without
+                                            // opening it; yield is against produced, not target.
+                                            const rej = node.qty_rejected_total ?? 0;
+                                            const prod = (node.qty_completed_total ?? 0) + rej;
+                                            const yp = prod > 0 ? (node.qty_completed_total ?? 0) / prod * 100 : 0;
+                                            return (
+                                                <div
+                                                    title={`${rej.toFixed(2)} rejected of ${prod.toFixed(2)} produced — yield ${yp.toFixed(1)}%`}
+                                                    style={{ fontSize: '8px', marginTop: 2, fontWeight: 700, whiteSpace: 'nowrap', color: isActive ? '#ffd0d0' : '#a01010' }}
+                                                >
+                                                    <i className="bi bi-x-octagon-fill me-1" style={{ fontSize: '7px' }}></i>
+                                                    REJ {rej.toFixed(2)} · YIELD {yp.toFixed(1)}%
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                     <span style={{ fontSize: '8px', background: statusColor, color: '#fff', padding: '1px 4px', borderRadius: classic ? '0' : '2px', whiteSpace: 'nowrap', alignSelf: 'center', flexShrink: 0 }}>
                                         {node.status === 'IN_PROGRESS' ? 'IN PROG' : node.status}
@@ -661,6 +677,11 @@ export default function ManufacturingOrdersTab({
                         const done = selectedNode.qty_completed_total ?? 0;
                         const total = selectedNode.qty ?? 0;
                         const remaining = Math.max(0, total - done);
+                        // Effectivity: scrap is output that was produced and thrown away, so
+                        // yield is measured against everything the floor made, not the target.
+                        const rejected = selectedNode.qty_rejected_total ?? 0;
+                        const produced = done + rejected;
+                        const yieldPct = produced > 0 ? (done / produced) * 100 : null;
                         // Output overdelivery allowance: the order qty is a target, not a
                         // ceiling. Null pct on legacy rows = the 10% system default.
                         const tolPct = selectedNode.overdelivery_tolerance_pct ?? 10;
@@ -694,6 +715,22 @@ export default function ManufacturingOrdersTab({
                                     label="inside"
                                 />
                                 <span style={{ fontSize: '10px', color: '#555', whiteSpace: 'nowrap' }}>Done: <strong style={{ color: '#000' }}>{done.toFixed(2)}</strong></span>
+                                {rejected > 0 && (
+                                    <span
+                                        title={`${rejected.toFixed(2)} of the ${produced.toFixed(2)} produced was QC-rejected. Yield = good / produced.`}
+                                        style={{ fontSize: '10px', color: '#555', whiteSpace: 'nowrap' }}
+                                    >
+                                        Reject: <strong style={{ color: '#c00' }}>{rejected.toFixed(2)}</strong>
+                                    </span>
+                                )}
+                                {rejected > 0 && yieldPct != null && (
+                                    <span
+                                        title={`Yield = ${done.toFixed(2)} good / ${produced.toFixed(2)} produced`}
+                                        style={{ fontSize: '10px', color: '#555', whiteSpace: 'nowrap' }}
+                                    >
+                                        Yield: <strong style={{ color: yieldPct >= 98 ? '#1a6e1a' : yieldPct >= 95 ? '#8a6d00' : '#c00' }}>{yieldPct.toFixed(1)}%</strong>
+                                    </span>
+                                )}
                                 <span style={{ fontSize: '10px', color: '#555', whiteSpace: 'nowrap' }}>Planned: <strong style={{ color: '#1565c0' }}>{planned.toFixed(2)}</strong></span>
                                 <span style={{ fontSize: '10px', color: '#555', whiteSpace: 'nowrap' }}>Left: <strong style={{ color: left <= 0 ? '#1a6e1a' : '#c00' }}>{left.toFixed(2)}</strong></span>
                                 {over > 0 && (
@@ -1218,10 +1255,22 @@ export default function ManufacturingOrdersTab({
                                         <td style={tdStyle}>
                                             {(wo.qty_completed_total != null && wo.qty_completed_total > 0) ? (() => {
                                                 const pct = Math.min(100, Math.round((wo.qty_completed_total / wo.qty) * 100));
+                                                // Step-level scrap: the MO says how much was lost, this says where.
+                                                const rej = wo.qty_rejected_total ?? 0;
+                                                const prod = wo.qty_completed_total + rej;
                                                 return (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                                         <ProgressBar pct={pct} tone={pct >= 100 ? 'green' : 'blue'} height={8} />
                                                         <span style={{ fontSize: '9px', color: '#555' }}>{parseFloat(wo.qty_completed_total).toFixed(2)} / {wo.qty} ({pct}%)</span>
+                                                        {rej > 0 && (
+                                                            <span
+                                                                title={`${rej.toFixed(2)} rejected on this step of ${prod.toFixed(2)} produced — yield ${(wo.qty_completed_total / prod * 100).toFixed(1)}%`}
+                                                                style={{ fontSize: '9px', fontWeight: 700, color: '#a01010' }}
+                                                            >
+                                                                <i className="bi bi-x-octagon-fill me-1" style={{ fontSize: '8px' }}></i>
+                                                                rej {rej.toFixed(2)} ({(wo.qty_completed_total / prod * 100).toFixed(1)}% yield)
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 );
                                             })() : (

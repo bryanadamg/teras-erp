@@ -752,6 +752,15 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                                         title={c.output_batch_number ? `Lot ${c.output_batch_number}` : undefined}
                                                     >
                                                         {parseFloat(c.qty_completed).toFixed(2)}
+                                                        {/* Partial reject already trimmed qty_completed — show what was scrapped. */}
+                                                        {!c.rejected && (c.qty_rejected ?? 0) > 0 && (
+                                                            <span
+                                                                title={c.reject_reason ? `Partially rejected: ${c.reject_reason}` : 'Partially rejected'}
+                                                                style={{ marginLeft: 4, fontSize: 9, fontWeight: 700, color: '#900' }}
+                                                            >
+                                                                (-{Number(c.qty_rejected).toFixed(2)})
+                                                            </span>
+                                                        )}
                                                     </td>
                                                     <td style={{ padding: '2px 6px', color: '#555' }}>
                                                         {[c.qty_cones ? `${c.qty_cones} cn` : null, c.qty_boxes ? `${c.qty_boxes} bx` : null].filter(Boolean).join(', ') || '—'}

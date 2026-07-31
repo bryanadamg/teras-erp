@@ -682,6 +682,9 @@ async def reject_batch(
             # rolls the rejected qty straight back into the shortfall.
             returned = min(float(reject_qty), float(comp.qty_completed))
             comp.qty_completed = float(comp.qty_completed) - returned
+            # qty_completed just lost the scrapped qty — qty_rejected is the only
+            # durable record of it (the -R sub-lot's stock disappears on dispose).
+            comp.qty_rejected = float(comp.qty_rejected or 0) + returned
             comp.reject_reason = reason
             if float(comp.qty_completed) <= 1e-9:
                 comp.rejected = True
@@ -690,6 +693,7 @@ async def reject_batch(
         else:
             returned = float(comp.qty_completed)
             comp.rejected = True
+            comp.qty_rejected = float(comp.qty_rejected or 0) + returned
             comp.reject_reason = reason
             comp.rejected_at = datetime.utcnow()
             comp.rejected_by = current_user.username

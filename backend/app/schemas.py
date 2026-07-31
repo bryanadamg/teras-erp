@@ -378,6 +378,7 @@ class MOCompletionResponse(BaseModel):
     output_batch_id: UUID | None = None
     output_batch_number: str | None = None
     rejected: bool = False
+    qty_rejected: float = 0.0   # scrapped out of this log entry (partial or whole)
     reject_reason: str | None = None
     rejected_at: datetime | None = None
     rejected_by: str | None = None
@@ -485,6 +486,8 @@ class ManufacturingOrderResponse(BaseModel):
     created_at: datetime
     is_material_available: bool = True
     qty_completed_total: float = 0.0
+    # Scrapped output across this MO's completions — yield = good / (good + rejected)
+    qty_rejected_total: float = 0.0
     required_mo_ids: list[UUID] = []  # IDs of shared component MOs this MO depends on (populated in API)
 
     bom: Optional[BOMResponse] = None
@@ -731,6 +734,7 @@ class WorkOrderResponse(BaseModel):
     qty: float | None = None
     ends: int | None = None
     qty_completed_total: float = 0.0
+    qty_rejected_total: float = 0.0   # scrap logged against this routing step
     status: str
     planned_duration_hours: float | None = None
     actual_duration_hours: float | None = None
@@ -864,6 +868,7 @@ class WorkOrderCompletionFlat(BaseModel):
     notes: str | None = None
     actual_items: list[WorkOrderCompletionItemFlat] = []
     rejected: bool = False
+    qty_rejected: float = 0.0   # scrapped out of this log entry (partial or whole)
     reject_reason: str | None = None
     output_batch_number: str | None = None   # output lot; drives per-bag label reprint on the WO list
 
@@ -876,6 +881,7 @@ class WorkOrderFlatResponse(BaseModel):
     status: str
     qty: float | None = None
     qty_completed_total: float | None = None
+    qty_rejected_total: float | None = None
     planned_duration_hours: float | None = None
     actual_duration_hours: float | None = None
     target_start_date: datetime | None = None
@@ -978,6 +984,7 @@ class ManufacturingOrderListItem(BaseModel):
     created_at: datetime
     is_material_available: bool = True
     qty_completed_total: float = 0.0
+    qty_rejected_total: float = 0.0
     required_mo_ids: list[UUID] = []
     # `bom` intentionally omitted (see class docstring above).
     child_mos: list['ManufacturingOrderListItem'] = []

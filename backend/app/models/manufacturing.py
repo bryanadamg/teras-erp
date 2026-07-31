@@ -241,6 +241,12 @@ class MOCompletion(Base):
     )
     # QC reject: flagged completions no longer count toward MO/WO progress
     rejected: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # Qty scrapped out of this completion — the durable record of rejected output.
+    # A partial reject subtracts from qty_completed (so progress sums stay correct)
+    # and adds the same amount here, which is the only place it survives once the
+    # rejected sub-lot is disposed. Whole-lot reject records the full logged qty.
+    # Yield = qty_completed / (qty_completed + qty_rejected).
+    qty_rejected: Mapped[float] = mapped_column(Numeric(14, 4), default=0, server_default="0")
     reject_reason: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     rejected_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     rejected_by: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)

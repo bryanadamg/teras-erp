@@ -88,6 +88,7 @@ interface FlatWO {
     created_at?: string;
     qty?: number;
     qty_completed_total?: number;
+    qty_rejected_total?: number;   // scrap logged on this step (MO yield analysis)
     notes?: string;
     completions?: any[];
     bom_line_item_ids?: string[];
@@ -523,6 +524,16 @@ export default function WorkOrderListView({
                                                             <td style={{ padding: '2px 5px', color: '#333' }}>
                                                                 {c.operator_name || '—'}
                                                                 {c.rejected && <span style={{ marginLeft: 5, fontSize: 8, fontWeight: 'bold', color: '#900', border: '1px solid #c88', background: '#fff', padding: '0 3px' }}>REJECTED</span>}
+                                                                {/* Partial reject: the log stays active with its qty already trimmed,
+                                                                    so the scrapped amount only shows as its own marker. */}
+                                                                {!c.rejected && (c.qty_rejected ?? 0) > 0 && (
+                                                                    <span
+                                                                        title={c.reject_reason ? `Partially rejected: ${c.reject_reason}` : 'Partially rejected'}
+                                                                        style={{ marginLeft: 5, fontSize: 8, fontWeight: 'bold', color: '#900', border: '1px solid #c88', background: '#fff', padding: '0 3px' }}
+                                                                    >
+                                                                        -{Number(c.qty_rejected).toFixed(2)} REJ
+                                                                    </span>
+                                                                )}
                                                             </td>
                                                             <td style={{ padding: '2px 5px', color: '#555' }}>
                                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>
@@ -913,12 +924,23 @@ export default function WorkOrderListView({
                                                     {wo.qty != null ? (() => {
                                                         const done = (wo.qty_completed_total ?? 0) >= wo.qty;
                                                         const pct = Math.min(100, ((wo.qty_completed_total ?? 0) / wo.qty) * 100);
+                                                        // Step-level scrap — which routing step / loom lost the material.
+                                                        const rej = wo.qty_rejected_total ?? 0;
+                                                        const prod = (wo.qty_completed_total ?? 0) + rej;
                                                         return (
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'flex-end' }}>
                                                                 <ProgressBar pct={pct} tone={done ? 'green' : 'blue'} hatched width={72} height={8} />
                                                                 <span style={{ fontSize: 9, color: done ? '#007000' : '#555', whiteSpace: 'nowrap' }}>
                                                                     {(wo.qty_completed_total ?? 0).toFixed(1)}/{wo.qty}
                                                                 </span>
+                                                                {rej > 0 && (
+                                                                    <span
+                                                                        title={`${rej.toFixed(2)} rejected on this step of ${prod.toFixed(2)} produced — yield ${((wo.qty_completed_total ?? 0) / prod * 100).toFixed(1)}%`}
+                                                                        style={{ fontSize: 9, fontWeight: 700, color: '#a01010', whiteSpace: 'nowrap' }}
+                                                                    >
+                                                                        rej {rej.toFixed(1)} · {((wo.qty_completed_total ?? 0) / prod * 100).toFixed(0)}%
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                         );
                                                     })() : <span style={{ color: '#bbb' }}>—</span>}

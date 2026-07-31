@@ -109,3 +109,10 @@ class WorkOrder(Base):
     @property
     def qty_completed_total(self) -> float:
         return sum(float(c.qty_completed) for c in self.completions if not c.rejected)
+
+    @property
+    def qty_rejected_total(self) -> float:
+        """Scrap logged against this routing step — includes partial rejects, whose
+        qty was subtracted from qty_completed. Counts every completion (rejected or
+        not) because a partially rejected log stays active."""
+        return sum(float(c.qty_rejected or 0) for c in self.completions)

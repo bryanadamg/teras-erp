@@ -174,8 +174,12 @@ def populate_mo_ids(mo: ManufacturingOrder):
     # 3b. Populate completion totals (if loaded) — rejected entries don't count
     if "completions" not in insp.unloaded:
         mo.qty_completed_total = sum(float(c.qty_completed) for c in mo.completions if not c.rejected)
+        # Scrap counts across ALL completions — a partial reject leaves its log active
+        # with the rejected qty moved onto qty_rejected.
+        mo.qty_rejected_total = sum(float(c.qty_rejected or 0) for c in mo.completions)
     else:
         mo.qty_completed_total = 0.0
+        mo.qty_rejected_total = 0.0
         sa_attributes.set_committed_value(mo, "completions", [])
 
     # 4. Recurse into children (if loaded); stub unloaded child_mos as []
@@ -501,6 +505,13 @@ async def get_manufacturing_orders(
             .correlate(ManufacturingOrder)
             .scalar_subquery()
         )
+        # Scrap is summed over every completion (a partial reject stays active).
+        qty_rejected_sub = (
+            select(func.coalesce(func.sum(MOCompletion.qty_rejected), 0))
+            .where(MOCompletion.mo_id == ManufacturingOrder.id)
+            .correlate(ManufacturingOrder)
+            .scalar_subquery()
+        )
         slim_result = await db.execute(
             select(
                 ManufacturingOrder.id,
@@ -510,6 +521,7 @@ async def get_manufacturing_orders(
                 ManufacturingOrder.qty,
                 ManufacturingOrder.target_end_date,
                 qty_completed_sub.label("qty_completed_total"),
+                qty_rejected_sub.label("qty_rejected_total"),
             )
             .where(ManufacturingOrder.id.in_(root_ids))
             .order_by(ManufacturingOrder.created_at.desc())
@@ -522,6 +534,7 @@ async def get_manufacturing_orders(
                 "item_id": str(row.item_id) if row.item_id else None,
                 "qty": float(row.qty or 0),
                 "qty_completed_total": float(row.qty_completed_total or 0),
+                "qty_rejected_total": float(row.qty_rejected_total or 0),
                 "target_end_date": row.target_end_date.isoformat() if row.target_end_date else None,
                 # stub fields the frontend schema expects
                 "work_orders": [], "child_mos": [], "completions": [], "planned_components": [],
@@ -739,6 +752,7 @@ async def list_work_orders_flat(
                 notes=c.notes,
                 actual_items=items_flat,
                 rejected=bool(c.rejected),
+                qty_rejected=float(c.qty_rejected or 0),
                 reject_reason=c.reject_reason,
                 output_batch_number=c.output_batch_number,
             ))
@@ -751,6 +765,7 @@ async def list_work_orders_flat(
             status=wo.status,
             qty=float(wo.qty) if wo.qty is not None else None,
             qty_completed_total=float(wo.qty_completed_total) if wo.qty_completed_total is not None else None,
+            qty_rejected_total=float(wo.qty_rejected_total or 0),
             planned_duration_hours=wo.planned_duration_hours,
             actual_duration_hours=wo.actual_duration_hours,
             target_start_date=wo.target_start_date,
@@ -1537,6 +1552,9 @@ async def reject_mo_completion(
     comp.reject_reason = (payload.reason or "").strip() or None
     comp.rejected_at = datetime.utcnow()
     comp.rejected_by = current_user.username
+    # Durable scrap record for MO yield — qty_completed stays as logged on a whole
+    # reject, but only qty_rejected survives if the lot is later disposed.
+    comp.qty_rejected = float(comp.qty_rejected or 0) + float(comp.qty_completed)
 
     if batch:
         # Lot stays in stock, flagged — netting/pickers exclude REJECTED lots.
