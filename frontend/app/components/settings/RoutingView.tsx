@@ -9,7 +9,7 @@ import { ShellWindow, ShellTitleBar } from '../shared/shellTheme';
 import { Tabs, TabDef } from '../shared/Tabs';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
-import { XPActionButton, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
+import { XPActionButton, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel } from '../shared/xpTheme';
 import { lvBtn, lvPrimaryBtn, lvInput, lvLabel, lvTh, lvTd, lvSep, lvRow } from '../shared/listViewTheme';
 
 const WC_PAGE_SIZE = 20;
@@ -30,6 +30,12 @@ const LEVELS = [
 const nodeTypeOf = (w: any): string =>
     String(w?.node_type || (w?.parent_id ? 'MACHINE' : 'TYPE')).toUpperCase();
 const LEVEL_DEPTH: Record<string, number> = { TYPE: 0, GROUP: 1, MACHINE: 2 };
+const LEVEL_ICONS: Record<string, string> = { TYPE: 'bi-folder2', GROUP: 'bi-collection', MACHINE: 'bi-cpu' };
+const LEVEL_HINTS: Record<string, string> = {
+    TYPE: 'A top-level process family (WEAVING, DYEING…). Holds groups and machines; no locations of its own.',
+    GROUP: 'A set of machines inside one type — e.g. a loom hall. Lets you set one production calendar for all of them at once.',
+    MACHINE: 'A physical station. Work orders, BOM routing steps and the monitors all point at machines.',
+};
 // Beam positions on a loom: how many warp beams must be mounted for a weaving WO
 // to count as beam-ready. Machine config, not per-order — see beam_service.py.
 const beamSlots = (v: any) => Math.max(1, parseInt(String(v ?? 1), 10) || 1);
@@ -126,12 +132,45 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
       return loc ? loc.code : '—';
   };
 
+  // Parent chosen in the create panel, and the center type it forces. Everything under
+  // a type shares that type (the backend cascades it on change), so letting the user
+  // pick a different one here would only create a row that contradicts its own parent.
+  const selectedParent = newWorkCenter.parent_id
+      ? wcList.find((w: any) => String(w.id) === String(newWorkCenter.parent_id))
+      : null;
+  const inheritedType: string | null = selectedParent?.center_type || null;
+  const effectiveNewType = inheritedType || newWorkCenter.center_type;
+
+  // Breadcrumb of where the new row will land: TYPE › GROUP › new row.
+  const placementPreview = useMemo(() => {
+      const chain: { label: string; isNew?: boolean }[] = [];
+      let cursor: any = selectedParent;
+      const seen = new Set<string>();
+      while (cursor && !seen.has(String(cursor.id))) {
+          seen.add(String(cursor.id));
+          chain.unshift({ label: cursor.code || cursor.name });
+          cursor = cursor.parent_id ? wcList.find((w: any) => String(w.id) === String(cursor.parent_id)) : null;
+      }
+      const self = newWorkCenter.code || newWorkCenter.name
+          || (newWorkCenter.node_type === 'MACHINE' ? 'new machine' : newWorkCenter.node_type === 'GROUP' ? 'new group' : 'new type');
+      chain.push({ label: self, isNew: true });
+      if (newWorkCenter.node_type !== 'TYPE' && !selectedParent) {
+          chain.unshift({ label: newWorkCenter.node_type === 'GROUP' ? '(pick a type)' : '(pick a type or group)' });
+      }
+      return chain;
+  }, [selectedParent, wcList, newWorkCenter.code, newWorkCenter.name, newWorkCenter.node_type]);
+
+  const createValid = !!newWorkCenter.code.trim() && !!newWorkCenter.name.trim()
+      && (newWorkCenter.node_type === 'TYPE' || !!newWorkCenter.parent_id);
+
   const handleCreateWC = (e: React.FormEvent) => {
       e.preventDefault();
+      if (!createValid) return;
       onCreateWorkCenter({
           ...newWorkCenter,
-          input_location_id: newWorkCenter.input_location_id || null,
-          output_location_id: newWorkCenter.output_location_id || null,
+          center_type: effectiveNewType,
+          input_location_id: newWorkCenter.node_type === 'MACHINE' ? (newWorkCenter.input_location_id || null) : null,
+          output_location_id: newWorkCenter.node_type === 'MACHINE' ? (newWorkCenter.output_location_id || null) : null,
           parent_id: newWorkCenter.node_type === 'TYPE' ? null : (newWorkCenter.parent_id || null),
           node_type: newWorkCenter.node_type,
           beam_slots: beamSlots(newWorkCenter.beam_slots),
@@ -307,7 +346,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
               {canManage && (
                   <>
                       <span style={lvSep(classic)} />
-                      <button style={lvPrimaryBtn(classic)} onClick={() => setIsCreateWCOpen(true)}>
+                      <button style={lvPrimaryBtn(classic)} onClick={() => { setNewWorkCenter({ ...emptyWC }); setIsCreateWCOpen(true); }}>
                           <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>New Work Center
                       </button>
                   </>
@@ -512,81 +551,152 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
       <ModalWrapper
           isOpen={isCreateWCOpen}
           modeless
+          size="lg"
           onClose={() => setIsCreateWCOpen(false)}
           title={<><i className="bi bi-plus-circle me-1"></i> Add Work Center</>}
           variant="primary"
           footer={
               <>
+                  {!createValid && (
+                      <span style={{ marginRight: 'auto', fontSize: classic ? 11 : 12, color: '#a06000' }}>
+                          {newWorkCenter.node_type !== 'TYPE' && !newWorkCenter.parent_id
+                              ? `Choose where this ${newWorkCenter.node_type.toLowerCase()} sits first`
+                              : 'Code and name are required'}
+                      </span>
+                  )}
                   <button type="button" style={lvBtn(classic)} onClick={() => setIsCreateWCOpen(false)}>Cancel</button>
-                  <button type="button" style={lvPrimaryBtn(classic)} onClick={handleCreateWC}>
+                  <button type="button" style={{ ...lvPrimaryBtn(classic), ...(createValid ? {} : { opacity: 0.5, cursor: 'not-allowed' }) }} onClick={handleCreateWC} disabled={!createValid}>
                       <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>{t('add')}
                   </button>
               </>
           }
       >
-          <form onSubmit={handleCreateWC} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ display: 'flex', gap: 10 }}>
-                  <div style={{ width: 100 }}>
-                      <label style={lvLabel(classic)}>Code</label>
-                      <input style={lvInput(classic)} placeholder="WC-01" value={newWorkCenter.code} onChange={e => setNewWorkCenter({ ...newWorkCenter, code: e.target.value })} required autoFocus />
+          <form onSubmit={handleCreateWC} style={{ display: 'flex', flexDirection: 'column' }}>
+              {/* Level first: it decides which fields below even apply. */}
+              <FormSection classic={classic} title={<><i className="bi bi-diagram-3 me-1" />Placement</>}>
+                  <FieldLabel classic={classic} hint="A machine is what work orders, BOM routing and monitors point at. Types and groups only organize them.">
+                      What are you adding?
+                  </FieldLabel>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' as const }}>
+                      {LEVELS.map(l => {
+                          const on = newWorkCenter.node_type === l.value;
+                          return (
+                              <button
+                                  key={l.value}
+                                  type="button"
+                                  onClick={() => setNewWorkCenter({ ...newWorkCenter, node_type: l.value, parent_id: '', input_location_id: '', output_location_id: '' })}
+                                  style={{ ...(on ? lvPrimaryBtn(classic) : lvBtn(classic)), flex: 1, minWidth: 108, textAlign: 'center', padding: '4px 6px' }}
+                                  title={LEVEL_HINTS[l.value]}
+                              >
+                                  <i className={`bi ${LEVEL_ICONS[l.value]}`} style={{ marginRight: 4 }} />{l.label.replace(' (root)', '')}
+                              </button>
+                          );
+                      })}
                   </div>
-                  <div style={{ flex: 1 }}>
-                      <label style={lvLabel(classic)}>{t('station_name')}</label>
-                      <input style={lvInput(classic)} placeholder="Dyeing Machine 1" value={newWorkCenter.name} onChange={e => setNewWorkCenter({ ...newWorkCenter, name: e.target.value })} required />
+                  <div style={{ fontSize: classic ? 10 : 11, color: classic ? '#665f4a' : '#64748b', marginBottom: newWorkCenter.node_type === 'TYPE' ? 0 : 10 }}>
+                      {LEVEL_HINTS[newWorkCenter.node_type]}
                   </div>
-              </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                  <div style={{ flex: 1 }}>
-                      <label style={lvLabel(classic)}>Type</label>
-                      <select style={lvInput(classic)} value={newWorkCenter.center_type} onChange={e => setNewWorkCenter({ ...newWorkCenter, center_type: e.target.value })}>
+
+                  {newWorkCenter.node_type !== 'TYPE' && (
+                      <>
+                          <FieldLabel
+                              classic={classic}
+                              hint={newWorkCenter.node_type === 'GROUP'
+                                  ? 'Groups sit inside one work center type.'
+                                  : 'Pick a group to make the machine part of a batch-calendar group, or a type to leave it ungrouped.'}
+                          >
+                              {newWorkCenter.node_type === 'GROUP' ? 'Inside which type?' : 'Where does it sit?'} <span style={{ color: '#c00' }}>*</span>
+                          </FieldLabel>
+                          <select style={lvInput(classic)} value={newWorkCenter.parent_id} onChange={e => setNewWorkCenter({ ...newWorkCenter, parent_id: e.target.value })}>
+                              <option value="">— choose —</option>
+                              {parentOptionsFor(newWorkCenter.node_type).map((p: any) => (
+                                  <option key={p.id} value={p.id}>
+                                      {nodeTypeOf(p) === 'GROUP' ? `  ↳ ${p.code} — ${p.name} (group)` : `${p.code} — ${p.name}`}
+                                  </option>
+                              ))}
+                          </select>
+                      </>
+                  )}
+
+                  {/* Where the new row lands, spelled out — the tree is 3 deep now. */}
+                  <div style={{
+                      marginTop: 10, padding: '4px 7px',
+                      background: classic ? '#fbfbf7' : '#f6f8fd',
+                      border: classic ? '1px solid #c0bdb5' : '1px solid #dde4f5',
+                      fontSize: classic ? 11 : 12, color: classic ? '#333' : '#334155',
+                  }}>
+                      <span style={{ color: '#888', marginRight: 4 }}>Will appear as</span>
+                      {placementPreview.map((step, idx) => (
+                          <span key={idx}>
+                              {idx > 0 && <span style={{ color: '#aaa', margin: '0 4px' }}>›</span>}
+                              <span style={step.isNew ? { fontWeight: 'bold', color: classic ? '#00008b' : '#2563eb' } : undefined}>{step.label}</span>
+                          </span>
+                      ))}
+                  </div>
+              </FormSection>
+
+              <FormSection classic={classic} title={<><i className="bi bi-tag me-1" />Identity</>}>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                      <div style={{ width: 110 }}>
+                          <FieldLabel classic={classic}>Code <span style={{ color: '#c00' }}>*</span></FieldLabel>
+                          <input style={lvInput(classic)} placeholder={newWorkCenter.node_type === 'MACHINE' ? 'W-01' : 'W'} value={newWorkCenter.code} onChange={e => setNewWorkCenter({ ...newWorkCenter, code: e.target.value })} required autoFocus />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                          <FieldLabel classic={classic}>{t('station_name')} <span style={{ color: '#c00' }}>*</span></FieldLabel>
+                          <input
+                              style={lvInput(classic)}
+                              placeholder={newWorkCenter.node_type === 'TYPE' ? 'WEAVING' : newWorkCenter.node_type === 'GROUP' ? 'Hall A looms' : 'Loom 1'}
+                              value={newWorkCenter.name}
+                              onChange={e => setNewWorkCenter({ ...newWorkCenter, name: e.target.value })}
+                              required
+                          />
+                      </div>
+                  </div>
+                  <div style={{ marginTop: 8 }}>
+                      <FieldLabel
+                          classic={classic}
+                          hint={inheritedType
+                              ? `Inherited from ${selectedParent?.code} — everything under a type shares its type.`
+                              : 'Drives routing, monitors and the type chip in lists.'}
+                      >
+                          Center Type
+                      </FieldLabel>
+                      <select
+                          style={{ ...lvInput(classic), ...(inheritedType ? { background: classic ? '#ece9d8' : '#eef1f6', color: '#555' } : {}) }}
+                          value={newWorkCenter.center_type}
+                          disabled={!!inheritedType}
+                          onChange={e => setNewWorkCenter({ ...newWorkCenter, center_type: e.target.value })}
+                      >
                           {CENTER_TYPES.map(ct => <option key={ct} value={ct}>{ct}</option>)}
                       </select>
                   </div>
-                  <div style={{ flex: 1 }}>
-                      <label style={lvLabel(classic)}>Level</label>
-                      <select
-                          style={lvInput(classic)}
-                          value={newWorkCenter.node_type}
-                          onChange={e => setNewWorkCenter({ ...newWorkCenter, node_type: e.target.value, parent_id: '', input_location_id: '', output_location_id: '' })}
-                      >
-                          {LEVELS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
-                      </select>
-                  </div>
-              </div>
-              {newWorkCenter.node_type !== 'TYPE' && (
-                  <div>
-                      <label style={lvLabel(classic)}>{newWorkCenter.node_type === 'GROUP' ? 'Under Type' : 'Under Type / Group'}</label>
-                      <select style={lvInput(classic)} value={newWorkCenter.parent_id} onChange={e => setNewWorkCenter({ ...newWorkCenter, parent_id: e.target.value })}>
-                          <option value="">— none —</option>
-                          {parentOptionsFor(newWorkCenter.node_type).map((p: any) => (
-                              <option key={p.id} value={p.id}>{nodeTypeOf(p) === 'GROUP' ? '↳ ' : ''}{p.code} — {p.name}</option>
-                          ))}
-                      </select>
-                  </div>
-              )}
+              </FormSection>
+
               {newWorkCenter.node_type === 'MACHINE' && (
-                  <div style={{ display: 'flex', gap: 10 }}>
-                      <div style={{ flex: 1 }}>
-                          <label style={lvLabel(classic)}>Input Location</label>
-                          <TreeSelect options={locPickerTreeOptions} value={newWorkCenter.input_location_id} onChange={id => setNewWorkCenter({ ...newWorkCenter, input_location_id: id })} allowEmpty emptyLabel="— none —" size="sm" style={{ width: '100%' }} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                          <label style={lvLabel(classic)}>Output Location</label>
-                          <TreeSelect options={locPickerTreeOptions} value={newWorkCenter.output_location_id} onChange={id => setNewWorkCenter({ ...newWorkCenter, output_location_id: id })} allowEmpty emptyLabel="— none —" size="sm" style={{ width: '100%' }} />
+                  <FormSection classic={classic} title={<><i className="bi bi-cpu me-1" />Machine setup</>}>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                          <div style={{ flex: 1 }}>
+                              <FieldLabel classic={classic} hint="Where staged material is moved to.">Input Location</FieldLabel>
+                              <TreeSelect options={locPickerTreeOptions} value={newWorkCenter.input_location_id} onChange={id => setNewWorkCenter({ ...newWorkCenter, input_location_id: id })} allowEmpty emptyLabel="— none —" size="sm" style={{ width: '100%' }} />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                              <FieldLabel classic={classic} hint="Where finished output is put away.">Output Location</FieldLabel>
+                              <TreeSelect options={locPickerTreeOptions} value={newWorkCenter.output_location_id} onChange={id => setNewWorkCenter({ ...newWorkCenter, output_location_id: id })} allowEmpty emptyLabel="— none —" size="sm" style={{ width: '100%' }} />
+                          </div>
                       </div>
                       {['WEAVING', 'TENUN'].includes((newWorkCenter.center_type || '').toUpperCase()) && (
-                          <div style={{ width: 120 }}>
-                              <label style={lvLabel(classic)}>Beam Slots</label>
+                          <div style={{ width: 140, marginTop: 8 }}>
+                              <FieldLabel classic={classic} hint="Beam positions on this loom.">Beam Slots</FieldLabel>
                               <input
                                   type="number" min={1} step={1}
                                   style={{ ...lvInput(classic), width: '100%' }}
                                   value={newWorkCenter.beam_slots}
                                   onChange={e => setNewWorkCenter({ ...newWorkCenter, beam_slots: beamSlots(e.target.value) })}
-                                  title="Beam positions on this loom — a weaving WO is beam-ready when this many beams are mounted"
+                                  title="A weaving WO is beam-ready when this many beams are mounted"
                               />
                           </div>
                       )}
-                  </div>
+                  </FormSection>
               )}
           </form>
       </ModalWrapper>
