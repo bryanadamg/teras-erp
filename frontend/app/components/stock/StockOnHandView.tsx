@@ -40,6 +40,10 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
     const [locationFilter, setLocationFilter] = useState('');
     const [warehouseFilter, setWarehouseFilter] = useState('');
     const [selectedCat, setSelectedCat] = useState('');
+    // QC-rejected lots stay physically in their location until disposed, so they are
+    // shown by default (the table is the physical truth) but flagged, and hideable
+    // for anyone reading the table as available stock.
+    const [hideRejected, setHideRejected] = useState(false);
     const [page, setPage] = useState(1);
 
     // Transfer modal state
@@ -396,6 +400,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                 else if (wid !== warehouseFilter) return false;
             }
             if (catMatchSet && !(bal.item_category_id && catMatchSet.has(bal.item_category_id))) return false;
+            if (hideRejected && bal.quality_status && bal.quality_status !== 'GOOD') return false;
             if (!s) return true;
             const name = (bal.item_name || '').toLowerCase();
             const code = (bal.item_code || '').toLowerCase();
@@ -407,9 +412,15 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
             return name.includes(s) || code.includes(s) || itemCat.includes(s) || loc.includes(s) || wh.includes(s) || batch.includes(s) || vendorLot.includes(s);
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [stockBalance, search, locationFilter, warehouseFilter, catMatchSet, locMap]);
+    }, [stockBalance, search, locationFilter, warehouseFilter, catMatchSet, locMap, hideRejected]);
 
     const negativeCount = filtered.filter((b: any) => b.qty < 0).length;
+    const rejectedCount = filtered.filter((b: any) => b.quality_status && b.quality_status !== 'GOOD').length;
+    // Rejected qty is physically present but unusable — call the number out so the
+    // row total is never read as available stock.
+    const rejectedQty = filtered.reduce((s: number, b: any) => (
+        b.quality_status && b.quality_status !== 'GOOD' ? s + Number(b.qty || 0) : s
+    ), 0);
 
     const sortCols = useMemo(() => ({
         item:        (b: any) => b.item_name || b.item_code,
@@ -425,7 +436,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
 
     // Client-side pagination — the fetch is still whole-table (DataContext), but
     // only one page of rows hits the DOM at a time instead of the entire result.
-    useEffect(() => { setPage(1); }, [search, locationFilter, warehouseFilter, selectedCat]);
+    useEffect(() => { setPage(1); }, [search, locationFilter, warehouseFilter, selectedCat, hideRejected]);
     const pageCount = Math.max(1, Math.ceil(sortedRows.length / STOCK_PAGE_SIZE));
     const clampedPage = Math.min(page, pageCount);
     const pageRows = sortedRows.slice((clampedPage - 1) * STOCK_PAGE_SIZE, clampedPage * STOCK_PAGE_SIZE);
@@ -457,12 +468,16 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
 
     const renderRow = (bal: any, i: number) => {
         const batchLabel = bal.batch_key ? (bal.batch_number || bal.batch_key) : '-';
-        const qtyColor = bal.qty < 0 ? '#c00000' : '#00008b';
+        // QC-rejected/disposed lots sit in the same bin as good stock — tint the row
+        // and flag the lot so the qty is never mistaken for available.
+        const qStatus: string = bal.quality_status && bal.quality_status !== 'GOOD' ? bal.quality_status : '';
+        const qtyColor = bal.qty < 0 ? '#c00000' : qStatus ? '#8b0000' : '#00008b';
 
         if (classic) {
             return (
                 <tr key={`${bal.item_id}-${bal.location_id}-${bal.batch_key}-${i}`}
-                    style={{ background: i % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #c0bdb5' }}>
+                    title={qStatus ? `Lot is QC ${qStatus} — physically in stock but excluded from netting and consumption pickers` : undefined}
+                    style={{ background: qStatus ? (i % 2 === 0 ? '#fdf0f0' : '#f8e8e8') : (i % 2 === 0 ? '#ffffff' : '#f5f3ee'), borderBottom: '1px solid #c0bdb5' }}>
                     <td style={{ padding: '4px 8px', fontFamily: xpFont, overflow: 'hidden' }}>
                         <div title={bal.item_name} style={{ fontSize: '11px', fontWeight: 'bold', color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bal.item_name}</div>
                         <div style={{ fontSize: '10px', color: '#666', fontVariant: 'all-small-caps', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bal.item_code}</div>
@@ -511,6 +526,11 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                                 {bal.vendor_lot && (
                                     <span title={`Supplier lot: ${bal.vendor_lot}`} style={{ background: '#f0ece0', border: '1px solid #b0a890', padding: '0 5px', fontFamily: '"Courier New", Courier, monospace', fontSize: '10px', color: '#4a4438', whiteSpace: 'nowrap' }}>
                                         SUP {bal.vendor_lot}
+                                    </span>
+                                )}
+                                {qStatus && (
+                                    <span title="QC rejected — not usable stock, excluded from netting and consumption pickers" style={{ background: '#f8d7d7', border: '1px solid #a03030', padding: '0 5px', fontSize: '10px', fontWeight: 'bold', color: '#7a1010', whiteSpace: 'nowrap' }}>
+                                        <i className="bi bi-x-octagon-fill" style={{ marginRight: 3, fontSize: 9 }} />{qStatus}
                                     </span>
                                 )}
                             </div>
@@ -568,7 +588,9 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
         }
 
         return (
-            <tr key={`${bal.item_id}-${bal.location_id}-${bal.batch_key}-${i}`}>
+            <tr key={`${bal.item_id}-${bal.location_id}-${bal.batch_key}-${i}`}
+                className={qStatus ? 'table-danger' : undefined}
+                title={qStatus ? `Lot is QC ${qStatus} — physically in stock but excluded from netting and consumption pickers` : undefined}>
                 <td style={{ overflow: 'hidden' }}>
                     <div title={bal.item_name} className="fw-medium text-truncate">{bal.item_name}</div>
                     <small className="text-muted font-monospace text-truncate d-block">{bal.item_code}</small>
@@ -609,6 +631,11 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             {bal.vendor_lot && (
                                 <span className="badge bg-secondary-subtle text-secondary-emphasis font-monospace" title={`Supplier lot: ${bal.vendor_lot}`}>
                                     SUP {bal.vendor_lot}
+                                </span>
+                            )}
+                            {qStatus && (
+                                <span className="badge bg-danger" title="QC rejected — not usable stock, excluded from netting and consumption pickers">
+                                    <i className="bi bi-x-octagon-fill me-1" />{qStatus}
                                 </span>
                             )}
                         </div>
@@ -979,6 +1006,12 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             style={{ width: 200 }}
                         />
                         <div style={xpSep} />
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontFamily: xpFont, fontSize: '11px', color: '#000', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                            title="Hide QC-rejected lots — they are physically in stock but not usable">
+                            <input type="checkbox" checked={hideRejected} onChange={e => setHideRejected(e.target.checked)} style={{ margin: 0 }} />
+                            Hide rejected
+                        </label>
+                        <div style={xpSep} />
                         <button style={xpBtn()} onClick={onRefresh} title="Refresh">
                             <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh
                         </button>
@@ -1030,6 +1063,11 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                     }}>
                         <span><b>{filtered.length}</b> rows</span>
                         {negativeCount > 0 && <span style={{ color: '#c00000' }}><b>{negativeCount}</b> negative</span>}
+                        {rejectedCount > 0 && (
+                            <span style={{ color: '#7a1010' }} title="QC-rejected lots included in the rows above — physically present, not usable">
+                                <b>{rejectedCount}</b> rejected ({rejectedQty.toLocaleString('en-US', { maximumFractionDigits: 3 })})
+                            </span>
+                        )}
                         <span style={{ marginLeft: 'auto', color: '#666' }}>Total: {(stockBalance || []).length} SKUs</span>
                     </div>
                     <Pager page={clampedPage} total={sortedRows.length} pageSize={STOCK_PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />
@@ -1081,6 +1119,12 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                                 emptyLabel="All Locations"
                                 size="sm"
                             />
+                        </div>
+                        <div className="col-md-2 d-flex align-items-center">
+                            <div className="form-check mb-0" title="Hide QC-rejected lots — they are physically in stock but not usable">
+                                <input className="form-check-input" type="checkbox" id="sohHideRejected" checked={hideRejected} onChange={e => setHideRejected(e.target.checked)} />
+                                <label className="form-check-label small" htmlFor="sohHideRejected">Hide rejected</label>
+                            </div>
                         </div>
                         <div className="col-md-2">
                             <button className="btn btn-outline-secondary btn-sm w-100" onClick={onRefresh}>
@@ -1134,6 +1178,11 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                 <div className="card-footer text-muted d-flex gap-3 small" style={{ flexShrink: 0 }}>
                     <span><b>{filtered.length}</b> rows match</span>
                     {negativeCount > 0 && <span className="text-danger"><b>{negativeCount}</b> negative</span>}
+                    {rejectedCount > 0 && (
+                        <span className="text-danger" title="QC-rejected lots included in the rows above — physically present, not usable">
+                            <b>{rejectedCount}</b> rejected ({rejectedQty.toLocaleString('en-US', { maximumFractionDigits: 3 })})
+                        </span>
+                    )}
                     <span className="ms-auto">Total: {(stockBalance || []).length} SKUs</span>
                 </div>
                 <Pager page={clampedPage} total={sortedRows.length} pageSize={STOCK_PAGE_SIZE} onPageChange={setPage} hideWhenEmpty />

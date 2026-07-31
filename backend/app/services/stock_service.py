@@ -247,6 +247,10 @@ async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | N
     # vendor_lot is only ever written when a lot is minted/matched at goods receipt
     # (api/purchase.py), so its presence alone identifies a supplier-received lot.
     batch_vendor_lot_map: dict[str, str] = {}
+    # QC status rides along: a REJECTED lot stays physically in its location (only
+    # dispose writes it off), so on-hand MUST surface the flag or the table shows
+    # unusable stock as if it were good.
+    batch_quality_map: dict[str, str] = {}
     if batch_ids:
         import uuid as _uuid
         from app.models.batch import Batch
@@ -258,15 +262,20 @@ async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | N
                 continue
         if valid_ids:
             batch_rows = await db.execute(
-                select(Batch.id, Batch.batch_number, Batch.bom_size_snapshot, Batch.vendor_lot).filter(Batch.id.in_(valid_ids))
+                select(
+                    Batch.id, Batch.batch_number, Batch.bom_size_snapshot,
+                    Batch.vendor_lot, Batch.quality_status,
+                ).filter(Batch.id.in_(valid_ids))
             )
-            for bid, bnum, snapshot, vlot in batch_rows.all():
+            for bid, bnum, snapshot, vlot, qstatus in batch_rows.all():
                 batch_number_map[str(bid)] = bnum
                 label = _bom_size_label(snapshot)
                 if label:
                     batch_size_label_map[str(bid)] = label
                 if vlot:
                     batch_vendor_lot_map[str(bid)] = vlot
+                if qstatus and qstatus != "GOOD":
+                    batch_quality_map[str(bid)] = qstatus
 
     return [
         {
@@ -288,6 +297,8 @@ async def get_all_stock_balances(db: AsyncSession, user=None, item_ids: list | N
             "batch_number": batch_number_map.get(r.batch_key) if r.batch_key else None,
             "vendor_lot": batch_vendor_lot_map.get(r.batch_key) if r.batch_key else None,
             "size_label": batch_size_label_map.get(r.batch_key) if r.batch_key else None,
+            # GOOD unless the lot carries a QC flag; non-lotted rows are always GOOD.
+            "quality_status": (batch_quality_map.get(r.batch_key, "GOOD") if r.batch_key else "GOOD"),
         }
         for r in results
         if r.qty != 0 or r.qty_cones or r.qty_boxes or r.qty_drums
