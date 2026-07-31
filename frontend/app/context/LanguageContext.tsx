@@ -48,6 +48,8 @@ const translations = {
         'incoming_from_mos': 'Incoming from',
         'reports': 'Reports',
         'stock_ledger': 'Stock Ledger',
+        'administration': 'Administration',
+        'print_designer': 'Print Layouts',
         'settings': 'Settings',
         'account_settings': 'Account Settings',
 
@@ -254,6 +256,8 @@ const translations = {
         'incoming_from_mos': 'Masuk dari',
         'reports': 'Laporan',
         'stock_ledger': 'Buku Besar Stok',
+        'administration': 'Administrasi',
+        'print_designer': 'Tata Letak Cetak',
         'settings': 'Pengaturan',
         'account_settings': 'Pengaturan Akun',
 

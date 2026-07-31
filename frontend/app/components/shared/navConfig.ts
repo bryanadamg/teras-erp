@@ -89,10 +89,10 @@ export const NAV_SECTIONS: NavSection[] = [
         ],
     },
     {
-        key: 'administration', label: 'Administration', icon: 'bi-sliders', accent: 'grey',
+        key: 'administration', label: 'Administration', i18nKey: 'administration', icon: 'bi-sliders', accent: 'grey',
         permissions: ['admin.access'],
         items: [
-            { tab: 'print-designer', label: 'Print Layouts', icon: 'bi-printer', permission: 'admin.access' },
+            { tab: 'print-designer', label: 'Print Layouts', i18nKey: 'print_designer', icon: 'bi-printer', permission: 'admin.access' },
         ],
     },
 ];
