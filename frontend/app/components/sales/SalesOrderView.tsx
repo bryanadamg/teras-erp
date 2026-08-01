@@ -256,10 +256,6 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   const [lastDeliveryDates, setLastDeliveryDates] = useState({ due_date: '', internal_confirmation_date: '' });
   const [qtyMeter, setQtyMeter] = useState('');
   const [qtyGrossYd, setQtyGrossYd] = useState('');
-  const [qtyRoll, setQtyRoll] = useState('');
-  const [qtyPic, setQtyPic] = useState('');
-  const [rollFactor, setRollFactor] = useState<number | null>(null);
-  const [picFactor, setPicFactor] = useState<number | null>(null);
   const [kgAuto, setKgAuto] = useState(true);
 
   const [isConfigOpen, setIsConfigOpen] = useState(false);
@@ -484,18 +480,12 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       return '';
   };
 
-  const recalcRollPic = (yd: number, rFactor = rollFactor, pFactor = picFactor) => {
-      setQtyRoll(rFactor && yd > 0 ? String(Math.round(yd / rFactor * 10000) / 10000) : '');
-      setQtyPic(pFactor && yd > 0 ? String(Math.round(yd / pFactor * 10000) / 10000) : '');
-  };
-
   const handleQtyYardChange = (ydStr: string) => {
       const yd = parseFloat(ydStr) || 0;
       const m = yd > 0 ? Math.round(yd * 0.9144 * 100) / 100 : 0;
       const gross = yd > 0 ? Math.round(yd / 144 * 10000) / 10000 : 0;
       setQtyMeter(m > 0 ? String(m) : '');
       setQtyGrossYd(gross > 0 ? String(gross) : '');
-      recalcRollPic(yd);
       const kg = kgAuto ? calcKgAuto(newLine.item_id, yd, m) : null;
       setNewLine({ ...newLine, qty: yd, qty_kg: kg !== null ? kg : newLine.qty_kg });
   };
@@ -506,7 +496,6 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       const yd = m > 0 ? Math.round(m / 0.9144 * 100) / 100 : 0;
       const gross = yd > 0 ? Math.round(yd / 144 * 10000) / 10000 : 0;
       setQtyGrossYd(gross > 0 ? String(gross) : '');
-      recalcRollPic(yd);
       const kg = kgAuto ? calcKgAuto(newLine.item_id, yd, m) : null;
       setNewLine({ ...newLine, qty: yd, qty_kg: kg !== null ? kg : newLine.qty_kg });
   };
@@ -517,7 +506,6 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       const yd = gross > 0 ? Math.round(gross * 144 * 100) / 100 : 0;
       const m = yd > 0 ? Math.round(yd * 0.9144 * 100) / 100 : 0;
       setQtyMeter(m > 0 ? String(m) : '');
-      recalcRollPic(yd);
       const kg = kgAuto ? calcKgAuto(newLine.item_id, yd, m) : null;
       setNewLine({ ...newLine, qty: yd, qty_kg: kg !== null ? kg : newLine.qty_kg });
   };
@@ -542,7 +530,6 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       const gross = yd > 0 ? Math.round(yd / 144 * 10000) / 10000 : 0;
       setQtyMeter(m > 0 ? String(m) : '');
       setQtyGrossYd(gross > 0 ? String(gross) : '');
-      recalcRollPic(yd);
       setNewLine(prev => ({ ...prev, qty_kg: kgStr, qty: yd }));
   };
 
@@ -554,49 +541,8 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       const gross = Math.round(yd / 144 * 10000) / 10000;
       setQtyMeter(m > 0 ? String(m) : '');
       setQtyGrossYd(gross > 0 ? String(gross) : '');
-      recalcRollPic(yd);
       const kg = kgAuto ? calcKgAuto(newLine.item_id, yd, m) : null;
       setNewLine(prev => ({ ...prev, qty: yd, qty_kg: kg !== null ? kg : prev.qty_kg }));
-  };
-
-  const handleQtyRollChange = (rollStr: string) => {
-      setQtyRoll(rollStr);
-      if (!rollFactor) return;
-      const roll = parseFloat(rollStr) || 0;
-      const yd = roll > 0 ? Math.round(roll * rollFactor * 100) / 100 : 0;
-      const m = yd > 0 ? Math.round(yd * 0.9144 * 100) / 100 : 0;
-      const gross = yd > 0 ? Math.round(yd / 144 * 10000) / 10000 : 0;
-      setQtyMeter(m > 0 ? String(m) : '');
-      setQtyGrossYd(gross > 0 ? String(gross) : '');
-      setQtyPic(picFactor && yd > 0 ? String(Math.round(yd / picFactor * 10000) / 10000) : '');
-      const kg = kgAuto ? calcKgAuto(newLine.item_id, yd, m) : null;
-      setNewLine(prev => ({ ...prev, qty: yd, qty_kg: kg !== null ? kg : prev.qty_kg }));
-  };
-
-  const handleRollFactorChange = (factorStr: string) => {
-      const f = factorStr ? parseFloat(factorStr) : null;
-      setRollFactor(f);
-      recalcRollPic(newLine.qty, f, picFactor);
-  };
-
-  const handleQtyPicChange = (picStr: string) => {
-      setQtyPic(picStr);
-      if (!picFactor) return;
-      const pic = parseFloat(picStr) || 0;
-      const yd = pic > 0 ? Math.round(pic * picFactor * 100) / 100 : 0;
-      const m = yd > 0 ? Math.round(yd * 0.9144 * 100) / 100 : 0;
-      const gross = yd > 0 ? Math.round(yd / 144 * 10000) / 10000 : 0;
-      setQtyMeter(m > 0 ? String(m) : '');
-      setQtyGrossYd(gross > 0 ? String(gross) : '');
-      setQtyRoll(rollFactor && yd > 0 ? String(Math.round(yd / rollFactor * 10000) / 10000) : '');
-      const kg = kgAuto ? calcKgAuto(newLine.item_id, yd, m) : null;
-      setNewLine(prev => ({ ...prev, qty: yd, qty_kg: kg !== null ? kg : prev.qty_kg }));
-  };
-
-  const handlePicFactorChange = (factorStr: string) => {
-      const f = factorStr ? parseFloat(factorStr) : null;
-      setPicFactor(f);
-      recalcRollPic(newLine.qty, rollFactor, f);
   };
 
   const handleQty2Change = (val: string) => {
@@ -1077,63 +1023,6 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                <FieldLabel classic={classic}>Gross Yd <span style={{ fontWeight: 'normal', fontSize: '10px', color: '#888' }}>(144 yd)</span></FieldLabel>
                                                <input type="number" className="form-control" style={classic ? xpInput({width:'100%'}) : undefined} placeholder="0" value={qtyGrossYd} onChange={e => handleQtyGrossYdChange(e.target.value)} />
                                            </div>
-                                       </div>
-                                   </div>
-
-                                   {/* PACKAGING GROUP */}
-                                   <div style={classic ? { border: '1px solid #a0988c', padding: '4px 8px 8px', marginBottom: 8, position: 'relative' } : { marginBottom: 10 }}>
-                                       {classic
-                                           ? <span style={{ position: 'absolute', top: -7, left: 8, background: '#f8f7f2', padding: '0 4px', fontSize: '10px', fontWeight: 'bold', color: '#444', textTransform: 'uppercase' as const, letterSpacing: '0.4px', fontFamily: 'Tahoma,Arial,sans-serif' }}>Packaging</span>
-                                           : <div className="text-muted fw-bold mb-2" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Packaging</div>
-                                       }
-                                       <div style={{ paddingTop: classic ? 4 : 0, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: classic ? 5 : 8 }}>
-                                           {(['Roll', 'Pic'] as const).map(uomName => {
-                                               const uomObj = uoms.find((u: any) => u.name === uomName);
-                                               const allUomFactors = uomObj?.factors || [];
-                                               const selItem = resolveItem(newLine.item_id);
-                                               const itemFactorIds = (selItem?.packaging_factor_ids || []).map(String);
-                                               const factors = newLine.item_id && itemFactorIds.length > 0
-                                                   ? allUomFactors.filter((f: any) => itemFactorIds.includes(String(f.id)))
-                                                   : allUomFactors;
-                                               const factor = uomName === 'Roll' ? rollFactor : picFactor;
-                                               const qty = uomName === 'Roll' ? qtyRoll : qtyPic;
-                                               const onFactorChange = uomName === 'Roll' ? handleRollFactorChange : handlePicFactorChange;
-                                               const onQtyChange = uomName === 'Roll' ? handleQtyRollChange : handleQtyPicChange;
-                                               return (
-                                                   <div key={uomName}>
-                                                       <FieldLabel classic={classic}>{uomName}</FieldLabel>
-                                                       {factors.length > 0 ? (
-                                                           <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 2, marginBottom: 3 }}>
-                                                               {factors.map((f: any) => {
-                                                                   const fVal = parseFloat(f.value);
-                                                                   const active = factor === fVal;
-                                                                   return classic ? (
-                                                                       <button key={f.id} type="button"
-                                                                           style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'10px', padding:'0 5px', height:'18px', lineHeight:'16px', cursor:'pointer', borderRadius:0, border:'1px solid', borderColor: active ? '#1a3a7a #0a2a5a #0a2a5a #1a3a7a' : '#dfdfdf #808080 #808080 #dfdfdf', background: active ? 'linear-gradient(to bottom,#316ac5,#1a4a8a)' : 'linear-gradient(to bottom,#ffffff,#d4d0c8)', color: active ? '#fff' : '#000' }}
-                                                                           onClick={() => onFactorChange(active ? '' : String(fVal))}
-                                                                       >×{fVal}{f.to_uom_name ? ` ${f.to_uom_name}` : ''}</button>
-                                                                   ) : (
-                                                                       <button key={f.id} type="button"
-                                                                           className={`btn btn-sm ${active ? 'btn-primary' : 'btn-outline-secondary'}`}
-                                                                           style={{ fontSize: 10, padding: '1px 6px' }}
-                                                                           onClick={() => onFactorChange(active ? '' : String(fVal))}
-                                                                       >×{fVal}{f.to_uom_name ? ` ${f.to_uom_name}` : ''}</button>
-                                                                   );
-                                                               })}
-                                                           </div>
-                                                       ) : (
-                                                           <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'10px', color:'#aaa', marginBottom: 3 }}>no factors defined</div>
-                                                       )}
-                                                       <input type="number" className="form-control"
-                                                           style={classic ? xpInput({width:'100%', background: factor ? '#fff' : '#f5f5f0'}) : undefined}
-                                                           placeholder={factor ? '0' : '—'}
-                                                           disabled={!factor}
-                                                           value={qty}
-                                                           onChange={e => onQtyChange(e.target.value)}
-                                                       />
-                                                   </div>
-                                               );
-                                           })}
                                        </div>
                                    </div>
 
