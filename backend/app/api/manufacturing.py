@@ -1044,6 +1044,36 @@ async def update_mo_tolerance(
     return mo
 
 
+@router.post("/manufacturing-orders/{mo_id}/mark-printed", response_model=ManufacturingOrderResponse)
+async def mark_mo_printed(
+    mo_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission('work_order.manage')),
+):
+    """Stamps card_printed_at when SPK Produksi (MO print) is printed from the ERP."""
+    result = await db.execute(
+        select(ManufacturingOrder).filter(ManufacturingOrder.id == mo_id)
+    )
+    mo = result.unique().scalars().first()
+    if not mo:
+        raise HTTPException(status_code=404, detail="Manufacturing Order not found")
+
+    mo_pk = mo.id
+    mo.card_printed_at = datetime.utcnow()
+    await db.commit()
+
+    await audit_service.log_activity(
+        db, current_user.id, "PRINT", "ManufacturingOrder", str(mo_id),
+        f"Printed SPK Produksi for MO {mo.code}",
+    )
+    await manager.broadcast({"type": "MANUFACTURING_ORDER_UPDATE", "mo_id": str(mo_id)})
+
+    mo_map = await load_mo_tree(db, [mo_pk])
+    mo = mo_map.get(mo_pk)
+    populate_mo_ids(mo)
+    return mo
+
+
 @router.post("/manufacturing-orders/{mo_id}/completions", response_model=ManufacturingOrderResponse)
 async def add_mo_completion(
     mo_id: str,

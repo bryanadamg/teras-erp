@@ -49,6 +49,25 @@ export function computePrintState(wo: any): { cardPrinted: boolean; hasBags: boo
     return { cardPrinted: !!wo.card_printed_at, hasBags, labelsPrinted };
 }
 
+// Single small "printed" indicator chip. Green = printed, gray/amber = not.
+// Shared by WO's PrintChips (Card/Label) and MO's single Card indicator.
+export function printChipVariantStyle(v: 'green' | 'gray' | 'amber'): React.CSSProperties {
+    return v === 'green' ? { background: '#d4f0d4', color: '#005500', borderColor: '#99cc99' }
+        : v === 'amber' ? { background: '#fff3cc', color: '#664400', borderColor: '#f0d888' }
+            : { background: '#eae8e2', color: '#777', borderColor: '#c8c6be' };
+}
+export function PrintChip({ variant, label, title }: { variant: 'green' | 'gray' | 'amber'; label: string; title: string }) {
+    return (
+        <span title={title} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 2,
+            fontSize: 8, fontWeight: 'bold', padding: '0 3px', whiteSpace: 'nowrap',
+            border: '1px solid', ...printChipVariantStyle(variant),
+        }}>
+            <i className="bi bi-printer" style={{ fontSize: 9 }} />{label}
+        </span>
+    );
+}
+
 // Two small "printed" indicators for a WO row: Card (Kartu Kerja) + Label (bags).
 // Green = printed, gray = card not printed yet, amber = labels missing/stale.
 export function PrintChips({ wo }: { wo: any }) {
@@ -56,25 +75,12 @@ export function PrintChips({ wo }: { wo: any }) {
     const { formatCustom: tzFmt } = useTimezone();
     const _printChipFmt = (v: any) =>
         v ? tzFmt(v, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }, 'id-ID') : '';
-    const variantStyle = (v: 'green' | 'gray' | 'amber'): React.CSSProperties =>
-        v === 'green' ? { background: '#d4f0d4', color: '#005500', borderColor: '#99cc99' }
-            : v === 'amber' ? { background: '#fff3cc', color: '#664400', borderColor: '#f0d888' }
-                : { background: '#eae8e2', color: '#777', borderColor: '#c8c6be' };
-    const chip = (v: 'green' | 'gray' | 'amber', label: string, title: string) => (
-        <span title={title} style={{
-            display: 'inline-flex', alignItems: 'center', gap: 2,
-            fontSize: 8, fontWeight: 'bold', padding: '0 3px', whiteSpace: 'nowrap',
-            border: '1px solid', ...variantStyle(v),
-        }}>
-            <i className="bi bi-printer" style={{ fontSize: 9 }} />{label}
-        </span>
-    );
     return (
         <span style={{ display: 'inline-flex', gap: 2, flexShrink: 0 }}>
-            {chip(cardPrinted ? 'green' : 'gray', 'Card',
-                cardPrinted ? `Kartu Kerja printed ${_printChipFmt(wo.card_printed_at)}` : 'Kartu Kerja not printed yet')}
-            {hasBags && chip(labelsPrinted ? 'green' : 'amber', 'Label',
-                labelsPrinted ? `Bag labels printed ${_printChipFmt(wo.labels_printed_at)}` : 'Bag labels not printed (or new bags since last print)')}
+            <PrintChip variant={cardPrinted ? 'green' : 'gray'} label="Card"
+                title={cardPrinted ? `Kartu Kerja printed ${_printChipFmt(wo.card_printed_at)}` : 'Kartu Kerja not printed yet'} />
+            {hasBags && <PrintChip variant={labelsPrinted ? 'green' : 'amber'} label="Label"
+                title={labelsPrinted ? `Bag labels printed ${_printChipFmt(wo.labels_printed_at)}` : 'Bag labels not printed (or new bags since last print)'} />}
         </span>
     );
 }

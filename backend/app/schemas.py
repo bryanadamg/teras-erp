@@ -485,6 +485,7 @@ class ManufacturingOrderResponse(BaseModel):
     actual_start_date: datetime | None
     actual_end_date: datetime | None
     created_at: datetime
+    card_printed_at: datetime | None = None
     is_material_available: bool = True
     qty_completed_total: float = 0.0
     # Scrapped output across this MO's completions — yield = good / (good + rejected)
@@ -988,6 +989,7 @@ class ManufacturingOrderListItem(BaseModel):
     actual_start_date: datetime | None
     actual_end_date: datetime | None
     created_at: datetime
+    card_printed_at: datetime | None = None
     is_material_available: bool = True
     qty_completed_total: float = 0.0
     qty_rejected_total: float = 0.0

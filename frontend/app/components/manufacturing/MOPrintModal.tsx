@@ -118,6 +118,7 @@ export default function MOPrintModal({
     getAttributeValueName,
     formatDate,
     hideChildMOs = false,
+    onPrint,
 }: {
     wo: any;
     onClose: () => void;
@@ -132,6 +133,7 @@ export default function MOPrintModal({
     getAttributeValueName: (id: any) => string;
     formatDate: (d: any) => string;
     hideChildMOs?: boolean;
+    onPrint?: () => void;
 }) {
     const {
         showBOMTable, showTimeline, showChildMOs: showChildMOsSetting,
@@ -464,12 +466,12 @@ export default function MOPrintModal({
                             {isClassic ? (
                                 <>
                                     <button style={xpBtnGrey} onClick={onClose}>Close</button>
-                                    <button style={xpBtnGreen} onClick={() => { window.addEventListener('afterprint', onClose, { once: true }); window.print(); }}>Print</button>
+                                    <button style={xpBtnGreen} onClick={() => { onPrint?.(); window.addEventListener('afterprint', onClose, { once: true }); window.print(); }}>Print</button>
                                 </>
                             ) : (
                                 <>
                                     <button className="btn btn-sm btn-secondary" onClick={onClose}>Close</button>
-                                    <button className="btn btn-sm btn-success" onClick={() => { window.addEventListener('afterprint', onClose, { once: true }); window.print(); }}>
+                                    <button className="btn btn-sm btn-success" onClick={() => { onPrint?.(); window.addEventListener('afterprint', onClose, { once: true }); window.print(); }}>
                                         <i className="bi bi-printer me-1"></i>Print
                                     </button>
                                 </>

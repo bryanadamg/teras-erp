@@ -9,8 +9,9 @@ import { useData } from '../../context/DataContext';
 import type { PrintSettings } from './MOPrintModal';
 import { STATUS_COLORS, statusChipStyle, useFloatingMenu, MenuTriggerButton, FloatingMenu, XPActionButton, SunkenPanel, SunkenPanelBody, ProgressBar } from '../shared/xpTheme';
 const MOPrintModal = dynamic(() => import('./MOPrintModal'), { ssr: false });
-import WorkOrderPanel from './WorkOrderPanel';
+import WorkOrderPanel, { PrintChip } from './WorkOrderPanel';
 import { resolveMoBom } from '../shared/moHelpers';
+import { useTimezone } from '../../context/TimezoneContext';
 const WOCompletionModal = dynamic(() => import('./WOCompletionModal'), { ssr: false });
 
 export default function ManufacturingOrdersTab({
@@ -42,6 +43,7 @@ export default function ManufacturingOrdersTab({
 }: any) {
     const { showToast } = useToast();
     const { authFetch, fetchData } = useData();
+    const { formatCustom: tzFmt } = useTimezone();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
     const API_BASE = envBase.endsWith('/api') ? envBase : `${envBase}/api`;
     const {
@@ -1026,6 +1028,9 @@ export default function ManufacturingOrdersTab({
                   getAttributeValueName={getAttributeValueName}
                   formatDate={formatDate}
                   hideChildMOs={printHideChildren}
+                  onPrint={() => {
+                      authFetch(`${API_BASE}/manufacturing-orders/${printPreviewWO.id}/mark-printed`, { method: 'POST' }).catch(() => {});
+                  }}
               />
           )}
 
@@ -1159,7 +1164,13 @@ export default function ManufacturingOrdersTab({
                                         {/* MO Code */}
                                         <td style={{ ...tdStyle, paddingLeft: classic ? '10px' : undefined }}
                                             className={!classic ? 'ps-4 fw-bold font-monospace small' : ''}>
-                                            <span style={{ fontFamily: 'monospace', fontWeight: 'bold', fontSize: '11px', color: '#000' }}>{wo.code}</span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden' }}>
+                                                <span style={{ fontFamily: 'monospace', fontWeight: 'bold', fontSize: '11px', color: '#000', flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wo.code}</span>
+                                                <span style={{ marginLeft: 'auto', flexShrink: 0 }}>
+                                                    <PrintChip variant={wo.card_printed_at ? 'green' : 'gray'} label="Card"
+                                                        title={wo.card_printed_at ? `SPK Produksi printed ${tzFmt(wo.card_printed_at, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }, 'id-ID')}` : 'SPK Produksi not printed yet'} />
+                                                </span>
+                                            </div>
                                         </td>
 
                                         {/* Product — name (line 1) + variant chips (line 2); click to expand */}

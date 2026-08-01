@@ -128,6 +128,9 @@ class ManufacturingOrder(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
+    # Print tracking (set to now() each time SPK Produksi is printed from the ERP).
+    card_printed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
     # Production Run link
     production_run_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("production_runs.id"), nullable=True, index=True
