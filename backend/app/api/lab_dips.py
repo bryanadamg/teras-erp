@@ -39,6 +39,22 @@ def _load_full(request_id):
     )
 
 
+def _seq_part(req) -> str:
+    """The numeric part of a request code, namespaced by book.
+
+    FG:   LD-2026-00003  → '00003'
+    YARN: LDY-2026-00003 → 'Y00003'
+
+    Both books run their own sequence from 1, so the raw number collides across them.
+    Every derived identity hangs off this string — the variant code ('Y00003-A'), the
+    minted Color Library code ('Y00003-A-2', UNIQUE), and the MO/SO `labdip_variant_code`
+    backfill match. Without the marker a yarn approval would be blocked by an unrelated
+    FG shade of the same number, and would stamp its color onto FG rows awaiting theirs.
+    """
+    raw = req.code.rsplit("-", 1)[-1] if req and req.code else ""
+    return f"Y{raw}" if req is not None and getattr(req, "kind", "FG") == "YARN" else raw
+
+
 def _variant_letter(seq: int) -> str:
     """0 → A, 1 → B, … 25 → Z, 26 → AA (spreadsheet-column style)."""
     s = ""
@@ -82,8 +98,8 @@ async def _picked_color_variant_value_ids(db: AsyncSession, request_id, item_id)
 
 
 def _decorate(req: LabDipRequest) -> LabDipRequest:
-    """Attach the derived variant_code (e.g. '00001-A') and denormalized item name/code."""
-    seq_part = req.code.rsplit("-", 1)[-1] if req.code else ""
+    """Attach the derived variant_code (e.g. '00001-A', yarn 'Y00001-A') and item name/code."""
+    seq_part = _seq_part(req)
     for it in (req.items or []):
         it.variant_code = it.locked_variant_code or f"{seq_part}-{_variant_letter(it.variant_seq)}"
         # Full approved code appends the free-text "set" captured at approval.
@@ -94,18 +110,23 @@ def _decorate(req: LabDipRequest) -> LabDipRequest:
     return req
 
 
-async def _next_code(db: AsyncSession) -> str:
-    """Mint the next request code from a persistent DB sequence.
+async def _next_code(db: AsyncSession, kind: str = "FG") -> str:
+    """Mint the next request code from the persistent DB sequence for this book.
 
     A plain COUNT(*)+1 (or max+1) frees a number when a request is deleted, so a
     later create can reuse it — colliding with the UNIQUE constraint (deleting a
     middle row) or silently reissuing an old item code (deleting the top row).
-    `lab_dip_request_seq` only ever advances, so a number is never handed out
-    twice regardless of deletions, and nextval is atomic under concurrency.
+    The sequences only ever advance, so a number is never handed out twice
+    regardless of deletions, and nextval is atomic under concurrency.
+
+    FG and YARN draw separate sequences on purpose: the client wants a fresh yarn
+    numbering series, not yarn numbers gapped around finished-goods ones.
     """
-    result = await db.execute(text("SELECT nextval('lab_dip_request_seq')"))
+    seq = "lab_dip_yarn_request_seq" if kind == "YARN" else "lab_dip_request_seq"
+    prefix = "LDY" if kind == "YARN" else "LD"
+    result = await db.execute(text(f"SELECT nextval('{seq}')"))
     n = result.scalar_one()
-    return f"LD-{datetime.now().year}-{str(n).zfill(5)}"
+    return f"{prefix}-{datetime.now().year}-{str(n).zfill(5)}"
 
 
 @router.post("/lab-dips", response_model=LabDipRequestResponse)
@@ -114,11 +135,13 @@ async def create_lab_dip_request(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission('dyeing.manage')),
 ):
-    code = await _next_code(db)
+    kind = "YARN" if (payload.kind or "FG").upper() == "YARN" else "FG"
+    code = await _next_code(db, kind)
 
     now = datetime.utcnow()
     req = LabDipRequest(
         code=code,
+        kind=kind,
         customer_id=payload.customer_id,
         base_item_id=payload.base_item_id,
         approved_recipe_id=payload.approved_recipe_id,
@@ -189,11 +212,16 @@ async def create_lab_dip_request(
 async def get_lab_dips(
     skip: int = 0,
     limit: int = 100,
+    kind: str = "FG",
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Two separate books; a caller always gets one. Defaults to FG so existing
+    # callers (and the finished-goods page) are unchanged.
+    kind_v = "YARN" if kind.upper() == "YARN" else "FG"
     result = await db.execute(
         select(LabDipRequest)
+        .filter(LabDipRequest.kind == kind_v)
         .options(
             joinedload(LabDipRequest.items).joinedload(LabDipItem.dips),
             joinedload(LabDipRequest.items).joinedload(LabDipItem.item),
@@ -233,8 +261,7 @@ async def get_pending_labdip_variants(
         parent = (await db.execute(
             select(LabDipRequest).filter(LabDipRequest.id == it.lab_dip_request_id)
         )).scalars().first()
-        seq_part = parent.code.rsplit("-", 1)[-1] if parent and parent.code else ""
-        variant_code = it.locked_variant_code or f"{seq_part}-{_variant_letter(it.variant_seq)}"
+        variant_code = it.locked_variant_code or f"{_seq_part(parent)}-{_variant_letter(it.variant_seq)}"
         out.append({
             "labdip_item_id": str(it.id),
             "variant_code": variant_code,
@@ -399,7 +426,7 @@ async def update_lab_dip_item_status(
         if not set_value:
             raise HTTPException(status_code=400, detail="A set index is required to approve a variant")
 
-        seq_part = parent.code.rsplit("-", 1)[-1] if parent and parent.code else ""
+        seq_part = _seq_part(parent)
         code = f"{seq_part}-{_variant_letter(item.variant_seq)}-{set_value}"
 
         dup = await db.execute(select(Color).filter(Color.code == code))
@@ -455,7 +482,6 @@ async def update_lab_dip_item_status(
         # minted, stamp it on those still-pending rows so the DYEING WO gate can
         # resolve the recipe. Only rows without a color_id yet are touched (a manual
         # MO override is never clobbered).
-        seq_part = parent.code.rsplit("-", 1)[-1] if parent and parent.code else ""
         variant_code = item.locked_variant_code or f"{seq_part}-{_variant_letter(item.variant_seq)}"
         mo_ids = (await db.execute(
             select(ManufacturingOrder.id).filter(

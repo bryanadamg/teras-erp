@@ -293,7 +293,9 @@ export default function ColorLibraryView({
                                 <td style={lvTd(classic)}>{c.source_lab_dip_code
                                     ? <span
                                         title="Open this lab dip request"
-                                        onClick={e => { e.stopPropagation(); router.push(`/lab-dips?open=${encodeURIComponent(c.source_lab_dip_request_id)}`); }}
+                                        // The two lab dip books are separate pages, each listing only its own
+                                        // requests — route by the source code's prefix or the deep-link no-ops.
+                                        onClick={e => { e.stopPropagation(); router.push(`${String(c.source_lab_dip_code).startsWith('LDY-') ? '/lab-dips-yarn' : '/lab-dips'}?open=${encodeURIComponent(c.source_lab_dip_request_id)}`); }}
                                         style={classic
                                             ? { fontFamily: "'Courier New', monospace", color: '#0047c8', fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }
                                             : { fontFamily: "'Courier New', monospace", color: '#2563eb', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>{c.source_lab_dip_code}</span>

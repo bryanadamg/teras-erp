@@ -109,8 +109,15 @@ const variantLetter = (seq: number): string => {
     while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
     return s;
 };
-// Numeric portion of the request code: "LD-2026-00001" → "00001".
-const seqPart = (code?: string): string => (code || '').split('-').pop() || '';
+// Raw numeric tail of a request code: "LD-2026-00001" / "LDY-2026-00001" → "00001".
+const rawSeq = (code?: string): string => (code || '').split('-').pop() || '';
+// Numeric portion namespaced by book — mirrors `_seq_part` in api/lab_dips.py:
+//   "LD-2026-00001"  → "00001"
+//   "LDY-2026-00001" → "Y00001"
+// FG and yarn each number from 1, so the bare number is ambiguous across the two;
+// the Y marker is what keeps variant codes and minted color codes unique.
+const seqPart = (code?: string): string =>
+    (code || '').startsWith('LDY-') ? `Y${rawSeq(code)}` : rawSeq(code);
 // Splits a variant code ("00003-A") back into its seq/letter parts for the two-tone badge pair.
 const splitVariantCode = (code: string): { seq: string; variant: string } => {
     const idx = code.lastIndexOf('-');
@@ -160,7 +167,7 @@ const emptyForm = () => ({
 export default function LabDipRequestView({
     labDips, customers, items, onSearchItems, recipes, attributes,
     onCreate, onEdit, onUpdateStatus, onUpdateItemStatus, onDelete,
-    openRequestId,
+    openRequestId, kind = 'FG',
 }: any) {
     useToast();
     const router = useRouter();
@@ -180,6 +187,11 @@ export default function LabDipRequestView({
     const [pendingItem, setPendingItem] = useState('');
     const [pendingColor, setPendingColor] = useState('');
     const [page, setPage] = useState(1);
+
+    // Which numbering book this mount shows. Only the labels, the code preview and the
+    // POST payload differ — the FG and yarn pages are the same component, one code path.
+    const isYarn = kind === 'YARN';
+    const requestNoun = isYarn ? 'Yarn Lab Dip Request' : 'Lab Dip Request';
 
     // "Colors" system variant attribute — request-level color picks (apply to all items).
     const colorOptions = useMemo(() => {
@@ -263,7 +275,8 @@ export default function LabDipRequestView({
     // reject round (reason + notes) for the item — traceability across reopens.
     const [historyItem, setHistoryItem] = useState<{ item: any; code: string } | null>(null);
 
-    // `items` is the server-side typeahead result page (already scoped to Finished Goods).
+    // `items` is the server-side typeahead result page, scoped by the page that mounts us
+    // (Finished Goods for the FG book, Raw Material for the yarn book).
     const itemLabel = (it: any) => it.code ? `${it.code} — ${it.name}` : it.name;
     const itemOptions = useMemo(() =>
         (items || []).map((it: any) => ({ value: it.id, label: itemLabel(it) })),
@@ -397,11 +410,12 @@ export default function LabDipRequestView({
     // Request code: real code when editing; else a best-effort preview of the next code.
     // The server mints from a monotonic DB sequence, so this max+1 estimate is a lower bound
     // (it can trail the true value after the top request is deleted) — hence the "(on save)" note.
+    // Parses the raw tail (not seqPart) — the yarn book's "Y" marker is not a number.
     const maxSeq = (labDips || []).reduce((m: number, r: any) => {
-        const n = parseInt(seqPart(r.code), 10);
+        const n = parseInt(rawSeq(r.code), 10);
         return Number.isFinite(n) && n > m ? n : m;
     }, 0);
-    const nextCode = `LD-${new Date().getFullYear()}-${String(maxSeq + 1).padStart(5, '0')}`;
+    const nextCode = `${isYarn ? 'LDY' : 'LD'}-${new Date().getFullYear()}-${String(maxSeq + 1).padStart(5, '0')}`;
     const displayCode = editing ? editing.code : nextCode;
 
     // Segmented per-variant status control (Progress / Approved / Rejected).
@@ -447,8 +461,8 @@ export default function LabDipRequestView({
             <div style={classic
                 ? { background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#fff', padding: '6px 12px', fontSize: 13, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }
                 : { background: '#f7f9fc', color: '#1e293b', borderBottom: '1px solid #dbe1ea', padding: '8px 12px', fontSize: 14, fontWeight: 700, fontFamily: modernFont, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                <i className="bi bi-droplet" style={classic ? { fontSize: 14 } : { fontSize: 14, color: '#2563eb' }} />
-                Lab Dip Requests
+                <i className={isYarn ? 'bi bi-droplet-half' : 'bi bi-droplet'} style={classic ? { fontSize: 14 } : { fontSize: 14, color: '#2563eb' }} />
+                {isYarn ? 'Yarn Lab Dip Requests' : 'Lab Dip Requests'}
             </div>
 
             {/* Toolbar */}
@@ -467,7 +481,7 @@ export default function LabDipRequestView({
                     <>
                         <span style={classic ? { width: 1, height: 20, background: '#a0988c', margin: '0 2px' } : { width: 1, height: 20, background: '#dbe1ea', margin: '0 2px' }} />
                         <button style={primaryToolbarBtn} onClick={openCreate}>
-                            <i className="bi bi-plus-lg" /> New Lab Dip Request
+                            <i className="bi bi-plus-lg" /> New {requestNoun}
                         </button>
                     </>
                 )}
@@ -493,7 +507,7 @@ export default function LabDipRequestView({
                     </thead>
                     <tbody>
                         {filtered.length === 0 && (
-                            <tr><td colSpan={9} style={{ ...tdBase(classic), textAlign: 'center' as const, color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>No lab dip requests yet.</td></tr>
+                            <tr><td colSpan={9} style={{ ...tdBase(classic), textAlign: 'center' as const, color: classic ? '#888' : '#64748b', fontStyle: 'italic', padding: 20 }}>{isYarn ? 'No yarn lab dip requests yet.' : 'No lab dip requests yet.'}</td></tr>
                         )}
                         {paged.map((r: any, idx: number) => {
                             const approved = (r.items || []).filter((it: any) => it.status === 'APPROVED').length;
@@ -745,7 +759,7 @@ export default function LabDipRequestView({
                 isOpen={isModalOpen}
                 modeless
                 onClose={() => { setIsModalOpen(false); setEditing(null); }}
-                title={editing ? <><i className="bi bi-pencil me-2" />Edit Lab Dip Request — {editing.code}</> : <><i className="bi bi-droplet me-2" />New Lab Dip Request</>}
+                title={editing ? <><i className="bi bi-pencil me-2" />Edit {requestNoun} — {editing.code}</> : <><i className={`${isYarn ? 'bi bi-droplet-half' : 'bi bi-droplet'} me-2`} />New {requestNoun}</>}
                 variant="primary"
                 size="lg"
                 footer={
@@ -800,7 +814,7 @@ export default function LabDipRequestView({
 
                     {/* ② Items */}
                     <FormSection title="② Items" classic={classic}>
-                            {/* Add finished-good item */}
+                            {/* Add item — finished good on the FG book, yarn on the yarn book */}
                             <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10 }}>
                                 <div style={{ flex: 1 }}>
                                     <SearchableSelect
@@ -808,7 +822,7 @@ export default function LabDipRequestView({
                                         value={pendingItem}
                                         onChange={setPendingItem}
                                         onSearch={onSearchItems}
-                                        placeholder="Add finished-good item…"
+                                        placeholder={isYarn ? 'Add yarn item…' : 'Add finished-good item…'}
                                         size="sm"
                                     />
                                 </div>
@@ -817,7 +831,7 @@ export default function LabDipRequestView({
 
                             {form.items.length === 0 && (
                                 <div style={{ fontSize: classic ? 11 : 13, color: classic ? '#999' : '#94a3b8', fontStyle: 'italic', padding: '4px 2px' }}>
-                                    No items yet — add finished-good items; each is assigned a variant code.
+                                    No items yet — add {isYarn ? 'yarn' : 'finished-good'} items; each is assigned a variant code.
                                 </div>
                             )}
 

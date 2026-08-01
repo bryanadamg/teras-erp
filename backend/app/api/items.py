@@ -109,19 +109,22 @@ async def get_items_api(
     search: str | None = None,
     category_id: uuid.UUID | None = None,
     finished_goods: bool = False,
+    raw_materials: bool = False,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
-    # `finished_goods=true` scopes the search to the "Finished Goods" category subtree
-    # server-side, so large catalogs stay a typeahead instead of a client-side fetch-all.
-    if finished_goods and category_id is None:
-        fg = await db.execute(
-            select(Category).filter(Category.name == "Finished Goods").order_by(Category.parent_id.nulls_first())
+    # `finished_goods=true` / `raw_materials=true` scope the search to that seeded system
+    # category's subtree server-side, so large catalogs stay a typeahead instead of a
+    # client-side fetch-all. An explicit category_id always wins over either flag.
+    scope_name = "Finished Goods" if finished_goods else ("Raw Material" if raw_materials else None)
+    if scope_name and category_id is None:
+        scoped = await db.execute(
+            select(Category).filter(Category.name == scope_name).order_by(Category.parent_id.nulls_first())
         )
-        fg_cat = fg.scalars().first()
-        if fg_cat is None:
+        scope_cat = scoped.scalars().first()
+        if scope_cat is None:
             return {"items": [], "total": 0, "page": 1, "size": 0}
-        category_id = fg_cat.id
+        category_id = scope_cat.id
 
     items, total = await item_service.get_items(db, skip=skip, limit=limit, user=current_user, search=search, category_id=category_id)
     for item in items:

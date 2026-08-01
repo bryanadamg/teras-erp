@@ -1798,6 +1798,9 @@ class LabDipItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class LabDipRequestCreate(BaseModel):
+    # 'FG' (finished goods) or 'YARN' (raw material). Picks the numbering book;
+    # immutable after create, so there is no counterpart on LabDipRequestUpdate.
+    kind: str = "FG"
     customer_id: Optional[UUID] = None
     base_item_id: Optional[UUID] = None
     approved_recipe_id: Optional[UUID] = None
@@ -1836,6 +1839,7 @@ class LabDipRequestUpdate(BaseModel):
 class LabDipRequestResponse(BaseModel):
     id: UUID
     code: str
+    kind: str = "FG"
     status: str
     request_type: str = "NEW"
     created_at: datetime

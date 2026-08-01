@@ -78,6 +78,7 @@ export const NAV_SECTIONS: NavSection[] = [
             { tab: 'dyeing-setting', label: 'Dyeing & Setting', icon: 'bi-palette', permission: 'dyeing.manage' },
             { tab: 'colors', label: 'Colors', icon: 'bi-palette2', permission: 'dyeing.manage' },
             { tab: 'lab-dips', label: 'Lab Dip Requests', icon: 'bi-droplet', permission: 'dyeing.manage' },
+            { tab: 'lab-dips-yarn', label: 'Yarn Lab Dips', icon: 'bi-droplet-half', permission: 'dyeing.manage' },
         ],
     },
     {

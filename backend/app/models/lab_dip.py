@@ -11,6 +11,11 @@ class LabDipRequest(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     code: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    # Which book this request belongs to: 'FG' (finished goods, LD-YYYY-#####) or
+    # 'YARN' (raw material, LDY-YYYY-#####). Each draws its own DB sequence, so both
+    # number from 1 independently. YARN also prefixes its derived variant codes with
+    # 'Y' (Y00003-A) — without that the two books mint identical variant/color codes.
+    kind: Mapped[str] = mapped_column(String(8), default="FG", index=True)
 
     customer_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("partners.id"), nullable=True, index=True
