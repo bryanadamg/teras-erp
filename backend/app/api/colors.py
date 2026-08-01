@@ -90,6 +90,7 @@ async def list_colors(
     customer_id: str | None = Query(None),
     variant_attribute_value_id: str | None = Query(None),
     item_search: str | None = Query(None),
+    source: str | None = Query(None),
     page: int = Query(1, ge=1),
     size: int = Query(50, ge=1, le=500),
     include_meta: bool = Query(False),
@@ -130,6 +131,34 @@ async def list_colors(
         )
         q = q.filter(Color.id.in_(matching_color_ids))
         count_q = count_q.filter(Color.id.in_(matching_color_ids))
+    if source:
+        # Which lab dip book a shade came from. Like `item_search`, this is
+        # provenance-derived rather than a column on Color, so it can never drift
+        # from the lab dip data — the two paths mirror _lab_dip_provenance:
+        # approval-minted (LabDipItem.approved_color_id) and manual "+ Color"
+        # spawns (Color.source_lab_dip_line_id). MANUAL = neither path matches,
+        # i.e. a shade entered straight into the library.
+        src = source.upper()
+        approved_ids = (
+            select(LabDipItem.approved_color_id)
+            .join(LabDipRequest, LabDipItem.lab_dip_request_id == LabDipRequest.id)
+            .filter(LabDipItem.approved_color_id.isnot(None))
+        )
+        spawned_ids = (
+            select(Color.id)
+            .join(LabDipLine, Color.source_lab_dip_line_id == LabDipLine.id)
+            .join(LabDipRequest, LabDipLine.lab_dip_request_id == LabDipRequest.id)
+        )
+        if src == "MANUAL":
+            cond = Color.id.notin_(approved_ids) & Color.id.notin_(spawned_ids)
+        elif src in ("FG", "YARN"):
+            cond = Color.id.in_(approved_ids.filter(LabDipRequest.kind == src)) | Color.id.in_(
+                spawned_ids.filter(LabDipRequest.kind == src)
+            )
+        else:
+            raise HTTPException(status_code=400, detail="source must be FG, YARN or MANUAL")
+        q = q.filter(cond)
+        count_q = count_q.filter(cond)
 
     total = (await db.execute(count_q)).scalar_one()
     q = q.order_by(Color.code).offset((page - 1) * size).limit(size)

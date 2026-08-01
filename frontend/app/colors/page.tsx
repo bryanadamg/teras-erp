@@ -55,6 +55,7 @@ export default function ColorsPage() {
     const [customerFilter, setCustomerFilter] = useState('');
     const [variantFilter, setVariantFilter] = useState('');
     const [itemSearch, setItemSearch] = useState('');
+    const [sourceFilter, setSourceFilter] = useState('');
     const [loading, setLoading] = useState(false);
 
     // Deep-link from LabDip approved-color button: /colors?search=<code> focuses the catalog on that code.
@@ -72,6 +73,7 @@ export default function ColorsPage() {
             if (customerFilter) params.set('customer_id', customerFilter);
             if (variantFilter) params.set('variant_attribute_value_id', variantFilter);
             if (itemSearch) params.set('item_search', itemSearch);
+            if (sourceFilter) params.set('source', sourceFilter);
             const res = await authFetch(`${API_BASE}/colors?${params.toString()}`);
             if (res.ok) {
                 const data = await res.json();
@@ -80,7 +82,7 @@ export default function ColorsPage() {
             }
         } catch { /* silent */ }
         finally { setLoading(false); }
-    }, [authFetch, API_BASE, page, search, statusFilter, customerFilter, variantFilter, itemSearch]);
+    }, [authFetch, API_BASE, page, search, statusFilter, customerFilter, variantFilter, itemSearch, sourceFilter]);
 
     useEffect(() => { fetchColors(); }, [fetchColors]);
 
@@ -89,6 +91,7 @@ export default function ColorsPage() {
     const handleCustomerFilterChange = (v: string) => { setPage(1); setCustomerFilter(v); };
     const handleVariantFilterChange = (v: string) => { setPage(1); setVariantFilter(v); };
     const handleItemSearchChange = (s: string) => { setPage(1); setItemSearch(s); };
+    const handleSourceFilterChange = (v: string) => { setPage(1); setSourceFilter(v); };
 
     const handleCreate = async (payload: any) => {
         const res = await authFetch(`${API_BASE}/colors`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -174,6 +177,7 @@ export default function ColorsPage() {
                         customerFilter={customerFilter}
                         variantFilter={variantFilter}
                         itemSearch={itemSearch}
+                        sourceFilter={sourceFilter}
                         customers={customers}
                         loading={loading}
                         onSearchChange={handleSearchChange}
@@ -181,6 +185,7 @@ export default function ColorsPage() {
                         onCustomerFilterChange={handleCustomerFilterChange}
                         onVariantFilterChange={handleVariantFilterChange}
                         onItemSearchChange={handleItemSearchChange}
+                        onSourceFilterChange={handleSourceFilterChange}
                         onPageChange={setPage}
                         onCreate={handleCreate}
                         onEdit={handleEdit}

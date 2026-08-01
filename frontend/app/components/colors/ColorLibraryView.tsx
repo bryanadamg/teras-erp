@@ -14,6 +14,15 @@ import {
 
 const STATUS_FILTERS = ['ALL', 'active', 'archived'];
 
+// Origin of a shade, derived server-side from lab dip provenance (no column on Color).
+// MANUAL = entered straight into the library, with no lab dip behind it.
+const SOURCE_FILTER_OPTIONS = [
+    { value: '', label: 'All Sources' },
+    { value: 'FG', label: 'From Lab Dip (FG)' },
+    { value: 'YARN', label: 'From Lab Dip (Yarn)' },
+    { value: 'MANUAL', label: 'Manual Entry' },
+];
+
 interface Props {
     colors: any[];
     total: number;
@@ -24,6 +33,7 @@ interface Props {
     customerFilter?: string;
     variantFilter?: string;
     itemSearch?: string;
+    sourceFilter?: string;   // '' | 'FG' | 'YARN' | 'MANUAL' — which lab dip book a shade came from
     customers: any[];
     loading?: boolean;
     onSearchChange: (s: string) => void;
@@ -31,6 +41,7 @@ interface Props {
     onCustomerFilterChange?: (v: string) => void;
     onVariantFilterChange?: (v: string) => void;
     onItemSearchChange?: (s: string) => void;
+    onSourceFilterChange?: (v: string) => void;
     onPageChange: (p: number) => void;
     onCreate: (payload: any) => void;
     onEdit: (id: string, payload: any) => void;
@@ -48,8 +59,8 @@ const emptyForm = () => ({
 });
 
 export default function ColorLibraryView({
-    colors, total, page, size, search, statusFilter, customerFilter, variantFilter, itemSearch, customers, loading,
-    onSearchChange, onStatusChange, onCustomerFilterChange, onVariantFilterChange, onItemSearchChange,
+    colors, total, page, size, search, statusFilter, customerFilter, variantFilter, itemSearch, sourceFilter, customers, loading,
+    onSearchChange, onStatusChange, onCustomerFilterChange, onVariantFilterChange, onItemSearchChange, onSourceFilterChange,
     onPageChange, onCreate, onEdit, onDelete, prefill, embedded,
     colorVariantValues,
 }: Props) {
@@ -227,6 +238,11 @@ export default function ColorLibraryView({
                     value={itemSearchInput}
                     onChange={e => setItemSearchInput(e.target.value)}
                 />
+                {/* Which lab dip book a shade came from. FG and yarn dips both mint into this
+                    one library ('00005-A-2' next to 'Y00005-A-2'), so the two need separating. */}
+                <div style={{ width: 170 }}>
+                    <SearchableSelect options={SOURCE_FILTER_OPTIONS} value={sourceFilter || ''} onChange={v => onSourceFilterChange?.(v)} placeholder="All Sources" />
+                </div>
                 <span style={classic ? { marginLeft: 'auto', fontSize: 11, color: '#333' } : { marginLeft: 'auto', fontSize: 12, color: '#64748b' }}>
                     {total.toLocaleString()} color{total !== 1 ? 's' : ''}
                 </span>
