@@ -318,10 +318,6 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       setNewLine({ item_id: '', qty: 0, due_date: nextDates.due_date, attribute_value_ids: [], ket_stock: '', internal_confirmation_date: nextDates.internal_confirmation_date, qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_id: '', bom_size_id: '', color_id: '', color_label: '', color_hex: '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '' });
       setQtyMeter('');
       setQtyGrossYd('');
-      setQtyRoll('');
-      setQtyPic('');
-      setRollFactor(null);
-      setPicFactor(null);
       setKgAuto(true);
   };
 
@@ -428,14 +424,6 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       const itemBoms = (boms || []).filter((b: any) => b.item_id === val);
       const autoBomId = itemBoms.length === 1 ? itemBoms[0].id : '';
       setNewLine({ ...newLine, item_id: val, attribute_value_ids: [], bom_id: autoBomId, bom_size_id: '', color_id: '', color_label: '', color_hex: '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '', qty_kg: kg !== null ? kg : newLine.qty_kg });
-      const selectedItem = resolveItem(val);
-      const factorIds = (selectedItem?.packaging_factor_ids || []).map(String);
-      const allFactors = uoms.flatMap((u: any) => u.factors || []);
-      const itemFactors = allFactors.filter((f: any) => factorIds.includes(String(f.id)));
-      const rollF = itemFactors.find((f: any) => f.from_uom_name === 'Roll');
-      const picF = itemFactors.find((f: any) => f.from_uom_name === 'Pic');
-      setRollFactor(rollF ? parseFloat(rollF.value) : null);
-      setPicFactor(picF ? parseFloat(picF.value) : null);
   };
 
   // Combo (system_role='combo') gates BOM selection: if a Combo value is chosen on
@@ -536,7 +524,13 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   const applyFactor = (qty2Str: string, factorVal: number | null) => {
       const qty2 = parseFloat(qty2Str as string) || 0;
       if (!factorVal || qty2 <= 0) return;
-      const yd = Math.round(qty2 * factorVal * 100) / 100;
+      const uomObj = uoms.find((u: any) => u.name === newLine.uom2);
+      const factorObj = (uomObj?.factors || []).find((f: any) => parseFloat(f.value) === factorVal);
+      const toUnit = (factorObj?.to_uom_name || '').toLowerCase();
+      const rawQty = qty2 * factorVal;
+      const yd = toUnit === 'm' || toUnit === 'meter'
+          ? Math.round(rawQty / 0.9144 * 100) / 100
+          : Math.round(rawQty * 100) / 100;
       const m = Math.round(yd * 0.9144 * 100) / 100;
       const gross = Math.round(yd / 144 * 10000) / 10000;
       setQtyMeter(m > 0 ? String(m) : '');
@@ -562,10 +556,6 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       setNewLine({ item_id: '', qty: 0, due_date: '', attribute_value_ids: [], ket_stock: '', internal_confirmation_date: '', qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_id: '', bom_size_id: '', color_id: '', color_label: '', color_hex: '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '' });
       setQtyMeter('');
       setQtyGrossYd('');
-      setQtyRoll('');
-      setQtyPic('');
-      setRollFactor(null);
-      setPicFactor(null);
       setKgAuto(true);
   };
 
@@ -1020,7 +1010,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                <input type="number" className="form-control" style={classic ? xpInput({width:'100%'}) : undefined} placeholder="0" value={qtyMeter} onChange={e => handleQtyMeterChange(e.target.value)} />
                                            </div>
                                            <div>
-                                               <FieldLabel classic={classic}>Gross Yd <span style={{ fontWeight: 'normal', fontSize: '10px', color: '#888' }}>(144 yd)</span></FieldLabel>
+                                               <FieldLabel classic={classic}><span style={{ whiteSpace: 'nowrap' }}>Gross Yd <span style={{ fontWeight: 'normal', fontSize: '10px', color: '#888' }}>(144 yd)</span></span></FieldLabel>
                                                <input type="number" className="form-control" style={classic ? xpInput({width:'100%'}) : undefined} placeholder="0" value={qtyGrossYd} onChange={e => handleQtyGrossYdChange(e.target.value)} />
                                            </div>
                                        </div>
@@ -1093,14 +1083,18 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                        <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap' as const, gap: 3 }}>
                                                            {factors.map((f: any) => {
                                                                const fVal = parseFloat(f.value);
-                                                               const totalYd = qty2Val > 0 ? Math.round(qty2Val * fVal * 100) / 100 : null;
+                                                               const toUnit = (f.to_uom_name || 'yard').toLowerCase();
+                                                               const unitLabel = (toUnit === 'm' || toUnit === 'meter') ? 'm' : 'Yd';
+                                                               const totalYd = qty2Val > 0
+                                                                   ? Math.round((toUnit === 'm' || toUnit === 'meter' ? qty2Val * fVal / 0.9144 : qty2Val * fVal) * 100) / 100
+                                                                   : null;
                                                                const active = newLine.uom2_factor === fVal;
                                                                return (
                                                                    <button key={f.id} type="button"
                                                                        style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'10px', padding:'1px 6px', cursor:'pointer', borderRadius:0, border: active ? '1px solid #1a3a8a' : '1px solid #7f9db9', background: active ? 'linear-gradient(to bottom,#4a9ae8,#1a5ec8)' : 'linear-gradient(to bottom,#fff,#e8e4d8)', color: active ? '#fff' : '#000' }}
                                                                        onClick={() => handleUom2FactorChange(String(fVal))}
                                                                    >
-                                                                       ×{fVal} Yd{totalYd !== null ? ` = ${totalYd}` : ''}{f.label ? ` (${f.label})` : ''}
+                                                                       ×{fVal} {unitLabel}{totalYd !== null ? ` = ${totalYd} Yd` : ''}{f.label ? ` (${f.label})` : ''}
                                                                    </button>
                                                                );
                                                            })}
@@ -1115,7 +1109,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                                onChange={e => handleUom2FactorChange(e.target.value)}
                                                            >
                                                                <option value="">— select factor —</option>
-                                                               {factors.map((f: any) => <option key={f.id} value={f.value}>{parseFloat(f.value)} Yd{f.label ? ` (${f.label})` : ''}</option>)}
+                                                               {factors.map((f: any) => <option key={f.id} value={f.value}>{parseFloat(f.value)} {(f.to_uom_name || 'Yard')}{f.label ? ` (${f.label})` : ''}</option>)}
                                                            </select>
                                                        </div>
                                                    )}
@@ -1133,7 +1127,11 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                        <div className="d-flex flex-wrap gap-1 mt-2">
                                                            {factors.map((f: any) => {
                                                                const fVal = parseFloat(f.value);
-                                                               const totalYd = qty2Val > 0 ? Math.round(qty2Val * fVal * 100) / 100 : null;
+                                                               const toUnit = (f.to_uom_name || 'yard').toLowerCase();
+                                                               const unitLabel = (toUnit === 'm' || toUnit === 'meter') ? 'm' : 'Yd';
+                                                               const totalYd = qty2Val > 0
+                                                                   ? Math.round((toUnit === 'm' || toUnit === 'meter' ? qty2Val * fVal / 0.9144 : qty2Val * fVal) * 100) / 100
+                                                                   : null;
                                                                const active = newLine.uom2_factor === fVal;
                                                                return (
                                                                    <button key={f.id} type="button"
@@ -1141,7 +1139,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                                        style={{ fontSize: 11 }}
                                                                        onClick={() => handleUom2FactorChange(String(fVal))}
                                                                    >
-                                                                       ×{fVal} Yd{totalYd !== null ? ` = ${totalYd}` : ''}{f.label ? ` (${f.label})` : ''}
+                                                                       ×{fVal} {unitLabel}{totalYd !== null ? ` = ${totalYd} Yd` : ''}{f.label ? ` (${f.label})` : ''}
                                                                    </button>
                                                                );
                                                            })}
@@ -1155,7 +1153,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                                onChange={e => handleUom2FactorChange(e.target.value)}
                                                            >
                                                                <option value="">— select factor —</option>
-                                                               {factors.map((f: any) => <option key={f.id} value={f.value}>{parseFloat(f.value)} Yd{f.label ? ` (${f.label})` : ''}</option>)}
+                                                               {factors.map((f: any) => <option key={f.id} value={f.value}>{parseFloat(f.value)} {(f.to_uom_name || 'Yard')}{f.label ? ` (${f.label})` : ''}</option>)}
                                                            </select>
                                                        </div>
                                                    )}
