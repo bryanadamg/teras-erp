@@ -1057,9 +1057,9 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                        </div>
                                    </div>
 
-                                   {/* Qty 3 compound input */}
+                                   {/* Alt Unit compound input */}
                                    <div>
-                                       <FieldLabel classic={classic}>Qty 3</FieldLabel>
+                                       <FieldLabel classic={classic}>Alt Unit</FieldLabel>
                                        {(() => {
                                            const selectedUom = uoms.find((u: any) => u.name === newLine.uom2);
                                            const factors = selectedUom?.factors || [];
@@ -1540,7 +1540,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                <th style={classic ? { ...xpThCell, width: '180px' } : undefined}>Item</th>
                                <th style={classic ? { ...xpThCell, width: '80px' } : undefined}>Size</th>
                                <th style={classic ? { ...xpThCell, width: '140px' } : undefined}>Qty</th>
-                               <th style={classic ? { ...xpThCell, width: '80px' } : undefined}>Qty 3</th>
+                               <th style={classic ? { ...xpThCell, width: '80px' } : undefined}>Alt Unit</th>
                                <th style={classic ? { ...xpThCell, width: '110px' } : undefined}>Stock Notes</th>
                                <th style={classic ? { ...xpThCell, width: '88px' } : undefined}>Req / Conf</th>
                                <th style={classic ? { ...xpThCell, width: '80px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggleSOSort('status')} title="Sort">Status<SortMark sort={soSort} colKey="status" /></th>
@@ -1722,7 +1722,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                </div>
                                            </td>
 
-                                           {/* Qty 3 */}
+                                           {/* Alt Unit */}
                                            <td style={lineTd(isFirst, isLast)}>
                                                {line.qty2 != null && line.qty2 !== '' && line.uom2 ? (
                                                    <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'10px', color: classic?'#444':'' }}>{line.qty2} {line.uom2}</div>
