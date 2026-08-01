@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { xpFont, xpBtn, StatusChip } from '../shared/xpTheme';
+import { useData } from '../../context/DataContext';
+import { useToast } from '../shared/Toast';
+import { xpFont, xpBtn, StatusChip, XPActionButton, SunkenPanel, SunkenPanelBody } from '../shared/xpTheme';
 
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']; // 0=Mon..6=Sun
 const GREEN = '#2d7a2d';
@@ -36,14 +38,26 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     const { t } = useLanguage();
     const { uiStyle } = useTheme();
     const { hasPermission } = useUser();
+    const { locations } = useData();
+    const { showToast } = useToast();
     const canManage = hasPermission('work_order.manage');
     const cls = uiStyle === 'classic';
+
+    // Stock lives only in leaf locations — same filter/label the PR modal uses.
+    const leafLocations = useMemo(
+        () => (locations || []).filter((l: any) => !l.has_children && l.location_type !== 'warehouse'),
+        [locations],
+    );
+    const locLabel = (l: any) => l.full_path || (l.parent_name ? `${l.parent_name} / ${l.name}` : l.name);
 
     const [tab, setTab] = useState<'performance' | 'calendar' | 'beams'>('performance');
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [loom, setLoom] = useState<any>(null);
     const [dismounting, setDismounting] = useState<string | null>(null);
+    // Row expanded into its unmount confirm strip, plus the picked return location.
+    const [unmountingId, setUnmountingId] = useState<string | null>(null);
+    const [returnLoc, setReturnLoc] = useState('');
 
     const [showStart, setShowStart] = useState(false);
     const [moId, setMoId] = useState('');
@@ -92,14 +106,23 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     }, [wcId, apiBase, authFetch]);
 
     // Take a beam off this loom. The remnant keeps its own lot and remaining kg —
-    // nothing to re-lot, unlike the old merge-to-pool model.
-    const dismount = async (mountId: string) => {
+    // nothing to re-lot, unlike the old merge-to-pool model. The remnant does have
+    // to be booked back to wherever it physically goes, though: leaving it at the
+    // loom's input location means stock claims a beam is up that is really on a rack.
+    const dismount = async (mountId: string, toLocationId: string) => {
         setDismounting(mountId);
         try {
-            await authFetch(`${apiBase}/beam-mounts/${mountId}/dismount`, {
+            const res = await authFetch(`${apiBase}/beam-mounts/${mountId}/dismount`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ to_location_id: null }),
+                body: JSON.stringify({ to_location_id: toLocationId || null }),
             });
+            if (!res.ok) {
+                const d = await res.json().catch(() => null);
+                showToast(d?.detail || t('unmount_failed'), 'danger');
+                return;
+            }
+            showToast(t('unmount_done'), 'success');
+            setUnmountingId(null);
             await load();
         } finally {
             setDismounting(null);
@@ -110,6 +133,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
         if (isOpen && wcId) {
             setTab('performance');
             setShowStart(false);
+            setUnmountingId(null);
             setEditingOverride(false);
             setCalRef(new Date());
             setMoCands([]);
@@ -686,7 +710,8 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                     </thead>
                                     <tbody>
                                         {mounts.map(m => (
-                                            <tr key={m.id} style={cls ? { borderBottom: '1px solid #cfccc4' } : undefined}>
+                                            <React.Fragment key={m.id}>
+                                            <tr style={cls ? { borderBottom: '1px solid #cfccc4' } : undefined}>
                                                 <td style={{ padding: cellPad, fontWeight: 'bold', color: BLUE }}>{m.beam_number || '—'}</td>
                                                 <td style={{ padding: cellPad }}>{m.ends ?? '—'}</td>
                                                 <td style={{ padding: cellPad, textAlign: 'right' }}>{fmt(m.remaining, 1)} kg</td>
@@ -695,19 +720,73 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                                     {m.mounted_by ? ` · ${m.mounted_by}` : ''}
                                                 </td>
                                                 <td style={{ padding: cellPad, textAlign: 'right' }}>
-                                                    {canManage && (
-                                                        <button
-                                                            onClick={() => dismount(m.id)}
-                                                            disabled={dismounting === m.id}
-                                                            className={cls ? undefined : 'btn btn-sm btn-outline-warning'}
-                                                            style={cls ? { ...xpBtn(), fontSize: 10 } : undefined}
+                                                    {canManage && unmountingId !== m.id && (
+                                                        <XPActionButton
+                                                            classic={cls}
+                                                            tone="warning"
+                                                            icon="bi-box-arrow-up"
+                                                            label={t('dismount')}
                                                             title={t('dismount_hint')}
-                                                        >
-                                                            {dismounting === m.id ? '...' : t('dismount')}
-                                                        </button>
+                                                            disabled={dismounting === m.id}
+                                                            onClick={() => {
+                                                                setUnmountingId(m.id);
+                                                                // Pre-pick the beam item's home store so the floor
+                                                                // usually just confirms instead of hunting for a bin.
+                                                                setReturnLoc(m.default_return_location_id || '');
+                                                            }}
+                                                        />
                                                     )}
                                                 </td>
                                             </tr>
+                                            {unmountingId === m.id && (
+                                                <tr>
+                                                    <td colSpan={5} style={{ padding: cls ? '4px 2px' : '4px 0' }}>
+                                                        <SunkenPanel classic={cls}>
+                                                            <SunkenPanelBody classic={cls}>
+                                                                <div style={{
+                                                                    display: 'flex', flexWrap: 'wrap', alignItems: 'center',
+                                                                    gap: 8, fontSize: cls ? 11 : 12,
+                                                                }}>
+                                                                    <span>
+                                                                        <b style={{ color: BLUE }}>{m.beam_number || '—'}</b>
+                                                                        {' · '}
+                                                                        <b>{fmt(m.remaining, 1)} kg</b> {t('unmount_remnant_to')}:
+                                                                    </span>
+                                                                    <select
+                                                                        value={returnLoc}
+                                                                        onChange={e => setReturnLoc(e.target.value)}
+                                                                        className={cls ? undefined : 'form-select form-select-sm w-auto'}
+                                                                        style={cls ? { fontFamily: xpFont, fontSize: 11 } : undefined}
+                                                                    >
+                                                                        <option value="">{t('unmount_leave_at_loom')}</option>
+                                                                        {leafLocations.map((l: any) => (
+                                                                            <option key={l.id} value={l.id}>{locLabel(l)}</option>
+                                                                        ))}
+                                                                    </select>
+                                                                    <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
+                                                                        <XPActionButton
+                                                                            classic={cls}
+                                                                            tone="warning"
+                                                                            icon="bi-box-arrow-up"
+                                                                            label={dismounting === m.id ? '...' : t('unmount_confirm')}
+                                                                            disabled={dismounting === m.id}
+                                                                            onClick={() => dismount(m.id, returnLoc)}
+                                                                        />
+                                                                        <XPActionButton
+                                                                            classic={cls}
+                                                                            tone="neutral"
+                                                                            label={t('cancel')}
+                                                                            disabled={dismounting === m.id}
+                                                                            onClick={() => setUnmountingId(null)}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            </SunkenPanelBody>
+                                                        </SunkenPanel>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                            </React.Fragment>
                                         ))}
                                     </tbody>
                                 </table>

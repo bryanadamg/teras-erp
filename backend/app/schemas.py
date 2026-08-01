@@ -801,6 +801,10 @@ class BeamMountResponse(BaseModel):
     item_code: str | None = None
     item_name: str | None = None
     location_id: UUID | None = None
+    # Where the remnant should go when this beam comes off: the beam item's home
+    # store. Pre-selects the unmount dialog so the operator normally just confirms
+    # instead of hunting for a bin on the floor.
+    default_return_location_id: UUID | None = None
     ends: int | None = None
     qty_mounted: float = 0.0
     remaining: float = 0.0       # live batch balance at the loom

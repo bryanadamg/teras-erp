@@ -1157,6 +1157,7 @@ def _mount_out(mount: BeamMount, remaining: float) -> BeamMountResponse:
         item_code=it.code if it else None,
         item_name=it.name if it else None,
         location_id=mount.location_id,
+        default_return_location_id=(it.default_source_location_id if it else None),
         ends=(b.ends if b and b.ends else (it.ends if it else None)),
         qty_mounted=float(mount.qty_mounted or 0),
         remaining=remaining,
