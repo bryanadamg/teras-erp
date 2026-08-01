@@ -758,6 +758,7 @@ async def list_work_orders_flat(
                 qty_rejected=float(c.qty_rejected or 0),
                 reject_reason=c.reject_reason,
                 output_batch_number=c.output_batch_number,
+                output_batch_notes=c.output_batch_notes,
             ))
 
         result.append(WorkOrderFlatResponse(
@@ -1175,6 +1176,11 @@ async def add_mo_completion(
     )
     output_batch = None
     if needs_output_lot:
+        # Snapshot the operator's own note BEFORE the machine-generated suffixes below
+        # get appended to payload.notes. This is what travels onto the physical lot
+        # (bag label, Lot table, stock on-hand) — the "[Greige GRG-…]" / "not booked"
+        # bracket text is bookkeeping for the completion entry, not lot identity.
+        operator_notes = (payload.notes or "").strip() or None
         # Prefix communicates what the lot physically is at a glance (greige vs.
         # dyed vs. generic) — lineage itself is tracked via source_wo_id regardless.
         if is_beam_output:
@@ -1206,6 +1212,9 @@ async def add_mo_completion(
             item_id=mo.item_id,
             ends=beam_ends,
             source_wo_id=wo.id if wo else None,
+            # Operator's completion note rides onto the lot itself so it shows on the
+            # bag label, the Lot table and stock on-hand — not just in the MO's log.
+            notes=operator_notes,
             # Stamp the MO's size onto the produced lot (e.g. sized greige GRG- lot).
             bom_size_id=mo.bom_size_id,
             bom_size_snapshot=mo.bom_size_snapshot,

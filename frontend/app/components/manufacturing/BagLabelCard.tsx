@@ -40,6 +40,12 @@ export default function BagLabelCard({
     const colorName = colorValue?.value || null;
 
     const lebar = bom?.mesin_lebar;
+    // CATATAN — the operator's remark from the completion that produced this bag.
+    // Prefer the lot's own copy (already clean); fall back to the completion note with
+    // the machine-appended "[Greige GRG-…]" brackets stripped, so lots produced before
+    // the note was carried onto the batch still print theirs.
+    const rawNote: string = completion?.output_batch_notes || completion?.notes || '';
+    const catatan = rawNote.replace(/\s*\[[^\]]*\]\s*/g, ' ').trim() || null;
     const rak = parentMO?.planned_putaway_location_name || null;
     const operator = completion?.operator_name || null;
     const mesin = completion?.work_center_name || workOrder?.work_center_name || null;
@@ -118,6 +124,10 @@ export default function BagLabelCard({
                         <td style={gridVal}>{operator || '—'}</td>
                         <td style={gridLbl}>Simpan di Rak</td>
                         <td style={{ ...gridVal, fontWeight: 'bold' }}>{rak || '—'}</td>
+                    </tr>
+                    <tr>
+                        <td style={gridLbl}>Catatan</td>
+                        <td colSpan={3} style={{ ...gridVal, fontSize: '9px', wordBreak: 'break-word' }}>{catatan || '—'}</td>
                     </tr>
                 </tbody>
             </table>

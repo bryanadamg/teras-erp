@@ -267,6 +267,16 @@ class MOCompletion(Base):
     def output_batch_number(self) -> str | None:
         return self.output_batch.batch_number if self.output_batch else None
 
+    @property
+    def output_batch_notes(self) -> str | None:
+        """Operator note stamped on the produced lot.
+
+        `notes` on this row also carries machine-appended bookkeeping ("[Greige
+        GRG-…]"); the lot's own copy is the clean operator text, so labels and lot
+        displays read the same string the Lot table and stock on-hand show.
+        """
+        return self.output_batch.notes if self.output_batch else None
+
 
 class MOCompletionItem(Base):
     __tablename__ = "mo_completion_items"

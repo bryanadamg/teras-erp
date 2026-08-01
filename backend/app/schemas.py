@@ -377,6 +377,7 @@ class MOCompletionResponse(BaseModel):
     created_at: datetime
     output_batch_id: UUID | None = None
     output_batch_number: str | None = None
+    output_batch_notes: str | None = None  # clean operator note stamped on the lot (see model property)
     rejected: bool = False
     qty_rejected: float = 0.0   # scrapped out of this log entry (partial or whole)
     reject_reason: str | None = None
@@ -875,6 +876,7 @@ class WorkOrderCompletionFlat(BaseModel):
     qty_rejected: float = 0.0   # scrapped out of this log entry (partial or whole)
     reject_reason: str | None = None
     output_batch_number: str | None = None   # output lot; drives per-bag label reprint on the WO list
+    output_batch_notes: str | None = None    # clean operator note on that lot — printed on the bag label
 
 
 class WorkOrderFlatResponse(BaseModel):
@@ -1213,6 +1215,11 @@ class StockBalanceResponse(BaseModel):
     batch_number: str | None = None
     vendor_lot: str | None = None   # supplier's lot ref — only set on goods-receipt lots
     size_label: str | None = None   # lot's BOM size (from Batch.bom_size_snapshot), if any — mainly sized greige lots
+    batch_notes: str | None = None  # Batch.notes — operator's note from the WO completion that produced the lot
+    # QC flag of the lot (GOOD | REJECTED). The service has always emitted this and
+    # the UI reads it to tint/flag unusable rows; it was missing here, so the response
+    # model silently stripped it and rejected stock displayed as if it were good.
+    quality_status: str = "GOOD"
 
 class UOMCreate(BaseModel):
     name: str

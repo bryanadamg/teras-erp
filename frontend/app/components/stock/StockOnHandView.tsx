@@ -409,7 +409,8 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
             const wh = getWarehouseName(bal.location_id).toLowerCase();
             const batch = bal.batch_key ? (bal.batch_number || bal.batch_key).toLowerCase() : '';
             const vendorLot = (bal.vendor_lot || '').toLowerCase();
-            return name.includes(s) || code.includes(s) || itemCat.includes(s) || loc.includes(s) || wh.includes(s) || batch.includes(s) || vendorLot.includes(s);
+            const notes = (bal.batch_notes || '').toLowerCase();
+            return name.includes(s) || code.includes(s) || itemCat.includes(s) || loc.includes(s) || wh.includes(s) || batch.includes(s) || vendorLot.includes(s) || notes.includes(s);
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [stockBalance, search, locationFilter, warehouseFilter, catMatchSet, locMap, hideRejected]);
@@ -430,6 +431,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
         batch:    (b: any) => b.batch_key ? (b.batch_number || b.batch_key) : null,
         qty:      (b: any) => b.qty,
         packaging: (b: any) => pkgTotal(b),
+        notes:    (b: any) => b.batch_notes || null,
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }), [locations, locMap]);
     const { sorted: sortedRows, sort, toggle: toggleSort } = useSortable(filtered, sortCols);
@@ -454,9 +456,11 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
     const xpSelect: React.CSSProperties = { ...xpInput, height: '22px' };
     const xpTableHeader: React.CSSProperties = {
         background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080',
+        borderRight: '1px solid #a8a29a',
         fontSize: '10px', fontWeight: 'bold', color: '#000000', fontFamily: xpFont,
         padding: '3px 8px', position: 'sticky' as const, top: 0,
     };
+    const colDivider: React.CSSProperties = { borderRight: '1px solid #c0bdb5' };
     const xpBtn = (extra: any = {}): React.CSSProperties => ({
         fontFamily: xpFont, fontSize: '11px', padding: '2px 10px', cursor: 'pointer',
         background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)', border: '1px solid',
@@ -478,7 +482,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                 <tr key={`${bal.item_id}-${bal.location_id}-${bal.batch_key}-${i}`}
                     title={qStatus ? `Lot is QC ${qStatus} — physically in stock but excluded from netting and consumption pickers` : undefined}
                     style={{ background: qStatus ? (i % 2 === 0 ? '#fdf0f0' : '#f8e8e8') : (i % 2 === 0 ? '#ffffff' : '#f5f3ee'), borderBottom: '1px solid #c0bdb5' }}>
-                    <td style={{ padding: '4px 8px', fontFamily: xpFont, overflow: 'hidden' }}>
+                    <td style={{ padding: '4px 8px', fontFamily: xpFont, overflow: 'hidden', ...colDivider }}>
                         <div title={bal.item_name} style={{ fontSize: '11px', fontWeight: 'bold', color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bal.item_name}</div>
                         <div style={{ fontSize: '10px', color: '#666', fontVariant: 'all-small-caps', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bal.item_code}</div>
                         {(getComboLabel(bal) || bal.size_label) && (
@@ -496,7 +500,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             </div>
                         )}
                     </td>
-                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', maxWidth: 140 }}>
+                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', maxWidth: 140, ...colDivider }}>
                         {bal.item_category_name ? (
                             <span title={bal.item_category_name} style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom', background: '#e4eef0', border: '1px solid #8fb3bb', padding: '0 5px', fontSize: '10px', color: '#2a464a' }}>
                                 {bal.item_category_name}
@@ -505,7 +509,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             <span style={{ fontSize: '10px', color: '#999', fontStyle: 'italic' }}>—</span>
                         )}
                     </td>
-                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px' }}>
+                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', ...colDivider }}>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
                             {getWarehouseName(bal.location_id) && (
                                 <span style={{ background: '#eef0e4', border: '1px solid #b7bb8f', padding: '0 5px', fontSize: '10px', color: '#4a4a2a' }}>
@@ -517,7 +521,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             </span>
                         </div>
                     </td>
-                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px', whiteSpace: 'nowrap', ...colDivider }}>
                         {bal.batch_key ? (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start' }}>
                                 <span style={{ background: '#fff8dc', border: '1px solid #c8a000', padding: '0 5px', fontSize: '10px', color: '#5a3c00', whiteSpace: 'nowrap' }}>
@@ -538,7 +542,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             <span style={{ fontSize: '10px', color: '#999', fontStyle: 'italic' }}>-</span>
                         )}
                     </td>
-                    <td style={{ padding: '4px 8px' }}>
+                    <td style={{ padding: '4px 8px', ...colDivider }}>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
                             {bal.attribute_value_ids?.length > 0 ? (
                                 bal.attribute_value_ids.map((vid: string) => (
@@ -551,13 +555,13 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             )}
                         </div>
                     </td>
-                    <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: '"Courier New", Courier, monospace', fontSize: '11px', fontWeight: 'bold', color: qtyColor, whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: '"Courier New", Courier, monospace', fontSize: '11px', fontWeight: 'bold', color: qtyColor, whiteSpace: 'nowrap', ...colDivider }}>
                         {Number(bal.qty).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
                     </td>
-                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', color: '#666', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', color: '#666', whiteSpace: 'nowrap', ...colDivider }}>
                         {bal.item_uom || ''}
                     </td>
-                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', whiteSpace: 'nowrap', ...colDivider }}>
                         {pkgParts(bal).length === 0
                             ? <span style={{ color: '#999' }}>-</span>
                             : pkgParts(bal).map((p, idx) => (
@@ -566,7 +570,16 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                                 </span>
                             ))}
                     </td>
-                    <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', color: '#444', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '10px', color: '#444', overflow: 'hidden', ...colDivider }}>
+                        {bal.batch_notes ? (
+                            <span title={bal.batch_notes} style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {bal.batch_notes}
+                            </span>
+                        ) : (
+                            <span style={{ color: '#999' }}>-</span>
+                        )}
+                    </td>
+                    <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, fontSize: '11px', color: '#444', whiteSpace: 'nowrap', ...colDivider }}>
                         {bal.item_ends != null ? bal.item_ends : ''}
                     </td>
                     <td style={{ padding: '2px 6px', whiteSpace: 'nowrap' }}>
@@ -591,7 +604,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
             <tr key={`${bal.item_id}-${bal.location_id}-${bal.batch_key}-${i}`}
                 className={qStatus ? 'table-danger' : undefined}
                 title={qStatus ? `Lot is QC ${qStatus} — physically in stock but excluded from netting and consumption pickers` : undefined}>
-                <td style={{ overflow: 'hidden' }}>
+                <td style={{ overflow: 'hidden', ...colDivider }}>
                     <div title={bal.item_name} className="fw-medium text-truncate">{bal.item_name}</div>
                     <small className="text-muted font-monospace text-truncate d-block">{bal.item_code}</small>
                     {(getComboLabel(bal) || bal.size_label) && (
@@ -609,14 +622,14 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         </div>
                     )}
                 </td>
-                <td style={{ maxWidth: 140 }}>
+                <td style={{ maxWidth: 140, ...colDivider }}>
                     {bal.item_category_name ? (
                         <span title={bal.item_category_name} className="badge bg-info-subtle text-info-emphasis" style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom' }}>{bal.item_category_name}</span>
                     ) : (
                         <span className="text-muted">—</span>
                     )}
                 </td>
-                <td>
+                <td style={colDivider}>
                     <div className="d-flex flex-wrap gap-1">
                         {getWarehouseName(bal.location_id) && (
                             <span className="badge bg-secondary-subtle text-secondary-emphasis">{getWarehouseName(bal.location_id)}</span>
@@ -624,7 +637,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         <span className="badge bg-primary-subtle text-primary-emphasis">{bal.location_name || getLocationName(bal.location_id)}</span>
                     </div>
                 </td>
-                <td style={{ whiteSpace: 'nowrap' }}>
+                <td style={{ whiteSpace: 'nowrap', ...colDivider }}>
                     {bal.batch_key ? (
                         <div className="d-flex flex-column gap-1 align-items-start">
                             <span className="badge bg-warning text-dark">{batchLabel}</span>
@@ -643,7 +656,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         <span className="text-muted">-</span>
                     )}
                 </td>
-                <td>
+                <td style={colDivider}>
                     {bal.attribute_value_ids?.length > 0 ? (
                         bal.attribute_value_ids.map((vid: string) => (
                             <span key={vid} className="badge bg-info text-dark me-1">{getAttrValueName(vid)}</span>
@@ -652,9 +665,9 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         <span className="text-muted small">Standard</span>
                     )}
                 </td>
-                <td className="text-end fw-bold" style={{ color: qtyColor, whiteSpace: 'nowrap', fontFamily: '"Courier New", Courier, monospace' }}>{Number(bal.qty).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}</td>
-                <td className="text-muted small" style={{ whiteSpace: 'nowrap' }}>{bal.item_uom || ''}</td>
-                <td className="small" style={{ whiteSpace: 'nowrap' }}>
+                <td className="text-end fw-bold" style={{ color: qtyColor, whiteSpace: 'nowrap', fontFamily: '"Courier New", Courier, monospace', ...colDivider }}>{Number(bal.qty).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}</td>
+                <td className="text-muted small" style={{ whiteSpace: 'nowrap', ...colDivider }}>{bal.item_uom || ''}</td>
+                <td className="small" style={{ whiteSpace: 'nowrap', ...colDivider }}>
                     {pkgParts(bal).length === 0
                         ? <span className="text-muted">-</span>
                         : pkgParts(bal).map((p, idx) => (
@@ -663,7 +676,12 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             </span>
                         ))}
                 </td>
-                <td className="text-end small" style={{ whiteSpace: 'nowrap' }}>{bal.item_ends != null ? bal.item_ends : ''}</td>
+                <td className="small" style={{ overflow: 'hidden', ...colDivider }}>
+                    {bal.batch_notes
+                        ? <span title={bal.batch_notes} className="d-block text-truncate">{bal.batch_notes}</span>
+                        : <span className="text-muted">-</span>}
+                </td>
+                <td className="text-end small" style={{ whiteSpace: 'nowrap', ...colDivider }}>{bal.item_ends != null ? bal.item_ends : ''}</td>
                 <td>
                     <div className="d-flex gap-1">
                         {canEntry && (
@@ -982,7 +1000,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         <i className="bi bi-search" style={{ fontSize: '11px', color: '#666' }} />
                         <input
                             style={{ ...xpInput, width: 180 }}
-                            placeholder="Search item, location, lot..."
+                            placeholder="Search item, location, lot, notes..."
                             value={search}
                             onChange={e => setSearch(e.target.value)}
                         />
@@ -1030,23 +1048,24 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                             <thead>
                                 <tr>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: '16%' }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: '11%' }} onClick={() => toggleSort('itemCategory')} title="Sort">Item Category<SortMark sort={sort} colKey="itemCategory" /></th>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: '13%' }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: '15%' }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: '9%' }} onClick={() => toggleSort('itemCategory')} title="Sort">Item Category<SortMark sort={sort} colKey="itemCategory" /></th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: '12%' }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
                                     <th style={{ ...xpTableHeader, cursor: 'pointer', width: '9%' }} onClick={() => toggleSort('batch')} title="Sort">Lot<SortMark sort={sort} colKey="batch" /></th>
-                                    <th style={{ ...xpTableHeader, width: '13%' }}>{t('attributes') || 'Attributes'}</th>
+                                    <th style={{ ...xpTableHeader, width: '10%' }}>{t('attributes') || 'Attributes'}</th>
                                     <th style={{ ...xpTableHeader, textAlign: 'right', cursor: 'pointer', width: '8%' }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
-                                    <th style={{ ...xpTableHeader, width: '6%' }}>UOM</th>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: '10%' }} onClick={() => toggleSort('packaging')} title="Sort">Packaging<SortMark sort={sort} colKey="packaging" /></th>
-                                    <th style={{ ...xpTableHeader, textAlign: 'right', width: '6%' }}>Ends</th>
-                                    <th style={{ ...xpTableHeader, width: '8%' }}></th>
+                                    <th style={{ ...xpTableHeader, width: '5%' }}>UOM</th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: '9%' }} onClick={() => toggleSort('packaging')} title="Sort">Packaging<SortMark sort={sort} colKey="packaging" /></th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: '10%' }} onClick={() => toggleSort('notes')} title="Sort">Notes<SortMark sort={sort} colKey="notes" /></th>
+                                    <th style={{ ...xpTableHeader, textAlign: 'right', width: '5%' }}>Ends</th>
+                                    <th style={{ ...xpTableHeader, width: '8%', borderRight: 'none' }}></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {pageRows.map((bal: any, i: number) => renderRow(bal, i))}
                                 {filtered.length === 0 && (
                                     <tr>
-                                        <td colSpan={10} style={{ textAlign: 'center', padding: '24px' }}>
+                                        <td colSpan={11} style={{ textAlign: 'center', padding: '24px' }}>
                                             {loading ? <XPLoading label="Loading stock balances..." /> : (
                                                 <span style={{ fontFamily: xpFont, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>No stock records found</span>
                                             )}
@@ -1092,7 +1111,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                         <div className="col-md-3">
                             <input
                                 className="form-control form-control-sm"
-                                placeholder="Search item, location, category, lot..."
+                                placeholder="Search item, location, category, lot, notes..."
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
                             />
@@ -1151,15 +1170,16 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                     <table className="table table-hover table-sm mb-0" style={{ tableLayout: 'fixed' }}>
                         <thead className="table-light">
                             <tr>
-                                <th style={{ cursor: 'pointer', width: '16%' }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
-                                <th style={{ cursor: 'pointer', width: '11%' }} onClick={() => toggleSort('itemCategory')} title="Sort">Item Category<SortMark sort={sort} colKey="itemCategory" /></th>
-                                <th style={{ cursor: 'pointer', width: '13%' }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
-                                <th style={{ cursor: 'pointer', width: '9%' }} onClick={() => toggleSort('batch')} title="Sort">Lot<SortMark sort={sort} colKey="batch" /></th>
-                                <th style={{ width: '13%' }}>{t('attributes') || 'Attributes'}</th>
-                                <th className="text-end" style={{ cursor: 'pointer', width: '8%' }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
-                                <th style={{ width: '6%' }}>UOM</th>
-                                <th style={{ cursor: 'pointer', width: '10%' }} onClick={() => toggleSort('packaging')} title="Sort">Packaging<SortMark sort={sort} colKey="packaging" /></th>
-                                <th className="text-end" style={{ width: '6%' }}>Ends</th>
+                                <th style={{ cursor: 'pointer', width: '15%', ...colDivider }} onClick={() => toggleSort('item')} title="Sort">Item<SortMark sort={sort} colKey="item" /></th>
+                                <th style={{ cursor: 'pointer', width: '9%', ...colDivider }} onClick={() => toggleSort('itemCategory')} title="Sort">Item Category<SortMark sort={sort} colKey="itemCategory" /></th>
+                                <th style={{ cursor: 'pointer', width: '12%', ...colDivider }} onClick={() => toggleSort('location')} title="Sort">{t('locations') || 'Location'}<SortMark sort={sort} colKey="location" /></th>
+                                <th style={{ cursor: 'pointer', width: '9%', ...colDivider }} onClick={() => toggleSort('batch')} title="Sort">Lot<SortMark sort={sort} colKey="batch" /></th>
+                                <th style={{ width: '10%', ...colDivider }}>{t('attributes') || 'Attributes'}</th>
+                                <th className="text-end" style={{ cursor: 'pointer', width: '8%', ...colDivider }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
+                                <th style={{ width: '5%', ...colDivider }}>UOM</th>
+                                <th style={{ cursor: 'pointer', width: '9%', ...colDivider }} onClick={() => toggleSort('packaging')} title="Sort">Packaging<SortMark sort={sort} colKey="packaging" /></th>
+                                <th style={{ cursor: 'pointer', width: '10%', ...colDivider }} onClick={() => toggleSort('notes')} title="Sort">Notes<SortMark sort={sort} colKey="notes" /></th>
+                                <th className="text-end" style={{ width: '5%', ...colDivider }}>Ends</th>
                                 <th style={{ width: '8%' }}></th>
                             </tr>
                         </thead>
@@ -1167,7 +1187,7 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                             {pageRows.map((bal: any, i: number) => renderRow(bal, i))}
                             {filtered.length === 0 && (
                                 <tr>
-                                    <td colSpan={10} className="text-center text-muted py-4">
+                                    <td colSpan={11} className="text-center text-muted py-4">
                                         {loading ? <XPLoading label="Loading stock balances..." /> : 'No stock records found'}
                                     </td>
                                 </tr>
