@@ -61,15 +61,15 @@ export const lvRow = (classic: boolean, idx: number): React.CSSProperties => (cl
     : { background: idx % 2 === 0 ? '#fff' : '#f8fafc', borderBottom: '1px solid #e6eaf1' });
 
 // ── Shared tab bar ────────────────────────────────────────────────────────────
-export interface LvTab { key: string; label: string; }
+export interface LvTab { key: string; label: string; icon?: string; }
 
-export function LvTabBar({ classic, tabs, active, onChange }: {
-    classic: boolean; tabs: LvTab[]; active: string; onChange: (key: string) => void;
+export function LvTabBar({ classic, tabs, active, onChange, right }: {
+    classic: boolean; tabs: LvTab[]; active: string; onChange: (key: string) => void; right?: React.ReactNode;
 }) {
     return (
         <div style={classic
-            ? { display: 'flex', gap: 2, padding: '4px 8px 0', borderBottom: '2px solid #c0bdb5', background: '#ece9d8', flexShrink: 0 }
-            : { display: 'flex', gap: 4, padding: '4px 10px 0', borderBottom: '1px solid #dbe1ea', background: '#fff', flexShrink: 0 }}>
+            ? { display: 'flex', alignItems: 'center', gap: 2, padding: '4px 8px 0', borderBottom: '2px solid #c0bdb5', background: '#ece9d8', flexShrink: 0 }
+            : { display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px 0', borderBottom: '1px solid #dbe1ea', background: '#fff', flexShrink: 0 }}>
             {tabs.map(t => {
                 const on = active === t.key;
                 return (
@@ -89,9 +89,10 @@ export function LvTabBar({ classic, tabs, active, onChange }: {
                             border: 'none', borderBottom: on ? '2px solid #2563eb' : '2px solid transparent',
                             background: 'transparent', color: on ? '#2563eb' : '#64748b', fontWeight: on ? 700 : 500,
                         }}
-                    >{t.label}</button>
+                    >{t.icon && <i className={`bi ${t.icon}`} style={{ marginRight: 5 }} />}{t.label}</button>
                 );
             })}
+            {right && <span style={{ marginLeft: 'auto', paddingBottom: classic ? 2 : 4 }}>{right}</span>}
         </div>
     );
 }

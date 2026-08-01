@@ -9,6 +9,7 @@ import { useUser } from '../../context/UserContext';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../shared/Toast';
 import { xpFont, xpBtn, StatusChip, XPActionButton, SunkenPanel, SunkenPanelBody } from '../shared/xpTheme';
+import { LvTabBar, LvTab } from '../shared/listViewTheme';
 
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']; // 0=Mon..6=Sun
 const GREEN = '#2d7a2d';
@@ -270,47 +271,31 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     const grid = (min: number): React.CSSProperties => ({ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${min}px, 1fr))`, gap: 6 });
 
     // ── Tab bar ──────────────────────────────────────────────────────────────
-    const tabs: [string, string, string][] = [
-        ['performance', t('performance'), 'bi-graph-up-arrow'],
-        ['calendar', t('work_calendar'), 'bi-calendar3'],
+    const tabs: LvTab[] = [
+        { key: 'performance', label: t('performance'), icon: 'bi-graph-up-arrow' },
+        { key: 'calendar', label: t('work_calendar'), icon: 'bi-calendar3' },
         // Warp is machine state, so it lives on the machine — not on any WO.
         ...(((workCenter?.center_type || '').toUpperCase() === 'WEAVING'
             || (workCenter?.center_type || '').toUpperCase() === 'TENUN')
-            ? [['beams', t('beams_on_loom'), 'bi-arrow-bar-up'] as [string, string, string]]
+            ? [{ key: 'beams', label: t('beams_on_loom'), icon: 'bi-arrow-bar-up' } as LvTab]
             : []),
     ];
-    const tabBar = cls ? (
-        <div style={{ display: 'flex', alignItems: 'flex-end', borderBottom: '2px solid #808080', gap: 2, marginBottom: 12 }}>
-            {tabs.map(([k, label, icon]) => {
-                const active = tab === k;
-                return (
-                    <button key={k} onClick={() => setTab(k as any)} style={{
-                        fontFamily: xpFont, fontSize: 11, fontWeight: active ? 'bold' : 'normal',
-                        padding: '4px 14px', cursor: 'pointer', border: '1px solid',
-                        borderColor: active ? '#ffffff #808080 #ece9d8 #ffffff' : '#dfdfdf #808080 #808080 #dfdfdf',
-                        background: active ? '#ece9d8' : 'linear-gradient(to bottom,#f0f0e8,#d8d4c8)',
-                        color: active ? BLUE : '#444', position: 'relative', top: active ? 2 : 0,
-                    }}><i className={`bi ${icon}`} style={{ marginRight: 5 }} />{label}</button>
-                );
-            })}
-            <button title="Refresh" onClick={load} disabled={loading} style={{ ...xpBtn(), marginLeft: 'auto', marginBottom: 2 }}>
-                <i className="bi bi-arrow-clockwise" />
-            </button>
-        </div>
+    const refreshBtn = cls ? (
+        <button title="Refresh" onClick={load} disabled={loading} style={{ ...xpBtn() }}>
+            <i className="bi bi-arrow-clockwise" />
+        </button>
     ) : (
-        <div className="d-flex align-items-center mb-3 gap-2">
-            <div className="btn-group btn-group-sm" role="group">
-                {tabs.map(([k, label, icon]) => (
-                    <button key={k} className={`btn ${tab === k ? 'btn-info text-white' : 'btn-outline-secondary'}`} onClick={() => setTab(k as any)}>
-                        <i className={`bi ${icon} me-1`} />{label}
-                    </button>
-                ))}
-            </div>
-            <button className="btn btn-sm btn-outline-secondary ms-auto" onClick={load} disabled={loading} title="Refresh">
-                <i className="bi bi-arrow-clockwise" />
-            </button>
-        </div>
+        <button className="btn btn-sm btn-outline-secondary" onClick={load} disabled={loading} title="Refresh">
+            <i className="bi bi-arrow-clockwise" />
+        </button>
     );
+    const tabBar = (
+        <LvTabBar classic={cls} active={tab} onChange={k => setTab(k as any)} tabs={tabs} right={refreshBtn} />
+    );
+    // Fixed-height body so switching tabs (performance/calendar/beams) never
+    // resizes the modal — each pane scrolls internally instead of the panel
+    // growing/shrinking to its own content height.
+    const TAB_PANEL_HEIGHT = 560;
 
     // ── Title ────────────────────────────────────────────────────────────────
     const title = (
@@ -324,8 +309,10 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     const effColor = onTarget ? GREEN : RED;
 
     return (
-        <ModalWrapper isOpen={isOpen} onClose={onClose} title={title} size="xl" variant="info" modeless>
+        <ModalWrapper isOpen={isOpen} onClose={onClose} title={title} size="xl" variant="info" modeless bodyScroll={false}>
             {tabBar}
+
+            <div style={{ height: `min(${TAB_PANEL_HEIGHT}px, calc(100vh - 220px))`, overflowY: 'auto', paddingTop: 12 }}>
 
             {tab === 'performance' && (
                 <div>
@@ -795,6 +782,8 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                     </div>
                 );
             })()}
+
+            </div>
         </ModalWrapper>
     );
 }
