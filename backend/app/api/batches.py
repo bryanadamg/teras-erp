@@ -558,6 +558,8 @@ async def split_batch(
         quality_status="GOOD",
         source_wo_id=batch.source_wo_id,
         ends=batch.ends,
+        bom_size_id=batch.bom_size_id,
+        bom_size_snapshot=batch.bom_size_snapshot,
         notes=(f"Split from {batch.batch_number}" + (f": {reason}" if reason else "")),
         created_by=current_user.username,
     )
@@ -644,6 +646,8 @@ async def reject_batch(
             item_id=batch.item_id,
             quality_status="REJECTED",
             source_wo_id=batch.source_wo_id,
+            bom_size_id=batch.bom_size_id,
+            bom_size_snapshot=batch.bom_size_snapshot,
             notes=(f"QC reject of {batch.batch_number}" + (f": {reason}" if reason else "")),
             created_by=current_user.username,
         )
