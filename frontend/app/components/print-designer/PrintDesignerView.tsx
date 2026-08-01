@@ -1,5 +1,5 @@
 'use client';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -15,6 +15,7 @@ import type { PrintLayout, Band } from '../shared/printTemplate/types';
 import { DOC_TYPE_LABELS, EDITABLE_DOC_TYPES, defaultLayout, resolveLayout, isCustomised } from '../shared/printTemplate/templateStore';
 import { docTypeForWorkCenter } from '../shared/printTemplate/defaults/kartuKerja';
 import InspectorPanel, { type Selection } from './InspectorPanel';
+import DesignerCanvas from './DesignerCanvas';
 import { SelectField } from './controls';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
@@ -38,6 +39,21 @@ const BAND_TYPE_LABEL: Record<string, string> = {
 
 const clone = (l: PrintLayout): PrintLayout => JSON.parse(JSON.stringify(l));
 
+/** Selection <-> the "bandId:itemIndex:stackIndex" id strings TemplateRenderer's
+ *  click-to-select emits (DesignerCanvas's drag handles pass Selection objects
+ *  directly and never go through this). */
+function parseSelectId(id: string): Selection {
+    const [bandId, itemIndex, stackIndex] = id.split(':');
+    if (stackIndex != null) return { bandId, itemIndex: Number(itemIndex), stackIndex: Number(stackIndex) };
+    if (itemIndex != null) return { bandId, itemIndex: Number(itemIndex) };
+    return { bandId };
+}
+function selectionToId(sel: Selection): string | null {
+    if (sel.itemIndex == null) return sel.bandId;
+    if (sel.stackIndex == null) return `${sel.bandId}:${sel.itemIndex}`;
+    return `${sel.bandId}:${sel.itemIndex}:${sel.stackIndex}`;
+}
+
 /**
  * Print layout designer.
  *
@@ -59,6 +75,7 @@ export default function PrintDesignerView() {
     const [dirty, setDirty] = useState(false);
     const [saving, setSaving] = useState(false);
     const [selection, setSelection] = useState<Selection>({ bandId: null });
+    const paperRef = useRef<HTMLDivElement>(null);
 
     // Sample work orders, grouped by the doc type they would print with, so the
     // preview always shows real content for the layout being edited.
@@ -125,10 +142,67 @@ export default function PrintDesignerView() {
         tzFormatCustom: formatCustom,
     }), [active, companyProfile, attributes, formatCustom]);
 
+    // Undo/redo history. Each entry is a full layout snapshot taken right BEFORE
+    // a change is applied — so undo replaces the current draft with the top of
+    // this stack, and redo needs the draft we just moved away from, which is why
+    // undo also pushes onto `future` on its way out. Kept in refs (not state) so
+    // pushing doesn't itself trigger a render; only `setDraft` does that.
+    const past = useRef<PrintLayout[]>([]);
+    const future = useRef<PrintLayout[]>([]);
+    const draftRef = useRef<PrintLayout | null>(draft);
+    draftRef.current = draft;
+
     const update = useCallback((next: PrintLayout) => {
+        if (draftRef.current) past.current.push(draftRef.current);
+        future.current = [];
         setDraft(next);
         setDirty(true);
     }, []);
+
+    /** Clone the current draft, apply `fn`, commit as one undo step. Used by the
+     *  drag canvas — a whole drag gesture (move/resize/reorder) is one undo entry. */
+    const mutate = useCallback((fn: (d: PrintLayout) => void) => {
+        if (!draftRef.current) return;
+        const next = clone(draftRef.current);
+        fn(next);
+        update(next);
+    }, [update]);
+
+    const undo = useCallback(() => {
+        const prev = past.current.pop();
+        if (!prev || !draftRef.current) return;
+        future.current.push(draftRef.current);
+        setDraft(prev);
+        setDirty(true);
+    }, []);
+
+    const redo = useCallback(() => {
+        const next = future.current.pop();
+        if (!next || !draftRef.current) return;
+        past.current.push(draftRef.current);
+        setDraft(next);
+        setDirty(true);
+    }, []);
+
+    // Reset history whenever the edited document changes (switching documents
+    // already discards the draft via the effect above; the stacks must not
+    // survive across documents or undo would apply another doc's edit here).
+    useEffect(() => {
+        past.current = [];
+        future.current = [];
+    }, [docType]);
+
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            const mod = e.ctrlKey || e.metaKey;
+            if (!mod) return;
+            const key = e.key.toLowerCase();
+            if (key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+            else if ((key === 'z' && e.shiftKey) || key === 'y') { e.preventDefault(); redo(); }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [undo, redo]);
 
     const switchDocType = async (next: string) => {
         if (dirty) {
@@ -271,6 +345,8 @@ export default function PrintDesignerView() {
                 subtitle="Choose which fields appear on each printed document, and how they are sized and placed."
                 right={
                     <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        {btn('Undo', undo, { icon: 'bi-arrow-90deg-left', disabled: past.current.length === 0 })}
+                        {btn('Redo', redo, { icon: 'bi-arrow-90deg-right', disabled: future.current.length === 0 })}
                         {dirty && btn('Revert', revertDraft, { icon: 'bi-arrow-counterclockwise' })}
                         {btn('Reset to default', reset, { tone: 'red', icon: 'bi-trash', disabled: !customised })}
                         {btn(saving ? 'Saving...' : 'Save layout', save, { tone: 'green', icon: 'bi-check-lg', disabled: !dirty || saving })}
@@ -435,6 +511,10 @@ export default function PrintDesignerView() {
                     }}>
                         Unticking a section hides it from the printout but keeps its design, so you
                         can bring it back later.
+                        <br /><br />
+                        On the paper: drag the <i className="bi bi-arrows-move" /> handle above a field
+                        to move it, its right-edge handle to resize, or the <i className="bi bi-grip-vertical" /> grip
+                        on a row/column/section to reorder. Ctrl+Z undoes.
                     </div>
                 </div>
 
@@ -468,25 +548,32 @@ export default function PrintDesignerView() {
                                     boxSizing: 'border-box', display: 'flex', flexDirection: 'column',
                                 }}
                             >
-                                <div style={{
-                                    flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column',
-                                    outline: '1px dashed rgba(0,0,0,0.15)', outlineOffset: 0,
-                                }}>
+                                <div
+                                    ref={paperRef}
+                                    style={{
+                                        flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column',
+                                        outline: '1px dashed rgba(0,0,0,0.15)', outlineOffset: 0,
+                                        position: 'relative',
+                                    }}
+                                >
                                     <TemplateRenderer
                                         layout={draft}
                                         ctx={ctx}
                                         docType={docType}
-                                        selectedId={
-                                            selection.itemIndex != null
-                                                ? `${selection.bandId}:${selection.itemIndex}`
-                                                : selection.bandId
-                                        }
-                                        onSelect={id => {
-                                            const [bandId, idx] = id.split(':');
-                                            setSelection(idx != null
-                                                ? { bandId, itemIndex: Number(idx) }
-                                                : { bandId });
-                                        }}
+                                        selectedId={selectionToId(selection)}
+                                        onSelect={id => setSelection(parseSelectId(id))}
+                                    />
+                                    {/* Drag/resize/reorder overlay — measures the TemplateRenderer
+                                        output above via its data-tpl-* attributes and sits on top of
+                                        it. See DesignerCanvas.tsx for why nothing here touches layout
+                                        state until pointer-up (one drag = one undo step). */}
+                                    <DesignerCanvas
+                                        layout={draft}
+                                        docType={docType}
+                                        paperRef={paperRef}
+                                        selection={selection}
+                                        onSelect={setSelection}
+                                        onMutate={mutate}
                                     />
                                 </div>
                             </div>

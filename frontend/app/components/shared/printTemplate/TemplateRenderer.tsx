@@ -145,7 +145,7 @@ function GridBandView({ band, ctx, docType, selectedId, onSelect }: {
     selectedId?: string | null; onSelect?: (id: string) => void;
 }) {
     return (
-        <div style={{
+        <div data-tpl-grid={band.id} style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(12, 1fr)',
             gap: band.gap ?? 6,
@@ -166,6 +166,7 @@ function GridBandView({ band, ctx, docType, selectedId, onSelect }: {
                 return (
                     <div
                         key={itemId}
+                        data-tpl-cell={itemId}
                         onClick={onSelect ? (e) => { e.stopPropagation(); onSelect(itemId); } : undefined}
                         style={{
                             gridColumn: `${item.col} / span ${item.span}`,
@@ -186,8 +187,14 @@ function GridBandView({ band, ctx, docType, selectedId, onSelect }: {
                             ? stack.map((f, fi) => {
                                 const fDef = fieldDef(docType, f.field);
                                 const fLabel = f.label ?? fDef?.label ?? '';
+                                const sfId = `${itemId}:${fi}`;
                                 return (
-                                    <div key={fi} style={{ minWidth: 0 }}>
+                                    <div
+                                        key={fi}
+                                        data-tpl-stackfield={sfId}
+                                        onClick={onSelect ? (e) => { e.stopPropagation(); onSelect(sfId); } : undefined}
+                                        style={{ minWidth: 0, ...(selectedId === sfId ? { outline: '2px solid #0058e6', outlineOffset: 1 } : {}) }}
+                                    >
                                         {f.showLabel && fLabel && <div style={MINI_LABEL}>{fLabel}</div>}
                                         <FieldValue item={f} ctx={ctx} docType={docType} />
                                     </div>
@@ -255,6 +262,8 @@ function KeyValueBandView({ band, ctx, docType, selectedId, onSelect }: {
         return (
             <React.Fragment key={cellId}>
                 <td
+                    data-tpl-kvrow={cellId}
+                    data-tpl-kvlabel="1"
                     style={{
                         ...lblStyle,
                         width: full || halfCount === 1 ? band.labelWidth ?? '24%' : undefined,
@@ -266,7 +275,9 @@ function KeyValueBandView({ band, ctx, docType, selectedId, onSelect }: {
                     {row.label ?? def?.label ?? ''}
                 </td>
                 <td
+                    data-tpl-kvrow={cellId}
                     colSpan={full ? 3 : 1}
+                    onClick={onSelect ? (e) => { e.stopPropagation(); onSelect(cellId); } : undefined}
                     style={{
                         ...valStyle,
                         fontSize: row.fontSize ?? valStyle.fontSize,
@@ -293,8 +304,9 @@ function KeyValueBandView({ band, ctx, docType, selectedId, onSelect }: {
     );
 }
 
-function TableBandView({ band, ctx, rows }: {
+function TableBandView({ band, ctx, rows, onSelect }: {
     band: TableBand; ctx: PrintContext; rows: Record<string, any>[];
+    onSelect?: (id: string) => void;
 }) {
     const source = rowSource(band.source);
     if (!source) return null;
@@ -305,8 +317,13 @@ function TableBandView({ band, ctx, rows }: {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize }}>
             <thead>
                 <tr style={{ background: '#f0f0f0' }}>
-                    {band.columns.map(col => (
-                        <th key={col.field} style={{ ...TH, textAlign: col.align ?? 'left', width: col.width }}>
+                    {band.columns.map((col, ci) => (
+                        <th
+                            key={col.field}
+                            data-tpl-tablecol={`${band.id}:${ci}`}
+                            onClick={onSelect ? (e) => { e.stopPropagation(); onSelect(`${band.id}:${ci}`); } : undefined}
+                            style={{ ...TH, textAlign: col.align ?? 'left', width: col.width }}
+                        >
                             {col.label}
                         </th>
                     ))}
@@ -378,7 +395,7 @@ function TallyBandView({ band }: { band: TallyBand }) {
             <thead>
                 <tr style={{ background: '#f0f0f0' }}>
                     {cols.map((c, i) => (
-                        <th key={i} style={{ ...TH, width: c.width }}>{c.label}</th>
+                        <th key={i} data-tpl-tallycol={`${band.id}:${i}`} style={{ ...TH, width: c.width }}>{c.label}</th>
                     ))}
                 </tr>
             </thead>
@@ -439,7 +456,7 @@ function SignatureBandView({ band, ctx, docType }: { band: SignatureBand; ctx: P
             </div>
             <div style={{ display: 'flex', gap: 24 }}>
                 {band.boxes.map((box, i) => (
-                    <div key={i} style={{ textAlign: 'center' }}>
+                    <div key={i} data-tpl-sigbox={`${band.id}:${i}`} style={{ textAlign: 'center' }}>
                         <div style={{
                             borderBottom: '1px solid #000',
                             height: box.height ?? 26,
@@ -491,7 +508,7 @@ function BandView(props: {
             content = <KeyValueBandView band={band} ctx={ctx} docType={docType} selectedId={selectedId} onSelect={onSelect} />;
             break;
         case 'table':
-            content = <TableBandView band={band} ctx={ctx} rows={rows || []} />;
+            content = <TableBandView band={band} ctx={ctx} rows={rows || []} onSelect={onSelect} />;
             break;
         case 'tally':
             content = <TallyBandView band={band} />;
@@ -510,8 +527,10 @@ function BandView(props: {
 
     return (
         <div
+            data-tpl-band={band.id}
             style={{
                 marginBottom: band.marginBottom ?? 6,
+                position: 'relative',
                 ...(selected ? { outline: '2px dashed #0058e6', outlineOffset: 2 } : {}),
             }}
             onClick={onSelect ? (e) => { e.stopPropagation(); onSelect(band.id); } : undefined}
