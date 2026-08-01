@@ -11,6 +11,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.engine import make_url
+from fastapi.concurrency import run_in_threadpool
 from app.schemas import DatabaseResponse, ConnectionProfile
 
 logger = logging.getLogger(__name__)
@@ -149,6 +150,80 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Restore failed: {e}")
             return DatabaseResponse(message=f"Restore failed: {str(e)}", status=False)
+
+    async def wipe_and_reset(self) -> DatabaseResponse:
+        """Irreversibly drops every table/row in the current database, then rebuilds
+        it from scratch (Alembic migrations + init_db seeding). Used to blow away
+        stale local data before importing a snapshot from another environment."""
+        if not self._current_url:
+            return DatabaseResponse(message="No active database connection", status=False)
+
+        try:
+            if self._engine:
+                self._engine.dispose()
+            if self._async_engine:
+                await self._async_engine.dispose()
+
+            if "postgresql" in self._current_url:
+                url = make_url(self._current_url)
+                env = os.environ.copy()
+                if url.password:
+                    env["PGPASSWORD"] = url.password
+
+                drop_cmd = [
+                    "psql",
+                    "-h", url.host or "localhost",
+                    "-p", str(url.port or 5432),
+                    "-U", url.username or "postgres",
+                    "-d", url.database,
+                    "-v", "ON_ERROR_STOP=1",
+                    "-c", "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+                ]
+                proc = await asyncio.create_subprocess_exec(
+                    *drop_cmd, env=env,
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await proc.communicate()
+                if proc.returncode != 0:
+                    raise Exception(f"schema drop failed: {stderr.decode()}")
+
+                mig_env = env.copy()
+                mig_env["DATABASE_URL"] = self._current_url
+                mig_proc = await asyncio.create_subprocess_exec(
+                    "alembic", "upgrade", "head", env=mig_env,
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await mig_proc.communicate()
+                if mig_proc.returncode != 0:
+                    raise Exception(f"migration replay failed: {stderr.decode()}")
+
+            elif "sqlite" in self._current_url:
+                db_path = self._current_url.replace("sqlite:///", "")
+                if os.path.exists(db_path):
+                    os.remove(db_path)
+
+                mig_proc = await asyncio.create_subprocess_exec(
+                    "alembic", "upgrade", "head",
+                    env={**os.environ, "DATABASE_URL": self._current_url},
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await mig_proc.communicate()
+                if mig_proc.returncode != 0:
+                    raise Exception(f"migration replay failed: {stderr.decode()}")
+            else:
+                return DatabaseResponse(message="Unsupported database provider for wipe", status=False)
+
+            init_res = self.initialize(self._current_url)
+            if not init_res.status:
+                return init_res
+
+            from app.db.init_db import init_db
+            await run_in_threadpool(init_db)
+
+            return DatabaseResponse(message="Database wiped and reset to a blank, freshly-seeded state", status=True)
+        except Exception as e:
+            logger.error(f"Wipe failed: {e}")
+            return DatabaseResponse(message=f"Wipe failed: {str(e)}", status=False)
 
     def initialize(self, database_url: str) -> DatabaseResponse:
         """

@@ -8,6 +8,22 @@ import { useData } from '../../context/DataContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { xpBtn, xpInput } from '../shared/xpTheme';
 import { xpBevel, xpTitleBar, xpSectionHead, xpTableHeader, xpThCell, tdBase } from './settingsStyles';
+import ModalWrapper from '../shared/ModalWrapper';
+
+const xpDangerBtn: React.CSSProperties = {
+    fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, padding: '3px 20px',
+    cursor: 'pointer', borderRadius: 0, border: '1px solid',
+    background: 'linear-gradient(to bottom, #e08080, #c03030)',
+    borderColor: '#e04040 #801010 #801010 #e04040',
+    color: '#fff', fontWeight: 'bold',
+};
+
+const xpCancelBtn: React.CSSProperties = {
+    fontFamily: 'Tahoma, Arial, sans-serif', fontSize: 11, padding: '3px 16px',
+    cursor: 'pointer', borderRadius: 0, border: '1px solid',
+    borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
+    background: 'linear-gradient(to bottom, #fff, #d4d0c8)', color: '#000',
+};
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
 
@@ -59,6 +75,10 @@ export default function SettingsDatabaseTab() {
     const [isDbLoading, setIsDbLoading] = useState(false);
     const [snapshots, setSnapshots] = useState<any[]>([]);
     const [isSnapshotLoading, setIsSnapshotLoading] = useState(false);
+
+    const [showWipeModal, setShowWipeModal] = useState(false);
+    const [wipePassword, setWipePassword] = useState('');
+    const [isWiping, setIsWiping] = useState(false);
 
     const [beOnline, setBeOnline] = useState<boolean | null>(null);
     const [dbPing, setDbPing] = useState<PingState>(null);
@@ -226,6 +246,34 @@ export default function SettingsDatabaseTab() {
             }
         } catch (e) { showToast('Upload failed', 'danger'); }
         finally { setIsSnapshotLoading(false); }
+    };
+
+    const handleWipeDatabase = async () => {
+        if (!wipePassword) return;
+        setIsWiping(true);
+        try {
+            const res = await fetch(`${API_BASE}/admin/database/wipe`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                },
+                body: JSON.stringify({ password: wipePassword })
+            });
+            if (res.ok) {
+                showToast('Database wiped and reset to a blank state', 'success');
+                setShowWipeModal(false);
+                setWipePassword('');
+                window.location.reload();
+            } else {
+                const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
+                showToast(`Wipe failed: ${err.detail}`, 'danger');
+            }
+        } catch (e) {
+            showToast('Network error during database wipe', 'danger');
+        } finally {
+            setIsWiping(false);
+        }
     };
 
     return (
@@ -498,6 +546,99 @@ export default function SettingsDatabaseTab() {
                     </div>
                 </div>
             </div>
+
+            {/* Danger Zone */}
+            <div style={classic ? xpBevel : undefined} className={classic ? '' : 'card shadow-sm border-0 mb-4 border-start border-4 border-danger'}>
+                {classic ? (
+                    <div style={xpTitleBar('linear-gradient(to right, #d32f2f 0%, #8b0000 100%)', '#4a0000')}>
+                        <span><i className="bi bi-exclamation-octagon-fill" style={{ marginRight: 6 }}></i>Danger Zone</span>
+                    </div>
+                ) : (
+                    <div className="card-header bg-danger bg-opacity-10 text-danger-emphasis">
+                        <h5 className="card-title mb-0"><i className="bi bi-exclamation-octagon-fill me-2"></i>Danger Zone</h5>
+                    </div>
+                )}
+                <div style={classic ? { padding: '12px 14px', background: '#ece9d8' } : undefined} className={classic ? '' : 'card-body'}>
+                    <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div>
+                            <div style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 12, fontWeight: 'bold', color: '#333' } : undefined} className={classic ? '' : 'fw-bold'}>
+                                Wipe &amp; Reset Database
+                            </div>
+                            <div style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 10, color: '#8b0000', marginTop: 2 } : undefined} className={classic ? '' : 'form-text extra-small text-danger'}>
+                                <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 4 }}></i>
+                                Permanently deletes every row in the current database, then rebuilds it blank (migrations + seed data). Use this before importing a snapshot from another environment. Cannot be undone.
+                            </div>
+                        </div>
+                        {classic ? (
+                            <button
+                                style={xpBtn({ background: 'linear-gradient(to bottom, #d32f2f, #8b0000)', borderColor: '#7f0000 #4a0000 #4a0000 #7f0000', color: '#ffffff' })}
+                                onClick={() => setShowWipeModal(true)}
+                            >
+                                <i className="bi bi-trash3-fill" style={{ marginRight: 4 }}></i>Wipe Database
+                            </button>
+                        ) : (
+                            <button className="btn btn-danger btn-sm" onClick={() => setShowWipeModal(true)}>
+                                <i className="bi bi-trash3-fill me-1"></i>Wipe Database
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            <ModalWrapper
+                isOpen={showWipeModal}
+                onClose={() => { if (!isWiping) { setShowWipeModal(false); setWipePassword(''); } }}
+                title={<><i className="bi bi-exclamation-octagon-fill me-1"></i>Confirm Database Wipe</>}
+                variant="danger"
+                size="sm"
+                modeless
+                footer={
+                    <>
+                        {classic ? (
+                            <button type="button" style={xpCancelBtn} onClick={() => { setShowWipeModal(false); setWipePassword(''); }} disabled={isWiping}>Cancel</button>
+                        ) : (
+                            <button type="button" className="btn btn-sm btn-link text-muted text-decoration-none" onClick={() => { setShowWipeModal(false); setWipePassword(''); }} disabled={isWiping}>Cancel</button>
+                        )}
+                        {classic ? (
+                            <button type="button" style={xpDangerBtn} onClick={handleWipeDatabase} disabled={!wipePassword || isWiping}>
+                                {isWiping ? <span className="spinner-border spinner-border-sm"></span> : 'WIPE DATABASE'}
+                            </button>
+                        ) : (
+                            <button type="button" className="btn btn-sm btn-danger px-4 fw-bold shadow-sm" onClick={handleWipeDatabase} disabled={!wipePassword || isWiping}>
+                                {isWiping ? <span className="spinner-border spinner-border-sm me-1"></span> : null}
+                                WIPE DATABASE
+                            </button>
+                        )}
+                    </>
+                }
+            >
+                <p className={classic ? '' : 'small'} style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, color: '#333' } : undefined}>
+                    This will <strong>permanently delete every row</strong> in the current database and rebuild it blank. Enter your password to confirm.
+                </p>
+                <label
+                    style={classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: 11, display: 'block', marginBottom: 2, fontWeight: 'bold' } : undefined}
+                    className={classic ? '' : 'form-label small fw-bold'}
+                >Password</label>
+                {classic ? (
+                    <input
+                        type="password"
+                        style={xpInput({ width: '100%', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)' })}
+                        value={wipePassword}
+                        onChange={e => setWipePassword(e.target.value)}
+                        disabled={isWiping}
+                        autoFocus
+                    />
+                ) : (
+                    <input
+                        type="password"
+                        className="form-control"
+                        value={wipePassword}
+                        onChange={e => setWipePassword(e.target.value)}
+                        disabled={isWiping}
+                        autoFocus
+                    />
+                )}
+            </ModalWrapper>
         </>
     );
 }

@@ -4,7 +4,8 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import text
 from app.core.db_manager import db_manager
 from app.core.ws_manager import manager as ws_manager
-from app.schemas import DatabaseResponse, ConnectionProfile
+from app.core.security import verify_password
+from app.schemas import DatabaseResponse, ConnectionProfile, WipeDatabaseRequest
 from app.api.auth import get_current_admin
 from app.models.auth import User
 from app.models.audit import AuditLog
@@ -117,4 +118,14 @@ async def restore_db(filename: str, current_user: User = Depends(get_current_adm
     result = await db_manager.restore_snapshot(filename)
     if result.status:
         _log_admin_action(current_user.id, "DB_RESTORE", f"Restored snapshot {filename}")
+    return result
+
+@router.post("/wipe", response_model=DatabaseResponse)
+async def wipe_database(payload: WipeDatabaseRequest, current_user: User = Depends(get_current_admin)):
+    if not verify_password(payload.password, current_user.hashed_password):
+        raise HTTPException(status_code=401, detail="Incorrect password")
+
+    result = await db_manager.wipe_and_reset()
+    if result.status:
+        _log_admin_action(current_user.id, "DB_WIPE", f"Database wiped and reset to blank state by {current_user.username}")
     return result

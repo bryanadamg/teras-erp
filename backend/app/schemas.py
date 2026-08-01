@@ -1957,6 +1957,9 @@ class ConnectionProfile(BaseModel):
     url: str
     is_active: bool = False
 
+class WipeDatabaseRequest(BaseModel):
+    password: str
+
 class AuditLogResponse(BaseModel):
     id: UUID
     user_id: UUID | None
