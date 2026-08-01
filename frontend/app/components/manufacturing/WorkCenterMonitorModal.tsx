@@ -8,7 +8,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../shared/Toast';
-import { xpFont, xpBtn, StatusChip, XPActionButton, SunkenPanel, SunkenPanelBody } from '../shared/xpTheme';
+import { xpFont, StatusChip, XPActionButton, SunkenPanel, SunkenPanelBody, FormSection } from '../shared/xpTheme';
 import { LvTabBar, LvTab } from '../shared/listViewTheme';
 
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']; // 0=Mon..6=Sun
@@ -236,20 +236,13 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     const proj = data?.mo_projection;
 
     // ── Themed primitives ────────────────────────────────────────────────────
-    const GroupHead = ({ icon, children, right }: any) => cls ? (
-        <div style={{
-            display: 'flex', alignItems: 'center', gap: 5, fontFamily: xpFont, fontSize: 11, fontWeight: 'bold',
-            color: BLUE, borderBottom: '1px solid #b0a898', paddingBottom: 3, marginBottom: 7,
-        }}>
-            <i className={`bi ${icon}`} style={{ fontSize: 11 }} />{children}
-            {right && <span style={{ marginLeft: 'auto', fontWeight: 'normal' }}>{right}</span>}
-        </div>
-    ) : (
-        <div className="d-flex align-items-center gap-2 mb-2 pb-1 border-bottom">
-            <i className={`bi ${icon} text-info`} />
-            <span className="text-uppercase fw-bold text-secondary" style={{ fontSize: 11, letterSpacing: 0.6 }}>{children}</span>
-            {right && <span className="ms-auto small">{right}</span>}
-        </div>
+    // Section title with an icon, optionally with trailing right-aligned content —
+    // pass as FormSection's `title` so every group box shares the one standard chrome.
+    const SecTitle = ({ icon, children, right }: { icon: string; children: React.ReactNode; right?: React.ReactNode }) => (
+        <span style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 6 }}>
+            <i className={`bi ${icon}`} />{children}
+            {right && <span style={{ marginLeft: 'auto', fontWeight: 'normal', textTransform: 'none', letterSpacing: 0 }}>{right}</span>}
+        </span>
     );
 
     const Stat = ({ label, value, unit, accent }: any) => cls ? (
@@ -280,14 +273,8 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
             ? [{ key: 'beams', label: t('beams_on_loom'), icon: 'bi-arrow-bar-up' } as LvTab]
             : []),
     ];
-    const refreshBtn = cls ? (
-        <button title="Refresh" onClick={load} disabled={loading} style={{ ...xpBtn() }}>
-            <i className="bi bi-arrow-clockwise" />
-        </button>
-    ) : (
-        <button className="btn btn-sm btn-outline-secondary" onClick={load} disabled={loading} title="Refresh">
-            <i className="bi bi-arrow-clockwise" />
-        </button>
+    const refreshBtn = (
+        <XPActionButton classic={cls} tone="neutral" icon="bi-arrow-clockwise" title="Refresh" disabled={loading} onClick={load} />
     );
     const tabBar = (
         <LvTabBar classic={cls} active={tab} onChange={k => setTab(k as any)} tabs={tabs} right={refreshBtn} />
@@ -324,16 +311,13 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                 {t('no_active_run')}
                             </div>
                             {canManage && (
-                                <button className="btn btn-success btn-sm" onClick={() => setShowStart(true)}>
-                                    <i className="bi bi-play-fill me-1" />{t('start_run')}
-                                </button>
+                                <XPActionButton classic={cls} tone="success" icon="bi-play-fill" label={t('start_run')} onClick={() => setShowStart(true)} />
                             )}
                         </div>
                     )}
 
                     {showStart && (
-                        <div className={cls ? '' : 'p-3 mb-3 bg-light border rounded'} style={cls ? { border: '1px solid', borderColor: '#808080 #fff #fff #808080', background: '#fbfbf7', padding: 10, marginBottom: 12 } : undefined}>
-                            <GroupHead icon="bi-play-circle">{t('start_run')}</GroupHead>
+                        <FormSection title={<SecTitle icon="bi-play-circle">{t('start_run')}</SecTitle>} classic={cls}>
                             <div className="row g-2 align-items-end">
                                 <div className="col-md-5">
                                     <label className="form-label small mb-0">{t('manufacturing_order')}</label>
@@ -376,13 +360,11 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                     <input type="date" className="form-control form-control-sm" value={startDate} onChange={e => setStartDate(e.target.value)} />
                                 </div>
                                 <div className="col-md-8 d-flex gap-2 align-items-end">
-                                    <button className="btn btn-sm btn-success" onClick={startRun} disabled={!moId}>
-                                        <i className="bi bi-play-fill me-1" />{t('start')}
-                                    </button>
-                                    <button className="btn btn-sm btn-secondary" onClick={() => setShowStart(false)}>{t('cancel')}</button>
+                                    <XPActionButton classic={cls} tone="success" icon="bi-play-fill" label={t('start')} onClick={startRun} disabled={!moId} />
+                                    <XPActionButton classic={cls} tone="neutral" label={t('cancel')} onClick={() => setShowStart(false)} />
                                 </div>
                             </div>
-                        </div>
+                        </FormSection>
                     )}
 
                     {run && (
@@ -400,12 +382,9 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                     {t('target')}: <strong>{fmt(run.target_qty, 2)} kg</strong> · {t('start_date')} {fmtDate(run.start_date)}
                                 </span>
                                 {canManage && (
-                                    <button
-                                        className={cls ? '' : 'btn btn-sm btn-outline-danger ms-auto'}
-                                        style={cls ? xpBtn({ marginLeft: 'auto', color: RED, fontWeight: 'bold' }) : undefined}
-                                        onClick={() => stopRun(run.id)}>
-                                        <i className="bi bi-stop-fill me-1" />{t('stop_run')}
-                                    </button>
+                                    <span style={{ marginLeft: 'auto' }}>
+                                        <XPActionButton classic={cls} tone="danger" icon="bi-stop-fill" label={t('stop_run')} onClick={() => stopRun(run.id)} />
+                                    </span>
                                 )}
                             </div>
 
@@ -431,16 +410,14 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                         {editingTarget ? (
                                             <div className="d-flex gap-1 align-items-center">
                                                 <input type="number" className="form-control form-control-sm" style={{ maxWidth: 70, height: 22, fontSize: 10 }} value={targetVal} onChange={e => setTargetVal(e.target.value)} />
-                                                <button className="btn btn-sm text-success p-0" onClick={() => saveTarget(run.id)}><i className="bi bi-check" /></button>
-                                                <button className="btn btn-sm text-secondary p-0" onClick={() => setEditingTarget(false)}><i className="bi bi-x" /></button>
+                                                <XPActionButton classic={cls} tone="success" icon="bi-check" onClick={() => saveTarget(run.id)} />
+                                                <XPActionButton classic={cls} tone="neutral" icon="bi-x" onClick={() => setEditingTarget(false)} />
                                             </div>
                                         ) : (
                                             <>
                                                 <span>{t('target')} {fmt(run.target_efficiency_pct, 0)}% · <span style={{ color: effColor, fontWeight: 'bold' }}>{onTarget ? t('on_target') : t('below_target')}</span></span>
                                                 {canManage && (
-                                                    <button className="btn btn-sm text-secondary p-0" title="Edit target" onClick={() => { setTargetVal(String(run.target_efficiency_pct ?? '')); setEditingTarget(true); }}>
-                                                        <i className="bi bi-pencil-square" style={{ fontSize: 10 }} />
-                                                    </button>
+                                                    <XPActionButton classic={cls} tone="neutral" icon="bi-pencil-square" title="Edit target" onClick={() => { setTargetVal(String(run.target_efficiency_pct ?? '')); setEditingTarget(true); }} />
                                                 )}
                                             </>
                                         )}
@@ -456,15 +433,13 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                     {editingOverride ? (
                                         <div className="d-flex gap-1 mt-1">
                                             <input type="number" className="form-control form-control-sm" style={{ maxWidth: 100 }} value={overrideVal} placeholder={String(run.actual_kg)} onChange={e => setOverrideVal(e.target.value)} />
-                                            <button className="btn btn-sm btn-success" onClick={() => saveOverride(run.id)}><i className="bi bi-check" /></button>
-                                            <button className="btn btn-sm btn-secondary" onClick={() => setEditingOverride(false)}><i className="bi bi-x" /></button>
+                                            <XPActionButton classic={cls} tone="success" icon="bi-check" onClick={() => saveOverride(run.id)} />
+                                            <XPActionButton classic={cls} tone="neutral" icon="bi-x" onClick={() => setEditingOverride(false)} />
                                         </div>
                                     ) : (
-                                        <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 22, fontWeight: 700 }}>
-                                            {fmt(run.actual_kg, 2)}<span style={{ fontSize: 11, color: '#888' }}> kg</span>
-                                            <button className="btn btn-sm text-secondary p-0 ms-2" title="Override" onClick={() => { setOverrideVal(run.actual_qty_override ?? ''); setEditingOverride(true); }}>
-                                                <i className="bi bi-pencil-square" />
-                                            </button>
+                                        <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <span>{fmt(run.actual_kg, 2)}<span style={{ fontSize: 11, color: '#888' }}> kg</span></span>
+                                            <XPActionButton classic={cls} tone="neutral" icon="bi-pencil-square" title="Override" onClick={() => { setOverrideVal(run.actual_qty_override ?? ''); setEditingOverride(true); }} />
                                         </div>
                                     )}
                                 </div>
@@ -479,23 +454,25 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                             </div>
 
                             {/* Targets */}
-                            <GroupHead icon="bi-sliders">{t('targets') || 'Targets'}</GroupHead>
-                            <div style={{ ...grid(118), marginBottom: 12 }}>
-                                <Stat label={t('lines')} value={run.lines} />
-                                <Stat label={t('rate_per_line')} value={fmt(run.rate_per_line_g_min, 2)} unit="g/min" />
-                                <Stat label={t('target_100_day')} value={fmt(run.target_100_per_day_kg, 2)} unit="kg" />
-                                <Stat label={`${t('target')} ${fmt(run.target_efficiency_pct, 0)}%/day`} value={fmt(run.target_eff_per_day_kg, 2)} unit="kg" accent={BLUE} />
-                                <Stat label={t('elapsed_days')} value={run.elapsed_working_days} />
-                                <Stat label={t('theoretical_100')} value={fmt(run.theoretical_100_kg, 2)} unit="kg" />
-                            </div>
+                            <FormSection title={<SecTitle icon="bi-sliders">{t('targets') || 'Targets'}</SecTitle>} classic={cls}>
+                                <div style={grid(118)}>
+                                    <Stat label={t('lines')} value={run.lines} />
+                                    <Stat label={t('rate_per_line')} value={fmt(run.rate_per_line_g_min, 2)} unit="g/min" />
+                                    <Stat label={t('target_100_day')} value={fmt(run.target_100_per_day_kg, 2)} unit="kg" />
+                                    <Stat label={`${t('target')} ${fmt(run.target_efficiency_pct, 0)}%/day`} value={fmt(run.target_eff_per_day_kg, 2)} unit="kg" accent={BLUE} />
+                                    <Stat label={t('elapsed_days')} value={run.elapsed_working_days} />
+                                    <Stat label={t('theoretical_100')} value={fmt(run.theoretical_100_kg, 2)} unit="kg" />
+                                </div>
+                            </FormSection>
 
                             {/* MO projection */}
                             {proj && (
-                                <>
-                                    <GroupHead icon="bi-flag-fill" right={proj.machines && proj.machines.length > 1 ? `${t('machines_on_mo')}: ${proj.machines.map((m: any) => m.work_center_code).join(', ')}` : undefined}>
+                                <FormSection title={
+                                    <SecTitle icon="bi-flag-fill" right={proj.machines && proj.machines.length > 1 ? `${t('machines_on_mo')}: ${proj.machines.map((m: any) => m.work_center_code).join(', ')}` : undefined}>
                                         {t('mo_completion')} — {proj.mo_code}
-                                    </GroupHead>
-                                    <div style={{ ...grid(135), marginBottom: 12 }}>
+                                    </SecTitle>
+                                } classic={cls}>
+                                    <div style={grid(135)}>
                                         <Stat label={t('target_qty')} value={fmt(proj.target_qty, 2)} unit="kg" />
                                         <Stat label={t('total_actual')} value={fmt(proj.total_actual_kg, 2)} unit="kg" />
                                         <Stat label={t('combined_target_rate')} value={fmt(proj.total_target_daily_kg, 2)} unit="kg" />
@@ -503,15 +480,14 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                         <Stat label={t('target_completion')} value={fmtDate(proj.target_completion_date)} accent={GREEN} />
                                         <Stat label={t('projected_completion')} value={fmtDate(proj.reality_completion_date)} accent="#b5530a" />
                                     </div>
-                                </>
+                                </FormSection>
                             )}
                         </div>
                     )}
 
                     {/* History */}
                     {data?.history?.length > 0 && (
-                        <>
-                            <GroupHead icon="bi-clock-history">{t('run_history')}</GroupHead>
+                        <FormSection title={<SecTitle icon="bi-clock-history">{t('run_history')}</SecTitle>} classic={cls}>
                             <div className="table-responsive">
                                 <table className="table table-sm table-hover align-middle small mb-0">
                                     <thead className={cls ? '' : 'table-light'}>
@@ -540,53 +516,52 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                     </tbody>
                                 </table>
                             </div>
-                        </>
+                        </FormSection>
                     )}
                 </div>
             )}
 
             {tab === 'calendar' && (
                 <div>
-                    <GroupHead icon="bi-calendar-week">{t('working_days')}</GroupHead>
-                    <div className="d-flex flex-wrap gap-2 align-items-center mb-2">
-                        {WEEKDAY_LABELS.map((lbl, idx) => {
-                            const on = weekdays.includes(idx);
-                            return cls ? (
-                                <button key={idx} disabled={!canManage} onClick={() => toggleWeekday(idx)} style={{
-                                    fontFamily: xpFont, fontSize: 11, fontWeight: on ? 'bold' : 'normal', minWidth: 48, cursor: canManage ? 'pointer' : 'default',
-                                    padding: '3px 8px', border: '1px solid',
-                                    borderColor: on ? '#003080 #6ea8ff #6ea8ff #003080' : '#dfdfdf #808080 #808080 #dfdfdf',
-                                    background: on ? 'linear-gradient(to bottom,#3a8dff,#0058e6)' : 'linear-gradient(to bottom,#ffffff,#d4d0c8)',
-                                    color: on ? '#fff' : '#444',
-                                }}>{lbl}</button>
-                            ) : (
-                                <button key={idx} disabled={!canManage} className={`btn btn-sm ${on ? 'btn-primary' : 'btn-outline-secondary'}`} style={{ minWidth: 52 }} onClick={() => toggleWeekday(idx)}>{lbl}</button>
-                            );
-                        })}
-                        {canManage && (
-                            <button className="btn btn-sm btn-success ms-2" onClick={saveCalendar}>
-                                <i className="bi bi-check-lg me-1" />{t('save')}
-                            </button>
-                        )}
-                    </div>
-                    <p className={cls ? '' : 'text-muted small'} style={cls ? { fontFamily: xpFont, fontSize: 10, color: '#777' } : undefined}>{t('working_days_hint')}</p>
+                    <FormSection title={<SecTitle icon="bi-calendar-week">{t('working_days')}</SecTitle>} classic={cls}>
+                        <div className="d-flex flex-wrap gap-2 align-items-center mb-2">
+                            {WEEKDAY_LABELS.map((lbl, idx) => {
+                                const on = weekdays.includes(idx);
+                                return cls ? (
+                                    <button key={idx} disabled={!canManage} onClick={() => toggleWeekday(idx)} style={{
+                                        fontFamily: xpFont, fontSize: 11, fontWeight: on ? 'bold' : 'normal', minWidth: 48, cursor: canManage ? 'pointer' : 'default',
+                                        padding: '3px 8px', border: '1px solid',
+                                        borderColor: on ? '#003080 #6ea8ff #6ea8ff #003080' : '#dfdfdf #808080 #808080 #dfdfdf',
+                                        background: on ? 'linear-gradient(to bottom,#3a8dff,#0058e6)' : 'linear-gradient(to bottom,#ffffff,#d4d0c8)',
+                                        color: on ? '#fff' : '#444',
+                                    }}>{lbl}</button>
+                                ) : (
+                                    <button key={idx} disabled={!canManage} className={`btn btn-sm ${on ? 'btn-primary' : 'btn-outline-secondary'}`} style={{ minWidth: 52 }} onClick={() => toggleWeekday(idx)}>{lbl}</button>
+                                );
+                            })}
+                            {canManage && (
+                                <span className="ms-2">
+                                    <XPActionButton classic={cls} tone="success" icon="bi-check-lg" label={t('save')} onClick={saveCalendar} />
+                                </span>
+                            )}
+                        </div>
+                        <p className={cls ? '' : 'text-muted small mb-0'} style={cls ? { fontFamily: xpFont, fontSize: 10, color: '#777', margin: 0 } : undefined}>{t('working_days_hint')}</p>
+                    </FormSection>
 
-                    <div className="mt-3" />
-                    <GroupHead icon="bi-calendar3" right={
-                        canManage ? (cls
-                            ? <button onClick={importNational} style={{ ...xpBtn() }}><i className="bi bi-download me-1" />{t('import_id_holidays')} {calRef.getFullYear()}</button>
-                            : <button className="btn btn-sm btn-outline-primary py-0" onClick={importNational}><i className="bi bi-download me-1" />{t('import_id_holidays')} {calRef.getFullYear()}</button>
-                        ) : null
-                    }>{t('holidays')}</GroupHead>
+                    <FormSection title={
+                        <SecTitle icon="bi-calendar3" right={canManage ? (
+                            <XPActionButton classic={cls} tone="neutral" icon="bi-download" label={`${t('import_id_holidays')} ${calRef.getFullYear()}`} onClick={importNational} />
+                        ) : undefined}>{t('holidays')}</SecTitle>
+                    } classic={cls}>
 
                     {/* Month nav */}
                     <div className="d-flex align-items-center gap-2 mb-2">
-                        <button className={cls ? '' : 'btn btn-sm btn-outline-secondary'} style={cls ? xpBtn({ padding: '2px 10px' }) : undefined} onClick={() => setCalRef(new Date(calRef.getFullYear(), calRef.getMonth() - 1, 1))}><i className="bi bi-chevron-left" /></button>
+                        <XPActionButton classic={cls} tone="neutral" icon="bi-chevron-left" onClick={() => setCalRef(new Date(calRef.getFullYear(), calRef.getMonth() - 1, 1))} />
                         <span style={{ minWidth: 150, textAlign: 'center', fontWeight: 'bold', fontFamily: cls ? xpFont : undefined }}>
                             {calRef.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
                         </span>
-                        <button className={cls ? '' : 'btn btn-sm btn-outline-secondary'} style={cls ? xpBtn({ padding: '2px 10px' }) : undefined} onClick={() => setCalRef(new Date(calRef.getFullYear(), calRef.getMonth() + 1, 1))}><i className="bi bi-chevron-right" /></button>
-                        <button className={cls ? '' : 'btn btn-sm btn-outline-secondary'} style={cls ? xpBtn({ padding: '2px 10px' }) : undefined} onClick={() => setCalRef(new Date())}>{t('today')}</button>
+                        <XPActionButton classic={cls} tone="neutral" icon="bi-chevron-right" onClick={() => setCalRef(new Date(calRef.getFullYear(), calRef.getMonth() + 1, 1))} />
+                        <XPActionButton classic={cls} tone="neutral" label={t('today')} onClick={() => setCalRef(new Date())} />
                     </div>
 
                     {/* Month grid */}
@@ -649,6 +624,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                         ))}
                     </div>
                     <p className={cls ? '' : 'text-muted small mt-1'} style={cls ? { fontFamily: xpFont, fontSize: 10, color: '#777', marginTop: 4 } : undefined}>{t('calendar_click_hint')}</p>
+                    </FormSection>
                 </div>
             )}
 
