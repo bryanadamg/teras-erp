@@ -702,8 +702,9 @@ export default function ManufacturingOrdersTab({
                             <div style={{
                                 background: classic ? '#eef2f7' : '#f8fafc',
                                 borderBottom: classic ? '1px solid #808080' : '1px solid #dee2e6',
-                                padding: '6px 10px', display: 'flex', alignItems: 'center', gap: '12px'
+                                padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: '4px'
                             }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 <span style={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', color: '#555', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
                                     Production Progress
                                 </span>
@@ -716,6 +717,8 @@ export default function ManufacturingOrdersTab({
                                     secondaryTone="gray"
                                     label="inside"
                                 />
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                                 <span style={{ fontSize: '10px', color: '#555', whiteSpace: 'nowrap' }}>Done: <strong style={{ color: '#000' }}>{done.toFixed(2)}</strong></span>
                                 {rejected > 0 && (
                                     <span
@@ -760,6 +763,7 @@ export default function ManufacturingOrdersTab({
                                         <i className="bi bi-pencil"></i>
                                     </button>
                                 )}
+                              </div>
                             </div>
                         );
                     })()}
