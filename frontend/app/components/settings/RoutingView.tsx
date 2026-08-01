@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
+import TreeSelect, { buildLocationPickerTree, TreeSelectOption } from '../shared/TreeSelect';
 import { ShellWindow, ShellTitleBar } from '../shared/shellTheme';
 import { Tabs, TabDef } from '../shared/Tabs';
 import Pager from '../shared/Pager';
@@ -120,10 +120,36 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
   const typeNodes = wcList.filter((w: any) => nodeTypeOf(w) === 'TYPE');
   const groupNodes = wcList.filter((w: any) => nodeTypeOf(w) === 'GROUP');
   const machineNodes = wcList.filter((w: any) => nodeTypeOf(w) === 'MACHINE');
-  // Valid parents per level: a GROUP hangs off a TYPE, a MACHINE off either.
-  const parentOptionsFor = (level: string, selfId?: string) => {
-      const pool = level === 'GROUP' ? typeNodes : [...typeNodes, ...groupNodes];
-      return pool.filter((w: any) => String(w.id) !== String(selfId || ''));
+  // Valid parents as a tree, so a group reads as sitting inside its type instead of as
+  // one more entry in a flat list. A GROUP can only go under a TYPE; a MACHINE under
+  // either, so types stay selectable there (= leave the machine ungrouped).
+  const parentTreeFor = (level: string, selfId?: string): TreeSelectOption[] => {
+      const notSelf = (w: any) => String(w.id) !== String(selfId || '');
+      const groupOption = (g: any): TreeSelectOption => ({
+          value: String(g.id),
+          label: `${g.code} — ${g.name}`,
+          subLabel: 'group',
+      });
+      const tree: TreeSelectOption[] = typeNodes.filter(notSelf).map((tn: any) => {
+          const kids = level === 'MACHINE'
+              ? groupNodes.filter((g: any) => String(g.parent_id) === String(tn.id) && notSelf(g))
+              : [];
+          return {
+              value: String(tn.id),
+              label: `${tn.code} — ${tn.name}`,
+              subLabel: tn.center_type || undefined,
+              children: kids.length ? kids.map(groupOption) : undefined,
+          };
+      });
+      // Groups whose type row isn't in the list — keep them reachable at top level
+      // rather than silently dropping them.
+      if (level === 'MACHINE') {
+          const knownTypes = new Set(typeNodes.map((tn: any) => String(tn.id)));
+          groupNodes
+              .filter((g: any) => notSelf(g) && !knownTypes.has(String(g.parent_id)))
+              .forEach((g: any) => tree.push(groupOption(g)));
+      }
+      return tree;
   };
 
   const getLocName = (id: string | null) => {
@@ -140,6 +166,9 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
       : null;
   const inheritedType: string | null = selectedParent?.center_type || null;
   const effectiveNewType = inheritedType || newWorkCenter.center_type;
+  const newTypeOptions = CENTER_TYPES.includes(effectiveNewType)
+      ? CENTER_TYPES
+      : [effectiveNewType, ...CENTER_TYPES];
 
   // Breadcrumb of where the new row will land: TYPE › GROUP › new row.
   const placementPreview = useMemo(() => {
@@ -285,12 +314,14 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                           {level !== 'TYPE' && (
                               <div>
                                   <label style={lvLabel(classic)}>{level === 'GROUP' ? 'Under Type' : 'Under Type / Group'}</label>
-                                  <select style={{ ...lvInput(classic), width: 160 }} value={editingWC.parent_id || ''} onChange={e => setEditingWC({ ...editingWC, parent_id: e.target.value })}>
-                                      <option value="">— none —</option>
-                                      {parentOptionsFor(level, editingWC.id).map((p: any) => (
-                                          <option key={p.id} value={p.id}>{nodeTypeOf(p) === 'GROUP' ? '↳ ' : ''}{p.code} — {p.name}</option>
-                                      ))}
-                                  </select>
+                                  <TreeSelect
+                                      options={parentTreeFor(level, editingWC.id)}
+                                      value={editingWC.parent_id || ''}
+                                      onChange={id => setEditingWC({ ...editingWC, parent_id: id })}
+                                      placeholder="— none —"
+                                      size="sm"
+                                      style={{ width: 200 }}
+                                  />
                               </div>
                           )}
                       </div>
@@ -607,14 +638,24 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                           >
                               {newWorkCenter.node_type === 'GROUP' ? 'Inside which type?' : 'Where does it sit?'} <span style={{ color: '#c00' }}>*</span>
                           </FieldLabel>
-                          <select style={lvInput(classic)} value={newWorkCenter.parent_id} onChange={e => setNewWorkCenter({ ...newWorkCenter, parent_id: e.target.value })}>
-                              <option value="">— choose —</option>
-                              {parentOptionsFor(newWorkCenter.node_type).map((p: any) => (
-                                  <option key={p.id} value={p.id}>
-                                      {nodeTypeOf(p) === 'GROUP' ? `  ↳ ${p.code} — ${p.name} (group)` : `${p.code} — ${p.name}`}
-                                  </option>
-                              ))}
-                          </select>
+                          <TreeSelect
+                              options={parentTreeFor(newWorkCenter.node_type)}
+                              value={newWorkCenter.parent_id}
+                              onChange={id => {
+                                  // Adopt the parent's center type immediately: the field below is
+                                  // read-only when inherited, so leaving state on its old value
+                                  // would submit (and preview) a type the parent contradicts.
+                                  const p = wcList.find((w: any) => String(w.id) === String(id));
+                                  setNewWorkCenter({
+                                      ...newWorkCenter,
+                                      parent_id: id,
+                                      center_type: p?.center_type || newWorkCenter.center_type,
+                                  });
+                              }}
+                              placeholder="— choose —"
+                              size="sm"
+                              style={{ width: '100%' }}
+                          />
                       </>
                   )}
 
@@ -656,18 +697,20 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                       <FieldLabel
                           classic={classic}
                           hint={inheritedType
-                              ? `Inherited from ${selectedParent?.code} — everything under a type shares its type.`
+                              ? `Follows ${selectedParent?.code} — everything under a type shares its type.`
                               : 'Drives routing, monitors and the type chip in lists.'}
                       >
                           Center Type
                       </FieldLabel>
                       <select
                           style={{ ...lvInput(classic), ...(inheritedType ? { background: classic ? '#ece9d8' : '#eef1f6', color: '#555' } : {}) }}
-                          value={newWorkCenter.center_type}
+                          value={effectiveNewType}
                           disabled={!!inheritedType}
                           onChange={e => setNewWorkCenter({ ...newWorkCenter, center_type: e.target.value })}
                       >
-                          {CENTER_TYPES.map(ct => <option key={ct} value={ct}>{ct}</option>)}
+                          {/* A parent may carry a type this list doesn't know (legacy rows,
+                              e.g. TENUN) — show it rather than rendering an empty select. */}
+                          {newTypeOptions.map(ct => <option key={ct} value={ct}>{ct}</option>)}
                       </select>
                   </div>
               </FormSection>
@@ -684,7 +727,7 @@ export default function RoutingView({ workCenters, operations, locations, onCrea
                               <TreeSelect options={locPickerTreeOptions} value={newWorkCenter.output_location_id} onChange={id => setNewWorkCenter({ ...newWorkCenter, output_location_id: id })} allowEmpty emptyLabel="— none —" size="sm" style={{ width: '100%' }} />
                           </div>
                       </div>
-                      {['WEAVING', 'TENUN'].includes((newWorkCenter.center_type || '').toUpperCase()) && (
+                      {['WEAVING', 'TENUN'].includes((effectiveNewType || '').toUpperCase()) && (
                           <div style={{ width: 140, marginTop: 8 }}>
                               <FieldLabel classic={classic} hint="Beam positions on this loom.">Beam Slots</FieldLabel>
                               <input
