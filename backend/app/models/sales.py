@@ -56,6 +56,15 @@ class SalesOrderLine(Base):
     qty2: Mapped[float | None] = mapped_column(Numeric(14, 4), nullable=True)
     uom2: Mapped[str | None] = mapped_column(String(32), nullable=True)
     uom2_factor: Mapped[float | None] = mapped_column(Numeric(14, 4), nullable=True)
+    # The recipe this line is ordered against. Load-bearing, not a display hint:
+    # one item can own several attribute-less BOMs (403 RED vs 403 NAVY — each its
+    # own greige, shade on color_id rather than an attribute), and nothing on the
+    # BOM tells them apart. Deriving the BOM from (item, attributes) collapses them
+    # onto whichever comes first, so the PR pre-fill reads this pick instead.
+    # Nullable: legacy rows fall back to the attribute derivation.
+    bom_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("boms.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     bom_size_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("bom_sizes.id", ondelete="SET NULL"), nullable=True
     )
@@ -77,6 +86,7 @@ class SalesOrderLine(Base):
     # Relationships
     item = relationship("Item")
     attribute_values = relationship("AttributeValue", secondary=sales_order_line_values)
+    bom = relationship("BOM", foreign_keys=[bom_id])
     bom_size = relationship("BOMSize", foreign_keys=[bom_size_id])
     color = relationship("Color", foreign_keys=[color_id])
     labdip_item = relationship("LabDipItem", foreign_keys=[labdip_item_id], lazy="noload")

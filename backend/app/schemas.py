@@ -1438,6 +1438,9 @@ class SalesOrderLineCreate(BaseModel):
     uom2: str | None = None
     uom2_factor: float | None = None
     attribute_value_ids: list[UUID] = []
+    # The recipe picked on the line. Several attribute-less BOMs can exist for one
+    # item (per-shade roots), so this pick is what the PR pre-fill trusts.
+    bom_id: UUID | None = None
     bom_size_id: UUID | None = None
     color_id: UUID | None = None
     labdip_variant_code: str | None = None
@@ -1446,6 +1449,7 @@ class SalesOrderLineCreate(BaseModel):
 class SalesOrderLineResponse(SalesOrderLineCreate):
     id: UUID
     attribute_value_ids: list[UUID] = []
+    bom_id: UUID | None = None
     bom_size_id: UUID | None = None
     color_id: UUID | None = None
     color_code: str | None = None

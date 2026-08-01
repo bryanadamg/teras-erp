@@ -51,7 +51,11 @@ export default function SalesOrdersPage() {
             // Pending-shade lines (color still in lab dip) key on labdip_variant_code
             // so different pending shades of the same item also split into their own
             // root MO — the code later backfills the minted color on approval.
-            const key = l.item_id + '::' + [...(l.attribute_value_ids || [])].sort().join(',') + '::' + (l.color_id || '') + '::' + (l.labdip_variant_code || '');
+            // bom_id is part of the key too: two lines can share item+attrs+color and
+            // still be ordered against different recipes (per-shade root BOMs are
+            // attribute-less and indistinguishable otherwise). Where the recipe is
+            // unambiguous the ids match anyway, so those lines still merge.
+            const key = l.item_id + '::' + [...(l.attribute_value_ids || [])].sort().join(',') + '::' + (l.color_id || '') + '::' + (l.labdip_variant_code || '') + '::' + (l.bom_id || '');
             if (!attrGroupMap.has(key)) attrGroupMap.set(key, []);
             attrGroupMap.get(key)!.push(l);
         });
@@ -80,8 +84,18 @@ export default function SalesOrdersPage() {
             const lineColorId: string | undefined = firstLine.color_id || undefined;
             const lineLabdip: string | undefined = firstLine.labdip_variant_code || undefined;
 
-            // Try exact attribute match first (existing behavior)
-            let matchingBOM = boms.find((b: any) => {
+            // The recipe the user picked on the SO line wins. Deriving it from
+            // (item, attributes) is ambiguous for color-variant items — 403 RED and
+            // 403 NAVY are both attribute-less roots over their own greige, so the
+            // derivation below matches BOTH and collapses every shade onto whichever
+            // BOM happens to come first. Retired BOMs fall through: /boms returns
+            // inactive ones too, and a months-old order must not pin a dead recipe.
+            let matchingBOM = firstLine.bom_id
+                ? boms.find((b: any) => String(b.id) === String(firstLine.bom_id) && b.active !== false)
+                : undefined;
+
+            // Try exact attribute match next (legacy lines with no stored BOM)
+            if (!matchingBOM) matchingBOM = boms.find((b: any) => {
                 if (b.item_id !== firstLine.item_id) return false;
                 const bomAttrIds: string[] = b.attribute_value_ids || [];
                 if (lineAttrIds.length !== bomAttrIds.length) return false;

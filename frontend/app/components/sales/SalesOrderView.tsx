@@ -305,8 +305,18 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
 
   const handleAddLine = () => {
       if (!newLine.item_id || newLine.qty <= 0) return;
-      const { bom_id: _bomId, ...lineToSave } = newLine;
-      setNewSO({ ...newSO, lines: [...newSO.lines, { ...lineToSave, bom_size_id: newLine.bom_size_id || null }] });
+      // With more than one candidate recipe the BOM picker is on screen and the
+      // choice is real — an unpicked line would reach the PR pre-fill with nothing
+      // to disambiguate it and silently land on an arbitrary recipe.
+      const candidateBoms = getItemBoms(newLine.item_id, newLine.attribute_value_ids);
+      if (candidateBoms.length > 1 && !newLine.bom_id) {
+          showToast('This item has more than one BOM — select which one this line is ordered against.', 'warning');
+          return;
+      }
+      // bom_id rides along to the server: one item can own several attribute-less
+      // BOMs (a root per shade), so the pick is the only thing that says which
+      // recipe was ordered. The PR pre-fill reads it back.
+      setNewSO({ ...newSO, lines: [...newSO.lines, { ...newLine, bom_id: newLine.bom_id || null, bom_size_id: newLine.bom_size_id || null }] });
       const nextDates = { due_date: newLine.due_date, internal_confirmation_date: newLine.internal_confirmation_date };
       setLastDeliveryDates(nextDates);
       setNewLine({ item_id: '', qty: 0, due_date: nextDates.due_date, attribute_value_ids: [], ket_stock: '', internal_confirmation_date: nextDates.internal_confirmation_date, qty_kg: '', qty2: '', uom2: '', uom2_factor: null, bom_id: '', bom_size_id: '', color_id: '', color_label: '', color_hex: '', labdip_variant_code: '', labdip_item_id: '', labdip_label: '' });
@@ -630,6 +640,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
               qty2: l.qty2 != null ? String(l.qty2) : '',
               uom2: l.uom2 || '',
               uom2_factor: l.uom2_factor ?? null,
+              bom_id: l.bom_id || '',
               bom_size_id: l.bom_size_id || '',
               attribute_value_ids: l.attribute_value_ids || [],
               color_id: l.color_id || '',
