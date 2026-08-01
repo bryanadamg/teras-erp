@@ -60,7 +60,6 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     const [unmountingId, setUnmountingId] = useState<string | null>(null);
     const [returnLoc, setReturnLoc] = useState('');
 
-    const [showStart, setShowStart] = useState(false);
     const [moId, setMoId] = useState('');
     // MO candidates come from the server scoped to this machine (MOs with a WO
     // dispatched here) — the global manufacturingOrders list is page-1 roots only
@@ -133,7 +132,6 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     useEffect(() => {
         if (isOpen && wcId) {
             setTab('performance');
-            setShowStart(false);
             setUnmountingId(null);
             setEditingOverride(false);
             setCalRef(new Date());
@@ -144,9 +142,10 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     }, [isOpen, wcId, load]);
 
     // MOs offered in the start-run picker: scoped to this machine's WOs, widened
-    // to every open MO only when the operator asks for it.
+    // to every open MO only when the operator asks for it. The form itself is
+    // now shown as soon as there's no active run, so fetch as soon as that's true.
     useEffect(() => {
-        if (!isOpen || !wcId || !showStart) return;
+        if (!isOpen || !wcId || !canManage || data?.active_run) return;
         let cancelled = false;
         setMoCandsLoading(true);
         authFetch(`${apiBase}/work-centers/${wcId}/candidate-mos?include_all=${moCandsAll}`)
@@ -155,7 +154,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
             .catch(() => { if (!cancelled) setMoCands([]); })
             .finally(() => { if (!cancelled) setMoCandsLoading(false); });
         return () => { cancelled = true; };
-    }, [isOpen, wcId, showStart, moCandsAll, apiBase, authFetch]);
+    }, [isOpen, wcId, canManage, data?.active_run, moCandsAll, apiBase, authFetch]);
 
     // Indonesian national holidays for the displayed year (reference/highlight)
     useEffect(() => {
@@ -179,7 +178,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                 start_date: startDate,
             }),
         });
-        if (res.ok) { setShowStart(false); setMoId(''); load(); }
+        if (res.ok) { setMoId(''); load(); }
     };
     const stopRun = async (runId: string) => {
         const res = await authFetch(`${apiBase}/weaving-runs/${runId}/stop`, { method: 'POST' });
@@ -303,20 +302,18 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
 
             {tab === 'performance' && (
                 <div>
-                    {/* No run / start */}
-                    {!run && !showStart && (
+                    {/* No run: read-only viewers get a status message; managers go straight
+                        to the start-run form — no extra click to get there. */}
+                    {!run && !canManage && (
                         <div style={{ textAlign: 'center', padding: '28px 0' }}>
                             <i className="bi bi-stoplights" style={{ fontSize: 26, color: '#a0a0a0', display: 'block', marginBottom: 6 }} />
-                            <div className={cls ? '' : 'text-muted'} style={cls ? { fontFamily: xpFont, fontSize: 12, color: '#666', marginBottom: 10 } : { marginBottom: 10 }}>
+                            <div className={cls ? '' : 'text-muted'} style={cls ? { fontFamily: xpFont, fontSize: 12, color: '#666' } : undefined}>
                                 {t('no_active_run')}
                             </div>
-                            {canManage && (
-                                <XPActionButton classic={cls} tone="success" icon="bi-play-fill" label={t('start_run')} onClick={() => setShowStart(true)} />
-                            )}
                         </div>
                     )}
 
-                    {showStart && (
+                    {!run && canManage && (
                         <FormSection title={<SecTitle icon="bi-play-circle">{t('start_run')}</SecTitle>} classic={cls}>
                             <div className="row g-2 align-items-end">
                                 <div className="col-md-5">
@@ -361,7 +358,6 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                 </div>
                                 <div className="col-md-8 d-flex gap-2 align-items-end">
                                     <XPActionButton classic={cls} tone="success" icon="bi-play-fill" label={t('start')} onClick={startRun} disabled={!moId} />
-                                    <XPActionButton classic={cls} tone="neutral" label={t('cancel')} onClick={() => setShowStart(false)} />
                                 </div>
                             </div>
                         </FormSection>
