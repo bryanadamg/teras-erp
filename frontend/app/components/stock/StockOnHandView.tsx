@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, XPLoading } from '../shared/xpTheme';
+import { useSortable, SortMark, XPLoading, XPActionButton } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
 import { useToast } from '../shared/Toast';
 import SearchableSelect from '../shared/SearchableSelect';
@@ -11,6 +11,11 @@ import Pager from '../shared/Pager';
 import TreeSelect, { buildLocationFilterTree, buildLocationPickerTree, buildCategoryTree } from '../shared/TreeSelect';
 
 const STOCK_PAGE_SIZE = 50;
+
+// Row actions are icon-only (project convention, see BatchesView) so the tooltip is
+// the only label the operator gets — keep these explicit about what each one does.
+const ADJUST_TITLE = 'Adjust quantity — cycle count or correction';
+const MOVE_TITLE = 'Move — transfer this stock to another location';
 
 interface StockOnHandViewProps {
     locations: any[];
@@ -585,14 +590,10 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                     <td style={{ padding: '2px 6px', whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'flex', gap: 4 }}>
                             {canEntry && (
-                                <button style={xpBtn({ fontSize: '10px', padding: '1px 6px', background: 'linear-gradient(to bottom,#fff0d0,#e8c068)' })} onClick={() => openAdjust(bal)} title="Adjust quantity (cycle count / correction)">
-                                    Adjust
-                                </button>
+                                <XPActionButton classic tone="warning" icon="bi-sliders" title={ADJUST_TITLE} onClick={() => openAdjust(bal)} />
                             )}
                             {canEntry && bal.qty > 0 && (
-                                <button style={xpBtn({ fontSize: '10px', padding: '1px 6px' })} onClick={() => openTransfer(bal)} title="Transfer to another location">
-                                    Move
-                                </button>
+                                <XPActionButton classic tone="primary" icon="bi-arrow-left-right" title={MOVE_TITLE} onClick={() => openTransfer(bal)} />
                             )}
                         </div>
                     </td>
@@ -685,14 +686,10 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                 <td>
                     <div className="d-flex gap-1">
                         {canEntry && (
-                            <button className="btn btn-sm btn-outline-warning py-0" onClick={() => openAdjust(bal)} title="Adjust quantity (cycle count / correction)">
-                                Adjust
-                            </button>
+                            <XPActionButton classic={false} tone="warning" icon="bi-sliders" title={ADJUST_TITLE} onClick={() => openAdjust(bal)} />
                         )}
                         {canEntry && bal.qty > 0 && (
-                            <button className="btn btn-sm btn-outline-primary py-0" onClick={() => openTransfer(bal)} title="Transfer to another location">
-                                Move
-                            </button>
+                            <XPActionButton classic={false} tone="primary" icon="bi-arrow-left-right" title={MOVE_TITLE} onClick={() => openTransfer(bal)} />
                         )}
                     </div>
                 </td>
@@ -1056,9 +1053,9 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                                     <th style={{ ...xpTableHeader, textAlign: 'right', cursor: 'pointer', width: '8%' }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
                                     <th style={{ ...xpTableHeader, width: '5%' }}>UOM</th>
                                     <th style={{ ...xpTableHeader, cursor: 'pointer', width: '9%' }} onClick={() => toggleSort('packaging')} title="Sort">Packaging<SortMark sort={sort} colKey="packaging" /></th>
-                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: '10%' }} onClick={() => toggleSort('notes')} title="Sort">Notes<SortMark sort={sort} colKey="notes" /></th>
+                                    <th style={{ ...xpTableHeader, cursor: 'pointer', width: '13%' }} onClick={() => toggleSort('notes')} title="Sort">Notes<SortMark sort={sort} colKey="notes" /></th>
                                     <th style={{ ...xpTableHeader, textAlign: 'right', width: '5%' }}>Ends</th>
-                                    <th style={{ ...xpTableHeader, width: '8%', borderRight: 'none' }}></th>
+                                    <th style={{ ...xpTableHeader, width: '5%', borderRight: 'none' }}></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1178,9 +1175,9 @@ export default function StockOnHandView({ locations, stockBalance, attributes, c
                                 <th className="text-end" style={{ cursor: 'pointer', width: '8%', ...colDivider }} onClick={() => toggleSort('qty')} title="Sort">{t('qty') || 'Qty'}<SortMark sort={sort} colKey="qty" /></th>
                                 <th style={{ width: '5%', ...colDivider }}>UOM</th>
                                 <th style={{ cursor: 'pointer', width: '9%', ...colDivider }} onClick={() => toggleSort('packaging')} title="Sort">Packaging<SortMark sort={sort} colKey="packaging" /></th>
-                                <th style={{ cursor: 'pointer', width: '10%', ...colDivider }} onClick={() => toggleSort('notes')} title="Sort">Notes<SortMark sort={sort} colKey="notes" /></th>
+                                <th style={{ cursor: 'pointer', width: '13%', ...colDivider }} onClick={() => toggleSort('notes')} title="Sort">Notes<SortMark sort={sort} colKey="notes" /></th>
                                 <th className="text-end" style={{ width: '5%', ...colDivider }}>Ends</th>
-                                <th style={{ width: '8%' }}></th>
+                                <th style={{ width: '5%' }}></th>
                             </tr>
                         </thead>
                         <tbody>
