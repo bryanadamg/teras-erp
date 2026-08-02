@@ -235,6 +235,14 @@ export default function MobileScannerView({
                 (decodedText: string) => {
                     if (scanLockRef.current) return;   // ignore extra frames after a match
                     if (!isUUID(decodedText)) {
+                        // Packing codes look nothing like a WO UUID, and a packer
+                        // pointing this screen at a carton is a routing mistake,
+                        // not a bad scan — say where the code does work.
+                        const upper = decodedText.trim().toUpperCase();
+                        if (upper.startsWith('PCK-') || upper.startsWith('PU-')) {
+                            setError('That is a packing code — use the Packing Scanner (/packing-scan).');
+                            return;
+                        }
                         setError('Not a valid Work Order QR code.');
                         return;
                     }
