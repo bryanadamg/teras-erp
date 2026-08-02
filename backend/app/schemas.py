@@ -916,6 +916,7 @@ class WorkOrderFlatResponse(BaseModel):
     item_name: str
     item_id: str
     combo_label: str | None = None   # MO's Combo (system_role='combo') attribute value, if any
+    color_label: str | None = None   # MO's Colors (system_role='color') attribute value, if any
     size_label: str | None = None    # MO's BOM size label/measurement, if any
     # Color spec of the MO's item (Color Library). `labdip_variant_code` stands in while
     # the shade is still pending lab-dip approval (color_id null) — dyeing WOs are gated on it.

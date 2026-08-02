@@ -729,6 +729,14 @@ async def list_work_orders_flat(
             )
             combo_label = combo_val.value if combo_val else None
 
+        color_label = None
+        if mo:
+            color_val = next(
+                (av for av in (mo.attribute_values or []) if av.attribute and av.attribute.system_role == "color"),
+                None,
+            )
+            color_label = color_val.value if color_val else None
+
         size_label = stock_service._bom_size_label(mo.bom_size_snapshot) if mo else None
 
         # MO.color is lazy="joined" so it rides along with the MO joinedload above.
@@ -797,6 +805,7 @@ async def list_work_orders_flat(
             item_name=mo.item.name if mo and mo.item else "",
             item_id=str(mo.item_id) if mo else "",
             combo_label=combo_label,
+            color_label=color_label,
             size_label=size_label,
             color_id=str(mo.color_id) if mo and mo.color_id else None,
             color_code=color.code if color else None,

@@ -99,6 +99,7 @@ interface FlatWO {
     mo_code: string;
     item_name: string;
     combo_label?: string | null;
+    color_label?: string | null;
     size_label?: string | null;
     color_id?: string | null;
     color_code?: string | null;
@@ -428,6 +429,7 @@ export default function WorkOrderListView({
                                 >{wo.mo_code}</span>
                             </div>
                             {infoRow('Product', wo.item_name || '—')}
+                            {wo.color_label && infoRow('Variant', wo.color_label)}
                             {(wo.color_code || wo.labdip_variant_code) && infoRow(
                                 'Color',
                                 wo.color_code
@@ -884,6 +886,13 @@ export default function WorkOrderListView({
                                                         {wo.size_label && (
                                                             <span style={{ fontSize: 8, padding: '0 4px', background: '#dcfce7', color: '#15803d', borderRadius: 2, fontWeight: 700, lineHeight: '14px', whiteSpace: 'nowrap', flexShrink: 0 }} title={`Size: ${wo.size_label}`}>
                                                                 <i className="bi bi-rulers me-1" style={{ fontSize: 7 }}></i>{wo.size_label}
+                                                            </span>
+                                                        )}
+                                                        {/* Colors-attribute variant (e.g. "Black") — distinct from the Color
+                                                            Library shade badge below; the MO's variant-defining attribute value. */}
+                                                        {wo.color_label && (
+                                                            <span style={{ fontSize: 8, padding: '0 4px', background: '#fce7f3', color: '#9d174d', borderRadius: 2, fontWeight: 700, lineHeight: '14px', whiteSpace: 'nowrap', flexShrink: 0 }} title={`Variant: ${wo.color_label}`}>
+                                                                {wo.color_label}
                                                             </span>
                                                         )}
                                                         {/* Color spec — the shade this WO produces (dyeing steps especially).
