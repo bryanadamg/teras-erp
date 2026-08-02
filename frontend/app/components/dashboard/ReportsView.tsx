@@ -346,14 +346,16 @@ export default function ReportsView(_props: any) {
                         <input type="date" style={xpInput({ width: 122 })} value={startDate} onChange={e => onFilter(setStartDate)(e.target.value)} />
                         <span style={lbl}>{t('to')}:</span>
                         <input type="date" style={xpInput({ width: 122 })} value={endDate} onChange={e => onFilter(setEndDate)(e.target.value)} />
-                        <button style={xpBtn({ fontSize: '10px', padding: '1px 7px' })} onClick={() => applyPreset('today')}>Today</button>
-                        <button style={xpBtn({ fontSize: '10px', padding: '1px 7px' })} onClick={() => applyPreset('7d')}>7d</button>
-                        <button style={xpBtn({ fontSize: '10px', padding: '1px 7px' })} onClick={() => applyPreset('30d')}>30d</button>
-                        <button style={xpBtn({ fontSize: '10px', padding: '1px 7px' })} onClick={() => applyPreset('month')}>Month</button>
-                        <div style={xpSep} />
-                        {hasFilters && <button style={xpBtn({ fontSize: '10px', padding: '1px 7px' })} onClick={clearFilters}><i className="bi bi-x-lg" style={{ marginRight: 3 }} />Clear</button>}
-                        <button style={xpBtn()} onClick={fetchLedger} title="Refresh"><i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh</button>
-                        <button style={xpBtn()} onClick={handlePrint} disabled={printLoading}><i className="bi bi-printer" style={{ marginRight: 4 }} />{printLoading ? 'Loading...' : t('print')}</button>
+                        <div style={{ display: 'flex' }}>
+                            <button style={xpBtn({ fontSize: '10px', padding: '1px 7px' })} onClick={() => applyPreset('today')}>Today</button>
+                            <button style={xpBtn({ fontSize: '10px', padding: '1px 7px' })} onClick={() => applyPreset('7d')}>7d</button>
+                            <button style={xpBtn({ fontSize: '10px', padding: '1px 7px' })} onClick={() => applyPreset('30d')}>30d</button>
+                            <button style={xpBtn({ fontSize: '10px', padding: '1px 7px' })} onClick={() => applyPreset('month')}>Month</button>
+                        </div>
+                        <div style={{ flex: 1 }} />
+                        {hasFilters && <button style={xpBtn({ fontSize: '10px', padding: '1px 6px' })} onClick={clearFilters} title="Clear filters"><i className="bi bi-x-lg" /></button>}
+                        <button style={xpBtn({ padding: '1px 6px' })} onClick={fetchLedger} title="Refresh"><i className="bi bi-arrow-clockwise" /></button>
+                        <button style={xpBtn({ padding: '1px 6px' })} onClick={handlePrint} disabled={printLoading} title={printLoading ? 'Loading...' : t('print')}><i className={printLoading ? 'bi bi-hourglass-split' : 'bi bi-printer'} /></button>
                     </div>
 
                     {/* Summary strip */}
@@ -431,7 +433,6 @@ export default function ReportsView(_props: any) {
                         <h5 className="card-title mb-0">{t('stock_ledger')}</h5>
                         <small className="text-muted">Every stock movement, in and out</small>
                     </div>
-                    <button className="btn btn-outline-primary btn-sm" onClick={handlePrint} disabled={printLoading}><i className="bi bi-printer me-1" />{printLoading ? 'Loading...' : t('print')}</button>
                 </div>
                 <div className="row g-2 align-items-center">
                     <div className="col-md-3">
@@ -468,14 +469,16 @@ export default function ReportsView(_props: any) {
                     </div>
                 </div>
                 <div className="d-flex flex-wrap align-items-center gap-1 mt-2">
-                    <span className="text-muted small me-1">Quick range:</span>
-                    {(['today', '7d', '30d', 'month'] as const).map(k => (
-                        <button key={k} className="btn btn-light btn-sm border py-0" onClick={() => applyPreset(k)}>
-                            {k === 'today' ? 'Today' : k === 'month' ? 'This month' : k}
-                        </button>
-                    ))}
-                    {hasFilters && <button className="btn btn-link btn-sm text-decoration-none py-0 ms-1" onClick={clearFilters}><i className="bi bi-x-lg me-1" />Clear</button>}
-                    <button className="btn btn-light btn-sm border py-0 ms-auto" onClick={fetchLedger}><i className="bi bi-arrow-clockwise me-1" />Refresh</button>
+                    <div className="btn-group" role="group">
+                        {(['today', '7d', '30d', 'month'] as const).map(k => (
+                            <button key={k} className="btn btn-light btn-sm border py-0" onClick={() => applyPreset(k)}>
+                                {k === 'today' ? 'Today' : k === 'month' ? 'This month' : k}
+                            </button>
+                        ))}
+                    </div>
+                    {hasFilters && <button className="btn btn-outline-secondary btn-sm py-0 ms-1" onClick={clearFilters} title="Clear filters"><i className="bi bi-x-lg" /></button>}
+                    <button className="btn btn-outline-secondary btn-sm py-0 ms-auto" onClick={fetchLedger} title="Refresh"><i className="bi bi-arrow-clockwise" /></button>
+                    <button className="btn btn-outline-primary btn-sm py-0" onClick={handlePrint} disabled={printLoading} title={printLoading ? 'Loading...' : t('print')}><i className={printLoading ? 'bi bi-hourglass-split' : 'bi bi-printer'} /></button>
                 </div>
             </div>
 

@@ -220,11 +220,13 @@ export default function ColorLibraryView({
                     onChange={e => setSearchInput(e.target.value)}
                 />
                 <span style={lvSep(classic)} />
-                {STATUS_FILTERS.map(s => (
-                    <button key={s} style={statusFilter === s ? lvPrimaryBtn(classic) : lvBtn(classic)} onClick={() => onStatusChange(s)}>
-                        {s === 'ALL' ? 'All' : s}
-                    </button>
-                ))}
+                <div style={{ display: 'flex' }}>
+                    {STATUS_FILTERS.map(s => (
+                        <button key={s} style={statusFilter === s ? lvPrimaryBtn(classic) : lvBtn(classic)} onClick={() => onStatusChange(s)}>
+                            {s === 'ALL' ? 'All' : s}
+                        </button>
+                    ))}
+                </div>
                 <span style={lvSep(classic)} />
                 <div style={{ width: 170 }}>
                     <SearchableSelect options={variantFilterOptions} value={variantFilter || ''} onChange={v => onVariantFilterChange?.(v)} placeholder="All Color Variants" />
@@ -249,8 +251,8 @@ export default function ColorLibraryView({
                 {canManage && (
                     <>
                         <span style={lvSep(classic)} />
-                        <button style={lvPrimaryBtn(classic)} onClick={openCreate}>
-                            <i className="bi bi-plus-lg" /> New Color
+                        <button style={lvPrimaryBtn(classic)} onClick={openCreate} title="New Color">
+                            <i className="bi bi-plus-lg" />
                         </button>
                     </>
                 )}
