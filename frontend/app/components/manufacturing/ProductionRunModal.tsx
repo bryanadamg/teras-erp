@@ -21,6 +21,7 @@ interface BomEntryState {
     totalQty: string;
     attributeValueIds: string[];
     colorId?: string;
+    colorLabel?: string;
     labdipVariantCode?: string;
     locked?: boolean;
     rawSoQtys?: Record<string, number>;
@@ -44,6 +45,7 @@ interface Props {
         totalQty: string;
         attributeValueIds?: string[];
         colorId?: string;
+        colorLabel?: string;
         labdipVariantCode?: string;
         locked?: boolean;
     }>;
@@ -146,6 +148,24 @@ function BomEntryRow({
             </div>
 
             {freeAttributes.map((attr: any) => {
+                // Color Code (labdip_color) is resolved on the SO via the Color
+                // Library / pending-lab-dip pickers into entry.colorId /
+                // entry.labdipVariantCode — a separate field from attributeValueIds
+                // (see SalesOrderView.tsx). Its mirrored AttributeValue id is never
+                // pushed into attributeValueIds (that array must stay an exact match
+                // against BOM.attribute_value_ids for BOM lookup), so the generic
+                // select below can never show it as selected. When the SO already
+                // decided it, show it locked instead of a huge unselected dropdown.
+                if (attr.system_role === 'labdip_color' && entry.locked && (entry.colorId || entry.labdipVariantCode)) {
+                    return (
+                        <div key={attr.id} style={{ marginBottom: 6 }}>
+                            <label style={xpLabel()}>{attr.name}</label>
+                            <div style={xpInput({ height: '22px', lineHeight: '20px', background: '#e8e8e0', color: '#555' })}>
+                                {entry.colorLabel || entry.labdipVariantCode || entry.colorId}
+                            </div>
+                        </div>
+                    );
+                }
                 const selectedValId = entry.attributeValueIds.find(
                     (id: string) => (attr.values || []).some((v: any) => v.id === id)
                 ) || '';

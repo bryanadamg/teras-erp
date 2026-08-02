@@ -183,8 +183,8 @@ export default function ManufacturingView({
                   if (!bom) return null;
                   const sizeMap: Record<string, string> = {};
                   (e.sizes || []).forEach((s: any) => { sizeMap[s.bom_size_id] = String(s.qty); });
-                  return { bomId: e.bom_id, sizeQtys: sizeMap, totalQty: e.total_qty ? String(e.total_qty) : '', attributeValueIds: e.attribute_value_ids || [], colorId: e.color_id || undefined, labdipVariantCode: e.labdip_variant_code || undefined, locked: true };
-              }).filter(Boolean) as Array<{bomId: string; sizeQtys: Record<string,string>; totalQty: string; attributeValueIds?: string[]; colorId?: string; labdipVariantCode?: string; locked?: boolean}>;
+                  return { bomId: e.bom_id, sizeQtys: sizeMap, totalQty: e.total_qty ? String(e.total_qty) : '', attributeValueIds: e.attribute_value_ids || [], colorId: e.color_id || undefined, colorLabel: e.color_label || undefined, labdipVariantCode: e.labdip_variant_code || undefined, locked: true };
+              }).filter(Boolean) as Array<{bomId: string; sizeQtys: Record<string,string>; totalQty: string; attributeValueIds?: string[]; colorId?: string; colorLabel?: string; labdipVariantCode?: string; locked?: boolean}>;
 
               if (entries.length > 0) {
                   setActiveTab('production-runs');

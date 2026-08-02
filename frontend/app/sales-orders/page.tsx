@@ -74,6 +74,7 @@ export default function SalesOrdersPage() {
             total_qty?: number;
             attribute_value_ids?: string[];
             color_id?: string;
+            color_label?: string;
             labdip_variant_code?: string;
         }> = [];
         let missingBomCount = 0;
@@ -82,6 +83,9 @@ export default function SalesOrdersPage() {
             const firstLine = groupLines[0];
             const lineAttrIds: string[] = firstLine.attribute_value_ids || [];
             const lineColorId: string | undefined = firstLine.color_id || undefined;
+            const lineColorLabel: string | undefined = firstLine.color_code
+                ? `${firstLine.color_code}${firstLine.color_name ? ' — ' + firstLine.color_name : ''}`
+                : undefined;
             const lineLabdip: string | undefined = firstLine.labdip_variant_code || undefined;
 
             // The recipe the user picked on the SO line wins. Deriving it from
@@ -131,6 +135,7 @@ export default function SalesOrdersPage() {
                         sizes: uncoveredSizes,
                         attribute_value_ids: lineAttrIds.length > 0 ? lineAttrIds : undefined,
                         color_id: lineColorId,
+                        color_label: lineColorLabel,
                         labdip_variant_code: lineLabdip,
                     });
                 }
@@ -151,6 +156,7 @@ export default function SalesOrdersPage() {
                         total_qty: totalQty,
                         attribute_value_ids: lineAttrIds.length > 0 ? lineAttrIds : undefined,
                         color_id: lineColorId,
+                        color_label: lineColorLabel,
                         labdip_variant_code: lineLabdip,
                     });
                 }
