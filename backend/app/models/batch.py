@@ -28,6 +28,29 @@ class Batch(Base):
         UUID(as_uuid=True), ForeignKey("bom_sizes.id", ondelete="SET NULL"), nullable=True
     )
     bom_size_snapshot: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    # PackedUnit fields: set when the batch represents a physical packed carton.
+    # `packing_order_id` is the discriminator, exactly as `source_wo_id`+`ends`
+    # discriminate a warp beam. Carton qty is never stored here — it lives in the
+    # StockBalance row keyed by this batch at the packed location.
+    packing_order_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("packing_orders.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    packing_completion_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("packing_completions.id", ondelete="SET NULL"), nullable=True
+    )
+    package_no: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    package_label: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)  # Carton / Roll / Bag
+    weight_kg: Mapped[Optional[float]] = mapped_column(Numeric(14, 4), nullable=True)
+    # Soft SO tag — records what the carton was packed for; does NOT reserve it.
+    # Any pick list may still take this carton.
+    #
+    # NOT named sales_order_id: the batches endpoints already setattr a *derived*
+    # `sales_order_id` onto Batch instances for origin lineage (_resolve_batch_origins).
+    # Reusing that name would turn a harmless response decoration into a dirty
+    # column write and silently persist lineage over this tag.
+    packed_for_so_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sales_orders.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     created_by: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     # QC status: GOOD | REJECTED. Rejected lots stay physically in stock but are
@@ -86,8 +109,13 @@ class BatchConsumption(Base):
     __tablename__ = "batch_consumptions"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    manufacturing_order_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("manufacturing_orders.id", ondelete="CASCADE"), index=True
+    # Nullable since packing: a carton's genealogy is pegged to a packing order,
+    # not an MO. Exactly one of manufacturing_order_id / packing_order_id is set.
+    manufacturing_order_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("manufacturing_orders.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    packing_order_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("packing_orders.id", ondelete="CASCADE"), nullable=True, index=True
     )
     input_batch_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("batches.id", ondelete="CASCADE"), index=True

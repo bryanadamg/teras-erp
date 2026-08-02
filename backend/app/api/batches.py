@@ -300,6 +300,7 @@ async def list_batches(
     item_id: uuid.UUID | None = Query(None),
     location_id: uuid.UUID | None = Query(None),
     with_source_lots: bool = Query(False, description="Also resolve each batch's immediate upstream (RM) lots — used by the staging picker"),
+    include_packed_units: bool = Query(False, description="Include packed cartons (PU-). Off by default: these pickers choose consumable lots, and a sealed carton is not one."),
     skip: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_async_db),
@@ -307,10 +308,16 @@ async def list_batches(
 ):
     """Raw, uncapped-total lot list — used by lot/batch pickers (staging, WO
     completion, packing) that want "up to limit candidates for this item", not
-    a paged table. See list_batches_paginated for the Lot Management page."""
+    a paged table. See list_batches_paginated for the Lot Management page.
+
+    Packed cartons are Batch rows too (see services/packing_service.py), so they
+    are filtered out here unless asked for — otherwise every consumption picker
+    would offer sealed finished-goods cartons as input material."""
     query = select(Batch).options(joinedload(Batch.item)).order_by(Batch.created_at.desc())
     if item_id:
         query = query.filter(Batch.item_id == item_id)
+    if not include_packed_units:
+        query = query.filter(Batch.packing_order_id.is_(None))
     result = await db.execute(query.offset(skip).limit(limit))
     batches = result.scalars().all()
     return await _enrich_batches(db, batches, location_id, with_source_lots=with_source_lots)

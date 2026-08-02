@@ -2323,34 +2323,180 @@ class POLineBatchAssignment(BaseModel):
 class POReceiveWithBatchesPayload(BaseModel):
     batch_assignments: list[POLineBatchAssignment] = []
 
-# --- Packing / Dispatch (outbound Surat Jalan) Schemas ---
+# --- Packing Orders (pack FG into cartons — WO-shaped) ---
 
-class PackingPackageItemPayload(BaseModel):
-    # Reference the SO line (stable across line rebuilds); server resolves to packing_line.
-    sales_order_line_id: UUID
-    qty: float = 0
-
-class PackingPackagePayload(BaseModel):
-    package_no: int = 1
-    label: str | None = None
-    weight_kg: float | None = None
-    notes: str | None = None
-    contents: list[PackingPackageItemPayload] = []
-
-class PackingLinePayload(BaseModel):
-    sales_order_line_id: UUID
+class PackingOrderMaterialPayload(BaseModel):
     item_id: UUID
-    qty_packed: float = 0
-    source_location_id: UUID | None = None
-    batch_id: UUID | None = None
+    qty_planned: float = 0
+    location_id: UUID | None = None
+    notes: str | None = None
 
 class PackingOrderCreate(BaseModel):
-    sales_order_id: UUID
+    item_id: UUID
+    qty_target: float
+    # Null = pack to stock. When set, only tags the cartons; it does not reserve them.
+    sales_order_id: UUID | None = None
+    sales_order_line_id: UUID | None = None
+    color_id: UUID | None = None
+    attribute_value_ids: list[UUID] = []
+    pack_size: float | None = None
+    package_label: str = "Carton"
     source_location_id: UUID | None = None
-    lines: list[PackingLinePayload] = []  # empty -> server seeds from SO remaining
+    output_location_id: UUID | None = None
+    target_start_date: datetime | None = None
+    target_end_date: datetime | None = None
+    notes: str | None = None
+    materials: list[PackingOrderMaterialPayload] = []
 
 class PackingOrderUpdate(BaseModel):
+    qty_target: float | None = None
+    sales_order_id: UUID | None = None
+    sales_order_line_id: UUID | None = None
+    color_id: UUID | None = None
+    attribute_value_ids: list[UUID] | None = None
+    pack_size: float | None = None
+    package_label: str | None = None
     source_location_id: UUID | None = None
+    output_location_id: UUID | None = None
+    status: str | None = None
+    target_start_date: datetime | None = None
+    target_end_date: datetime | None = None
+    notes: str | None = None
+    materials: list[PackingOrderMaterialPayload] | None = None
+
+class PackingCompletionMaterialPayload(BaseModel):
+    item_id: UUID
+    qty: float = 0
+    location_id: UUID | None = None
+    batch_id: UUID | None = None
+
+class PackingCompletionCreate(BaseModel):
+    qty: float
+    package_count: int = 1
+    source_batch_id: UUID | None = None
+    operator: str | None = None
+    notes: str | None = None
+    # Omit to fall back to the order's planned materials, pro-rated by qty.
+    materials: list[PackingCompletionMaterialPayload] | None = None
+
+class PackingOrderMaterialResponse(BaseModel):
+    id: UUID
+    item_id: UUID
+    item_name: str | None = None
+    item_code: str | None = None
+    item_uom: str | None = None
+    qty_planned: float
+    qty_consumed: float = 0
+    location_id: UUID | None = None
+    notes: str | None = None
+    class Config:
+        from_attributes = True
+
+class PackingCompletionMaterialResponse(BaseModel):
+    id: UUID
+    item_id: UUID
+    item_name: str | None = None
+    item_code: str | None = None
+    qty: float
+    location_id: UUID | None = None
+    batch_id: UUID | None = None
+    class Config:
+        from_attributes = True
+
+class PackedUnitResponse(BaseModel):
+    id: UUID
+    batch_number: str
+    item_id: UUID
+    item_name: str | None = None
+    item_code: str | None = None
+    package_no: int | None = None
+    package_label: str | None = None
+    weight_kg: float | None = None
+    qty: float = 0
+    location_id: UUID | None = None
+    location_name: str | None = None
+    packing_order_id: UUID | None = None
+    packing_order_code: str | None = None
+    # Soft tag: what this carton was packed for. Any pick list may still take it.
+    packed_for_so_id: UUID | None = None
+    quality_status: str = "GOOD"
+    created_at: datetime | None = None
+    class Config:
+        from_attributes = True
+
+class PackingCompletionResponse(BaseModel):
+    id: UUID
+    qty: float
+    package_count: int
+    source_batch_id: UUID | None = None
+    source_batch_number: str | None = None
+    operator: str | None = None
+    notes: str | None = None
+    completed_at: datetime
+    materials: list[PackingCompletionMaterialResponse] = []
+    class Config:
+        from_attributes = True
+
+class PackingOrderResponse(BaseModel):
+    id: UUID
+    code: str
+    sales_order_id: UUID | None = None
+    sales_order_line_id: UUID | None = None
+    sales_order_code: str | None = None
+    customer_name: str | None = None
+    item_id: UUID
+    item_name: str | None = None
+    item_code: str | None = None
+    item_uom: str | None = None
+    color_id: UUID | None = None
+    color_name: str | None = None
+    attribute_value_ids: list[UUID] = []
+    qty_target: float
+    qty_packed: float = 0
+    package_count: int = 0
+    pack_size: float | None = None
+    package_label: str
+    source_location_id: UUID | None = None
+    output_location_id: UUID | None = None
+    status: str
+    target_start_date: datetime | None = None
+    target_end_date: datetime | None = None
+    actual_start_date: datetime | None = None
+    actual_end_date: datetime | None = None
+    notes: str | None = None
+    card_printed_at: datetime | None = None
+    created_at: datetime
+    materials: list[PackingOrderMaterialResponse] = []
+    completions: list[PackingCompletionResponse] = []
+    packed_units: list[PackedUnitResponse] = []
+    class Config:
+        from_attributes = True
+
+class PackingOrderListResponse(BaseModel):
+    items: list[PackingOrderResponse]
+    total: int
+    page: int
+    size: int
+
+# --- Pick Lists (outbound Surat Jalan / dispatch) ---
+
+class PickListLinePayload(BaseModel):
+    sales_order_line_id: UUID
+    item_id: UUID
+    qty_picked: float = 0
+    source_location_id: UUID | None = None
+    # The carton (PackedUnit batch) this line pulls; null for bulk ship lines.
+    batch_id: UUID | None = None
+
+class PickListCreate(BaseModel):
+    sales_order_id: UUID
+    source_location_id: UUID | None = None
+    # Empty -> server suggests cartons FIFO for every outstanding SO line.
+    lines: list[PickListLinePayload] = []
+
+class PickListUpdate(BaseModel):
+    source_location_id: UUID | None = None
+    status: str | None = None
     qc_passed: bool | None = None
     qc_inspector: str | None = None
     delivery_note_number: str | None = None
@@ -2359,41 +2505,31 @@ class PackingOrderUpdate(BaseModel):
     vehicle_plate: str | None = None
     driver: str | None = None
     notes: str | None = None
-    lines: list[PackingLinePayload] | None = None
-    packages: list[PackingPackagePayload] | None = None
+    lines: list[PickListLinePayload] | None = None
 
-class PackingPackageItemResponse(BaseModel):
-    id: UUID
-    packing_line_id: UUID
-    qty: float
-    class Config:
-        from_attributes = True
+class PickListScanPayload(BaseModel):
+    """Picker scanned a carton QR — confirms the suggested line, or appends one."""
+    code: str
+    picked_by: str | None = None
 
-class PackingPackageResponse(BaseModel):
-    id: UUID
-    package_no: int
-    label: str | None = None
-    weight_kg: float | None = None
-    notes: str | None = None
-    contents: list[PackingPackageItemResponse] = []
-    class Config:
-        from_attributes = True
-
-class PackingLineResponse(BaseModel):
+class PickListLineResponse(BaseModel):
     id: UUID
     sales_order_line_id: UUID
     item_id: UUID
     item_name: str | None = None
     item_code: str | None = None
     item_uom: str | None = None
-    qty_packed: float
+    qty_picked: float
     source_location_id: UUID | None = None
     batch_id: UUID | None = None
     batch_number: str | None = None
+    package_no: int | None = None
+    picked_at: datetime | None = None
+    picked_by: str | None = None
     class Config:
         from_attributes = True
 
-class PackingOrderResponse(BaseModel):
+class PickListResponse(BaseModel):
     id: UUID
     code: str
     sales_order_id: UUID
@@ -2412,13 +2548,12 @@ class PackingOrderResponse(BaseModel):
     notes: str | None = None
     dispatched_at: datetime | None = None
     created_at: datetime
-    lines: list[PackingLineResponse] = []
-    packages: list[PackingPackageResponse] = []
+    lines: list[PickListLineResponse] = []
     class Config:
         from_attributes = True
 
-class PackingOrderListResponse(BaseModel):
-    items: list[PackingOrderResponse]
+class PickListListResponse(BaseModel):
+    items: list[PickListResponse]
     total: int
     page: int
     size: int
