@@ -9,7 +9,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { XPStatusBar, XPEmptyState, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
-import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvSep, lvLabel } from '../shared/listViewTheme';
+import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -32,7 +32,9 @@ const xpTableHeader: React.CSSProperties = {
 };
 const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => lvBtn(true, extra);
 const xpBtnGreen = (extra: React.CSSProperties = {}) => xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold', ...extra });
-const xpSep: React.CSSProperties = { ...lvSep(true), flexShrink: 0 };
+// Title-bar "create" button — same style as SalesOrderView / PartnersView / SampleRequestView.
+const xpBtnCreate = xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' });
+const rowStyle = (idx: number): React.CSSProperties => lvRow(true, idx);
 const td: React.CSSProperties = lvTd(true);
 const xpLabel: React.CSSProperties = lvLabel(true);
 const sectionTitle: React.CSSProperties = { fontSize: 11, fontWeight: 'bold', color: '#00309c', margin: '14px 0 6px', borderBottom: '1px solid #c8c4b8', paddingBottom: 3 };
@@ -128,18 +130,19 @@ export default function PackingOrderView() {
                 classic
                 icon="bi-box2"
                 title="Packing Orders"
-                right={<span style={{ fontSize: 10, opacity: 0.85 }}>{total} orders</span>}
-            />
-            <div style={xpToolbar()}>
-                {canManage && (
-                    <button style={xpBtnGreen()} onClick={() => setCreating(true)} title="Order finished goods packed into cartons">
+                right={canManage ? (
+                    <button style={xpBtnCreate} onClick={() => setCreating(true)} title="Order finished goods packed into cartons">
                         <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />New Packing Order
                     </button>
-                )}
-                <div style={xpSep} />
+                ) : undefined}
+            />
+            <div style={xpToolbar()}>
                 <button style={xpBtn()} onClick={loadAll} title="Refresh">
                     <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh
                 </button>
+                <span style={{ marginLeft: 'auto', fontSize: 11, color: '#333' }}>
+                    {total.toLocaleString()} order{total !== 1 ? 's' : ''}
+                </span>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', background: '#fff', minHeight: 0 }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -162,11 +165,11 @@ export default function PackingOrderView() {
                                 <XPEmptyState icon="bi-box2" message={loading ? 'Loading...' : 'No packing orders yet. Click "New Packing Order" to pack finished goods into cartons.'} />
                             </td></tr>
                         )}
-                        {orders.map((po: any) => {
+                        {orders.map((po: any, idx: number) => {
                             const it = itemById[String(po.item_id)];
                             const shortfall = num(po.qty_packed) < num(po.qty_target);
                             return (
-                                <tr key={po.id}>
+                                <tr key={po.id} style={rowStyle(idx)}>
                                     <td style={{ ...td, fontWeight: 'bold', color: '#00309c' }}>{po.code}</td>
                                     <td style={td}>
                                         <div>{po.item_name || it?.name || po.item_id}</div>
@@ -642,8 +645,8 @@ function PackingOrderDetail({ po: initialPo, itemById, locPickerTreeOptions, aut
                                 </tr>
                             </thead>
                             <tbody>
-                                {(po.materials || []).map((m: any) => (
-                                    <tr key={m.id}>
+                                {(po.materials || []).map((m: any, idx: number) => (
+                                    <tr key={m.id} style={rowStyle(idx)}>
                                         <td style={td}>{m.item_name || m.item_id} <span style={{ fontSize: 9, color: '#888' }}>{m.item_code}</span></td>
                                         <td style={{ ...td, textAlign: 'right' }}>{num(m.qty_planned).toLocaleString()} {m.item_uom}</td>
                                         <td style={{ ...td, textAlign: 'right' }}>{num(m.qty_consumed).toLocaleString()}</td>
@@ -667,8 +670,8 @@ function PackingOrderDetail({ po: initialPo, itemById, locPickerTreeOptions, aut
                     </thead>
                     <tbody>
                         {units.length === 0 && <tr><td colSpan={4} style={{ ...td, color: '#999' }}>No cartons packed yet.</td></tr>}
-                        {units.map((u: any) => (
-                            <tr key={u.id}>
+                        {units.map((u: any, idx: number) => (
+                            <tr key={u.id} style={rowStyle(idx)}>
                                 <td style={td}>{u.package_no}</td>
                                 <td style={{ ...td, color: '#00309c' }}>{u.batch_number}</td>
                                 <td style={{ ...td, textAlign: 'right', color: num(u.qty) > 0 ? '#0a3e0a' : '#888' }}>
@@ -695,8 +698,8 @@ function PackingOrderDetail({ po: initialPo, itemById, locPickerTreeOptions, aut
                     </thead>
                     <tbody>
                         {(po.completions || []).length === 0 && <tr><td colSpan={6} style={{ ...td, color: '#999' }}>Nothing packed yet.</td></tr>}
-                        {(po.completions || []).map((c: any) => (
-                            <tr key={c.id}>
+                        {(po.completions || []).map((c: any, idx: number) => (
+                            <tr key={c.id} style={rowStyle(idx)}>
                                 <td style={td}>{c.completed_at ? tzDate(c.completed_at) : '-'}</td>
                                 <td style={{ ...td, textAlign: 'right' }}>{num(c.qty).toLocaleString()}</td>
                                 <td style={{ ...td, textAlign: 'right' }}>{c.package_count}</td>

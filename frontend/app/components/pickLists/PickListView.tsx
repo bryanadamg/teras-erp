@@ -9,7 +9,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
 import { XPStatusBar, XPEmptyState, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
-import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvSep, lvLabel } from '../shared/listViewTheme';
+import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -32,7 +32,9 @@ const xpTableHeader: React.CSSProperties = {
 };
 const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => lvBtn(true, extra);
 const xpBtnGreen = (extra: React.CSSProperties = {}) => xpBtn({ background: 'linear-gradient(to bottom,#d8f0d8,#8fc98f)', fontWeight: 'bold', ...extra });
-const xpSep: React.CSSProperties = { ...lvSep(true), flexShrink: 0 };
+// Title-bar "create" button — same style as SalesOrderView / PartnersView / SampleRequestView.
+const xpBtnCreate = xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' });
+const rowStyle = (idx: number): React.CSSProperties => lvRow(true, idx);
 const td: React.CSSProperties = lvTd(true);
 const xpLabel: React.CSSProperties = lvLabel(true);
 
@@ -160,18 +162,19 @@ export default function PickListView() {
                 classic
                 icon="bi-clipboard-check"
                 title="Pick Lists & Dispatch"
-                right={<span style={{ fontSize: 10, opacity: 0.85 }}>{plTotal} pick lists</span>}
-            />
-            <div style={xpToolbar()}>
-                {canManage && (
-                    <button style={xpBtnGreen()} onClick={() => setPicking(true)} title="Create a pick list for a sales order">
+                right={canManage ? (
+                    <button style={xpBtnCreate} onClick={() => setPicking(true)} title="Create a pick list for a sales order">
                         <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />New Pick List
                     </button>
-                )}
-                <div style={xpSep} />
+                ) : undefined}
+            />
+            <div style={xpToolbar()}>
                 <button style={xpBtn()} onClick={loadAll} title="Refresh">
                     <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }} />Refresh
                 </button>
+                <span style={{ marginLeft: 'auto', fontSize: 11, color: '#333' }}>
+                    {plTotal.toLocaleString()} pick list{plTotal !== 1 ? 's' : ''}
+                </span>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', background: '#fff', minHeight: 0 }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -193,8 +196,8 @@ export default function PickListView() {
                                 <XPEmptyState icon="bi-clipboard-check" message={loading ? 'Loading...' : 'No pick lists yet. Click "New Pick List" to pick packed cartons for an order.'} />
                             </td></tr>
                         )}
-                        {pickLists.map((pl: any) => (
-                            <tr key={pl.id}>
+                        {pickLists.map((pl: any, idx: number) => (
+                            <tr key={pl.id} style={rowStyle(idx)}>
                                 <td style={{ ...td, fontWeight: 'bold', color: '#00309c' }}>{pl.code}</td>
                                 <td style={td}>{pl.sales_order_code || '-'}</td>
                                 <td style={td}>{pl.customer_name || '-'}</td>
@@ -289,8 +292,8 @@ function SOPickerModal({ pickableSOs, openSoIds, onClose, onPick }: any) {
                                 </tr>
                             </thead>
                             <tbody>
-                                {pickableSOs.map((so: any) => (
-                                    <tr key={so.id}>
+                                {pickableSOs.map((so: any, idx: number) => (
+                                    <tr key={so.id} style={rowStyle(idx)}>
                                         <td style={{ ...td, fontWeight: 'bold', color: '#00309c' }}>{so.po_number}</td>
                                         <td style={td}><StatusChip status={so.status} /></td>
                                         <td style={td}>{so.customer_name}</td>
