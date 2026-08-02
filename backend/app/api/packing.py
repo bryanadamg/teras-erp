@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, cast, String, nulls_last
+from sqlalchemy import select, func, cast, String, nulls_last, inspect as sa_inspect
 from sqlalchemy.orm import selectinload
 from typing import Optional
 from datetime import datetime
@@ -132,6 +132,12 @@ async def _next_code(db: AsyncSession) -> str:
 async def _set_attributes(db: AsyncSession, po: PackingOrder, ids: list) -> None:
     if ids is None:
         return
+    # Assigning to a relationship collection makes SQLAlchemy load the existing one
+    # to diff old against new — a lazy load, which raises MissingGreenlet on an
+    # async session. A just-flushed PackingOrder never has it loaded, so populate
+    # it explicitly first. (Already-loaded instances from _load skip the refresh.)
+    if "attribute_values" in sa_inspect(po).unloaded:
+        await db.refresh(po, ["attribute_values"])
     if not ids:
         po.attribute_values = []
         return

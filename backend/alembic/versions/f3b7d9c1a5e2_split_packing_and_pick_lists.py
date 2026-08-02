@@ -4,7 +4,7 @@ Renames the old packing_orders/packing_lines — which were always the *delivery
 document — to pick_lists/pick_list_lines, drops their carton tables (cartons are
 now PackedUnit batches), and creates a new WO-shaped packing_orders family.
 
-Revision ID: c3e5a7b9d1f4
+Revision ID: f3b7d9c1a5e2
 Revises: e3b5d7f9a1c4
 Create Date: 2026-08-02 00:00:00.000000
 
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
 
 
-revision: str = 'c3e5a7b9d1f4'
+revision: str = 'f3b7d9c1a5e2'
 down_revision: Union[str, None] = 'e3b5d7f9a1c4'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -29,9 +29,26 @@ def upgrade() -> None:
     op.rename_table('packing_orders', 'pick_lists')
     op.rename_table('packing_lines', 'pick_list_lines')
 
+    # Primary-key and unique constraints are index-backed, and index names are
+    # unique per SCHEMA (not per table) — so pk_packing_orders on the renamed table
+    # is what blocks the new packing_orders below, not just cosmetic drift.
+    # Foreign keys are per-table and would not collide; renamed anyway so nothing
+    # on pick_lists still claims to be a packing constraint.
+    op.execute('ALTER TABLE pick_lists RENAME CONSTRAINT pk_packing_orders TO pk_pick_lists')
     op.execute('ALTER TABLE pick_lists RENAME CONSTRAINT uq_packing_orders_code TO uq_pick_lists_code')
+    op.execute('ALTER TABLE pick_lists RENAME CONSTRAINT fk_packing_orders_sales_order_id_sales_orders TO fk_pick_lists_sales_order_id_sales_orders')
+    op.execute('ALTER TABLE pick_lists RENAME CONSTRAINT fk_packing_orders_source_location_id_locations TO fk_pick_lists_source_location_id_locations')
+    op.execute('ALTER TABLE pick_lists RENAME CONSTRAINT fk_packing_orders_created_by_id_users TO fk_pick_lists_created_by_id_users')
+    op.execute('ALTER TABLE pick_list_lines RENAME CONSTRAINT pk_packing_lines TO pk_pick_list_lines')
+    op.execute('ALTER TABLE pick_list_lines RENAME CONSTRAINT fk_packing_lines_packing_order_id_packing_orders TO fk_pick_list_lines_pick_list_id_pick_lists')
+    op.execute('ALTER TABLE pick_list_lines RENAME CONSTRAINT fk_packing_lines_sales_order_line_id_sales_order_lines TO fk_pick_list_lines_sales_order_line_id_sales_order_lines')
+    op.execute('ALTER TABLE pick_list_lines RENAME CONSTRAINT fk_packing_lines_item_id_items TO fk_pick_list_lines_item_id_items')
+    op.execute('ALTER TABLE pick_list_lines RENAME CONSTRAINT fk_packing_lines_source_location_id_locations TO fk_pick_list_lines_source_location_id_locations')
+    op.execute('ALTER TABLE pick_list_lines RENAME CONSTRAINT fk_packing_lines_batch_id_batches TO fk_pick_list_lines_batch_id_batches')
+
     op.execute('ALTER INDEX IF EXISTS ix_packing_orders_sales_order_id RENAME TO ix_pick_lists_sales_order_id')
     op.execute('ALTER INDEX IF EXISTS ix_packing_orders_status RENAME TO ix_pick_lists_status')
+    op.execute('ALTER INDEX IF EXISTS ix_packing_orders_created_at RENAME TO ix_pick_lists_created_at')
     op.execute('ALTER INDEX IF EXISTS ix_packing_lines_packing_order_id RENAME TO ix_pick_list_lines_pick_list_id')
     op.execute('ALTER INDEX IF EXISTS ix_packing_lines_sales_order_line_id RENAME TO ix_pick_list_lines_sales_order_line_id')
     op.execute('ALTER INDEX IF EXISTS ix_packing_lines_item_id RENAME TO ix_pick_list_lines_item_id')
@@ -177,9 +194,21 @@ def downgrade() -> None:
     op.execute('ALTER INDEX IF EXISTS ix_pick_list_lines_item_id RENAME TO ix_packing_lines_item_id')
     op.execute('ALTER INDEX IF EXISTS ix_pick_list_lines_sales_order_line_id RENAME TO ix_packing_lines_sales_order_line_id')
     op.execute('ALTER INDEX IF EXISTS ix_pick_list_lines_pick_list_id RENAME TO ix_packing_lines_packing_order_id')
+    op.execute('ALTER INDEX IF EXISTS ix_pick_lists_created_at RENAME TO ix_packing_orders_created_at')
     op.execute('ALTER INDEX IF EXISTS ix_pick_lists_status RENAME TO ix_packing_orders_status')
     op.execute('ALTER INDEX IF EXISTS ix_pick_lists_sales_order_id RENAME TO ix_packing_orders_sales_order_id')
+
+    op.execute('ALTER TABLE pick_list_lines RENAME CONSTRAINT fk_pick_list_lines_batch_id_batches TO fk_packing_lines_batch_id_batches')
+    op.execute('ALTER TABLE pick_list_lines RENAME CONSTRAINT fk_pick_list_lines_source_location_id_locations TO fk_packing_lines_source_location_id_locations')
+    op.execute('ALTER TABLE pick_list_lines RENAME CONSTRAINT fk_pick_list_lines_item_id_items TO fk_packing_lines_item_id_items')
+    op.execute('ALTER TABLE pick_list_lines RENAME CONSTRAINT fk_pick_list_lines_sales_order_line_id_sales_order_lines TO fk_packing_lines_sales_order_line_id_sales_order_lines')
+    op.execute('ALTER TABLE pick_list_lines RENAME CONSTRAINT fk_pick_list_lines_pick_list_id_pick_lists TO fk_packing_lines_packing_order_id_packing_orders')
+    op.execute('ALTER TABLE pick_list_lines RENAME CONSTRAINT pk_pick_list_lines TO pk_packing_lines')
+    op.execute('ALTER TABLE pick_lists RENAME CONSTRAINT fk_pick_lists_created_by_id_users TO fk_packing_orders_created_by_id_users')
+    op.execute('ALTER TABLE pick_lists RENAME CONSTRAINT fk_pick_lists_source_location_id_locations TO fk_packing_orders_source_location_id_locations')
+    op.execute('ALTER TABLE pick_lists RENAME CONSTRAINT fk_pick_lists_sales_order_id_sales_orders TO fk_packing_orders_sales_order_id_sales_orders')
     op.execute('ALTER TABLE pick_lists RENAME CONSTRAINT uq_pick_lists_code TO uq_packing_orders_code')
+    op.execute('ALTER TABLE pick_lists RENAME CONSTRAINT pk_pick_lists TO pk_packing_orders')
 
     op.rename_table('pick_list_lines', 'packing_lines')
     op.rename_table('pick_lists', 'packing_orders')
