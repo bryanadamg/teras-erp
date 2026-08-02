@@ -71,7 +71,7 @@ function buildSection(key: string, d: any, tzDate: (v: string | Date) => string)
       return {
         kpis: [
           { label: 'Open Orders',   value: open, tone: open > 0 ? 'warn' : 'ok', tab: 'sales-orders' },
-          { label: 'Ready to Ship', value: ready, tone: ready > 0 ? 'ok' : undefined, tab: 'packaging' },
+          { label: 'Ready to Ship', value: ready, tone: ready > 0 ? 'ok' : undefined, tab: 'pick-lists' },
           { label: 'Customers',     value: customers, tab: 'customers' },
           { label: 'Active Samples', value: activeSamples, tab: 'samples' },
         ],

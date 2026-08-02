@@ -29,7 +29,8 @@ export const NAV_SECTIONS: NavSection[] = [
         permissions: ['sales.manage'],
         items: [
             { tab: 'sales-orders', label: 'Sales Orders', i18nKey: 'sales_orders', icon: 'bi-file-text', permission: 'sales.manage' },
-            { tab: 'packaging', label: 'Packaging', icon: 'bi-box2', permission: 'sales.manage' },
+            { tab: 'packing', label: 'Packing Orders', icon: 'bi-box2', permission: 'sales.manage' },
+            { tab: 'pick-lists', label: 'Pick Lists', icon: 'bi-clipboard-check', permission: 'sales.manage' },
             { tab: 'customers', label: 'Customers', i18nKey: 'customers', icon: 'bi-people', permission: 'sales.manage' },
             { tab: 'samples', label: 'Sample Requests', i18nKey: 'sample_requests', icon: 'bi-flask', permission: 'sales.manage' },
         ],

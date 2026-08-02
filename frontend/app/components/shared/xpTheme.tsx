@@ -25,6 +25,12 @@ export const STATUS_FAMILY: Record<string, StatusFamily> = {
     // DELIVERED is blue, not green: on an MO it means "planned qty met, order still
     // open for logging". Green is reserved for closed/terminal.
     DELIVERED: 'blue',
+    // Pick list: PICKING is work in flight, PICKED means every carton is scanned
+    // and the list is waiting on QC/dispatch — attention, not done.
+    PICKING: 'blue', PICKED: 'amber',
+    // A packed carton that still has stock at its location. Consumed cartons fall
+    // through to DISPATCHED/SENT via the pick list that took them.
+    IN_STOCK: 'green',
     COMPLETED: 'green', DONE: 'green', RECEIVED: 'green', APPROVED: 'green',
     ACTIVE: 'green', DISPATCHED: 'green',
     CANCELLED: 'red', REJECTED: 'red',

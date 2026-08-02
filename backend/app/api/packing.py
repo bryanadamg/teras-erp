@@ -18,7 +18,7 @@ from app.models.batch import Batch
 from app.models.item import Item
 from app.models.location import Location
 from app.models.attribute import AttributeValue
-from app.models.sales import SalesOrder
+from app.models.sales import SalesOrder, SalesOrderLine
 from app.models.stock_balance import StockBalance
 from app.api.auth import get_current_user, require_permission
 from app.models.auth import User
@@ -333,7 +333,23 @@ async def create_packing_order(
     )
     db.add(po)
     await db.flush()
-    await _set_attributes(db, po, payload.attribute_value_ids)
+
+    # Variant identity: inherit from the SO line when packing to order and the
+    # caller did not state it. The carton's stock key must match the bulk FG it
+    # is packed from, so guessing wrong here would mint cartons into an empty
+    # variant pool while the real stock sits untouched.
+    attr_ids = list(payload.attribute_value_ids)
+    if payload.sales_order_line_id and not attr_ids:
+        so_line = (await db.execute(
+            select(SalesOrderLine)
+            .options(selectinload(SalesOrderLine.attribute_values))
+            .filter(SalesOrderLine.id == payload.sales_order_line_id)
+        )).scalars().first()
+        if so_line:
+            attr_ids = [v.id for v in (so_line.attribute_values or [])]
+            if not po.color_id:
+                po.color_id = so_line.color_id
+    await _set_attributes(db, po, attr_ids)
 
     for m in payload.materials:
         db.add(PackingOrderMaterial(

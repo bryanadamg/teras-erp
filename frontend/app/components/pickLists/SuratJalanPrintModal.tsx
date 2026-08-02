@@ -7,7 +7,7 @@ import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from '../sha
 
 const font = 'Tahoma, "Segoe UI", sans-serif';
 
-function SJDocument({ po, so, attributes, companyProfile, customerAddr, preparedBy }: any) {
+function SJDocument({ pl, so, attributes, companyProfile, customerAddr, preparedBy }: any) {
     const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api').replace(/\/api$/, '');
     const { itemIndex } = useData();
     const { formatCustom: tzFmt } = useTimezone();
@@ -20,18 +20,16 @@ function SJDocument({ po, so, attributes, companyProfile, customerAddr, prepared
     };
     const fmt = (d: any) => { if (!d) return ''; try { return tzFmt(d, { day: '2-digit', month: '2-digit', year: 'numeric' }, 'en-GB').replace(/\//g, '.'); } catch { return ''; } };
 
-    const lines: any[] = po.lines || [];
-    // Resolve carton-content keys against whichever id shape the line carries
-    const lineByPackingId: Record<string, any> = {};
-    const lineBySolId: Record<string, any> = {};
-    lines.forEach(l => { if (l.id) lineByPackingId[String(l.id)] = l; if (l.sales_order_line_id) lineBySolId[String(l.sales_order_line_id)] = l; });
-    const contentLine = (ci: any) => lineByPackingId[String(ci.packing_line_id)] || lineBySolId[String(ci.sales_order_line_id)] || null;
+    const lines: any[] = pl.lines || [];
+    // Cartons come straight off the picked lines now — a line either names a
+    // PackedUnit (batch_number) or is a bulk ship line with no carton.
+    const cartons = lines.filter(l => l.batch_number);
 
     const border = '1px solid #555';
     const cell: React.CSSProperties = { border, padding: '3px 5px', verticalAlign: 'top' };
     const hCell: React.CSSProperties = { ...cell, background: '#f0f0f0', fontWeight: 'bold', textAlign: 'center' };
 
-    const customerName = po.customer_name || so?.customer_name || '';
+    const customerName = pl.customer_name || so?.customer_name || '';
 
     return (
         <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '9px', color: '#000', lineHeight: 1.4 }}>
@@ -68,12 +66,12 @@ function SJDocument({ po, so, attributes, companyProfile, customerAddr, prepared
                     <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '9px' }}>
                         <tbody>
                             {([
-                                ['No. Surat Jalan', po.delivery_note_number || po.code],
-                                ['Tanggal / Date', fmt(po.delivery_date || po.dispatched_at)],
-                                ['No. SO', po.sales_order_code || so?.po_number || ''],
-                                ['Pengangkut / Carrier', po.carrier || ''],
-                                ['No. Kendaraan', po.vehicle_plate || ''],
-                                ['Sopir / Driver', po.driver || ''],
+                                ['No. Surat Jalan', pl.delivery_note_number || pl.code],
+                                ['Tanggal / Date', fmt(pl.delivery_date || pl.dispatched_at)],
+                                ['No. SO', pl.sales_order_code || so?.po_number || ''],
+                                ['Pengangkut / Carrier', pl.carrier || ''],
+                                ['No. Kendaraan', pl.vehicle_plate || ''],
+                                ['Sopir / Driver', pl.driver || ''],
                             ] as [string, string][]).map(([k, v]) => (
                                 <tr key={k}>
                                     <td style={{ fontWeight: 'bold', paddingRight: 4, whiteSpace: 'nowrap', verticalAlign: 'top' }}>{k}</td>
@@ -91,7 +89,7 @@ function SJDocument({ po, so, attributes, companyProfile, customerAddr, prepared
                     <tr>
                         <th style={{ ...hCell, width: '5%' }}>No</th>
                         <th style={{ ...hCell, width: '45%', textAlign: 'left' }}>Barang / Description</th>
-                        <th style={{ ...hCell, width: '20%' }}>Lot</th>
+                        <th style={{ ...hCell, width: '20%' }}>Lot / Koli</th>
                         <th style={{ ...hCell, width: '15%' }}>Qty</th>
                         <th style={{ ...hCell, width: '15%' }}>Sat / UoM</th>
                     </tr>
@@ -106,39 +104,34 @@ function SJDocument({ po, so, attributes, companyProfile, customerAddr, prepared
                                 {(l.attribute_value_ids || []).map((vid: string) => <div key={vid}>{attrName(vid)}</div>)}
                             </td>
                             <td style={{ ...cell, textAlign: 'center' }}>{l.batch_number || '-'}</td>
-                            <td style={{ ...cell, textAlign: 'right' }}>{Number(l.qty_packed).toLocaleString()}</td>
+                            <td style={{ ...cell, textAlign: 'right' }}>{Number(l.qty_picked).toLocaleString()}</td>
                             <td style={{ ...cell, textAlign: 'center' }}>{l.item_uom || itemUOM(l.item_id)}</td>
                         </tr>
                     ))}
                 </tbody>
             </table>
 
-            {/* Packing list */}
-            {(po.packages || []).length > 0 && (
+            {/* Carton manifest */}
+            {cartons.length > 0 && (
                 <>
-                    <div style={{ fontWeight: 'bold', marginBottom: 3 }}>Packing List:</div>
+                    <div style={{ fontWeight: 'bold', marginBottom: 3 }}>Packing List — {cartons.length} koli:</div>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', marginBottom: 8 }}>
                         <thead>
                             <tr>
-                                <th style={{ ...hCell, width: '10%' }}>Pkg</th>
-                                <th style={{ ...hCell, width: '15%' }}>Type</th>
-                                <th style={{ ...hCell, width: '15%' }}>Berat (kg)</th>
-                                <th style={{ ...hCell, width: '60%', textAlign: 'left' }}>Isi / Contents</th>
+                                <th style={{ ...hCell, width: '10%' }}>No</th>
+                                <th style={{ ...hCell, width: '30%' }}>Koli / Carton</th>
+                                <th style={{ ...hCell, width: '40%', textAlign: 'left' }}>Isi / Contents</th>
+                                <th style={{ ...hCell, width: '20%' }}>Qty</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {(po.packages || []).map((p: any, i: number) => (
+                            {cartons.map((c: any, i: number) => (
                                 <tr key={i}>
-                                    <td style={{ ...cell, textAlign: 'center' }}>{p.package_no}</td>
-                                    <td style={{ ...cell, textAlign: 'center' }}>{p.label || 'Carton'}</td>
-                                    <td style={{ ...cell, textAlign: 'right' }}>{p.weight_kg != null && p.weight_kg !== '' ? Number(p.weight_kg).toLocaleString() : '-'}</td>
-                                    <td style={cell}>
-                                        {(p.contents || []).map((ci: any, j: number) => {
-                                            const cl = contentLine(ci);
-                                            const nm = cl ? (cl.item_name || itemName(cl.item_id)) : '';
-                                            const uom = cl ? (cl.item_uom || itemUOM(cl.item_id)) : '';
-                                            return <div key={j}>{nm} — {Number(ci.qty).toLocaleString()} {uom}</div>;
-                                        })}
+                                    <td style={{ ...cell, textAlign: 'center' }}>{c.package_no ?? i + 1}</td>
+                                    <td style={{ ...cell, textAlign: 'center' }}>{c.batch_number}</td>
+                                    <td style={cell}>{c.item_name || itemName(c.item_id)}</td>
+                                    <td style={{ ...cell, textAlign: 'right' }}>
+                                        {Number(c.qty_picked).toLocaleString()} {c.item_uom || itemUOM(c.item_id)}
                                     </td>
                                 </tr>
                             ))}
@@ -147,7 +140,7 @@ function SJDocument({ po, so, attributes, companyProfile, customerAddr, prepared
                 </>
             )}
 
-            {po.notes && <div style={{ marginBottom: 8 }}><strong>Catatan / Notes:</strong> {po.notes}</div>}
+            {pl.notes && <div style={{ marginBottom: 8 }}><strong>Catatan / Notes:</strong> {pl.notes}</div>}
 
             {/* Signatures */}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24, fontSize: '9px', textAlign: 'center' }}>
@@ -165,10 +158,10 @@ function SJDocument({ po, so, attributes, companyProfile, customerAddr, prepared
     );
 }
 
-export default function SuratJalanPrintModal({ po, attributes, companyProfile, customerAddr, currentStyle, onClose }: any) {
-    // po already carries sales_order_code/customer_name denormalized server-side —
+export default function SuratJalanPrintModal({ pl, attributes, companyProfile, customerAddr, currentStyle, onClose }: any) {
+    // pl already carries sales_order_code/customer_name denormalized server-side —
     // no need to hold the full salesOrders list in memory just to print one.
-    const so = { po_number: po.sales_order_code, customer_name: po.customer_name };
+    const so = { po_number: pl.sales_order_code, customer_name: pl.customer_name };
     const [preparedBy, setPreparedBy] = useState('');
 
     useEffect(() => {
@@ -188,14 +181,14 @@ export default function SuratJalanPrintModal({ po, attributes, companyProfile, c
     const xpTitleBar: React.CSSProperties = sharedXpTitleBar();
     const xpInput: React.CSSProperties = { fontFamily: font, fontSize: 11, border: '1px solid #7f9db9', boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', padding: '1px 6px', background: '#fff', color: '#000', height: 20, width: '100%', boxSizing: 'border-box', outline: 'none' };
 
-    const doc = <SJDocument po={po} so={so} attributes={attributes} companyProfile={companyProfile} customerAddr={customerAddr} preparedBy={preparedBy} />;
+    const doc = <SJDocument pl={pl} so={so} attributes={attributes} companyProfile={companyProfile} customerAddr={customerAddr} preparedBy={preparedBy} />;
 
     return (
         <>
             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
                 <div style={{ ...xpBevel, width: '92vw', maxWidth: 900, height: '90vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
                     <div style={xpTitleBar}>
-                        <span>Surat Jalan — {po.code}</span>
+                        <span>Surat Jalan — {pl.code}</span>
                         <button onClick={onClose} style={xpBtn({ padding: '0 6px', fontWeight: 'bold' })}>X</button>
                     </div>
                     <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
