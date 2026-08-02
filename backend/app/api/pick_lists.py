@@ -302,12 +302,19 @@ async def update_pick_list(
     elif payload.qc_inspector is not None:
         pl.qc_inspector = payload.qc_inspector
 
-    # Rebuild lines
+    # Rebuild lines. Scan confirmations are carried across the rebuild by carton:
+    # the editor saves before dispatching, and dropping picked_at here would make
+    # dispatch reject every carton the floor had already scanned.
     if payload.lines is not None:
+        confirmed = {
+            str(old.batch_id): (old.picked_at, old.picked_by)
+            for old in pl.lines if old.batch_id and old.picked_at
+        }
         for old in list(pl.lines):
             await db.delete(old)
         await db.flush()
         for l in payload.lines:
+            picked_at, picked_by = confirmed.get(str(l.batch_id), (None, None)) if l.batch_id else (None, None)
             db.add(PickListLine(
                 pick_list_id=pl.id,
                 sales_order_line_id=l.sales_order_line_id,
@@ -315,6 +322,8 @@ async def update_pick_list(
                 qty_picked=l.qty_picked,
                 source_location_id=l.source_location_id,
                 batch_id=l.batch_id,
+                picked_at=picked_at,
+                picked_by=picked_by,
             ))
 
     await db.commit()
@@ -394,9 +403,18 @@ async def scan_pick_list_unit(
         pl.status = "PICKING"
     await db.flush()
 
-    # All cartons confirmed -> ready for QC / dispatch
-    pending = [l for l in pl.lines if l.batch_id and not l.picked_at and l.id != line.id]
-    if not pending:
+    # All cartons confirmed -> ready for QC / dispatch. Re-read the lines rather
+    # than using pl.lines: a line appended above sets pick_list_id directly, which
+    # does not back-populate the already-loaded collection, so the stale copy
+    # would miss it and flip the list to PICKED one carton early.
+    remaining = await db.execute(
+        select(func.count(PickListLine.id)).filter(
+            PickListLine.pick_list_id == pl.id,
+            PickListLine.batch_id.isnot(None),
+            PickListLine.picked_at.is_(None),
+        )
+    )
+    if (remaining.scalar() or 0) == 0:
         pl.status = "PICKED"
 
     await db.commit()

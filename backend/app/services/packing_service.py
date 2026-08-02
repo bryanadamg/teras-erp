@@ -211,7 +211,18 @@ async def available_packed_units(
     rows = (await db.execute(query)).all()
     if exclude_ids:
         rows = [r for r in rows if r[0].id not in exclude_ids]
-    return [(r[0], r[1]) for r in rows]
+    # A carton is atomic, but nothing in the schema stops it having balance rows at
+    # more than one location (e.g. after a manual move that left a zeroed row).
+    # Keep one row per carton so a pick suggestion can never list the same physical
+    # box twice.
+    seen = set()
+    out = []
+    for batch, bal in rows:
+        if batch.id in seen:
+            continue
+        seen.add(batch.id)
+        out.append((batch, bal))
+    return out
 
 
 async def suggest_units_for_line(

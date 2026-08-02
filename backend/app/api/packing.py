@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, cast, String
+from sqlalchemy import select, func, cast, String, nulls_last
 from sqlalchemy.orm import selectinload
 from typing import Optional
 from datetime import datetime
@@ -66,10 +66,18 @@ async def _packed_units_for(db: AsyncSession, po_ids: list) -> dict:
         .outerjoin(StockBalance, StockBalance.batch_key == cast(Batch.id, String))
         .options(selectinload(Batch.item))
         .filter(Batch.packing_order_id.in_(po_ids))
-        .order_by(Batch.package_no.asc())
+        # qty desc so the carton's live balance row wins the per-batch dedupe below
+        # over any zeroed leftover row from an earlier location.
+        .order_by(Batch.package_no.asc(), nulls_last(StockBalance.qty.desc()))
     )
     out: dict = {}
+    seen = set()
     for batch, bal in result.all():
+        # One row per carton: the outerjoin can match several balance rows for a
+        # batch that has been moved, and the positive one sorts first.
+        if batch.id in seen:
+            continue
+        seen.add(batch.id)
         out.setdefault(str(batch.packing_order_id), []).append(
             PackedUnitResponse(
                 id=batch.id,
@@ -167,6 +175,10 @@ async def list_packed_units(
         query = query.filter(StockBalance.qty > 0)
 
     rows = (await db.execute(query)).all()
+    # Same per-carton dedupe as _packed_units_for — the balance outerjoin can match
+    # more than one row for a batch that has been moved between locations.
+    seen = set()
+    rows = [r for r in rows if not (r[0].id in seen or seen.add(r[0].id))]
     loc_ids = {bal.location_id for _, bal, _ in rows if bal and bal.location_id}
     loc_names: dict = {}
     if loc_ids:
