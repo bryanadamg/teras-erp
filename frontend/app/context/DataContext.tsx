@@ -105,6 +105,27 @@ interface DataContextType {
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
+/**
+ * localStorage key for the master-data cache. Module-level because targeted
+ * refreshers write through to it as well as `fetchData` — a refresher that updates
+ * only React state leaves the cache serving its stale copy on the next page load,
+ * which is exactly how saved print templates stopped reaching the floor.
+ */
+const MASTER_CACHE_KEY = 'terras_master_cache_v6';
+
+/** Merge a slice into the cached master data, keeping the existing timestamp. */
+function patchMasterCache(patch: Record<string, any>) {
+    try {
+        const raw = localStorage.getItem(MASTER_CACHE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        localStorage.setItem(MASTER_CACHE_KEY, JSON.stringify({
+            timestamp: parsed.timestamp,
+            data: { ...(parsed.data || {}), ...patch },
+        }));
+    } catch { /* cache is best-effort; a write failure must not break the refresh */ }
+}
+
 export function DataProvider({ children }: { children: React.ReactNode }) {
     const { currentUser, logout } = useUser();
     const { showToast } = useToast();
@@ -238,7 +259,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             // attribute_ids + variant_type (BOM designer variant dropdowns for items
             // off the paginated /items page) on top of v4's ends and v3's
             // uom/lot_tracked — bump so a stale cache doesn't serve a thin index.
-            const CACHE_KEY = 'terras_master_cache_v6';
+            const CACHE_KEY = MASTER_CACHE_KEY;
             const CACHE_TTL = 3600000; 
             const savedCache = localStorage.getItem(CACHE_KEY);
             let masterFetched = false;
@@ -272,6 +293,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 requests.push(fetch(`${API_BASE}/operations`, { headers })); requestTypes.push('operations');
                 requests.push(fetch(`${API_BASE}/partners`, { headers })); requestTypes.push('partners');
                 requests.push(fetch(`${API_BASE}/settings/company`, { headers })); requestTypes.push('company-profile');
+            }
+
+            // Print templates are refetched on EVERY first load, cache hit included —
+            // unlike the rest of the master set. A layout the admin saved on their PC
+            // has to reach the floor's next print, and the cached copy can be an hour
+            // stale (unbounded, in fact: any later master write re-stamps the cache
+            // timestamp while carrying the old templates forward). One small row per
+            // customised doc type, so the extra request is cheap.
+            if (isInitialLoad || fetchTarget === 'settings' || fetchTarget === 'print-designer') {
                 requests.push(fetch(`${API_BASE}/print-templates`, { headers })); requestTypes.push('print-templates');
             }
 
@@ -600,7 +630,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             const token = localStorage.getItem('access_token');
             const headers = { 'Authorization': `Bearer ${token}` };
             const res = await fetch(`${API_BASE}/print-templates`, { headers, cache: 'no-store' });
-            if (res.ok) setPrintTemplates(await res.json() || []);
+            if (res.ok) {
+                const data = await res.json() || [];
+                setPrintTemplates(data);
+                // Write through: without this the next page load restores the pre-edit
+                // templates from the master cache and prints the old layout.
+                patchMasterCache({ printTemplates: data });
+            }
         } catch (e) { console.error('refreshPrintTemplates error', e); }
     }, [currentUser]);
 
