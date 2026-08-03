@@ -362,7 +362,8 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                 color_id: form.color_id || null,
                 lines: form.lines.map((l, idx) => ({
                     ...l,
-                    qty_per_100kg: parseFloat(String(l.qty_per_100kg)) || 0,
+                    // Blank stays null, not 0 — null is what marks "this line is rated in g/L instead".
+                    qty_per_100kg: String(l.qty_per_100kg ?? '').trim() === '' ? null : (parseFloat(String(l.qty_per_100kg)) || 0),
                     qty_per_liter: l.qty_per_liter,
                     sort_order: parseInt(String(l.sort_order)) || idx + 1,
                 })),
@@ -537,13 +538,17 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                                         <th style={{ padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444', width: 20 }}>#</th>
                                         <th style={{ padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444', width: 60 }}>Type</th>
                                         <th style={{ padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444' }}>Item</th>
-                                        <th style={{ padding: '1px 5px', textAlign: 'right', fontWeight: 'bold', color: '#444', width: 70 }}>Qty/100kg</th>
-                                        <th style={{ padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444', width: 40 }}>UOM</th>
+                                        <th style={{ padding: '1px 5px', textAlign: 'right', fontWeight: 'bold', color: '#444', width: 60 }}>Qty</th>
+                                        <th style={{ padding: '1px 5px', textAlign: 'left', fontWeight: 'bold', color: '#444', width: 55 }}>Unit</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {(recipe.lines || []).map((line: any, idx: number) => {
                                         const linkedItem = items.find(it => String(it.id) === String(line.item_id));
+                                        // g/L and /100kg are alternate rate bases — show whichever the line carries
+                                        // (mirrors the fallback in DyeRecipePrintView).
+                                        const rate = line.qty_per_liter ?? line.qty_per_100kg ?? null;
+                                        const rateUnit = line.uom_name || (line.qty_per_liter != null ? 'g/L' : line.qty_per_100kg != null ? '/100kg' : '-');
                                         return (
                                             <tr key={idx} style={{ background: idx % 2 === 0 ? '#fff' : '#f5f3ee', borderBottom: '1px solid #e8e6e0' }}>
                                                 <td style={{ padding: '2px 5px', color: '#666' }}>{idx + 1}</td>
@@ -561,9 +566,9 @@ export default function DyeRecipeTab({ items, attributes, authFetch, initialColo
                                                     {line.item_name || linkedItem?.name || (line.item_id || '-')}
                                                 </td>
                                                 <td style={{ padding: '2px 5px', textAlign: 'right', fontWeight: 'bold', color: '#000080' }}>
-                                                    {line.qty_per_100kg != null ? Number(line.qty_per_100kg).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '-'}
+                                                    {rate != null ? Number(rate).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '-'}
                                                 </td>
-                                                <td style={{ padding: '2px 5px', color: '#555' }}>{line.uom_name || '-'}</td>
+                                                <td style={{ padding: '2px 5px', color: '#555' }}>{rateUnit}</td>
                                             </tr>
                                         );
                                     })}
