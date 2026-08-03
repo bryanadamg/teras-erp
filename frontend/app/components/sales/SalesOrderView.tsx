@@ -766,6 +766,56 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       </div>
   );
 
+  // --- Per-line fulfilment (derived server-side by so_fulfilment_service) ---
+  // made >= packed >= in-stock/shipped, so the three are drawn as nested stages on
+  // one track rather than stacked segments — they are not additive.
+  const lineFulfilment = (line: any) => {
+      const ordered = Number(line.qty) || 0;
+      const made = Number(line.qty_made) || 0;
+      const packed = Number(line.qty_packed) || 0;
+      const available = Number(line.qty_packed_available) || 0;
+      const shipped = Number(line.qty_dispatched) || 0;
+      const pct = (v: number) => (ordered > 0 ? Math.min(100, Math.round((v / ordered) * 100)) : 0);
+      return { ordered, made, packed, available, shipped, pct,
+          // Shippable = cartons actually in stock. Dispatched stock has left, so a
+          // shipped line reads complete off `shipped`, not off what remains.
+          isReady: ordered > 0 && (available >= ordered - 0.0001 || shipped >= ordered - 0.0001) };
+  };
+
+  const isLineLate = (line: any) => {
+      if (!line.due_date) return false;
+      const f = lineFulfilment(line);
+      if (f.isReady) return false;
+      const due = new Date(line.due_date);
+      return !isNaN(due.getTime()) && due.getTime() < Date.now();
+  };
+
+  const fulfilmentCell = (line: any) => {
+      const f = lineFulfilment(line);
+      if (f.ordered <= 0) return <span style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', color:'#ccc' }}>—</span>;
+      const seg = (width: number, color: string, z: number) => (
+          <div style={{ position:'absolute', left:0, top:0, bottom:0, width:`${width}%`, background:color, zIndex:z }} />
+      );
+      const title = `Made ${f.made} · Packed ${f.packed} · In stock ${f.available} · Shipped ${f.shipped} — of ${f.ordered} ordered`;
+      return (
+          <div title={title} style={{ display:'flex', flexDirection:'column', gap:2, minWidth:78 }}>
+              <div style={{ position:'relative', height:6, background: classic ? '#e8e5dd' : '#eceff1',
+                  border: classic ? '1px solid #b0a898' : '1px solid #dde2e6', borderRadius: classic ? 0 : 3, overflow:'hidden' }}>
+                  {seg(f.pct(f.made), classic ? '#c3ccdb' : '#cbd5e1', 1)}
+                  {seg(f.pct(f.packed), classic ? '#5a9ae0' : '#3b82f6', 2)}
+                  {seg(f.pct(f.shipped), classic ? '#2d7a2d' : '#16a34a', 3)}
+              </div>
+              <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', color: f.isReady ? (classic ? '#1a5e1a' : '#166534') : '#777' }}>
+                  {f.shipped > 0
+                      ? `${f.shipped} shipped`
+                      : f.packed > 0
+                          ? `${f.available} packed`
+                          : f.made > 0 ? `${f.made} made` : 'not started'}
+              </div>
+          </div>
+      );
+  };
+
   const handlePrintSO = (so: any) => {
       setPrintingSO(so);
   };
@@ -1543,6 +1593,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                <th style={classic ? { ...xpThCell, width: '80px' } : undefined}>Alt Unit</th>
                                <th style={classic ? { ...xpThCell, width: '110px' } : undefined}>Stock Notes</th>
                                <th style={classic ? { ...xpThCell, width: '88px' } : undefined}>Req / Conf</th>
+                               <th style={classic ? { ...xpThCell, width: '92px' } : undefined} title="Made -> packed -> shipped against the ordered qty. READY needs packed cartons in stock.">Fulfilment</th>
                                <th style={classic ? { ...xpThCell, width: '80px', cursor: 'pointer' } : { cursor: 'pointer' }} onClick={() => toggleSOSort('status')} title="Sort">Status<SortMark sort={soSort} colKey="status" /></th>
                                <th style={classic ? { ...xpThCell, textAlign: 'right' as const, borderRight: 'none', width: '110px' } : undefined} className={classic ? '' : 'text-end pe-3'}>Actions</th>
                            </tr>
@@ -1658,7 +1709,7 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                            <td style={soTd()} className={classic ? '' : 'ps-3'}>{poCellContent}</td>
                                            <td style={soTd()}>{so.customer_name}</td>
                                            <td style={soTd({ fontSize:'10px' })} className={classic ? '' : 'small'}>{tzDate(so.order_date)}</td>
-                                           <td colSpan={6} style={classic ? { ...tdBase, background:rowBg, borderBottom:'1px solid #c0bdb5', color:'#aaa', fontStyle:'italic', fontSize:'10px' } : { background:rowBg, padding:'6px 10px', borderBottom:'1px solid #dee2e6', color:'#aaa', fontStyle:'italic', fontSize:'0.78rem' }}>No lines</td>
+                                           <td colSpan={7} style={classic ? { ...tdBase, background:rowBg, borderBottom:'1px solid #c0bdb5', color:'#aaa', fontStyle:'italic', fontSize:'10px' } : { background:rowBg, padding:'6px 10px', borderBottom:'1px solid #dee2e6', color:'#aaa', fontStyle:'italic', fontSize:'0.78rem' }}>No lines</td>
                                            <td style={soTd()}>{statusCellContent}</td>
                                            <td style={soTd({ textAlign:'right' as const, borderRight:'none' })} className={classic ? '' : 'pe-3 text-end'}>{actionsCellContent}</td>
                                        </tr>
@@ -1743,8 +1794,14 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                            {/* Req / Conf */}
                                            <td style={lineTd(isFirst, isLast)}>
                                                {line.due_date ? (
-                                                   <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', color: classic?'#555':'' }}>
+                                                   // Past its requested date with no cartons ready to ship — the one
+                                                   // case where the date itself is the alarm, so it carries the tint.
+                                                   <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px',
+                                                       color: isLineLate(line) ? (classic?'#a80000':'#dc2626') : (classic?'#555':''),
+                                                       fontWeight: isLineLate(line) ? 'bold' : undefined }}
+                                                       title={isLineLate(line) ? 'Past requested date and not ready to ship' : undefined}>
                                                        <span style={{ color:'#999' }}>Req</span> {formatShortDate(line.due_date)}
+                                                       {isLineLate(line) && <i className="bi bi-exclamation-triangle-fill" style={{ marginLeft:3 }}></i>}
                                                    </div>
                                                ) : null}
                                                {line.internal_confirmation_date ? (
@@ -1756,6 +1813,9 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                                    <span style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', color:'#ccc' }}>—</span>
                                                )}
                                            </td>
+
+                                           {/* Fulfilment */}
+                                           <td style={lineTd(isFirst, isLast)}>{fulfilmentCell(line)}</td>
 
                                            {isFirst && (
                                                <>

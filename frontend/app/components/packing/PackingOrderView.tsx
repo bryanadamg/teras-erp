@@ -344,6 +344,9 @@ function PackingOrderForm({ locPickerTreeOptions, authFetch, showToast, onClose,
     const submit = async () => {
         if (!itemId) { showToast('Pick an item to pack', 'warning'); return; }
         if (num(qtyTarget) <= 0) { showToast('Target quantity must be greater than zero', 'warning'); return; }
+        // The line link is what credits these cartons to the order — without it the
+        // SO can never reach READY, so an SO with no line picked is a silent dead end.
+        if (soId && !soLineId) { showToast('Pick which order line this packs', 'warning'); return; }
         setSaving(true);
         try {
             const body = {

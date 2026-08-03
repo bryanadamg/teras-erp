@@ -28,6 +28,11 @@ export interface ItemIndexEntry {
     attribute_ids?: string[];
 }
 
+// Kinds of debounced live (WebSocket) event a page can be told about. One alias
+// so adding a kind can't leave the queue, the buffer, and the subscriber
+// signature disagreeing — which is exactly what a bare repeated union did.
+export type LiveKind = 'production' | 'kpi' | 'stock' | 'weaving' | 'bom' | 'sales';
+
 interface DataContextType {
     items: any[];
     locations: any[];
@@ -100,7 +105,7 @@ interface DataContextType {
     refreshRouting: () => Promise<void>;
     handleTabHover: (tab: string) => void;
     authFetch: (url: string, options?: any) => Promise<Response>;
-    subscribeLiveEvents: (fn: (kind: 'production' | 'kpi' | 'stock' | 'weaving' | 'bom') => void) => () => void;
+    subscribeLiveEvents: (fn: (kind: LiveKind) => void) => () => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -704,8 +709,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     // Pages that own their data (e.g. /work-orders fetches its own list) subscribe
     // here to be told when a debounced batch of live events has arrived.
-    const liveSubsRef = useRef<Set<(kind: 'production' | 'kpi' | 'stock' | 'weaving' | 'bom') => void>>(new Set());
-    const subscribeLiveEvents = useCallback((fn: (kind: 'production' | 'kpi' | 'stock' | 'weaving' | 'bom') => void) => {
+    const liveSubsRef = useRef<Set<(kind: LiveKind) => void>>(new Set());
+    const subscribeLiveEvents = useCallback((fn: (kind: LiveKind) => void) => {
         liveSubsRef.current.add(fn);
         return () => { liveSubsRef.current.delete(fn); };
     }, []);
@@ -725,7 +730,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         // fan-out) collapses into ONE refetch + ONE toast per 800ms window instead
         // of one heavy refetch per message. Each of those refetches used to pull
         // items + the full nested /boms + all-level MOs + PRs — a storm.
-        const pending = { kinds: new Set<'production' | 'kpi' | 'stock' | 'weaving' | 'bom'>(), codes: new Map<string, string>() };
+        const pending = { kinds: new Set<LiveKind>(), codes: new Map<string, string>() };
 
         const flushLive = () => {
             flushTimer = null;
@@ -789,7 +794,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 liveSubsRef.current.forEach(fn => { try { fn('sales'); } catch {} });
             }
         };
-        const queueLive = (kind: 'production' | 'kpi' | 'stock' | 'weaving' | 'bom' | 'sales', code?: string, status?: string) => {
+        const queueLive = (kind: LiveKind, code?: string, status?: string) => {
             pending.kinds.add(kind);
             if (code) pending.codes.set(code, status || '');
             if (!flushTimer) flushTimer = setTimeout(flushLive, 800);
