@@ -407,6 +407,32 @@ export function FormSection({ title, classic, children }: { title: React.ReactNo
     );
 }
 
+// Fieldset-style panel with a floating legend notched into its top border — the
+// grouping chrome used inside *operator log modals* (WO completion, packing),
+// where FormSection's solid blue header bar would read as a page-level section
+// and compete with the modal's own title bar. Was hand-rolled three times inside
+// WOCompletionModal before this; `right` holds an optional action (e.g. "Print
+// All Bag Labels") pinned to the legend line.
+export function LegendPanel({ title, right, children, style }: {
+    title: React.ReactNode;
+    right?: React.ReactNode;
+    children: React.ReactNode;
+    style?: React.CSSProperties;
+}) {
+    return (
+        <div style={{ border: '1px solid #aca899', background: '#f5f4ee', position: 'relative', paddingTop: 10, ...style }}>
+            <span style={{
+                position: 'absolute', top: -7, left: 8, background: '#f5f4ee', padding: '0 4px',
+                fontFamily: xpFont, fontSize: 10, fontWeight: 'bold', color: '#000080',
+            }}>
+                {title}
+            </span>
+            {right && <span style={{ position: 'absolute', top: -9, right: 6 }}>{right}</span>}
+            {children}
+        </div>
+    );
+}
+
 // Pressed/unpressed button — THE on-off chip shape (weekday pickers, filter chips,
 // segmented pickers). Classic gets the XP pressed-blue gradient, modern the
 // bootstrap primary/outline pair. Use this instead of styling a selected state per

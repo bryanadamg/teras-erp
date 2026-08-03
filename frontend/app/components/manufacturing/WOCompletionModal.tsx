@@ -7,7 +7,7 @@ import { useToast } from '../shared/Toast';
 import SearchableSelect from '../shared/SearchableSelect';
 import ModalWrapper from '../shared/ModalWrapper';
 import BagLabelPrintModal from './BagLabelPrintModal';
-import { ProgressBar } from '../shared/xpTheme';
+import { ProgressBar, LegendPanel } from '../shared/xpTheme';
 import { LotChips } from '../shared/LotChips';
 
 const xpFont = 'Tahoma, "Segoe UI", sans-serif';
@@ -598,10 +598,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
 
                         {/* Material Consumption (WO mode) */}
                         {workOrder && materialRows.length > 0 && (
-                            <div style={{ border: '1px solid #aca899', background: '#f5f4ee', position: 'relative', paddingTop: 10 }}>
-                                <span style={{ position: 'absolute', top: -7, left: 8, background: '#f5f4ee', padding: '0 4px', fontSize: 10, fontWeight: 'bold', color: '#000080' }}>
-                                    Material Consumption
-                                </span>
+                            <LegendPanel title="Material Consumption">
                                 <div style={{ padding: '4px 8px 8px' }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
                                         <thead>
@@ -722,15 +719,12 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                         Planned = BOM% x actual output. Edit Actual to record real consumption.
                                     </div>
                                 </div>
-                            </div>
+                            </LegendPanel>
                         )}
 
                         {/* Actual Items Used (non-WO mode: substitutes) */}
                         {!workOrder && (
-                        <div style={{ border: '1px solid #aca899', background: '#f5f4ee', position: 'relative', paddingTop: 10 }}>
-                            <span style={{ position: 'absolute', top: -7, left: 8, background: '#f5f4ee', padding: '0 4px', fontSize: 10, fontWeight: 'bold', color: '#000080' }}>
-                                Actual Items Used
-                            </span>
+                        <LegendPanel title="Actual Items Used">
                             <div style={{ padding: '4px 8px 8px' }}>
                                 {actualItems.length === 0 && (
                                     <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>
@@ -771,24 +765,23 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                     + Add Item
                                 </button>
                             </div>
-                        </div>
+                        </LegendPanel>
                         )}
 
                         {/* History */}
                         {completions.length > 0 && (
-                            <div style={{ border: '1px solid #aca899', background: '#f5f4ee', position: 'relative', paddingTop: 10 }}>
-                                <span style={{ position: 'absolute', top: -7, left: 8, background: '#f5f4ee', padding: '0 4px', fontSize: 10, fontWeight: 'bold', color: '#000080' }}>
-                                    Previous Entries
-                                </span>
-                                {workOrder && woBags.length > 0 && (
+                            <LegendPanel
+                                title="Previous Entries"
+                                right={workOrder && woBags.length > 0 ? (
                                     <button
                                         type="button"
                                         onClick={() => { setLabelSeqStart(1); setLabelBags(woBags); }}
-                                        style={{ ...xpBtn(), position: 'absolute', top: -9, right: 6, fontSize: 10, padding: '1px 8px' }}
+                                        style={{ ...xpBtn(), fontSize: 10, padding: '1px 8px' }}
                                     >
                                         Print All Bag Labels ({woBags.length})
                                     </button>
-                                )}
+                                ) : undefined}
+                            >
                                 <div style={{ maxHeight: 140, overflowY: 'auto' }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10, fontFamily: xpFont }}>
                                         <thead>
@@ -853,7 +846,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                         </tbody>
                                     </table>
                                 </div>
-                            </div>
+                            </LegendPanel>
                         )}
                     </div>
                 </form>

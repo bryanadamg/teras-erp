@@ -8,7 +8,7 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
-import { XPStatusBar, XPEmptyState, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton } from '../shared/xpTheme';
+import { XPStatusBar, XPEmptyState, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton, LegendPanel, ProgressBar } from '../shared/xpTheme';
 import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvRow } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
@@ -44,6 +44,14 @@ const CLASSIC = true;
 // same column on every row instead of reflowing to a ragged edge.
 const fieldGrid: React.CSSProperties = { display: 'grid', gap: '8px 14px', alignItems: 'start' };
 const hintText: React.CSSProperties = { fontFamily: xpFont, fontSize: 10, color: '#938c76', fontStyle: 'italic', marginTop: 6 };
+// Operator-log-modal field label + UOM pill — copied from WOCompletionModal so the
+// pack modal and the WO completion modal read as the same screen.
+const xpFormLabel: React.CSSProperties = { fontFamily: xpFont, fontSize: 11, display: 'block', marginBottom: 2 };
+const uomChip: React.CSSProperties = {
+    fontSize: 9, fontWeight: 'bold', letterSpacing: 0.3, textTransform: 'uppercase',
+    color: '#31569e', background: '#e8f0fe', border: '1px solid #a8c0f0',
+    borderRadius: 2, padding: '0 5px', lineHeight: '14px',
+};
 
 const num = (v: any) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
 const PO_PAGE_SIZE = 20;
@@ -76,6 +84,11 @@ export default function PackingOrderView() {
     }, [itemIndex]);
 
     const locPickerTreeOptions = useMemo(() => buildLocationPickerTree(locations || []), [locations]);
+    const locationById = useMemo(() => {
+        const m: Record<string, any> = {};
+        (locations || []).forEach((l: any) => { m[String(l.id)] = l; });
+        return m;
+    }, [locations]);
 
     const loadPage = useCallback(async (p: number) => {
         setLoading(true);
@@ -174,6 +187,7 @@ export default function PackingOrderView() {
                         {orders.map((po: any, idx: number) => {
                             const it = itemById[String(po.item_id)];
                             const shortfall = num(po.qty_packed) < num(po.qty_target);
+                            const closed = po.status === 'COMPLETED' || po.status === 'CANCELLED';
                             return (
                                 <tr key={po.id} style={rowStyle(idx)}>
                                     <td style={{ ...td, fontWeight: 'bold', color: '#00309c' }}>{po.code}</td>
@@ -187,7 +201,20 @@ export default function PackingOrderView() {
                                     <td style={{ ...td, textAlign: 'right', color: shortfall ? '#c77800' : '#0a3e0a' }}>{num(po.qty_packed).toLocaleString()}</td>
                                     <td style={{ ...td, textAlign: 'right' }}>{po.package_count || 0}</td>
                                     <td style={td}>{po.created_at ? tzDate(po.created_at) : '-'}</td>
-                                    <td style={{ ...td, textAlign: 'right' }}>
+                                    <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                        {/* Pack is the row's primary action — inline, same shape as
+                                            "log production output" on the WO list, not buried in the menu. */}
+                                        {canManage && !closed && (
+                                            <span style={{ marginRight: 2 }}>
+                                                <XPActionButton
+                                                    classic={CLASSIC}
+                                                    tone="success"
+                                                    icon="bi-plus-lg"
+                                                    title="Pack — log cartons against this order"
+                                                    onClick={() => setDetail(po)}
+                                                />
+                                            </span>
+                                        )}
                                         <MenuTriggerButton classic onClick={e => menuToggle(String(po.id), e)} />
                                     </td>
                                 </tr>
@@ -206,7 +233,9 @@ export default function PackingOrderView() {
                     <FloatingMenu
                         pos={menuPos}
                         items={[
-                            { key: 'open', label: closed ? 'View' : 'Pack', icon: 'bi-box-seam', onClick: () => { menuClose(); setDetail(po); } },
+                            // Open/Pack is inline on the row for anyone who can pack; the menu
+                            // still carries it for closed orders and read-only users.
+                            { key: 'open', label: closed ? 'View' : 'Pack', icon: 'bi-box-seam', hidden: canManage && !closed, onClick: () => { menuClose(); setDetail(po); } },
                             { key: 'card', label: 'Print Packing Card', icon: 'bi-printer', onClick: () => { menuClose(); setPrintCard(po); } },
                             { key: 'labels', label: 'Print Carton Labels', icon: 'bi-tags', hidden: !(po.packed_units || []).length, onClick: () => { menuClose(); setPrintLabels({ order: po, units: po.packed_units || [] }); } },
                             { key: 'close', label: 'Close Order', icon: 'bi-check2-square', hidden: !(canManage && !closed), onClick: () => { menuClose(); closeOrder(po); } },
@@ -233,7 +262,7 @@ export default function PackingOrderView() {
                 <PackingOrderDetail
                     po={detail}
                     itemById={itemById}
-                    locPickerTreeOptions={locPickerTreeOptions}
+                    locationById={locationById}
                     authFetch={authFetch}
                     showToast={showToast}
                     onClose={() => setDetail(null)}
@@ -505,31 +534,39 @@ function MaterialRow({ row, authFetch, locPickerTreeOptions, onChange, onRemove 
     );
 }
 
-// ── detail / pack logging ────────────────────────────────────────────────────
-function PackingOrderDetail({ po: initialPo, itemById, locPickerTreeOptions, authFetch, showToast, onClose, onChanged, onPrintCard, onPrintLabels }: any) {
+// ── pack logging ─────────────────────────────────────────────────────────────
+// Deliberately shaped like WOCompletionModal: same header progress panel, same
+// big "qty" entry, same "Lots to Consume" checkbox list with FIFO take-chips,
+// same legend-panel groupboxes and Previous-Entries table. Packing is the same
+// motion as logging WO output for the operator, so it reads the same. Keep the
+// two in step — a change to one of these patterns belongs in both.
+function PackingOrderDetail({ po: initialPo, itemById, locationById, authFetch, showToast, onClose, onChanged, onPrintCard, onPrintLabels }: any) {
     const { hasPermission } = useUser();
-    const { formatDate: tzDate } = useTimezone();
+    const { formatDateTime: tzDateTime } = useTimezone();
     const canManage = hasPermission('sales.manage');
     const [po, setPo] = useState<any>(initialPo);
     const closed = po.status === 'COMPLETED' || po.status === 'CANCELLED';
     const readOnly = closed || !canManage;
 
     const it = itemById[String(po.item_id)];
-    const remaining = Math.max(0, num(po.qty_target) - num(po.qty_packed));
+    const uom = po.item_uom || it?.uom || '';
+    const target = num(po.qty_target);
+    const packed = num(po.qty_packed);
+    const remaining = Math.max(0, target - packed);
+    const pct = target > 0 ? Math.min(100, Math.round((packed / target) * 100)) : 0;
 
-    const [qty, setQty] = useState<string>(remaining ? String(remaining) : '');
-    const [packageCount, setPackageCount] = useState<string>(() => {
-        const ps = num(po.pack_size);
-        return ps > 0 && remaining > 0 ? String(Math.max(1, Math.ceil(remaining / ps))) : '1';
-    });
+    const [qty, setQty] = useState<string>('');
+    const [packageCount, setPackageCount] = useState<string>('1');
     const [operator, setOperator] = useState('');
     const [packNotes, setPackNotes] = useState('');
     const [lots, setLots] = useState<any[]>([]);
     const [lotsLoading, setLotsLoading] = useState(false);
     const [selectedLots, setSelectedLots] = useState<string[]>([]);
-    const [lotQty, setLotQty] = useState<Record<string, string>>({});
-    const [lotCartons, setLotCartons] = useState<Record<string, string>>({});
     const [logging, setLogging] = useState(false);
+
+    const useLotPicker = !!it?.lot_tracked;
+    const outputLocName = locationById?.[String(po.output_location_id)]?.name || null;
+    const sourceLocName = locationById?.[String(po.source_location_id)]?.name || null;
 
     // The packer picks lots exactly as a stager picks material for a WO: the lot
     // pins the StockBalance row being drawn, which is what makes the order's
@@ -537,7 +574,7 @@ function PackingOrderDetail({ po: initialPo, itemById, locPickerTreeOptions, aut
     // Scoping the fetch to the order's source location makes /batches drop lots
     // with no stock there, so only packable lots are ever offered.
     useEffect(() => {
-        if (!it?.lot_tracked || !po.source_location_id) { setLots([]); return; }
+        if (!useLotPicker || !po.source_location_id) { setLots([]); return; }
         let alive = true;
         setLotsLoading(true);
         (async () => {
@@ -553,79 +590,89 @@ function PackingOrderDetail({ po: initialPo, itemById, locPickerTreeOptions, aut
             }
         })();
         return () => { alive = false; };
-    }, [po.item_id, po.source_location_id, it?.lot_tracked, authFetch, po.qty_packed]);
-
-    const cartonsFor = useCallback((q: number) => {
-        const ps = num(po.pack_size);
-        return ps > 0 && q > 0 ? String(Math.max(1, Math.ceil(q / ps))) : '1';
-    }, [po.pack_size]);
-
-    const selectedQty = selectedLots.reduce((s, id) => s + num(lotQty[id]), 0);
-    const selectedCartons = selectedLots.reduce((s, id) => s + (parseInt(lotCartons[id] || '0', 10) || 0), 0);
-
-    // Checking a lot defaults its qty to whatever is still needed, capped by what
-    // the lot actually holds — so a full pack run is one click per lot.
-    const toggleLot = (b: any) => {
-        const id = String(b.id);
-        if (selectedLots.includes(id)) {
-            setSelectedLots(prev => prev.filter(x => x !== id));
-            return;
-        }
-        const stillNeeded = Math.max(0, remaining - selectedQty);
-        const q = Math.min(b.remaining ?? 0, stillNeeded > 0 ? stillNeeded : (b.remaining ?? 0));
-        setSelectedLots(prev => [...prev, id]);
-        setLotQty(prev => ({ ...prev, [id]: String(q) }));
-        setLotCartons(prev => ({ ...prev, [id]: cartonsFor(q) }));
-    };
+    }, [po.item_id, po.source_location_id, useLotPicker, authFetch, po.qty_packed]);
 
     // Cartons follow qty via pack_size — the count is what mints carton rows, so
     // a stale value silently produces the wrong number of physical labels.
-    const setLotQtyAndCartons = (id: string, v: string) => {
-        setLotQty(prev => ({ ...prev, [id]: v }));
-        if (num(v) > 0) setLotCartons(prev => ({ ...prev, [id]: cartonsFor(num(v)) }));
-    };
-
     const onQtyChange = (v: string) => {
         setQty(v);
         const ps = num(po.pack_size);
         if (ps > 0 && num(v) > 0) setPackageCount(String(Math.max(1, Math.ceil(num(v) / ps))));
     };
 
-    const useLotPicker = !!it?.lot_tracked;
+    const selSet = new Set(selectedLots);
+    const selAvailable = lots.filter((b: any) => selSet.has(String(b.id)))
+        .reduce((s: number, b: any) => s + (b.remaining ?? 0), 0);
 
-    const logPack = async () => {
-        let body: any;
+    // Spread the logged qty FIFO across the checked lots — oldest first, each
+    // capped at its own remaining. /batches returns newest-first, hence reverse.
+    // Same rule as WOCompletionModal's multi-lot consume.
+    const lotAllocation = (): { batch_id: string; qty: number }[] => {
+        let need = num(qty);
+        if (need <= 0 || !selectedLots.length) return [];
+        const out: { batch_id: string; qty: number }[] = [];
+        for (const b of lots.filter((x: any) => selSet.has(String(x.id))).slice().reverse()) {
+            if (need <= 1e-9) break;
+            const take = Math.min(need, b.remaining ?? 0);
+            if (take <= 0) continue;
+            out.push({ batch_id: String(b.id), qty: Number(take.toFixed(4)) });
+            need -= take;
+        }
+        return out;
+    };
+    const alloc = lotAllocation();
+    const drawn = alloc.reduce((s, l) => s + l.qty, 0);
+    const short = num(qty) > 0 && drawn + 1e-6 < num(qty);
+    const takeByBatch: Record<string, number> = {};
+    for (const l of alloc) takeByBatch[l.batch_id] = l.qty;
+
+    // Cartons are entered as one total, then split across the drawing lots in
+    // proportion to their qty (largest remainder, at least one each) — a carton
+    // never straddles two lots, which is what keeps carton genealogy exact.
+    const splitCartons = (total: number): number[] => {
+        const n = alloc.length;
+        if (n === 0) return [];
+        if (total <= n) return alloc.map(() => 1);
+        const exact = alloc.map(l => (l.qty / drawn) * total);
+        const base = exact.map(v => Math.max(1, Math.floor(v)));
+        let left = total - base.reduce((s, v) => s + v, 0);
+        const order = exact
+            .map((v, i) => ({ i, frac: v - Math.floor(v) }))
+            .sort((a, b) => b.frac - a.frac);
+        for (let k = 0; left > 0; k = (k + 1) % n) { base[order[k].i] += 1; left -= 1; }
+        return base;
+    };
+
+    const toggleLot = (id: string, on: boolean) =>
+        setSelectedLots(prev => on ? [...prev, id] : prev.filter(x => x !== id));
+    const allIds = lots.map((b: any) => String(b.id));
+    const allSelected = allIds.length > 0 && selectedLots.length === allIds.length;
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const q = num(qty);
+        const cartons = parseInt(packageCount, 10) || 0;
+        if (q <= 0) { showToast('Enter a positive quantity', 'danger'); return; }
+        if (cartons <= 0) { showToast(`At least one ${po.package_label.toLowerCase()} is required`, 'danger'); return; }
+
+        let body: any = { qty: q, package_count: cartons, operator: operator || null, notes: packNotes || null };
         if (useLotPicker) {
-            if (!selectedLots.length) { showToast('Select the lots to pack from', 'warning'); return; }
-            const over = selectedLots.find(id => {
-                const b = lots.find((x: any) => String(x.id) === id);
-                return b && num(lotQty[id]) > (b.remaining ?? 0) + 1e-6;
-            });
-            if (over) {
-                const b = lots.find((x: any) => String(x.id) === over);
-                showToast(`${b?.batch_number} only has ${(b?.remaining ?? 0).toLocaleString()} left`, 'warning');
+            if (!selectedLots.length) { showToast('Select at least one lot to pack from', 'danger'); return; }
+            if (short) {
+                showToast(
+                    `Selected lots hold only ${drawn.toFixed(2)} of the ${q.toFixed(2)} needed — select more lots`,
+                    'danger',
+                );
                 return;
             }
-            if (selectedQty <= 0) { showToast('Enter a quantity for each selected lot', 'warning'); return; }
+            const perLot = splitCartons(cartons);
             body = {
-                lots: selectedLots.map(id => ({
-                    batch_id: id,
-                    qty: num(lotQty[id]),
-                    package_count: parseInt(lotCartons[id] || '1', 10) || 1,
-                })),
-                operator: operator || null,
-                notes: packNotes || null,
-            };
-        } else {
-            if (num(qty) <= 0) { showToast('Enter a quantity to pack', 'warning'); return; }
-            if (num(packageCount) <= 0) { showToast('At least one carton is required', 'warning'); return; }
-            body = {
-                qty: num(qty),
-                package_count: parseInt(packageCount, 10),
+                lots: alloc.map((l, i) => ({ ...l, package_count: perLot[i] })),
                 operator: operator || null,
                 notes: packNotes || null,
             };
         }
+
         setLogging(true);
         try {
             const res = await authFetch(`${API_BASE}/packing/${po.id}/complete`, {
@@ -634,250 +681,300 @@ function PackingOrderDetail({ po: initialPo, itemById, locPickerTreeOptions, aut
             });
             if (res.ok) {
                 const fresh = await res.json();
-                const packed = useLotPicker ? selectedCartons : parseInt(packageCount, 10);
                 setPo(fresh);
-                setQty(''); setPackNotes('');
-                setSelectedLots([]); setLotQty({}); setLotCartons({});
-                showToast(`${packed} ${po.package_label.toLowerCase()}(s) packed`, 'success');
+                setQty(''); setPackageCount('1'); setPackNotes(''); setSelectedLots([]);
+                showToast(`Packed ${q} into ${cartons} ${po.package_label.toLowerCase()}(s) — total ${num(fresh.qty_packed).toFixed(2)} / ${target}`, 'success');
                 await onChanged();
             } else {
-                const e = await res.json().catch(() => ({}));
-                showToast(`Error: ${e.detail || 'pack failed'}`, 'danger');
+                const err = await res.json().catch(() => ({}));
+                showToast(err.detail || 'Pack failed', 'danger');
             }
         } finally { setLogging(false); }
     };
 
     const units = po.packed_units || [];
+    const completions = po.completions ? [...po.completions].reverse() : [];
 
     return (
         <ModalWrapper
             isOpen onClose={onClose}
-            title={`Packing Order ${po.code} — ${po.item_name || it?.name || ''}`}
-            size="xl" modeless
+            title={`Pack ${po.code} — ${po.item_name || it?.name || ''}`}
+            size="md" modeless
             footer={
-                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-                    <button style={xpBtn()} onClick={onClose}>Close</button>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                        <button style={xpBtn()} onClick={() => onPrintCard(po)}>Packing Card</button>
-                        <button style={xpBtn()} disabled={!units.length} onClick={() => onPrintLabels(po, units)}>Carton Labels</button>
-                    </div>
-                </div>
+                <>
+                    <button type="button" onClick={onClose} style={xpBtn()}>Close</button>
+                    <button type="button" style={xpBtn()} onClick={() => onPrintCard(po)}>Packing Card</button>
+                    <button type="button" style={xpBtn()} disabled={!units.length} onClick={() => onPrintLabels(po, units)}>
+                        Carton Labels
+                    </button>
+                    {!readOnly && (
+                        <button type="submit" form="packing-log-form" disabled={logging}
+                            style={{ ...xpBtnGreen(), opacity: logging ? 0.6 : 1 }}>
+                            {logging ? 'Packing...' : 'Log Packing'}
+                        </button>
+                    )}
+                </>
             }
         >
-            <div style={{ fontFamily: xpFont }}>
-                {closed && (
-                    <div style={{ background: '#eef7ee', border: '1px solid #2d7a2d', color: '#0a3e0a', padding: '5px 10px', fontSize: 11, marginBottom: 10 }}>
-                        This packing order is {po.status} and read-only.
-                    </div>
-                )}
+            <form id="packing-log-form" onSubmit={handleSubmit} style={{ fontFamily: xpFont }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-                <FormSection title={<SectionTitle icon="bi-info-circle">Summary</SectionTitle>} classic={CLASSIC}>
-                    <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 11 }}>
-                        <Fact label="Sales Order" value={po.sales_order_code || 'to stock'} />
-                        <Fact label="Status" value={<StatusChip status={po.status} />} />
-                        <Fact label="Target" value={`${num(po.qty_target).toLocaleString()} ${po.item_uom || it?.uom || ''}`} />
-                        <Fact label="Packed" value={`${num(po.qty_packed).toLocaleString()} ${po.item_uom || it?.uom || ''}`} />
-                        <Fact label="Remaining" value={remaining.toLocaleString()} />
-                        <Fact label="Cartons" value={String(po.package_count || 0)} />
-                        <Fact label="Colour" value={po.color_name || '—'} />
+                    {/* Order info + progress */}
+                    <div style={{ border: '1px solid #aca899', padding: '8px 10px', background: '#f5f4ee', display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                            <span style={{ fontSize: 11, fontWeight: 'bold', color: '#000080' }}>{po.item_name || po.item_code}</span>
+                            <span style={{ fontSize: 10, color: '#555' }}>{po.code}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 9, fontWeight: 'bold', color: '#555', width: 26, flexShrink: 0 }}>PCK</span>
+                            <ProgressBar pct={pct} tone={pct >= 100 ? 'green' : 'blue'} hatched height={14} label="inside" />
+                            <span style={{ fontSize: 9, color: '#555', whiteSpace: 'nowrap', width: 90, flexShrink: 0, textAlign: 'right' }}>
+                                {packed.toFixed(2)} / {target}
+                            </span>
+                        </div>
+                        <div style={{ fontSize: 10, color: '#555', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <span>Remaining: <strong style={{ color: '#b46a00' }}>{remaining.toFixed(2)}</strong></span>
+                            <span>{po.package_label}s: <strong>{po.package_count || 0}</strong></span>
+                            <span>{po.sales_order_code ? <>SO: <strong>{po.sales_order_code}</strong></> : 'to stock'}</span>
+                            {po.color_name && <span>Colour: <strong>{po.color_name}</strong></span>}
+                            <StatusChip status={po.status} tint />
+                        </div>
                     </div>
-                </FormSection>
 
-                {!readOnly && (
-                    <FormSection
-                        classic={CLASSIC}
-                        title={
-                            <SectionTitle
-                                icon="bi-box-seam"
-                                right={useLotPicker && selectedLots.length
-                                    ? `${selectedQty.toLocaleString()} ${po.item_uom || it?.uom || ''} · ${selectedCartons} ${po.package_label.toLowerCase()}(s) selected`
-                                    : undefined}
-                            >
-                                Log Packing
-                            </SectionTitle>
-                        }
-                    >
-                        {useLotPicker ? (
-                            <>
-                                <FieldLabel classic={CLASSIC} hint={`Pick the lots to draw from — ${remaining.toLocaleString()} still to pack`}>
-                                    Source lots
-                                </FieldLabel>
-                                {!po.source_location_id ? (
-                                    <div style={hintText}>Set a pack-from location on this order before packing.</div>
-                                ) : (
-                                    <div style={{ border: '1px solid #7f9db9', background: '#fff', maxHeight: 240, overflowY: 'auto' }}>
-                                        {lotsLoading && <div style={{ ...hintText, padding: '4px 6px', marginTop: 0 }}>Loading lots...</div>}
-                                        {!lotsLoading && lots.length === 0 && (
-                                            <div style={{ ...hintText, padding: '4px 6px', marginTop: 0 }}>
-                                                No lots of this item in stock at the pack-from location.
-                                            </div>
-                                        )}
-                                        {lots.map((b: any) => {
-                                            const id = String(b.id);
-                                            const checked = selectedLots.includes(id);
-                                            return (
-                                                <div key={id} style={{
-                                                    display: 'flex', alignItems: 'center', gap: 8,
-                                                    padding: '3px 6px', borderBottom: '1px solid #eceae2',
-                                                    background: checked ? '#e6f0ff' : 'transparent',
-                                                }}>
-                                                    <input type="checkbox" checked={checked} onChange={() => toggleLot(b)} />
-                                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                                                            <span style={{ fontFamily: 'monospace', fontWeight: 'bold', fontSize: 11 }}>{b.batch_number}</span>
-                                                            <LotChip tone="qty" title="Quantity remaining">{(b.remaining ?? 0).toLocaleString()}</LotChip>
-                                                            {b.location_name ? (
-                                                                <LotChip tone="location" title="Current location">
-                                                                    <i className="bi bi-geo-alt" />{b.location_name}
-                                                                </LotChip>
-                                                            ) : null}
-                                                        </div>
-                                                        <LotChips batch={b} showOrder />
-                                                    </div>
-                                                    <div style={{ width: 90 }}>
-                                                        <input
-                                                            type="number" min={0} step="any" disabled={!checked}
-                                                            placeholder="Qty"
-                                                            style={{ ...xpInput, width: '100%', textAlign: 'right' }}
-                                                            value={checked ? (lotQty[id] || '') : ''}
-                                                            onChange={e => setLotQtyAndCartons(id, e.target.value)}
-                                                        />
-                                                    </div>
-                                                    <div style={{ width: 70 }}>
-                                                        <input
-                                                            type="number" min={1} disabled={!checked}
-                                                            title={`${po.package_label}s from this lot`}
-                                                            style={{ ...xpInput, width: '100%', textAlign: 'right' }}
-                                                            value={checked ? (lotCartons[id] || '') : ''}
-                                                            onChange={e => setLotCartons(prev => ({ ...prev, [id]: e.target.value }))}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
+                    {closed && (
+                        <div style={{ background: '#eef7ee', border: '1px solid #2d7a2d', color: '#0a3e0a', padding: '4px 8px', fontSize: 10 }}>
+                            This packing order is {po.status} — read-only.
+                        </div>
+                    )}
+
+                    {/* Entry fields */}
+                    {!readOnly && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <div>
+                                <label style={{ ...xpFormLabel, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span>Qty to Pack</span>
+                                    {uom && <span style={uomChip}>{uom}</span>}
+                                </label>
+                                <input
+                                    type="number"
+                                    style={{ ...xpInput, width: '100%', fontSize: 13, height: 22 }}
+                                    value={qty}
+                                    onChange={e => onQtyChange(e.target.value)}
+                                    min="0.0001" step="any"
+                                    placeholder={remaining > 0 ? remaining.toFixed(2) : String(target)}
+                                    autoFocus
+                                    required
+                                />
+                            </div>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <div style={{ flex: 1 }}>
+                                    <label style={{ ...xpFormLabel, fontWeight: 'bold' }}>{po.package_label}s</label>
+                                    <input type="number" style={{ ...xpInput, width: '100%' }} value={packageCount}
+                                        onChange={e => setPackageCount(e.target.value)} min="1" step="1" required />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <label style={xpFormLabel}>Qty per {po.package_label.toLowerCase()}</label>
+                                    <div style={{ fontSize: 11, paddingTop: 3, color: '#555' }}>
+                                        {num(po.pack_size) > 0 ? `${num(po.pack_size).toLocaleString()} ${uom}` : 'not set — enter the count'}
                                     </div>
-                                )}
-                            </>
-                        ) : (
-                            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                                <div style={{ width: 110 }}>
-                                    <FieldLabel classic={CLASSIC}>Qty packed</FieldLabel>
-                                    <input type="number" min={0} style={{ ...xpInput, width: '100%', textAlign: 'right' }} value={qty} onChange={e => onQtyChange(e.target.value)} />
                                 </div>
-                                <div style={{ width: 100 }}>
-                                    <FieldLabel classic={CLASSIC}>{po.package_label}s</FieldLabel>
-                                    <input type="number" min={1} style={{ ...xpInput, width: '100%', textAlign: 'right' }} value={packageCount} onChange={e => setPackageCount(e.target.value)} />
+                            </div>
+                            {outputLocName && (
+                                <div style={{ background: '#eef7ee', border: '1px solid #9cc79c', padding: '4px 8px', fontSize: 10 }}>
+                                    <span style={{ color: '#1a5e1a', fontWeight: 'bold' }}>{po.package_label}s stored at: {outputLocName}</span>
+                                    {sourceLocName && <span style={{ color: '#555', marginLeft: 6 }}>packed from {sourceLocName}</span>}
                                 </div>
-                                <div style={{ fontSize: 10, color: '#938c76', fontStyle: 'italic', paddingBottom: 3 }}>
+                            )}
+
+                            {useLotPicker && (
+                                !po.source_location_id ? (
+                                    <div style={{ background: '#fff4e5', border: '1px solid #d9a441', color: '#7a4a00', padding: '4px 8px', fontSize: 10 }}>
+                                        Set a pack-from location on this order before packing.
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <label style={{ ...xpFormLabel, fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span>Lots to Pack From — {po.item_code || it?.code || ''}</span>
+                                            <span style={{ fontWeight: 'normal', color: short ? '#900' : '#555' }}>
+                                                {selectedLots.length} lot{selectedLots.length === 1 ? '' : 's'} · {selAvailable.toFixed(2)} available · drawing{' '}
+                                                <strong>{drawn.toFixed(2)}</strong>{short ? ` of ${num(qty).toFixed(2)}` : ''}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSelectedLots(allSelected ? [] : allIds)}
+                                                    style={{ ...xpBtn(), fontSize: 9, padding: '0 6px', marginLeft: 6 }}
+                                                >{allSelected ? 'None' : 'All'}</button>
+                                            </span>
+                                        </label>
+                                        <div style={{ border: '1px solid #7f9db9', background: '#fff', maxHeight: 150, overflowY: 'auto' }}>
+                                            {lotsLoading && <div style={{ fontSize: 10, color: '#888', padding: '3px 5px' }}>Loading lots...</div>}
+                                            {!lotsLoading && lots.length === 0 && (
+                                                <div style={{ fontSize: 10, color: '#888', padding: '3px 5px' }}>
+                                                    No lots of this item in stock at the pack-from location.
+                                                </div>
+                                            )}
+                                            {lots.map((b: any) => {
+                                                const id = String(b.id);
+                                                const on = selSet.has(id);
+                                                return (
+                                                    <label key={id} style={{
+                                                        display: 'flex', alignItems: 'flex-start', gap: 5, padding: '3px 5px',
+                                                        fontSize: 10, cursor: 'pointer', borderBottom: '1px solid #eceae2',
+                                                        background: on ? '#e6f0ff' : 'transparent',
+                                                    }}>
+                                                        <input type="checkbox" style={{ marginTop: 1 }} checked={on}
+                                                            onChange={e => toggleLot(id, e.target.checked)} />
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                                                <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{b.batch_number}</span>
+                                                                <span style={{ color: '#555' }}>{Number(b.remaining ?? 0).toFixed(2)} {uom}</span>
+                                                                {/* What this log takes off the lot — the rest stays on it for
+                                                                    the next pack event. FIFO, so later lots may draw 0. */}
+                                                                {on && (
+                                                                    <span style={{
+                                                                        fontSize: 9, fontWeight: 'bold', color: takeByBatch[id] ? '#0a3e0a' : '#777',
+                                                                        background: takeByBatch[id] ? '#d0f0d0' : '#eceae2',
+                                                                        border: '1px solid #aca899', padding: '0 4px',
+                                                                    }}>
+                                                                        take {(takeByBatch[id] || 0).toFixed(2)}
+                                                                    </span>
+                                                                )}
+                                                                {b.location_name && <span style={{ color: '#0058e6' }}>@ {b.location_name}</span>}
+                                                            </div>
+                                                            <LotChips batch={b} showOrder />
+                                                        </div>
+                                                    </label>
+                                                );
+                                            })}
+                                        </div>
+                                        <div style={{ fontSize: 9, color: '#888', marginTop: 2 }}>
+                                            Each lot is logged as its own pack event, so no carton ever mixes two lots.
+                                            The variant is read from the lot&apos;s own stock row.
+                                        </div>
+                                    </div>
+                                )
+                            )}
+                            {!useLotPicker && (
+                                <div style={{ fontSize: 9, color: '#888' }}>
                                     This item is not lot-tracked — the variant is taken from the stock at the pack-from location.
                                 </div>
+                            )}
+
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <div style={{ flex: 1 }}>
+                                    <label style={xpFormLabel}>Operator</label>
+                                    <input type="text" style={{ ...xpInput, width: '100%' }} value={operator}
+                                        onChange={e => setOperator(e.target.value)} placeholder="Name (optional)" />
+                                </div>
+                                <div style={{ flex: 2 }}>
+                                    <label style={xpFormLabel}>Notes</label>
+                                    <input type="text" style={{ ...xpInput, width: '100%' }} value={packNotes}
+                                        onChange={e => setPackNotes(e.target.value)} placeholder="Shift, remarks..." />
+                                </div>
                             </div>
-                        )}
-                        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end', marginTop: 8 }}>
-                            <div style={{ width: 150 }}>
-                                <FieldLabel classic={CLASSIC}>Operator</FieldLabel>
-                                <input style={{ ...xpInput, width: '100%' }} value={operator} onChange={e => setOperator(e.target.value)} />
-                            </div>
-                            <div style={{ flex: 1, minWidth: 180 }}>
-                                <FieldLabel classic={CLASSIC}>Notes</FieldLabel>
-                                <input style={{ ...xpInput, width: '100%' }} value={packNotes} onChange={e => setPackNotes(e.target.value)} />
-                            </div>
-                            <button style={xpBtnGreen()} disabled={logging} onClick={logPack}>{logging ? 'Packing...' : 'Pack'}</button>
                         </div>
-                        <div style={hintText}>
-                            Each lot is logged as its own pack event, so every carton keeps the lot it came from.
-                            Quantity is split evenly across that lot&apos;s cartons; packaging materials are deducted
-                            pro-rata from the plan.
-                        </div>
-                    </FormSection>
-                )}
+                    )}
 
-                {(po.materials || []).length > 0 && (
-                    <FormSection title={<SectionTitle icon="bi-boxes">Packaging Materials</SectionTitle>} classic={CLASSIC}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', border: '1px solid #c8c4b8' }}>
-                            <thead>
-                                <tr>
-                                    <th style={xpTableHeader}>Material</th>
-                                    <th style={{ ...xpTableHeader, textAlign: 'right' }}>Planned</th>
-                                    <th style={{ ...xpTableHeader, textAlign: 'right' }}>Consumed</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {(po.materials || []).map((m: any, idx: number) => (
-                                    <tr key={m.id} style={rowStyle(idx)}>
-                                        <td style={td}>{m.item_name || m.item_id} <span style={{ fontSize: 9, color: '#888' }}>{m.item_code}</span></td>
-                                        <td style={{ ...td, textAlign: 'right' }}>{num(m.qty_planned).toLocaleString()} {m.item_uom}</td>
-                                        <td style={{ ...td, textAlign: 'right' }}>{num(m.qty_consumed).toLocaleString()}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </FormSection>
-                )}
+                    {/* Packaging materials */}
+                    {(po.materials || []).length > 0 && (
+                        <LegendPanel title="Packaging Materials">
+                            <div style={{ padding: '4px 8px 8px' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+                                    <thead>
+                                        <tr style={{ background: '#dddbd0' }}>
+                                            <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Material</th>
+                                            <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899', width: 90 }}>Planned</th>
+                                            <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899', width: 90 }}>Consumed</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {(po.materials || []).map((m: any, idx: number) => (
+                                            <tr key={m.id} style={{ background: idx % 2 === 0 ? '#fff' : '#f5f4ee' }}>
+                                                <td style={{ padding: '2px 6px' }}>
+                                                    <span style={{ fontWeight: 500 }}>{m.item_code || m.item_id}</span>
+                                                    {m.item_name && <span style={{ color: '#666', marginLeft: 4 }}>{m.item_name}</span>}
+                                                </td>
+                                                <td style={{ padding: '2px 6px', textAlign: 'right', color: '#555' }}>
+                                                    {num(m.qty_planned).toLocaleString()} {m.item_uom}
+                                                </td>
+                                                <td style={{ padding: '2px 6px', textAlign: 'right' }}>{num(m.qty_consumed).toLocaleString()}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                <div style={{ fontSize: 9, color: '#888', marginTop: 4 }}>
+                                    Planned is the free-entry plan; Consumed rolls up what each pack event actually took.
+                                </div>
+                            </div>
+                        </LegendPanel>
+                    )}
 
-                <FormSection title={<SectionTitle icon="bi-box2-fill" right={`${units.length} total`}>Cartons</SectionTitle>} classic={CLASSIC}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', border: '1px solid #c8c4b8' }}>
-                        <thead>
-                            <tr>
-                                <th style={xpTableHeader}>#</th>
-                                <th style={xpTableHeader}>Carton</th>
-                                <th style={{ ...xpTableHeader, textAlign: 'right' }}>Qty in stock</th>
-                                <th style={xpTableHeader}>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {units.length === 0 && <tr><td colSpan={4} style={{ ...td, color: '#999' }}>No cartons packed yet.</td></tr>}
-                            {units.map((u: any, idx: number) => (
-                                <tr key={u.id} style={rowStyle(idx)}>
-                                    <td style={td}>{u.package_no}</td>
-                                    <td style={{ ...td, color: '#00309c' }}>{u.batch_number}</td>
-                                    <td style={{ ...td, textAlign: 'right', color: num(u.qty) > 0 ? '#0a3e0a' : '#888' }}>
-                                        {num(u.qty).toLocaleString()}
-                                    </td>
-                                    <td style={td}>{num(u.qty) > 0 ? <StatusChip status="IN_STOCK" /> : <StatusChip status="SENT" />}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </FormSection>
+                    {/* Cartons */}
+                    {units.length > 0 && (
+                        <LegendPanel title={`${po.package_label}s (${units.length})`}>
+                            <div style={{ maxHeight: 140, overflowY: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+                                    <thead>
+                                        <tr style={{ background: '#dddbd0' }}>
+                                            <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899', width: 34 }}>#</th>
+                                            <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Lot</th>
+                                            <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899', width: 90 }}>In stock</th>
+                                            <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899', width: 90 }}>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {units.map((u: any, idx: number) => (
+                                            <tr key={u.id} style={{ background: idx % 2 === 0 ? '#fff' : '#f5f4ee' }}>
+                                                <td style={{ padding: '2px 6px' }}>{u.package_no}</td>
+                                                <td style={{ padding: '2px 6px', fontFamily: 'monospace', color: '#00309c' }}>{u.batch_number}</td>
+                                                <td style={{ padding: '2px 6px', textAlign: 'right', color: num(u.qty) > 0 ? '#0a3e0a' : '#888' }}>
+                                                    {num(u.qty).toLocaleString()}
+                                                </td>
+                                                <td style={{ padding: '2px 6px' }}>
+                                                    {num(u.qty) > 0 ? <StatusChip status="IN_STOCK" tint /> : <StatusChip status="SENT" tint />}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </LegendPanel>
+                    )}
 
-                <FormSection title={<SectionTitle icon="bi-clock-history">Packing Log</SectionTitle>} classic={CLASSIC}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', border: '1px solid #c8c4b8' }}>
-                        <thead>
-                            <tr>
-                                <th style={xpTableHeader}>When</th>
-                                <th style={{ ...xpTableHeader, textAlign: 'right' }}>Qty</th>
-                                <th style={{ ...xpTableHeader, textAlign: 'right' }}>Cartons</th>
-                                <th style={xpTableHeader}>Source lot</th>
-                                <th style={xpTableHeader}>Operator</th>
-                                <th style={xpTableHeader}>Notes</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {(po.completions || []).length === 0 && <tr><td colSpan={6} style={{ ...td, color: '#999' }}>Nothing packed yet.</td></tr>}
-                            {(po.completions || []).map((c: any, idx: number) => (
-                                <tr key={c.id} style={rowStyle(idx)}>
-                                    <td style={td}>{c.completed_at ? tzDate(c.completed_at) : '-'}</td>
-                                    <td style={{ ...td, textAlign: 'right' }}>{num(c.qty).toLocaleString()}</td>
-                                    <td style={{ ...td, textAlign: 'right' }}>{c.package_count}</td>
-                                    <td style={td}>{c.source_batch_number || '-'}</td>
-                                    <td style={td}>{c.operator || '-'}</td>
-                                    <td style={td}>{c.notes || '-'}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </FormSection>
-            </div>
+                    {/* History */}
+                    {completions.length > 0 && (
+                        <LegendPanel title="Previous Entries">
+                            <div style={{ maxHeight: 140, overflowY: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+                                    <thead>
+                                        <tr style={{ background: '#dddbd0' }}>
+                                            <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>Qty</th>
+                                            <th style={{ padding: '2px 6px', textAlign: 'right', borderBottom: '1px solid #aca899' }}>{po.package_label}s</th>
+                                            <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Source lot</th>
+                                            <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Operator</th>
+                                            <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Notes</th>
+                                            <th style={{ padding: '2px 6px', textAlign: 'left', borderBottom: '1px solid #aca899' }}>Time</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {completions.map((c: any, i: number) => (
+                                            <tr key={c.id} style={{ background: i % 2 === 0 ? '#fff' : '#f5f4ee' }}>
+                                                <td style={{ padding: '2px 6px', textAlign: 'right', fontWeight: 'bold' }}>{num(c.qty).toFixed(2)}</td>
+                                                <td style={{ padding: '2px 6px', textAlign: 'right', color: '#555' }}>{c.package_count}</td>
+                                                <td style={{ padding: '2px 6px', color: '#555', fontFamily: c.source_batch_number ? 'monospace' : undefined }}>
+                                                    {c.source_batch_number || '—'}
+                                                </td>
+                                                <td style={{ padding: '2px 6px', color: '#555' }}>{c.operator || '—'}</td>
+                                                <td style={{ padding: '2px 6px', color: '#555' }}>{c.notes || '—'}</td>
+                                                <td style={{ padding: '2px 6px', color: '#555' }}>{c.completed_at ? tzDateTime(c.completed_at) : '—'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </LegendPanel>
+                    )}
+                </div>
+            </form>
         </ModalWrapper>
-    );
-}
-
-function Fact({ label, value }: any) {
-    return (
-        <div>
-            <div style={{ fontSize: 9, color: '#666', textTransform: 'uppercase' }}>{label}</div>
-            <div style={{ fontWeight: 'bold' }}>{value}</div>
-        </div>
     );
 }
