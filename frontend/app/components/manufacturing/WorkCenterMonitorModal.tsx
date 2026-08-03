@@ -9,13 +9,19 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../shared/Toast';
-import { xpFont, StatusChip, XPActionButton, SunkenPanel, SunkenPanelBody, FormSection } from '../shared/xpTheme';
-import { LvTabBar, LvTab } from '../shared/listViewTheme';
+import {
+    xpFont, familyColor, StatusChip, XPActionButton, XPLoading, XPEmptyState,
+    SunkenPanel, SunkenPanelBody, FormSection, FieldLabel, ProgressBar,
+    WeekdayToggle, WEEKDAY_LABELS, xpSelect, xpPanel, SectionTitle,
+} from '../shared/xpTheme';
+import { LvTabBar, LvTab, lvInput, lvTh, lvTd, lvRow } from '../shared/listViewTheme';
 
-const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']; // 0=Mon..6=Sun
-const GREEN = '#2d7a2d';
-const RED = '#c00000';
-const BLUE = '#1a3d90';
+// Measurement accents from the shared five-family palette — see DESIGN.md's one
+// semantic layer rule; the weaving grid resolves the same three.
+const GREEN = familyColor('green');
+const RED = familyColor('red');
+const BLUE = familyColor('blue');
+const AMBER = familyColor('amber');
 
 function fmt(n: any, d = 1): string {
     if (n === null || n === undefined) return '—';
@@ -236,22 +242,28 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     const proj = data?.mo_projection;
 
     // ── Themed primitives ────────────────────────────────────────────────────
-    // Section title with an icon, optionally with trailing right-aligned content —
-    // pass as FormSection's `title` so every group box shares the one standard chrome.
-    const SecTitle = ({ icon, children, right }: { icon: string; children: React.ReactNode; right?: React.ReactNode }) => (
-        <span style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 6 }}>
-            <i className={`bi ${icon}`} />{children}
-            {right && <span style={{ marginLeft: 'auto', fontWeight: 'normal', textTransform: 'none', letterSpacing: 0 }}>{right}</span>}
-        </span>
+    const SecTitle = SectionTitle;
+
+    // One card shell for the hero tiles and the small stats below them — three
+    // separately hand-rolled copies of the same sunken-white box before.
+    const CardBox = ({ children, pad = '4px 8px' }: { children: React.ReactNode; pad?: string }) => (
+        <div
+            className={cls ? '' : 'border rounded bg-white h-100'}
+            style={cls
+                ? { ...xpPanel({ background: '#fff' }), padding: pad }
+                : { padding: pad }}
+        >
+            {children}
+        </div>
     );
 
     const Stat = ({ label, value, unit, accent }: any) => cls ? (
-        <div style={{ background: '#fff', border: '1px solid', borderColor: '#808080 #ffffff #ffffff #808080', padding: '4px 8px' }}>
+        <CardBox>
             <div style={{ fontFamily: xpFont, fontSize: 9, color: '#666', textTransform: 'uppercase', letterSpacing: 0.3, whiteSpace: 'nowrap' }}>{label}</div>
             <div style={{ fontFamily: xpFont, fontSize: 14, fontWeight: 'bold', color: accent || '#000', lineHeight: 1.15 }}>
                 {value}{unit && <span style={{ fontSize: 9, fontWeight: 'normal', color: '#888', marginLeft: 2 }}>{unit}</span>}
             </div>
-        </div>
+        </CardBox>
     ) : (
         <div className="border rounded bg-light px-2 py-1 h-100">
             <div className="text-uppercase text-secondary" style={{ fontSize: 10, letterSpacing: 0.3, whiteSpace: 'nowrap' }}>{label}</div>
@@ -262,6 +274,14 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     );
 
     const grid = (min: number): React.CSSProperties => ({ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${min}px, 1fr))`, gap: 6 });
+
+    // Text/number/date inputs: the shared list-view input in classic, bootstrap in
+    // modern. This form was bootstrap-only, so it rendered as rounded modern fields
+    // inside XP chrome — the one form in the monitor that ignored the classic theme.
+    const inputProps = {
+        className: cls ? undefined : 'form-control form-control-sm',
+        style: cls ? lvInput(true) : undefined,
+    };
 
     // ── Tab bar ──────────────────────────────────────────────────────────────
     const tabs: LvTab[] = [
@@ -303,22 +323,21 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
 
             {tab === 'performance' && (
                 <div>
-                    {/* No run: read-only viewers get a status message; managers go straight
-                        to the start-run form — no extra click to get there. */}
-                    {!run && !canManage && (
-                        <div style={{ textAlign: 'center', padding: '28px 0' }}>
-                            <i className="bi bi-stoplights" style={{ fontSize: 26, color: '#a0a0a0', display: 'block', marginBottom: 6 }} />
-                            <div className={cls ? '' : 'text-muted'} style={cls ? { fontFamily: xpFont, fontSize: 12, color: '#666' } : undefined}>
-                                {t('no_active_run')}
-                            </div>
-                        </div>
+                    {/* First load of this machine: the shared spinner, same as every list
+                        view — the panel used to sit blank until the fetch resolved. */}
+                    {loading && !data && <XPLoading label={t('loading')} />}
+
+                    {/* No run: read-only viewers get the shared empty state; managers go
+                        straight to the start-run form — no extra click to get there. */}
+                    {!loading && !run && !canManage && (
+                        <XPEmptyState icon="bi-stoplights" message={t('no_active_run')} />
                     )}
 
-                    {!run && canManage && (
+                    {!loading && !run && canManage && (
                         <FormSection title={<SecTitle icon="bi-play-circle">{t('start_run')}</SecTitle>} classic={cls}>
                             <div className="row g-2 align-items-end">
                                 <div className="col-md-5">
-                                    <label className="form-label small mb-0">{t('manufacturing_order')}</label>
+                                    <FieldLabel classic={cls}>{t('manufacturing_order')}</FieldLabel>
                                     <SearchableSelect
                                         options={moOptions}
                                         value={moId}
@@ -342,20 +361,20 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                     </div>
                                 </div>
                                 <div className="col-md-2 col-4">
-                                    <label className="form-label small mb-0">{t('lines')}</label>
-                                    <input type="number" min="1" className="form-control form-control-sm" value={lines} onChange={e => setLines(e.target.value)} />
+                                    <FieldLabel classic={cls}>{t('lines')}</FieldLabel>
+                                    <input type="number" min="1" {...inputProps} value={lines} onChange={e => setLines(e.target.value)} />
                                 </div>
                                 <div className="col-md-2 col-4">
-                                    <label className="form-label small mb-0">{t('rate_per_line')}</label>
-                                    <input type="number" className="form-control form-control-sm" value={rate} onChange={e => setRate(e.target.value)} />
+                                    <FieldLabel classic={cls}>{t('rate_per_line')}</FieldLabel>
+                                    <input type="number" {...inputProps} value={rate} onChange={e => setRate(e.target.value)} />
                                 </div>
                                 <div className="col-md-3 col-4">
-                                    <label className="form-label small mb-0">{t('target_efficiency')}</label>
-                                    <input type="number" className="form-control form-control-sm" value={eff} onChange={e => setEff(e.target.value)} />
+                                    <FieldLabel classic={cls}>{t('target_efficiency')}</FieldLabel>
+                                    <input type="number" {...inputProps} value={eff} onChange={e => setEff(e.target.value)} />
                                 </div>
                                 <div className="col-md-4 col-6">
-                                    <label className="form-label small mb-0">{t('start_date')}</label>
-                                    <input type="date" className="form-control form-control-sm" value={startDate} onChange={e => setStartDate(e.target.value)} />
+                                    <FieldLabel classic={cls}>{t('start_date')}</FieldLabel>
+                                    <input type="date" {...inputProps} value={startDate} onChange={e => setStartDate(e.target.value)} />
                                 </div>
                                 <div className="col-md-8 d-flex gap-2 align-items-end">
                                     <XPActionButton classic={cls} tone="success" icon="bi-play-fill" label={t('start')} onClick={startRun} disabled={!moId} />
@@ -370,9 +389,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                             <div style={cls
                                 ? { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', background: '#fbfbf7', border: '1px solid', borderColor: '#808080 #fff #fff #808080', padding: '6px 10px', marginBottom: 10 }
                                 : { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-                                {cls
-                                    ? <StatusChip status={run.status} />
-                                    : <span className="badge bg-info-subtle text-info-emphasis">{run.status}</span>}
+                                <StatusChip status={run.status} />
                                 <span style={{ fontFamily: cls ? xpFont : undefined, fontWeight: 'bold' }}>{run.mo_code}</span>
                                 <span><strong>{run.item_code}</strong> <span className="text-muted small">{run.item_name}</span></span>
                                 <VariantChips
@@ -398,25 +415,26 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                             {/* Hero: efficiency + actual + rate */}
                             <div style={{ display: 'grid', gridTemplateColumns: cls ? '1.4fr 1fr 1fr' : 'repeat(auto-fit,minmax(170px,1fr))', gap: 8, marginBottom: 12 }}>
                                 {/* Efficiency hero */}
-                                <div style={{
-                                    border: cls ? '1px solid' : undefined,
-                                    borderColor: cls ? '#808080 #fff #fff #808080' : undefined,
-                                    background: '#fff', padding: '8px 12px', borderRadius: cls ? 0 : 6,
-                                    boxShadow: cls ? undefined : '0 0 0 1px #eee',
-                                }} className={cls ? '' : 'border'}>
+                                <CardBox pad="8px 12px">
                                     <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 10, color: '#777', textTransform: 'uppercase', letterSpacing: 0.3 }}>{t('efficiency')}</div>
                                     <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 30, fontWeight: 800, color: effColor, lineHeight: 1.1 }}>
                                         {fmt(run.efficiency_pct, 1)}<span style={{ fontSize: 15 }}>%</span>
                                     </div>
-                                    {/* efficiency bar with target tick */}
-                                    <div style={{ position: 'relative', height: 9, background: '#fff', border: '1px solid', borderColor: cls ? '#808080 #fff #fff #808080' : '#ccc', marginTop: 3 }}>
-                                        <div style={{ width: `${Math.max(0, Math.min(Number(run.efficiency_pct) || 0, 100))}%`, height: '100%', background: effColor }} />
-                                        <div title={`${t('target')} ${fmt(run.target_efficiency_pct, 0)}%`} style={{ position: 'absolute', left: `${Math.min(Number(run.target_efficiency_pct) || 0, 100)}%`, top: -2, bottom: -2, width: 2, background: '#000' }} />
+                                    {/* Efficiency vs target tick — same shared ProgressBar call as
+                                        the loom card on the monitor grid, so the two agree. */}
+                                    <div style={{ marginTop: 3 }}>
+                                        <ProgressBar
+                                            pct={Number(run.efficiency_pct) || 0}
+                                            tone={onTarget ? 'green' : 'red'}
+                                            markerPct={Number(run.target_efficiency_pct) || 0}
+                                            markerTitle={`${t('target')} ${fmt(run.target_efficiency_pct, 0)}%`}
+                                            height={9}
+                                        />
                                     </div>
                                     <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 10, color: '#888', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
                                         {editingTarget ? (
                                             <div className="d-flex gap-1 align-items-center">
-                                                <input type="number" className="form-control form-control-sm" style={{ maxWidth: 70, height: 22, fontSize: 10 }} value={targetVal} onChange={e => setTargetVal(e.target.value)} />
+                                                <input type="number" {...inputProps} style={{ ...(inputProps.style || {}), maxWidth: 70, height: 22, fontSize: 10 }} value={targetVal} onChange={e => setTargetVal(e.target.value)} />
                                                 <XPActionButton classic={cls} tone="success" icon="bi-check" onClick={() => saveTarget(run.id)} />
                                                 <XPActionButton classic={cls} tone="neutral" icon="bi-x" onClick={() => setEditingTarget(false)} />
                                             </div>
@@ -429,17 +447,19 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                             </>
                                         )}
                                     </div>
-                                </div>
+                                </CardBox>
 
                                 {/* Actual produced (with override) */}
-                                <div className={cls ? '' : 'border rounded'} style={{ border: cls ? '1px solid' : undefined, borderColor: cls ? '#808080 #fff #fff #808080' : undefined, background: '#fff', padding: '8px 12px' }}>
+                                <CardBox pad="8px 12px">
                                     <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 10, color: '#777', textTransform: 'uppercase' }}>
                                         {t('actual_produced')}
-                                        {run.actual_qty_override !== null && <span className="badge bg-warning-subtle text-warning-emphasis ms-1" style={{ fontSize: 8 }}>{t('manual')}</span>}
+                                        {run.actual_qty_override !== null && (
+                                            <span style={{ marginLeft: 4 }}><StatusChip status="PARTIAL" label={t('manual')} tint /></span>
+                                        )}
                                     </div>
                                     {editingOverride ? (
                                         <div className="d-flex gap-1 mt-1">
-                                            <input type="number" className="form-control form-control-sm" style={{ maxWidth: 100 }} value={overrideVal} placeholder={String(run.actual_kg)} onChange={e => setOverrideVal(e.target.value)} />
+                                            <input type="number" {...inputProps} style={{ ...(inputProps.style || {}), maxWidth: 100 }} value={overrideVal} placeholder={String(run.actual_kg)} onChange={e => setOverrideVal(e.target.value)} />
                                             <XPActionButton classic={cls} tone="success" icon="bi-check" onClick={() => saveOverride(run.id)} />
                                             <XPActionButton classic={cls} tone="neutral" icon="bi-x" onClick={() => setEditingOverride(false)} />
                                         </div>
@@ -449,15 +469,15 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                             <XPActionButton classic={cls} tone="neutral" icon="bi-pencil-square" title="Override" onClick={() => { setOverrideVal(run.actual_qty_override ?? ''); setEditingOverride(true); }} />
                                         </div>
                                     )}
-                                </div>
+                                </CardBox>
 
                                 {/* Actual rate */}
-                                <div className={cls ? '' : 'border rounded'} style={{ border: cls ? '1px solid' : undefined, borderColor: cls ? '#808080 #fff #fff #808080' : undefined, background: '#fff', padding: '8px 12px' }}>
+                                <CardBox pad="8px 12px">
                                     <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 10, color: '#777', textTransform: 'uppercase' }}>{t('actual_rate')}</div>
                                     <div style={{ fontFamily: cls ? xpFont : undefined, fontSize: 22, fontWeight: 700 }}>
                                         {fmt(run.actual_daily_rate_kg, 2)}<span style={{ fontSize: 11, color: '#888' }}> kg/day</span>
                                     </div>
-                                </div>
+                                </CardBox>
                             </div>
 
                             {/* Targets */}
@@ -495,24 +515,26 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                     {/* History */}
                     {data?.history?.length > 0 && (
                         <FormSection title={<SecTitle icon="bi-clock-history">{t('run_history')}</SecTitle>} classic={cls}>
-                            <div className="table-responsive">
-                                <table className="table table-sm table-hover align-middle small mb-0">
-                                    <thead className={cls ? '' : 'table-light'}>
-                                        <tr>
-                                            <th>{t('manufacturing_order')}</th>
-                                            <th>{t('item')}</th>
-                                            <th>{t('start')}</th>
-                                            <th>{t('end')}</th>
-                                            <th className="text-end">{t('actual')}</th>
-                                            <th className="text-end">{t('efficiency')}</th>
-                                            <th>{t('status')}</th>
+                            {/* Shared list-view table styling (lvTh/lvTd/lvRow) — same chrome as
+                                the beams table below and the group calendar's holiday table. */}
+                            <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                        <tr style={cls ? { background: '#d4d0c8' } : undefined}>
+                                            <th style={lvTh(cls)}>{t('manufacturing_order')}</th>
+                                            <th style={lvTh(cls)}>{t('item')}</th>
+                                            <th style={lvTh(cls)}>{t('start')}</th>
+                                            <th style={lvTh(cls)}>{t('end')}</th>
+                                            <th style={{ ...lvTh(cls), textAlign: 'right' }}>{t('actual')}</th>
+                                            <th style={{ ...lvTh(cls), textAlign: 'right' }}>{t('efficiency')}</th>
+                                            <th style={{ ...lvTh(cls), borderRight: 'none' }}>{t('status')}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {data.history.map((h: any) => (
-                                            <tr key={h.id}>
-                                                <td className="font-monospace">{h.mo_code}</td>
-                                                <td>
+                                        {data.history.map((h: any, idx: number) => (
+                                            <tr key={h.id} style={lvRow(cls, idx)}>
+                                                <td style={{ ...lvTd(cls), fontFamily: 'monospace' }}>{h.mo_code}</td>
+                                                <td style={lvTd(cls)}>
                                                     <div className="d-flex align-items-center gap-2">
                                                         <span>{h.item_code}</span>
                                                         <VariantChips
@@ -526,11 +548,14 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                                         />
                                                     </div>
                                                 </td>
-                                                <td>{fmtDate(h.start_date)}</td>
-                                                <td>{fmtDate(h.end_date)}</td>
-                                                <td className="text-end">{fmt(h.actual_kg, 2)} kg</td>
-                                                <td className="text-end" style={{ color: h.on_target ? GREEN : RED, fontWeight: 600 }}>{fmt(h.efficiency_pct, 1)}%</td>
-                                                <td>{cls ? <StatusChip status={h.status} /> : <span className="badge bg-secondary-subtle text-secondary-emphasis">{h.status}</span>}</td>
+                                                <td style={lvTd(cls)}>{fmtDate(h.start_date)}</td>
+                                                <td style={lvTd(cls)}>{fmtDate(h.end_date)}</td>
+                                                <td style={{ ...lvTd(cls), textAlign: 'right' }}>{fmt(h.actual_kg, 2)} kg</td>
+                                                <td style={{ ...lvTd(cls), textAlign: 'right', color: h.on_target ? GREEN : RED, fontWeight: 600 }}>{fmt(h.efficiency_pct, 1)}%</td>
+                                                {/* StatusChip in both themes — the modern branch used a
+                                                    bootstrap badge, so a DONE run read gray here and green
+                                                    everywhere else. */}
+                                                <td style={{ ...lvTd(cls), borderRight: 'none' }}><StatusChip status={h.status} tint /></td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -545,20 +570,8 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                 <div>
                     <FormSection title={<SecTitle icon="bi-calendar-week">{t('working_days')}</SecTitle>} classic={cls}>
                         <div className="d-flex flex-wrap gap-2 align-items-center mb-2">
-                            {WEEKDAY_LABELS.map((lbl, idx) => {
-                                const on = weekdays.includes(idx);
-                                return cls ? (
-                                    <button key={idx} disabled={!canManage} onClick={() => toggleWeekday(idx)} style={{
-                                        fontFamily: xpFont, fontSize: 11, fontWeight: on ? 'bold' : 'normal', minWidth: 48, cursor: canManage ? 'pointer' : 'default',
-                                        padding: '3px 8px', border: '1px solid',
-                                        borderColor: on ? '#003080 #6ea8ff #6ea8ff #003080' : '#dfdfdf #808080 #808080 #dfdfdf',
-                                        background: on ? 'linear-gradient(to bottom,#3a8dff,#0058e6)' : 'linear-gradient(to bottom,#ffffff,#d4d0c8)',
-                                        color: on ? '#fff' : '#444',
-                                    }}>{lbl}</button>
-                                ) : (
-                                    <button key={idx} disabled={!canManage} className={`btn btn-sm ${on ? 'btn-primary' : 'btn-outline-secondary'}`} style={{ minWidth: 52 }} onClick={() => toggleWeekday(idx)}>{lbl}</button>
-                                );
-                            })}
+                            {/* Shared control — the group batch-apply form renders the same one. */}
+                            <WeekdayToggle value={weekdays} onToggle={toggleWeekday} classic={cls} disabled={!canManage} />
                             {canManage && (
                                 <span className="ms-2">
                                     <XPActionButton classic={cls} tone="success" icon="bi-check-lg" label={t('save')} onClick={saveCalendar} />
@@ -617,10 +630,10 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                     }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <span style={{ fontWeight: isToday ? 'bold' : 'normal' }}>{d}</span>
-                                        {nat && <i className="bi bi-star-fill" style={{ fontSize: 8, color: '#c87c00' }} />}
+                                        {nat && <i className="bi bi-star-fill" style={{ fontSize: 8, color: AMBER }} />}
                                         {mh && <i className="bi bi-x-circle-fill" style={{ fontSize: 8, color: RED }} />}
                                     </div>
-                                    {nat && <div style={{ fontSize: 8, color: '#8a5200', lineHeight: 1.05, maxHeight: 22, overflow: 'hidden' }}>{nat}</div>}
+                                    {nat && <div style={{ fontSize: 8, color: AMBER, lineHeight: 1.05, maxHeight: 22, overflow: 'hidden' }}>{nat}</div>}
                                     {mh && mh.note && !nat && <div style={{ fontSize: 8, color: RED, lineHeight: 1.05, maxHeight: 22, overflow: 'hidden' }}>{mh.note}</div>}
                                 </div>
                             );
@@ -652,7 +665,6 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                 const mounts: any[] = loom?.mounts || [];
                 const slots = loom?.beam_slots ?? 1;
                 const pcs = loom?.mounted_pcs ?? 0;
-                const cellPad = cls ? '3px 6px' : undefined;
                 return (
                     <div style={cls ? { fontFamily: xpFont, fontSize: 11 } : undefined}>
                         <div className={cls ? '' : 'text-muted small mb-2'}
@@ -666,7 +678,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                         }}>
                             <span style={{
                                 fontSize: cls ? 18 : 22, fontWeight: 'bold',
-                                color: pcs >= slots ? GREEN : pcs > 0 ? '#b06000' : '#888', lineHeight: 1,
+                                color: pcs >= slots ? GREEN : pcs > 0 ? AMBER : '#888', lineHeight: 1,
                             }}>{pcs} / {slots}</span>
                             <span style={{ fontSize: 11, color: '#777' }}>
                                 {t('beam_positions_filled')} · {fmt(loom?.total_remaining, 1)} kg
@@ -674,35 +686,31 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                         </div>
 
                         {mounts.length === 0 ? (
-                            <div className={cls ? '' : 'text-muted small'}
-                                style={cls ? { color: '#888', padding: 10 } : undefined}>
-                                {t('no_beams_mounted')}
-                            </div>
+                            <XPEmptyState icon="bi-arrow-bar-up" message={t('no_beams_mounted')} />
                         ) : (
-                            <div className={cls ? undefined : 'table-responsive'} style={{ overflowX: 'auto' }}>
-                                <table className={cls ? undefined : 'table table-sm align-middle small mb-0'}
-                                    style={cls ? { width: '100%', borderCollapse: 'collapse', fontSize: 10 } : undefined}>
-                                    <thead className={cls ? undefined : 'table-light'}>
-                                        <tr style={cls ? { background: '#d4d0c8', textAlign: 'left' } : undefined}>
-                                            <th style={{ padding: cellPad }}>{t('lot')}</th>
-                                            <th style={{ padding: cellPad }}>{t('ends')}</th>
-                                            <th style={{ padding: cellPad, textAlign: 'right' }}>{t('remaining')}</th>
-                                            <th style={{ padding: cellPad }}>{t('mounted')}</th>
-                                            <th style={{ padding: cellPad }} />
+                            <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                        <tr style={cls ? { background: '#d4d0c8' } : undefined}>
+                                            <th style={lvTh(cls)}>{t('lot')}</th>
+                                            <th style={lvTh(cls)}>{t('ends')}</th>
+                                            <th style={{ ...lvTh(cls), textAlign: 'right' }}>{t('remaining')}</th>
+                                            <th style={lvTh(cls)}>{t('mounted')}</th>
+                                            <th style={{ ...lvTh(cls), borderRight: 'none' }} />
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {mounts.map(m => (
+                                        {mounts.map((m, idx) => (
                                             <React.Fragment key={m.id}>
-                                            <tr style={cls ? { borderBottom: '1px solid #cfccc4' } : undefined}>
-                                                <td style={{ padding: cellPad, fontWeight: 'bold', color: BLUE }}>{m.beam_number || '—'}</td>
-                                                <td style={{ padding: cellPad }}>{m.ends ?? '—'}</td>
-                                                <td style={{ padding: cellPad, textAlign: 'right' }}>{fmt(m.remaining, 1)} kg</td>
-                                                <td style={{ padding: cellPad, color: '#666' }}>
+                                            <tr style={lvRow(cls, idx)}>
+                                                <td style={{ ...lvTd(cls), fontWeight: 'bold', color: BLUE }}>{m.beam_number || '—'}</td>
+                                                <td style={lvTd(cls)}>{m.ends ?? '—'}</td>
+                                                <td style={{ ...lvTd(cls), textAlign: 'right' }}>{fmt(m.remaining, 1)} kg</td>
+                                                <td style={{ ...lvTd(cls), color: '#666' }}>
                                                     {fmtDate(m.mounted_at)}
                                                     {m.mounted_by ? ` · ${m.mounted_by}` : ''}
                                                 </td>
-                                                <td style={{ padding: cellPad, textAlign: 'right' }}>
+                                                <td style={{ ...lvTd(cls), borderRight: 'none', textAlign: 'right' }}>
                                                     {canManage && unmountingId !== m.id && (
                                                         <XPActionButton
                                                             classic={cls}
@@ -739,7 +747,7 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                                                         value={returnLoc}
                                                                         onChange={e => setReturnLoc(e.target.value)}
                                                                         className={cls ? undefined : 'form-select form-select-sm w-auto'}
-                                                                        style={cls ? { fontFamily: xpFont, fontSize: 11 } : undefined}
+                                                                        style={cls ? xpSelect() : undefined}
                                                                     >
                                                                         <option value="">{t('unmount_leave_at_loom')}</option>
                                                                         {leafLocations.map((l: any) => (

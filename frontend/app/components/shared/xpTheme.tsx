@@ -87,6 +87,13 @@ export const STATUS_CHIP: Record<string, { background: string; borderColor: stri
 
 export const statusColor = (status?: string): string => FAMILY_SOLID[familyOf(status)];
 
+// Same five accents, addressed by family instead of by status — for the places
+// where the thing being colored is a *measurement*, not a status: on-target vs
+// below-target numbers, an accent stat, a chart series. Use this rather than
+// re-declaring `const GREEN = '#2d7a2d'` in a view; the palette stays in one place
+// and stays inside DESIGN.md's semantic layer.
+export const familyColor = (family: StatusFamily): string => FAMILY_SOLID[family];
+
 // Tint colors only (no layout/border-radius opinions) — for call sites that
 // render their own badge shape but want the shared per-status palette.
 export const statusTint = (status?: string) => FAMILY_TINT[familyOf(status)];
@@ -212,6 +219,7 @@ function progressBarFill(tone: StatusFamily, hatched: boolean): string {
 export function ProgressBar({
     pct, tone, hatched = false, height = 10, width, title,
     secondaryPct, secondaryTone = 'gray',
+    markerPct, markerTitle,
     label = 'none',
 }: {
     pct: number;
@@ -223,6 +231,10 @@ export function ProgressBar({
     /** Second segment stacked after the primary fill (e.g. "planned" after "done"). */
     secondaryPct?: number;
     secondaryTone?: StatusFamily;
+    /** Threshold tick drawn over the track (e.g. a target efficiency the fill is
+     *  measured against). Not a second fill — it marks a line, not an amount. */
+    markerPct?: number;
+    markerTitle?: string;
     /** 'outside' = bar + trailing "NN%" text (flex row); 'inside' = centered overlay label; 'none' (default) = bar only. */
     label?: 'outside' | 'inside' | 'none';
 }) {
@@ -236,6 +248,16 @@ export function ProgressBar({
             <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${clamped}%`, background: progressBarFill(t, hatched), transition: 'width 0.2s' }} />
             {secondaryPct != null && (
                 <div style={{ position: 'absolute', top: 0, left: `${clamped}%`, height: '100%', width: `${secClamped}%`, background: progressBarFill(secondaryTone, hatched), transition: 'width 0.2s, left 0.2s' }} />
+            )}
+            {markerPct != null && (
+                <div
+                    title={markerTitle}
+                    style={{
+                        position: 'absolute', top: 0, bottom: 0,
+                        left: `${Math.max(0, Math.min(100, markerPct))}%`,
+                        width: 2, background: '#000',
+                    }}
+                />
             )}
             {label === 'inside' && (
                 <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -382,6 +404,61 @@ export function FormSection({ title, classic, children }: { title: React.ReactNo
             <div style={header}>{title}</div>
             <div style={{ background: '#fff', padding: '10px' }}>{children}</div>
         </div>
+    );
+}
+
+// Mon-first weekday picker (0=Mon … 6=Sun) — the working-days control on every
+// production calendar. Both the per-machine monitor and the group batch-apply form
+// had their own copy with different chrome (XP gradient buttons vs list-view
+// buttons), so the same setting looked like two different controls; this is the
+// one shape. Labels are fixed English abbreviations, matching the backend's
+// weekday indexes.
+export const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+export function WeekdayToggle({ value, onToggle, classic, disabled = false }: {
+    value: number[];
+    onToggle: (day: number) => void;
+    classic: boolean;
+    disabled?: boolean;
+}) {
+    return (
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            {WEEKDAY_LABELS.map((label, idx) => {
+                const on = value.includes(idx);
+                return (
+                    <button
+                        key={label}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => onToggle(idx)}
+                        className={classic ? '' : `btn btn-sm ${on ? 'btn-primary' : 'btn-outline-secondary'}`}
+                        style={classic ? {
+                            fontFamily: xpFont, fontSize: 11, fontWeight: on ? 'bold' : 'normal',
+                            minWidth: 48, padding: '3px 8px', borderRadius: 0,
+                            cursor: disabled ? 'default' : 'pointer',
+                            border: '1px solid',
+                            borderColor: on ? '#003080 #6ea8ff #6ea8ff #003080' : '#dfdfdf #808080 #808080 #dfdfdf',
+                            background: on ? 'linear-gradient(to bottom,#3a8dff,#0058e6)' : 'linear-gradient(to bottom,#ffffff,#d4d0c8)',
+                            color: on ? '#fff' : '#444',
+                        } : { minWidth: 52 }}
+                    >
+                        {label}
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
+// Icon + text (+ optional right-aligned trailing content) for a FormSection `title`.
+// Pass as `title` so every group box shares the one header layout instead of each
+// call site re-inventing the flex row.
+export function SectionTitle({ icon, children, right }: { icon: string; children: React.ReactNode; right?: React.ReactNode }) {
+    return (
+        <span style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 6 }}>
+            <i className={`bi ${icon}`} />{children}
+            {right && <span style={{ marginLeft: 'auto', fontWeight: 'normal', textTransform: 'none', letterSpacing: 0 }}>{right}</span>}
+        </span>
     );
 }
 

@@ -221,6 +221,13 @@ const translations = {
         'holiday': 'Holiday',
         'click_to_add': 'click to add',
         'calendar_click_hint': 'Click a day to mark / unmark it as a holiday for this machine. ★ = Indonesian national holiday.',
+        'import': 'Import',
+        'remove': 'Remove',
+        'saving': 'Saving',
+        'replace_holidays_on_machines': 'Also replace holidays on every machine',
+        'machines_to_update': 'Machines that will be updated',
+        'no_machines_in_group': 'No machines under this group yet',
+        'apply_to': 'Apply to',
         // Headers
         'powered_by': 'Powered by',
     },
@@ -432,6 +439,13 @@ const translations = {
         'holiday': 'Libur',
         'click_to_add': 'klik untuk tambah',
         'calendar_click_hint': 'Klik tanggal untuk menandai / membatalkan hari libur mesin ini. ★ = libur nasional Indonesia.',
+        'import': 'Impor',
+        'remove': 'Hapus',
+        'saving': 'Menyimpan',
+        'replace_holidays_on_machines': 'Ganti juga hari libur di semua mesin',
+        'machines_to_update': 'Mesin yang akan diperbarui',
+        'no_machines_in_group': 'Belum ada mesin di grup ini',
+        'apply_to': 'Terapkan ke',
         // Headers
         'powered_by': 'Ditenagai oleh',
     }

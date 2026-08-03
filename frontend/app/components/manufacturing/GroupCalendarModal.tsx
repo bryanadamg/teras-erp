@@ -4,10 +4,13 @@ import { useState, useEffect, useCallback } from 'react';
 import ModalWrapper from '../shared/ModalWrapper';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { xpFont } from '../shared/xpTheme';
-import { lvBtn, lvPrimaryBtn, lvInput, lvLabel, lvTh, lvTd } from '../shared/listViewTheme';
+import {
+    xpFont, familyColor, FormSection, FieldLabel, XPActionButton, WeekdayToggle,
+    SectionTitle as SecTitle, ModalFooterActions,
+} from '../shared/xpTheme';
+import { lvInput, lvTh, lvTd, lvRow } from '../shared/listViewTheme';
 
-const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']; // 0=Mon..6=Sun
+const RED = familyColor('red');
 
 interface Props {
     isOpen: boolean;
@@ -143,117 +146,104 @@ export default function GroupCalendarModal({ isOpen, onClose, group, authFetch, 
                     <span style={{ marginRight: 'auto', fontSize: classic ? 11 : 12, color: '#666', fontFamily: classic ? xpFont : undefined }}>
                         {machines.length} machine{machines.length !== 1 ? 's' : ''} in this group
                     </span>
-                    <button type="button" style={lvBtn(classic)} onClick={onClose}>{t('cancel')}</button>
-                    <button type="button" style={lvPrimaryBtn(classic)} onClick={apply} disabled={saving || loading || machines.length === 0}>
-                        <i className="bi bi-check2-all" style={{ marginRight: 4 }} />
-                        {saving ? 'Applying…' : `Apply to ${machines.length}`}
-                    </button>
+                    {/* Shared modal footer (Cancel + solid submit) — a hand-rolled pair
+                        here rendered flat gray in Classic, since the global .btn-primary
+                        override strips the bevel gradient. */}
+                    <ModalFooterActions
+                        classic={classic}
+                        onCancel={onClose}
+                        cancelLabel={t('cancel')}
+                        onSubmit={apply}
+                        submitLabel={`${t('apply_to')} ${machines.length}`}
+                        submittingLabel={`${t('saving')}…`}
+                        submitting={saving}
+                        variant="primary"
+                        disabled={loading || machines.length === 0}
+                    />
                 </>
             }
         >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontFamily: classic ? xpFont : undefined, fontSize: classic ? 11 : undefined }}>
+            {/* Sectioned with the shared FormSection / FieldLabel / XPActionButton set —
+                the same chrome as the per-machine monitor modal this opens alongside,
+                so the two calendars don't read as two different products. */}
+            <div style={{ fontFamily: classic ? xpFont : undefined, fontSize: classic ? 11 : undefined }}>
                 {error && (
-                    <div style={{ background: '#ffe8e8', border: '1px solid #e0a0a0', color: '#a00', padding: '4px 8px' }}>{error}</div>
+                    <div style={{ background: '#ffe8e8', border: `1px solid ${RED}55`, color: RED, padding: '4px 8px', marginBottom: 10 }}>{error}</div>
                 )}
 
-                <div>
-                    <label style={lvLabel(classic)}>Working days</label>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                        {WEEKDAY_LABELS.map((wd, i) => {
-                            const on = weekdays.includes(i);
-                            return (
-                                <button
-                                    key={wd}
-                                    type="button"
-                                    onClick={() => toggleWeekday(i)}
-                                    style={{
-                                        ...(on ? lvPrimaryBtn(classic) : lvBtn(classic)),
-                                        minWidth: 46,
-                                    }}
-                                >
-                                    {wd}
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
+                <FormSection classic={classic} title={<SecTitle icon="bi-calendar-week">{t('working_days')}</SecTitle>}>
+                    {/* Shared control — identical to the single-machine calendar tab. */}
+                    <WeekdayToggle value={weekdays} onToggle={toggleWeekday} classic={classic} />
+                </FormSection>
 
-                <div>
-                    <label style={lvLabel(classic)}>
-                        <input
-                            type="checkbox"
-                            checked={applyHolidays}
-                            onChange={e => setApplyHolidays(e.target.checked)}
-                            style={{ marginRight: 5 }}
-                        />
-                        Also replace holidays on every machine
-                    </label>
+                <FormSection classic={classic} title={
+                    <SecTitle icon="bi-calendar3" right={
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+                            <input type="checkbox" checked={applyHolidays} onChange={e => setApplyHolidays(e.target.checked)} />
+                            {t('replace_holidays_on_machines')}
+                        </label>
+                    }>{t('holidays')}</SecTitle>
+                }>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 6 }}>
                         <div>
-                            <label style={lvLabel(classic)}>Date</label>
+                            <FieldLabel classic={classic}>{t('date')}</FieldLabel>
                             <input type="date" style={{ ...lvInput(classic), width: 140 }} value={newHoliday} onChange={e => setNewHoliday(e.target.value)} />
                         </div>
                         <div style={{ flex: 1, minWidth: 140 }}>
-                            <label style={lvLabel(classic)}>Note</label>
+                            <FieldLabel classic={classic}>{t('note')}</FieldLabel>
                             <input style={lvInput(classic)} value={newHolidayNote} onChange={e => setNewHolidayNote(e.target.value)} placeholder="Cuti bersama" />
                         </div>
-                        <button type="button" style={lvBtn(classic)} onClick={addHoliday} disabled={!newHoliday}>
-                            <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />Add
-                        </button>
+                        <XPActionButton classic={classic} tone="neutral" icon="bi-plus-lg" label={t('add')} disabled={!newHoliday} onClick={addHoliday} />
                         <span style={{ width: 1, alignSelf: 'stretch', background: '#c8c4b8' }} />
                         <div>
-                            <label style={lvLabel(classic)}>National holidays</label>
+                            <FieldLabel classic={classic}>{t('national_holiday')}</FieldLabel>
                             <input type="number" style={{ ...lvInput(classic), width: 90 }} value={importYear} onChange={e => setImportYear(e.target.value)} />
                         </div>
-                        <button type="button" style={lvBtn(classic)} onClick={importNational}>
-                            <i className="bi bi-download" style={{ marginRight: 4 }} />Import
-                        </button>
+                        <XPActionButton classic={classic} tone="neutral" icon="bi-download" label={t('import')} onClick={importNational} />
                     </div>
 
                     <div style={{ maxHeight: 190, overflow: 'auto', border: classic ? '1px solid #808080' : '1px solid #dbe1ea', background: '#fff' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
-                                <tr>
-                                    <th style={{ ...lvTh(classic), width: 110 }}>Date</th>
-                                    <th style={lvTh(classic)}>Note</th>
+                                <tr style={classic ? { background: '#d4d0c8' } : undefined}>
+                                    <th style={{ ...lvTh(classic), width: 110 }}>{t('date')}</th>
+                                    <th style={lvTh(classic)}>{t('note')}</th>
                                     <th style={{ ...lvTh(classic), width: 36, borderRight: 'none' }} />
                                 </tr>
                             </thead>
                             <tbody>
-                                {holidays.map(h => (
-                                    <tr key={h.holiday_date}>
+                                {holidays.map((h, idx) => (
+                                    <tr key={h.holiday_date} style={lvRow(classic, idx)}>
                                         <td style={lvTd(classic)}>{h.holiday_date}</td>
                                         <td style={lvTd(classic)}>{h.note || ''}</td>
                                         <td style={{ ...lvTd(classic), borderRight: 'none', textAlign: 'right' }}>
-                                            <button
-                                                type="button"
-                                                style={{ ...lvBtn(classic), padding: '0 5px' }}
+                                            <XPActionButton
+                                                classic={classic}
+                                                tone="danger"
+                                                icon="bi-x"
+                                                title={t('remove')}
                                                 onClick={() => setHolidays(prev => prev.filter(x => x.holiday_date !== h.holiday_date))}
-                                                title="Remove"
-                                            >
-                                                <i className="bi bi-x" />
-                                            </button>
+                                            />
                                         </td>
                                     </tr>
                                 ))}
                                 {holidays.length === 0 && (
                                     <tr><td colSpan={3} style={{ ...lvTd(classic), borderRight: 'none', textAlign: 'center', padding: 12, color: '#888', fontStyle: 'italic' }}>
-                                        {loading ? 'Loading…' : 'No holidays set'}
+                                        {loading ? t('loading') : t('no_holidays')}
                                     </td></tr>
                                 )}
                             </tbody>
                         </table>
                     </div>
-                </div>
+                </FormSection>
 
-                <div>
-                    <label style={lvLabel(classic)}>Machines that will be updated</label>
+                <FormSection classic={classic} title={<SecTitle icon="bi-cpu">{t('machines_to_update')}</SecTitle>}>
                     <div style={{ fontSize: classic ? 11 : 12, color: '#555', lineHeight: 1.5 }}>
                         {machines.length === 0
-                            ? <span style={{ fontStyle: 'italic', color: '#888' }}>No machines under this group yet</span>
+                            ? <span style={{ fontStyle: 'italic', color: '#888' }}>{t('no_machines_in_group')}</span>
                             : machines.map((m: any) => m.code).join(', ')}
                     </div>
-                </div>
+                </FormSection>
             </div>
         </ModalWrapper>
     );
