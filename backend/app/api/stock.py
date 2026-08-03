@@ -57,6 +57,7 @@ async def get_stock_ledger(
     end_date: Optional[datetime] = Query(None),
     search: Optional[str] = Query(None, description="Match item name/code or reference id"),
     location_id: Optional[str] = Query(None, description="Location id, or comma-separated ids (e.g. a warehouse plus its descendants)"),
+    category_id: Optional[str] = Query(None, description="Item category id, or comma-separated ids (a category plus its descendants)"),
     reference_type: Optional[str] = Query(None),
     direction: Optional[str] = Query(None, description="'in' (qty >= 0) or 'out' (qty < 0)"),
     db: AsyncSession = Depends(get_async_db),
@@ -76,6 +77,12 @@ async def get_stock_ledger(
     if location_id:
         loc_ids = [x for x in location_id.split(",") if x]
         conditions.append(StockLedger.location_id.in_(loc_ids) if len(loc_ids) > 1 else StockLedger.location_id == loc_ids[0])
+    if category_id:
+        cat_ids = [x for x in category_id.split(",") if x]
+        if cat_ids:
+            conditions.append(StockLedger.item_id.in_(
+                select(Item.id).where(Item.category_id.in_(cat_ids))
+            ))
     if reference_type:
         conditions.append(StockLedger.reference_type == reference_type)
     if direction == "in":
@@ -115,10 +122,13 @@ async def get_stock_ledger(
     loc_ids = {r.location_id for r in rows}
     item_map = {}
     if item_ids:
-        for iid, nm, cd, uom in (await db.execute(
-            select(Item.id, Item.name, Item.code, Item.uom).where(Item.id.in_(item_ids))
+        from app.models.category import Category
+        for iid, nm, cd, uom, cat_id, cat_name in (await db.execute(
+            select(Item.id, Item.name, Item.code, Item.uom, Item.category_id, Category.name)
+            .outerjoin(Category, Category.id == Item.category_id)
+            .where(Item.id.in_(item_ids))
         )).all():
-            item_map[iid] = (nm, cd, uom)
+            item_map[iid] = (nm, cd, uom, cat_id, cat_name)
     loc_map = {}
     if loc_ids:
         for lid, nm in (await db.execute(
@@ -162,13 +172,15 @@ async def get_stock_ledger(
 
     items = []
     for r in rows:
-        nm, cd, uom = item_map.get(r.item_id, ("", "", ""))
+        nm, cd, uom, cat_id, cat_name = item_map.get(r.item_id, ("", "", "", None, None))
         items.append({
             "id": r.id,
             "item_id": r.item_id,
             "item_name": nm or "",
             "item_code": cd or "",
             "item_uom": uom or "",
+            "item_category_id": cat_id,
+            "item_category_name": cat_name,
             "attribute_value_ids": [v.id for v in (r.attribute_values or [])],
             "location_id": r.location_id,
             "location_name": loc_map.get(r.location_id, "") or "",

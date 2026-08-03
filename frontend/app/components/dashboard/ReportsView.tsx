@@ -8,7 +8,7 @@ import {
     xpFont, xpBtn, xpInput, xpSelect, xpSep,
     XPLoading, XPEmptyState, useSortable, SortMark,
 } from '../shared/xpTheme';
-import TreeSelect, { buildLocationFilterTree, expandLocationFilterValue } from '../shared/TreeSelect';
+import TreeSelect, { buildLocationFilterTree, expandLocationFilterValue, buildCategoryTree, expandCategoryFilterValue } from '../shared/TreeSelect';
 import Pager from '../shared/Pager';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
 
@@ -56,7 +56,7 @@ export default function ReportsView(_props: any) {
     const { t } = useLanguage();
     const { uiStyle } = useTheme();
     const { formatDate: tzDate, formatTime: tzTime } = useTimezone();
-    const { authFetch, locations = [], attributes = [], itemIndex, companyProfile } = useData();
+    const { authFetch, locations = [], attributes = [], categories = [], itemIndex, companyProfile } = useData();
     const classic = uiStyle === 'classic';
 
     const API_BASE = useMemo(() => {
@@ -75,6 +75,7 @@ export default function ReportsView(_props: any) {
     });
     const [endDate, setEndDate] = useState(() => fmtDate(new Date()));
     const [locationFilter, setLocationFilter] = useState(''); // TreeSelect value: '' | 'wh:<id>' | 'loc:<id>'
+    const [categoryFilter, setCategoryFilter] = useState(''); // TreeSelect value: '' | '<category id>'
     const [refTypeFilter, setRefTypeFilter] = useState('');
     const [direction, setDirection] = useState<'' | 'in' | 'out'>('');
     const [page, setPage] = useState(1);
@@ -108,6 +109,7 @@ export default function ReportsView(_props: any) {
             if (startDate) p.set('start_date', startDate);
             if (endDate) p.set('end_date', `${endDate}T23:59:59`);
             if (locationFilter) p.set('location_id', expandLocationFilterValue(locations, locationFilter).join(','));
+            if (categoryFilter) p.set('category_id', expandCategoryFilterValue(categories, categoryFilter).join(','));
             if (refTypeFilter) p.set('reference_type', refTypeFilter);
             if (direction) p.set('direction', direction);
 
@@ -125,11 +127,12 @@ export default function ReportsView(_props: any) {
         } finally {
             setLoading(false);
         }
-    }, [API_BASE, authFetch, page, debouncedSearch, startDate, endDate, locationFilter, locations, refTypeFilter, direction]);
+    }, [API_BASE, authFetch, page, debouncedSearch, startDate, endDate, locationFilter, locations, categoryFilter, categories, refTypeFilter, direction]);
 
     useEffect(() => { fetchLedger(); }, [fetchLedger]);
 
     const locFilterTreeOptions = useMemo(() => buildLocationFilterTree(locations || []), [locations]);
+    const catFilterTreeOptions = useMemo(() => buildCategoryTree(categories || []), [categories]);
     const getItemName = (e: any) => e.item_name || itemIndex?.[String(e.item_id)]?.name || e.item_id;
     const getItemCode = (e: any) => e.item_code || itemIndex?.[String(e.item_id)]?.code || '';
     const getLocName = (e: any) => e.location_name || locations.find((l: any) => l.id === e.location_id)?.name || e.location_id;
@@ -152,6 +155,7 @@ export default function ReportsView(_props: any) {
     const sortCols = useMemo(() => ({
         date:     (e: any) => e.created_at,
         item:     (e: any) => e.item_name || e.item_code || '',
+        category: (e: any) => e.item_category_name || '',
         location: (e: any) => e.location_name || '',
         qty:      (e: any) => e.qty_change,
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -159,7 +163,7 @@ export default function ReportsView(_props: any) {
     const { sorted: rows, sort, toggle } = useSortable(entries, sortCols);
 
     const net = totalIn + totalOut;
-    const hasFilters = !!(debouncedSearch || startDate || endDate || locationFilter || refTypeFilter || direction);
+    const hasFilters = !!(debouncedSearch || startDate || endDate || locationFilter || categoryFilter || refTypeFilter || direction);
 
     const applyPreset = (kind: 'today' | '7d' | '30d' | 'month' | 'all') => {
         const now = new Date();
@@ -174,7 +178,7 @@ export default function ReportsView(_props: any) {
 
     const clearFilters = () => {
         setSearch(''); setDebouncedSearch(''); setStartDate(''); setEndDate('');
-        setLocationFilter(''); setRefTypeFilter(''); setDirection(''); setPage(1);
+        setLocationFilter(''); setCategoryFilter(''); setRefTypeFilter(''); setDirection(''); setPage(1);
     };
 
     const [printOpen, setPrintOpen] = useState(false);
@@ -187,8 +191,13 @@ export default function ReportsView(_props: any) {
         const id = locationFilter.slice(locationFilter.indexOf(':') + 1);
         return locations.find((l: any) => l.id === id)?.name || '';
     }, [locationFilter, locations]);
+    const catFilterName = useMemo(() => {
+        if (!categoryFilter) return '';
+        return (categories || []).find((c: any) => String(c.id) === categoryFilter)?.name || '';
+    }, [categoryFilter, categories]);
     const filtersSummary = [
         debouncedSearch && `Search: "${debouncedSearch}"`,
+        catFilterName && `Category: ${catFilterName}`,
         locationFilter && `Location: ${locFilterName || 'filtered'}`,
         refTypeFilter && `Source: ${refMeta(refTypeFilter).label}`,
         direction && `Direction: ${direction === 'in' ? 'In only' : 'Out only'}`,
@@ -204,6 +213,7 @@ export default function ReportsView(_props: any) {
             if (startDate) p.set('start_date', startDate);
             if (endDate) p.set('end_date', `${endDate}T23:59:59`);
             if (locationFilter) p.set('location_id', expandLocationFilterValue(locations, locationFilter).join(','));
+            if (categoryFilter) p.set('category_id', expandCategoryFilterValue(categories, categoryFilter).join(','));
             if (refTypeFilter) p.set('reference_type', refTypeFilter);
             if (direction) p.set('direction', direction);
 
@@ -221,17 +231,20 @@ export default function ReportsView(_props: any) {
     };
 
     // ── Shared row content (mode-agnostic data) ──────────────────────────────
+    // Column rules: every cell carries a right divider so the grid reads as a
+    // ledger, not a list. The last cell drops it (the table border closes it).
+    const xpCell: React.CSSProperties = { padding: '4px 8px', fontFamily: xpFont, borderRight: '1px solid #e0ddd3' };
     const renderClassicRow = (e: any, i: number) => {
         const rm = refMeta(e.reference_type);
         const up = e.qty_change >= 0;
         const pkg = pkgDelta(e);
         return (
             <tr key={e.id} style={{ background: i % 2 === 0 ? '#ffffff' : '#f5f3ee', borderBottom: '1px solid #e0ddd3' }}>
-                <td style={{ padding: '4px 8px', fontFamily: xpFont, whiteSpace: 'nowrap' }}>
+                <td style={{ ...xpCell, whiteSpace: 'nowrap' }}>
                     <div style={{ fontSize: '11px', color: '#000' }}>{tzDate(e.created_at)}</div>
                     <div style={{ fontSize: '10px', color: '#777' }}>{tzTime(e.created_at)}</div>
                 </td>
-                <td style={{ padding: '4px 8px', fontFamily: xpFont }}>
+                <td style={xpCell}>
                     <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#000' }}>{getItemName(e)}</div>
                     <div style={{ fontSize: '10px', color: '#777', fontVariant: 'all-small-caps' }}>{getItemCode(e)}</div>
                     {e.attribute_value_ids?.length > 0 && (
@@ -242,7 +255,12 @@ export default function ReportsView(_props: any) {
                         </div>
                     )}
                 </td>
-                <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px' }}>
+                <td style={{ ...xpCell, fontSize: '11px' }}>
+                    {e.item_category_name
+                        ? <span title={e.item_category_name} style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom', background: '#e4eef0', border: '1px solid #8fb3bb', padding: '0 5px', fontSize: '10px', color: '#2a464a' }}>{e.item_category_name}</span>
+                        : <span style={{ fontSize: '10px', color: '#aaa' }}>-</span>}
+                </td>
+                <td style={{ ...xpCell, fontSize: '11px' }}>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
                         {getWarehouseName(e) && (
                             <span style={{ background: '#eef0e4', border: '1px solid #b7bb8f', padding: '0 5px', fontSize: '10px', color: '#4a4a2a' }}>
@@ -254,12 +272,12 @@ export default function ReportsView(_props: any) {
                         </span>
                     </div>
                 </td>
-                <td style={{ padding: '4px 8px', fontFamily: xpFont, fontSize: '11px' }}>
+                <td style={{ ...xpCell, fontSize: '11px' }}>
                     {e.batch_number
                         ? <span style={{ background: '#fff8dc', border: '1px solid #c8a000', padding: '0 5px', fontSize: '10px', color: '#5a3c00' }}>{e.batch_number}</span>
                         : <span style={{ fontSize: '10px', color: '#aaa' }}>-</span>}
                 </td>
-                <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: xpFont, whiteSpace: 'nowrap' }}>
+                <td style={{ ...xpCell, textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <span style={{ fontSize: '11px', fontWeight: 'bold', color: up ? '#1a5e1a' : '#c00000' }}>
                         <span style={{ marginRight: 3, fontSize: 9 }}>{up ? '▲' : '▼'}</span>
                         {up ? '+' : ''}{fmtQty(e.qty_change)}
@@ -271,7 +289,7 @@ export default function ReportsView(_props: any) {
                         </div>
                     )}
                 </td>
-                <td style={{ padding: '4px 8px', fontFamily: xpFont, whiteSpace: 'nowrap' }}>
+                <td style={{ ...xpCell, borderRight: 'none', whiteSpace: 'nowrap' }}>
                     <span style={{ background: rm.classic.bg, border: `1px solid ${rm.classic.border}`, padding: '0 5px', fontSize: '10px', color: rm.classic.color }}>{rm.label}</span>
                     <span style={{ fontSize: '10px', color: '#999', marginLeft: 4 }} title={e.reference_id}>#{e.reference_label || shortRef(e.reference_id)}</span>
                 </td>
@@ -297,7 +315,7 @@ export default function ReportsView(_props: any) {
         const th: React.CSSProperties = {
             background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080',
             fontSize: '10px', fontWeight: 'bold', color: '#000', fontFamily: xpFont, padding: '3px 8px',
-            position: 'sticky', top: 0, textAlign: 'left',
+            position: 'sticky', top: 0, textAlign: 'left', borderRight: '1px solid #b0a898',
         };
         const lbl: React.CSSProperties = { fontFamily: xpFont, fontSize: '11px', color: '#444' };
         const dirBtn = (val: '' | 'in' | 'out', text: string, c: string): React.CSSProperties => ({
@@ -330,6 +348,14 @@ export default function ReportsView(_props: any) {
                             onChange={onFilter(setLocationFilter)}
                             allowEmpty
                             emptyLabel="All Locations"
+                            style={{ width: 150 }}
+                        />
+                        <TreeSelect
+                            options={catFilterTreeOptions}
+                            value={categoryFilter}
+                            onChange={onFilter(setCategoryFilter)}
+                            allowEmpty
+                            emptyLabel="All Categories"
                             style={{ width: 150 }}
                         />
                         <select style={xpSelect({ width: 150 })} value={refTypeFilter} onChange={e => onFilter(setRefTypeFilter)(e.target.value)}>
@@ -389,10 +415,11 @@ export default function ReportsView(_props: any) {
                                     <tr>
                                         <th style={{ ...th, cursor: 'pointer' }} onClick={() => toggle('date')}>{t('date')}<SortMark sort={sort} colKey="date" /></th>
                                         <th style={{ ...th, cursor: 'pointer' }} onClick={() => toggle('item')}>Item<SortMark sort={sort} colKey="item" /></th>
+                                        <th style={{ ...th, cursor: 'pointer' }} onClick={() => toggle('category')}>Category<SortMark sort={sort} colKey="category" /></th>
                                         <th style={{ ...th, cursor: 'pointer' }} onClick={() => toggle('location')}>{t('locations')}<SortMark sort={sort} colKey="location" /></th>
                                         <th style={th}>Lot</th>
                                         <th style={{ ...th, textAlign: 'right', cursor: 'pointer' }} onClick={() => toggle('qty')}>Movement<SortMark sort={sort} colKey="qty" /></th>
-                                        <th style={th}>Source</th>
+                                        <th style={{ ...th, borderRight: 'none' }}>Source</th>
                                     </tr>
                                 </thead>
                                 <tbody>{rows.map((e: any, i: number) => renderClassicRow(e, i))}</tbody>
@@ -440,6 +467,15 @@ export default function ReportsView(_props: any) {
                             <span className="input-group-text"><i className="bi bi-search" /></span>
                             <input className="form-control" placeholder="Search item or reference..." value={search} onChange={e => setSearch(e.target.value)} />
                         </div>
+                    </div>
+                    <div className="col-md-2">
+                        <TreeSelect
+                            options={catFilterTreeOptions}
+                            value={categoryFilter}
+                            onChange={onFilter(setCategoryFilter)}
+                            allowEmpty
+                            emptyLabel="All Categories"
+                        />
                     </div>
                     <div className="col-md-2">
                         <TreeSelect
@@ -516,11 +552,12 @@ export default function ReportsView(_props: any) {
                     </div>
                 ) : (
                     <div className="table-responsive" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-                        <table className="table table-hover align-middle mb-0">
+                        <table className="table table-hover table-bordered align-middle mb-0">
                             <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                                 <tr>
                                     <th className="ps-4" style={{ cursor: 'pointer' }} onClick={() => toggle('date')}>{t('date')}<SortMark sort={sort} colKey="date" /></th>
                                     <th style={{ cursor: 'pointer' }} onClick={() => toggle('item')}>Item<SortMark sort={sort} colKey="item" /></th>
+                                    <th style={{ cursor: 'pointer' }} onClick={() => toggle('category')}>Category<SortMark sort={sort} colKey="category" /></th>
                                     <th style={{ cursor: 'pointer' }} onClick={() => toggle('location')}>{t('locations')}<SortMark sort={sort} colKey="location" /></th>
                                     <th>Lot</th>
                                     <th className="text-end" style={{ cursor: 'pointer' }} onClick={() => toggle('qty')}>Movement<SortMark sort={sort} colKey="qty" /></th>
@@ -546,6 +583,11 @@ export default function ReportsView(_props: any) {
                                                         {e.attribute_value_ids.map((vid: string) => <span key={vid} className="badge text-bg-light border" style={{ fontSize: 9 }}>{getAttrName(vid)}</span>)}
                                                     </div>
                                                 )}
+                                            </td>
+                                            <td>
+                                                {e.item_category_name
+                                                    ? <span title={e.item_category_name} className="badge bg-info-subtle text-info-emphasis d-inline-block text-truncate mw-100 align-bottom">{e.item_category_name}</span>
+                                                    : <span className="text-muted">-</span>}
                                             </td>
                                             <td>
                                                 <div className="d-flex flex-wrap gap-1">

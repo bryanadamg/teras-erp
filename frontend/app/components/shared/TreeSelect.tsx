@@ -545,3 +545,24 @@ export function buildCategoryTree(categories: any[]): TreeSelectOption[] {
   };
   return roots.map(toOpt);
 }
+
+/**
+ * Expand a buildCategoryTree() value into the category itself plus every
+ * descendant id, so a server-side filter matches items filed under any child
+ * category (picking "Yarn" must also return "Yarn / Cotton").
+ */
+export function expandCategoryFilterValue(categories: any[], value: string): string[] {
+  if (!value) return [];
+  const childrenOf: Record<string, string[]> = {};
+  for (const c of (categories || [])) {
+    if (c.parent_id) (childrenOf[c.parent_id] ||= []).push(String(c.id));
+  }
+  const out: string[] = [];
+  const stack = [String(value)];
+  while (stack.length) {
+    const cur = stack.pop()!;
+    out.push(cur);
+    for (const c of (childrenOf[cur] || [])) stack.push(c);
+  }
+  return out;
+}
