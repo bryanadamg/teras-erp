@@ -5,7 +5,7 @@ import { useData } from '../../context/DataContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
-import { xpFont, familyColor, ProgressBar, StatusChip, XPLoading, XPEmptyState, XPActionButton } from '../shared/xpTheme';
+import { xpFont, familyColor, ProgressBar, StatusChip, ToggleChip, XPLoading, XPEmptyState, XPActionButton } from '../shared/xpTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import VariantChips from '../shared/VariantChips';
 import WorkCenterMonitorModal from './WorkCenterMonitorModal';
@@ -40,6 +40,9 @@ export default function WeavingMonitorView() {
     const [loading, setLoading] = useState(true);
     const [selected, setSelected] = useState<any>(null);
     const [calGroup, setCalGroup] = useState<any>(null);
+    // Group focus. null = every group (the default): a monitor must open showing the
+    // whole plant, so this narrows on request and never hides a bank by default.
+    const [groupFilter, setGroupFilter] = useState<string | null>(null);
 
     const load = useCallback(async () => {
         try {
@@ -70,6 +73,11 @@ export default function WeavingMonitorView() {
     // Looms are shown per work-center GROUP so a whole group's calendar can be set in
     // one go. Machines that sit straight under their TYPE node (the pre-group shape)
     // collect in a trailing Ungrouped section — no group, so no batch action.
+    //
+    // Each section carries its own health roll-up (running / below-target / avg
+    // efficiency). That is what lets a bank report itself from its header band: a
+    // group scrolled past — or filtered out — still surfaces its alarms in the chip
+    // bar, which is the whole reason this screen doesn't hide groups behind tabs.
     const sections = useMemo(() => {
         const byGroup = new Map<string, { id: string | null; code: string; name: string; machines: any[] }>();
         for (const m of machines) {
@@ -79,10 +87,34 @@ export default function WeavingMonitorView() {
             }
             byGroup.get(key)!.machines.push(m);
         }
-        return [...byGroup.values()].sort((a, b) =>
-            (a.id ? 0 : 1) - (b.id ? 0 : 1) || (a.code || '').localeCompare(b.code || ''));
+        return [...byGroup.values()]
+            .sort((a, b) => (a.id ? 0 : 1) - (b.id ? 0 : 1) || (a.code || '').localeCompare(b.code || ''))
+            .map(sec => {
+                const runs = sec.machines.map((m: any) => m.active_run).filter(Boolean);
+                // on_target is null until a run has an efficiency to judge (no elapsed
+                // working day yet) — only count a run that actually reports below.
+                const belowTarget = runs.filter((r: any) => r.on_target === false).length;
+                const effs = runs.map((r: any) => r.efficiency_pct).filter((e: any) => e !== null && e !== undefined);
+                return {
+                    ...sec,
+                    running: runs.length,
+                    belowTarget,
+                    avgEff: effs.length ? effs.reduce((a: number, b: number) => a + Number(b), 0) / effs.length : null,
+                };
+            });
     }, [machines]);
     const isGrouped = sections.some(s => !!s.id);
+    const plantBelowTarget = sections.reduce((n, s) => n + s.belowTarget, 0);
+
+    // Chip bar filters which sections render; it never changes what was measured, so
+    // the counts on the chips stay plant-wide. A filter that matches nothing (the
+    // group was deleted or re-parented since it was picked) falls back to everything
+    // — a monitor must never render an empty screen because of stale UI state.
+    const visibleSections = useMemo(() => {
+        if (!groupFilter) return sections;
+        const hit = sections.filter(s => (s.id || '__ungrouped__') === groupFilter);
+        return hit.length ? hit : sections;
+    }, [sections, groupFilter]);
 
     // Efficiency vs its target tick — the shared ProgressBar with a threshold
     // marker, so this reads like every other bar in the app. The machine modal's
@@ -176,6 +208,12 @@ export default function WeavingMonitorView() {
             {data.avg_efficiency_pct !== null && data.avg_efficiency_pct !== undefined && (
                 <span style={{ marginLeft: 12 }}>{t('avg_efficiency')}: <b>{fmt(data.avg_efficiency_pct, 1)}%</b></span>
             )}
+            {/* Plant-wide alarm count, always visible regardless of the group filter. */}
+            {plantBelowTarget > 0 && (
+                <span style={{ marginLeft: 12 }}>
+                    <b style={{ color: cls ? '#ffc9c9' : RED }}>{plantBelowTarget}</b> {t('below_target')}
+                </span>
+            )}
         </>
     ) : null;
 
@@ -259,11 +297,28 @@ export default function WeavingMonitorView() {
         </div>
     );
 
-    // Group band. Classic reuses the shared toolbar strip (xpToolbar) instead of a
-    // one-off gradient; modern keeps the underlined caption row.
+    const sectionLabel = (sec: any) => (sec.id ? `${sec.code}${sec.name ? ' — ' + sec.name : ''}` : 'Ungrouped');
+
+    // Group band. Carries the bank's own health (running · avg efficiency · below
+    // target) so a section reports itself without the reader tallying cards — the
+    // counts alone said nothing about whether the bank was in trouble. Classic reuses
+    // the shared toolbar strip (xpToolbar); modern keeps the underlined caption row.
     const groupHeader = (sec: any) => {
-        const label = sec.id ? `${sec.code}${sec.name ? ' — ' + sec.name : ''}` : 'Ungrouped';
-        const counts = `${sec.machines.length} ${t('machines')} · ${sec.machines.filter((m: any) => m.active_run).length} ${t('running')}`;
+        const health = (
+            <>
+                <span style={{ fontWeight: 'normal', color: '#555' }}>
+                    {sec.machines.length} {t('machines')} · {sec.running} {t('running')}
+                </span>
+                {sec.avgEff !== null && (
+                    <span style={{ fontWeight: 'normal', color: '#555' }}>
+                        {t('avg_efficiency')}: <b style={{ color: '#333' }}>{fmt(sec.avgEff, 1)}%</b>
+                    </span>
+                )}
+                {sec.belowTarget > 0 && (
+                    <StatusChip status="CANCELLED" label={`${sec.belowTarget} ${t('below_target')}`} tint />
+                )}
+            </>
+        );
         const action = sec.id && canManage ? (
             <span style={{ marginLeft: 'auto' }}>
                 <XPActionButton classic={cls} tone="neutral" icon="bi-calendar3" label={t('work_calendar')} onClick={() => setCalGroup(sec)} />
@@ -272,19 +327,61 @@ export default function WeavingMonitorView() {
         return cls ? (
             <div style={xpToolbar({ marginBottom: 6, border: '1px solid #b0a898', fontFamily: xpFont, fontSize: 11, fontWeight: 'bold', color: BLUE })}>
                 <i className="bi bi-collection" />
-                <span>{label}</span>
-                <span style={{ fontWeight: 'normal', color: '#555' }}>{counts}</span>
+                <span>{sectionLabel(sec)}</span>
+                {health}
                 {action}
             </div>
         ) : (
-            <div className="d-flex align-items-center gap-2 mb-2 pb-1 border-bottom">
+            <div className="d-flex align-items-center gap-2 mb-2 pb-1 border-bottom small">
                 <i className="bi bi-collection text-secondary" />
-                <span className="fw-semibold">{label}</span>
-                <span className="text-muted small">{counts}</span>
+                <span className="fw-semibold">{sectionLabel(sec)}</span>
+                {health}
                 {action}
             </div>
         );
     };
+
+    // Group focus chips. These FILTER (they don't hide): every chip keeps its
+    // plant-wide below-target badge, so an alarm in a bank you are not looking at is
+    // still on screen — the property tabs would have cost.
+    const chipBar = isGrouped ? (
+        <div style={cls
+            ? xpToolbar({ marginBottom: 8, border: '1px solid #b0a898' })
+            : { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+            <span style={{ fontSize: cls ? 11 : 12, color: '#666', fontFamily: cls ? xpFont : undefined }}>
+                <i className="bi bi-funnel" style={{ marginRight: 4 }} />{t('group')}
+            </span>
+            <ToggleChip on={groupFilter === null} onClick={() => setGroupFilter(null)} classic={cls}>
+                {t('all')} ({machines.length})
+            </ToggleChip>
+            {sections.map(sec => {
+                const key = sec.id || '__ungrouped__';
+                return (
+                    <ToggleChip
+                        key={key}
+                        on={groupFilter === key}
+                        onClick={() => setGroupFilter(groupFilter === key ? null : key)}
+                        classic={cls}
+                        title={`${sec.machines.length} ${t('machines')} · ${sec.running} ${t('running')}`}
+                    >
+                        {sectionLabel(sec)}
+                        <span style={{ opacity: 0.75 }}> ({sec.machines.length})</span>
+                        {sec.belowTarget > 0 && (
+                            <span
+                                title={`${sec.belowTarget} ${t('below_target')}`}
+                                style={{
+                                    marginLeft: 5, padding: '0 4px', borderRadius: 8,
+                                    background: RED, color: '#fff', fontSize: 9, fontWeight: 700,
+                                }}
+                            >
+                                {sec.belowTarget}
+                            </span>
+                        )}
+                    </ToggleChip>
+                );
+            })}
+        </div>
+    ) : null;
 
     const body = loading ? (
         <XPLoading label={t('loading')} />
@@ -294,7 +391,7 @@ export default function WeavingMonitorView() {
         cardGrid(machines)
     ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: cls ? 10 : 20 }}>
-            {sections.map(sec => (
+            {visibleSections.map(sec => (
                 <div key={sec.id || 'ungrouped'}>
                     {groupHeader(sec)}
                     {cardGrid(sec.machines)}
@@ -320,6 +417,13 @@ export default function WeavingMonitorView() {
                         </span>
                     }
                 />
+                {/* Chip bar sits OUTSIDE the scroll area: the filter and its alarm
+                    badges stay on screen no matter how far down the grid you are. */}
+                {!loading && machines.length > 0 && (
+                    <div style={{ padding: cls ? '6px 8px 0' : '12px 12px 0', background: cls ? '#ece9d8' : undefined }}>
+                        {chipBar}
+                    </div>
+                )}
                 <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: cls ? 8 : 12, background: cls ? '#ece9d8' : undefined }}>
                     {body}
                 </div>

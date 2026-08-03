@@ -407,6 +407,41 @@ export function FormSection({ title, classic, children }: { title: React.ReactNo
     );
 }
 
+// Pressed/unpressed button — THE on-off chip shape (weekday pickers, filter chips,
+// segmented pickers). Classic gets the XP pressed-blue gradient, modern the
+// bootstrap primary/outline pair. Use this instead of styling a selected state per
+// view, so "this one is selected" always looks the same.
+export function ToggleChip({ on, onClick, classic, disabled = false, minWidth, title, children }: {
+    on: boolean;
+    onClick: () => void;
+    classic: boolean;
+    disabled?: boolean;
+    minWidth?: number;
+    title?: string;
+    children: React.ReactNode;
+}) {
+    return (
+        <button
+            type="button"
+            disabled={disabled}
+            onClick={onClick}
+            title={title}
+            className={classic ? '' : `btn btn-sm ${on ? 'btn-primary' : 'btn-outline-secondary'}`}
+            style={classic ? {
+                fontFamily: xpFont, fontSize: 11, fontWeight: on ? 'bold' : 'normal',
+                minWidth, padding: '3px 8px', borderRadius: 0,
+                cursor: disabled ? 'default' : 'pointer',
+                border: '1px solid',
+                borderColor: on ? '#003080 #6ea8ff #6ea8ff #003080' : '#dfdfdf #808080 #808080 #dfdfdf',
+                background: on ? 'linear-gradient(to bottom,#3a8dff,#0058e6)' : 'linear-gradient(to bottom,#ffffff,#d4d0c8)',
+                color: on ? '#fff' : '#444',
+            } : { minWidth }}
+        >
+            {children}
+        </button>
+    );
+}
+
 // Mon-first weekday picker (0=Mon … 6=Sun) — the working-days control on every
 // production calendar. Both the per-machine monitor and the group batch-apply form
 // had their own copy with different chrome (XP gradient buttons vs list-view
@@ -423,29 +458,18 @@ export function WeekdayToggle({ value, onToggle, classic, disabled = false }: {
 }) {
     return (
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            {WEEKDAY_LABELS.map((label, idx) => {
-                const on = value.includes(idx);
-                return (
-                    <button
-                        key={label}
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => onToggle(idx)}
-                        className={classic ? '' : `btn btn-sm ${on ? 'btn-primary' : 'btn-outline-secondary'}`}
-                        style={classic ? {
-                            fontFamily: xpFont, fontSize: 11, fontWeight: on ? 'bold' : 'normal',
-                            minWidth: 48, padding: '3px 8px', borderRadius: 0,
-                            cursor: disabled ? 'default' : 'pointer',
-                            border: '1px solid',
-                            borderColor: on ? '#003080 #6ea8ff #6ea8ff #003080' : '#dfdfdf #808080 #808080 #dfdfdf',
-                            background: on ? 'linear-gradient(to bottom,#3a8dff,#0058e6)' : 'linear-gradient(to bottom,#ffffff,#d4d0c8)',
-                            color: on ? '#fff' : '#444',
-                        } : { minWidth: 52 }}
-                    >
-                        {label}
-                    </button>
-                );
-            })}
+            {WEEKDAY_LABELS.map((label, idx) => (
+                <ToggleChip
+                    key={label}
+                    on={value.includes(idx)}
+                    onClick={() => onToggle(idx)}
+                    classic={classic}
+                    disabled={disabled}
+                    minWidth={classic ? 48 : 52}
+                >
+                    {label}
+                </ToggleChip>
+            ))}
         </div>
     );
 }
