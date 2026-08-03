@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
+import VariantChips from '../shared/VariantChips';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
@@ -374,6 +375,16 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                     : <span className="badge bg-info-subtle text-info-emphasis">{run.status}</span>}
                                 <span style={{ fontFamily: cls ? xpFont : undefined, fontWeight: 'bold' }}>{run.mo_code}</span>
                                 <span><strong>{run.item_code}</strong> <span className="text-muted small">{run.item_name}</span></span>
+                                <VariantChips
+                                    combo={run.combo_label}
+                                    size={run.size_label}
+                                    colorVariant={run.color_label}
+                                    colorCode={run.color_code}
+                                    colorName={run.color_name}
+                                    colorHex={run.color_hex}
+                                    labdipCode={run.labdip_variant_code}
+                                    scale="sm"
+                                />
                                 <span className="text-muted small">
                                     {t('target')}: <strong>{fmt(run.target_qty, 2)} kg</strong> · {t('start_date')} {fmtDate(run.start_date)}
                                 </span>
@@ -501,7 +512,20 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                         {data.history.map((h: any) => (
                                             <tr key={h.id}>
                                                 <td className="font-monospace">{h.mo_code}</td>
-                                                <td>{h.item_code}</td>
+                                                <td>
+                                                    <div className="d-flex align-items-center gap-2">
+                                                        <span>{h.item_code}</span>
+                                                        <VariantChips
+                                                            combo={h.combo_label}
+                                                            size={h.size_label}
+                                                            colorVariant={h.color_label}
+                                                            colorCode={h.color_code}
+                                                            colorName={h.color_name}
+                                                            colorHex={h.color_hex}
+                                                            labdipCode={h.labdip_variant_code}
+                                                        />
+                                                    </div>
+                                                </td>
                                                 <td>{fmtDate(h.start_date)}</td>
                                                 <td>{fmtDate(h.end_date)}</td>
                                                 <td className="text-end">{fmt(h.actual_kg, 2)} kg</td>

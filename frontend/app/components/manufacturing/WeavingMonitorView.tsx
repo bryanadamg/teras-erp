@@ -7,6 +7,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { xpFont, xpBtn, StatusChip, XPLoading, XPEmptyState } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar } from '../shared/shellTheme';
+import VariantChips from '../shared/VariantChips';
 import WorkCenterMonitorModal from './WorkCenterMonitorModal';
 import GroupCalendarModal from './GroupCalendarModal';
 
@@ -85,6 +86,23 @@ export default function WeavingMonitorView() {
     };
 
     const openCard = (m: any) => setSelected({ id: m.id, code: m.code, name: m.name, center_type: m.center_type });
+
+    // What variant the loom is running right now. The MO alone doesn't say it — a
+    // supervisor on the floor reads combo/size off the card to match the loom against
+    // the physical warp and the WO ticket.
+    const RunVariant = ({ run }: { run: any }) => (
+        <VariantChips
+            combo={run.combo_label}
+            size={run.size_label}
+            colorVariant={run.color_label}
+            colorCode={run.color_code}
+            colorName={run.color_name}
+            colorHex={run.color_hex}
+            labdipCode={run.labdip_variant_code}
+            scale="sm"
+            style={{ flexWrap: 'wrap', gap: 3 }}
+        />
+    );
 
     // Warp on the loom. A beam belongs to the machine, not to a work order — every
     // WO that runs here draws from it — so its readiness reads in whole beams
@@ -180,6 +198,7 @@ export default function WeavingMonitorView() {
                                 <div style={{ fontSize: 10, color: '#555', marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                     <b>{run.mo_code}</b>{run.item_code ? ` · ${run.item_code}` : ''}
                                 </div>
+                                <div style={{ marginBottom: 4 }}><RunVariant run={run} /></div>
                                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                                     <span style={{ fontSize: 24, fontWeight: 'bold', color: effColor, lineHeight: 1 }}>{fmt(run.efficiency_pct, 1)}<span style={{ fontSize: 12 }}>%</span></span>
                                     <span style={{ fontSize: 10, color: '#888' }}>{t('target')} {fmt(run.target_efficiency_pct, 0)}%</span>
@@ -274,6 +293,7 @@ export default function WeavingMonitorView() {
                                 <span style={{ fontWeight: 600 }}>{run.mo_code}</span>
                                 {run.item_code && <span className="text-muted"> · {run.item_code}</span>}
                             </div>
+                            <div className="mb-1"><RunVariant run={run} /></div>
                             <div className="d-flex align-items-baseline gap-2">
                                 <span style={{ fontSize: 26, fontWeight: 800, color: effColor, lineHeight: 1 }}>{fmt(run.efficiency_pct, 1)}<span style={{ fontSize: 13 }}>%</span></span>
                                 <span className="text-muted small">{t('target')} {fmt(run.target_efficiency_pct, 0)}%</span>

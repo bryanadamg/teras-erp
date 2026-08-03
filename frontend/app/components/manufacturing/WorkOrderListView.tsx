@@ -20,6 +20,7 @@ import { STATUS_COLORS, statusChipStyle, XPEmptyState, XPStatusBar, useSortable,
 import TreeSelect, { TreeSelectOption } from '../shared/TreeSelect';
 import { childrenOfWC, isMachineWC, isTypeWC } from '../shared/workCenterTree';
 import SearchableSelect from '../shared/SearchableSelect';
+import VariantChips from '../shared/VariantChips';
 import { Tabs, TabDef } from '../shared/Tabs';
 
 const STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
@@ -877,45 +878,16 @@ export default function WorkOrderListView({
                                                         <span style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wo.item_name || '—'}</span>
                                                         {/* Variant chips ride the right edge of the column (same as PrintChips
                                                             on the Name column) so they line up down the table. */}
-                                                        <span style={{ marginLeft: 'auto', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                                                        {wo.combo_label && (
-                                                            <span style={{ fontSize: 8, padding: '0 4px', background: '#dbeafe', color: '#1d4ed8', borderRadius: 2, fontWeight: 700, lineHeight: '14px', whiteSpace: 'nowrap', flexShrink: 0 }} title={`Combo: ${wo.combo_label}`}>
-                                                                {wo.combo_label}
-                                                            </span>
-                                                        )}
-                                                        {wo.size_label && (
-                                                            <span style={{ fontSize: 8, padding: '0 4px', background: '#dcfce7', color: '#15803d', borderRadius: 2, fontWeight: 700, lineHeight: '14px', whiteSpace: 'nowrap', flexShrink: 0 }} title={`Size: ${wo.size_label}`}>
-                                                                <i className="bi bi-rulers me-1" style={{ fontSize: 7 }}></i>{wo.size_label}
-                                                            </span>
-                                                        )}
-                                                        {/* Colors-attribute variant (e.g. "Black") — distinct from the Color
-                                                            Library shade badge below; the MO's variant-defining attribute value. */}
-                                                        {wo.color_label && (
-                                                            <span style={{ fontSize: 8, padding: '0 4px', background: '#fce7f3', color: '#9d174d', borderRadius: 2, fontWeight: 700, lineHeight: '14px', whiteSpace: 'nowrap', flexShrink: 0 }} title={`Variant: ${wo.color_label}`}>
-                                                                {wo.color_label}
-                                                            </span>
-                                                        )}
-                                                        {/* Color spec — the shade this WO produces (dyeing steps especially).
-                                                            Falls back to the pending lab-dip code while the shade is unapproved. */}
-                                                        {wo.color_code ? (
-                                                            <span
-                                                                style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 8, padding: '0 4px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 2, fontWeight: 700, lineHeight: '14px', whiteSpace: 'nowrap', flexShrink: 0 }}
-                                                                title={`Color: ${wo.color_code}${wo.color_name && wo.color_name !== wo.color_code ? ` — ${wo.color_name}` : ''}`}
-                                                            >
-                                                                {wo.color_hex
-                                                                    ? <span style={{ width: 7, height: 7, background: wo.color_hex, border: '1px solid rgba(0,0,0,0.35)', flexShrink: 0, display: 'inline-block' }} />
-                                                                    : <i className="bi bi-palette" style={{ fontSize: 7 }}></i>}
-                                                                {wo.color_code}
-                                                            </span>
-                                                        ) : wo.labdip_variant_code ? (
-                                                            <span
-                                                                style={{ fontSize: 8, padding: '0 4px', background: '#fbf4dd', color: '#8a6d00', border: '1px solid #e8dca8', borderRadius: 2, fontWeight: 700, lineHeight: '14px', whiteSpace: 'nowrap', flexShrink: 0 }}
-                                                                title={`Color still in lab dip (${wo.labdip_variant_code}) — dyeing is blocked until approved`}
-                                                            >
-                                                                <i className="bi bi-eyedropper me-1" style={{ fontSize: 7 }}></i>{wo.labdip_variant_code}
-                                                            </span>
-                                                        ) : null}
-                                                        </span>
+                                                        <VariantChips
+                                                            combo={wo.combo_label}
+                                                            size={wo.size_label}
+                                                            colorVariant={wo.color_label}
+                                                            colorCode={wo.color_code}
+                                                            colorName={wo.color_name}
+                                                            colorHex={wo.color_hex}
+                                                            labdipCode={wo.labdip_variant_code}
+                                                            style={{ marginLeft: 'auto', flexShrink: 0 }}
+                                                        />
                                                     </div>
                                                 </td>
                                                 <td style={{ ...tdBase, fontSize: classic ? 10 : 11, overflow: 'hidden' }}>

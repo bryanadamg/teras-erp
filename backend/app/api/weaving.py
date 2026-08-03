@@ -15,6 +15,7 @@ from app.models.work_order import WorkOrder
 from app.models.batch import Batch, BeamMount
 from app.models.stock_balance import StockBalance
 from app.models.item import Item
+from app.models.attribute import AttributeValue
 from app.models.auth import User
 from app.api.auth import get_current_user, require_permission
 from app.schemas import (
@@ -22,7 +23,7 @@ from app.schemas import (
     WorkCenterHolidayCreate, WorkCenterHolidayResponse, WorkCenterCalendarUpdate,
     WorkCenterGroupCalendarUpdate,
 )
-from app.services import audit_service, weaving_service, id_holidays, work_center_service
+from app.services import audit_service, weaving_service, id_holidays, work_center_service, stock_service
 from app.core.ws_manager import manager
 
 router = APIRouter()
@@ -57,6 +58,49 @@ async def _run_actual_kg(db: AsyncSession, run: WeavingRun) -> float:
 
 
 CLOSED_MO_STATUSES = ("COMPLETED", "CANCELLED")
+
+
+def _mo_variant_labels(mo: Optional[ManufacturingOrder]) -> dict:
+    """Which variant a run is actually producing: combo / size / colour.
+
+    Same source and shape as the WO list in `api/manufacturing.py` (attribute values
+    by system_role + the BOMSize snapshot), so the loom card and the WO screen never
+    disagree about what is on the machine.
+    """
+    if mo is None:
+        return {
+            "combo_label": None, "size_label": None, "color_label": None,
+            "color_code": None, "color_name": None, "color_hex": None,
+            "labdip_variant_code": None,
+        }
+
+    def by_role(role: str) -> Optional[str]:
+        av = next(
+            (v for v in (mo.attribute_values or [])
+             if v.attribute and v.attribute.system_role == role),
+            None,
+        )
+        return av.value if av else None
+
+    color = mo.color  # lazy="joined", rides along with the MO load
+    return {
+        "combo_label": by_role("combo"),
+        "size_label": stock_service._bom_size_label(mo.bom_size_snapshot),
+        "color_label": by_role("color"),
+        "color_code": color.code if color else None,
+        "color_name": color.name if color else None,
+        "color_hex": color.hex if color else None,
+        "labdip_variant_code": mo.labdip_variant_code,
+    }
+
+
+# Variant labels need the MO's attribute values *and* their attribute (for
+# system_role). Used by both the monitor grid and the per-machine report.
+MO_VARIANT_LOADS = (
+    selectinload(WeavingRun.mo)
+    .selectinload(ManufacturingOrder.attribute_values)
+    .joinedload(AttributeValue.attribute)
+)
 
 
 @router.get("/work-centers/{wc_id}/candidate-mos")
@@ -224,6 +268,7 @@ def _machine_payload(wc: WorkCenter, run: Optional[WeavingRun], actual: Optional
             "item_name": mo.item_name if mo else None,
             "target_qty": float(mo.qty) if mo else None,
             "status": run.status,
+            **_mo_variant_labels(mo),
             **{k: m[k] for k in (
                 "efficiency_pct", "target_efficiency_pct", "on_target", "actual_kg",
                 "theoretical_100_kg", "actual_daily_rate_kg", "elapsed_working_days", "lines",
@@ -289,7 +334,10 @@ async def weaving_monitor(
     # recently created one — matches the old per-machine ".first()" semantics.
     run_res = await db.execute(
         select(WeavingRun)
-        .options(selectinload(WeavingRun.mo).selectinload(ManufacturingOrder.item))
+        .options(
+            selectinload(WeavingRun.mo).selectinload(ManufacturingOrder.item),
+            MO_VARIANT_LOADS,
+        )
         .where(WeavingRun.work_center_id.in_(machine_ids))
         .where(WeavingRun.status == "RUNNING")
         .order_by(WeavingRun.work_center_id, WeavingRun.created_at.desc())
@@ -390,6 +438,7 @@ async def _run_payload(db: AsyncSession, run: WeavingRun, weekdays, holidays, to
         "item_code": mo.item_code if mo else None,
         "item_name": mo.item_name if mo else None,
         "target_qty": float(mo.qty) if mo else None,
+        **_mo_variant_labels(mo),
         "start_date": run.start_date,
         "end_date": run.end_date,
         "status": run.status,
@@ -411,7 +460,10 @@ async def work_center_performance(
 
     res = await db.execute(
         select(WeavingRun)
-        .options(selectinload(WeavingRun.mo).selectinload(ManufacturingOrder.item))
+        .options(
+            selectinload(WeavingRun.mo).selectinload(ManufacturingOrder.item),
+            MO_VARIANT_LOADS,
+        )
         .where(WeavingRun.work_center_id == wc.id)
         .order_by(WeavingRun.created_at.desc())
     )
