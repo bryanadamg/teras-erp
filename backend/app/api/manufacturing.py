@@ -1358,7 +1358,12 @@ async def add_mo_completion(
         qty_boxes=payload.qty_boxes,
         operator_name=payload.operator_name,
         notes=payload.notes,
-        work_center_id=payload.work_center_id,
+        # Fall back to the WO's machine when the operator left the (optional) Work
+        # Center picker blank. The log physically happened on the machine the WO is
+        # dispatched to, and anything that reports production per machine — the
+        # weaving monitor's actual_kg above all (`weaving_service.sum_actual_kg`
+        # filters on work_center_id) — silently counted 0 for every such row.
+        work_center_id=payload.work_center_id or (wo.work_center_id if wo else None),
         work_order_id=payload.work_order_id,
         output_batch_id=output_batch.id if output_batch else None,
         output_location_id=wo_output_loc,

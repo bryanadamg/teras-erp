@@ -49,9 +49,15 @@ export default function WeavingMonitorView() {
 
     useEffect(() => { load(); }, [load]);
 
-    // Live: a run start/update/stop/delete elsewhere re-loads this monitor.
+    // Live: a run start/update/stop/delete re-loads this monitor — and so does a
+    // production log ('production'), because a WO completion on any of these looms
+    // moves actual_kg/efficiency. Completions broadcast MANUFACTURING_ORDER_UPDATE,
+    // not weaving_run, so listening for 'weaving' alone left the grid stale until a
+    // manual refresh.
     useEffect(() => {
-        const unsubscribe = subscribeLiveEvents((kind) => { if (kind === 'weaving') load(); });
+        const unsubscribe = subscribeLiveEvents((kind) => {
+            if (kind === 'weaving' || kind === 'production') load();
+        });
         return unsubscribe;
     }, [subscribeLiveEvents, load]);
 
