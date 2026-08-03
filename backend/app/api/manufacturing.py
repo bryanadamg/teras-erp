@@ -1283,8 +1283,10 @@ async def add_mo_completion(
     consumed_by_batch: dict[str, float] = {}
 
     # Multi-lot consumption (dyeing greige substrate): the operator scanned in
-    # many staged lots; each is consumed at an explicit qty. These override the
-    # BOM% deduction for their items — the physical lots loaded ARE the usage.
+    # many staged lots and this log draws an explicit qty from each. These
+    # override the BOM% deduction for their items. A lot gives up only what the
+    # run used — the remainder stays on it at the input location for the next
+    # log, so partial draws are normal, not an error.
     lots_by_item: dict[str, list[tuple[Batch, float]]] = {}
     if payload.consumed_lots:
         lot_ids = [cl.batch_id for cl in payload.consumed_lots]
