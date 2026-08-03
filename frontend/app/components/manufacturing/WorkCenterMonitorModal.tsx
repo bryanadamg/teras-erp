@@ -328,7 +328,11 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
 
                     {!loading && !run && canManage && (
                         <FormSection title={<SecTitle icon="bi-play-circle">{t('start_run')}</SecTitle>} classic={cls}>
-                            <div className="row g-2 align-items-end">
+                            {/* Top-align, not bottom: the MO column carries a helper line
+                                under its select, and align-items-end pushed every other
+                                input down by that line's height instead of keeping the
+                                label/input baselines in a row. */}
+                            <div className="row g-2 align-items-start">
                                 <div className="col-md-5">
                                     <FieldLabel classic={cls}>{t('manufacturing_order')}</FieldLabel>
                                     <SearchableSelect
@@ -369,7 +373,10 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                                     <FieldLabel classic={cls}>{t('start_date')}</FieldLabel>
                                     <input type="date" {...inputProps} value={startDate} onChange={e => setStartDate(e.target.value)} />
                                 </div>
-                                <div className="col-md-8 d-flex gap-2 align-items-end">
+                                <div className="col-md-8">
+                                    {/* Empty label so the button lines up with the date
+                                        input beside it, not with that input's label. */}
+                                    <FieldLabel classic={cls}>&nbsp;</FieldLabel>
                                     <XPActionButton classic={cls} tone="success" icon="bi-play-fill" label={t('start')} onClick={startRun} disabled={!moId} />
                                 </div>
                             </div>
