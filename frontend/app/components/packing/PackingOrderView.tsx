@@ -8,8 +8,8 @@ import { useUser } from '../../context/UserContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import { useConfirm } from '../../context/ConfirmContext';
-import { XPStatusBar, XPEmptyState, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
-import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvLabel, lvRow } from '../shared/listViewTheme';
+import { XPStatusBar, XPEmptyState, StatusChip, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, SectionTitle, FieldLabel, XPActionButton } from '../shared/xpTheme';
+import { LV_XP_FONT, lvBtn, lvInput, lvTh, lvTd, lvRow } from '../shared/listViewTheme';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
@@ -36,8 +36,11 @@ const xpBtnGreen = (extra: React.CSSProperties = {}) => xpBtn({ background: 'lin
 const xpBtnCreate = xpBtn({ background: 'linear-gradient(to bottom, #5ec85e, #2d7a2d)', borderColor: '#1a5e1a #0a3e0a #0a3e0a #1a5e1a', color: '#ffffff', fontWeight: 'bold' });
 const rowStyle = (idx: number): React.CSSProperties => lvRow(true, idx);
 const td: React.CSSProperties = lvTd(true);
-const xpLabel: React.CSSProperties = lvLabel(true);
-const sectionTitle: React.CSSProperties = { fontSize: 11, fontWeight: 'bold', color: '#00309c', margin: '14px 0 6px', borderBottom: '1px solid #c8c4b8', paddingBottom: 3 };
+// This view is classic-only chrome (ShellWindow classic), so the shared form
+// primitives are always driven in their classic branch.
+const CLASSIC = true;
+const fieldRow: React.CSSProperties = { display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' };
+const hintText: React.CSSProperties = { fontFamily: xpFont, fontSize: 10, color: '#938c76', fontStyle: 'italic', marginTop: 6 };
 
 const num = (v: any) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
 const PO_PAGE_SIZE = 20;
@@ -347,60 +350,59 @@ function PackingOrderForm({ locPickerTreeOptions, attributes, authFetch, showToa
             }
         >
             <div style={{ fontFamily: xpFont }}>
-                <div style={sectionTitle}>Demand</div>
-                <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                    <div style={{ minWidth: 220 }}>
-                        <label style={xpLabel}>Sales Order (optional)</label>
-                        <select style={{ ...xpSelect, width: '100%' }} value={soId} onChange={e => { setSoId(e.target.value); setSoLineId(''); }}>
-                            <option value="">— pack to stock —</option>
-                            {sos.map((s: any) => <option key={s.id} value={s.id}>{s.po_number} · {s.customer_name}</option>)}
-                        </select>
-                    </div>
-                    {soId && (
-                        <div style={{ minWidth: 240 }}>
-                            <label style={xpLabel}>Order line</label>
-                            <select style={{ ...xpSelect, width: '100%' }} value={soLineId} onChange={e => applySoLine(e.target.value)}>
-                                <option value="">— select line —</option>
-                                {soLines.map((l: any) => (
-                                    <option key={l.id} value={l.id}>{l.item_name || l.item_code || l.item_id} · {num(l.qty).toLocaleString()}</option>
-                                ))}
+                <FormSection title={<SectionTitle icon="bi-receipt">Demand</SectionTitle>} classic={CLASSIC}>
+                    <div style={fieldRow}>
+                        <div style={{ minWidth: 220, flex: 1 }}>
+                            <FieldLabel classic={CLASSIC} hint="Leave empty to pack to stock">Sales Order</FieldLabel>
+                            <select style={{ ...xpSelect, width: '100%' }} value={soId} onChange={e => { setSoId(e.target.value); setSoLineId(''); }}>
+                                <option value="">— pack to stock —</option>
+                                {sos.map((s: any) => <option key={s.id} value={s.id}>{s.po_number} · {s.customer_name}</option>)}
                             </select>
                         </div>
+                        {soId && (
+                            <div style={{ minWidth: 240, flex: 1 }}>
+                                <FieldLabel classic={CLASSIC} hint="Fixes the item and variant being packed">Order line</FieldLabel>
+                                <select style={{ ...xpSelect, width: '100%' }} value={soLineId} onChange={e => applySoLine(e.target.value)}>
+                                    <option value="">— select line —</option>
+                                    {soLines.map((l: any) => (
+                                        <option key={l.id} value={l.id}>{l.item_name || l.item_code || l.item_id} · {num(l.qty).toLocaleString()}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+                    </div>
+                    {soLineId && (
+                        <div style={hintText}>Colour and variant attributes are inherited from the order line.</div>
                     )}
-                </div>
-                {soLineId && (
-                    <div style={{ fontSize: 10, color: '#666', marginTop: 4 }}>
-                        Colour and variant attributes are inherited from the order line.
-                    </div>
-                )}
+                </FormSection>
 
-                <div style={sectionTitle}>What to Pack</div>
-                <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                    <div style={{ minWidth: 260 }}>
-                        <label style={xpLabel}>Finished good</label>
-                        <SearchableSelect options={fgOptions} value={itemId} onChange={setItemId} onSearch={fgSearch} placeholder="Search item..." size="sm" />
+                <FormSection title={<SectionTitle icon="bi-box2">What to Pack</SectionTitle>} classic={CLASSIC}>
+                    <div style={fieldRow}>
+                        <div style={{ minWidth: 260, flex: 1 }}>
+                            <FieldLabel classic={CLASSIC}>Finished good</FieldLabel>
+                            <SearchableSelect options={fgOptions} value={itemId} onChange={setItemId} onSearch={fgSearch} placeholder="Search item..." size="sm" />
+                        </div>
+                        <div style={{ width: 110 }}>
+                            <FieldLabel classic={CLASSIC}>Target qty</FieldLabel>
+                            <input type="number" min={0} style={{ ...xpInput, width: '100%', textAlign: 'right' }} value={qtyTarget} onChange={e => setQtyTarget(e.target.value)} />
+                        </div>
+                        <div style={{ width: 110 }}>
+                            <FieldLabel classic={CLASSIC} hint="Splits the target">Qty per carton</FieldLabel>
+                            <input type="number" min={0} style={{ ...xpInput, width: '100%', textAlign: 'right' }} value={packSize} onChange={e => setPackSize(e.target.value)} />
+                        </div>
+                        <div style={{ width: 110 }}>
+                            <FieldLabel classic={CLASSIC}>Package type</FieldLabel>
+                            <input style={{ ...xpInput, width: '100%' }} value={packageLabel} onChange={e => setPackageLabel(e.target.value)} placeholder="Carton" />
+                        </div>
                     </div>
-                    <div style={{ minWidth: 110 }}>
-                        <label style={xpLabel}>Target qty</label>
-                        <input type="number" min={0} style={{ ...xpInput, width: '100%', textAlign: 'right' }} value={qtyTarget} onChange={e => setQtyTarget(e.target.value)} />
-                    </div>
-                    <div style={{ minWidth: 110 }}>
-                        <label style={xpLabel}>Qty per carton</label>
-                        <input type="number" min={0} style={{ ...xpInput, width: '100%', textAlign: 'right' }} value={packSize} onChange={e => setPackSize(e.target.value)} />
-                    </div>
-                    <div style={{ minWidth: 110 }}>
-                        <label style={xpLabel}>Package type</label>
-                        <input style={{ ...xpInput, width: '100%' }} value={packageLabel} onChange={e => setPackageLabel(e.target.value)} placeholder="Carton" />
-                    </div>
-                </div>
+                </FormSection>
 
                 {!soLineId && (
-                    <>
-                        <div style={sectionTitle}>Variant</div>
-                        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                    <FormSection title={<SectionTitle icon="bi-palette">Variant</SectionTitle>} classic={CLASSIC}>
+                        <div style={fieldRow}>
                             {(attributes || []).map((a: any) => (
                                 <div key={a.id} style={{ minWidth: 160 }}>
-                                    <label style={xpLabel}>{a.name}</label>
+                                    <FieldLabel classic={CLASSIC}>{a.name}</FieldLabel>
                                     <select style={{ ...xpSelect, width: '100%' }} value={attrVals[a.id] || ''} onChange={e => setAttrVals(prev => ({ ...prev, [a.id]: e.target.value }))}>
                                         <option value="">— any —</option>
                                         {(a.values || []).map((v: any) => <option key={v.id} value={v.id}>{v.value}</option>)}
@@ -408,42 +410,60 @@ function PackingOrderForm({ locPickerTreeOptions, attributes, authFetch, showToa
                                 </div>
                             ))}
                         </div>
-                        <div style={{ fontSize: 10, color: '#666', marginTop: 4 }}>
+                        <div style={hintText}>
                             Must match the variant the bulk stock is held under, or the source location will read as empty.
                         </div>
-                    </>
+                    </FormSection>
                 )}
 
-                <div style={sectionTitle}>Locations</div>
-                <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                    <div style={{ minWidth: 220 }}>
-                        <label style={xpLabel}>Pack from (bulk FG)</label>
-                        <TreeSelect options={locPickerTreeOptions} value={sourceLoc} onChange={setSourceLoc} allowEmpty emptyLabel="— select —" size="sm" style={{ width: '100%' }} />
+                <FormSection title={<SectionTitle icon="bi-geo-alt">Locations</SectionTitle>} classic={CLASSIC}>
+                    <div style={fieldRow}>
+                        <div style={{ minWidth: 220, flex: 1 }}>
+                            <FieldLabel classic={CLASSIC} hint="Bulk finished goods are drawn from here">Pack from</FieldLabel>
+                            <TreeSelect options={locPickerTreeOptions} value={sourceLoc} onChange={setSourceLoc} allowEmpty emptyLabel="— select —" size="sm" style={{ width: '100%' }} />
+                        </div>
+                        <div style={{ minWidth: 220, flex: 1 }}>
+                            <FieldLabel classic={CLASSIC} hint="Sealed cartons land here">Store cartons at</FieldLabel>
+                            <TreeSelect options={locPickerTreeOptions} value={outputLoc} onChange={setOutputLoc} allowEmpty emptyLabel="— select —" size="sm" style={{ width: '100%' }} />
+                        </div>
                     </div>
-                    <div style={{ minWidth: 220 }}>
-                        <label style={xpLabel}>Store cartons at</label>
-                        <TreeSelect options={locPickerTreeOptions} value={outputLoc} onChange={setOutputLoc} allowEmpty emptyLabel="— select —" size="sm" style={{ width: '100%' }} />
-                    </div>
-                </div>
+                </FormSection>
 
-                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                    <div style={{ ...sectionTitle, flex: 1 }}>Packaging Materials (optional)</div>
-                    <button style={{ ...xpBtn(), marginBottom: 6 }} onClick={addMaterial}>+ Add Material</button>
-                </div>
-                {materials.length === 0 && <div style={{ fontSize: 10, color: '#999', padding: '4px 0' }}>No packaging materials planned.</div>}
-                {materials.map((m, idx) => (
-                    <MaterialRow
-                        key={idx}
-                        row={m}
-                        authFetch={authFetch}
-                        locPickerTreeOptions={locPickerTreeOptions}
-                        onChange={(patch: any) => setMaterial(idx, patch)}
-                        onRemove={() => removeMaterial(idx)}
-                    />
-                ))}
+                <FormSection
+                    classic={CLASSIC}
+                    title={
+                        <SectionTitle
+                            icon="bi-boxes"
+                            right={<XPActionButton classic={CLASSIC} icon="bi-plus-lg" label="Add Material" onClick={addMaterial} />}
+                        >
+                            Packaging Materials (optional)
+                        </SectionTitle>
+                    }
+                >
+                    {materials.length === 0 && <div style={hintText}>No packaging materials planned.</div>}
+                    {materials.length > 0 && (
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 2 }}>
+                            <div style={{ flex: 1, minWidth: 200 }}><FieldLabel classic={CLASSIC}>Material</FieldLabel></div>
+                            <div style={{ width: 100 }}><FieldLabel classic={CLASSIC}>Qty</FieldLabel></div>
+                            <div style={{ width: 180 }}><FieldLabel classic={CLASSIC}>Take from</FieldLabel></div>
+                            <div style={{ width: 26 }} />
+                        </div>
+                    )}
+                    {materials.map((m, idx) => (
+                        <MaterialRow
+                            key={idx}
+                            row={m}
+                            authFetch={authFetch}
+                            locPickerTreeOptions={locPickerTreeOptions}
+                            onChange={(patch: any) => setMaterial(idx, patch)}
+                            onRemove={() => removeMaterial(idx)}
+                        />
+                    ))}
+                </FormSection>
 
-                <div style={sectionTitle}>Notes</div>
-                <textarea style={{ ...xpInput, height: 50, width: '100%', resize: 'vertical' }} value={notes} onChange={e => setNotes(e.target.value)} />
+                <FormSection title={<SectionTitle icon="bi-sticky">Notes</SectionTitle>} classic={CLASSIC}>
+                    <textarea style={{ ...xpInput, height: 50, width: '100%', resize: 'vertical', boxSizing: 'border-box' }} value={notes} onChange={e => setNotes(e.target.value)} />
+                </FormSection>
             </div>
         </ModalWrapper>
     );
@@ -486,7 +506,7 @@ function MaterialRow({ row, authFetch, locPickerTreeOptions, onChange, onRemove 
             <div style={{ width: 180 }}>
                 <TreeSelect options={locPickerTreeOptions} value={row.location_id || ''} onChange={(id: string) => onChange({ location_id: id })} allowEmpty emptyLabel="(pack-from)" size="sm" style={{ width: '100%' }} />
             </div>
-            <button style={xpBtn({ color: '#a00' })} onClick={onRemove}>Remove</button>
+            <XPActionButton classic={CLASSIC} tone="danger" icon="bi-trash" title="Remove material" onClick={onRemove} />
         </div>
     );
 }
@@ -583,32 +603,31 @@ function PackingOrderDetail({ po: initialPo, itemById, locPickerTreeOptions, aut
                     </div>
                 )}
 
-                {/* Summary */}
-                <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 11 }}>
-                    <Fact label="Sales Order" value={po.sales_order_code || 'to stock'} />
-                    <Fact label="Status" value={<StatusChip status={po.status} />} />
-                    <Fact label="Target" value={`${num(po.qty_target).toLocaleString()} ${po.item_uom || it?.uom || ''}`} />
-                    <Fact label="Packed" value={`${num(po.qty_packed).toLocaleString()} ${po.item_uom || it?.uom || ''}`} />
-                    <Fact label="Remaining" value={remaining.toLocaleString()} />
-                    <Fact label="Cartons" value={String(po.package_count || 0)} />
-                    <Fact label="Colour" value={po.color_name || '—'} />
-                </div>
+                <FormSection title={<SectionTitle icon="bi-info-circle">Summary</SectionTitle>} classic={CLASSIC}>
+                    <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 11 }}>
+                        <Fact label="Sales Order" value={po.sales_order_code || 'to stock'} />
+                        <Fact label="Status" value={<StatusChip status={po.status} />} />
+                        <Fact label="Target" value={`${num(po.qty_target).toLocaleString()} ${po.item_uom || it?.uom || ''}`} />
+                        <Fact label="Packed" value={`${num(po.qty_packed).toLocaleString()} ${po.item_uom || it?.uom || ''}`} />
+                        <Fact label="Remaining" value={remaining.toLocaleString()} />
+                        <Fact label="Cartons" value={String(po.package_count || 0)} />
+                        <Fact label="Colour" value={po.color_name || '—'} />
+                    </div>
+                </FormSection>
 
-                {/* Log pack */}
                 {!readOnly && (
-                    <>
-                        <div style={sectionTitle}>Log Packing</div>
+                    <FormSection title={<SectionTitle icon="bi-box-seam">Log Packing</SectionTitle>} classic={CLASSIC}>
                         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                             <div style={{ width: 110 }}>
-                                <label style={xpLabel}>Qty packed</label>
+                                <FieldLabel classic={CLASSIC}>Qty packed</FieldLabel>
                                 <input type="number" min={0} style={{ ...xpInput, width: '100%', textAlign: 'right' }} value={qty} onChange={e => onQtyChange(e.target.value)} />
                             </div>
                             <div style={{ width: 100 }}>
-                                <label style={xpLabel}>{po.package_label}s</label>
+                                <FieldLabel classic={CLASSIC}>{po.package_label}s</FieldLabel>
                                 <input type="number" min={1} style={{ ...xpInput, width: '100%', textAlign: 'right' }} value={packageCount} onChange={e => setPackageCount(e.target.value)} />
                             </div>
                             <div style={{ width: 200 }}>
-                                <label style={xpLabel}>Source lot</label>
+                                <FieldLabel classic={CLASSIC}>Source lot</FieldLabel>
                                 {it?.lot_tracked ? (
                                     <select style={{ ...xpSelect, width: '100%' }} value={sourceBatch} onChange={e => setSourceBatch(e.target.value)}>
                                         <option value="">— select lot —</option>
@@ -617,25 +636,23 @@ function PackingOrderDetail({ po: initialPo, itemById, locPickerTreeOptions, aut
                                 ) : <span style={{ fontSize: 10, color: '#bbb' }}>not lot-tracked</span>}
                             </div>
                             <div style={{ width: 150 }}>
-                                <label style={xpLabel}>Operator</label>
+                                <FieldLabel classic={CLASSIC}>Operator</FieldLabel>
                                 <input style={{ ...xpInput, width: '100%' }} value={operator} onChange={e => setOperator(e.target.value)} />
                             </div>
                             <div style={{ flex: 1, minWidth: 180 }}>
-                                <label style={xpLabel}>Notes</label>
+                                <FieldLabel classic={CLASSIC}>Notes</FieldLabel>
                                 <input style={{ ...xpInput, width: '100%' }} value={packNotes} onChange={e => setPackNotes(e.target.value)} />
                             </div>
                             <button style={xpBtnGreen()} disabled={logging} onClick={logPack}>{logging ? 'Packing...' : 'Pack'}</button>
                         </div>
-                        <div style={{ fontSize: 10, color: '#666', marginTop: 4 }}>
+                        <div style={hintText}>
                             Quantity is split evenly across the cartons; packaging materials are deducted pro-rata from the plan.
                         </div>
-                    </>
+                    </FormSection>
                 )}
 
-                {/* Materials */}
                 {(po.materials || []).length > 0 && (
-                    <>
-                        <div style={sectionTitle}>Packaging Materials</div>
+                    <FormSection title={<SectionTitle icon="bi-boxes">Packaging Materials</SectionTitle>} classic={CLASSIC}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', border: '1px solid #c8c4b8' }}>
                             <thead>
                                 <tr>
@@ -654,62 +671,62 @@ function PackingOrderDetail({ po: initialPo, itemById, locPickerTreeOptions, aut
                                 ))}
                             </tbody>
                         </table>
-                    </>
+                    </FormSection>
                 )}
 
-                {/* Cartons */}
-                <div style={sectionTitle}>Cartons ({units.length})</div>
-                <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', border: '1px solid #c8c4b8' }}>
-                    <thead>
-                        <tr>
-                            <th style={xpTableHeader}>#</th>
-                            <th style={xpTableHeader}>Carton</th>
-                            <th style={{ ...xpTableHeader, textAlign: 'right' }}>Qty in stock</th>
-                            <th style={xpTableHeader}>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {units.length === 0 && <tr><td colSpan={4} style={{ ...td, color: '#999' }}>No cartons packed yet.</td></tr>}
-                        {units.map((u: any, idx: number) => (
-                            <tr key={u.id} style={rowStyle(idx)}>
-                                <td style={td}>{u.package_no}</td>
-                                <td style={{ ...td, color: '#00309c' }}>{u.batch_number}</td>
-                                <td style={{ ...td, textAlign: 'right', color: num(u.qty) > 0 ? '#0a3e0a' : '#888' }}>
-                                    {num(u.qty).toLocaleString()}
-                                </td>
-                                <td style={td}>{num(u.qty) > 0 ? <StatusChip status="IN_STOCK" /> : <StatusChip status="SENT" />}</td>
+                <FormSection title={<SectionTitle icon="bi-box2-fill" right={`${units.length} total`}>Cartons</SectionTitle>} classic={CLASSIC}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', border: '1px solid #c8c4b8' }}>
+                        <thead>
+                            <tr>
+                                <th style={xpTableHeader}>#</th>
+                                <th style={xpTableHeader}>Carton</th>
+                                <th style={{ ...xpTableHeader, textAlign: 'right' }}>Qty in stock</th>
+                                <th style={xpTableHeader}>Status</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {units.length === 0 && <tr><td colSpan={4} style={{ ...td, color: '#999' }}>No cartons packed yet.</td></tr>}
+                            {units.map((u: any, idx: number) => (
+                                <tr key={u.id} style={rowStyle(idx)}>
+                                    <td style={td}>{u.package_no}</td>
+                                    <td style={{ ...td, color: '#00309c' }}>{u.batch_number}</td>
+                                    <td style={{ ...td, textAlign: 'right', color: num(u.qty) > 0 ? '#0a3e0a' : '#888' }}>
+                                        {num(u.qty).toLocaleString()}
+                                    </td>
+                                    <td style={td}>{num(u.qty) > 0 ? <StatusChip status="IN_STOCK" /> : <StatusChip status="SENT" />}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </FormSection>
 
-                {/* Log */}
-                <div style={sectionTitle}>Packing Log</div>
-                <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', border: '1px solid #c8c4b8' }}>
-                    <thead>
-                        <tr>
-                            <th style={xpTableHeader}>When</th>
-                            <th style={{ ...xpTableHeader, textAlign: 'right' }}>Qty</th>
-                            <th style={{ ...xpTableHeader, textAlign: 'right' }}>Cartons</th>
-                            <th style={xpTableHeader}>Source lot</th>
-                            <th style={xpTableHeader}>Operator</th>
-                            <th style={xpTableHeader}>Notes</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {(po.completions || []).length === 0 && <tr><td colSpan={6} style={{ ...td, color: '#999' }}>Nothing packed yet.</td></tr>}
-                        {(po.completions || []).map((c: any, idx: number) => (
-                            <tr key={c.id} style={rowStyle(idx)}>
-                                <td style={td}>{c.completed_at ? tzDate(c.completed_at) : '-'}</td>
-                                <td style={{ ...td, textAlign: 'right' }}>{num(c.qty).toLocaleString()}</td>
-                                <td style={{ ...td, textAlign: 'right' }}>{c.package_count}</td>
-                                <td style={td}>{c.source_batch_number || '-'}</td>
-                                <td style={td}>{c.operator || '-'}</td>
-                                <td style={td}>{c.notes || '-'}</td>
+                <FormSection title={<SectionTitle icon="bi-clock-history">Packing Log</SectionTitle>} classic={CLASSIC}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', border: '1px solid #c8c4b8' }}>
+                        <thead>
+                            <tr>
+                                <th style={xpTableHeader}>When</th>
+                                <th style={{ ...xpTableHeader, textAlign: 'right' }}>Qty</th>
+                                <th style={{ ...xpTableHeader, textAlign: 'right' }}>Cartons</th>
+                                <th style={xpTableHeader}>Source lot</th>
+                                <th style={xpTableHeader}>Operator</th>
+                                <th style={xpTableHeader}>Notes</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {(po.completions || []).length === 0 && <tr><td colSpan={6} style={{ ...td, color: '#999' }}>Nothing packed yet.</td></tr>}
+                            {(po.completions || []).map((c: any, idx: number) => (
+                                <tr key={c.id} style={rowStyle(idx)}>
+                                    <td style={td}>{c.completed_at ? tzDate(c.completed_at) : '-'}</td>
+                                    <td style={{ ...td, textAlign: 'right' }}>{num(c.qty).toLocaleString()}</td>
+                                    <td style={{ ...td, textAlign: 'right' }}>{c.package_count}</td>
+                                    <td style={td}>{c.source_batch_number || '-'}</td>
+                                    <td style={td}>{c.operator || '-'}</td>
+                                    <td style={td}>{c.notes || '-'}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </FormSection>
             </div>
         </ModalWrapper>
     );
