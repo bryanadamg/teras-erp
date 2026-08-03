@@ -16,10 +16,24 @@ export const xpBevel = (extra: React.CSSProperties = {}): React.CSSProperties =>
     ...extra,
 });
 
-export const xpTitleBar = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-    background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', color: '#ffffff',
+// Title-bar tones. Blue is the default window chrome; the others exist for
+// dashboard-style panel stacks where the bar itself carries the severity of what
+// it heads (alerts = red, production = amber, informational = grey). Same five
+// semantic families as STATUS_FAMILY — don't add a sixth hue here.
+export type ShellTone = 'blue' | 'red' | 'amber' | 'green' | 'grey';
+
+const TITLE_TONES: Record<ShellTone, { background: string; border: string }> = {
+    blue:  { background: 'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)', border: '#003080' },
+    red:   { background: 'linear-gradient(to right, #990000 0%, #cc2222 100%)', border: '#550000' },
+    amber: { background: 'linear-gradient(to right, #c07000 0%, #e09830 100%)', border: '#804000' },
+    green: { background: 'linear-gradient(to right, #1a7a1a 0%, #2ea42e 100%)', border: '#0a4a0a' },
+    grey:  { background: 'linear-gradient(to bottom, #6a6a6a, #4a4a4a)',        border: '#222222' },
+};
+
+export const xpTitleBar = (extra: React.CSSProperties = {}, tone: ShellTone = 'blue'): React.CSSProperties => ({
+    background: TITLE_TONES[tone].background, color: '#ffffff',
     fontFamily: xpFont, fontSize: 12, fontWeight: 'bold', padding: '4px 8px',
-    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)', borderBottom: '1px solid #003080',
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)', borderBottom: `1px solid ${TITLE_TONES[tone].border}`,
     display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 26,
     ...extra,
 });
@@ -69,16 +83,17 @@ export function ShellWindow({ classic, fill = 'page', className, style, children
  * card-header with an h5 + optional caption — matches SalesOrderView, PartnersView,
  * SampleRequestView, PackingView, BOMView, and the Settings tabs.
  */
-export function ShellTitleBar({ classic, icon, title, subtitle, right }: {
+export function ShellTitleBar({ classic, icon, title, subtitle, right, tone = 'blue' }: {
     classic: boolean;
     icon: string;                 // bootstrap-icons class, e.g. "bi-people-fill"
     title: React.ReactNode;
     subtitle?: React.ReactNode;   // modern-only caption line under the title
     right?: React.ReactNode;      // action button(s) — e.g. "+ Add"
+    tone?: ShellTone;             // classic-only bar color; modern keeps the white card-header
 }) {
     if (classic) {
         return (
-            <div style={xpTitleBar()}>
+            <div style={xpTitleBar({}, tone)}>
                 <span><i className={`bi ${icon}`} style={{ marginRight: 6 }} />{title}</span>
                 {right}
             </div>

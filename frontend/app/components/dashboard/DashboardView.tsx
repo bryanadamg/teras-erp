@@ -4,137 +4,37 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import CalendarView from '../shared/CalendarView';
-import { STATUS_COLORS } from '../shared/xpTheme';
+import {
+    xpFont, ProgressBar, StatusChip, XPStatusBar, familyColor, familyTint, type StatusFamily,
+} from '../shared/xpTheme';
+import { ShellWindow, ShellTitleBar } from '../shared/shellTheme';
+import { lvTh, lvTd, lvRow } from '../shared/listViewTheme';
 
-// ── XP style helpers ─────────────────────────────────────────────────────────
-const xpBevel = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-    border: '2px solid',
-    borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-    boxShadow: '2px 2px 4px rgba(0,0,0,0.25)',
-    background: '#ece9d8',
+// ── Local table chrome ───────────────────────────────────────────────────────
+// Cells/rows come from listViewTheme (lvTh/lvTd/lvRow); only the sticky+gradient
+// header treatment these scroll panes need is added on top.
+const xpTable: React.CSSProperties = {
+    width: '100%', borderCollapse: 'collapse', fontFamily: xpFont, background: '#ffffff',
+};
+
+const stickyTh = (extra: React.CSSProperties = {}): React.CSSProperties => ({
+    ...lvTh(true),
+    background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
+    borderBottom: '2px solid #808080',
+    position: 'sticky', top: 0, zIndex: 1,
     ...extra,
 });
 
-const xpTitleBar = (variant: 'blue' | 'red' | 'amber' | 'green' | 'grey'): React.CSSProperties => {
-    const gradients: Record<string, string> = {
-        blue:  'linear-gradient(to right, #0058e6 0%, #08a5ff 100%)',
-        red:   'linear-gradient(to right, #990000 0%, #cc2222 100%)',
-        amber: 'linear-gradient(to right, #c07000 0%, #e09830 100%)',
-        green: 'linear-gradient(to right, #1a7a1a 0%, #2ea42e 100%)',
-        grey:  'linear-gradient(to bottom, #6a6a6a, #4a4a4a)',
-    };
-    const borders: Record<string, string> = {
-        blue: '#003080', red: '#550000', amber: '#804000', green: '#0a4a0a', grey: '#222',
-    };
-    return {
-        background: gradients[variant],
-        color: '#ffffff',
-        fontFamily: 'Tahoma, Arial, sans-serif',
-        fontWeight: 'bold',
-        fontSize: '12px',
-        padding: '3px 8px',
-        borderBottom: `1px solid ${borders[variant]}`,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        minHeight: '24px',
-        textShadow: '1px 1px 1px rgba(0,0,0,0.4)',
-    };
+const emptyRowStyle: React.CSSProperties = {
+    textAlign: 'center', padding: '16px', color: '#666', fontStyle: 'italic',
+    fontSize: '10px', background: '#fff', fontFamily: xpFont,
 };
 
-const xpProgTrack: React.CSSProperties = {
-    height: '10px',
-    background: '#ffffff',
-    border: '1px solid',
-    borderColor: '#808080 #dfdfdf #dfdfdf #808080',
-    boxShadow: 'inset 1px 1px 2px rgba(0,0,0,0.15)',
-};
-
-const xpProgFill = (color: 'blue' | 'green' | 'orange' | 'red'): React.CSSProperties => {
-    const bg: Record<string, string> = {
-        blue:   'linear-gradient(to bottom, #4fa4ff, #0058e6)',
-        green:  'linear-gradient(to bottom, #6ec86e, #2a7a2a)',
-        orange: 'linear-gradient(to bottom, #ffbb44, #cc7700)',
-        red:    'linear-gradient(to bottom, #ff6666, #cc0000)',
-    };
-    return { height: '100%', background: bg[color] };
-};
-
-const xpTable: React.CSSProperties = {
-    width: '100%', borderCollapse: 'collapse',
-    fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px',
-    background: '#ffffff',
-};
-
-const xpTh: React.CSSProperties = {
-    background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)',
-    borderBottom: '2px solid #808080',
-    borderRight: '1px solid #b0aaa0',
-    padding: '3px 6px', fontWeight: 'bold', color: '#000', textAlign: 'left',
-    position: 'sticky', top: 0, zIndex: 1,
-};
-
-const xpTd = (isEven: boolean): React.CSSProperties => ({
-    padding: '3px 6px',
-    borderBottom: '1px solid #d8d5ce',
-    borderRight: '1px solid #e0ddd4',
-    background: isEven ? '#f5f3ee' : '#ffffff',
-    verticalAlign: 'middle',
-});
-
-const xpStatusBar: React.CSSProperties = {
-    background: 'linear-gradient(to bottom, #e8e6df, #d5d3cc)',
-    borderTop: '1px solid #b0a898',
-    padding: '2px 8px',
-    fontFamily: 'Tahoma, Arial, sans-serif',
-    fontSize: '10px',
-    color: '#333',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-};
-
+// Health panels signal the same five semantic families as every status chip —
+// map through STATUS_FAMILY's palette instead of a local hex table.
 type HealthStatus = 'ok' | 'warn' | 'crit';
-
-const healthBorder: Record<HealthStatus, string> = {
-    ok:   '2px solid #2e7d32',
-    warn: '2px solid #c77800',
-    crit: '2px solid #b71c1c',
-};
-const healthBg: Record<HealthStatus, string> = {
-    ok: '#e8f5e9', warn: '#fff8e1', crit: '#ffebee',
-};
-const healthTitleBg: Record<HealthStatus, string> = {
-    ok: 'rgba(46,125,50,0.08)', warn: 'rgba(199,120,0,0.08)', crit: 'rgba(183,27,27,0.08)',
-};
-const healthTitleColor: Record<HealthStatus, string> = {
-    ok: '#1b4620', warn: '#5a3500', crit: '#7f0000',
-};
-const healthDot: Record<HealthStatus, string> = {
-    ok: '#2e7d32', warn: '#c77800', crit: '#b71c1c',
-};
-const healthNumColor: Record<HealthStatus, string> = {
-    ok: '#2e7d32', warn: '#c77800', crit: '#b71c1c',
-};
-
-const StatusBadge = ({ status }: { status: string }) => {
-    const cfg: Record<string, { bg: string; border: string; color: string; label: string }> = {
-        IN_PROGRESS: { bg: '#e3edff', border: STATUS_COLORS.IN_PROGRESS, color: '#00254a', label: 'IN PROG' },
-        PENDING:     { bg: '#e8e8e8', border: '#888888',                 color: '#333333', label: 'PENDING' },
-        COMPLETED:   { bg: '#d4edda', border: STATUS_COLORS.COMPLETED,   color: '#155724', label: 'DONE'    },
-        OVERDUE:     { bg: '#ffcccc', border: STATUS_COLORS.CANCELLED,   color: '#660000', label: 'OVERDUE' },
-    };
-    const c = cfg[status] || cfg.PENDING;
-    return (
-        <span style={{
-            fontSize: '8px', fontWeight: 'bold', padding: '1px 5px',
-            border: `1px solid ${c.border}`, background: c.bg, color: c.color,
-            fontFamily: 'Tahoma, Arial, sans-serif', whiteSpace: 'nowrap',
-        }}>
-            {c.label}
-        </span>
-    );
-};
+const HEALTH_FAMILY: Record<HealthStatus, StatusFamily> = { ok: 'green', warn: 'amber', crit: 'red' };
+const SEV_FAMILY: Record<string, StatusFamily> = { crit: 'red', warn: 'amber', info: 'green' };
 
 // ── Dependency-free inline SVG donut (no chart library — light on old clients) ──
 // Modern-only (the classic dashboard uses XP gauges), so the palette is tuned to
@@ -183,11 +83,11 @@ const Donut = ({ segments, size = 132, stroke = 20, centerLabel, centerSub, aria
 };
 
 // ── Dependency-free inline SVG sparkline (KPI daily trend) ─────────────────────
-const Sparkline = ({ data, color = '#0058e6', width = 120, height = 28, ariaLabel }: {
+const Sparkline = ({ data, color = familyColor('blue'), width = 120, height = 28, ariaLabel }: {
     data: { date: string; value: number }[]; color?: string; width?: number; height?: number; ariaLabel: string;
 }) => {
     const vals = (data || []).map(d => d.value);
-    if (vals.length < 2) return <span style={{ fontSize: 9, color: '#aaa', fontFamily: 'Tahoma, Arial, sans-serif' }}>not enough history</span>;
+    if (vals.length < 2) return <span style={{ fontSize: 9, color: '#aaa', fontFamily: xpFont }}>not enough history</span>;
     const min = Math.min(...vals), max = Math.max(...vals);
     const range = (max - min) || 1;
     const pad = 2;
@@ -207,10 +107,10 @@ const Sparkline = ({ data, color = '#0058e6', width = 120, height = 28, ariaLabe
 };
 
 const TREND_METRICS = [
-    { key: 'low_stock', color: '#cc7700' },
-    { key: 'active_wo', color: '#0058e6' },
-    { key: 'pending_wo', color: '#888888' },
-    { key: 'open_sos', color: '#2a7a2a' },
+    { key: 'low_stock', color: familyColor('amber') },
+    { key: 'active_wo', color: familyColor('blue') },
+    { key: 'pending_wo', color: familyColor('gray') },
+    { key: 'open_sos', color: familyColor('green') },
 ];
 
 export default function DashboardView({ items, locations, stockBalance, workOrders, stockEntries, samples, salesOrders, kpis, summary, itemIndex, kpiHistory }: any) {
@@ -486,11 +386,13 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
 
                 {/* Drill-down panel */}
                 {drill && (
-                    <div className="card border-0 shadow-sm mb-4">
-                        <div className="card-header bg-white d-flex justify-content-between align-items-center">
-                            <h6 className="mb-0">{drill === 'lowstock' ? `${t('low_stock')} — ${t('item')}s` : `${t('order_health')} — ${t('material_shortages_affecting')}`}</h6>
-                            <button className="btn btn-sm btn-light" onClick={() => setDrill(null)} aria-label={t('cancel')}><i className="bi bi-x-lg"></i></button>
-                        </div>
+                    <ShellWindow classic={false} fill={false} className="mb-4">
+                        <ShellTitleBar
+                            classic={false}
+                            icon={drill === 'lowstock' ? 'bi-exclamation-triangle' : 'bi-receipt'}
+                            title={drill === 'lowstock' ? `${t('low_stock')} — ${t('item')}s` : `${t('order_health')} — ${t('material_shortages_affecting')}`}
+                            right={<button className="btn btn-sm btn-light" onClick={() => setDrill(null)} aria-label={t('cancel')}><i className="bi bi-x-lg"></i></button>}
+                        />
                         <div className="card-body p-0">
                             {drill === 'lowstock' ? (
                                 <ul className="list-group list-group-flush">
@@ -514,14 +416,14 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                 </ul>
                             )}
                         </div>
-                    </div>
+                    </ShellWindow>
                 )}
 
                 {/* Charts + calendar + activity */}
                 <div className="row g-4 mb-4">
                     <div className="col-md-4">
-                        <div className="card h-100 shadow-sm border-0">
-                            <div className="card-header bg-white"><h5 className="card-title mb-0">{t('warehouse_distribution')}</h5></div>
+                        <ShellWindow classic={false} fill={false} className="h-100">
+                            <ShellTitleBar classic={false} icon="bi-building" title={t('warehouse_distribution')} />
                             <div className="card-body">
                                 {groupedStats.length === 0 ? (
                                     <div className="text-center py-5"><i className="bi bi-pie-chart text-muted opacity-25 display-1" aria-hidden="true"></i><p className="text-muted small mt-2">{t('no_inventory_recorded')}</p></div>
@@ -569,11 +471,11 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                     </div>
                                 )}
                             </div>
-                        </div>
+                        </ShellWindow>
                     </div>
                     <div className="col-md-4">
-                        <div className="card h-100 shadow-sm border-0">
-                            <div className="card-header bg-white"><h5 className="card-title mb-0">{t('production_deadlines')}</h5></div>
+                        <ShellWindow classic={false} fill={false} className="h-100">
+                            <ShellTitleBar classic={false} icon="bi-calendar-event" title={t('production_deadlines')} />
                             <div className="card-body">
                                 <CalendarView workOrders={workOrders} items={items} compact={true} />
                                 <div className="mt-3 d-flex flex-wrap gap-2 justify-content-center">
@@ -582,11 +484,11 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                     <small className="text-muted d-flex align-items-center"><span className="bg-success rounded-circle me-1" style={{ width: 6, height: 6, display: 'inline-block' }}></span> {t('completed')}</small>
                                 </div>
                             </div>
-                        </div>
+                        </ShellWindow>
                     </div>
                     <div className="col-md-4">
-                        <div className="card h-100 shadow-sm border-0">
-                            <div className="card-header bg-white"><h5 className="card-title mb-0">{t('recent_activity')}</h5></div>
+                        <ShellWindow classic={false} fill={false} className="h-100">
+                            <ShellTitleBar classic={false} icon="bi-clock-history" title={t('recent_activity')} />
                             <div className="card-body p-0">
                                 <ul className="list-group list-group-flush">
                                     {recentActivity.map((entry: any) => (
@@ -603,15 +505,15 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                     {recentActivity.length === 0 && <li className="list-group-item text-center py-5 text-muted small">{t('no_recent_movements')}</li>}
                                 </ul>
                             </div>
-                        </div>
+                        </ShellWindow>
                     </div>
                 </div>
 
                 {/* KPI Trends */}
                 <div className="row g-4 mb-4">
                     <div className="col-12">
-                        <div className="card shadow-sm border-0">
-                            <div className="card-header bg-white"><h5 className="card-title mb-0">{t('kpi_trends')}</h5></div>
+                        <ShellWindow classic={false} fill={false}>
+                            <ShellTitleBar classic={false} icon="bi-graph-up" title={t('kpi_trends')} />
                             <div className="card-body">
                                 <div className="row g-3">
                                     {TREND_METRICS.map((m) => {
@@ -638,18 +540,20 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                     })}
                                 </div>
                             </div>
-                        </div>
+                        </ShellWindow>
                     </div>
                 </div>
 
                 {/* Manufacturing monitoring */}
                 <div className="row">
                     <div className="col-12">
-                        <div className="card shadow-sm border-0">
-                            <div className="card-header bg-white d-flex justify-content-between align-items-center">
-                                <h5 className="card-title mb-0">{t('manufacturing_monitoring')}</h5>
-                                <span className="small text-muted">{metrics.activeWO} {t('active_wo').toLowerCase()} · {metrics.pendingWO} {t('pending').toLowerCase()}</span>
-                            </div>
+                        <ShellWindow classic={false} fill={false}>
+                            <ShellTitleBar
+                                classic={false}
+                                icon="bi-gear"
+                                title={t('manufacturing_monitoring')}
+                                right={<span className="small text-muted">{metrics.activeWO} {t('active_wo').toLowerCase()} · {metrics.pendingWO} {t('pending').toLowerCase()}</span>}
+                            />
                             <div className="card-body p-0">
                                 <div className="table-responsive">
                                     <table className="table table-hover align-middle mb-0 small">
@@ -661,14 +565,14 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                                 <tr key={wo.id}>
                                                     <td className="ps-3 font-monospace fw-bold">{wo.code}</td>
                                                     <td>{wo.itemName}</td>
-                                                    <td><span className={`badge ${wo.status === 'IN_PROGRESS' ? 'bg-warning text-dark' : 'bg-secondary'} extra-small`}>{wo.status}</span></td>
-                                                    <td>
-                                                        <div className="d-flex align-items-center gap-2">
-                                                            <div className="progress flex-grow-1" style={{ height: '6px', maxWidth: '120px' }} role="progressbar" aria-valuenow={Math.round(wo.progress)} aria-valuemin={0} aria-valuemax={100}>
-                                                                <div className={`progress-bar ${wo.isOverdue ? 'bg-danger' : wo.status === 'IN_PROGRESS' ? 'bg-warning' : 'bg-secondary'}`} style={{ width: `${wo.progress}%` }}></div>
-                                                            </div>
-                                                            <small className="text-muted" style={{ fontSize: '0.65rem', minWidth: 26 }}>{wo.progress.toFixed(0)}%</small>
-                                                        </div>
+                                                    <td><StatusChip status={wo.isOverdue ? 'OVERDUE' : wo.status} tint /></td>
+                                                    <td style={{ maxWidth: 160 }}>
+                                                        <ProgressBar
+                                                            pct={wo.progress}
+                                                            tone={wo.isOverdue ? 'red' : wo.status === 'IN_PROGRESS' ? 'blue' : 'gray'}
+                                                            height={8}
+                                                            label="outside"
+                                                        />
                                                     </td>
                                                     <td className="text-end pe-3 fw-bold">{wo.qty?.toLocaleString()}</td>
                                                 </tr>
@@ -678,7 +582,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                     </table>
                                 </div>
                             </div>
-                        </div>
+                        </ShellWindow>
                     </div>
                 </div>
             </div>
@@ -692,31 +596,37 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
     const critCount = actionItems.filter(a => a.sev === 'crit').length;
     const warnCount = actionItems.filter(a => a.sev === 'warn').length;
 
-    const alertRowStyle = (sev: string): React.CSSProperties => ({
-        padding: '4px 8px',
-        borderBottom: '1px solid #ddd',
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: '6px',
-        background: sev === 'crit' ? '#fff0f0' : sev === 'warn' ? '#fffde8' : '#f0fff0',
-        borderLeft: `3px solid ${sev === 'crit' ? '#cc0000' : sev === 'warn' ? '#cc9900' : '#228822'}`,
-    });
+    const alertRowStyle = (sev: string): React.CSSProperties => {
+        const fam = SEV_FAMILY[sev] || 'gray';
+        return {
+            padding: '4px 8px',
+            borderBottom: '1px solid #ddd',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '6px',
+            background: familyTint(fam).background,
+            borderLeft: `3px solid ${familyColor(fam)}`,
+        };
+    };
 
-    const HealthPanel = ({ status, title, bigNum, bigLabel, lines, prog, progColor, progLabel }: any) => (
-        <div style={{ border: healthBorder[status as HealthStatus], background: healthBg[status as HealthStatus], flex: 1, minWidth: 0 }}>
+    const HealthPanel = ({ status, title, bigNum, bigLabel, lines, prog, progTone, progLabel }: any) => {
+        const fam = HEALTH_FAMILY[status as HealthStatus];
+        const tint = familyTint(fam);
+        return (
+        <div style={{ border: `2px solid ${familyColor(fam)}`, background: tint.background, flex: 1, minWidth: 0 }}>
             <div style={{
-                fontFamily: 'Tahoma, Arial, sans-serif', fontWeight: 'bold', fontSize: '11px',
+                fontFamily: xpFont, fontWeight: 'bold', fontSize: '11px',
                 padding: '3px 8px', borderBottom: '1px solid rgba(0,0,0,0.1)',
                 display: 'flex', alignItems: 'center', gap: '5px',
-                background: healthTitleBg[status as HealthStatus],
-                color: healthTitleColor[status as HealthStatus],
+                background: 'rgba(0,0,0,0.04)',
+                color: tint.color,
             }}>
-                <div style={{ width: 9, height: 9, borderRadius: '50%', background: healthDot[status as HealthStatus], border: '1px solid rgba(0,0,0,0.3)', flexShrink: 0 }}></div>
+                <div style={{ width: 9, height: 9, borderRadius: '50%', background: familyColor(fam), border: '1px solid rgba(0,0,0,0.3)', flexShrink: 0 }}></div>
                 {title}
             </div>
             <div style={{ padding: '6px 8px' }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '4px' }}>
-                    <span style={{ fontSize: '26px', fontWeight: 'bold', fontFamily: "'Courier New', monospace", color: healthNumColor[status as HealthStatus], lineHeight: 1 }}>
+                    <span style={{ fontSize: '26px', fontWeight: 'bold', fontFamily: "'Courier New', monospace", color: familyColor(fam), lineHeight: 1 }}>
                         {bigNum}
                     </span>
                     <span style={{ fontSize: '10px', color: '#555' }}>{bigLabel}</span>
@@ -732,14 +642,13 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                             <span>{progLabel}</span>
                             <span style={{ fontWeight: 'bold', color: '#333' }}>{prog.toFixed(1)}%</span>
                         </div>
-                        <div style={xpProgTrack} role="progressbar" aria-valuenow={Math.round(prog)} aria-valuemin={0} aria-valuemax={100} aria-label={progLabel}>
-                            <div style={{ ...xpProgFill(progColor), width: `${Math.min(100, prog)}%` }}></div>
-                        </div>
+                        <ProgressBar pct={prog} tone={progTone} title={progLabel} />
                     </div>
                 )}
             </div>
         </div>
-    );
+        );
+    };
 
     const kpiTileStyle = (highlight?: 'crit' | 'warn'): React.CSSProperties => ({
         border: '2px solid',
@@ -751,8 +660,19 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
         background: highlight === 'crit' ? '#ffecec' : highlight === 'warn' ? '#fffae8' : '#f5f4ef',
     });
 
+    // One tile shape for the whole KPI strip — the six tiles differed only in
+    // value/label/accent, so they were six copies of the same two divs.
+    const KpiTile = ({ value, label, tone, highlight }: {
+        value: React.ReactNode; label: string; tone?: StatusFamily; highlight?: 'crit' | 'warn';
+    }) => (
+        <div style={kpiTileStyle(highlight)}>
+            <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: "'Courier New', monospace", color: tone ? familyColor(tone) : '#333', lineHeight: 1.1 }}>{value}</div>
+            <div style={{ fontSize: '8px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>{label}</div>
+        </div>
+    );
+
     return (
-        <div className="fade-in" style={{ fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '11px', background: '#ece9d8', padding: '4px' }}>
+        <div className="fade-in" style={{ fontFamily: xpFont, fontSize: '11px', background: '#ece9d8', padding: '4px' }}>
 
             {/* ── Top bar: date + title ── */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', padding: '0 2px' }}>
@@ -792,7 +712,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                         { text: `${metrics.pendingWO} WO${metrics.pendingWO !== 1 ? 's' : ''} pending release`, color: '#555', icon: '' },
                     ]}
                     prog={prodYield}
-                    progColor={prodYield > 90 ? 'green' : 'orange'}
+                    progTone={prodYield > 90 ? 'green' : 'amber'}
                     progLabel={t('production_yield')}
                 />
                 <HealthPanel
@@ -809,56 +729,56 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                             : { text: 'No material shortages', color: '#228822', icon: '+' },
                     ]}
                     prog={deliveryReadiness}
-                    progColor={deliveryReadiness > 80 ? 'green' : deliveryReadiness > 50 ? 'orange' : 'red'}
+                    progTone={deliveryReadiness > 80 ? 'green' : deliveryReadiness > 50 ? 'amber' : 'red'}
                     progLabel={t('delivery_readiness')}
                 />
             </div>
 
             {/* ── Row 2: KPI strip ── */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: '4px', marginBottom: '6px' }}>
-                <div style={kpiTileStyle()}>
-                    <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: "'Courier New', monospace", color: '#0058e6', lineHeight: 1.1 }}>{metrics.totalItems}</div>
-                    <div style={{ fontSize: '8px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>{t('total_skus')}</div>
-                </div>
-                <div style={kpiTileStyle(outCount > 0 ? 'crit' : metrics.lowStock > 0 ? 'warn' : undefined)}>
-                    <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: "'Courier New', monospace", color: outCount > 0 ? '#cc0000' : metrics.lowStock > 0 ? '#c77800' : '#228822', lineHeight: 1.1 }}>{metrics.lowStock}</div>
-                    <div style={{ fontSize: '8px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>{t('low_stock')}</div>
-                </div>
-                <div style={kpiTileStyle(overdueWOs.length > 0 ? 'warn' : undefined)}>
-                    <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: "'Courier New', monospace", color: overdueWOs.length > 0 ? '#c77800' : '#333', lineHeight: 1.1 }}>{metrics.activeWO}</div>
-                    <div style={{ fontSize: '8px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>{t('active_wo')}</div>
-                </div>
-                <div style={kpiTileStyle()}>
-                    <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: "'Courier New', monospace", color: '#333', lineHeight: 1.1 }}>{metrics.pendingWO}</div>
-                    <div style={{ fontSize: '8px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>{t('pending_wo')}</div>
-                </div>
-                <div style={kpiTileStyle()}>
-                    <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: "'Courier New', monospace", color: '#333', lineHeight: 1.1 }}>{metrics.activeSamples}</div>
-                    <div style={{ fontSize: '8px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>{t('samples')}</div>
-                </div>
-                <div style={kpiTileStyle(shortSOCount > 0 ? 'warn' : undefined)}>
-                    <div style={{ fontSize: '20px', fontWeight: 'bold', fontFamily: "'Courier New', monospace", color: shortSOCount > 0 ? '#c77800' : '#333', lineHeight: 1.1 }}>{metrics.openOrders}</div>
-                    <div style={{ fontSize: '8px', color: '#444', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>{t('open_orders')}</div>
-                </div>
+                <KpiTile value={metrics.totalItems} label={t('total_skus')} tone="blue" />
+                <KpiTile
+                    value={metrics.lowStock}
+                    label={t('low_stock')}
+                    tone={outCount > 0 ? 'red' : metrics.lowStock > 0 ? 'amber' : 'green'}
+                    highlight={outCount > 0 ? 'crit' : metrics.lowStock > 0 ? 'warn' : undefined}
+                />
+                <KpiTile
+                    value={metrics.activeWO}
+                    label={t('active_wo')}
+                    tone={overdueWOs.length > 0 ? 'amber' : undefined}
+                    highlight={overdueWOs.length > 0 ? 'warn' : undefined}
+                />
+                <KpiTile value={metrics.pendingWO} label={t('pending_wo')} />
+                <KpiTile value={metrics.activeSamples} label={t('samples')} />
+                <KpiTile
+                    value={metrics.openOrders}
+                    label={t('open_orders')}
+                    tone={shortSOCount > 0 ? 'amber' : undefined}
+                    highlight={shortSOCount > 0 ? 'warn' : undefined}
+                />
             </div>
 
             {/* ── Row 3: Action Items (left) + WO Table (right) ── */}
             <div style={{ display: 'flex', gap: '6px', marginBottom: '6px', height: '220px' }}>
 
                 {/* Action Items pane */}
-                <div style={{ ...xpBevel(), width: '260px', flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
-                    <div style={xpTitleBar('red')}>
-                        <span><i className="bi bi-list-check" style={{ marginRight: 4 }} aria-hidden="true" />{t('action_items')}</span>
-                        {(critCount > 0 || warnCount > 0) && (
+                <ShellWindow classic fill={false} style={{ width: '260px', flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+                    <ShellTitleBar
+                        classic
+                        tone="red"
+                        icon="bi-list-check"
+                        title={t('action_items')}
+                        right={(critCount > 0 || warnCount > 0) ? (
                             <span style={{ fontSize: '10px', fontWeight: 'normal' }}>
                                 {critCount > 0 && `${critCount} critical`}{critCount > 0 && warnCount > 0 && ' · '}{warnCount > 0 && `${warnCount} warnings`}
                             </span>
-                        )}
-                    </div>
+                        ) : undefined}
+                    />
                     <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
                         {actionItems.length === 0 ? (
-                            <div style={{ padding: '16px', textAlign: 'center', fontStyle: 'italic', color: '#666', fontSize: '10px', background: '#f0fff0', borderLeft: '3px solid #228822' }}>
-                                <i className="bi bi-check-circle" style={{ marginRight: 4, color: '#228822' }} aria-hidden="true" />{t('all_systems_nominal')}
+                            <div style={{ ...alertRowStyle('info'), padding: '16px', textAlign: 'center', fontStyle: 'italic', color: '#666', fontSize: '10px', display: 'block' }}>
+                                <i className="bi bi-check-circle" style={{ marginRight: 4, color: familyColor('green') }} aria-hidden="true" />{t('all_systems_nominal')}
                             </div>
                         ) : (
                             actionItems.map((item, i) => (
@@ -869,11 +789,11 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                 >
                                     <span style={{
                                         width: 9, height: 9, marginTop: '3px', flexShrink: 0, display: 'inline-block',
-                                        background: item.sev === 'crit' ? '#cc0000' : item.sev === 'warn' ? '#e0c000' : '#228822',
+                                        background: familyColor(SEV_FAMILY[item.sev]),
                                         border: '1px solid rgba(0,0,0,0.35)',
                                     }} />
                                     <div style={{ minWidth: 0 }}>
-                                        <div style={{ fontWeight: 'bold', color: item.sev === 'crit' ? '#880000' : item.sev === 'warn' ? '#665500' : '#226622', fontSize: '10px' }}>
+                                        <div style={{ fontWeight: 'bold', color: familyTint(SEV_FAMILY[item.sev]).color, fontSize: '10px' }}>
                                             {item.title}
                                             <i className="bi bi-question-circle" style={{ marginLeft: 4, color: '#999', fontSize: 9 }} aria-hidden="true" />
                                         </div>
@@ -883,7 +803,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                         <div role="tooltip" style={{
                                             position: 'absolute', left: '100%', top: 0, marginLeft: 6, width: 230, zIndex: 1000,
                                             background: '#ffffe1', border: '1px solid #808080', boxShadow: '2px 2px 5px rgba(0,0,0,0.3)',
-                                            padding: '6px 8px', fontFamily: 'Tahoma, Arial, sans-serif', fontSize: '10px', color: '#222', lineHeight: 1.4,
+                                            padding: '6px 8px', fontFamily: xpFont, fontSize: '10px', color: '#222', lineHeight: 1.4,
                                         }}>
                                             {item.detail}
                                         </div>
@@ -892,123 +812,121 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                             ))
                         )}
                     </div>
-                    <div style={xpStatusBar}>
-                        <span>{critCount} critical · {warnCount} warnings · {actionItems.filter(a => a.sev === 'info').length} info</span>
-                    </div>
-                </div>
+                    <XPStatusBar style={{ marginTop: 0 }}>
+                        {critCount} critical · {warnCount} warnings · {actionItems.filter(a => a.sev === 'info').length} info
+                    </XPStatusBar>
+                </ShellWindow>
 
                 {/* WO Table */}
-                <div style={{ ...xpBevel(), flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                    <div style={xpTitleBar('amber')}>
-                        <span><i className="bi bi-gear" style={{ marginRight: 4 }} aria-hidden="true" />{t('work_order_monitoring')}</span>
-                        <span style={{ fontSize: '10px', fontWeight: 'normal' }}>
-                            {metrics.activeWO} active · {metrics.pendingWO} pending
-                        </span>
-                    </div>
+                <ShellWindow classic fill={false} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                    <ShellTitleBar
+                        classic
+                        tone="amber"
+                        icon="bi-gear"
+                        title={t('work_order_monitoring')}
+                        right={<span style={{ fontSize: '10px', fontWeight: 'normal' }}>{metrics.activeWO} active · {metrics.pendingWO} pending</span>}
+                    />
                     <div style={{ overflow: 'auto', flex: 1, minHeight: 0 }}>
                         <table style={xpTable}>
                             <thead>
                                 <tr>
-                                    <th style={{ ...xpTh, width: '100px' }}>{t('code')}</th>
-                                    <th style={xpTh}>{t('product')}</th>
-                                    <th style={{ ...xpTh, width: '65px' }}>{t('status')}</th>
-                                    <th style={{ ...xpTh, width: '110px' }}>{t('progress')}</th>
-                                    <th style={{ ...xpTh, width: '50px', textAlign: 'right' }}>{t('qty')}</th>
-                                    <th style={{ ...xpTh, width: '75px', borderRight: 'none' }}>{t('due_date')}</th>
+                                    <th style={stickyTh({ width: '100px' })}>{t('code')}</th>
+                                    <th style={stickyTh()}>{t('product')}</th>
+                                    <th style={stickyTh({ width: '65px' })}>{t('status')}</th>
+                                    <th style={stickyTh({ width: '110px' })}>{t('progress')}</th>
+                                    <th style={stickyTh({ width: '50px', textAlign: 'right' })}>{t('qty')}</th>
+                                    <th style={stickyTh({ width: '75px', borderRight: 'none' })}>{t('due_date')}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {activeWOList.map((wo: any, idx: number) => {
-                                    const progColor: 'red' | 'orange' | 'blue' | 'green' = wo.isOverdue ? 'red' : wo.progress >= 100 ? 'green' : wo.status === 'IN_PROGRESS' ? 'blue' : 'orange';
-                                    const progWidth = wo.progress;
+                                    const progTone: StatusFamily = wo.isOverdue ? 'red' : wo.progress >= 100 ? 'green' : wo.status === 'IN_PROGRESS' ? 'blue' : 'gray';
                                     const displayStatus = wo.isOverdue ? 'OVERDUE' : wo.status;
                                     return (
-                                        <tr key={wo.id}>
-                                            <td style={{ ...xpTd(idx % 2 === 1), fontFamily: "'Courier New', monospace", fontWeight: 'bold', fontSize: '10px' }}>{wo.code}</td>
-                                            <td style={{ ...xpTd(idx % 2 === 1), fontWeight: 'bold', color: '#000' }}>{wo.itemName}</td>
-                                            <td style={xpTd(idx % 2 === 1)}><StatusBadge status={displayStatus} /></td>
-                                            <td style={xpTd(idx % 2 === 1)}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                    <div style={{ ...xpProgTrack, flex: 1 }} role="progressbar" aria-valuenow={Math.round(progWidth)} aria-valuemin={0} aria-valuemax={100}>
-                                                        <div style={{ ...xpProgFill(progColor), width: `${progWidth}%` }}></div>
-                                                    </div>
-                                                    <span style={{ fontSize: 9, color: '#555', minWidth: 22, textAlign: 'right' }}>{progWidth.toFixed(0)}%</span>
-                                                </div>
+                                        <tr key={wo.id} style={lvRow(true, idx)}>
+                                            <td style={{ ...lvTd(true), fontFamily: "'Courier New', monospace", fontWeight: 'bold', fontSize: '10px' }}>{wo.code}</td>
+                                            <td style={{ ...lvTd(true), fontWeight: 'bold', color: '#000' }}>{wo.itemName}</td>
+                                            <td style={lvTd(true)}>
+                                                <StatusChip
+                                                    status={displayStatus}
+                                                    label={displayStatus === 'IN_PROGRESS' ? 'IN PROG' : displayStatus === 'COMPLETED' ? 'DONE' : undefined}
+                                                    tint
+                                                />
                                             </td>
-                                            <td style={{ ...xpTd(idx % 2 === 1), textAlign: 'right', fontWeight: 'bold' }}>{wo.qty?.toLocaleString()}</td>
-                                            <td style={{ ...xpTd(idx % 2 === 1), borderRight: 'none', color: wo.isOverdue ? '#cc0000' : '#333', fontWeight: wo.isOverdue ? 'bold' : 'normal', fontSize: '9px' }}>
+                                            <td style={lvTd(true)}>
+                                                <ProgressBar pct={wo.progress} tone={progTone} height={9} label="outside" />
+                                            </td>
+                                            <td style={{ ...lvTd(true), textAlign: 'right', fontWeight: 'bold' }}>{wo.qty?.toLocaleString()}</td>
+                                            <td style={{ ...lvTd(true), borderRight: 'none', color: wo.isOverdue ? familyColor('red') : '#333', fontWeight: wo.isOverdue ? 'bold' : 'normal', fontSize: '9px' }}>
                                                 {wo.target_end_date ? `${wo.target_end_date.slice(0, 10)}${wo.isOverdue ? ' ●' : ''}` : '—'}
                                             </td>
                                         </tr>
                                     );
                                 })}
                                 {activeWOList.length === 0 && (
-                                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: '16px', color: '#666', fontStyle: 'italic', fontSize: '10px', background: '#fff' }}>{t('no_active_production')}</td></tr>
+                                    <tr><td colSpan={6} style={emptyRowStyle}>{t('no_active_production')}</td></tr>
                                 )}
                             </tbody>
                         </table>
                     </div>
-                    <div style={xpStatusBar}>
-                        <span>{t('production_yield')}: {prodYield.toFixed(1)}%</span>
-                        <span>{t('delivery_readiness')}: {deliveryReadiness.toFixed(1)}%</span>
-                    </div>
-                </div>
+                    <XPStatusBar
+                        style={{ marginTop: 0 }}
+                        right={<>{t('delivery_readiness')}: {deliveryReadiness.toFixed(1)}%</>}
+                    >
+                        {t('production_yield')}: {prodYield.toFixed(1)}%
+                    </XPStatusBar>
+                </ShellWindow>
             </div>
 
             {/* ── Row 4: Recent Movements (left) + Warehouse Distribution (right) ── */}
             <div style={{ display: 'flex', gap: '6px', height: '200px' }}>
 
                 {/* Recent stock movements */}
-                <div style={{ ...xpBevel(), flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                    <div style={xpTitleBar('grey')}>
-                        <span><i className="bi bi-clock-history" style={{ marginRight: 4 }} aria-hidden="true" />{t('recent_stock_movements')}</span>
-                    </div>
+                <ShellWindow classic fill={false} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                    <ShellTitleBar classic tone="grey" icon="bi-clock-history" title={t('recent_stock_movements')} />
                     <div style={{ overflow: 'auto', flex: 1, minHeight: 0 }}>
                         <table style={xpTable}>
                             <thead>
                                 <tr>
-                                    <th style={xpTh}>{t('item')}</th>
-                                    <th style={{ ...xpTh, width: '60px', textAlign: 'right' }}>{t('change')}</th>
-                                    <th style={{ ...xpTh, width: '110px' }}>{t('locations')}</th>
-                                    <th style={{ ...xpTh, width: '90px', borderRight: 'none' }}>{t('when')}</th>
+                                    <th style={stickyTh()}>{t('item')}</th>
+                                    <th style={stickyTh({ width: '60px', textAlign: 'right' })}>{t('change')}</th>
+                                    <th style={stickyTh({ width: '110px' })}>{t('locations')}</th>
+                                    <th style={stickyTh({ width: '90px', borderRight: 'none' })}>{t('when')}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {recentActivity.map((entry: any, idx: number) => (
-                                    <tr key={entry.key}>
-                                        <td style={{ ...xpTd(idx % 2 === 1), fontWeight: 'bold', color: '#000' }}>{entry.itemName}</td>
-                                        <td style={{ ...xpTd(idx % 2 === 1), textAlign: 'right', fontWeight: 'bold', color: entry.qty_change > 0 ? '#228822' : '#cc0000' }}>
+                                    <tr key={entry.key} style={lvRow(true, idx)}>
+                                        <td style={{ ...lvTd(true), fontWeight: 'bold', color: '#000' }}>{entry.itemName}</td>
+                                        <td style={{ ...lvTd(true), textAlign: 'right', fontWeight: 'bold', color: familyColor(entry.qty_change > 0 ? 'green' : 'red') }}>
                                             {entry.qty_change > 0 ? '+' : ''}{entry.qty_change}
                                         </td>
-                                        <td style={{ ...xpTd(idx % 2 === 1), fontSize: '9px', color: '#444' }}>
+                                        <td style={{ ...lvTd(true), fontSize: '9px', color: '#444' }}>
                                             {entry.location_name || '—'}
                                         </td>
-                                        <td style={{ ...xpTd(idx % 2 === 1), fontSize: '9px', color: '#666', borderRight: 'none' }}>
+                                        <td style={{ ...lvTd(true), fontSize: '9px', color: '#666', borderRight: 'none' }}>
                                             {tzFmt(entry.created_at, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                         </td>
                                     </tr>
                                 ))}
                                 {recentActivity.length === 0 && (
-                                    <tr><td colSpan={4} style={{ textAlign: 'center', padding: '12px', color: '#666', fontStyle: 'italic', fontSize: '10px', background: '#fff' }}>{t('no_recent_movements')}</td></tr>
+                                    <tr><td colSpan={4} style={{ ...emptyRowStyle, padding: '12px' }}>{t('no_recent_movements')}</td></tr>
                                 )}
                             </tbody>
                         </table>
                     </div>
-                </div>
+                </ShellWindow>
 
                 {/* Warehouse distribution */}
-                <div style={{ ...xpBevel(), width: '240px', flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
-                    <div style={xpTitleBar('grey')}>
-                        <span><i className="bi bi-building" style={{ marginRight: 4 }} aria-hidden="true" />{t('warehouse_distribution')}</span>
-                    </div>
+                <ShellWindow classic fill={false} style={{ width: '240px', flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+                    <ShellTitleBar classic tone="grey" icon="bi-building" title={t('warehouse_distribution')} />
                     <div style={{ padding: '6px 8px', background: '#f0efe8', flex: 1, overflowY: 'auto', minHeight: 0 }}>
                         {groupedStats.length === 0 ? (
                             <div style={{ textAlign: 'center', padding: '12px', color: '#888', fontStyle: 'italic', fontSize: '10px' }}>{t('no_inventory_recorded')}</div>
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                {groupedStats.map((g: any, idx: number) => {
+                                {groupedStats.map((g: any) => {
                                     const pct = totalStockQty > 0 ? (g.total / totalStockQty) * 100 : 0;
-                                    const colors: Array<'blue' | 'green' | 'orange' | 'red'> = ['blue', 'green', 'orange', 'red', 'blue'];
                                     const open = !!expandedGroups[g.catId];
                                     return (
                                         <div key={g.catId}>
@@ -1020,9 +938,9 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                                     </span>
                                                     <span style={{ color: '#555' }}>{g.total.toLocaleString()} · {pct.toFixed(0)}%</span>
                                                 </div>
-                                                <div style={xpProgTrack} role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label={g.name}>
-                                                    <div style={{ ...xpProgFill(colors[idx % colors.length]), width: `${pct}%` }}></div>
-                                                </div>
+                                                {/* Share-of-stock, not a status: one neutral blue tone for every
+                                                    group — a rotating red/green palette would read as severity. */}
+                                                <ProgressBar pct={pct} tone="blue" title={g.name} />
                                             </div>
                                             {open && (
                                                 <div style={{ paddingLeft: 12, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -1034,9 +952,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                                                                     <span>{loc.name}</span>
                                                                     <span style={{ color: '#666' }}>{loc.totalQty.toLocaleString()} · {lpct.toFixed(0)}%</span>
                                                                 </div>
-                                                                <div style={{ ...xpProgTrack, height: 7 }} role="progressbar" aria-valuenow={Math.round(lpct)} aria-valuemin={0} aria-valuemax={100} aria-label={loc.name}>
-                                                                    <div style={{ ...xpProgFill('blue'), width: `${lpct}%` }}></div>
-                                                                </div>
+                                                                <ProgressBar pct={lpct} tone="blue" height={7} title={loc.name} />
                                                             </div>
                                                         );
                                                     })}
@@ -1051,14 +967,12 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                             </div>
                         )}
                     </div>
-                </div>
+                </ShellWindow>
             </div>
 
             {/* ── Row 5: KPI Trends ── */}
-            <div style={{ ...xpBevel(), marginTop: '6px' }}>
-                <div style={xpTitleBar('grey')}>
-                    <span><i className="bi bi-graph-up" style={{ marginRight: 4 }} aria-hidden="true" />{t('kpi_trends')}</span>
-                </div>
+            <ShellWindow classic fill={false} style={{ marginTop: '6px' }}>
+                <ShellTitleBar classic tone="grey" icon="bi-graph-up" title={t('kpi_trends')} />
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '6px', padding: '8px', background: '#f0efe8' }}>
                     {TREND_METRICS.map((m) => {
                         const series = kpiHistory?.[m.key] || [];
@@ -1066,7 +980,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                         const first = series.length ? series[0].value : last;
                         const delta = last - first;
                         const labelKey = m.key === 'open_sos' ? 'open_orders' : m.key;
-                        const deltaColor = m.key === 'low_stock' ? (delta > 0 ? '#cc0000' : delta < 0 ? '#228822' : '#777') : '#777';
+                        const deltaColor = m.key === 'low_stock' && delta !== 0 ? familyColor(delta > 0 ? 'red' : 'green') : '#777';
                         return (
                             <div key={m.key} style={{ border: '1px solid #c0bdb5', background: '#fff', padding: '6px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
@@ -1081,7 +995,7 @@ export default function DashboardView({ items, locations, stockBalance, workOrde
                         );
                     })}
                 </div>
-            </div>
+            </ShellWindow>
         </div>
     );
 }

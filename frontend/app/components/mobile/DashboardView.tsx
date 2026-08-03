@@ -3,9 +3,8 @@
 import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '../../context/LanguageContext';
-import { STATUS_COLORS } from '../shared/xpTheme';
+import { xpFont as XP_FONT, familyColor, familyTint, ProgressBar, StatusChip, type StatusFamily } from '../shared/xpTheme';
 
-const XP_FONT  = 'Tahoma, "Segoe UI", Arial, sans-serif';
 const XP_BEIGE = '#ece9d8';
 
 const xpPanel = (extra: React.CSSProperties = {}): React.CSSProperties => ({
@@ -36,16 +35,8 @@ const xpSectionLabel: React.CSSProperties = {
     marginBottom: 8,
 };
 
-const xpStatusBadge = (status: string): React.CSSProperties => {
-    const base: React.CSSProperties = {
-        fontFamily: XP_FONT, fontSize: 9, fontWeight: 'bold',
-        padding: '1px 6px', display: 'inline-block',
-    };
-    if (status === 'IN_PROGRESS') return { ...base, background: STATUS_COLORS.IN_PROGRESS, color: '#fff' };
-    if (status === 'COMPLETED')   return { ...base, background: STATUS_COLORS.COMPLETED, color: '#fff' };
-    if (status === 'CANCELLED')   return { ...base, background: STATUS_COLORS.CANCELLED, color: '#fff' };
-    return { ...base, background: STATUS_COLORS.PENDING, color: '#fff' };
-};
+// Severity families for the action-item rows — same five as STATUS_FAMILY.
+const SEV_FAMILY: Record<'crit' | 'warn' | 'info', StatusFamily> = { crit: 'red', warn: 'amber', info: 'blue' };
 
 export default function MobileDashboardView({ items, stockBalance, workOrders, salesOrders, kpis, summary, itemIndex }: any) {
     const router = useRouter();
@@ -124,19 +115,18 @@ export default function MobileDashboardView({ items, stockBalance, workOrders, s
         { label: t('samples'),     value: kpis?.active_samples ?? 0, icon: 'bi-eyedropper',  alert: false },
     ];
 
-    const sevBorderLeft = { crit: '#cc0000', warn: '#b8860b', info: '#1a4a8a' };
-    const sevBg         = { crit: '#fce8e8', warn: '#fef9e7', info: '#e8f0fe' };
-    const sevColor      = { crit: '#6b0000', warn: '#5a3e00', info: '#0a246a' };
-
-    const PctBar = ({ label, pct, good }: { label: string; pct: number; good: boolean }) => (
-        <div style={xpPanel({ padding: '8px 10px', flex: 1, minWidth: 0 })}>
-            <div style={{ fontFamily: XP_FONT, fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5, color: '#666', marginBottom: 3 }}>{label}</div>
-            <div style={{ fontFamily: "'Courier New', monospace", fontSize: 20, fontWeight: 'bold', color: good ? '#1a7a1a' : '#c77800', lineHeight: 1 }}>{pct.toFixed(0)}%</div>
-            <div style={{ height: 6, background: '#fff', border: '1px solid #808080', marginTop: 4 }} role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label={label}>
-                <div style={{ height: '100%', width: `${Math.min(100, pct)}%`, background: good ? 'linear-gradient(to bottom, #6ec86e, #2a7a2a)' : 'linear-gradient(to bottom, #ffbb44, #cc7700)' }} />
+    const PctBar = ({ label, pct, good }: { label: string; pct: number; good: boolean }) => {
+        const tone: StatusFamily = good ? 'green' : 'amber';
+        return (
+            <div style={xpPanel({ padding: '8px 10px', flex: 1, minWidth: 0 })}>
+                <div style={{ fontFamily: XP_FONT, fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5, color: '#666', marginBottom: 3 }}>{label}</div>
+                <div style={{ fontFamily: "'Courier New', monospace", fontSize: 20, fontWeight: 'bold', color: familyColor(tone), lineHeight: 1 }}>{pct.toFixed(0)}%</div>
+                <div style={{ marginTop: 4 }}>
+                    <ProgressBar pct={pct} tone={tone} height={7} title={label} />
+                </div>
             </div>
-        </div>
-    );
+        );
+    };
 
     return (
         <div style={{ background: XP_BEIGE, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -173,17 +163,20 @@ export default function MobileDashboardView({ items, stockBalance, workOrders, s
                 <div>
                     <div style={xpSectionLabel}>{t('action_items')}</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                        {actionItems.slice(0, 5).map((item, i) => (
-                            <div key={i} style={{
-                                ...xpInset(),
-                                padding: '8px 10px',
-                                borderLeft: `4px solid ${sevBorderLeft[item.sev]}`,
-                                background: sevBg[item.sev],
-                            }}>
-                                <div style={{ fontFamily: XP_FONT, fontSize: 12, fontWeight: 'bold', color: sevColor[item.sev] }}>{item.title}</div>
-                                <div style={{ fontFamily: XP_FONT, fontSize: 11, color: '#555', marginTop: 2 }}>{item.sub}</div>
-                            </div>
-                        ))}
+                        {actionItems.slice(0, 5).map((item, i) => {
+                            const tint = familyTint(SEV_FAMILY[item.sev]);
+                            return (
+                                <div key={i} style={{
+                                    ...xpInset(),
+                                    padding: '8px 10px',
+                                    borderLeft: `4px solid ${familyColor(SEV_FAMILY[item.sev])}`,
+                                    background: tint.background,
+                                }}>
+                                    <div style={{ fontFamily: XP_FONT, fontSize: 12, fontWeight: 'bold', color: tint.color }}>{item.title}</div>
+                                    <div style={{ fontFamily: XP_FONT, fontSize: 11, color: '#555', marginTop: 2 }}>{item.sub}</div>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             )}
@@ -212,7 +205,7 @@ export default function MobileDashboardView({ items, stockBalance, workOrders, s
                                 display: 'flex',
                                 justifyContent: 'space-between',
                                 alignItems: 'center',
-                                borderLeft: `4px solid ${wo.isOverdue ? '#cc0000' : wo.status === 'IN_PROGRESS' ? STATUS_COLORS.IN_PROGRESS : STATUS_COLORS.PENDING}`,
+                                borderLeft: `4px solid ${familyColor(wo.isOverdue ? 'red' : wo.status === 'IN_PROGRESS' ? 'blue' : 'gray')}`,
                             })}>
                                 <div style={{ minWidth: 0 }}>
                                     <div style={{ fontFamily: "'Courier New', monospace", fontSize: 14, fontWeight: 'bold', color: '#00309c' }}>{wo.code}</div>
@@ -222,16 +215,16 @@ export default function MobileDashboardView({ items, stockBalance, workOrders, s
                                             <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 3 }} aria-hidden="true" />Overdue
                                         </div>
                                     )}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
-                                        <div style={{ flex: 1, maxWidth: 130, height: 6, background: '#fff', border: '1px solid #808080' }} role="progressbar" aria-valuenow={Math.round(wo.progress)} aria-valuemin={0} aria-valuemax={100}>
-                                            <div style={{ height: '100%', width: `${wo.progress}%`, background: wo.isOverdue ? '#cc0000' : wo.progress >= 100 ? 'linear-gradient(to bottom,#6ec86e,#2a7a2a)' : wo.status === 'IN_PROGRESS' ? 'linear-gradient(to bottom,#4fa4ff,#0058e6)' : '#bbb' }} />
-                                        </div>
-                                        <span style={{ fontFamily: XP_FONT, fontSize: 9, color: '#666', minWidth: 24 }}>{wo.progress.toFixed(0)}%</span>
+                                    <div style={{ maxWidth: 160, marginTop: 4 }}>
+                                        <ProgressBar
+                                            pct={wo.progress}
+                                            tone={wo.isOverdue ? 'red' : wo.progress >= 100 ? 'green' : wo.status === 'IN_PROGRESS' ? 'blue' : 'gray'}
+                                            height={8}
+                                            label="outside"
+                                        />
                                     </div>
                                 </div>
-                                <span style={xpStatusBadge(wo.status)}>
-                                    {wo.status === 'IN_PROGRESS' ? 'IN PROGRESS' : wo.status}
-                                </span>
+                                <StatusChip status={wo.isOverdue ? 'OVERDUE' : wo.status} />
                             </div>
                         ))}
                         {(workOrders || []).filter((w: any) => ['IN_PROGRESS', 'PENDING'].includes(w.status)).length > 10 && (

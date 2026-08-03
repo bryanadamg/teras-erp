@@ -34,6 +34,9 @@ export const STATUS_FAMILY: Record<string, StatusFamily> = {
     COMPLETED: 'green', DONE: 'green', RECEIVED: 'green', APPROVED: 'green',
     ACTIVE: 'green', DISPATCHED: 'green',
     CANCELLED: 'red', REJECTED: 'red',
+    // Derived display status (dashboard WO monitor): a PENDING/IN_PROGRESS order
+    // past its target_end_date. Not a stored status — no backend row ever has it.
+    OVERDUE: 'red',
     ARCHIVED: 'gray', INACTIVE: 'gray',
     // Audit-log action verbs (backend log_activity() call sites) — same 5-family
     // palette, not a domain status, but reuses it for one consistent chip everywhere.
@@ -93,6 +96,11 @@ export const statusColor = (status?: string): string => FAMILY_SOLID[familyOf(st
 // re-declaring `const GREEN = '#2d7a2d'` in a view; the palette stays in one place
 // and stays inside DESIGN.md's semantic layer.
 export const familyColor = (family: StatusFamily): string => FAMILY_SOLID[family];
+
+// Pale wash of the same five accents, by family — for panel/row backgrounds that
+// carry a health signal (dashboard health panels, alert rows). Same reason as
+// familyColor: don't re-declare `const OK_BG = '#e8f5e9'` per view.
+export const familyTint = (family: StatusFamily) => FAMILY_TINT[family];
 
 // Tint colors only (no layout/border-radius opinions) — for call sites that
 // render their own badge shape but want the shared per-status palette.
@@ -569,7 +577,7 @@ export function XPLoading({ label = 'Loading...', fullScreen = false }: { label?
 
 // ── Status bar (classic Windows bottom strip) ───────────────────────────────
 
-export function XPStatusBar({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
+export function XPStatusBar({ children, right, style }: { children: React.ReactNode; right?: React.ReactNode; style?: React.CSSProperties }) {
     return (
         <div style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
@@ -578,6 +586,7 @@ export function XPStatusBar({ children, right }: { children: React.ReactNode; ri
             padding: '2px 8px', marginTop: 4,
             fontFamily: xpFont, fontSize: 10, color: '#333333',
             userSelect: 'none',
+            ...style,
         }}>
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{children}</span>
             {right && <span style={{ flexShrink: 0 }}>{right}</span>}
