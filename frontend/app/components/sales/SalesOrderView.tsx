@@ -18,6 +18,9 @@ import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import { useRouter } from 'next/navigation';
 
 const SO_PAGE_SIZE = 50;
+// Sum of the twelve <th> widths below. Keep in step when a column is added or
+// resized — it is the floor the table refuses to squeeze past before scrolling.
+const SO_TABLE_MIN_WIDTH = 1342;
 
 export default function SalesOrderView({ items, itemResults, onSearchItems, attributes, boms, salesOrders, partners, onCreateSO, onDeleteSO, onEditSO, onUpdateSOStatus, onGenerateWO, productionRuns }: any) {
   const { showToast } = useToast();
@@ -790,13 +793,17 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
       return !isNaN(due.getTime()) && due.getTime() < Date.now();
   };
 
+  // Pro-rata `made` splits produce values like 1.6666666666666665 — clamp the
+  // display to 2dp and drop trailing zeros so whole numbers stay whole.
+  const fmtQty = (v: number) => (Math.round(v * 100) / 100).toLocaleString(undefined, { maximumFractionDigits: 2 });
+
   const fulfilmentCell = (line: any) => {
       const f = lineFulfilment(line);
       if (f.ordered <= 0) return <span style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', color:'#ccc' }}>—</span>;
       const seg = (width: number, color: string, z: number) => (
           <div style={{ position:'absolute', left:0, top:0, bottom:0, width:`${width}%`, background:color, zIndex:z }} />
       );
-      const title = `Made ${f.made} · Packed ${f.packed} · In stock ${f.available} · Shipped ${f.shipped} — of ${f.ordered} ordered`;
+      const title = `Made ${fmtQty(f.made)} · Packed ${fmtQty(f.packed)} · In stock ${fmtQty(f.available)} · Shipped ${fmtQty(f.shipped)} — of ${fmtQty(f.ordered)} ordered`;
       return (
           <div title={title} style={{ display:'flex', flexDirection:'column', gap:2, minWidth:78 }}>
               <div style={{ position:'relative', height:6, background: classic ? '#e8e5dd' : '#eceff1',
@@ -807,10 +814,10 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
               </div>
               <div style={{ fontFamily:'Tahoma,Arial,sans-serif', fontSize:'9px', color: f.isReady ? (classic ? '#1a5e1a' : '#166534') : '#777' }}>
                   {f.shipped > 0
-                      ? `${f.shipped} shipped`
+                      ? `${fmtQty(f.shipped)} shipped`
                       : f.packed > 0
-                          ? `${f.available} packed`
-                          : f.made > 0 ? `${f.made} made` : 'not started'}
+                          ? `${fmtQty(f.available)} packed`
+                          : f.made > 0 ? `${fmtQty(f.made)} made` : 'not started'}
               </div>
           </div>
       );
@@ -1577,10 +1584,15 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
            <div className={classic ? '' : 'card-body p-0'} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
                {/* vertical scroll must live on the same element as overflow-x,
                    otherwise sticky headers bind to the inner wrapper and never stick */}
-               <div className="table-responsive" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+               <div className="table-responsive" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'auto' }}>
+                   {/* minWidth is what makes the horizontal scroll actually engage: at
+                       width:100% alone the browser squeezes the twelve columns to fit
+                       instead of overflowing, and the narrow ones become unreadable. */}
                    <table
                        className={classic ? '' : 'table table-hover align-middle mb-0'}
-                       style={classic ? { width: '100%', borderCollapse: 'collapse', background: '#fff' } : undefined}
+                       style={classic
+                           ? { width: '100%', minWidth: SO_TABLE_MIN_WIDTH, borderCollapse: 'collapse', background: '#fff' }
+                           : { minWidth: SO_TABLE_MIN_WIDTH }}
                    >
                        <thead style={classic ? xpTableHeader : undefined} className={classic ? '' : 'table-light'}>
                            <tr>
