@@ -298,20 +298,27 @@ export default function ReportsView(_props: any) {
     };
 
     // ── XP "stat tile" for the summary strip ─────────────────────────────────
+    // Label and value sit on ONE line: the strip is a readout, not a dashboard,
+    // and a stacked tile ate a third of the ledger's vertical space.
     const statTile = (label: string, value: string, color: string) => (
         <div style={{
             flex: 1, minWidth: 96, background: '#ffffff',
             border: '1px solid', borderColor: '#808080 #ffffff #ffffff #808080',
-            padding: '4px 8px', fontFamily: xpFont,
+            padding: '1px 8px', fontFamily: xpFont,
+            display: 'flex', alignItems: 'baseline', gap: 6,
         }}>
-            <div style={{ fontSize: 9, color: '#777', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</div>
-            <div style={{ fontSize: 15, fontWeight: 'bold', color }}>{value}</div>
+            <span style={{ fontSize: 9, color: '#777', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</span>
+            <span style={{ fontSize: 12, fontWeight: 'bold', color, marginLeft: 'auto' }}>{value}</span>
         </div>
     );
 
     if (classic) {
         const titleBar: React.CSSProperties = sharedXpTitleBar();
-        const toolbar: React.CSSProperties = sharedXpToolbar({ padding: '5px 6px', gap: '5px' });
+        // Two stacked toolbar rows: line 1 = search + dropdowns, line 2 = date
+        // range + actions. Only the lower row draws the separator so the pair
+        // reads as one band.
+        const toolbar: React.CSSProperties = sharedXpToolbar({ padding: '4px 6px', gap: '5px', flexWrap: 'nowrap', overflowX: 'auto' });
+        const toolbarTop: React.CSSProperties = { ...toolbar, borderBottom: 'none', paddingBottom: 0 };
         const th: React.CSSProperties = {
             background: 'linear-gradient(to bottom, #ffffff, #d4d0c8)', borderBottom: '2px solid #808080',
             fontSize: '10px', fontWeight: 'bold', color: '#000', fontFamily: xpFont, padding: '3px 8px',
@@ -332,8 +339,8 @@ export default function ReportsView(_props: any) {
                         <span style={{ fontSize: '10px', opacity: 0.85 }}>{total.toLocaleString()} movements</span>
                     </div>
 
-                    {/* Filters */}
-                    <div style={toolbar} className="no-print">
+                    {/* Filters — line 1: search + dropdowns */}
+                    <div style={toolbarTop} className="no-print">
                         <i className="bi bi-search" style={{ fontSize: '11px', color: '#666' }} />
                         <input
                             style={xpInput({ width: 180 })}
@@ -367,7 +374,11 @@ export default function ReportsView(_props: any) {
                             <button style={dirBtn('in', 'In', '#1a5e1a')} onClick={() => onFilter(setDirection)('in')}>In</button>
                             <button style={dirBtn('out', 'Out', '#c00000')} onClick={() => onFilter(setDirection)('out')}>Out</button>
                         </div>
-                        <div style={xpSep} />
+                        <div style={{ flex: 1 }} />
+                    </div>
+
+                    {/* Filters — line 2: date range + actions */}
+                    <div style={toolbar} className="no-print">
                         <span style={lbl}>{t('from')}:</span>
                         <input type="date" style={xpInput({ width: 122 })} value={startDate} onChange={e => onFilter(setStartDate)(e.target.value)} />
                         <span style={lbl}>{t('to')}:</span>
@@ -385,7 +396,7 @@ export default function ReportsView(_props: any) {
                     </div>
 
                     {/* Summary strip */}
-                    <div style={{ display: 'flex', gap: 5, padding: '6px', background: '#ece9d8', borderBottom: '1px solid #b0a898' }} className="no-print">
+                    <div style={{ display: 'flex', gap: 5, padding: '3px 6px', background: '#ece9d8', borderBottom: '1px solid #b0a898' }} className="no-print">
                         {statTile('Movements', total.toLocaleString(), '#1a3d7a')}
                         {statTile('In', `+${fmtQty(totalIn)}`, '#1a5e1a')}
                         {statTile('Out', fmtQty(totalOut), '#c00000')}
@@ -461,8 +472,9 @@ export default function ReportsView(_props: any) {
                         <small className="text-muted">Every stock movement, in and out</small>
                     </div>
                 </div>
+                {/* Line 1: search + dropdowns */}
                 <div className="row g-2 align-items-center">
-                    <div className="col-md-3">
+                    <div className="col-md-4">
                         <div className="input-group input-group-sm">
                             <span className="input-group-text"><i className="bi bi-search" /></span>
                             <input className="form-control" placeholder="Search item or reference..." value={search} onChange={e => setSearch(e.target.value)} />
@@ -499,12 +511,11 @@ export default function ReportsView(_props: any) {
                             <button className={segBtn('out', 'Out', 'danger')} onClick={() => onFilter(setDirection)('out')}>Out</button>
                         </div>
                     </div>
-                    <div className="col-md-3 d-flex gap-1">
-                        <input type="date" className="form-control form-control-sm" value={startDate} onChange={e => onFilter(setStartDate)(e.target.value)} />
-                        <input type="date" className="form-control form-control-sm" value={endDate} onChange={e => onFilter(setEndDate)(e.target.value)} />
-                    </div>
                 </div>
+                {/* Line 2: date range + presets + actions */}
                 <div className="d-flex flex-wrap align-items-center gap-1 mt-2">
+                    <input type="date" className="form-control form-control-sm" style={{ width: 150 }} value={startDate} onChange={e => onFilter(setStartDate)(e.target.value)} />
+                    <input type="date" className="form-control form-control-sm me-1" style={{ width: 150 }} value={endDate} onChange={e => onFilter(setEndDate)(e.target.value)} />
                     <div className="btn-group" role="group">
                         {(['today', '7d', '30d', 'month'] as const).map(k => (
                             <button key={k} className="btn btn-light btn-sm border py-0" onClick={() => applyPreset(k)}>
@@ -526,9 +537,9 @@ export default function ReportsView(_props: any) {
                     { label: 'Out', value: fmtQty(totalOut), cls: 'text-danger' },
                     { label: 'Net', value: `${net > 0 ? '+' : ''}${fmtQty(net)}`, cls: net >= 0 ? 'text-success' : 'text-danger' },
                 ].map((s, i) => (
-                    <div key={s.label} className={`col py-2 ${i > 0 ? 'border-start' : ''}`}>
-                        <div className="text-muted text-uppercase" style={{ fontSize: 10, letterSpacing: '0.5px' }}>{s.label}</div>
-                        <div className={`fw-bold fs-5 ${s.cls}`}>{s.value}</div>
+                    <div key={s.label} className={`col py-1 d-flex align-items-baseline justify-content-center gap-2 ${i > 0 ? 'border-start' : ''}`}>
+                        <span className="text-muted text-uppercase" style={{ fontSize: 10, letterSpacing: '0.5px' }}>{s.label}</span>
+                        <span className={`fw-bold ${s.cls}`}>{s.value}</span>
                     </div>
                 ))}
             </div>
