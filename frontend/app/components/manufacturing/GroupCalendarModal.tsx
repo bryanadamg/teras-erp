@@ -5,10 +5,13 @@ import ModalWrapper from '../shared/ModalWrapper';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import {
-    xpFont, familyColor, FormSection, FieldLabel, XPActionButton, WeekdayToggle,
+    xpFont, familyColor, FormSection, FieldLabel, XPActionButton,
     SectionTitle as SecTitle, ModalFooterActions,
 } from '../shared/xpTheme';
 import { lvInput, lvTh, lvTd, lvRow } from '../shared/listViewTheme';
+import {
+    WorkingDaysSection, HolidayCalendarSection, useNationalHolidays,
+} from '../shared/productionCalendar';
 
 const RED = familyColor('red');
 
@@ -44,10 +47,13 @@ export default function GroupCalendarModal({ isOpen, onClose, group, authFetch, 
     const [machines, setMachines] = useState<any[]>([]);
     const [newHoliday, setNewHoliday] = useState('');
     const [newHolidayNote, setNewHolidayNote] = useState('');
-    const [importYear, setImportYear] = useState<string>(String(new Date().getFullYear()));
     const [applyHolidays, setApplyHolidays] = useState(true);
+    // Displayed month drives both the grid and which year "import national" pulls —
+    // the separate year input the import used to need is gone.
+    const [calRef, setCalRef] = useState<Date>(() => new Date());
 
     const groupId = group?.id;
+    const national = useNationalHolidays(authFetch, apiBase, calRef.getFullYear(), isOpen);
 
     const load = useCallback(async () => {
         if (!groupId) return;
@@ -70,6 +76,7 @@ export default function GroupCalendarModal({ isOpen, onClose, group, authFetch, 
             setApplyHolidays(true);
             setNewHoliday('');
             setNewHolidayNote('');
+            setCalRef(new Date());
             load();
         }
     }, [isOpen, groupId, load]);
@@ -77,11 +84,18 @@ export default function GroupCalendarModal({ isOpen, onClose, group, authFetch, 
     const toggleWeekday = (d: number) =>
         setWeekdays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort((a, b) => a - b));
 
+    // Local-only edits — nothing is written until Apply cascades the whole set.
+    const addHolidayDate = (ds: string, note: string | null) =>
+        setHolidays(prev => prev.some(h => h.holiday_date === ds)
+            ? prev
+            : [...prev, { holiday_date: ds, note }].sort((a, b) => a.holiday_date.localeCompare(b.holiday_date)));
+
+    const removeHoliday = (ds: string) =>
+        setHolidays(prev => prev.filter(h => h.holiday_date !== ds));
+
     const addHoliday = () => {
         if (!newHoliday) return;
-        if (holidays.some(h => h.holiday_date === newHoliday)) return;
-        setHolidays(prev => [...prev, { holiday_date: newHoliday, note: newHolidayNote || null }]
-            .sort((a, b) => a.holiday_date.localeCompare(b.holiday_date)));
+        addHolidayDate(newHoliday, newHolidayNote || null);
         setNewHoliday('');
         setNewHolidayNote('');
     };
@@ -112,20 +126,17 @@ export default function GroupCalendarModal({ isOpen, onClose, group, authFetch, 
         }
     };
 
-    const importNational = async () => {
-        const year = parseInt(importYear, 10);
-        if (!year) return;
-        const res = await authFetch(`${apiBase}/weaving/id-holidays?year=${year}`);
-        if (!res.ok) return;
-        const d = await res.json();
+    // Adopt every national holiday of the displayed year. The dates come from the
+    // shared hook that already feeds the grid overlay, so no second fetch.
+    const importNational = () => {
         setHolidays(prev => {
             const have = new Set(prev.map(h => h.holiday_date));
             const merged = [...prev];
-            for (const h of (d.holidays || [])) {
-                if (have.has(h.date)) continue;
-                merged.push({ holiday_date: h.date, note: h.name });
-                have.add(h.date);
-            }
+            national.forEach((name, date) => {
+                if (have.has(date)) return;
+                merged.push({ holiday_date: date, note: name });
+                have.add(date);
+            });
             return merged.sort((a, b) => a.holiday_date.localeCompare(b.holiday_date));
         });
         setApplyHolidays(true);
@@ -171,20 +182,41 @@ export default function GroupCalendarModal({ isOpen, onClose, group, authFetch, 
                     <div style={{ background: '#ffe8e8', border: `1px solid ${RED}55`, color: RED, padding: '4px 8px', marginBottom: 10 }}>{error}</div>
                 )}
 
-                <FormSection classic={classic} title={<SecTitle icon="bi-calendar-week">{t('working_days')}</SecTitle>}>
-                    {/* Shared control — identical to the single-machine calendar tab. */}
-                    <WeekdayToggle value={weekdays} onToggle={toggleWeekday} classic={classic} />
-                </FormSection>
+                {/* Same editor as the per-machine calendar tab (shared
+                    WorkingDaysSection / HolidayCalendarSection). The only difference is
+                    persistence: clicks here edit local state and the whole set cascades
+                    to every machine on Apply. This form had no month grid at all before —
+                    a date field and a table — so the two screens taught two different
+                    mental models of one setting. */}
+                <WorkingDaysSection
+                    classic={classic}
+                    weekdays={weekdays}
+                    onToggleWeekday={toggleWeekday}
+                    canEdit
+                />
 
-                <FormSection classic={classic} title={
-                    <SecTitle icon="bi-calendar3" right={
+                <HolidayCalendarSection
+                    classic={classic}
+                    month={calRef}
+                    onMonthChange={setCalRef}
+                    weekdays={weekdays}
+                    holidays={holidays}
+                    national={national}
+                    canEdit={applyHolidays}
+                    onToggleDay={(ds, existing, nat) => {
+                        if (existing) removeHoliday(ds);
+                        else addHolidayDate(ds, nat || null);
+                    }}
+                    headerAction={
                         <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
                             <input type="checkbox" checked={applyHolidays} onChange={e => setApplyHolidays(e.target.checked)} />
                             {t('replace_holidays_on_machines')}
                         </label>
-                    }>{t('holidays')}</SecTitle>
-                }>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 6 }}>
+                    }
+                >
+                    {/* Group-only extras: a note the grid can't capture, a whole-year
+                        import, and the flat list of what will be written. */}
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', flexWrap: 'wrap', margin: '10px 0 6px' }}>
                         <div>
                             <FieldLabel classic={classic}>{t('date')}</FieldLabel>
                             <input type="date" style={{ ...lvInput(classic), width: 140 }} value={newHoliday} onChange={e => setNewHoliday(e.target.value)} />
@@ -195,11 +227,8 @@ export default function GroupCalendarModal({ isOpen, onClose, group, authFetch, 
                         </div>
                         <XPActionButton classic={classic} tone="neutral" icon="bi-plus-lg" label={t('add')} disabled={!newHoliday} onClick={addHoliday} />
                         <span style={{ width: 1, alignSelf: 'stretch', background: '#c8c4b8' }} />
-                        <div>
-                            <FieldLabel classic={classic}>{t('national_holiday')}</FieldLabel>
-                            <input type="number" style={{ ...lvInput(classic), width: 90 }} value={importYear} onChange={e => setImportYear(e.target.value)} />
-                        </div>
-                        <XPActionButton classic={classic} tone="neutral" icon="bi-download" label={t('import')} onClick={importNational} />
+                        <XPActionButton classic={classic} tone="neutral" icon="bi-download"
+                            label={`${t('import_id_holidays')} ${calRef.getFullYear()}`} onClick={importNational} />
                     </div>
 
                     <div style={{ maxHeight: 190, overflow: 'auto', border: classic ? '1px solid #808080' : '1px solid #dbe1ea', background: '#fff' }}>
@@ -222,7 +251,7 @@ export default function GroupCalendarModal({ isOpen, onClose, group, authFetch, 
                                                 tone="danger"
                                                 icon="bi-x"
                                                 title={t('remove')}
-                                                onClick={() => setHolidays(prev => prev.filter(x => x.holiday_date !== h.holiday_date))}
+                                                onClick={() => removeHoliday(h.holiday_date)}
                                             />
                                         </td>
                                     </tr>
@@ -235,7 +264,7 @@ export default function GroupCalendarModal({ isOpen, onClose, group, authFetch, 
                             </tbody>
                         </table>
                     </div>
-                </FormSection>
+                </HolidayCalendarSection>
 
                 <FormSection classic={classic} title={<SecTitle icon="bi-cpu">{t('machines_to_update')}</SecTitle>}>
                     <div style={{ fontSize: classic ? 11 : 12, color: '#555', lineHeight: 1.5 }}>

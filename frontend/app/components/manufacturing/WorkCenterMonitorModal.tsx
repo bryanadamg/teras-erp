@@ -12,9 +12,10 @@ import { useToast } from '../shared/Toast';
 import {
     xpFont, familyColor, StatusChip, XPActionButton, XPLoading, XPEmptyState,
     SunkenPanel, SunkenPanelBody, FormSection, FieldLabel, ProgressBar,
-    WeekdayToggle, WEEKDAY_LABELS, xpSelect, xpPanel, SectionTitle,
+    xpSelect, xpPanel, SectionTitle,
 } from '../shared/xpTheme';
 import { LvTabBar, LvTab, lvInput, lvTh, lvTd, lvRow } from '../shared/listViewTheme';
+import { WorkingDaysSection, HolidayCalendarSection, useNationalHolidays } from '../shared/productionCalendar';
 
 // Measurement accents from the shared five-family palette — see DESIGN.md's one
 // semantic layer rule; the weaving grid resolves the same three.
@@ -88,7 +89,9 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
     const [weekdays, setWeekdays] = useState<number[]>([0, 1, 2, 3, 4]);
     const [holidays, setHolidays] = useState<any[]>([]);
     const [calRef, setCalRef] = useState<Date>(() => new Date());
-    const [idHols, setIdHols] = useState<{ date: string; name: string }[]>([]);
+    // National holidays for the displayed year — shared hook, same overlay the group
+    // calendar renders.
+    const national = useNationalHolidays(authFetch, apiBase, calRef.getFullYear(), isOpen);
 
     const wcId = workCenter?.id;
 
@@ -162,16 +165,6 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
             .finally(() => { if (!cancelled) setMoCandsLoading(false); });
         return () => { cancelled = true; };
     }, [isOpen, wcId, canManage, data?.active_run, moCandsAll, apiBase, authFetch]);
-
-    // Indonesian national holidays for the displayed year (reference/highlight)
-    useEffect(() => {
-        if (!isOpen) return;
-        const year = calRef.getFullYear();
-        authFetch(`${apiBase}/weaving/id-holidays?year=${year}`)
-            .then(r => r.ok ? r.json() : null)
-            .then(d => { if (d) setIdHols(d.holidays || []); })
-            .catch(() => { });
-    }, [isOpen, calRef, apiBase, authFetch]);
 
     const startRun = async () => {
         if (!moId) return;
@@ -566,98 +559,35 @@ export default function WorkCenterMonitorModal({ isOpen, onClose, workCenter, au
                 </div>
             )}
 
+            {/* Calendar: the shared production-calendar editor. Identical surface to the
+                group batch-apply modal — only persistence differs (each click here is a
+                server call; the group form batches into one cascade PUT). */}
             {tab === 'calendar' && (
                 <div>
-                    <FormSection title={<SecTitle icon="bi-calendar-week">{t('working_days')}</SecTitle>} classic={cls}>
-                        <div className="d-flex flex-wrap gap-2 align-items-center mb-2">
-                            {/* Shared control — the group batch-apply form renders the same one. */}
-                            <WeekdayToggle value={weekdays} onToggle={toggleWeekday} classic={cls} disabled={!canManage} />
-                            {canManage && (
-                                <span className="ms-2">
-                                    <XPActionButton classic={cls} tone="success" icon="bi-check-lg" label={t('save')} onClick={saveCalendar} />
-                                </span>
-                            )}
-                        </div>
-                        <p className={cls ? '' : 'text-muted small mb-0'} style={cls ? { fontFamily: xpFont, fontSize: 10, color: '#777', margin: 0 } : undefined}>{t('working_days_hint')}</p>
-                    </FormSection>
-
-                    <FormSection title={
-                        <SecTitle icon="bi-calendar3" right={canManage ? (
-                            <XPActionButton classic={cls} tone="neutral" icon="bi-download" label={`${t('import_id_holidays')} ${calRef.getFullYear()}`} onClick={importNational} />
-                        ) : undefined}>{t('holidays')}</SecTitle>
-                    } classic={cls}>
-
-                    {/* Month nav */}
-                    <div className="d-flex align-items-center gap-2 mb-2">
-                        <XPActionButton classic={cls} tone="neutral" icon="bi-chevron-left" onClick={() => setCalRef(new Date(calRef.getFullYear(), calRef.getMonth() - 1, 1))} />
-                        <span style={{ minWidth: 150, textAlign: 'center', fontWeight: 'bold', fontFamily: cls ? xpFont : undefined }}>
-                            {calRef.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
-                        </span>
-                        <XPActionButton classic={cls} tone="neutral" icon="bi-chevron-right" onClick={() => setCalRef(new Date(calRef.getFullYear(), calRef.getMonth() + 1, 1))} />
-                        <XPActionButton classic={cls} tone="neutral" label={t('today')} onClick={() => setCalRef(new Date())} />
-                    </div>
-
-                    {/* Month grid */}
-                    {(() => {
-                        const y = calRef.getFullYear(), mo = calRef.getMonth();
-                        const daysInMonth = new Date(y, mo + 1, 0).getDate();
-                        const lead = (new Date(y, mo, 1).getDay() + 6) % 7; // Mon-first
-                        const pad = (n: number) => String(n).padStart(2, '0');
-                        const machineHolMap = new Map(holidays.map((h: any) => [String(h.holiday_date).slice(0, 10), h]));
-                        const idHolMap = new Map(idHols.map(h => [h.date, h.name]));
-                        const todayStr = new Date().toLocaleDateString('en-CA');
-                        const cells: any[] = [];
-                        for (let i = 0; i < lead; i++) cells.push(<div key={'b' + i} />);
-                        for (let d = 1; d <= daysInMonth; d++) {
-                            const ds = `${y}-${pad(mo + 1)}-${pad(d)}`;
-                            const dow = (new Date(y, mo, d).getDay() + 6) % 7;
-                            const working = weekdays.includes(dow);
-                            const mh: any = machineHolMap.get(ds);
-                            const nat = idHolMap.get(ds);
-                            const isToday = ds === todayStr;
-                            let bg = '#fff';
-                            if (mh) bg = cls ? '#f0cccc' : '#f8d7da';
-                            else if (nat) bg = cls ? '#ffe2b8' : '#ffe9c7';
-                            else if (!working) bg = cls ? '#e6e3da' : '#eceef0';
-                            cells.push(
-                                <div key={ds}
-                                    onClick={() => { if (!canManage) return; mh ? deleteHoliday(mh.id) : addHolidayDate(ds, (nat as string) || null); }}
-                                    title={mh ? (mh.note || t('holiday')) : nat ? `${nat} — ${t('click_to_add') || 'click to add'}` : (working ? t('working_day') : t('rest_day'))}
-                                    style={{
-                                        minHeight: 48, padding: '2px 4px', background: bg, cursor: canManage ? 'pointer' : 'default', overflow: 'hidden',
-                                        border: isToday ? '2px solid #0058e6' : '1px solid', borderColor: isToday ? '#0058e6' : (cls ? '#c8c4b8' : '#e6e6e6'),
-                                        fontFamily: cls ? xpFont : undefined, fontSize: 11,
-                                    }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ fontWeight: isToday ? 'bold' : 'normal' }}>{d}</span>
-                                        {nat && <i className="bi bi-star-fill" style={{ fontSize: 8, color: AMBER }} />}
-                                        {mh && <i className="bi bi-x-circle-fill" style={{ fontSize: 8, color: RED }} />}
-                                    </div>
-                                    {nat && <div style={{ fontSize: 8, color: AMBER, lineHeight: 1.05, maxHeight: 22, overflow: 'hidden' }}>{nat}</div>}
-                                    {mh && mh.note && !nat && <div style={{ fontSize: 8, color: RED, lineHeight: 1.05, maxHeight: 22, overflow: 'hidden' }}>{mh.note}</div>}
-                                </div>
-                            );
-                        }
-                        return (
-                            <div>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2, marginBottom: 2 }}>
-                                    {WEEKDAY_LABELS.map(h => <div key={h} style={{ textAlign: 'center', fontSize: 10, fontWeight: 'bold', color: '#666', fontFamily: cls ? xpFont : undefined }}>{h}</div>)}
-                                </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2 }}>{cells}</div>
-                            </div>
-                        );
-                    })()}
-
-                    {/* Legend + hint */}
-                    <div className="d-flex flex-wrap gap-3 mt-2" style={{ fontSize: 10, color: '#666', fontFamily: cls ? xpFont : undefined }}>
-                        {[['#fff', t('working_day')], [cls ? '#e6e3da' : '#eceef0', t('rest_day')], [cls ? '#ffe2b8' : '#ffe9c7', `★ ${t('national_holiday')}`], [cls ? '#f0cccc' : '#f8d7da', t('holiday')]].map(([c, label]: any) => (
-                            <span key={label} className="d-inline-flex align-items-center">
-                                <span style={{ display: 'inline-block', width: 11, height: 11, background: c, border: '1px solid #aaa', marginRight: 4 }} />{label}
-                            </span>
-                        ))}
-                    </div>
-                    <p className={cls ? '' : 'text-muted small mt-1'} style={cls ? { fontFamily: xpFont, fontSize: 10, color: '#777', marginTop: 4 } : undefined}>{t('calendar_click_hint')}</p>
-                    </FormSection>
+                    <WorkingDaysSection
+                        classic={cls}
+                        weekdays={weekdays}
+                        onToggleWeekday={toggleWeekday}
+                        canEdit={canManage}
+                        onSave={saveCalendar}
+                    />
+                    <HolidayCalendarSection
+                        classic={cls}
+                        month={calRef}
+                        onMonthChange={setCalRef}
+                        weekdays={weekdays}
+                        holidays={holidays}
+                        national={national}
+                        canEdit={canManage}
+                        onToggleDay={(ds, existing, nat) => {
+                            if (existing?.id) deleteHoliday(existing.id);
+                            else addHolidayDate(ds, nat || null);
+                        }}
+                        headerAction={canManage ? (
+                            <XPActionButton classic={cls} tone="neutral" icon="bi-download"
+                                label={`${t('import_id_holidays')} ${calRef.getFullYear()}`} onClick={importNational} />
+                        ) : undefined}
+                    />
                 </div>
             )}
 
