@@ -169,15 +169,13 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                 for (const id of Object.keys(map)) { if (prev[id]) next[id] = prev[id]; }
                 return next;
             });
-            // Dyeing: default-select ALL staged lots for multi-lot items — FIFO
-            // takes only what the run needs, so a wide default costs nothing and
-            // saves the operator ticking 30 bags. Still deselectable.
+            // Dyeing: start with NOTHING checked. A pre-ticked list reads as
+            // confirmed and gets logged as-is — the operator must positively pick
+            // the lots that physically went into the bath. "All" is one click away.
             setSelectedLots(prev => {
                 const next: Record<string, string[]> = {};
                 for (const id of Object.keys(map)) {
-                    if (isDyeingWO && map[id].length >= 2) {
-                        next[id] = prev[id]?.length ? prev[id] : map[id].map((b: any) => b.id);
-                    }
+                    if (isDyeingWO && map[id].length >= 2) next[id] = prev[id] || [];
                 }
                 return next;
             });
