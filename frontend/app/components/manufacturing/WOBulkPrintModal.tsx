@@ -6,6 +6,9 @@ import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
 import KartuKerjaTemplateCard from './KartuKerjaTemplateCard';
 import PrintModalShell from '../shared/PrintModalShell';
+import { resolveLayout } from '../shared/printTemplate/templateStore';
+import { docTypeForWorkCenter } from '../shared/printTemplate/defaults/kartuKerja';
+import { paperDimsMm, paperCssSize, paperSizeLabel } from '../shared/printTemplate/paper';
 
 interface PrintSettings {
     showMaterials: boolean;
@@ -68,6 +71,35 @@ export default function WOBulkPrintModal({
         document.body.classList.add(cls);
         return () => { document.body.classList.remove(cls); };
     }, [isSingle]);
+
+    // Sheet for the single-card path: whatever the WO's own Kartu Kerja template says,
+    // so a custom paper size configured in the print designer is what the printer is
+    // actually told to load. The 4-up path is deliberately excluded — that sheet is an
+    // A4 carrier holding four cards, not the card's own page.
+    const singlePaper = isSingle
+        ? resolveLayout(docTypeForWorkCenter(selectedWOs[0]?.work_center_type), printTemplates)?.paper
+        : undefined;
+    const { widthMm: sheetW, heightMm: sheetH } = paperDimsMm(singlePaper);
+    const sheetMargin = singlePaper?.marginMm ?? 6;
+    const sheetCss = paperCssSize(singlePaper);
+
+    // globals.css hardcodes `@page wostepcard` as A6/6mm — the factory default. This
+    // rule lands in <head> after that stylesheet, so document order lets the template's
+    // paper win without the static default having to know about templates at all.
+    useEffect(() => {
+        if (!isSingle) return;
+        const el = document.createElement('style');
+        el.setAttribute('data-wo-step-paper', '');
+        el.textContent = `@media print {
+  @page wostepcard { size: ${sheetCss}; margin: ${sheetMargin}mm; }
+  body.wo-step-print-active .wo-step-card,
+  body.wo-step-print-active .wo-print-paper-portal .wo-step-card {
+    min-height: ${Math.max(0, sheetH - sheetMargin * 2)}mm !important;
+  }
+}`;
+        document.head.appendChild(el);
+        return () => { el.remove(); };
+    }, [isSingle, sheetCss, sheetH, sheetMargin]);
 
     useEffect(() => {
         Promise.all(
@@ -158,16 +190,19 @@ export default function WOBulkPrintModal({
                                 />
                             </div>
                             <div style={{ fontSize: '10px', color: '#888', marginTop: 'auto', paddingTop: '8px', borderTop: '1px solid #dee2e6' }}>
-                                {isSingle ? 'One A6 card.' : '4 cards per A4.'} Materials show only lines assigned to each WO's routing step.
+                                {isSingle
+                                    ? `One ${paperSizeLabel(singlePaper)} card (${sheetW} x ${sheetH}mm).`
+                                    : '4 cards per A4.'} Materials show only lines assigned to each WO's routing step.
                             </div>
                         </div>
 
                         {/* Preview */}
                         {isSingle ? (
-                            /* Single WO — A6 portrait (105×148mm), same layout as the standalone
-                               single-card print, so one WO never wastes 3/4 of an A4 sheet. */
+                            /* Single WO — the template's own sheet at true size, page margin drawn
+                               as padding so the preview matches the printout millimetre for
+                               millimetre; one WO never wastes 3/4 of an A4 sheet. */
                             <div style={{ flex: 1, background: '#e0e0e0', overflowY: 'auto', padding: '16px', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
-                                <div className="wo-print-paper wo-step-card" style={{ background: '#fff', width: '378px', minHeight: '535px', padding: 0, boxShadow: '0 2px 10px rgba(0,0,0,0.25)', color: '#000', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
+                                <div className="wo-print-paper wo-step-card" style={{ background: '#fff', width: `${sheetW}mm`, minHeight: `${sheetH}mm`, padding: `${sheetMargin}mm`, boxShadow: '0 2px 10px rgba(0,0,0,0.25)', color: '#000', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
                                     <KartuKerjaTemplateCard
                                         workOrder={selectedWOs[0]}
                                         parentMO={manufacturingOrders.find(m => m.id === selectedWOs[0].mo_id)}

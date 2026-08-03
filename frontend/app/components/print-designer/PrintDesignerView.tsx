@@ -14,19 +14,13 @@ import { buildPrintContext } from '../shared/printTemplate/renderContext';
 import type { PrintLayout, Band } from '../shared/printTemplate/types';
 import { DOC_TYPE_LABELS, EDITABLE_DOC_TYPES, defaultLayout, resolveLayout, isCustomised } from '../shared/printTemplate/templateStore';
 import { docTypeForWorkCenter } from '../shared/printTemplate/defaults/kartuKerja';
+import { paperDimsMm, paperSizeLabel } from '../shared/printTemplate/paper';
 import InspectorPanel, { type Selection } from './InspectorPanel';
 import DesignerCanvas from './DesignerCanvas';
 import { SelectField } from './controls';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api')
     .replace(/\/api$/, '') + '/api';
-
-/** Paper dimensions in mm, portrait. */
-const PAPER_MM: Record<string, [number, number]> = {
-    A4: [210, 297],
-    A5: [148, 210],
-    A6: [105, 148],
-};
 
 const BAND_TYPE_LABEL: Record<string, string> = {
     grid: 'Grid',
@@ -298,10 +292,7 @@ export default function PrintDesignerView() {
         );
     }
 
-    const [wMm, hMm] = PAPER_MM[draft.paper.size] || PAPER_MM.A4;
-    const landscape = draft.paper.orientation === 'landscape';
-    const paperW = landscape ? hMm : wMm;
-    const paperH = landscape ? wMm : hMm;
+    const { widthMm: paperW, heightMm: paperH } = paperDimsMm(draft.paper);
 
     const customised = isCustomised(docType, printTemplates);
 
@@ -533,7 +524,7 @@ export default function PrintDesignerView() {
                                 color: '#fff', textAlign: 'center', marginBottom: 4,
                                 textShadow: '0 1px 2px rgba(0,0,0,0.5)',
                             }}>
-                                {draft.paper.size} {draft.paper.orientation} — {paperW} x {paperH}mm
+                                {paperSizeLabel(draft.paper)} {draft.paper.orientation} — {paperW} x {paperH}mm
                                 {draft.paper.marginMm ? ` (page margin ${draft.paper.marginMm}mm)` : ''}
                             </div>
                             {/* True-size sheet. The inner box is the printable area: the page

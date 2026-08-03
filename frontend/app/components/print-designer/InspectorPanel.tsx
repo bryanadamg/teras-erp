@@ -6,6 +6,7 @@ import type {
     TableBand, TallyBand, SignatureBand, SpacerBand, Align,
 } from '../shared/printTemplate/types';
 import { FIELD_MANIFESTS } from '../shared/printTemplate/fieldRegistry';
+import { paperPortraitMm, CUSTOM_MIN_MM, CUSTOM_MAX_MM } from '../shared/printTemplate/paper';
 import { rowSource } from '../shared/printTemplate/rowSources';
 import { xpFont } from '../shared/xpTheme';
 import { Row, TextField, NumberField, CheckField, SelectField, InspectorGroup, ListRowControls } from './controls';
@@ -89,10 +90,41 @@ export default function InspectorPanel({ layout, docType, selection, onChange, o
                                 { value: 'A4', label: 'A4 (210 x 297mm)' },
                                 { value: 'A5', label: 'A5 (148 x 210mm)' },
                                 { value: 'A6', label: 'A6 (105 x 148mm)' },
+                                { value: 'custom', label: 'Custom...' },
                             ]}
-                            onChange={v => { const n = clone(layout); n.paper.size = v as any; onChange(n); }}
+                            onChange={v => {
+                                const n = clone(layout);
+                                n.paper.size = v as any;
+                                // Seed the custom fields from whatever sheet was showing, so
+                                // picking Custom starts from the current page instead of blank
+                                // inputs that would render a collapsed sheet mid-edit.
+                                if (v === 'custom' && (!n.paper.widthMm || !n.paper.heightMm)) {
+                                    const [w, h] = paperPortraitMm(layout.paper);
+                                    n.paper.widthMm = w;
+                                    n.paper.heightMm = h;
+                                }
+                                onChange(n);
+                            }}
                         />
                     </Row>
+                    {layout.paper.size === 'custom' && (
+                        <>
+                            <Row label="Width" classic={classic} title="Portrait sheet width — orientation swaps it">
+                                <NumberField
+                                    classic={classic} suffix="mm" min={CUSTOM_MIN_MM} max={CUSTOM_MAX_MM}
+                                    value={layout.paper.widthMm ?? paperPortraitMm(layout.paper)[0]}
+                                    onChange={v => { const n = clone(layout); n.paper.widthMm = v; onChange(n); }}
+                                />
+                            </Row>
+                            <Row label="Height" classic={classic} title="Portrait sheet height — orientation swaps it">
+                                <NumberField
+                                    classic={classic} suffix="mm" min={CUSTOM_MIN_MM} max={CUSTOM_MAX_MM}
+                                    value={layout.paper.heightMm ?? paperPortraitMm(layout.paper)[1]}
+                                    onChange={v => { const n = clone(layout); n.paper.heightMm = v; onChange(n); }}
+                                />
+                            </Row>
+                        </>
+                    )}
                     <Row label="Orientation" classic={classic}>
                         <SelectField
                             classic={classic}

@@ -203,8 +203,18 @@ export type Band =
     | SignatureBand
     | SpacerBand;
 
+export type PaperSize = 'A4' | 'A5' | 'A6' | 'custom';
+
 export interface PaperSpec {
-    size: 'A4' | 'A5' | 'A6';
+    size: PaperSize;
+    /**
+     * `custom` only: the sheet as quoted in PORTRAIT, mm. `orientation` swaps them at
+     * render time, so flipping orientation never rewrites these. Ignored (but kept,
+     * so switching back to custom remembers them) for named sizes. Resolve both
+     * through `paper.ts` — never read these fields raw.
+     */
+    widthMm?: number;
+    heightMm?: number;
     orientation: 'portrait' | 'landscape';
     marginMm: number;
 }
