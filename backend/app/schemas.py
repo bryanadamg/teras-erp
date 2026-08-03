@@ -2371,13 +2371,30 @@ class PackingCompletionMaterialPayload(BaseModel):
     location_id: UUID | None = None
     batch_id: UUID | None = None
 
-class PackingCompletionCreate(BaseModel):
+class PackingCompletionLotPayload(BaseModel):
+    """One source lot drawn in a pack event, mirroring a WO staging line.
+
+    The lot pins the exact StockBalance row being packed, so the variant is
+    resolved from that row server-side rather than restated by the caller.
+    """
+    batch_id: UUID
     qty: float
+    # Cartons minted from this lot; omit to derive from the order's pack_size.
+    package_count: int | None = None
+
+class PackingCompletionCreate(BaseModel):
+    # qty/package_count describe the whole event and are ignored when `lots` is
+    # given — each lot carries its own. Defaults keep a lots-only payload valid.
+    qty: float = 0
     package_count: int = 1
     source_batch_id: UUID | None = None
+    # Multi-lot pack: one completion row is written per lot, so each keeps a
+    # truthful source_batch_id and its own carton range.
+    lots: list[PackingCompletionLotPayload] | None = None
     operator: str | None = None
     notes: str | None = None
     # Omit to fall back to the order's planned materials, pro-rated by qty.
+    # With `lots`, explicit materials attach to the first lot's completion.
     materials: list[PackingCompletionMaterialPayload] | None = None
 
 class PackingOrderMaterialResponse(BaseModel):

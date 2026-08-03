@@ -4,12 +4,13 @@ from sqlalchemy import select, func, cast, String, nulls_last, inspect as sa_ins
 from sqlalchemy.orm import selectinload
 from typing import Optional
 from datetime import datetime
+import math
 import uuid
 
 from app.db.session import get_async_db
 from app.schemas import (
     PackingOrderCreate, PackingOrderUpdate, PackingOrderResponse, PackingOrderListResponse,
-    PackingCompletionCreate, PackedUnitResponse,
+    PackingCompletionCreate, PackedUnitResponse, PackingCompletionLotPayload,
 )
 from app.models.packing import (
     PackingOrder, PackingOrderMaterial, PackingCompletion, PackingCompletionMaterial,
@@ -143,10 +144,6 @@ async def _set_attributes(db: AsyncSession, po: PackingOrder, ids: list) -> None
         return
     result = await db.execute(select(AttributeValue).filter(AttributeValue.id.in_(ids)))
     po.attribute_values = list(result.scalars().all())
-
-
-def _attr_ids(po: PackingOrder) -> list[str]:
-    return [str(v.id) for v in (po.attribute_values or [])]
 
 
 # --- packed units (cartons) ------------------------------------------------
@@ -453,6 +450,17 @@ async def add_packing_completion(
 ):
     """Log one pack event: consume bulk FG + packaging, mint cartons.
 
+    Two shapes of payload:
+
+    * ``lots`` — the normal path. One source lot per entry, exactly like a WO
+      staging line. **One `PackingCompletion` row is written per lot**, so each
+      keeps a truthful `source_batch_id` and its own carton range, and each lot's
+      variant is read off its own `StockBalance` row instead of the order stating
+      a variant that might disagree with the stock.
+    * ``qty`` + optional ``source_batch_id`` — the single-event path, used by the
+      mobile packing scanner and non-lot-tracked FG. The variant then comes from
+      the order, or is derived from the un-lotted stock at the source location.
+
     Note this never auto-closes the order when the target is reached — same rule
     as manufacturing orders, where closure is a deliberate act so a deliberately
     over-packed run is not blocked. `actual_end_date` is stamped on reaching
@@ -463,82 +471,121 @@ async def add_packing_completion(
         raise HTTPException(status_code=404, detail="Packing order not found")
     if po.status in ("COMPLETED", "CANCELLED"):
         raise HTTPException(status_code=400, detail=f"Cannot log against a {po.status} packing order")
-    if float(payload.qty or 0) <= 0:
-        raise HTTPException(status_code=400, detail="Quantity must be greater than zero")
-    if int(payload.package_count or 0) <= 0:
-        raise HTTPException(status_code=400, detail="Package count must be at least 1")
     if not po.source_location_id or not po.output_location_id:
         raise HTTPException(
             status_code=400,
             detail="Packing order needs both a source and an output location before packing",
         )
 
-    attr_ids = _attr_ids(po)
-    available = await stock_service.get_stock_balance(
-        db, po.item_id, po.source_location_id, attr_ids,
-        str(payload.source_batch_id) if payload.source_batch_id else "",
-        color_id=po.color_id,
-    )
-    if available + 1e-6 < float(payload.qty):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Insufficient stock at source — have {available}, need {float(payload.qty)}",
-        )
-
-    completion = PackingCompletion(
-        packing_order_id=po.id,
-        qty=payload.qty,
-        package_count=payload.package_count,
-        source_batch_id=payload.source_batch_id,
-        operator=payload.operator or current_user.username,
-        notes=payload.notes,
-        completed_at=datetime.utcnow(),
-    )
-    db.add(completion)
-    await db.flush()
-
-    # Packaging materials: explicit lines, else the plan pro-rated by this qty.
-    mat_payload = payload.materials
-    if mat_payload is None:
-        ratio = float(payload.qty) / float(po.qty_target or payload.qty or 1)
-        mats = [
-            PackingCompletionMaterial(
-                completion_id=completion.id,
-                item_id=m.item_id,
-                qty=round(float(m.qty_planned or 0) * ratio, 4),
-                location_id=m.location_id,
-            )
-            for m in (po.materials or [])
-            if float(m.qty_planned or 0) > 0
-        ]
+    lots = list(payload.lots or [])
+    if lots:
+        if any(float(l.qty or 0) <= 0 for l in lots):
+            raise HTTPException(status_code=400, detail="Every selected lot needs a quantity greater than zero")
     else:
-        mats = [
-            PackingCompletionMaterial(
-                completion_id=completion.id,
-                item_id=m.item_id,
-                qty=m.qty,
-                location_id=m.location_id,
-                batch_id=m.batch_id,
+        if float(payload.qty or 0) <= 0:
+            raise HTTPException(status_code=400, detail="Quantity must be greater than zero")
+        if int(payload.package_count or 0) <= 0:
+            raise HTTPException(status_code=400, detail="Package count must be at least 1")
+        # Fold the single-event path into the same loop so there is one code path
+        # minting cartons; batch_id stays None for non-lot-tracked FG.
+        lots = [PackingCompletionLotPayload(
+            batch_id=payload.source_batch_id,
+            qty=payload.qty,
+            package_count=payload.package_count,
+        )] if payload.source_batch_id else [None]
+
+    def _cartons(qty: float, stated: Optional[int]) -> int:
+        if stated:
+            return max(1, int(stated))
+        ps = float(po.pack_size or 0)
+        return max(1, math.ceil(qty / ps)) if ps > 0 else 1
+
+    completions: list[PackingCompletion] = []
+    all_mats: list[PackingCompletionMaterial] = []
+    for idx, lot in enumerate(lots):
+        lot_qty = float(lot.qty) if lot else float(payload.qty)
+        batch_id = lot.batch_id if lot else None
+        cartons = _cartons(lot_qty, lot.package_count if lot else payload.package_count)
+
+        try:
+            if batch_id:
+                attr_ids, color_id, available = await packing_service.resolve_lot_variant(db, po, batch_id)
+            else:
+                attr_ids, color_id = await packing_service.resolve_bulk_variant(db, po)
+                available = await stock_service.get_stock_balance(
+                    db, po.item_id, po.source_location_id, attr_ids, "", color_id=color_id,
+                )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        if available + 1e-6 < lot_qty:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Insufficient stock at source — have {available}, need {lot_qty}",
             )
-            for m in mat_payload
-        ]
-    for m in mats:
-        db.add(m)
-    await db.flush()
+
+        completion = PackingCompletion(
+            packing_order_id=po.id,
+            qty=lot_qty,
+            package_count=cartons,
+            source_batch_id=batch_id,
+            operator=payload.operator or current_user.username,
+            notes=payload.notes,
+            completed_at=datetime.utcnow(),
+        )
+        db.add(completion)
+        await db.flush()
+        completions.append(completion)
+
+        # Packaging materials: explicit lines (first lot only — they describe the
+        # whole submission), else the plan pro-rated by this lot's qty.
+        if payload.materials is not None:
+            mats = [
+                PackingCompletionMaterial(
+                    completion_id=completion.id,
+                    item_id=m.item_id,
+                    qty=m.qty,
+                    location_id=m.location_id,
+                    batch_id=m.batch_id,
+                )
+                for m in payload.materials
+            ] if idx == 0 else []
+        else:
+            ratio = lot_qty / float(po.qty_target or lot_qty or 1)
+            mats = [
+                PackingCompletionMaterial(
+                    completion_id=completion.id,
+                    item_id=m.item_id,
+                    qty=round(float(m.qty_planned or 0) * ratio, 4),
+                    location_id=m.location_id,
+                )
+                for m in (po.materials or [])
+                if float(m.qty_planned or 0) > 0
+            ]
+        for m in mats:
+            db.add(m)
+        await db.flush()
+        all_mats.extend(mats)
+
+        try:
+            await packing_service.mint_packed_units(
+                db, po, completion,
+                qty=lot_qty,
+                package_count=cartons,
+                attribute_value_ids=[str(a) for a in attr_ids],
+                color_id=color_id,
+                username=completion.operator,
+                source_batch_id=batch_id,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
     try:
-        await packing_service.mint_packed_units(
-            db, po, completion,
-            qty=float(payload.qty),
-            package_count=int(payload.package_count),
-            attribute_value_ids=attr_ids,
-            color_id=po.color_id,
-            username=completion.operator,
-            source_batch_id=payload.source_batch_id,
-        )
-        await packing_service.consume_packaging_materials(db, po, mats)
+        await packing_service.consume_packaging_materials(db, po, all_mats)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    total_qty = sum(float(c.qty) for c in completions)
+    total_cartons = sum(int(c.package_count) for c in completions)
 
     po = await _load(db, po_id)
     if po.status == "PENDING":
@@ -548,10 +595,11 @@ async def add_packing_completion(
         po.actual_end_date = datetime.utcnow()
     await db.commit()
 
+    lot_note = f" from {len(completions)} lots" if len(completions) > 1 else ""
     await audit_service.log_activity(
         db, user_id=current_user.id, action="PACK", entity_type="PackingOrder",
         entity_id=str(po_id),
-        details=f"Packed {float(payload.qty)} into {int(payload.package_count)} {po.package_label.lower()}(s) on {po.code}",
+        details=f"Packed {total_qty} into {total_cartons} {po.package_label.lower()}(s){lot_note} on {po.code}",
     )
     try:
         await kpi_service.invalidate_kpis_async(db)

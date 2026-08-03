@@ -50,6 +50,62 @@ def split_qty(total: float, count: int) -> list[float]:
     return parts
 
 
+async def resolve_lot_variant(db: AsyncSession, po: PackingOrder, batch_id) -> tuple[list, object, float]:
+    """Variant identity + available qty of one source lot at the order's source store.
+
+    The picked lot pins an exact `StockBalance` row, and that row's `variant_key`
+    already IS the variant the bulk FG is held under — so the variant is read back
+    off the stock rather than restated on the packing order. This is why the create
+    form asks for a lot instead of a variant: a hand-picked variant that disagreed
+    with the stock minted cartons into an empty pool while the real stock sat
+    untouched.
+    """
+    rows = (await db.execute(
+        select(StockBalance).filter(
+            StockBalance.item_id == po.item_id,
+            StockBalance.location_id == po.source_location_id,
+            StockBalance.batch_key == str(batch_id),
+            StockBalance.qty > 0,
+        ).order_by(StockBalance.qty.desc())
+    )).scalars().all()
+    if not rows:
+        raise ValueError("Lot has no stock at the packing order's source location")
+    # A lot is one physical thing, so one variant — take the largest row if a
+    # legacy split ever produced more than one.
+    attr_ids, color_id = stock_service._parse_variant_key(rows[0].variant_key)
+    return attr_ids, color_id, float(rows[0].qty)
+
+
+async def resolve_bulk_variant(db: AsyncSession, po: PackingOrder) -> tuple[list, object]:
+    """Variant for a pack event with no source lot (non-lot-tracked FG).
+
+    Prefers the order's own attribute values when it has them (SO-line inheritance
+    still sets these). Otherwise derives from the un-lotted stock at the source
+    location — unambiguous when only one variant is held there, which is the
+    normal case for a single FG item in a single bin.
+    """
+    if po.attribute_values or po.color_id:
+        return [str(v.id) for v in (po.attribute_values or [])], po.color_id
+    rows = (await db.execute(
+        select(StockBalance.variant_key, func.sum(StockBalance.qty))
+        .filter(
+            StockBalance.item_id == po.item_id,
+            StockBalance.location_id == po.source_location_id,
+            StockBalance.batch_key == "",
+            StockBalance.qty > 0,
+        )
+        .group_by(StockBalance.variant_key)
+    )).all()
+    if not rows:
+        return [], None
+    if len(rows) > 1:
+        raise ValueError(
+            "Several variants of this item are in stock at the source location — "
+            "select a lot so the variant is unambiguous"
+        )
+    return stock_service._parse_variant_key(rows[0][0])
+
+
 async def _next_package_no(db: AsyncSession, packing_order_id) -> int:
     """Carton numbering continues across the whole packing order, not per event."""
     result = await db.execute(

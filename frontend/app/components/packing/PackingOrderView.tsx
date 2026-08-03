@@ -16,6 +16,7 @@ import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
 import { useFinishedGoodsSearch } from '../shared/useFinishedGoodsSearch';
+import { LotChips, LotChip } from '../shared/LotChips';
 const PackingCardPrintModal = dynamic(() => import('./PackingCardPrintModal'), { ssr: false });
 const PackedUnitLabelPrintModal = dynamic(() => import('./PackedUnitLabelPrintModal'), { ssr: false });
 
@@ -39,7 +40,9 @@ const td: React.CSSProperties = lvTd(true);
 // This view is classic-only chrome (ShellWindow classic), so the shared form
 // primitives are always driven in their classic branch.
 const CLASSIC = true;
-const fieldRow: React.CSSProperties = { display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' };
+// Form rows use fixed grid columns rather than flex-wrap so fields land in the
+// same column on every row instead of reflowing to a ragged edge.
+const fieldGrid: React.CSSProperties = { display: 'grid', gap: '8px 14px', alignItems: 'start' };
 const hintText: React.CSSProperties = { fontFamily: xpFont, fontSize: 10, color: '#938c76', fontStyle: 'italic', marginTop: 6 };
 
 const num = (v: any) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
@@ -219,7 +222,6 @@ export default function PackingOrderView() {
             {creating && (
                 <PackingOrderForm
                     locPickerTreeOptions={locPickerTreeOptions}
-                    attributes={attributes}
                     authFetch={authFetch}
                     showToast={showToast}
                     onClose={() => setCreating(false)}
@@ -265,7 +267,7 @@ export default function PackingOrderView() {
 }
 
 // ── create form ──────────────────────────────────────────────────────────────
-function PackingOrderForm({ locPickerTreeOptions, attributes, authFetch, showToast, onClose, onCreated }: any) {
+function PackingOrderForm({ locPickerTreeOptions, authFetch, showToast, onClose, onCreated }: any) {
     const { results: fgResults, onSearch: fgSearch } = useFinishedGoodsSearch();
     const [itemId, setItemId] = useState('');
     const [qtyTarget, setQtyTarget] = useState('');
@@ -276,7 +278,6 @@ function PackingOrderForm({ locPickerTreeOptions, attributes, authFetch, showToa
     const [soId, setSoId] = useState('');
     const [soLineId, setSoLineId] = useState('');
     const [notes, setNotes] = useState('');
-    const [attrVals, setAttrVals] = useState<Record<string, string>>({});
     const [materials, setMaterials] = useState<any[]>([]);
     const [sos, setSos] = useState<any[]>([]);
     const [saving, setSaving] = useState(false);
@@ -325,7 +326,9 @@ function PackingOrderForm({ locPickerTreeOptions, attributes, authFetch, showToa
                 output_location_id: outputLoc || null,
                 sales_order_id: soId || null,
                 sales_order_line_id: soLineId || null,
-                attribute_value_ids: Object.values(attrVals).filter(Boolean),
+                // Variant is deliberately not sent: it is resolved from the source
+                // lot's own StockBalance row at pack time (the SO-line inheritance
+                // path on the server still fills it when packing to order).
                 notes: notes || null,
                 materials: materials
                     .filter(m => m.item_id && num(m.qty_planned) > 0)
@@ -351,8 +354,8 @@ function PackingOrderForm({ locPickerTreeOptions, attributes, authFetch, showToa
         >
             <div style={{ fontFamily: xpFont }}>
                 <FormSection title={<SectionTitle icon="bi-receipt">Demand</SectionTitle>} classic={CLASSIC}>
-                    <div style={fieldRow}>
-                        <div style={{ minWidth: 220, flex: 1 }}>
+                    <div style={{ ...fieldGrid, gridTemplateColumns: '1fr 1fr' }}>
+                        <div>
                             <FieldLabel classic={CLASSIC} hint="Leave empty to pack to stock">Sales Order</FieldLabel>
                             <select style={{ ...xpSelect, width: '100%' }} value={soId} onChange={e => { setSoId(e.target.value); setSoLineId(''); }}>
                                 <option value="">— pack to stock —</option>
@@ -360,8 +363,8 @@ function PackingOrderForm({ locPickerTreeOptions, attributes, authFetch, showToa
                             </select>
                         </div>
                         {soId && (
-                            <div style={{ minWidth: 240, flex: 1 }}>
-                                <FieldLabel classic={CLASSIC} hint="Fixes the item and variant being packed">Order line</FieldLabel>
+                            <div>
+                                <FieldLabel classic={CLASSIC} hint="Fixes the item being packed">Order line</FieldLabel>
                                 <select style={{ ...xpSelect, width: '100%' }} value={soLineId} onChange={e => applySoLine(e.target.value)}>
                                     <option value="">— select line —</option>
                                     {soLines.map((l: any) => (
@@ -377,55 +380,46 @@ function PackingOrderForm({ locPickerTreeOptions, attributes, authFetch, showToa
                 </FormSection>
 
                 <FormSection title={<SectionTitle icon="bi-box2">What to Pack</SectionTitle>} classic={CLASSIC}>
-                    <div style={fieldRow}>
-                        <div style={{ minWidth: 260, flex: 1 }}>
+                    {/* Fixed columns, and no per-field hints in this row: FieldLabel puts a
+                        hint between the label and the input, so hinting only one field of a
+                        row pushes that input a line below its neighbours. */}
+                    <div style={{ ...fieldGrid, gridTemplateColumns: 'minmax(200px, 1fr) 100px 100px 120px' }}>
+                        <div>
                             <FieldLabel classic={CLASSIC}>Finished good</FieldLabel>
                             <SearchableSelect options={fgOptions} value={itemId} onChange={setItemId} onSearch={fgSearch} placeholder="Search item..." size="sm" />
                         </div>
-                        <div style={{ width: 110 }}>
+                        <div>
                             <FieldLabel classic={CLASSIC}>Target qty</FieldLabel>
                             <input type="number" min={0} style={{ ...xpInput, width: '100%', textAlign: 'right' }} value={qtyTarget} onChange={e => setQtyTarget(e.target.value)} />
                         </div>
-                        <div style={{ width: 110 }}>
-                            <FieldLabel classic={CLASSIC} hint="Splits the target">Qty per carton</FieldLabel>
+                        <div>
+                            <FieldLabel classic={CLASSIC}>Qty per carton</FieldLabel>
                             <input type="number" min={0} style={{ ...xpInput, width: '100%', textAlign: 'right' }} value={packSize} onChange={e => setPackSize(e.target.value)} />
                         </div>
-                        <div style={{ width: 110 }}>
+                        <div>
                             <FieldLabel classic={CLASSIC}>Package type</FieldLabel>
                             <input style={{ ...xpInput, width: '100%' }} value={packageLabel} onChange={e => setPackageLabel(e.target.value)} placeholder="Carton" />
                         </div>
                     </div>
+                    <div style={hintText}>
+                        Qty per carton splits the target — leave it empty to decide the carton count per pack event.
+                    </div>
                 </FormSection>
 
-                {!soLineId && (
-                    <FormSection title={<SectionTitle icon="bi-palette">Variant</SectionTitle>} classic={CLASSIC}>
-                        <div style={fieldRow}>
-                            {(attributes || []).map((a: any) => (
-                                <div key={a.id} style={{ minWidth: 160 }}>
-                                    <FieldLabel classic={CLASSIC}>{a.name}</FieldLabel>
-                                    <select style={{ ...xpSelect, width: '100%' }} value={attrVals[a.id] || ''} onChange={e => setAttrVals(prev => ({ ...prev, [a.id]: e.target.value }))}>
-                                        <option value="">— any —</option>
-                                        {(a.values || []).map((v: any) => <option key={v.id} value={v.id}>{v.value}</option>)}
-                                    </select>
-                                </div>
-                            ))}
-                        </div>
-                        <div style={hintText}>
-                            Must match the variant the bulk stock is held under, or the source location will read as empty.
-                        </div>
-                    </FormSection>
-                )}
-
                 <FormSection title={<SectionTitle icon="bi-geo-alt">Locations</SectionTitle>} classic={CLASSIC}>
-                    <div style={fieldRow}>
-                        <div style={{ minWidth: 220, flex: 1 }}>
+                    <div style={{ ...fieldGrid, gridTemplateColumns: '1fr 1fr' }}>
+                        <div>
                             <FieldLabel classic={CLASSIC} hint="Bulk finished goods are drawn from here">Pack from</FieldLabel>
                             <TreeSelect options={locPickerTreeOptions} value={sourceLoc} onChange={setSourceLoc} allowEmpty emptyLabel="— select —" size="sm" style={{ width: '100%' }} />
                         </div>
-                        <div style={{ minWidth: 220, flex: 1 }}>
+                        <div>
                             <FieldLabel classic={CLASSIC} hint="Sealed cartons land here">Store cartons at</FieldLabel>
                             <TreeSelect options={locPickerTreeOptions} value={outputLoc} onChange={setOutputLoc} allowEmpty emptyLabel="— select —" size="sm" style={{ width: '100%' }} />
                         </div>
+                    </div>
+                    <div style={hintText}>
+                        The variant is not asked for here — the packer picks the source lots at pack time,
+                        and each lot&apos;s own stock row states its variant.
                     </div>
                 </FormSection>
 
@@ -528,49 +522,123 @@ function PackingOrderDetail({ po: initialPo, itemById, locPickerTreeOptions, aut
         const ps = num(po.pack_size);
         return ps > 0 && remaining > 0 ? String(Math.max(1, Math.ceil(remaining / ps))) : '1';
     });
-    const [sourceBatch, setSourceBatch] = useState('');
     const [operator, setOperator] = useState('');
     const [packNotes, setPackNotes] = useState('');
     const [lots, setLots] = useState<any[]>([]);
+    const [lotsLoading, setLotsLoading] = useState(false);
+    const [selectedLots, setSelectedLots] = useState<string[]>([]);
+    const [lotQty, setLotQty] = useState<Record<string, string>>({});
+    const [lotCartons, setLotCartons] = useState<Record<string, string>>({});
     const [logging, setLogging] = useState(false);
 
+    // The packer picks lots exactly as a stager picks material for a WO: the lot
+    // pins the StockBalance row being drawn, which is what makes the order's
+    // variant redundant — the server reads the variant back off that row.
+    // Scoping the fetch to the order's source location makes /batches drop lots
+    // with no stock there, so only packable lots are ever offered.
     useEffect(() => {
+        if (!it?.lot_tracked || !po.source_location_id) { setLots([]); return; }
+        let alive = true;
+        setLotsLoading(true);
         (async () => {
-            if (!it?.lot_tracked) return;
-            const res = await authFetch(`${API_BASE}/batches?item_id=${po.item_id}`);
-            if (res.ok) setLots(await res.json() || []);
+            try {
+                const res = await authFetch(
+                    `${API_BASE}/batches?item_id=${po.item_id}&location_id=${po.source_location_id}&limit=200&with_source_lots=true`
+                );
+                const list = res.ok ? (await res.json() || []) : [];
+                if (!alive) return;
+                setLots((list || []).filter((b: any) => (b.remaining ?? 0) > 0 && b.quality_status !== 'REJECTED'));
+            } finally {
+                if (alive) setLotsLoading(false);
+            }
         })();
-    }, [po.item_id, it?.lot_tracked, authFetch]);
+        return () => { alive = false; };
+    }, [po.item_id, po.source_location_id, it?.lot_tracked, authFetch, po.qty_packed]);
 
-    // Keep cartons and qty consistent with the order's pack size as the operator
-    // edits qty — the count is what mints carton rows, so a stale value silently
-    // produces the wrong number of physical labels.
+    const cartonsFor = useCallback((q: number) => {
+        const ps = num(po.pack_size);
+        return ps > 0 && q > 0 ? String(Math.max(1, Math.ceil(q / ps))) : '1';
+    }, [po.pack_size]);
+
+    const selectedQty = selectedLots.reduce((s, id) => s + num(lotQty[id]), 0);
+    const selectedCartons = selectedLots.reduce((s, id) => s + (parseInt(lotCartons[id] || '0', 10) || 0), 0);
+
+    // Checking a lot defaults its qty to whatever is still needed, capped by what
+    // the lot actually holds — so a full pack run is one click per lot.
+    const toggleLot = (b: any) => {
+        const id = String(b.id);
+        if (selectedLots.includes(id)) {
+            setSelectedLots(prev => prev.filter(x => x !== id));
+            return;
+        }
+        const stillNeeded = Math.max(0, remaining - selectedQty);
+        const q = Math.min(b.remaining ?? 0, stillNeeded > 0 ? stillNeeded : (b.remaining ?? 0));
+        setSelectedLots(prev => [...prev, id]);
+        setLotQty(prev => ({ ...prev, [id]: String(q) }));
+        setLotCartons(prev => ({ ...prev, [id]: cartonsFor(q) }));
+    };
+
+    // Cartons follow qty via pack_size — the count is what mints carton rows, so
+    // a stale value silently produces the wrong number of physical labels.
+    const setLotQtyAndCartons = (id: string, v: string) => {
+        setLotQty(prev => ({ ...prev, [id]: v }));
+        if (num(v) > 0) setLotCartons(prev => ({ ...prev, [id]: cartonsFor(num(v)) }));
+    };
+
     const onQtyChange = (v: string) => {
         setQty(v);
         const ps = num(po.pack_size);
         if (ps > 0 && num(v) > 0) setPackageCount(String(Math.max(1, Math.ceil(num(v) / ps))));
     };
 
+    const useLotPicker = !!it?.lot_tracked;
+
     const logPack = async () => {
-        if (num(qty) <= 0) { showToast('Enter a quantity to pack', 'warning'); return; }
-        if (num(packageCount) <= 0) { showToast('At least one carton is required', 'warning'); return; }
+        let body: any;
+        if (useLotPicker) {
+            if (!selectedLots.length) { showToast('Select the lots to pack from', 'warning'); return; }
+            const over = selectedLots.find(id => {
+                const b = lots.find((x: any) => String(x.id) === id);
+                return b && num(lotQty[id]) > (b.remaining ?? 0) + 1e-6;
+            });
+            if (over) {
+                const b = lots.find((x: any) => String(x.id) === over);
+                showToast(`${b?.batch_number} only has ${(b?.remaining ?? 0).toLocaleString()} left`, 'warning');
+                return;
+            }
+            if (selectedQty <= 0) { showToast('Enter a quantity for each selected lot', 'warning'); return; }
+            body = {
+                lots: selectedLots.map(id => ({
+                    batch_id: id,
+                    qty: num(lotQty[id]),
+                    package_count: parseInt(lotCartons[id] || '1', 10) || 1,
+                })),
+                operator: operator || null,
+                notes: packNotes || null,
+            };
+        } else {
+            if (num(qty) <= 0) { showToast('Enter a quantity to pack', 'warning'); return; }
+            if (num(packageCount) <= 0) { showToast('At least one carton is required', 'warning'); return; }
+            body = {
+                qty: num(qty),
+                package_count: parseInt(packageCount, 10),
+                operator: operator || null,
+                notes: packNotes || null,
+            };
+        }
         setLogging(true);
         try {
             const res = await authFetch(`${API_BASE}/packing/${po.id}/complete`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    qty: num(qty),
-                    package_count: parseInt(packageCount, 10),
-                    source_batch_id: sourceBatch || null,
-                    operator: operator || null,
-                    notes: packNotes || null,
-                }),
+                body: JSON.stringify(body),
             });
             if (res.ok) {
                 const fresh = await res.json();
+                const packed = useLotPicker ? selectedCartons : parseInt(packageCount, 10);
                 setPo(fresh);
                 setQty(''); setPackNotes('');
-                showToast(`${packageCount} ${po.package_label.toLowerCase()}(s) packed`, 'success');
+                setSelectedLots([]); setLotQty({}); setLotCartons({});
+                showToast(`${packed} ${po.package_label.toLowerCase()}(s) packed`, 'success');
                 await onChanged();
             } else {
                 const e = await res.json().catch(() => ({}));
@@ -616,25 +684,96 @@ function PackingOrderDetail({ po: initialPo, itemById, locPickerTreeOptions, aut
                 </FormSection>
 
                 {!readOnly && (
-                    <FormSection title={<SectionTitle icon="bi-box-seam">Log Packing</SectionTitle>} classic={CLASSIC}>
-                        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                            <div style={{ width: 110 }}>
-                                <FieldLabel classic={CLASSIC}>Qty packed</FieldLabel>
-                                <input type="number" min={0} style={{ ...xpInput, width: '100%', textAlign: 'right' }} value={qty} onChange={e => onQtyChange(e.target.value)} />
+                    <FormSection
+                        classic={CLASSIC}
+                        title={
+                            <SectionTitle
+                                icon="bi-box-seam"
+                                right={useLotPicker && selectedLots.length
+                                    ? `${selectedQty.toLocaleString()} ${po.item_uom || it?.uom || ''} · ${selectedCartons} ${po.package_label.toLowerCase()}(s) selected`
+                                    : undefined}
+                            >
+                                Log Packing
+                            </SectionTitle>
+                        }
+                    >
+                        {useLotPicker ? (
+                            <>
+                                <FieldLabel classic={CLASSIC} hint={`Pick the lots to draw from — ${remaining.toLocaleString()} still to pack`}>
+                                    Source lots
+                                </FieldLabel>
+                                {!po.source_location_id ? (
+                                    <div style={hintText}>Set a pack-from location on this order before packing.</div>
+                                ) : (
+                                    <div style={{ border: '1px solid #7f9db9', background: '#fff', maxHeight: 240, overflowY: 'auto' }}>
+                                        {lotsLoading && <div style={{ ...hintText, padding: '4px 6px', marginTop: 0 }}>Loading lots...</div>}
+                                        {!lotsLoading && lots.length === 0 && (
+                                            <div style={{ ...hintText, padding: '4px 6px', marginTop: 0 }}>
+                                                No lots of this item in stock at the pack-from location.
+                                            </div>
+                                        )}
+                                        {lots.map((b: any) => {
+                                            const id = String(b.id);
+                                            const checked = selectedLots.includes(id);
+                                            return (
+                                                <div key={id} style={{
+                                                    display: 'flex', alignItems: 'center', gap: 8,
+                                                    padding: '3px 6px', borderBottom: '1px solid #eceae2',
+                                                    background: checked ? '#e6f0ff' : 'transparent',
+                                                }}>
+                                                    <input type="checkbox" checked={checked} onChange={() => toggleLot(b)} />
+                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                                            <span style={{ fontFamily: 'monospace', fontWeight: 'bold', fontSize: 11 }}>{b.batch_number}</span>
+                                                            <LotChip tone="qty" title="Quantity remaining">{(b.remaining ?? 0).toLocaleString()}</LotChip>
+                                                            {b.location_name ? (
+                                                                <LotChip tone="location" title="Current location">
+                                                                    <i className="bi bi-geo-alt" />{b.location_name}
+                                                                </LotChip>
+                                                            ) : null}
+                                                        </div>
+                                                        <LotChips batch={b} showOrder />
+                                                    </div>
+                                                    <div style={{ width: 90 }}>
+                                                        <input
+                                                            type="number" min={0} step="any" disabled={!checked}
+                                                            placeholder="Qty"
+                                                            style={{ ...xpInput, width: '100%', textAlign: 'right' }}
+                                                            value={checked ? (lotQty[id] || '') : ''}
+                                                            onChange={e => setLotQtyAndCartons(id, e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div style={{ width: 70 }}>
+                                                        <input
+                                                            type="number" min={1} disabled={!checked}
+                                                            title={`${po.package_label}s from this lot`}
+                                                            style={{ ...xpInput, width: '100%', textAlign: 'right' }}
+                                                            value={checked ? (lotCartons[id] || '') : ''}
+                                                            onChange={e => setLotCartons(prev => ({ ...prev, [id]: e.target.value }))}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                                <div style={{ width: 110 }}>
+                                    <FieldLabel classic={CLASSIC}>Qty packed</FieldLabel>
+                                    <input type="number" min={0} style={{ ...xpInput, width: '100%', textAlign: 'right' }} value={qty} onChange={e => onQtyChange(e.target.value)} />
+                                </div>
+                                <div style={{ width: 100 }}>
+                                    <FieldLabel classic={CLASSIC}>{po.package_label}s</FieldLabel>
+                                    <input type="number" min={1} style={{ ...xpInput, width: '100%', textAlign: 'right' }} value={packageCount} onChange={e => setPackageCount(e.target.value)} />
+                                </div>
+                                <div style={{ fontSize: 10, color: '#938c76', fontStyle: 'italic', paddingBottom: 3 }}>
+                                    This item is not lot-tracked — the variant is taken from the stock at the pack-from location.
+                                </div>
                             </div>
-                            <div style={{ width: 100 }}>
-                                <FieldLabel classic={CLASSIC}>{po.package_label}s</FieldLabel>
-                                <input type="number" min={1} style={{ ...xpInput, width: '100%', textAlign: 'right' }} value={packageCount} onChange={e => setPackageCount(e.target.value)} />
-                            </div>
-                            <div style={{ width: 200 }}>
-                                <FieldLabel classic={CLASSIC}>Source lot</FieldLabel>
-                                {it?.lot_tracked ? (
-                                    <select style={{ ...xpSelect, width: '100%' }} value={sourceBatch} onChange={e => setSourceBatch(e.target.value)}>
-                                        <option value="">— select lot —</option>
-                                        {lots.map((b: any) => <option key={b.id} value={b.id}>{b.batch_number}{b.remaining != null ? ` (${b.remaining})` : ''}</option>)}
-                                    </select>
-                                ) : <span style={{ fontSize: 10, color: '#bbb' }}>not lot-tracked</span>}
-                            </div>
+                        )}
+                        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end', marginTop: 8 }}>
                             <div style={{ width: 150 }}>
                                 <FieldLabel classic={CLASSIC}>Operator</FieldLabel>
                                 <input style={{ ...xpInput, width: '100%' }} value={operator} onChange={e => setOperator(e.target.value)} />
@@ -646,7 +785,9 @@ function PackingOrderDetail({ po: initialPo, itemById, locPickerTreeOptions, aut
                             <button style={xpBtnGreen()} disabled={logging} onClick={logPack}>{logging ? 'Packing...' : 'Pack'}</button>
                         </div>
                         <div style={hintText}>
-                            Quantity is split evenly across the cartons; packaging materials are deducted pro-rata from the plan.
+                            Each lot is logged as its own pack event, so every carton keeps the lot it came from.
+                            Quantity is split evenly across that lot&apos;s cartons; packaging materials are deducted
+                            pro-rata from the plan.
                         </div>
                     </FormSection>
                 )}
