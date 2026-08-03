@@ -1474,6 +1474,12 @@ class SalesOrderLineResponse(SalesOrderLineCreate):
     labdip_status: str | None = None
     item_name: str | None = None
     item_code: str | None = None
+    # Derived fulfilment (so_fulfilment_service) — never stored on the line.
+    # `packed_available` is what decides whether the order can ship.
+    qty_made: float = 0
+    qty_packed: float = 0
+    qty_packed_available: float = 0
+    qty_dispatched: float = 0
 
     class Config:
         from_attributes = True

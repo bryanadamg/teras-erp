@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, delete as sa_delete
+from sqlalchemy import select, func, delete as sa_delete, update as sa_update
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.exc import IntegrityError
 from app.db.session import get_async_db
@@ -13,9 +13,10 @@ from app.models.manufacturing import ManufacturingOrder
 from app.models.work_order import WorkOrder
 from app.models.batch import Batch
 from app.models.stock_balance import StockBalance
+from app.models.packing import PackingOrder
 from app.api.auth import get_current_user, require_permission
 from app.models.auth import User
-from app.services import audit_service, kpi_service
+from app.services import audit_service, kpi_service, so_fulfilment_service
 from app.core.ws_manager import manager
 from typing import Optional
 from datetime import datetime
@@ -32,6 +33,25 @@ def _line_opts():
         selectinload(SalesOrder.lines).selectinload(SalesOrderLine.color),
         selectinload(SalesOrder.lines).selectinload(SalesOrderLine.labdip_item),
     )
+
+
+async def _populate_fulfilment(db: AsyncSession, orders: list) -> None:
+    """Attach derived fulfilment numbers to every line of these orders.
+
+    One batched aggregate for the whole set — see so_fulfilment_service. The
+    fields must be declared on SalesOrderLineResponse or response_model drops
+    them silently.
+    """
+    if not orders:
+        return
+    fulfilment = await so_fulfilment_service.fulfilment_map(db, [o.id for o in orders])
+    for so in orders:
+        for line in so.lines:
+            f = fulfilment.get(str(line.id)) or {}
+            line.qty_made = f.get("made", 0.0)
+            line.qty_packed = f.get("packed", 0.0)
+            line.qty_packed_available = f.get("packed_available", 0.0)
+            line.qty_dispatched = f.get("dispatched", 0.0)
 
 
 def _populate_line(line: SalesOrderLine) -> None:
@@ -109,6 +129,7 @@ async def create_sales_order(payload: SalesOrderCreate, db: AsyncSession = Depen
 
     for line in so_refreshed.lines:
         _populate_line(line)
+    await _populate_fulfilment(db, [so_refreshed])
 
     await audit_service.log_activity(
         db,
@@ -151,6 +172,7 @@ async def get_sales_orders(
     for so in orders:
         for line in so.lines:
             _populate_line(line)
+    await _populate_fulfilment(db, list(orders))
 
     return orders
 
@@ -169,6 +191,7 @@ async def get_sales_order(
         raise HTTPException(status_code=404, detail="Sales order not found")
     for line in so.lines:
         _populate_line(line)
+    await _populate_fulfilment(db, [so])
     return so
 
 @router.put("/{so_id}", response_model=SalesOrderResponse)
@@ -196,13 +219,39 @@ async def update_sales_order(so_id: uuid.UUID, payload: SalesOrderUpdate, db: As
         select(SalesOrderLine.id).where(SalesOrderLine.sales_order_id == so_id)
     )
     line_ids = line_ids_result.scalars().all()
+
+    # An edit rebuilds every line from scratch, and `packing_orders.sales_order_line_id`
+    # is ON DELETE SET NULL — so a plain edit would quietly orphan the packing links
+    # that decide whether this order is READY. Snapshot the links plus each old line's
+    # variant identity here, then re-point them onto the equivalent new line below.
+    old_identity = {}
+    pack_refs = []
     if line_ids:
+        old_identity = {
+            str(r[0]): (r[1], r[2], r[3], r[4])
+            for r in (
+                await db.execute(
+                    select(
+                        SalesOrderLine.id, SalesOrderLine.item_id, SalesOrderLine.bom_id,
+                        SalesOrderLine.bom_size_id, SalesOrderLine.color_id,
+                    ).where(SalesOrderLine.sales_order_id == so_id)
+                )
+            ).all()
+        }
+        pack_refs = (
+            await db.execute(
+                select(PackingOrder.id, PackingOrder.sales_order_line_id)
+                .where(PackingOrder.sales_order_line_id.in_(line_ids))
+            )
+        ).all()
+
         await db.execute(sa_delete(sales_order_line_values).where(
             sales_order_line_values.c.sales_order_line_id.in_(line_ids)
         ))
     await db.execute(sa_delete(SalesOrderLine).where(SalesOrderLine.sales_order_id == so_id))
     await db.flush()
 
+    new_lines = []
     for line in payload.lines:
         db_line = SalesOrderLine(
             sales_order_id=so.id,
@@ -225,8 +274,27 @@ async def update_sales_order(so_id: uuid.UUID, payload: SalesOrderUpdate, db: As
             attr_result = await db.execute(select(AttributeValue).filter(AttributeValue.id.in_(line.attribute_value_ids)))
             db_line.attribute_values = attr_result.scalars().all()
         db.add(db_line)
+        new_lines.append(db_line)
+
+    if pack_refs:
+        await db.flush()  # ids are assigned on INSERT, not on construction
+        new_by_identity = {}
+        for l in new_lines:
+            new_by_identity.setdefault((l.item_id, l.bom_id, l.bom_size_id, l.color_id), l.id)
+        for po_id, old_line_id in pack_refs:
+            new_id = new_by_identity.get(old_identity.get(str(old_line_id)))
+            if new_id:
+                await db.execute(
+                    sa_update(PackingOrder)
+                    .where(PackingOrder.id == po_id)
+                    .values(sales_order_line_id=new_id)
+                )
 
     await db.commit()
+
+    # Line qtys may have moved past (or back under) what is packed.
+    if await so_fulfilment_service.recompute_so_status(db, so_id):
+        await db.commit()
 
     final_result = await db.execute(
         select(SalesOrder)
@@ -237,6 +305,7 @@ async def update_sales_order(so_id: uuid.UUID, payload: SalesOrderUpdate, db: As
 
     for line in so_refreshed.lines:
         _populate_line(line)
+    await _populate_fulfilment(db, [so_refreshed])
 
     await audit_service.log_activity(
         db,
@@ -279,6 +348,7 @@ async def update_sales_order_status(so_id: uuid.UUID, status: str, db: AsyncSess
 
     for line in so.lines:
         _populate_line(line)
+    await _populate_fulfilment(db, [so])
 
     await audit_service.log_activity(
         db,

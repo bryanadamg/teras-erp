@@ -16,7 +16,9 @@ from app.models.batch import Batch
 from app.models.sales import SalesOrder, SalesOrderLine
 from app.api.auth import get_current_user, require_permission
 from app.models.auth import User
-from app.services import audit_service, kpi_service, stock_service, packing_service
+from app.services import (
+    audit_service, kpi_service, stock_service, packing_service, so_fulfilment_service,
+)
 from app.core.ws_manager import manager
 
 router = APIRouter(prefix="/pick-lists", tags=["pick-lists"])
@@ -519,24 +521,12 @@ async def dispatch_pick_list(
 
     # Recompute SO fulfilment: SENT when every line fully shipped, PARTIAL when
     # some (but not all) shipped. Leaves terminal/edited states untouched.
-    so_result = await db.execute(
-        select(SalesOrder).options(selectinload(SalesOrder.lines)).filter(SalesOrder.id == so_id)
-    )
-    so = so_result.scalars().first()
-    if so and so.status in ("PENDING", "READY", "PARTIAL"):
-        dispatched = await db.execute(
-            select(PickListLine.sales_order_line_id, func.coalesce(func.sum(PickListLine.qty_picked), 0))
-            .join(PickList, PickListLine.pick_list_id == PickList.id)
-            .filter(PickList.sales_order_id == so_id, PickList.status == "DISPATCHED")
-            .group_by(PickListLine.sales_order_line_id)
-        )
-        shipped_map = {str(sol_id): float(qty) for sol_id, qty in dispatched.all()}
-        fully = all(shipped_map.get(str(line.id), 0.0) >= float(line.qty) - 1e-6 for line in so.lines)
-        any_shipped = any(v > 1e-6 for v in shipped_map.values())
-        new_status = "SENT" if fully else ("PARTIAL" if any_shipped else so.status)
-        if new_status != so.status:
-            so.status = new_status
-            await db.commit()
+    if await so_fulfilment_service.recompute_so_status(db, so_id):
+        await db.commit()
+        try:
+            await manager.broadcast({"type": "SALES_ORDER_UPDATE", "id": str(so_id)})
+        except Exception:
+            pass
 
     await audit_service.log_activity(
         db, user_id=current_user.id, action="DISPATCH", entity_type="PickList",

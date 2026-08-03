@@ -23,7 +23,9 @@ from app.models.sales import SalesOrder, SalesOrderLine
 from app.models.stock_balance import StockBalance
 from app.api.auth import get_current_user, require_permission
 from app.models.auth import User
-from app.services import audit_service, kpi_service, stock_service, packing_service
+from app.services import (
+    audit_service, kpi_service, stock_service, packing_service, so_fulfilment_service,
+)
 from app.core.ws_manager import manager
 
 router = APIRouter(prefix="/packing", tags=["packing"])
@@ -594,6 +596,14 @@ async def add_packing_completion(
     if po.qty_packed + 1e-6 >= float(po.qty_target or 0) and not po.actual_end_date:
         po.actual_end_date = datetime.utcnow()
     await db.commit()
+
+    # Cartons now sit in stock against the SO line, which is what makes the order
+    # shippable — re-derive the SO status (PENDING -> READY when every line is
+    # covered). Packing to stock has no sales_order_id and is a no-op here.
+    if po.sales_order_id:
+        if await so_fulfilment_service.recompute_so_status(db, po.sales_order_id):
+            await db.commit()
+            await manager.broadcast({"type": "SALES_ORDER_UPDATE", "id": str(po.sales_order_id)})
 
     lot_note = f" from {len(completions)} lots" if len(completions) > 1 else ""
     await audit_service.log_activity(

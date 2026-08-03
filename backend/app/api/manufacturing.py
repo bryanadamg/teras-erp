@@ -10,9 +10,11 @@ from app.models.work_order import WorkOrder as WorkOrderModel
 from app.models.bom import BOM, BOMLine, BOMSize, BOMOperation
 from app.models.routing import Operation as OperationModel, WorkCenter
 from app.models.location import Location
-from app.models.sales import SalesOrder
 from app.models.color import Color
-from app.services import stock_service, audit_service, kpi_service, beam_service, mrp_service, work_center_service
+from app.services import (
+    stock_service, audit_service, kpi_service, beam_service, mrp_service,
+    work_center_service, so_fulfilment_service,
+)
 from app.services.netting_service import Availability, preview_mo
 from app.schemas import (
     ManufacturingOrderCreate, ManufacturingOrderResponse,
@@ -856,15 +858,20 @@ async def update_manufacturing_order_status(mo_id: str, status: str, db: AsyncSe
         mo.actual_end_date = datetime.utcnow()
 
         # Stock movement is owned by WO completions — no bulk deduct/credit here.
-        # Update Sales Order status if root MO
-        if mo.sales_order_id and mo.parent_mo_id is None:
-            res = await db.execute(select(SalesOrder).filter(SalesOrder.id == mo.sales_order_id))
-            so = res.scalars().first()
-            if so:
-                so.status = "READY"
-                await audit_service.log_activity(db, current_user.id, "STATUS_CHANGE", "SalesOrder", str(so.id), f"Ready by root MO {mo.code}")
 
     mo.status = status
+
+    # SO status is derived, never assigned here: finishing production does not make
+    # an order shippable — packed cartons in stock do. so_fulfilment_service owns
+    # every transition (see its module docstring).
+    if mo.sales_order_id and mo.parent_mo_id is None:
+        new_so_status = await so_fulfilment_service.recompute_so_status(db, mo.sales_order_id)
+        if new_so_status:
+            await audit_service.log_activity(
+                db, current_user.id, "STATUS_CHANGE", "SalesOrder", str(mo.sales_order_id),
+                f"{new_so_status} by root MO {mo.code}",
+            )
+
     await db.commit()
 
     await audit_service.log_activity(db, current_user.id, "UPDATE_STATUS", "ManufacturingOrder", mo_id, f"{previous_status} -> {status}")
@@ -1518,12 +1525,15 @@ async def add_mo_completion(
     if total_completed >= float(mo.qty) and mo.status not in ("DELIVERED", "COMPLETED"):
         mo.status = "DELIVERED"
         mo.actual_end_date = datetime.utcnow()
+        # No SO status write here — delivering production is not the same as being
+        # ready to ship. so_fulfilment_service derives that from packed cartons.
         if mo.sales_order_id and mo.parent_mo_id is None:
-            res = await db.execute(select(SalesOrder).filter(SalesOrder.id == mo.sales_order_id))
-            so = res.scalars().first()
-            if so:
-                so.status = "READY"
-                await audit_service.log_activity(db, current_user.id, "STATUS_CHANGE", "SalesOrder", str(so.id), f"Ready by root MO {mo.code}")
+            new_so_status = await so_fulfilment_service.recompute_so_status(db, mo.sales_order_id)
+            if new_so_status:
+                await audit_service.log_activity(
+                    db, current_user.id, "STATUS_CHANGE", "SalesOrder", str(mo.sales_order_id),
+                    f"{new_so_status} by root MO {mo.code}",
+                )
 
     # Auto-complete WO if cumulative logged qty reaches WO target
     if wo and wo.qty:
@@ -1741,10 +1751,7 @@ async def complete_manufacturing_order_with_batches(
     mo.actual_end_date = datetime.utcnow()
 
     if mo.sales_order_id and mo.parent_mo_id is None:
-        res = await db.execute(select(SalesOrder).filter(SalesOrder.id == mo.sales_order_id))
-        so = res.scalars().first()
-        if so:
-            so.status = "READY"
+        await so_fulfilment_service.recompute_so_status(db, mo.sales_order_id)
 
     await db.commit()
     await audit_service.log_activity(db, current_user.id, "COMPLETE", "ManufacturingOrder", mo_id, f"Completed with batch tracking")

@@ -460,6 +460,36 @@ def backfill_item_variant_type(db):
         logger.warning(f"Item variant_type backfill skipped: {e}")
 
 
+def recompute_sales_order_statuses():
+    """Repair pass for derived SO status, in the spirit of sync_stock_balances().
+
+    SO status used to be written directly ("READY" as soon as the first root MO
+    delivered). It is now derived from packed cartons in stock by
+    so_fulfilment_service, so rows written under the old rule can sit at a READY
+    they no longer satisfy. Re-deriving on boot keeps the list honest instead of
+    leaving stale values to flip at some unrelated later event.
+
+    Runs in its own event loop: init_db is a sync script executed as a separate
+    process before uvicorn, so there is no loop to clash with, and reusing the
+    async service avoids a second copy of the derivation rules.
+    """
+    try:
+        import asyncio
+        from app.core.db_manager import db_manager
+        from app.services import so_fulfilment_service
+
+        async def _run():
+            async for session in db_manager.get_async_session():
+                return await so_fulfilment_service.recompute_all(session)
+            return 0
+
+        changed = asyncio.run(_run()) or 0
+        if changed:
+            logger.info(f"Recomputed fulfilment status on {changed} sales orders")
+    except Exception as e:
+        logger.warning(f"Sales order status recompute skipped: {e}")
+
+
 def init_db() -> None:
     logger.info("Initializing Database...")
     ensure_static_dirs()
@@ -480,6 +510,9 @@ def init_db() -> None:
         sync_stock_balances(db)
     finally:
         db.close()
+
+    # After stock balances are rebuilt — packed-carton availability reads them.
+    recompute_sales_order_statuses()
 
     logger.info("Database initialization complete.")
 

@@ -781,8 +781,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 }
                 liveSubsRef.current.forEach(fn => { try { fn('bom'); } catch {} });
             }
+            if (kinds.has('sales')) {
+                // SO status is derived from packing/dispatch events that happen on
+                // other pages (and other people's devices), so an SO row can change
+                // while nobody touched this list. Route-aware like the rest.
+                if (path.startsWith('/sales-orders')) fetchDataRef.current('sales-orders');
+                liveSubsRef.current.forEach(fn => { try { fn('sales'); } catch {} });
+            }
         };
-        const queueLive = (kind: 'production' | 'kpi' | 'stock' | 'weaving' | 'bom', code?: string, status?: string) => {
+        const queueLive = (kind: 'production' | 'kpi' | 'stock' | 'weaving' | 'bom' | 'sales', code?: string, status?: string) => {
             pending.kinds.add(kind);
             if (code) pending.codes.set(code, status || '');
             if (!flushTimer) flushTimer = setTimeout(flushLive, 800);
@@ -835,6 +842,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                             break;
                         case 'BOM_UPDATE':
                             queueLive('bom');
+                            break;
+                        case 'SALES_ORDER_UPDATE':
+                            queueLive('sales');
                             break;
                         case 'weaving_run':
                             queueLive('weaving');
