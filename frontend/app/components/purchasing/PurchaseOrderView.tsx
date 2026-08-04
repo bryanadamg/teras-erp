@@ -17,7 +17,7 @@ import Pager from '../shared/Pager';
 
 const PO_PAGE_SIZE = 50;
 
-export default function PurchaseOrderView({ items, attributes, purchaseOrders, partners, locations, onCreatePO, onEditPO, onDeletePO, onCreateReceipt, onClosePO, companyProfile }: any) {
+export default function PurchaseOrderView({ items, itemResults, onSearchItems, attributes, purchaseOrders, partners, locations, onCreatePO, onEditPO, onDeletePO, onCreateReceipt, onClosePO, companyProfile }: any) {
   const { showToast } = useToast();
   const { t } = useLanguage();
   const { itemIndex, loading: dataLoading } = useData();
@@ -339,9 +339,26 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
       }
   };
 
-  const getItemName = (id: string) => items.find((i: any) => i.id === id)?.name || itemIndex?.[String(id)]?.name || id;
-  const getItemCode = (id: string) => items.find((i: any) => i.id === id)?.code || itemIndex?.[String(id)]?.code || id;
-  const getItem = (id: string) => items.find((i: any) => i.id === id);
+  // The item picker is a server-side, purchasing-scoped typeahead (itemResults +
+  // onSearchItems), so it scales past any client-side cap and doesn't depend on
+  // whatever the shared /items page happens to have cached from other tabs.
+  // Accumulate every item seen (the context page plus each search page) into a
+  // cache so already-added lines and edit-mode lines keep resolving their
+  // name/code/uom/category even after they scroll out of the current search page.
+  const [itemCache, setItemCache] = useState<Record<string, any>>({});
+  useEffect(() => {
+      const merge = (arr: any[]) => {
+          if (!arr?.length) return;
+          setItemCache(prev => { const n = { ...prev }; for (const it of arr) n[it.id] = it; return n; });
+      };
+      merge(items); merge(itemResults);
+  }, [items, itemResults]);
+  const resolveItem = (id: string) =>
+      itemCache[id] || (items || []).find((i: any) => i.id === id) || (itemResults || []).find((i: any) => i.id === id);
+
+  const getItemName = (id: string) => resolveItem(id)?.name || itemIndex?.[String(id)]?.name || id;
+  const getItemCode = (id: string) => resolveItem(id)?.code || itemIndex?.[String(id)]?.code || id;
+  const getItem = (id: string) => resolveItem(id);
   const getItemUom = (id: string) => getItem(id)?.uom || '';
   // Classify by seeded system categories: "Raw Material", "Chemical", "Dye"
   const getItemCatType = (id: string): 'raw' | 'chemical' | 'dye' | null => {
@@ -357,7 +374,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
   };
 
   const getBoundAttributes = (itemId: string) => {
-      const item = items.find((i: any) => i.id === itemId);
+      const item = resolveItem(itemId);
       if (!item || !item.attribute_ids) return [];
       return attributes.filter((a: any) => item.attribute_ids.includes(a.id));
   };
@@ -573,7 +590,7 @@ export default function PurchaseOrderView({ items, attributes, purchaseOrders, p
                    <div className="row g-2 mb-2">
                        <div className="col-4">
                            <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted mb-1'}>Item</label>
-                           <SearchableSelect options={items.map((item: any) => ({ value: item.id, label: item.name, subLabel: item.code }))} value={newLine.item_id} onChange={(val) => setNewLine({...newLine, item_id: val, attribute_value_ids: []})} placeholder="Select Item…" />
+                           <SearchableSelect options={(itemResults || []).map((item: any) => ({ value: item.id, label: item.name, subLabel: item.code }))} value={newLine.item_id} onChange={(val) => setNewLine({...newLine, item_id: val, attribute_value_ids: []})} onSearch={onSearchItems} placeholder="Select Item…" />
                        </div>
                        <div className="col-2">
                            <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted mb-1'}>Qty</label>

@@ -110,6 +110,7 @@ async def get_items_api(
     category_id: uuid.UUID | None = None,
     finished_goods: bool = False,
     raw_materials: bool = False,
+    purchasable: bool = False,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -126,7 +127,19 @@ async def get_items_api(
             return {"items": [], "total": 0, "page": 1, "size": 0}
         category_id = scope_cat.id
 
-    items, total = await item_service.get_items(db, skip=skip, limit=limit, user=current_user, search=search, category_id=category_id)
+    category_ids = None
+    if purchasable and category_id is None:
+        # PO lines can be Raw Material, Chemical, or Dye — three sibling root
+        # categories, so this unions all three rather than picking one subtree.
+        scoped = await db.execute(
+            select(Category).filter(Category.name.in_(["Raw Material", "Chemical", "Dye"]))
+        )
+        scope_cats = scoped.scalars().all()
+        if not scope_cats:
+            return {"items": [], "total": 0, "page": 1, "size": 0}
+        category_ids = [c.id for c in scope_cats]
+
+    items, total = await item_service.get_items(db, skip=skip, limit=limit, user=current_user, search=search, category_id=category_id, category_ids=category_ids)
     for item in items:
         _populate_source_info(item)
 

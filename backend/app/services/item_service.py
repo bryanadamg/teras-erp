@@ -168,6 +168,7 @@ async def get_items(
     user=None,
     search: str = None,
     category_id: uuid.UUID | None = None,
+    category_ids: list[uuid.UUID] | None = None,
 ) -> tuple[list[Item], int]:
     query = select(Item)
 
@@ -179,6 +180,13 @@ async def get_items(
 
     if category_id:
         ids = await get_descendant_category_ids(db, category_id)
+        query = query.filter(Item.category_id.in_(ids))
+    elif category_ids:
+        # Union of several root categories' subtrees (e.g. Raw Material + Chemical +
+        # Dye for the purchasing scope) — the roots are siblings, not one subtree.
+        ids: list[uuid.UUID] = []
+        for cid in category_ids:
+            ids.extend(await get_descendant_category_ids(db, cid))
         query = query.filter(Item.category_id.in_(ids))
 
     count_query = select(func.count()).select_from(query.subquery())

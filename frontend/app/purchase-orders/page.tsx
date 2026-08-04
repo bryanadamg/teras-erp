@@ -4,9 +4,11 @@ import PurchaseOrderView from '../components/purchasing/PurchaseOrderView';
 import { useData } from '../context/DataContext';
 import { useToast } from '../components/shared/Toast';
 import { useConfirm } from '../context/ConfirmContext';
+import { usePurchasableItemSearch } from '../components/shared/usePurchasableItemSearch';
 
 export default function PurchaseOrdersPage() {
     const { items, attributes, purchaseOrders, partners, locations, companyProfile, refreshPurchaseOrders, authFetch } = useData();
+    const { results: itemResults, onSearch: onSearchItems } = usePurchasableItemSearch();
     const { showToast } = useToast();
     const { confirm } = useConfirm();
     const envBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
@@ -85,6 +87,8 @@ export default function PurchaseOrdersPage() {
     return (
             <PurchaseOrderView
                 items={items}
+                itemResults={itemResults}
+                onSearchItems={onSearchItems}
                 attributes={attributes}
                 purchaseOrders={purchaseOrders}
                 partners={partners}
