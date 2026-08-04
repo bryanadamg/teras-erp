@@ -11,7 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
-import { useSortable, SortMark, StatusChip, XPLoading, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu } from '../shared/xpTheme';
+import { useSortable, SortMark, StatusChip, XPLoading, ProgressBar, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase } from '../shared/xpTheme';
 import { xpBevel as sharedXpBevel, xpTitleBar as sharedXpTitleBar, xpToolbar as sharedXpToolbar } from '../shared/shellTheme';
 import Pager from '../shared/Pager';
 
@@ -110,30 +110,10 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
   const xpTitleBar: React.CSSProperties = sharedXpTitleBar({ flexWrap: 'wrap' as const, gap: '4px' });
   const xpToolbar: React.CSSProperties = sharedXpToolbar();
 
-  const xpBtn = (extra: React.CSSProperties = {}): React.CSSProperties => ({
-      fontFamily: 'Tahoma, Arial, sans-serif',
-      fontSize: '11px',
-      padding: '2px 10px',
-      cursor: 'pointer',
-      background: 'linear-gradient(to bottom, #ffffff 0%, #d4d0c8 100%)',
-      border: '1px solid',
-      borderColor: '#dfdfdf #808080 #808080 #dfdfdf',
-      color: '#000000',
-      borderRadius: 0,
-      ...extra,
-  });
-
-  const xpInput: React.CSSProperties = {
-      fontFamily: 'Tahoma, Arial, sans-serif',
-      fontSize: '11px',
-      border: '1px solid #7f9db9',
-      boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)',
-      padding: '1px 6px',
-      background: '#ffffff',
-      color: '#000000',
-      height: '20px',
-      outline: 'none',
-  };
+  // Local wrapper keeps this form's inset-shadow input treatment while sourcing
+  // the base style from the shared xpTheme factory (was a hand-duplicated object).
+  const xpInput = (extra: React.CSSProperties = {}): React.CSSProperties =>
+      xpInputBase({ boxShadow: 'inset 1px 1px 0 rgba(0,0,0,0.1)', ...extra });
 
   const xpSep: React.CSSProperties = {
       width: '1px',
@@ -177,10 +157,6 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
   const poLineThXp: React.CSSProperties = { padding: '2px 8px', fontSize: '10px', fontWeight: 'bold', color: '#1a3d6b', background: '#e4e0d4', borderBottom: '1px solid #b0a898', textAlign: 'left' as const };
   const poLineTdXp: React.CSSProperties = { padding: '2px 8px', fontSize: '10px', color: '#333', borderTop: '1px solid #e6e3da' };
 
-  // Shared label style for create-form fields (classic = XP look)
-  const lblStyle: React.CSSProperties | undefined = classic ? { fontFamily: 'Tahoma,Arial,sans-serif', fontSize: '11px', color: '#000', display: 'block', marginBottom: 2 } : undefined;
-  const lblCls = classic ? '' : 'form-label small text-muted';
-
   const freshPO = () => ({
       po_number: '',
       supplier_id: '',
@@ -200,6 +176,10 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
   });
 
   const [newPO, setNewPO] = useState(freshPO);
+  // VAT is optional — the checkbox gates whether vat_percent is sent at all
+  // (null = no VAT line) rather than clearing the % field, so re-checking it
+  // restores whatever rate was last entered instead of resetting to a default.
+  const [vatEnabled, setVatEnabled] = useState(true);
 
   const [newLine, setNewLine] = useState({ item_id: '', qty: 0, unit_price: '' as number | '', due_date: '', attribute_value_ids: [] as string[] });
 
@@ -296,10 +276,11 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
               attribute_value_ids: l.attribute_value_ids || [],
           })),
       });
+      setVatEnabled(po.vat_percent != null);
       setIsCreateOpen(true);
   };
 
-  const closeModal = () => { setIsCreateOpen(false); setEditingPOId(null); setNewPO(freshPO()); };
+  const closeModal = () => { setIsCreateOpen(false); setEditingPOId(null); setNewPO(freshPO()); setVatEnabled(true); };
 
   const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
@@ -308,7 +289,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
           supplier_id: newPO.supplier_id || null,
           target_location_id: newPO.target_location_id || null,
           order_date: newPO.order_date || null,
-          vat_percent: Number(newPO.vat_percent) || 0,
+          vat_percent: vatEnabled ? (Number(newPO.vat_percent) || 0) : null,
           discount: Number(newPO.discount) || 0,
           lines: newPO.lines.map((line: any) => ({
               ...line,
@@ -504,105 +485,101 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
            )}
        >
            <form onSubmit={handleSubmit} id="create-po-form">
-               <div className="row g-3 mb-3">
-                   <div className="col-md-4">
-                       <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:2}:undefined} className={classic?'':'form-label d-flex justify-content-between align-items-center small text-muted'}>
-                           PO Number
-                           <i className="bi bi-gear-fill" style={{cursor:'pointer',color:classic?'#555':'',fontSize:classic?'11px':''}} onClick={() => setIsConfigOpen(true)} title="Configure Auto-Suggestion"></i>
-                       </label>
-                       <input className="form-control" style={classic?xpInput:undefined} placeholder="Auto-generated" value={newPO.po_number} onChange={e => setNewPO({...newPO, po_number: e.target.value})} required />
+               <FormSection title="① Order Details" classic={classic}>
+                   <div className="row g-3">
+                       <div className="col-md-4">
+                           <FieldLabel classic={classic} right={<i className="bi bi-gear-fill" style={{cursor:'pointer',color:classic?'#555':'',fontSize:classic?'11px':''}} onClick={() => setIsConfigOpen(true)} title="Configure Auto-Suggestion"></i>}>PO Number</FieldLabel>
+                           <input className="form-control" style={classic?xpInput():undefined} placeholder="Auto-generated" value={newPO.po_number} onChange={e => setNewPO({...newPO, po_number: e.target.value})} required />
+                       </div>
+                       <div className="col-md-5">
+                           <FieldLabel classic={classic}>Supplier</FieldLabel>
+                           <SearchableSelect options={suppliers.map((c: any) => ({ value: c.id, label: c.name, subLabel: c.address }))} value={newPO.supplier_id} onChange={(val) => setNewPO({...newPO, supplier_id: val})} placeholder="Select Supplier…" required />
+                       </div>
+                       <div className="col-md-3">
+                           <FieldLabel classic={classic}>Date</FieldLabel>
+                           <input type="date" className="form-control" style={classic?xpInput({width:'100%',height:'22px'}):undefined} value={newPO.order_date} onChange={e => setNewPO({...newPO, order_date: e.target.value})} required />
+                       </div>
+                       <div className="col-md-12">
+                           <FieldLabel classic={classic}>Receiving Warehouse</FieldLabel>
+                           <TreeSelect options={locPickerTreeOptions} value={newPO.target_location_id} onChange={(val) => setNewPO({...newPO, target_location_id: val})} placeholder="Select receiving location…" size="sm" style={{ width: '100%' }} />
+                       </div>
                    </div>
-                   <div className="col-md-5">
-                       <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Supplier</label>
-                       <SearchableSelect options={suppliers.map((c: any) => ({ value: c.id, label: c.name, subLabel: c.address }))} value={newPO.supplier_id} onChange={(val) => setNewPO({...newPO, supplier_id: val})} placeholder="Select Supplier…" required />
-                   </div>
-                   <div className="col-md-3">
-                       <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Date</label>
-                       <input type="date" className="form-control" style={classic?{...xpInput,width:'100%',height:'22px'}:undefined} value={newPO.order_date} onChange={e => setNewPO({...newPO, order_date: e.target.value})} required />
-                   </div>
-                   <div className="col-md-12">
-                       <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Receiving Warehouse</label>
-                       <TreeSelect options={locPickerTreeOptions} value={newPO.target_location_id} onChange={(val) => setNewPO({...newPO, target_location_id: val})} placeholder="Select receiving location…" size="sm" style={{ width: '100%' }} />
-                   </div>
-               </div>
+               </FormSection>
 
                {/* ── PO Document Details (rendered on the printed PO) ── */}
-               {classic
-                   ? <div style={{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',fontWeight:'bold',color:'#444',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:4,paddingBottom:2,borderBottom:'1px solid #c0bdb5'}}>Document Details</div>
-                   : <h6 className="small text-uppercase text-muted fw-bold mb-2">Document Details</h6>
-               }
-               <div style={{background:classic?'#f5f4ef':'rgba(0,0,0,0.02)',border:classic?'1px solid #b0a898':'1px solid #dee2e6',padding:classic?'6px 8px':'12px',marginBottom:classic?6:12}}>
+               <FormSection title="② Document Details" classic={classic}>
                    <div className="row g-2">
                        <div className="col-md-4">
-                           <label style={lblStyle} className={lblCls}>SSN</label>
-                           <input className="form-control" style={classic?xpInput:undefined} placeholder="e.g. BI 084/KMK/26/06/09" value={newPO.ssn} onChange={e => setNewPO({...newPO, ssn: e.target.value})} />
+                           <FieldLabel classic={classic}>SSN</FieldLabel>
+                           <input className="form-control" style={classic?xpInput():undefined} placeholder="e.g. BI 084/KMK/26/06/09" value={newPO.ssn} onChange={e => setNewPO({...newPO, ssn: e.target.value})} />
                        </div>
                        <div className="col-md-4">
-                           <label style={lblStyle} className={lblCls}>Rate Variant</label>
-                           <select className="form-select form-select-sm" style={classic?{...xpInput,height:'22px',borderRadius:0,width:'100%'}:undefined} value={newPO.rate_mode} onChange={e => setNewPO({...newPO, rate_mode: e.target.value})}>
+                           <FieldLabel classic={classic}>Rate Variant</FieldLabel>
+                           <select className="form-select form-select-sm" style={classic?xpInput({height:'22px',borderRadius:0,width:'100%'}):undefined} value={newPO.rate_mode} onChange={e => setNewPO({...newPO, rate_mode: e.target.value})}>
                                <option value="kurs_pajak">Kurs Pajak</option>
                                <option value="ktbi">KTBI</option>
                            </select>
                        </div>
                        {newPO.rate_mode === 'ktbi' ? (
                            <div className="col-md-4">
-                               <label style={lblStyle} className={lblCls}>KTBI</label>
-                               <input className="form-control" style={classic?xpInput:undefined} placeholder="e.g. KTBI value" value={newPO.ktbi} onChange={e => setNewPO({...newPO, ktbi: e.target.value})} />
+                               <FieldLabel classic={classic}>KTBI</FieldLabel>
+                               <input className="form-control" style={classic?xpInput():undefined} placeholder="e.g. KTBI value" value={newPO.ktbi} onChange={e => setNewPO({...newPO, ktbi: e.target.value})} />
                            </div>
                        ) : (
                            <div className="col-md-4">
-                               <label style={lblStyle} className={lblCls}>Kurs Pajak</label>
-                               <input className="form-control" style={classic?xpInput:undefined} placeholder="e.g. Rp 17.805 (09.06.26)" value={newPO.kurs_pajak} onChange={e => setNewPO({...newPO, kurs_pajak: e.target.value})} />
+                               <FieldLabel classic={classic}>Kurs Pajak</FieldLabel>
+                               <input className="form-control" style={classic?xpInput():undefined} placeholder="e.g. Rp 17.805 (09.06.26)" value={newPO.kurs_pajak} onChange={e => setNewPO({...newPO, kurs_pajak: e.target.value})} />
                            </div>
                        )}
                        <div className="col-md-4">
-                           <label style={lblStyle} className={lblCls}>Code</label>
-                           <input className="form-control" style={classic?xpInput:undefined} value={newPO.code} onChange={e => setNewPO({...newPO, code: e.target.value})} />
+                           <FieldLabel classic={classic}>Code</FieldLabel>
+                           <input className="form-control" style={classic?xpInput():undefined} value={newPO.code} onChange={e => setNewPO({...newPO, code: e.target.value})} />
                        </div>
                        <div className="col-md-4">
-                           <label style={lblStyle} className={lblCls}>Payment</label>
-                           <input className="form-control" style={classic?xpInput:undefined} placeholder="e.g. Net 45 days" value={newPO.payment_term} onChange={e => setNewPO({...newPO, payment_term: e.target.value})} />
+                           <FieldLabel classic={classic}>Payment</FieldLabel>
+                           <input className="form-control" style={classic?xpInput():undefined} placeholder="e.g. Net 45 days" value={newPO.payment_term} onChange={e => setNewPO({...newPO, payment_term: e.target.value})} />
                        </div>
                        <div className="col-md-4">
-                           <label style={lblStyle} className={lblCls}>Category</label>
-                           <input className="form-control" style={classic?xpInput:undefined} placeholder="e.g. dsc" value={newPO.category} onChange={e => setNewPO({...newPO, category: e.target.value})} />
+                           <FieldLabel classic={classic}>Category</FieldLabel>
+                           <input className="form-control" style={classic?xpInput():undefined} placeholder="e.g. dsc" value={newPO.category} onChange={e => setNewPO({...newPO, category: e.target.value})} />
                        </div>
                        <div className="col-md-3">
-                           <label style={lblStyle} className={lblCls}>VAT %</label>
-                           <input type="number" className="form-control" style={classic?xpInput:undefined} value={newPO.vat_percent} onChange={e => setNewPO({...newPO, vat_percent: parseFloat(e.target.value) || 0})} />
+                           <FieldLabel classic={classic} right={
+                               <label style={{display:'flex',alignItems:'center',gap:4,fontWeight:'normal',cursor:'pointer',fontSize:classic?'10px':'11px',color:classic?'#555':undefined}} className={classic?'':'text-muted'}>
+                                   <input type="checkbox" checked={vatEnabled} onChange={e => setVatEnabled(e.target.checked)} />
+                                   Include
+                               </label>
+                           }>VAT %</FieldLabel>
+                           <input type="number" className="form-control" disabled={!vatEnabled} style={classic?xpInput({opacity:vatEnabled?1:0.5}):undefined} value={newPO.vat_percent} onChange={e => setNewPO({...newPO, vat_percent: parseFloat(e.target.value) || 0})} />
                        </div>
                        <div className="col-md-3">
-                           <label style={lblStyle} className={lblCls}>Discount (Rp)</label>
-                           <input type="number" className="form-control" style={classic?xpInput:undefined} value={newPO.discount} onChange={e => setNewPO({...newPO, discount: parseFloat(e.target.value) || 0})} />
+                           <FieldLabel classic={classic}>Discount (Rp)</FieldLabel>
+                           <input type="number" className="form-control" style={classic?xpInput():undefined} value={newPO.discount} onChange={e => setNewPO({...newPO, discount: parseFloat(e.target.value) || 0})} />
                        </div>
                        <div className="col-md-6">
-                           <label style={lblStyle} className={lblCls}>Notes</label>
-                           <input className="form-control" style={classic?xpInput:undefined} placeholder="Optional notes printed on the PO" value={newPO.notes} onChange={e => setNewPO({...newPO, notes: e.target.value})} />
+                           <FieldLabel classic={classic}>Notes</FieldLabel>
+                           <input className="form-control" style={classic?xpInput():undefined} placeholder="Optional notes printed on the PO" value={newPO.notes} onChange={e => setNewPO({...newPO, notes: e.target.value})} />
                        </div>
                    </div>
-               </div>
+               </FormSection>
 
-               {classic
-                   ? <div style={{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',fontWeight:'bold',color:'#444',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:4,paddingBottom:2,borderBottom:'1px solid #c0bdb5'}}>Order Items</div>
-                   : <h6 className="small text-uppercase text-muted fw-bold mb-2">Order Items</h6>
-               }
-               <div style={{background:classic?'#f5f4ef':'rgba(0,0,0,0.02)',border:classic?'1px solid #b0a898':'1px solid #dee2e6',padding:classic?'6px 8px':'12px',marginBottom:classic?6:12}}>
+               <FormSection title="③ Order Items" classic={classic}>
                    <div className="row g-2 mb-2">
                        <div className="col-4">
-                           <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted mb-1'}>Item</label>
+                           <FieldLabel classic={classic}>Item</FieldLabel>
                            <SearchableSelect options={(itemResults || []).map((item: any) => ({ value: item.id, label: item.name, subLabel: item.code }))} value={newLine.item_id} onChange={(val) => setNewLine({...newLine, item_id: val, attribute_value_ids: []})} onSearch={onSearchItems} placeholder="Select Item…" />
                        </div>
                        <div className="col-2">
-                           <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted mb-1'}>Qty</label>
-                           <input type="number" className="form-control" style={classic?xpInput:undefined} placeholder="0" value={newLine.qty || ''} onChange={e => setNewLine({...newLine, qty: parseFloat(e.target.value)})} />
+                           <FieldLabel classic={classic}>Qty</FieldLabel>
+                           <input type="number" className="form-control" style={classic?xpInput():undefined} placeholder="0" value={newLine.qty || ''} onChange={e => setNewLine({...newLine, qty: parseFloat(e.target.value)})} />
                        </div>
                        <div className="col-2">
-                           <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted mb-1'}>Price (Rp)</label>
-                           <input type="number" min="0" step="0.01" className="form-control" style={classic?xpInput:undefined} placeholder="0.00" value={newLine.unit_price} onChange={e => setNewLine({...newLine, unit_price: e.target.value === '' ? '' : parseFloat(e.target.value)})} />
+                           <FieldLabel classic={classic}>Price (Rp)</FieldLabel>
+                           <input type="number" min="0" step="0.01" className="form-control" style={classic?xpInput():undefined} placeholder="0.00" value={newLine.unit_price} onChange={e => setNewLine({...newLine, unit_price: e.target.value === '' ? '' : parseFloat(e.target.value)})} />
                        </div>
                        <div className="col-2">
-                           <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted mb-1'}>Expected By</label>
-                           <input type="date" className="form-control" style={classic?{...xpInput,width:'100%',height:'22px'}:undefined} value={newLine.due_date} onChange={e => setNewLine({...newLine, due_date: e.target.value})} />
+                           <FieldLabel classic={classic}>Expected By</FieldLabel>
+                           <input type="date" className="form-control" style={classic?xpInput({width:'100%',height:'22px'}):undefined} value={newLine.due_date} onChange={e => setNewLine({...newLine, due_date: e.target.value})} />
                        </div>
                        <div className="col-2 d-flex align-items-end">
                            <button type="button" style={classic ? xpBtn({background:'linear-gradient(to bottom,#5ec85e,#2d7a2d)',borderColor:'#1a5e1a #0a3e0a #0a3e0a #1a5e1a',color:'#fff',width:'100%',padding:'2px 6px'}) : undefined} className={classic?'':'btn btn-success w-100'} onClick={handleAddLine} disabled={!newLine.item_id || newLine.qty <= 0}>
@@ -642,7 +619,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                    {line.unit_price != null && line.unit_price !== '' && <span style={{color:classic?'#555':'',fontSize:classic?'10px':''}}>@ Rp {Number(line.unit_price).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>}
                                    <span style={{fontWeight:'bold'}}>×</span>
                                    <input type="number" min="0" step="any"
-                                       style={classic ? {...xpInput, width:70, textAlign:'right'} : {width:80,textAlign:'right'}}
+                                       style={classic ? xpInput({width:70, textAlign:'right'}) : {width:80,textAlign:'right'}}
                                        className={classic?'':'form-control form-control-sm'}
                                        value={line.qty || ''}
                                        onChange={e => handleLineQtyChange(idx, e.target.value)}
@@ -657,7 +634,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                        ))}
                        {newPO.lines.length === 0 && <div style={{textAlign:'center',padding:'8px',fontFamily:classic?'Tahoma,Arial,sans-serif':'',fontSize:classic?'11px':'',color:classic?'#888':'',fontStyle:'italic'}}>No items added yet</div>}
                    </div>
-               </div>
+               </FormSection>
            </form>
        </ModalWrapper>
 
@@ -686,7 +663,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                    <div className="row g-2 mb-3">
                        <div className="col-md-3">
                            <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Receipt Date</label>
-                           <input type="date" className="form-control" style={classic?{...xpInput,width:'100%',height:'22px'}:undefined} value={receiptDate} onChange={e => setReceiptDate(e.target.value)} />
+                           <input type="date" className="form-control" style={classic?xpInput({width:'100%',height:'22px'}):undefined} value={receiptDate} onChange={e => setReceiptDate(e.target.value)} />
                        </div>
                        <div className="col-md-4">
                            <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Receiving Warehouse</label>
@@ -694,21 +671,21 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                        </div>
                        <div className="col-md-5">
                            <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Notes</label>
-                           <input type="text" className="form-control" style={classic?xpInput:undefined} placeholder="e.g. Short delivery, weighed on arrival" value={receiptNotes} onChange={e => setReceiptNotes(e.target.value)} />
+                           <input type="text" className="form-control" style={classic?xpInput():undefined} placeholder="e.g. Short delivery, weighed on arrival" value={receiptNotes} onChange={e => setReceiptNotes(e.target.value)} />
                        </div>
                    </div>
                    <div className="row g-2 mb-3">
                        <div className="col-md-3">
                            <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Delivery Note No. <span style={{color:'#888'}}>(Surat Jalan)</span></label>
-                           <input type="text" className="form-control" style={classic?{...xpInput,width:'100%'}:undefined} placeholder="Supplier's DN number" value={receiptDnNumber} onChange={e => setReceiptDnNumber(e.target.value)} />
+                           <input type="text" className="form-control" style={classic?xpInput({width:'100%'}):undefined} placeholder="Supplier's DN number" value={receiptDnNumber} onChange={e => setReceiptDnNumber(e.target.value)} />
                        </div>
                        <div className="col-md-3">
                            <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Delivery Note Date</label>
-                           <input type="date" className="form-control" style={classic?{...xpInput,width:'100%',height:'22px'}:undefined} value={receiptDnDate} onChange={e => setReceiptDnDate(e.target.value)} />
+                           <input type="date" className="form-control" style={classic?xpInput({width:'100%',height:'22px'}):undefined} value={receiptDnDate} onChange={e => setReceiptDnDate(e.target.value)} />
                        </div>
                        <div className="col-md-6">
                            <label style={classic?{fontFamily:'Tahoma,Arial,sans-serif',fontSize:'11px',color:'#000',display:'block',marginBottom:2}:undefined} className={classic?'':'form-label small text-muted'}>Attach Delivery Note <span style={{color:'#888'}}>(PDF / image)</span></label>
-                           <input type="file" accept=".pdf,.png,.jpg,.jpeg" className="form-control" style={classic?{...xpInput,width:'100%'}:undefined} onChange={e => setReceiptDnFile(e.target.files?.[0] || null)} />
+                           <input type="file" accept=".pdf,.png,.jpg,.jpeg" className="form-control" style={classic?xpInput({width:'100%'}):undefined} onChange={e => setReceiptDnFile(e.target.files?.[0] || null)} />
                        </div>
                    </div>
                    <div style={{overflowX:'auto'}}>
@@ -740,7 +717,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                                type="number"
                                                min="0"
                                                step="0.001"
-                                               style={classic?{...xpInput,width:90,textAlign:'right'}:{width:100,textAlign:'right' as const}}
+                                               style={classic?xpInput({width:90,textAlign:'right'}):{width:100,textAlign:'right' as const}}
                                                className={classic?'':'form-control form-control-sm'}
                                                placeholder="—"
                                                value={receiptLineQtys[line.id] ?? ''}
@@ -755,7 +732,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                            min="0"
                                            step="1"
                                            placeholder="—"
-                                           style={classic?{...xpInput,width:60,textAlign:'right'}:{width:80,textAlign:'right' as const}}
+                                           style={classic?xpInput({width:60,textAlign:'right'}):{width:80,textAlign:'right' as const}}
                                            className={classic?'':'form-control form-control-sm'}
                                            value={receiptLineBoxes[line.id] ?? ''}
                                            onChange={e => setReceiptLineBoxes(prev => ({ ...prev, [line.id]: e.target.value === '' ? '' : parseInt(e.target.value) || 0 }))}
@@ -768,7 +745,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                                min="0"
                                                step="1"
                                                placeholder="—"
-                                               style={classic?{...xpInput,width:60,textAlign:'right'}:{width:80,textAlign:'right' as const}}
+                                               style={classic?xpInput({width:60,textAlign:'right'}):{width:80,textAlign:'right' as const}}
                                                className={classic?'':'form-control form-control-sm'}
                                                value={receiptLineCones[line.id] ?? ''}
                                                onChange={e => setReceiptLineCones(prev => ({ ...prev, [line.id]: e.target.value === '' ? '' : parseInt(e.target.value) || 0 }))}
@@ -782,7 +759,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                                min="0"
                                                step="1"
                                                placeholder="—"
-                                               style={classic?{...xpInput,width:60,textAlign:'right'}:{width:80,textAlign:'right' as const}}
+                                               style={classic?xpInput({width:60,textAlign:'right'}):{width:80,textAlign:'right' as const}}
                                                className={classic?'':'form-control form-control-sm'}
                                                value={receiptLineDrums[line.id] ?? ''}
                                                onChange={e => setReceiptLineDrums(prev => ({ ...prev, [line.id]: e.target.value === '' ? '' : parseInt(e.target.value) || 0 }))}
@@ -793,7 +770,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
                                        <input
                                            type="text"
                                            placeholder="Supplier lot (optional)"
-                                           style={classic?{...xpInput,width:120}:{width:140}}
+                                           style={classic?xpInput({width:120}):{width:140}}
                                            className={classic?'':'form-control form-control-sm'}
                                            value={receiptLineLots[line.id] ?? ''}
                                            onChange={e => setReceiptLineLots(prev => ({ ...prev, [line.id]: e.target.value }))}
@@ -849,7 +826,7 @@ export default function PurchaseOrderView({ items, itemResults, onSearchItems, a
            {classic ? (
                <div style={xpToolbar}>
                    <input
-                       style={{ ...xpInput, width: 180 }}
+                       style={xpInput({ width: 180 })}
                        placeholder="Search PO# or supplier…"
                        value={searchTerm}
                        onChange={e => setSearchTerm(e.target.value)}
