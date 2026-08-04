@@ -12,7 +12,7 @@ import { useTimezone } from '../../context/TimezoneContext';
 import { useData } from '../../context/DataContext';
 import { useUser } from '../../context/UserContext';
 import { useSortable, SortMark, StatusChip, statusTint, XPLoading, useFloatingMenu, MenuTriggerButton, FloatingMenu, FormSection, FieldLabel, xpBtn, xpInput as xpInputBase } from '../shared/xpTheme';
-import { useArchivedComboValueIds } from '../shared/useArchivedCombos';
+import { useComboSearch } from '../shared/useComboSearch';
 import Pager from '../shared/Pager';
 import { ShellWindow, ShellTitleBar, xpToolbar } from '../shared/shellTheme';
 import { useRouter } from 'next/navigation';
@@ -46,9 +46,9 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
   const lineageEnvBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
   const LINEAGE_API_BASE = lineageEnvBase.endsWith('/api') ? lineageEnvBase : `${lineageEnvBase}/api`;
 
-  // Combo Library governs which combos are offered; shared hook subtracts archived so
-  // the Combo dropdown shows only active library combos (see useArchivedComboValueIds).
-  const archivedComboValueIds = useArchivedComboValueIds();
+  // Combo Library governs which combos are offered — server-searched (thousands of
+  // combos won't fit in a client-rendered <select>), scoped to active combos only.
+  const { results: comboResults, onSearch: onSearchCombos } = useComboSearch();
   const [lineageSO, setLineageSO] = useState<any>(null);
   const [lineageData, setLineageData] = useState<any>(null);
   const [lineageLoading, setLineageLoading] = useState(false);
@@ -1246,12 +1246,36 @@ export default function SalesOrderView({ items, itemResults, onSearchItems, attr
                                    <div style={classic ? {fontFamily:'Tahoma,Arial,sans-serif',fontSize:'10px',fontWeight:'bold',color:'#444',marginBottom:4} : undefined} className={classic ? '' : 'text-muted fw-bold mb-2 small'}>Variants</div>
                                    <div className="row g-2">
                                        {currentBoundAttrs.map((attr: any) => {
-                                           // For the Combo attribute, show only active library combos
-                                           // (drop archived); other attributes list all values.
                                            const isCombo = comboAttr && attr.id === comboAttr.id;
-                                           const opts = isCombo
-                                               ? (attr.values || []).filter((v: any) => !archivedComboValueIds.has(String(v.id)))
-                                               : (attr.values || []);
+                                           if (isCombo) {
+                                               // Combo Library is server-searched (thousands of combos) —
+                                               // options come from the current search page, keyed on
+                                               // attribute_value_id so selection still writes into
+                                               // attribute_value_ids like the plain-select attrs below.
+                                               const selectedId = newLine.attribute_value_ids.find((vid: string) => (attr.values || []).some((v: any) => v.id === vid)) || '';
+                                               const options: { value: string; label: string; subLabel?: string }[] =
+                                                   comboResults.map((c: any) => ({ value: c.attribute_value_id, label: c.name, subLabel: c.code }));
+                                               // If the current selection isn't in the loaded search page
+                                               // (e.g. editing an existing line), fall back to the label
+                                               // already cached on the attribute so it still displays.
+                                               if (selectedId && !options.some(o => o.value === selectedId)) {
+                                                   const selectedAttrValue = (attr.values || []).find((v: any) => v.id === selectedId);
+                                                   if (selectedAttrValue) options.unshift({ value: selectedId, label: selectedAttrValue.value });
+                                               }
+                                               return (
+                                               <div key={attr.id} className="col-md-4">
+                                                   <SearchableSelect
+                                                       options={options}
+                                                       value={selectedId}
+                                                       onChange={val => handleValueChange(val, attr.id)}
+                                                       onSearch={onSearchCombos}
+                                                       placeholder={`Any ${attr.name}`}
+                                                       size="sm"
+                                                   />
+                                               </div>
+                                               );
+                                           }
+                                           const opts = attr.values || [];
                                            return (
                                            <div key={attr.id} className="col-md-4">
                                                <select
