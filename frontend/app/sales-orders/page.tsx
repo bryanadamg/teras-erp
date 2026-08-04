@@ -3,7 +3,7 @@
 import SalesOrderView from '../components/sales/SalesOrderView';
 import { useData } from '../context/DataContext';
 import { useRouter } from 'next/navigation';
-import { useFinishedGoodsSearch } from '../components/shared/useFinishedGoodsSearch';
+import { useFinishedGoodsSearch } from '../components/shared/useEntitySearch';
 import { useToast } from '../components/shared/Toast';
 import { useConfirm } from '../context/ConfirmContext';
 

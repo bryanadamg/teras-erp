@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useData } from '../../context/DataContext';
 import { useTimezone } from '../../context/TimezoneContext';
 import { useToast } from '../shared/Toast';
 import SearchableSelect from '../shared/SearchableSelect';
+import { useItemSearch, itemToOption } from '../shared/useEntitySearch';
 import ModalWrapper from '../shared/ModalWrapper';
 import BagLabelPrintModal from './BagLabelPrintModal';
 import { ProgressBar, LegendPanel } from '../shared/xpTheme';
@@ -83,42 +84,14 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
     const [labelBags, setLabelBags] = useState<any[] | null>(null);
     const [labelSeqStart, setLabelSeqStart] = useState(1);
 
-    // Substitute picker: search the backend directly instead of filtering
-    // DataContext's `items`, which is only a 50-row, newest-first page — a
-    // substitute candidate outside that page would otherwise never appear no
-    // matter what's typed. Accumulate every item seen (context page + each
-    // search page) so a previously-picked substitute still resolves its
-    // name/code after the search results move on.
-    const [itemSearchResults, setItemSearchResults] = useState<any[]>([]);
-    const itemSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const handleItemSearch = useCallback((term: string) => {
-        if (itemSearchTimer.current) clearTimeout(itemSearchTimer.current);
-        itemSearchTimer.current = setTimeout(async () => {
-            try {
-                const res = await authFetch(`${API_BASE}/items?search=${encodeURIComponent(term)}&limit=50`);
-                if (res.ok) {
-                    const data = await res.json();
-                    setItemSearchResults(data.items || []);
-                }
-            } catch { /* silent */ }
-        }, 300);
-    }, [authFetch, API_BASE]);
-    useEffect(() => () => { if (itemSearchTimer.current) clearTimeout(itemSearchTimer.current); }, []);
+    // Substitute picker: server typeahead, not a filter over DataContext's `items`
+    // (only a 50-row, newest-first page — a candidate outside it was unreachable no
+    // matter what was typed). `resolve` covers items seen in any page so far, so a
+    // BOM line or an already-picked substitute keeps its name/code once the result
+    // window moves past it.
+    const { results: itemResults, onSearch: onSearchItems, resolve: resolveItem } = useItemSearch({ seed: items });
 
-    const [itemCache, setItemCache] = useState<Record<string, any>>({});
-    useEffect(() => {
-        const merge = (arr: any[]) => {
-            if (!arr?.length) return;
-            setItemCache(prev => {
-                const next = { ...prev };
-                for (const it of arr) next[it.id] = it;
-                return next;
-            });
-        };
-        merge(items); merge(itemSearchResults);
-    }, [items, itemSearchResults]);
-
-    const findItem = (itemId: string) => itemCache[itemId] || (items || []).find((i: any) => i.id === itemId);
+    const findItem = (itemId: string) => resolveItem(itemId) || (items || []).find((i: any) => i.id === itemId);
     const isBeamItem = (itemId: string) => {
         const it = findItem(itemId);
         return (it?.category_path || []).some((p: string) => (p || '').toLowerCase() === 'beam');
@@ -400,9 +373,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
     const wcOptions = (workCenters || []).map((wc: any) => ({
         value: wc.id, label: wc.name, subLabel: wc.code,
     }));
-    const itemOptions = Object.values(itemCache).map((it: any) => ({
-        value: it.id, label: it.name, subLabel: it.code,
-    }));
+    const itemOptions = itemResults.map(itemToOption);
 
     return (
         <ModalWrapper
@@ -729,7 +700,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                                                         options={itemOptions}
                                                                         value={row.is_substitute ? row.item_id : ''}
                                                                         onChange={v => {
-                                                                            const chosen = itemCache[v];
+                                                                            const chosen = resolveItem(v);
                                                                             setMaterialRows(prev => prev.map((r, i) => i === idx ? {
                                                                                 ...r,
                                                                                 item_id: chosen?.id || r.orig_item_id,
@@ -740,7 +711,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                                                             } : r));
                                                                             if (chosen) setSubPickerIdx(null);
                                                                         }}
-                                                                        onSearch={handleItemSearch}
+                                                                        onSearch={onSearchItems}
                                                                         placeholder="Search substitute item..."
                                                                     />
                                                                 </td>
@@ -775,7 +746,7 @@ export default function WOCompletionModal({ mo, onClose, onSaved, workOrder }: W
                                                 options={itemOptions}
                                                 value={row.item_id}
                                                 onChange={v => updateActualItem(idx, 'item_id', v)}
-                                                onSearch={handleItemSearch}
+                                                onSearch={onSearchItems}
                                                 placeholder="Select item…"
                                             />
                                         </div>

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import LabDipRequestView from '../components/lab-dips/LabDipRequestView';
 import { useData } from '../context/DataContext';
-import { useRawMaterialSearch } from '../components/shared/useRawMaterialSearch';
+import { useRawMaterialSearch } from '../components/shared/useEntitySearch';
 import { useToast } from '../components/shared/Toast';
 import { useConfirm } from '../context/ConfirmContext';
 

@@ -15,7 +15,7 @@ import Pager from '../shared/Pager';
 import ModalWrapper from '../shared/ModalWrapper';
 import SearchableSelect from '../shared/SearchableSelect';
 import TreeSelect, { buildLocationPickerTree } from '../shared/TreeSelect';
-import { useFinishedGoodsSearch } from '../shared/useFinishedGoodsSearch';
+import { useFinishedGoodsSearch } from '../shared/useEntitySearch';
 import { LotChips, LotChip } from '../shared/LotChips';
 const PackingCardPrintModal = dynamic(() => import('./PackingCardPrintModal'), { ssr: false });
 const PackedUnitLabelPrintModal = dynamic(() => import('./PackedUnitLabelPrintModal'), { ssr: false });

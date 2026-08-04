@@ -4,7 +4,7 @@ import PurchaseOrderView from '../components/purchasing/PurchaseOrderView';
 import { useData } from '../context/DataContext';
 import { useToast } from '../components/shared/Toast';
 import { useConfirm } from '../context/ConfirmContext';
-import { usePurchasableItemSearch } from '../components/shared/usePurchasableItemSearch';
+import { usePurchasableItemSearch } from '../components/shared/useEntitySearch';
 
 export default function PurchaseOrdersPage() {
     const { items, attributes, purchaseOrders, partners, locations, companyProfile, refreshPurchaseOrders, authFetch } = useData();
